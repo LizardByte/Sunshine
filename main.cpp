@@ -3,7 +3,6 @@
 //
 
 #include <thread>
-#include <fstream>
 
 #include "nvhttp.h"
 #include "stream.h"
@@ -11,8 +10,6 @@
 extern "C" {
 #include <rs.h>
 }
-
-#include <libavcodec/avcodec.h>
 
 #include "config.h"
 using namespace std::literals;
