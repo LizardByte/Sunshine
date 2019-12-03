@@ -1,0 +1,8 @@
+build
+cmake-build-*
+.DS_Store
+
+*.swp
+*.kdev4
+
+.idea

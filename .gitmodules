@@ -1,0 +1,6 @@
+[submodule "moonlight-common-c"]
+	path = moonlight-common-c
+	url = git@github.com:moonlight-stream/moonlight-common-c.git
+[submodule "Simple-Web-Server"]
+	path = Simple-Web-Server
+	url = git@github.com:loki-47-6F-64/Simple-Web-Server.git
