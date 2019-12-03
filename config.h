@@ -29,6 +29,8 @@ struct nvhttp_t {
 extern video_t video;
 extern stream_t stream;
 extern nvhttp_t nvhttp;
+
+void parse_file(const char *file);
 }
 
 #endif
