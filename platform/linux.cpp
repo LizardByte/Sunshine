@@ -4,6 +4,10 @@
 
 #include "common.h"
 
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
+
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -15,9 +19,72 @@
 #include <pulse/error.h>
 
 #include <iostream>
+#include <bitset>
 
 namespace platf {
 using namespace std::literals;
+
+using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
+
+ifaddr_t get_ifaddrs() {
+  ifaddrs *p { nullptr };
+
+  getifaddrs(&p);
+
+  return ifaddr_t { p };
+}
+
+std::string from_sockaddr(const sockaddr *const ip_addr) {
+  char data[INET6_ADDRSTRLEN];
+
+  auto family = ip_addr->sa_family;
+  if(family == AF_INET6) {
+    inet_ntop(AF_INET6, &((sockaddr_in6*)ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
+  }
+
+  if(family == AF_INET) {
+    inet_ntop(AF_INET, &((sockaddr_in*)ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
+  }
+
+  return std::string { data };
+}
+
+std::string get_local_ip(int family) {
+  std::bitset<2> family_f {};
+
+  if(family == 0) {
+    family_f[0] = true;
+    family_f[1] = true;
+  }
+
+  if(family == AF_INET) {
+    family_f[0] = true;
+  }
+
+  if(family == AF_INET6) {
+    family_f[1] = true;
+  }
+
+
+  std::string ip_addr;
+  auto ifaddr = get_ifaddrs();
+  for(auto pos = ifaddr.get(); pos != nullptr; pos = pos->ifa_next) {
+    if(pos->ifa_addr && pos->ifa_flags & IFF_UP && !(pos->ifa_flags & IFF_LOOPBACK)) {
+      if(
+        (family_f[0] && pos->ifa_addr->sa_family == AF_INET) ||
+        (family_f[1] && pos->ifa_addr->sa_family == AF_INET6)
+        ){
+        ip_addr = from_sockaddr(pos->ifa_addr);
+	break;
+      }
+    }
+  }
+
+  return ip_addr;
+}
+
+std::string get_local_ip() { return get_local_ip(AF_INET); }
+
 struct display_attr_t {
   display_attr_t() : display { XOpenDisplay(nullptr) }, window { DefaultRootWindow(display) }, attr {} {
     XGetWindowAttributes(display, window, &attr);

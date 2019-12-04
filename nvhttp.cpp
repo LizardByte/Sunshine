@@ -19,6 +19,7 @@
 #include "utility.h"
 #include "stream.h"
 #include "nvhttp.h"
+#include "platform/common.h"
 
 
 namespace nvhttp {
@@ -34,6 +35,7 @@ namespace pt = boost::property_tree;
 
 std::string read_file(const char *path);
 
+std::string local_ip;
 using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 using http_server_t  = SimpleWeb::Server<SimpleWeb::HTTP>;
 
@@ -396,10 +398,10 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   tree.put("root.GfeVersion", GFE_VERSION);
   tree.put("root.uniqueid", config::nvhttp.unique_id);
   tree.put("root.mac", "42:45:F0:65:D6:F4");
-  tree.put("root.LocalIP", "192.168.0.195"); //FIXME: Should be determined at runtime
+  tree.put("root.LocalIP", local_ip);
 
   if(config::nvhttp.external_ip.empty()) {
-    tree.put("root.ExternalIP", "192.168.0.195");
+    tree.put("root.ExternalIP", local_ip);
   }
   else {
     tree.put("root.ExternalIP", config::nvhttp.external_ip);
@@ -497,6 +499,13 @@ void appasset(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respo
 }
 
 void start() {
+  local_ip = platf::get_local_ip();
+  if(local_ip.empty()) {
+    std::cout << "Error: Could not determine the local ip-address"sv << std::endl;
+
+    exit(8);
+  }
+
   load_devices();
 
   conf_intern.pkey = read_file(config::nvhttp.pkey.c_str());

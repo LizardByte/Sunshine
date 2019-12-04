@@ -5,6 +5,7 @@
 #ifndef SUNSHINE_COMMON_H
 #define SUNSHINE_COMMON_H
 
+#include <string>
 #include <utility.h>
 
 namespace platf {
@@ -19,6 +20,7 @@ using img_t     = util::safe_ptr<void, freeImage>;
 using mic_t     = util::safe_ptr<void, freeMic>;
 using audio_t   = util::safe_ptr<void, freeAudio>;
 
+std::string get_local_ip();
 display_t display();
 img_t snapshot(display_t &display);
 mic_t microphone();
@@ -34,7 +36,6 @@ void move_mouse(display_t::element_type *display, int deltaX, int deltaY);
 void button_mouse(display_t::element_type *display, int button, bool release);
 void scroll(display_t::element_type *display, int distance);
 void keyboard(display_t::element_type *display, uint16_t modcode, bool release);
-
 }
 
 #endif //SUNSHINE_COMMON_H
