@@ -53,6 +53,14 @@ struct pair_session_t {
 
   std::string serversecret;
   std::string serverchallenge;
+
+  struct {
+    util::Either<
+      std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>,
+      std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>
+    > response;
+    std::string salt;
+  } async_insert_pin;
 };
 
 // uniqueID, session
@@ -65,14 +73,6 @@ enum class op_e {
   ADD,
   REMOVE
 };
-
-std::string get_pin() {
-  std::cout << "Please insert PIN: ";
-  std::string pin;
-  std::getline(std::cin, pin);
-
-  return pin;
-}
 
 void save_devices() {
   pt::ptree root;
@@ -127,10 +127,8 @@ void update_id_client(client_t &client, op_e op) {
   save_devices();
 }
 
-void getservercert(pair_session_t &sess, pt::ptree &tree, const args_t &args) {
-  auto salt = util::from_hex<std::array<uint8_t, 16>>(args.at("salt"s), true);
-
-  auto pin = get_pin();
+void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin) {
+  auto salt = util::from_hex<std::array<uint8_t, 16>>(sess.async_insert_pin.salt, true);
 
   auto key = crypto::gen_aes_key(*salt, pin);
   sess.cipher_key = std::make_unique<crypto::aes_t>(key);
@@ -243,46 +241,6 @@ void clientpairingsecret(pair_session_t &sess, pt::ptree &tree, const args_t &ar
   tree.put("root.<xmlattr>.status_code", 200);
 }
 
-pt::ptree pair_xml(args_t &&args) {
-  auto uniqID { std::move(args.at("uniqueid"s)) };
-  auto sess_it = map_id_sess.find(uniqID);
-
-  pt::ptree tree;
-
-  args_t::const_iterator it;
-  if(it = args.find("phrase"); it != std::end(args)) {
-    if(it->second == "getservercert"sv) {
-      pair_session_t sess;
-
-      sess.client.uniqueID = std::move(uniqID);
-      sess.client.cert = util::from_hex_vec(args.at("clientcert"s), true);
-
-      std::cout << sess.client.cert;
-
-      auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
-      getservercert(ptr->second, tree, args);
-    }
-    else if(it->second == "pairchallenge"sv) {
-      tree.put("root.paired", 1);
-      tree.put("root.<xmlattr>.status_code", 200);
-    }
-  }
-  else if(it = args.find("clientchallenge"); it != std::end(args)) {
-    clientchallenge(sess_it->second, tree, args);
-  }
-  else if(it = args.find("serverchallengeresp"); it != std::end(args)) {
-    serverchallengeresp(sess_it->second, tree, args);
-  }
-  else if(it = args.find("clientpairingsecret"); it != std::end(args)) {
-    clientpairingsecret(sess_it->second, tree, args);
-  }
-  else {
-    tree.put("root.<xmlattr>.status_code", 404);
-  }
-
-  return tree;
-}
-
 template<class T>
 struct tunnel;
 
@@ -335,12 +293,75 @@ template<class T>
 void pair(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
-  auto tree = pair_xml(request->parse_query_string());
+  auto args = request->parse_query_string();
+  auto uniqID { std::move(args.at("uniqueid"s)) };
+  auto sess_it = map_id_sess.find(uniqID);
+
+  pt::ptree tree;
+
+  args_t::const_iterator it;
+  if(it = args.find("phrase"); it != std::end(args)) {
+    if(it->second == "getservercert"sv) {
+      pair_session_t sess;
+      
+      sess.client.uniqueID = std::move(uniqID);
+      sess.client.cert = util::from_hex_vec(args.at("clientcert"s), true);
+
+      std::cout << sess.client.cert;
+      auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
+
+      ptr->second.async_insert_pin.salt = std::move(args.at("salt"s));
+      ptr->second.async_insert_pin.response = std::move(response);
+      return;
+    }
+    else if(it->second == "pairchallenge"sv) {
+      tree.put("root.paired", 1);
+      tree.put("root.<xmlattr>.status_code", 200);
+    }
+  }
+  else if(it = args.find("clientchallenge"); it != std::end(args)) {
+    clientchallenge(sess_it->second, tree, args);
+  }
+  else if(it = args.find("serverchallengeresp"); it != std::end(args)) {
+    serverchallengeresp(sess_it->second, tree, args);
+  }
+  else if(it = args.find("clientpairingsecret"); it != std::end(args)) {
+    clientpairingsecret(sess_it->second, tree, args);
+  }
+  else {
+    tree.put("root.<xmlattr>.status_code", 404);
+  }
 
   std::ostringstream data;
 
   pt::write_xml(data, tree);
   response->write(data.str());
+}
+
+template<class T>
+void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+  print_req<T>(request);
+
+  pt::ptree tree;
+
+  auto &sess = std::begin(map_id_sess)->second;
+  getservercert(sess, tree, request->path_match[1]);
+
+  // response to the request for pin
+  std::ostringstream data;
+  pt::write_xml(data, tree);
+
+  auto &async_response = sess.async_insert_pin.response;
+  if(async_response.left()) {
+    async_response.left()->write(data.str());
+  }
+  else {
+    async_response.right()->write(data.str());
+  }
+
+  async_response = std::decay_t<decltype(async_response.left())>();
+  // response to the current request
+  response->write(""s);
 }
 
 template<class T>
@@ -477,22 +498,24 @@ void start() {
   http_server_t http_server;
 
   https_server.default_resource = not_found<SimpleWeb::HTTPS>;
-  https_server.resource["^/serverinfo"]["GET"] = serverinfo<SimpleWeb::HTTPS>;
-  https_server.resource["^/pair"]["GET"] = pair<SimpleWeb::HTTPS>;
-  https_server.resource["^/applist"]["GET"] = applist<SimpleWeb::HTTPS>;
-  https_server.resource["^/appasset"]["GET"] = appasset<SimpleWeb::HTTPS>;
-  https_server.resource["^/launch"]["GET"] = launch<SimpleWeb::HTTPS>;
+  https_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTPS>;
+  https_server.resource["^/pair$"]["GET"] = pair<SimpleWeb::HTTPS>;
+  https_server.resource["^/applist$"]["GET"] = applist<SimpleWeb::HTTPS>;
+  https_server.resource["^/appasset$"]["GET"] = appasset<SimpleWeb::HTTPS>;
+  https_server.resource["^/launch$"]["GET"] = launch<SimpleWeb::HTTPS>;
+  https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
 
   https_server.config.reuse_address = true;
   https_server.config.address = "0.0.0.0"s;
   https_server.config.port = PORT_HTTPS;
 
   http_server.default_resource = not_found<SimpleWeb::HTTP>;
-  http_server.resource["^/serverinfo"]["GET"] = serverinfo<SimpleWeb::HTTP>;
-  http_server.resource["^/pair"]["GET"] = pair<SimpleWeb::HTTP>;
-  http_server.resource["^/applist"]["GET"] = applist<SimpleWeb::HTTP>;
-  http_server.resource["^/appasset"]["GET"] = appasset<SimpleWeb::HTTP>;
-  http_server.resource["^/launch"]["GET"] = launch<SimpleWeb::HTTP>;
+  http_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTP>;
+  http_server.resource["^/pair$"]["GET"] = pair<SimpleWeb::HTTP>;
+  http_server.resource["^/applist$"]["GET"] = applist<SimpleWeb::HTTP>;
+  http_server.resource["^/appasset$"]["GET"] = appasset<SimpleWeb::HTTP>;
+  http_server.resource["^/launch$"]["GET"] = launch<SimpleWeb::HTTP>;
+  http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
 
   http_server.config.reuse_address = true;
   http_server.config.address = "0.0.0.0"s;

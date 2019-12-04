@@ -1,0 +1,13 @@
+[Unit]
+Description=Remote desktop service (VNC)
+
+[Service]
+WorkingDirectory=/home/%u
+Environment="DISPLAY=:0"
+Type=simple
+# wait for Xorg started by ${USER}
+ExecStartPre=/bin/sh -c 'while ! pgrep Xorg; do sleep 2; done'
+ExecStart=/home/%u/Github/sunshine/cmake-build-release/sunshine
+
+[Install]
+WantedBy=default.target
