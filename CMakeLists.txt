@@ -56,9 +56,11 @@ include_directories(
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
+
+#FIXME: libX11 is Linux only
 find_package(X11 REQUIRED)
 
-list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized)
+list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
@@ -80,7 +82,6 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		pulse
 		pulse-simple
 
-		#libpulse should be found with package_find
 		opus)
 
 add_definitions(-DSUNSHINE_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")

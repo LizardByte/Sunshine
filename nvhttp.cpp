@@ -2,9 +2,8 @@
 // Created by loki on 6/3/19.
 //
 
-#include "nvhttp.h"
-
 #include <iostream>
+#include <filesystem>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
@@ -19,6 +18,8 @@
 #include "config.h"
 #include "utility.h"
 #include "stream.h"
+#include "nvhttp.h"
+
 
 namespace nvhttp {
 using namespace std::literals;
@@ -28,6 +29,7 @@ constexpr auto PORT_HTTPS = 47984;
 constexpr auto VERSION     = "7.1.415.0";
 constexpr auto GFE_VERSION = "2.0.0.1";
 
+namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
 std::string read_file(const char *path);
@@ -91,6 +93,12 @@ void save_devices() {
 }
 
 void load_devices() {
+  auto file_devices = fs::current_path() / config::nvhttp.file_devices;
+
+  if(!fs::exists(file_devices)) {
+    return;
+  }
+
   pt::ptree root;
   try {
     pt::read_json(config::nvhttp.file_devices, root);
