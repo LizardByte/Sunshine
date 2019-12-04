@@ -1,6 +1,13 @@
 //
 // Created by loki on 6/5/19.
 //
+#include <boost/version.hpp>
+#if ((BOOST_VERSION / 1000) >= 107)
+#define EXECUTOR(x) (x->get_executor())
+#else
+#define EXECUTOR(x) (x->get_io_service())
+#endif
+
 
 #include <queue>
 #include <iostream>
@@ -458,7 +465,7 @@ std::optional<udp::endpoint> recv_peer(udp::socket &sock) {
 
   udp::endpoint peer;
   while (session.client_state > 0) {
-    asio::deadline_timer timer { sock.get_executor() };
+    asio::deadline_timer timer { EXECUTOR((&sock)) };
     timer.expires_from_now(boost::posix_time::seconds(2));
     timer.async_wait([&](sys::error_code c){
       sock.cancel();
