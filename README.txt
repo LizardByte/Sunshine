@@ -15,7 +15,7 @@ Usage:
 		wget xxx.xxx.xxx.xxx:47989/pin/xxxx -- where the final 4 x'es are subsituted by the pin
 			or
 		Type in the URL bar of your browser: xxx.xxx.xxx.xxx:47989/pin/xxxx -- where the final 4 x'es are subsituted by the pin
-	* Click on one of the Application listed
+	* Click on one of the Applications listed
 	* Have fun :)
 
 Note:
