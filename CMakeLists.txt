@@ -42,7 +42,17 @@ set(SUNSHINE_TARGET_FILES
 	utility.h
 	uuid.h
 	config.h config.cpp
-	main.cpp crypto.cpp crypto.h nvhttp.cpp nvhttp.h stream.cpp stream.h video.cpp video.h queue.h input.cpp input.h audio.cpp audio.h platform/linux.cpp platform/common.h)
+	main.cpp
+	crypto.cpp crypto.h
+	nvhttp.cpp nvhttp.h
+	stream.cpp stream.h
+	video.cpp video.h
+	queue.h
+	input.cpp input.h
+	audio.cpp audio.h
+	platform/linux.cpp
+	platform/linux_evdev.cpp
+	platform/common.h)
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -50,6 +60,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/enet/include
   ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/reedsolomon
   ${X11_INCLUDE_DIR}
+  /usr/include/libevdev-1.0
   ${FFMPEG_INCLUDE_DIRS}
 )
 
@@ -82,7 +93,8 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		pulse
 		pulse-simple
 
-		opus)
+		opus
+		evdev)
 
 add_definitions(-DSUNSHINE_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
