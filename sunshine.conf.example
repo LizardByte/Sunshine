@@ -28,6 +28,10 @@ gop_size = 24
 # Higher value means more compression, but less quality
 crf = 28
 
+# Number of threads used by ffmpeg to encode the video
+# threads = 4
+
+
 # See x264 --fullhelp for the different presets
 # profile = baseline
 # preset  = superfast

@@ -104,7 +104,7 @@ void encodeThread(
 
   ctx->slices = config.slicesPerFrame;
   ctx->thread_type = FF_THREAD_SLICE;
-  ctx->thread_count = std::min(config.slicesPerFrame, 4);
+  ctx->thread_count = config::video.threads;
 
 
   AVDictionary *options {nullptr};

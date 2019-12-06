@@ -11,6 +11,8 @@ struct video_t {
   int gop_size;
   int crf; // higher == more compression and less quality
 
+  int threads; // Number threads used by ffmpeg
+
   std::string profile;
   std::string preset;
   std::string tune;
