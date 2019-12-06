@@ -6,6 +6,7 @@ extern "C" {
 #include <moonlight-common-c/src/Input.h>
 }
 
+#include <cstring>
 #include <iostream>
 
 #include "input.h"
@@ -95,48 +96,69 @@ void print(void *input) {
   }
 }
 
-void passthrough(platf::display_t::element_type *display, PNV_MOUSE_MOVE_PACKET packet) {
-  platf::move_mouse(display, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
+void passthrough(platf::input_t &input, PNV_MOUSE_MOVE_PACKET packet) {
+  platf::move_mouse(input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
 }
 
-void passthrough(platf::display_t::element_type *display, PNV_MOUSE_BUTTON_PACKET packet) {
+void passthrough(platf::input_t &input, PNV_MOUSE_BUTTON_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x09;
 
-  platf::button_mouse(display, util::endian::big(packet->button), packet->action == BUTTON_RELEASED);
+  platf::button_mouse(input, util::endian::big(packet->button), packet->action == BUTTON_RELEASED);
 }
 
-void passthrough(platf::display_t::element_type *display, PNV_KEYBOARD_PACKET packet) {
+void passthrough(platf::input_t &input, PNV_KEYBOARD_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x04;
 
-  platf::keyboard(display, packet->keyCode & 0x00FF, packet->keyAction == BUTTON_RELEASED);
+  platf::keyboard(input, packet->keyCode & 0x00FF, packet->keyAction == BUTTON_RELEASED);
 }
 
-void passthrough(platf::display_t::element_type *display, PNV_SCROLL_PACKET packet) {
-  platf::scroll(display, util::endian::big(packet->scrollAmt1));
+void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
+  platf::scroll(input, util::endian::big(packet->scrollAmt1));
 }
 
-void passthrough(platf::display_t::element_type *display, void *input) {
-  int input_type = util::endian::big(*(int*)input);
+void passthrough(platf::input_t &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+  std::uint16_t bf;
+
+  static_assert(sizeof(bf) == sizeof(packet->buttonFlags), "Can't memcpy :(");
+  std::memcpy(&bf, &packet->buttonFlags, sizeof(std::uint16_t));
+  platf::gamepad_state_t gamepad_state {
+    bf,
+    packet->leftTrigger,
+    packet->rightTrigger,
+    packet->leftStickX,
+    packet->leftStickY,
+    packet->rightStickX,
+    packet->rightStickY
+  };
+
+  platf::gamepad(input, gamepad_state);
+}
+
+void passthrough(platf::input_t &input, void *payload) {
+  int input_type = util::endian::big(*(int*)payload);
 
   switch(input_type) {
     case PACKET_TYPE_MOUSE_MOVE:
-      passthrough(display, (PNV_MOUSE_MOVE_PACKET)input);
+      passthrough(input, (PNV_MOUSE_MOVE_PACKET)payload);
       break;
     case PACKET_TYPE_MOUSE_BUTTON:
-      passthrough(display, (PNV_MOUSE_BUTTON_PACKET)input);
+      passthrough(input, (PNV_MOUSE_BUTTON_PACKET)payload);
       break;
     case PACKET_TYPE_SCROLL_OR_KEYBOARD:
     {
-      char *tmp_input = (char*)input + 4;
+      char *tmp_input = (char*)payload + 4;
       if(tmp_input[0] == 0x0A) {
-        passthrough(display, (PNV_SCROLL_PACKET)input);
+        passthrough(input, (PNV_SCROLL_PACKET)payload);
       }
       else {
-        passthrough(display, (PNV_KEYBOARD_PACKET)input);
+        passthrough(input, (PNV_KEYBOARD_PACKET)payload);
       }
 
       break;
     }
+    case PACKET_TYPE_MULTI_CONTROLLER:
+      passthrough(input, (PNV_MULTI_CONTROLLER_PACKET)payload);
+      break;
   }
 }
 }

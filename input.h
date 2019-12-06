@@ -10,7 +10,7 @@
 namespace input {
 void print(void *input);
 
-void passthrough(platf::display_t::element_type *display, void *input);
+void passthrough(platf::input_t &, void *input);
 }
 
 #endif //SUNSHINE_INPUT_H

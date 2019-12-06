@@ -376,7 +376,7 @@ void server_t::map(uint16_t type, std::function<void(const std::string_view &)> 
 void controlThread() {
   server_t server { CONTROL_PORT };
 
-  std::shared_ptr display = platf::display();
+  auto input = platf::input();
   server.map(packetTypes[IDX_START_A], [](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
@@ -420,7 +420,7 @@ void controlThread() {
     std::cout << "lastFrame [" << lastFrame << ']' << std::endl;
   });
 
-  server.map(packetTypes[IDX_INPUT_DATA], [display](const std::string_view &payload) mutable {
+  server.map(packetTypes[IDX_INPUT_DATA], [&input](const std::string_view &payload) mutable {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
     std::cout << "type [IDX_INPUT_DATA]"sv << std::endl;
@@ -444,7 +444,7 @@ void controlThread() {
     }
 
     input::print(plaintext.data());
-    input::passthrough(display.get(), plaintext.data());
+    input::passthrough(input, plaintext.data());
   });
 
   while(session.client_state > 0) {
