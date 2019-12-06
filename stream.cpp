@@ -217,7 +217,8 @@ fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercen
   if(nr_shards > DATA_SHARDS_MAX) {
     std::cerr << "Error: number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl;
     std::cerr << nr_shards << " > "sv << DATA_SHARDS_MAX << std::endl;
-    exit(9);
+
+    return { 0 };
   }
 
   util::buffer_t<char> shards { nr_shards * blocksize };
@@ -610,6 +611,9 @@ void videoThread() {
     payload = {(char *) payload_new.data(), payload_new.size()};
 
     auto shards = fec::encode(payload, blocksize, fecpercentage);
+    if(shards.data_shards == 0) {
+      continue;
+    }
 
     for (auto x = shards.data_shards; x < shards.size(); ++x) {
       video_packet_raw_t *inspect = (video_packet_raw_t *)shards[x].data();
