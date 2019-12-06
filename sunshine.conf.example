@@ -26,4 +26,9 @@ gop_size = 24
 
 # Constant Rate Factor. Between 1 and 52.
 # Higher value means more compression, but less quality
-crf = 35
+crf = 28
+
+# See x264 --fullhelp for the different presets
+# profile = baseline
+# preset  = superfast
+# tune    = zerolatency

@@ -452,7 +452,7 @@ void controlThread() {
       session.client_state = 0;
     }
 
-    server.iterate(2s);
+    server.iterate(500ms);
   }
 }
 
@@ -609,7 +609,7 @@ void videoThread() {
 
     payload = {(char *) payload_new.data(), payload_new.size()};
 
-    auto shards = fec::encode(payload, blocksize, 25);
+    auto shards = fec::encode(payload, blocksize, fecpercentage);
 
     for (auto x = shards.data_shards; x < shards.size(); ++x) {
       video_packet_raw_t *inspect = (video_packet_raw_t *)shards[x].data();
@@ -781,17 +781,17 @@ void cmd_announce(tcp::socket &&sock, msg_t &&req) {
   }
 
   auto &config = session.config;
-  config.monitor.height         = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
-  config.monitor.width          = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
-  config.monitor.framerate      = util::from_view(args.at("x-nv-video[0].maxFPS"sv));
-  config.monitor.bitrate        = util::from_view(args.at("x-nv-video[0].initialBitrateKbps"sv));
-  config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
-
   config.audio.channels       = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
   config.audio.mask           = util::from_view(args.at("x-nv-audio.surround.channelMask"sv));
   config.audio.packetDuration = util::from_view(args.at("x-nv-aqos.packetDuration"sv));
 
   config.packetsize = util::from_view(args.at("x-nv-video[0].packetSize"sv));
+
+  config.monitor.height         = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
+  config.monitor.width          = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
+  config.monitor.framerate      = util::from_view(args.at("x-nv-video[0].maxFPS"sv));
+  config.monitor.bitrate        = util::from_view(args.at("x-nv-video[0].initialBitrateKbps"sv));
+  config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
 
   std::copy(std::begin(gcm_key), std::end(gcm_key), std::begin(session.gcm_key));
   std::copy(std::begin(iv), std::end(iv), std::begin(session.iv));

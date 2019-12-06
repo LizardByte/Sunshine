@@ -10,6 +10,10 @@ struct video_t {
   int max_b_frames;
   int gop_size;
   int crf; // higher == more compression and less quality
+
+  std::string profile;
+  std::string preset;
+  std::string tune;
 };
 
 struct stream_t {

@@ -106,10 +106,11 @@ void encodeThread(
   ctx->thread_type = FF_THREAD_SLICE;
   ctx->thread_count = std::min(config.slicesPerFrame, 4);
 
+
   AVDictionary *options {nullptr};
-  av_dict_set(&options, "preset", "ultrafast", 0);
-  // av_dict_set(&options, "tune", "fastdecode", 0);
-  av_dict_set(&options, "profile", "baseline", 0);
+  av_dict_set(&options, "profile", config::video.profile.c_str(), 0);
+  av_dict_set(&options, "preset", config::video.preset.c_str(), 0);
+  av_dict_set(&options, "tune", config::video.tune.c_str(), 0);
 
   av_dict_set_int(&options, "crf", config::video.crf, 0);
 

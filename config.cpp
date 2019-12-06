@@ -19,6 +19,10 @@ video_t video {
   16, // max_b_frames
   24, // gop_size
   35, // crf
+
+  "baseline"s, // profile
+  "superfast"s, // preset
+  "zerolatency"s // tune
 };
 
 stream_t stream {
@@ -114,6 +118,9 @@ void parse_file(const char *file) {
   int_f(vars, "max_b_frames", video.max_b_frames);
   int_f(vars, "gop_size", video.gop_size);
   int_f(vars, "crf", video.crf);
+  string_f(vars, "profile", video.profile);
+  string_f(vars, "preset", video.preset);
+  string_f(vars, "tune", video.tune);
 
   string_f(vars, "pkey", nvhttp.pkey);
   string_f(vars, "cert", nvhttp.cert);
