@@ -1,5 +1,5 @@
 Requirements:
-	Ubuntu 19.10: cmake libssl-dev libavdevice-dev libboost-thread-dev libpulse-dev libopus-dev libfixes-dev libxtst-dev libx11-dev
+	Ubuntu 19.10: cmake libssl-dev libavdevice-dev libboost-thread-dev libpulse-dev libopus-dev libfixes-dev libxtst-dev libx11-dev libevdev-dev
 
 Compilation:
 	* git clone <repository> --recurse-submodules
