@@ -393,7 +393,7 @@ void controlThread() {
   server.map(packetTypes[IDX_LOSS_STATS], [](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-/*    std::cout << "type [IDX_LOSS_STATS]"sv << std::endl;
+    std::cout << "type [IDX_LOSS_STATS]"sv << std::endl;
 
     int32_t *stats = (int32_t*)payload.data();
     auto count = stats[0];
@@ -405,7 +405,7 @@ void controlThread() {
     std::cout << "loss count since last report [" << count << ']' << std::endl;
     std::cout << "time in milli since last report [" << t.count() << ']' << std::endl;
     std::cout << "last good frame [" << lastGoodFrame << ']' << std::endl;
-    std::cout << "---end stats---" << std::endl; */
+    std::cout << "---end stats---" << std::endl;
   });
 
   server.map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [](const std::string_view &payload) {
@@ -419,6 +419,8 @@ void controlThread() {
 
     std::cout << "firstFrame [" << firstFrame << ']' << std::endl;
     std::cout << "lastFrame [" << lastFrame << ']' << std::endl;
+
+    exit(100);
   });
 
   server.map(packetTypes[IDX_INPUT_DATA], [&input](const std::string_view &payload) mutable {
@@ -784,6 +786,8 @@ void cmd_announce(tcp::socket &&sock, msg_t &&req) {
     }
   }
 
+  try {
+
   auto &config = session.config;
   config.audio.channels       = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
   config.audio.mask           = util::from_view(args.at("x-nv-audio.surround.channelMask"sv));
@@ -796,6 +800,15 @@ void cmd_announce(tcp::socket &&sock, msg_t &&req) {
   config.monitor.framerate      = util::from_view(args.at("x-nv-video[0].maxFPS"sv));
   config.monitor.bitrate        = util::from_view(args.at("x-nv-video[0].initialBitrateKbps"sv));
   config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
+
+  } catch(std::out_of_range &) {
+    // This piece of code is reached when for some reason, the payload length received < payload length send
+    // Not sure if this is an issue with Sunshine or Moonlight or the network
+    // TODO: find out
+    respond(sock, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
+
+    return;
+  }
 
   std::copy(std::begin(gcm_key), std::end(gcm_key), std::begin(session.gcm_key));
   std::copy(std::begin(iv), std::end(iv), std::begin(session.iv));
