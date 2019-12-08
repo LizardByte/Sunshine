@@ -29,3 +29,8 @@ Usage:
 
 Note:
 	* The Windows key is not passed through by Moonlight, therefore Sunshine maps Right-Alt key to the Windows key
+
+
+Credits:
+	* Simple-Web-Server [https://gitlab.com/eidheim/Simple-Web-Server]
+	* Moonlight [https://github.com/moonlight-stream]
