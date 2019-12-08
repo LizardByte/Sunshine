@@ -173,7 +173,7 @@ public:
 	    std::vector<char> full_payload;
 
 	    auto old_msg = std::move(_queue_packet);
-	    TUPLE_2D_REF(_, old_packet, old_msg);
+	    TUPLE_2D(_, old_packet, std::move(_queue_packet));
 
 
             std::string_view new_payload { (char*)packet->data, packet->dataLength };

@@ -6,7 +6,7 @@
 #define SUNSHINE_COMMON_H
 
 #include <string>
-#include <utility.h>
+#include "sunshine/utility.h"
 
 namespace platf {
 

@@ -6,7 +6,7 @@
 #include <fstream>
 #include <thread>
 
-#include <platform/common.h>
+#include "platform/common.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>

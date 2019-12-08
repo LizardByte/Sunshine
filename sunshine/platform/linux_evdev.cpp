@@ -11,7 +11,7 @@
 #include <string.h>
 
 #include "common.h"
-#include "utility.h"
+#include "sunshine/utility.h"
 
 namespace platf {
 constexpr std::uint16_t DPAD_UP      = 0x0001;

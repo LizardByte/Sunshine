@@ -6,6 +6,24 @@ project(Sunshine)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(Simple-Web-Server)
 add_subdirectory(moonlight-common-c/enet)
+
+find_package(X11 REQUIRED)
+set(PLATFORM_TARGET_FILES
+	sunshine/platform/linux.cpp
+	sunshine/platform/linux_evdev.cpp)
+
+set(PLATFORM_LIBRARIES
+	Xfixes
+	Xtst
+	${X11_LIBRARIES}
+	evdev
+	pulse
+	pulse-simple)
+
+set(PLATFORM_INCLUDE_DIRS
+	${X11_INCLUDE_DIR}
+	/usr/include/libevdev-1.0)
+
 set(SUNSHINE_TARGET_FILES
 	moonlight-common-c/reedsolomon/rs.c
 	moonlight-common-c/reedsolomon/rs.h
@@ -39,43 +57,45 @@ set(SUNSHINE_TARGET_FILES
 	moonlight-common-c/src/VideoDepacketizer.c
 	moonlight-common-c/src/Video.h
 	moonlight-common-c/src/VideoStream.c
-	utility.h
-	uuid.h
-	config.h config.cpp
-	main.cpp
-	crypto.cpp crypto.h
-	nvhttp.cpp nvhttp.h
-	stream.cpp stream.h
-	video.cpp video.h
-	queue.h
-	input.cpp input.h
-	audio.cpp audio.h
-	platform/linux.cpp
-	platform/linux_evdev.cpp
-	platform/common.h)
+	sunshine/utility.h
+	sunshine/uuid.h
+	sunshine/config.h
+	sunshine/config.cpp
+	sunshine/main.cpp
+	sunshine/crypto.cpp
+	sunshine/crypto.h
+	sunshine/nvhttp.cpp
+	sunshine/nvhttp.h
+	sunshine/stream.cpp
+	sunshine/stream.h
+	sunshine/video.cpp
+	sunshine/video.h
+	sunshine/queue.h
+	sunshine/input.cpp
+	sunshine/input.h
+	sunshine/audio.cpp
+	sunshine/audio.h
+	sunshine/platform/common.h
+	${PLATFORM_TARGET_FILES})
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/Simple-Web-Server
   ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/enet/include
   ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/reedsolomon
-  ${X11_INCLUDE_DIR}
-  /usr/include/libevdev-1.0
   ${FFMPEG_INCLUDE_DIRS}
+  ${PLATFORM_INCLUDE_DIRS}
 )
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
 
-#FIXME: libX11 is Linux only
-find_package(X11 REQUIRED)
-
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
-elseif("x${BUILD_TYPE}" STREQUAL "xRELEASE")
+else()
 	add_definitions(-DNDEBUG)
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)
 endif()
@@ -84,17 +104,9 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${CMAKE_THREAD_LIBS_INIT}
 		${OPENSSL_LIBRARIES}
 		enet
-		Xfixes
-		Xtst
-		${X11_LIBRARIES}
-		${FFMPEG_LIBRARIES}
-
-		#FIXME: libpulse is linux only
-		pulse
-		pulse-simple
-
 		opus
-		evdev)
+		${FFMPEG_LIBRARIES}
+		${PLATFORM_LIBRARIES})
 
 add_definitions(-DSUNSHINE_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})

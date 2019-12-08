@@ -5,7 +5,7 @@
 #ifndef SUNSHINE_INPUT_H
 #define SUNSHINE_INPUT_H
 
-#include <platform/common.h>
+#include "platform/common.h"
 
 namespace input {
 void print(void *input);
