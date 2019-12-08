@@ -11,6 +11,7 @@ struct config_t {
 };
 
 using packet_t = util::buffer_t<std::uint8_t>;
+using packet_queue_t = std::shared_ptr<safe::queue_t<packet_t>>;
 void capture(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config);
 }
 
