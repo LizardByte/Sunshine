@@ -3,6 +3,8 @@
 //
 
 #include <thread>
+#include <filesystem>
+#include <iostream>
 
 #include "nvhttp.h"
 #include "stream.h"
@@ -16,6 +18,11 @@ extern "C" {
 using namespace std::literals;
 int main(int argc, char *argv[]) {
   if(argc > 1) {
+    if(!std::filesystem::exists(argv[1])) {
+      std::cout << "Error: Couln't find configuration file ["sv << argv[1] << ']' << std::endl;
+      return 7;
+    }
+
     config::parse_file(argv[1]);
   }
 
