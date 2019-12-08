@@ -173,7 +173,7 @@ public:
 	    std::vector<char> full_payload;
 
 	    auto old_msg = std::move(_queue_packet);
-	    TUPLE_2D(_, old_packet, std::move(_queue_packet));
+	    TUPLE_2D_REF(_, old_packet, old_msg);
 
 
             std::string_view new_payload { (char*)packet->data, packet->dataLength };
@@ -225,12 +225,12 @@ private:
   host_t _host;
 };
 
-class server_t {
+class control_server_t {
 public:
-  server_t(server_t &&) noexcept = default;
-  server_t &operator=(server_t &&) noexcept = default;
+  control_server_t(control_server_t &&) noexcept = default;
+  control_server_t &operator=(control_server_t &&) noexcept = default;
 
-  explicit server_t(std::uint16_t port) : _host { host_create(_addr, port) } {}
+  explicit control_server_t(std::uint16_t port) : _host { host_create(_addr, port) } {}
 
   template<class T, class X>
   void iterate(std::chrono::duration<T, X> timeout) {
@@ -271,7 +271,7 @@ public:
   }
   void map(uint16_t type, std::function<void(const std::string_view&)> cb);
 private:
-  std::unordered_map<std::uint8_t, std::function<void(const std::string_view&)>> _map_type_cb;
+  std::unordered_map<std::uint16_t, std::function<void(const std::string_view&)>> _map_type_cb;
   ENetAddress _addr;
   host_t _host;
 };
@@ -478,12 +478,12 @@ void rtsp_server_t::map(const std::string_view& cmd, std::function<void(host_t&,
   _map_cmd_cb.emplace(cmd, std::move(cb));
 }
 
-void server_t::map(uint16_t type, std::function<void(const std::string_view &)> cb) {
+void control_server_t::map(uint16_t type, std::function<void(const std::string_view &)> cb) {
   _map_type_cb.emplace(type, std::move(cb));
 }
 
-void controlThread() {
-  server_t server { CONTROL_PORT };
+void controlThread(video::event_queue_t idr_events) {
+  control_server_t server { CONTROL_PORT };
 
   auto input = platf::input();
   server.map(packetTypes[IDX_START_A], [](const std::string_view &payload) {
@@ -516,7 +516,7 @@ void controlThread() {
     std::cout << "---end stats---" << std::endl;
   });
 
-  server.map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [](const std::string_view &payload) {
+  server.map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [idr_events](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
     std::cout << "type [IDX_INVALIDATE_REF_FRAMES]"sv << std::endl;
@@ -528,7 +528,7 @@ void controlThread() {
     std::cout << "firstFrame [" << firstFrame << ']' << std::endl;
     std::cout << "lastFrame [" << lastFrame << ']' << std::endl;
 
-    exit(100);
+    idr_events->push(std::make_pair(firstFrame, lastFrame));
   });
 
   server.map(packetTypes[IDX_INPUT_DATA], [&input](const std::string_view &payload) mutable {
@@ -639,7 +639,7 @@ void audioThread() {
   captureThread.join();
 }
 
-void videoThread() {
+void videoThread(video::event_queue_t idr_events) {
   auto &config = session.config;
 
   int lowseq = 0;
@@ -652,9 +652,9 @@ void videoThread() {
     return;
   }
 
-  std::shared_ptr<safe::queue_t<video::packet_t>> packets{new safe::queue_t<video::packet_t>};
+  video::packet_queue_t packets{new safe::queue_t<video::packet_t>};
 
-  std::thread captureThread{video::capture_display, packets, config.monitor};
+  std::thread captureThread{video::capture_display, packets, idr_events, config.monitor};
 
   frame_queue_t packet_queue;
   uint16_t frame{1};
@@ -955,9 +955,10 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
   session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
   session.client_state = 1;
 
+  video::event_queue_t idr_events { new video::event_queue_t::element_type };
   session.audioThread   = std::thread {audioThread};
-  session.videoThread   = std::thread {videoThread};
-  session.controlThread = std::thread {controlThread};
+  session.videoThread   = std::thread {videoThread, idr_events};
+  session.controlThread = std::thread {controlThread, idr_events};
 
   respond(host, peer, &option, 200, "OK", req->sequenceNumber, {});
 }

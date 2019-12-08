@@ -36,6 +36,12 @@ public:
     _cv.notify_all();
   }
 
+  bool peek() {
+    std::lock_guard lg { _lock };
+
+    return !_queue.empty();
+  }
+
   status_t pop() {
     std::unique_lock ul{_lock};
 

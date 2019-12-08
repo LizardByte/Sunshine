@@ -31,10 +31,10 @@ void free_packet(AVPacket *packet) {
   av_packet_free(&packet);
 }
 
-using ctx_t     = util::safe_ptr<AVCodecContext, free_ctx>;
-using frame_t   = util::safe_ptr<AVFrame, free_frame>;
-
-using sws_t = util::safe_ptr<SwsContext, sws_freeContext>;
+using ctx_t       = util::safe_ptr<AVCodecContext, free_ctx>;
+using frame_t     = util::safe_ptr<AVFrame, free_frame>;
+using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
+using img_queue_t = std::shared_ptr<safe::queue_t<platf::img_t>>;
 
 auto open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
   avcodec_open2(ctx.get(), codec, options);
@@ -44,7 +44,7 @@ auto open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
   });
 }
 
-void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::img_t &img, std::shared_ptr<safe::queue_t<packet_t>> &packets) {
+void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::img_t &img, packet_queue_t &packets) {
   av_frame_make_writable(yuv_frame.get());
 
   const int linesizes[2] {
@@ -83,8 +83,10 @@ void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::im
 }
 
 void encodeThread(
-  std::shared_ptr<safe::queue_t<platf::img_t>> images,
-  std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) {
+  img_queue_t images,
+  packet_queue_t packets,
+  event_queue_t idr_events,
+  config_t config) {
   int framerate = config.framerate;
 
   auto codec = avcodec_find_encoder(AV_CODEC_ID_H264);
@@ -140,18 +142,26 @@ void encodeThread(
   }
 
   while (auto img = images->pop()) {
+    if(idr_events->peek()) {
+      yuv_frame->pict_type = AV_PICTURE_TYPE_I;
+
+      frame = idr_events->pop()->first;
+    }
+
     encode(frame++, ctx, sws, yuv_frame, img, packets);
+    
+    yuv_frame->pict_type = AV_PICTURE_TYPE_NONE;
   }
 
   packets->stop();
 }
 
-void capture_display(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) {
+void capture_display(packet_queue_t packets, event_queue_t idr_events, config_t config) {
   int framerate = config.framerate;
 
-  std::shared_ptr<safe::queue_t<platf::img_t>> images { new safe::queue_t<platf::img_t> };
+  img_queue_t images { new safe::queue_t<platf::img_t> };
 
-  std::thread encoderThread { &encodeThread, images, packets, config };
+  std::thread encoderThread { &encodeThread, images, packets, idr_events, config };
 
   auto disp = platf::display();
 
