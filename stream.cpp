@@ -349,7 +349,7 @@ video::packet_t next_packet(uint16_t &frame, std::shared_ptr<safe::queue_t<video
   ++frame;
   return packet;
 }
-
+/*
 std::vector<uint8_t> replace(const std::string_view &original, const std::string_view &old, const std::string_view &_new) {
   std::vector<uint8_t> replaced;
 
@@ -366,6 +366,19 @@ std::vector<uint8_t> replace(const std::string_view &original, const std::string
   }
 
   std::copy(begin, std::end(original), std::back_inserter(replaced));
+
+  return replaced;
+}
+*/
+std::vector<uint8_t> replace(const std::string_view &original, const std::string_view &old, const std::string_view &_new) {
+  std::vector<uint8_t> replaced;
+
+  auto begin = std::begin(original);
+  auto next = std::search(begin, std::end(original), std::begin(old), std::end(old));
+
+  std::copy(begin, next, std::back_inserter(replaced));
+  std::copy(std::begin(_new), std::end(_new), std::back_inserter(replaced));
+  std::copy(next + old.size(), std::end(original), std::back_inserter(replaced));
 
   return replaced;
 }
@@ -636,7 +649,7 @@ void videoThread() {
       sock.send_to(asio::buffer(shards[x]), *peer);
     }
 
-    // std::cout << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
+    std::cout << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
     lowseq += shards.size();
 
   }
@@ -746,6 +759,7 @@ void cmd_announce(tcp::socket &&sock, msg_t &&req) {
   }
 
   std::string_view payload { req->payload, (size_t)req->payloadLength };
+
   std::vector<std::string_view> lines;
 
   auto whitespace = [](char ch) {
@@ -854,16 +868,32 @@ void rtpThread() {
     tcp::socket sock { io };
 
     acceptor.accept(sock);
-    sock.set_option(tcp::no_delay(true));
 
-    std::array<char, 2048> buf;
+    std::array<char, 4096> rtsp_raw;
 
-    auto len = sock.read_some(asio::buffer(buf));
-    buf[std::min(buf.size(), len)] = '\0';
+    // As defined in moonlight-common-c/src/PlatformSockets.c
+    constexpr auto TCPv4_MSS = 536;
+    constexpr auto TCPv6_MSS = 1220;
+
+    std::size_t len = 0;
+
+    auto pos = std::begin(rtsp_raw);
+    do {
+      std::array<char, TCPv4_MSS> buf;
+      auto bytes_read = sock.receive(asio::buffer(buf));
+
+      if(bytes_read + len > rtsp_raw.size()) {
+        continue;
+      }
+
+      std::copy(std::begin(buf), std::end(buf), pos + len);
+      len += bytes_read;
+    } while((len % TCPv4_MSS) == 0);
+
+    rtsp_raw[std::min(rtsp_raw.size() -1, len)] = '\0';
 
     msg_t req { new RTSP_MESSAGE {} };
-
-    parseRtspMessage(req.get(), buf.data(), len);
+    parseRtspMessage(req.get(), rtsp_raw.data(), len);
 
     print_msg(req.get());
 
