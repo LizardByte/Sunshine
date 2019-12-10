@@ -126,6 +126,7 @@ void encodeThread(
   yuv_frame->width = ctx->width;
   yuv_frame->height = ctx->height;
 
+ // yuv_frame->opaque = 0;
   av_frame_get_buffer(yuv_frame.get(), 0);
 
   int64_t frame = 1;
@@ -144,8 +145,9 @@ void encodeThread(
   while (auto img = images->pop()) {
     if(idr_events->peek()) {
       yuv_frame->pict_type = AV_PICTURE_TYPE_I;
-
       frame = idr_events->pop()->first;
+
+//      ++yuv_frame->opaque;
     }
 
     encode(frame++, ctx, sws, yuv_frame, img, packets);

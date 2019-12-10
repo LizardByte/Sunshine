@@ -308,8 +308,8 @@ fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercen
   auto nr_shards = data_shards + parity_shards;
 
   if(nr_shards > DATA_SHARDS_MAX) {
-    std::cerr << "Error: number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl;
-    std::cerr << nr_shards << " > "sv << DATA_SHARDS_MAX << std::endl;
+    std::cout << "Error: number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl;
+    std::cout << nr_shards << " > "sv << DATA_SHARDS_MAX << std::endl;
 
     return { 0 };
   }
@@ -412,37 +412,6 @@ void print_msg(PRTSP_MESSAGE msg) {
   std::cout << "---Begin MessageBuffer---"sv << std::endl << messageBuffer << std::endl << "---End MessageBuffer---"sv << std::endl << std::endl;
 }
 
-using frame_queue_t = std::vector<video::packet_t>;
-video::packet_t next_packet(uint16_t &frame, video::packet_queue_t &packets, frame_queue_t &packet_queue) {
-  auto packet = packets->pop();
-
-  if(!packet) {
-    return nullptr;
-  }
-
-  assert(packet->pts >= frame);
-
-  auto comp = [](const video::packet_t &l, const video::packet_t &r) {
-    return l->pts > r->pts;
-  };
-
-  if(packet->pts > frame) {
-    packet_queue.emplace_back(std::move(packet));
-    std::push_heap(std::begin(packet_queue), std::end(packet_queue), comp);
-
-    if (packet_queue.front()->pts != frame) {
-      return next_packet(frame, packets, packet_queue);
-    }
-
-    std::pop_heap(std::begin(packet_queue), std::end(packet_queue), comp);
-    packet = std::move(packet_queue.back());
-    packet_queue.pop_back();
-  }
-
-  ++frame;
-  return packet;
-}
-
 std::vector<uint8_t> replace(const std::string_view &original, const std::string_view &old, const std::string_view &_new) {
   std::vector<uint8_t> replaced;
 
@@ -543,6 +512,7 @@ void controlThread(video::event_queue_t idr_events) {
 
   while(session.video_packets->running()) {
     if(std::chrono::steady_clock::now() > session.pingTimeout) {
+      std::cout << "ping timeout"sv << std::endl;
       session.video_packets->stop();
       session.audio_packets->stop();
     }
@@ -632,10 +602,7 @@ void videoThread(video::event_queue_t idr_events) {
   auto &packets = session.video_packets;
   std::thread captureThread{video::capture_display, packets, idr_events, config.monitor};
 
-  frame_queue_t packet_queue;
-  uint16_t frame{1};
-
-  while (auto packet = next_packet(frame, packets, packet_queue)) {
+  while (auto packet = packets->pop()) {
     std::string_view payload{(char *) packet->data, (size_t) packet->size};
     std::vector<uint8_t> payload_new;
 
@@ -692,14 +659,13 @@ void videoThread(video::event_queue_t idr_events) {
 
     auto shards = fec::encode(payload, blocksize, fecpercentage);
     if(shards.data_shards == 0) {
+      std::cout << "skipping frame..."sv << std::endl;
       continue;
     }
 
     for (auto x = shards.data_shards; x < shards.size(); ++x) {
       video_packet_raw_t *inspect = (video_packet_raw_t *)shards[x].data();
 
-      inspect->packet.flags = FLAG_CONTAINS_PIC_DATA;
-      inspect->packet.streamPacketIndex = ((uint32_t)(lowseq + x)) << 8;
       inspect->packet.frameIndex = packet->pts;
       inspect->packet.fecInfo = (
         x << 12 |
@@ -712,6 +678,10 @@ void videoThread(video::event_queue_t idr_events) {
 
     for (auto x = 0; x < shards.size(); ++x) {
       sock.send_to(asio::buffer(shards[x]), *peer);
+    }
+
+    if(packet->flags & AV_PKT_FLAG_KEY) {
+      std::cout << "Key "sv;
     }
 
     std::cout << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
