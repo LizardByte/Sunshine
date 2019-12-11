@@ -2,7 +2,7 @@
 #define SUNSHINE_AUDIO_H
 
 #include "utility.h"
-#include "queue.h"
+#include "thread_safe.h"
 namespace audio {
 struct config_t {
   int packetDuration;

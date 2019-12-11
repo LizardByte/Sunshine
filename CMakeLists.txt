@@ -69,8 +69,7 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/stream.cpp
 	sunshine/stream.h
 	sunshine/video.cpp
-	sunshine/video.h
-	sunshine/queue.h
+	sunshine/video.h sunshine/thread_safe.h
 	sunshine/input.cpp
 	sunshine/input.h
 	sunshine/audio.cpp

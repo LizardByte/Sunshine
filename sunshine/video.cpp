@@ -34,7 +34,7 @@ void free_packet(AVPacket *packet) {
 using ctx_t       = util::safe_ptr<AVCodecContext, free_ctx>;
 using frame_t     = util::safe_ptr<AVFrame, free_frame>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
-using img_queue_t = std::shared_ptr<safe::queue_t<platf::img_t>>;
+using img_event_t = std::shared_ptr<safe::event_t<platf::img_t>>;
 
 auto open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
   avcodec_open2(ctx.get(), codec, options);
@@ -78,14 +78,14 @@ void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::im
       exit(1);
     }
 
-    packets->push(std::move(packet));
+    packets->raise(std::move(packet));
   }
 }
 
 void encodeThread(
-  img_queue_t images,
+  img_event_t images,
   packet_queue_t packets,
-  event_queue_t idr_events,
+  idr_event_t idr_events,
   config_t config) {
   int framerate = config.framerate;
 
@@ -158,10 +158,10 @@ void encodeThread(
   packets->stop();
 }
 
-void capture_display(packet_queue_t packets, event_queue_t idr_events, config_t config) {
+void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t config) {
   int framerate = config.framerate;
 
-  img_queue_t images { new safe::queue_t<platf::img_t> };
+  img_event_t images {new img_event_t::element_type };
 
   std::thread encoderThread { &encodeThread, images, packets, idr_events, config };
 
@@ -172,7 +172,7 @@ void capture_display(packet_queue_t packets, event_queue_t idr_events, config_t 
     auto next_snapshot = std::chrono::steady_clock::now() + time_span;
     auto img = platf::snapshot(disp);
 
-    images->push(std::move(img));
+    images->raise(std::move(img));
     img.reset();
 
     auto t = std::chrono::steady_clock::now();

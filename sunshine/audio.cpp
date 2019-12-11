@@ -6,7 +6,7 @@
 #include "platform/common.h"
 
 #include "utility.h"
-#include "queue.h"
+#include "thread_safe.h"
 #include "audio.h"
 
 namespace audio {
@@ -73,7 +73,7 @@ void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, std::shared_
     }
 
     packet.fake_resize(bytes);
-    packets->push(std::move(packet));
+    packets->raise(std::move(packet));
   }
 }
 
@@ -95,7 +95,7 @@ void capture(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) 
   while(packets->running()) {
     auto sample = platf::audio(mic, bytes_per_frame);
 
-    samples->push(std::move(sample));
+    samples->raise(std::move(sample));
   }
 
   samples->stop();

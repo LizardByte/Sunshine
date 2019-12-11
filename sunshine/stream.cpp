@@ -28,7 +28,7 @@ extern "C" {
 #include "stream.h"
 #include "audio.h"
 #include "video.h"
-#include "queue.h"
+#include "thread_safe.h"
 #include "crypto.h"
 #include "input.h"
 
@@ -431,7 +431,7 @@ void control_server_t::map(uint16_t type, std::function<void(const std::string_v
   _map_type_cb.emplace(type, std::move(cb));
 }
 
-void controlThread(video::event_queue_t idr_events) {
+void controlThread(video::idr_event_t idr_events) {
   control_server_t server { CONTROL_PORT };
 
   auto input = platf::input();
@@ -477,7 +477,7 @@ void controlThread(video::event_queue_t idr_events) {
     std::cout << "firstFrame [" << firstFrame << ']' << std::endl;
     std::cout << "lastFrame [" << lastFrame << ']' << std::endl;
 
-    idr_events->push(std::make_pair(firstFrame, lastFrame));
+    idr_events->raise(std::make_pair(firstFrame, lastFrame));
   });
 
   server.map(packetTypes[IDX_INPUT_DATA], [&input](const std::string_view &payload) mutable {
@@ -584,7 +584,7 @@ void audioThread() {
   captureThread.join();
 }
 
-void videoThread(video::event_queue_t idr_events) {
+void videoThread(video::idr_event_t idr_events) {
   auto &config = session.config;
 
   int lowseq = 0;
@@ -893,7 +893,7 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
   session.video_packets = std::make_shared<video::packet_queue_t::element_type>();
   session.audio_packets = std::make_shared<audio::packet_queue_t::element_type>();
 
-  video::event_queue_t idr_events { new video::event_queue_t::element_type };
+  video::idr_event_t idr_events {new video::idr_event_t::element_type };
   session.audioThread   = std::thread {audioThread};
   session.videoThread   = std::thread {videoThread, idr_events};
   session.controlThread = std::thread {controlThread, idr_events};
