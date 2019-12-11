@@ -358,14 +358,12 @@ std::vector<uint8_t> insert(uint64_t insert_size, uint64_t slice_size, const std
     next += slice_size;
   }
 
-  if(pad) {
-    auto x = elements - 1;
-    void *p = &result[x*(insert_size + slice_size)];
+  auto x = elements - 1;
+  void *p = &result[x*(insert_size + slice_size)];
 
-    f(p, x, elements);
+  f(p, x, elements);
 
-    std::copy(next, std::end(data), (char*)p + insert_size);
-  }
+  std::copy(next, std::end(data), (char*)p + insert_size);
 
   return result;
 }
