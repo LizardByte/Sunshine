@@ -28,7 +28,8 @@ video_t video {
 };
 
 stream_t stream {
-  2s // ping_timeout
+  2s, // ping_timeout
+  13 // fecPercentage
 };
 
 nvhttp_t nvhttp {
@@ -136,6 +137,8 @@ void parse_file(const char *file) {
   if(to > 0) {
     stream.ping_timeout = std::chrono::milliseconds(to);
   }
+
+  int_f(vars, "fec_percentage", stream.fec_percentage);
 }
 
 

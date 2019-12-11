@@ -627,7 +627,7 @@ void videoThread(video::idr_event_t idr_events) {
     auto blocksize = config.packetsize + MAX_RTP_HEADER_SIZE;
     auto payload_blocksize = blocksize - sizeof(video_packet_raw_t);
 
-    auto fecpercentage { 25 };
+    auto fecPercentage = config::stream.fec_percentage;
 
     payload_new = insert(sizeof(video_packet_raw_t), payload_blocksize,
                                               payload, [&](void *p, int fecIndex, int end) {
@@ -639,7 +639,7 @@ void videoThread(video::idr_event_t idr_events) {
         video_packet->packet.fecInfo = (
           fecIndex << 12 |
           end << 22 |
-          fecpercentage << 4
+          fecPercentage << 4
           );
 
         if(fecIndex == 0) {
@@ -655,7 +655,7 @@ void videoThread(video::idr_event_t idr_events) {
 
     payload = {(char *) payload_new.data(), payload_new.size()};
 
-    auto shards = fec::encode(payload, blocksize, fecpercentage);
+    auto shards = fec::encode(payload, blocksize, fecPercentage);
     if(shards.data_shards == 0) {
       std::cout << "skipping frame..."sv << std::endl;
       continue;
@@ -668,7 +668,7 @@ void videoThread(video::idr_event_t idr_events) {
       inspect->packet.fecInfo = (
         x << 12 |
         shards.data_shards << 22 |
-        fecpercentage << 4
+        fecPercentage << 4
       );
 
       inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);

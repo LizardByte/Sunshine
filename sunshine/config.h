@@ -20,6 +20,8 @@ struct video_t {
 
 struct stream_t {
   std::chrono::milliseconds ping_timeout;
+
+  int fec_percentage;
 };
 
 struct nvhttp_t {
