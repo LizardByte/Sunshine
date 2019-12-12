@@ -10,6 +10,7 @@ struct video_t {
   int max_b_frames;
   int gop_size;
   int crf; // higher == more compression and less quality
+  int qp; // higher == more compression and less quality, ignored if crf != 0
 
   int threads; // Number threads used by ffmpeg
 

@@ -876,7 +876,7 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     config.monitor.height         = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
     config.monitor.width          = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
     config.monitor.framerate      = util::from_view(args.at("x-nv-video[0].maxFPS"sv));
-    config.monitor.bitrate        = util::from_view(args.at("x-nv-video[0].initialBitrateKbps"sv));
+    config.monitor.bitrate        = util::from_view(args.at("x-nv-vqos[0].bw.maximumBitrateKbps"sv));
     config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
 
   } catch(std::out_of_range &) {

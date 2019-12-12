@@ -19,6 +19,7 @@ video_t video {
   16, // max_b_frames
   24, // gop_size
   35, // crf
+  35, // qp
 
   4, // threads
 
@@ -121,6 +122,7 @@ void parse_file(const char *file) {
   int_f(vars, "max_b_frames", video.max_b_frames);
   int_f(vars, "gop_size", video.gop_size);
   int_f(vars, "crf", video.crf);
+  int_f(vars, "qp", video.qp);
   int_f(vars, "threads", video.threads);
   string_f(vars, "profile", video.profile);
   string_f(vars, "preset", video.preset);
