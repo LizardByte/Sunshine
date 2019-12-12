@@ -119,20 +119,25 @@ img_t snapshot(display_t &display_void) {
   };
 
   XFixesCursorImage *overlay = XFixesGetCursorImage(display.display);
+  overlay->x -= overlay->xhot;
+  overlay->y -= overlay->yhot;
+
+  overlay->x = std::max((short)0, overlay->x);
+  overlay->y = std::max((short)0, overlay->y);
 
   auto pixels = (int*)img->data;
 
   auto screen_height = display.attr.height;
   auto screen_width  = display.attr.width;
 
-  auto delta_height = std::min<uint16_t>(overlay->height, std::abs(overlay->y - screen_height));
-  auto delta_width = std::min<uint16_t>(overlay->width, std::abs(overlay->x - screen_width));
+  auto delta_height = std::min<uint16_t>(overlay->height, std::max(0, screen_height - overlay->y));
+  auto delta_width = std::min<uint16_t>(overlay->width, std::max(0, screen_width - overlay->x));
   for(auto y = 0; y < delta_height; ++y) {
 
     auto overlay_begin = &overlay->pixels[y * overlay->width];
     auto overlay_end   = &overlay->pixels[y * overlay->width + delta_width];
 
-    auto pixels_begin = &pixels[(y + overlay->y - 1) * screen_width + overlay->x - 1];
+    auto pixels_begin = &pixels[(y + overlay->y) * screen_width + overlay->x];
     std::for_each(overlay_begin, overlay_end, [&](long pixel) {
       int *pixel_p = (int*)&pixel;
 
