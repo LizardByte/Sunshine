@@ -14,12 +14,7 @@
 namespace safe {
 template<class T>
 class event_t {
-  using status_t = util::either_t<
-    (std::is_same_v<T, bool> ||
-     util::instantiation_of_v<std::unique_ptr, T> ||
-     util::instantiation_of_v<std::shared_ptr, T> ||
-     std::is_pointer_v<T>),
-    T, std::optional<T>>;
+  using status_t = util::optional_t<T>;
 
 public:
   template<class...Args>
@@ -82,12 +77,7 @@ private:
 
 template<class T>
 class queue_t {
-  using status_t = util::either_t<
-    (std::is_same_v<T, bool> ||
-     util::instantiation_of_v<std::unique_ptr, T> ||
-     util::instantiation_of_v<std::shared_ptr, T> ||
-     std::is_pointer_v<T>),
-    T, std::optional<T>>;
+  using status_t = util::optional_t<T>;
 
 public:
   template<class ...Args>

@@ -94,6 +94,14 @@ template<class T>
 static constexpr auto false_v = __false_v<T>::value;
 
 template<class T>
+using optional_t = either_t<
+  (std::is_same_v<T, bool> ||
+   instantiation_of_v<std::unique_ptr, T> ||
+   instantiation_of_v<std::shared_ptr, T> ||
+   std::is_pointer_v<T>),
+  T, std::optional<T>>;
+
+template<class T>
 class FailGuard {
 public:
   FailGuard() = delete;
