@@ -141,8 +141,17 @@ img_t snapshot(display_t &display_void) {
     std::for_each(overlay_begin, overlay_end, [&](long pixel) {
       int *pixel_p = (int*)&pixel;
 
-      if(pixel_p[0] != 0) {
-        *pixels_begin = pixel_p[0];
+      auto colors_in = (uint8_t*)pixels_begin;
+
+      auto alpha = (*(uint*)pixel_p) >> 24u;
+      if(alpha == 255) {
+        *pixels_begin = *pixel_p;
+      }
+      else {
+        auto colors_out = (uint8_t*)pixel_p;
+        colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255/2) / 255;
+        colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255/2) / 255;
+        colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255/2) / 255;
       }
       ++pixels_begin;
     });
