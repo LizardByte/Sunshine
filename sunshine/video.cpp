@@ -125,7 +125,6 @@ void encodeThread(
   ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
   ctx->flags2 |= AV_CODEC_FLAG2_FAST;
 
-  auto fromformat = AV_PIX_FMT_BGR0;
   auto lg = open_codec(ctx, codec, &options);
 
   yuv_frame->format = ctx->pix_fmt;
@@ -136,18 +135,27 @@ void encodeThread(
 
   int64_t frame = 1;
 
+  auto img_width  = 0;
+  auto img_height = 0;
+
   // Initiate scaling context with correct height and width
   sws_t sws;
-  if(auto img = images->pop()) {
-    sws.reset(
-      sws_getContext(
-        platf::img_width(img), platf::img_height(img), fromformat,
-        ctx->width, ctx->height, ctx->pix_fmt,
-        SWS_LANCZOS | SWS_ACCURATE_RND,
-        nullptr, nullptr, nullptr));
-  }
-
   while (auto img = images->pop()) {
+    auto new_width  = platf::img_width(img);
+    auto new_height = platf::img_height(img);
+
+    if(img_width != new_width || img_height != new_height) {
+      img_width  = new_width;
+      img_height = new_height;
+
+      sws.reset(
+        sws_getContext(
+          img_width, img_height, AV_PIX_FMT_BGR0,
+          ctx->width, ctx->height, ctx->pix_fmt,
+          SWS_LANCZOS | SWS_ACCURATE_RND,
+          nullptr, nullptr, nullptr));
+    }
+
     if(idr_events->peek()) {
       yuv_frame->pict_type = AV_PICTURE_TYPE_I;
       frame = idr_events->pop()->first;

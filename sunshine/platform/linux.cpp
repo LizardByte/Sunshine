@@ -86,11 +86,15 @@ std::string get_local_ip() { return get_local_ip(AF_INET); }
 
 struct display_attr_t {
   display_attr_t() : display { XOpenDisplay(nullptr) }, window { DefaultRootWindow(display) }, attr {} {
-    XGetWindowAttributes(display, window, &attr);
+    refresh();
   }
 
   ~display_attr_t() {
     XCloseDisplay(display);
+  }
+
+  void refresh() {
+    XGetWindowAttributes(display, window, &attr);
   }
 
   Display *display;
@@ -110,6 +114,7 @@ display_t display() {
 img_t snapshot(display_t &display_void) {
   auto &display = *((display_attr_t*)display_void.get());
 
+  display.refresh();
   XImage *img { XGetImage(
     display.display,
     display.window,
