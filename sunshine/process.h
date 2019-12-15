@@ -6,8 +6,10 @@
 #define SUNSHINE_PROCESS_H
 
 #include <unordered_map>
+#include <optional>
 
 #include <boost/process.hpp>
+
 #include "utility.h"
 
 namespace proc {
@@ -41,7 +43,7 @@ struct ctx_t {
 
 class proc_t {
 public:
-  KITTY_DEFAULT_CONSTR(proc_t)
+  KITTY_DEFAULT_CONSTR_THROW(proc_t)
 
   proc_t(
     boost::process::environment &&env,
@@ -54,6 +56,7 @@ public:
 
   ~proc_t();
 
+  const std::unordered_map<std::string, ctx_t> &get_apps() const;
 private:
   void _undo_pre_cmd();
 
@@ -66,5 +69,9 @@ private:
   std::vector<cmd_t>::const_iterator _undo_begin;
 };
 
+void refresh(const std::string &file_name);
+std::optional<proc::proc_t> parse(const std::string& file_name);
+
+extern proc_t proc;
 }
 #endif //SUNSHINE_PROCESS_H

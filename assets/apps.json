@@ -1,29 +1,34 @@
 {
 	"env":[
-		{ "VAR":"VAL", "VAR2":"VAL2" }
+		{ 
+			"DISPLAY":":0",
+			"DRI_PRIME":"1",
+			"XAUTHORITY":"/home/loki/.Xauthority"
+		}
 	],
 	"apps":[
 	{
-		"name":"echo-1",
-
-		"output":"output.txt",
-		"cmd":"sh -c \"echo $VAR\"",
+		"name":"Low Res Desktop 2",
+		"cmd":"sh -c \"while true; do sleep 10000; done;\"",
 		"prep-cmd":[
-		{ "do":"echo pre-1", "undo":"echo post-1" },
-		{ "do":"echo pre-2" },
-		{ "do":"echo pre-3", "undo":"echo post-3" }
+		{ "do":"xrandr --output HDMI-1 --mode 1920x1080", "undo":"xrandr --output HDMI-1 --mode 1920x1200" }
 		]
 	},
 	{
-		"name":"echo-2",
-
-		"output":"output.txt",
-		"cmd":"sleep 10",
+		"name":"Low Res Desktop",
+		"cmd":"sh -c \"while true; do sleep 10000; done;\"",
 		"prep-cmd":[
-		{ "do":"echo pre-1", "undo":"echo post-1" },
-		{ "do":"echo pre-2" },
-		{ "do":"echo pre-3", "undo":"echo post-3" }
+		{ "do":"xrandr --output HDMI-1 --mode 1920x1080", "undo":"xrandr --output HDMI-1 --mode 1920x1200" }
 		]
+	},
+	{
+		"name":"Steam BigPicture",
+
+		"output":"steam.txt",
+		"cmd":"steam -bigpicture",
+		"prep-cmd":[
+			{ "do":"sh -c \"PATH=$PATH:$HOME/.local/bin sudo freeHugePages\""},
+			{ "do":"sh -c \"PATH=$PATH:$HOME/.local/bin sudo claim_amdgpu\"" }]
 	}
 	]
 }

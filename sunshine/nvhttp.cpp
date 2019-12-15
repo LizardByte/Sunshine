@@ -20,6 +20,7 @@
 #include "stream.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "process.h"
 
 
 namespace nvhttp {
@@ -441,20 +442,26 @@ void applist(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respon
   }
 
   auto &apps = tree.add_child("root", pt::ptree {});
+
   pt::ptree desktop;
-  pt::ptree fakegame;
 
   apps.put("<xmlattr>.status_code", 200);
   desktop.put("IsHdrSupported"s, 0);
   desktop.put("AppTitle"s, "Desktop");
   desktop.put("ID"s, 1);
 
-  fakegame.put("IsHdrSupported"s, 0);
-  fakegame.put("AppTitle"s, "FakeGame");
-  fakegame.put("ID"s, 2);
+  int x = 2;
+  for(auto &[name, proc] : proc::proc.get_apps()) {
+    pt::ptree app;
+
+    app.put("IsHdrSupported"s, 0);
+    app.put("AppTitle"s, name);
+    app.put("ID"s, x++);
+
+    apps.push_back(std::make_pair("App", std::move(app)));
+  }
 
   apps.push_back(std::make_pair("App", desktop));
-  apps.push_back(std::make_pair("App", fakegame));
 }
 
 template<class T>
@@ -462,6 +469,17 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
   print_req<T>(request);
 
   auto args = request->parse_query_string();
+
+  auto appid = util::from_view(args.at("appid")) -2;
+
+  stream::app_name.clear();
+  if(appid >= 0) {
+    auto pos = std::begin(proc::proc.get_apps());
+    std::advance(pos, appid);
+
+    stream::app_name = pos->first;
+  }
+
   auto clientID = args.at("uniqueid"s);
   auto aesKey     = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
   uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));

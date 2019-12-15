@@ -34,7 +34,7 @@ struct gamepad_state_t {
 
 std::string get_local_ip();
 
-void interrupt_process(std::uint64_t handle);
+void terminate_process(std::uint64_t handle);
 
 mic_t microphone();
 audio_t audio(mic_t &mic, std::uint32_t sample_size);

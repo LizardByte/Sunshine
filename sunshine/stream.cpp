@@ -31,6 +31,7 @@ extern "C" {
 #include "thread_safe.h"
 #include "crypto.h"
 #include "input.h"
+#include "process.h"
 
 #define IDX_START_A 0
 #define IDX_REQUEST_IDR_FRAME 0
@@ -88,8 +89,10 @@ struct audio_packet_raw_t {
 
 #pragma pack(pop)
 
+//TODO: Bundle in thread safe container
 crypto::aes_t gcm_key;
 crypto::aes_t iv;
+std::string app_name;
 
 struct config_t {
   audio::config_t audio;
@@ -114,6 +117,8 @@ struct session_t {
 
   crypto::aes_t gcm_key;
   crypto::aes_t iv;
+
+  std::string app_name;
 } session;
 
 void free_msg(PRTSP_MESSAGE msg) {
@@ -166,7 +171,7 @@ public:
             parseRtspMessage(req.get(), (char*)packet->data, packet->dataLength);
             for(auto option = req->options; option != nullptr; option = option->next) {
               if("Content-length"sv == option->option) {
-                _queue_packet = std::make_pair(std::move(peer), std::move(packet));
+                _queue_packet = std::make_pair(peer, std::move(packet));
                 return;
               }
 	    }
@@ -272,6 +277,7 @@ public:
     }
   }
   void map(uint16_t type, std::function<void(const std::string_view&)> cb);
+  void send(const std::string_view &payload);
 private:
   std::unordered_map<std::uint16_t, std::function<void(const std::string_view&)>> _map_type_cb;
   ENetAddress _addr;
@@ -431,6 +437,17 @@ void control_server_t::map(uint16_t type, std::function<void(const std::string_v
   _map_type_cb.emplace(type, std::move(cb));
 }
 
+void control_server_t::send(const std::string_view & payload) {
+  std::for_each(_host->peers, _host->peers + _host->peerCount, [payload](auto &peer) {
+    auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
+    if(enet_peer_send(&peer, 0, packet)) {
+      enet_packet_destroy(packet);
+    }
+  });
+
+  enet_host_flush(_host.get());
+}
+
 void controlThread(video::idr_event_t idr_events) {
   control_server_t server { CONTROL_PORT };
 
@@ -511,6 +528,21 @@ void controlThread(video::idr_event_t idr_events) {
   while(session.video_packets->running()) {
     if(std::chrono::steady_clock::now() > session.pingTimeout) {
       std::cout << "ping timeout"sv << std::endl;
+      session.video_packets->stop();
+      session.audio_packets->stop();
+    }
+
+    if(!session.app_name.empty() && !proc::proc.running()) {
+      std::cout << "Process terminated"sv << std::endl;
+
+      std::uint16_t reason = 0x0100;
+
+      std::array<std::uint16_t, 2> payload;
+      payload[0] = packetTypes[IDX_TERMINATION];
+      payload[1] = reason;
+
+      server.send(std::string_view {(char*)payload.data(), payload.size()});
+
       session.video_packets->stop();
       session.audio_packets->stop();
     }
@@ -884,6 +916,22 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     respond(host, peer, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
     return;
   }
+
+  if(!app_name.empty() && session.app_name != app_name  ) {
+    if(auto err_code = proc::proc.execute(app_name)) {
+      if(err_code == 404) {
+        respond(host, peer, &option, 404, (app_name + " NOT FOUND").c_str(), req->sequenceNumber, {});
+        return;
+      }
+
+      else {
+        respond(host, peer, &option, 500, "INTERNAL ERROR", req->sequenceNumber, {});
+        return;
+      }
+    }
+  }
+
+  session.app_name = std::move(app_name);
 
   std::copy(std::begin(gcm_key), std::end(gcm_key), std::begin(session.gcm_key));
   std::copy(std::begin(iv), std::end(iv), std::begin(session.iv));

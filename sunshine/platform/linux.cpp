@@ -84,8 +84,8 @@ std::string get_local_ip(int family) {
 
 std::string get_local_ip() { return get_local_ip(AF_INET); }
 
-void interrupt_process(std::uint64_t handle) {
-  kill((pid_t)handle, SIGINT);
+void terminate_process(std::uint64_t handle) {
+  kill((pid_t)handle, SIGTERM);
 }
 
 struct display_attr_t {

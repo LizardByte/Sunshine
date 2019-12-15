@@ -9,8 +9,10 @@
 
 namespace stream {
 
+//FIXME: Make thread safe
 extern crypto::aes_t gcm_key;
 extern crypto::aes_t iv;
+extern std::string app_name;
 
 void rtpThread();
 
