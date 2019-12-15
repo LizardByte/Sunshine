@@ -30,7 +30,7 @@ void process_end(bp::child &proc, const std::chrono::duration<Rep, Period>& rel_
 }
 
 int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
-  if(cmd.empty() || cmd == "null"sv) {
+  if(!file) {
     return bp::system(cmd, env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
 
