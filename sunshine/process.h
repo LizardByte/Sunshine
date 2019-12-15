@@ -64,6 +64,8 @@ private:
   std::unordered_map<std::string, ctx_t> _name_to_proc;
 
   boost::process::child _process;
+  boost::process::group _process_handle;
+
   file_t _pipe;
   std::vector<cmd_t>::const_iterator _undo_it;
   std::vector<cmd_t>::const_iterator _undo_begin;

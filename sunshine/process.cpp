@@ -22,19 +22,16 @@ namespace pt = boost::property_tree;
 proc_t proc;
 
 template<class Rep, class Period>
-void process_end(bp::child &proc, const std::chrono::duration<Rep, Period>& rel_time) {
+void process_end(bp::child &proc, bp::group &proc_handle, const std::chrono::duration<Rep, Period>& rel_time) {
   if(!proc.running()) {
     return;
   }
 
-  std::cout << "Interruping Child-Process"sv << std::endl;
-  platf::terminate_process((std::uint64_t) proc.native_handle());
+  std::cout << "Force termination Child-Process"sv << std::endl;
+  proc_handle.terminate();
 
-  // Force termination if it takes too long
-  if(!proc.wait_for(rel_time)) {
-    std::cout << "Force termination Child-Process"sv << std::endl;
-    proc.terminate();
-  }
+  // avoid zombie process
+  proc.wait();
 }
 
 int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
@@ -92,10 +89,10 @@ int proc_t::execute(const std::string &name) {
 
   std::cout << "Starting ["sv << proc.cmd << ']' << std::endl;
   if(proc.output.empty() || proc.output == "null"sv) {
-    _process = bp::child(proc.cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
+    _process = bp::child(_process_handle, proc.cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
   else {
-    _process = bp::child(proc.cmd, _env, bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
+    _process = bp::child(_process_handle, proc.cmd, _env, bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
   }
 
   if(ec) {
@@ -116,7 +113,7 @@ void proc_t::_undo_pre_cmd() {
   std::error_code ec;
 
   // Ensure child process is terminated
-  process_end(_process, 10s);
+  process_end(_process, _process_handle, 10s);
 
   if(ec) {
     std::cout << "FATAL Error: System: "sv << ec.message() << std::endl;
