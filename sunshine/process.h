@@ -14,6 +14,9 @@ namespace proc {
 using file_t = util::safe_ptr_v2<FILE, int, fclose>;
 
 struct cmd_t {
+  cmd_t(std::string &&do_cmd, std::string &&undo_cmd) : do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)) {}
+  explicit cmd_t(std::string &&do_cmd) : do_cmd(std::move(do_cmd)) {}
+
   std::string do_cmd;
 
   // Executed when proc_t has finished running, meant to reverse 'do_cmd' if applicable
@@ -30,10 +33,10 @@ struct cmd_t {
  *    filename -- The output of the commands are appended to filename
  */
 struct ctx_t {
-  std::vector<cmd_t> pre_cmds;
+  std::vector<cmd_t> prep_cmds;
 
   std::string cmd;
-  std::string cmd_output;
+  std::string output;
 };
 
 class proc_t {

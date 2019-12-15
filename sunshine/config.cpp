@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <streambuf>
 #include <iterator>
 #include <functional>
 #include <unordered_map>
@@ -38,7 +37,7 @@ nvhttp_t nvhttp {
   CERTIFICATE_FILE,
 
   "03904e64-51da-4fb3-9afd-a9f7ff70fea4", // unique_id
-  "devices.xml" // file_devices
+  "devices.json" // file_devices
 };
 
 bool whitespace(char ch) {

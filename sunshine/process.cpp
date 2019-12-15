@@ -50,11 +50,11 @@ int proc_t::execute(const std::string &name) {
 
   auto &proc = it->second;
 
-  _undo_begin = std::begin(proc.pre_cmds);
+  _undo_begin = std::begin(proc.prep_cmds);
   _undo_it = _undo_begin;
 
-  if(!proc.cmd_output.empty() && proc.cmd_output != "null"sv) {
-    _pipe.reset(fopen(proc.cmd_output.c_str(), "a"));
+  if(!proc.output.empty() && proc.output != "null"sv) {
+    _pipe.reset(fopen(proc.output.c_str(), "a"));
   }
 
   std::error_code ec;
@@ -63,7 +63,7 @@ int proc_t::execute(const std::string &name) {
     _undo_pre_cmd();
   });
 
-  for(; _undo_it != std::end(proc.pre_cmds); ++_undo_it) {
+  for(; _undo_it != std::end(proc.prep_cmds); ++_undo_it) {
     auto &cmd = _undo_it->do_cmd;
 
     std::cout << "Executing: ["sv << cmd << ']' << std::endl;
@@ -81,11 +81,11 @@ int proc_t::execute(const std::string &name) {
   }
 
   std::cout << "Starting ["sv << proc.cmd << ']' << std::endl;
-  if(proc.cmd_output.empty() || proc.cmd_output == "null"sv) {
+  if(proc.output.empty() || proc.output == "null"sv) {
     _process = bp::child(proc.cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
   else {
-    _process = bp::child(proc.cmd, _env, bp::std_out > proc.cmd_output, bp::std_err > proc.cmd_output, ec);
+    _process = bp::child(proc.cmd, _env, bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
   }
 
   if(ec) {

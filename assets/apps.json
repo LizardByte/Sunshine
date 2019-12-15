@@ -1,0 +1,29 @@
+{
+	"env":[
+		{ "VAR":"VAL", "VAR2":"VAL2" }
+	],
+	"apps":[
+	{
+		"name":"echo-1",
+
+		"output":"output.txt",
+		"cmd":"sh -c \"echo $VAR\"",
+		"prep-cmd":[
+		{ "do":"echo pre-1", "undo":"echo post-1" },
+		{ "do":"echo pre-2" },
+		{ "do":"echo pre-3", "undo":"echo post-3" }
+		]
+	},
+	{
+		"name":"echo-2",
+
+		"output":"output.txt",
+		"cmd":"sleep 10",
+		"prep-cmd":[
+		{ "do":"echo pre-1", "undo":"echo post-1" },
+		{ "do":"echo pre-2" },
+		{ "do":"echo pre-3", "undo":"echo post-3" }
+		]
+	}
+	]
+}
