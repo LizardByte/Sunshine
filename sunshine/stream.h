@@ -6,14 +6,16 @@
 #define SUNSHINE_STREAM_H
 
 #include "crypto.h"
-
+#include "thread_safe.h"
 namespace stream {
 
-//FIXME: Make thread safe
-extern crypto::aes_t gcm_key;
-extern crypto::aes_t iv;
-extern std::string app_name;
+struct launch_session_t {
+  crypto::aes_t gcm_key;
+  crypto::aes_t iv;
+  std::string app_name;
+};
 
+extern safe::event_t<launch_session_t> launch_event;
 void rtpThread();
 
 }

@@ -89,10 +89,7 @@ struct audio_packet_raw_t {
 
 #pragma pack(pop)
 
-//TODO: Bundle in thread safe container
-crypto::aes_t gcm_key;
-crypto::aes_t iv;
-std::string app_name;
+safe::event_t<launch_session_t> launch_event;
 
 struct config_t {
   audio::config_t audio;
@@ -847,12 +844,13 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
   auto seqn_str = std::to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
-  if(session.video_packets) {
-    // already streaming
+  if(session.video_packets || !launch_event.peek()) {
+    //Either already streaming or /launch has not been used
 
     respond(host, peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
     return;
   }
+  auto launch_session { std::move(*launch_event.pop()) };
 
   std::string_view payload { req->payload, (size_t)req->payloadLength };
 
@@ -916,6 +914,10 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     respond(host, peer, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
     return;
   }
+
+  auto &app_name = launch_session.app_name;
+  auto &gcm_key  = launch_session.gcm_key;
+  auto &iv       = launch_session.iv;
 
   if(!app_name.empty() && session.app_name != app_name  ) {
     if(auto err_code = proc::proc.execute(app_name)) {

@@ -472,22 +472,21 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
 
   auto appid = util::from_view(args.at("appid")) -2;
 
-  stream::app_name.clear();
+  stream::launch_session_t launch_session;
   if(appid >= 0) {
     auto pos = std::begin(proc::proc.get_apps());
     std::advance(pos, appid);
 
-    stream::app_name = pos->first;
+    launch_session.app_name = pos->first;
   }
 
   auto clientID = args.at("uniqueid"s);
-  auto aesKey     = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
+  launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
   uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
   auto prepend_iv_p = (uint8_t*)&prepend_iv;
 
-  std::copy(std::begin(aesKey), std::end(aesKey), std::begin(stream::gcm_key));
-  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(stream::iv));
-  std::fill(next, std::end(stream::iv), 0);
+  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
+  std::fill(next, std::end(launch_session.iv), 0);
 
   pt::ptree tree;
 
@@ -497,6 +496,8 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
     pt::write_xml(data, tree);
     response->write(data.str());
   });
+
+  stream::launch_event.raise(std::move(launch_session));
 
 /*
   bool sops = args.at("sops"s) == "1";
