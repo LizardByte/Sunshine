@@ -1,12 +1,10 @@
 {
-	"env":[
-		{ 
-			"DISPLAY":":0",
-			"DRI_PRIME":"1",
-			"XAUTHORITY":"$(HOME)/.Xauthority",
-			"PATH":"$(PATH):$(HOME)/.local/bin"
-		}
-	],
+	"env":{ 
+		"DISPLAY":":0",
+		"DRI_PRIME":"1",
+		"XAUTHORITY":"$(HOME)/.Xauthority",
+		"PATH":"$(PATH):$(HOME)/.local/bin"
+	},
 	"apps":[
 	{
 		"name":"Low Res Desktop",

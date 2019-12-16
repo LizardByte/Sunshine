@@ -264,10 +264,8 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
     }
 
     bp::environment env = boost::this_process::environment();
-    for(auto &[_,env_var] : env_vars) {
-      for(auto &[name,val] : env_var) {
-        this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
-      }
+    for(auto &[name,val] : env_vars) {
+      this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
     }
 
     return proc::proc_t {
