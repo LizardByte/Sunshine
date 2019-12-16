@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     config::parse_file(argv[1]);
   }
 
-  auto proc_opt = proc::parse(SUNSHINE_ASSETS_DIR "/apps.json");
+  auto proc_opt = proc::parse(config::stream.file_apps);
   if(!proc_opt) {
     return 7;
   }

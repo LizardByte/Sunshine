@@ -11,7 +11,7 @@
 #define PRIVATE_KEY_FILE CA_DIR    "/cakey.pem"
 #define CERTIFICATE_FILE CA_DIR    "/cacert.pem"
 
-
+#define APPS_JSON SUNSHINE_ASSETS_DIR "/apps.json"
 namespace config {
 using namespace std::literals;
 video_t video {
@@ -29,6 +29,9 @@ video_t video {
 
 stream_t stream {
   2s, // ping_timeout
+
+  APPS_JSON,
+
   13 // fecPercentage
 };
 
@@ -138,7 +141,7 @@ void parse_file(const char *file) {
   if(to > 0) {
     stream.ping_timeout = std::chrono::milliseconds(to);
   }
-
+  string_f(vars, "file_apps", stream.file_apps);
   int_f(vars, "fec_percentage", stream.fec_percentage);
 }
 
