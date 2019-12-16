@@ -153,6 +153,66 @@ proc_t::~proc_t() {
   _undo_pre_cmd();
 }
 
+std::string_view::iterator find_match(std::string_view::iterator begin, std::string_view::iterator end) {
+  int stack = 0;
+
+  --begin;
+  do {
+    ++begin;
+    switch(*begin) {
+      case '(': ++stack;
+      break;
+      case ')': --stack;
+    }
+  } while(begin != end && stack != 0);
+
+  if(begin == end) {
+    throw std::out_of_range("Missing closing bracket \')\'");
+  }
+  return begin;
+}
+
+std::string parse_env_val(bp::native_environment &env, const std::string_view &val_raw) {
+  auto pos = std::begin(val_raw);
+  auto dollar = std::find(pos, std::end(val_raw), '$');
+
+  std::stringstream ss;
+
+  while(dollar != std::end(val_raw)) {
+    auto next = dollar + 1;
+    if(next != std::end(val_raw)) {
+      switch(*next) {
+        case '(': {
+          ss.write(pos, (dollar - pos));
+          auto var_begin = next + 1;
+          auto var_end   = find_match(next, std::end(val_raw));
+
+          ss << env[std::string { var_begin, var_end }].to_string();
+
+          pos = var_end + 1;
+          next = var_end;
+
+          break;
+        }
+        case '$':
+          ss.write(pos, (next - pos));
+          pos = next + 1;
+          ++next;
+          break;
+      }
+
+      dollar = std::find(next, std::end(val_raw), '$');
+    }
+    else {
+      dollar = next;
+    }
+  }
+
+  ss.write(pos, (dollar - pos));
+
+  return ss.str();
+}
+
 std::optional<proc::proc_t> parse(const std::string& file_name) {
   pt::ptree tree;
 
@@ -162,25 +222,25 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
     auto &apps_node = tree.get_child("apps"s);
     auto &env_vars  = tree.get_child("env"s);
 
-    boost::process::environment env = boost::this_process::environment();
+    auto this_env = boost::this_process::environment();
 
     std::unordered_map<std::string, proc::ctx_t> apps;
     for(auto &[_,app_node] : apps_node) {
       proc::ctx_t ctx;
 
       auto &prep_nodes = app_node.get_child("prep-cmd"s);
-      auto name = app_node.get<std::string>("name"s);
       auto output = app_node.get_optional<std::string>("output"s);
-      auto cmd = app_node.get<std::string>("cmd"s);
+      auto name = parse_env_val(this_env, app_node.get<std::string>("name"s));
+      auto cmd = app_node.get_optional<std::string>("cmd"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       prep_cmds.reserve(prep_nodes.size());
       for(auto &[_, prep_node] : prep_nodes) {
-        auto do_cmd = prep_node.get<std::string>("do"s);
+        auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
         auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
 
         if(undo_cmd) {
-          prep_cmds.emplace_back(std::move(do_cmd), std::move(*undo_cmd));
+          prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
         }
         else {
           prep_cmds.emplace_back(std::move(do_cmd));
@@ -188,22 +248,30 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
       }
 
       if(output) {
-        ctx.output = std::move(*output);
+        ctx.output = parse_env_val(this_env, *output);
       }
-      ctx.cmd = std::move(cmd);
+
+      if(cmd) {
+        ctx.cmd = parse_env_val(this_env, *cmd);
+      }
+      else {
+        ctx.cmd = "sh -c \"while true; do sleep 10000; done;\"";
+      }
+
       ctx.prep_cmds = std::move(prep_cmds);
 
       apps.emplace(std::move(name), std::move(ctx));
     }
 
+    bp::environment env = boost::this_process::environment();
     for(auto &[_,env_var] : env_vars) {
       for(auto &[name,val] : env_var) {
-        env[name] = val.get_value<std::string>();
+        this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
       }
     }
 
     return proc::proc_t {
-      std::move(env), std::move(apps)
+      std::move(this_env), std::move(apps)
     };
   } catch (std::exception &e) {
     std::cout << e.what() << std::endl;

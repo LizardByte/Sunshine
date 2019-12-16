@@ -16,7 +16,6 @@ extern "C" {
 }
 
 using namespace std::literals;
-
 int main(int argc, char *argv[]) {
   if(argc > 1) {
     if(!std::filesystem::exists(argv[1])) {

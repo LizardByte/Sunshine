@@ -3,20 +3,13 @@
 		{ 
 			"DISPLAY":":0",
 			"DRI_PRIME":"1",
-			"XAUTHORITY":"/home/loki/.Xauthority"
+			"XAUTHORITY":"$(HOME)/.Xauthority",
+			"PATH":"$(PATH):$(HOME)/.local/bin"
 		}
 	],
 	"apps":[
 	{
-		"name":"Low Res Desktop 2",
-		"cmd":"sh -c \"while true; do sleep 10000; done;\"",
-		"prep-cmd":[
-		{ "do":"xrandr --output HDMI-1 --mode 1920x1080", "undo":"xrandr --output HDMI-1 --mode 1920x1200" }
-		]
-	},
-	{
 		"name":"Low Res Desktop",
-		"cmd":"sh -c \"while true; do sleep 10000; done;\"",
 		"prep-cmd":[
 		{ "do":"xrandr --output HDMI-1 --mode 1920x1080", "undo":"xrandr --output HDMI-1 --mode 1920x1200" }
 		]
@@ -26,9 +19,7 @@
 
 		"output":"steam.txt",
 		"cmd":"steam -bigpicture",
-		"prep-cmd":[
-			{ "do":"sh -c \"PATH=$PATH:$HOME/.local/bin sudo freeHugePages\""},
-			{ "do":"sh -c \"PATH=$PATH:$HOME/.local/bin sudo claim_amdgpu\"" }]
+		"prep-cmd":[]
 	}
 	]
 }
