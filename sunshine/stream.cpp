@@ -118,6 +118,18 @@ struct session_t {
   std::string app_name;
 } session;
 
+void free_host(ENetHost *host) {
+  std::for_each(host->peers, host->peers + host->peerCount, [](ENetPeer &peer_ref) {
+    ENetPeer *peer = &peer_ref;
+
+    if(peer) {
+      enet_peer_disconnect_now(peer, 0);
+    }
+  });
+
+  enet_host_destroy(host);
+}
+
 void free_msg(PRTSP_MESSAGE msg) {
   freeMessage(msg);
 
@@ -126,7 +138,7 @@ void free_msg(PRTSP_MESSAGE msg) {
 
 using msg_t          = util::safe_ptr<RTSP_MESSAGE, free_msg>;
 using packet_t       = util::safe_ptr<ENetPacket, enet_packet_destroy>;
-using host_t         = util::safe_ptr<ENetHost, enet_host_destroy>;
+using host_t         = util::safe_ptr<ENetHost, free_host>;
 using peer_t         = ENetPeer*;
 using rh_t           = util::safe_ptr<reed_solomon, reed_solomon_release>;
 using video_packet_t = util::safe_ptr<video_packet_raw_t, util::c_free>;
