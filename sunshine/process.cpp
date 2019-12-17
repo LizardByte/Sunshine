@@ -45,10 +45,8 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
 int proc_t::execute(const std::string &name) {
   auto it = _name_to_proc.find(name);
 
-  std::cout << "Ensure clean slate"sv << std::endl;
   // Ensure starting from a clean slate
   _undo_pre_cmd();
-  std::cout << "Clean slate"sv << std::endl;
 
   if(it == std::end(_name_to_proc)) {
     std::cout << "Error: Couldn't find ["sv << name << ']' << std::endl;

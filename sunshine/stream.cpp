@@ -115,9 +115,8 @@ struct session_t {
 
   crypto::aes_t gcm_key;
   crypto::aes_t iv;
-
-  std::string app_name;
 } session;
+std::atomic_bool has_session;
 
 void free_host(ENetHost *host) {
   std::for_each(host->peers, host->peers + host->peerCount, [](ENetPeer &peer_ref) {
@@ -154,6 +153,13 @@ host_t host_create(ENetAddress &addr, std::uint16_t port) {
 
 void print_msg(PRTSP_MESSAGE msg);
 void cmd_not_found(host_t &host, peer_t peer, msg_t&& req);
+
+void stop(session_t &session) {
+  session.video_packets->stop();
+  session.audio_packets->stop();
+
+  has_session.store(false);
+}
 
 class rtsp_server_t {
 public:
@@ -522,8 +528,8 @@ void controlThread(video::idr_event_t idr_events) {
       // something went wrong :(
 
       std::cout << "failed to verify tag"sv << std::endl;
-      session.video_packets->stop();
-      session.audio_packets->stop();
+
+      stop(session);
     }
 
     if(tagged_cipher_length >= 16 + session.iv.size()) {
@@ -534,14 +540,14 @@ void controlThread(video::idr_event_t idr_events) {
     input::passthrough(input, plaintext.data());
   });
 
-  while(session.video_packets->running()) {
+  while(has_session) {
     if(std::chrono::steady_clock::now() > session.pingTimeout) {
       std::cout << "ping timeout"sv << std::endl;
-      session.video_packets->stop();
-      session.audio_packets->stop();
+
+      stop(session);
     }
 
-    if(!session.app_name.empty() && !proc::proc.running()) {
+    if(!proc::proc.running()) {
       std::cout << "Process terminated"sv << std::endl;
 
       std::uint16_t reason = 0x0100;
@@ -552,8 +558,7 @@ void controlThread(video::idr_event_t idr_events) {
 
       server.send(std::string_view {(char*)payload.data(), payload.size()});
 
-      session.video_packets->stop();
-      session.audio_packets->stop();
+      stop(session);
     }
 
     server.iterate(500ms);
@@ -653,9 +658,7 @@ void audioThread() {
     // std::cout << "Audio ["sv << frame << "] ::  send..."sv << std::endl;
   }
 
-  std::cout << "Audio: Joining()" << std::endl;
   captureThread.join();
-  std::cout << "Audio: Joining()" << std::endl;
 }
 
 void videoThread(video::idr_event_t idr_events) {
@@ -760,9 +763,8 @@ void videoThread(video::idr_event_t idr_events) {
     lowseq += shards.size();
 
   }
-  std::cout << "Video: Joining()" << std::endl;
+
   captureThread.join();
-  std::cout << "Video: Joined()" << std::endl;
 }
 
 void respond(host_t &host, peer_t peer, msg_t &resp) {
@@ -890,13 +892,13 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
   auto seqn_str = std::to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
-  if(session.video_packets || !launch_event.peek()) {
+  if(has_session || !launch_event.peek()) {
     //Either already streaming or /launch has not been used
 
     respond(host, peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
     return;
   }
-  auto launch_session { std::move(*launch_event.pop()) };
+  auto launch_session { *launch_event.pop() };
 
   std::string_view payload { req->payload, (size_t)req->payloadLength };
 
@@ -961,25 +963,10 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     return;
   }
 
-  auto &app_name = launch_session.app_name;
+  has_session.store(true);
+
   auto &gcm_key  = launch_session.gcm_key;
   auto &iv       = launch_session.iv;
-
-  if(!app_name.empty() && session.app_name != app_name  ) {
-    if(auto err_code = proc::proc.execute(app_name)) {
-      if(err_code == 404) {
-        respond(host, peer, &option, 404, (app_name + " NOT FOUND").c_str(), req->sequenceNumber, {});
-        return;
-      }
-
-      else {
-        respond(host, peer, &option, 500, "INTERNAL ERROR", req->sequenceNumber, {});
-        return;
-      }
-    }
-  }
-
-  session.app_name = std::move(app_name);
 
   std::copy(std::begin(gcm_key), std::end(gcm_key), std::begin(session.gcm_key));
   std::copy(std::begin(iv), std::end(iv), std::begin(session.iv));

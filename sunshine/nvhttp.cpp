@@ -468,16 +468,52 @@ template<class T>
 void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
-  auto args = request->parse_query_string();
+  static std::int64_t current_appid { -1 };
 
+  pt::ptree tree;
+  auto g = util::fail_guard([&]() {
+    tree.put("root.gamesession", 0);
+
+    std::ostringstream data;
+
+    pt::write_xml(data, tree);
+    response->write(data.str());
+  });
+
+  auto args = request->parse_query_string();
   auto appid = util::from_view(args.at("appid")) -2;
 
   stream::launch_session_t launch_session;
-  if(appid >= 0) {
-    auto pos = std::begin(proc::proc.get_apps());
+
+  if(stream::has_session) {
+    tree.put("root.<xmlattr>.status_code", 503);
+
+    return;
+  }
+
+  if(!proc::proc.running()) {
+    current_appid = -1;
+  }
+
+  if(appid >= 0 && appid != current_appid) {
+    auto &apps = proc::proc.get_apps();
+    if(appid >= apps.size()) {
+      tree.put("root.<xmlattr>.status_code", 404);
+
+      return;
+    }
+
+    auto pos = std::begin(apps);
     std::advance(pos, appid);
 
-    launch_session.app_name = pos->first;
+    auto err = proc::proc.execute(pos->first);
+    if(err) {
+      tree.put("root.<xmlattr>.status_code", 500);
+
+      return;
+    }
+
+    current_appid = appid;
   }
 
   auto clientID = args.at("uniqueid"s);
@@ -487,15 +523,6 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
 
   auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
   std::fill(next, std::end(launch_session.iv), 0);
-
-  pt::ptree tree;
-
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-
-    pt::write_xml(data, tree);
-    response->write(data.str());
-  });
 
   stream::launch_event.raise(std::move(launch_session));
 
@@ -509,6 +536,12 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.gamesession", 1);
+
+  std::ostringstream data;
+
+  pt::write_xml(data, tree);
+  response->write(data.str());
+
 }
 
 template<class T>

@@ -165,8 +165,6 @@ void encodeThread(
     
     yuv_frame->pict_type = AV_PICTURE_TYPE_NONE;
   }
-
-  packets->stop();
 }
 
 void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t config) {
