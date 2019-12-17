@@ -172,48 +172,48 @@ public:
         case ENET_EVENT_TYPE_RECEIVE:
         {
           packet_t packet { event.packet };
-	        peer_t peer { event.peer };
+            peer_t peer { event.peer };
 
           msg_t req { new RTSP_MESSAGE {} };
 
-	        //TODO: compare addresses of the peers
-	        if(_queue_packet.second == nullptr) {
-	          parseRtspMessage(req.get(), (char*)packet->data, packet->dataLength);
-	          for(auto option = req->options; option != nullptr; option = option->next) {
-	            if("Content-length"sv == option->option) {
-	            _queue_packet = std::make_pair(peer, std::move(packet));
-	            return;
-	            }
-	          }
-	        }
-	        else {
-	          std::vector<char> full_payload;
+            //TODO: compare addresses of the peers
+            if(_queue_packet.second == nullptr) {
+              parseRtspMessage(req.get(), (char*)packet->data, packet->dataLength);
+              for(auto option = req->options; option != nullptr; option = option->next) {
+                if("Content-length"sv == option->option) {
+                _queue_packet = std::make_pair(peer, std::move(packet));
+                return;
+                }
+              }
+            }
+            else {
+              std::vector<char> full_payload;
 
-	          auto old_msg = std::move(_queue_packet);
-	          TUPLE_2D_REF(_, old_packet, old_msg);
+              auto old_msg = std::move(_queue_packet);
+              TUPLE_2D_REF(_, old_packet, old_msg);
 
-	          std::string_view new_payload { (char*)packet->data, packet->dataLength };
-	          std::string_view old_payload { (char*)old_packet->data, old_packet->dataLength };
-	          full_payload.resize(new_payload.size() + old_payload.size());
+              std::string_view new_payload { (char*)packet->data, packet->dataLength };
+              std::string_view old_payload { (char*)old_packet->data, old_packet->dataLength };
+              full_payload.resize(new_payload.size() + old_payload.size());
 
-	          std::copy(std::begin(old_payload), std::end(old_payload), std::begin(full_payload));
-	          std::copy(std::begin(new_payload), std::end(new_payload), std::begin(full_payload) + old_payload.size());
+              std::copy(std::begin(old_payload), std::end(old_payload), std::begin(full_payload));
+              std::copy(std::begin(new_payload), std::end(new_payload), std::begin(full_payload) + old_payload.size());
 
             parseRtspMessage(req.get(), full_payload.data(), full_payload.size());
-	        }
+            }
 
           print_msg(req.get());
 
-	        msg_t resp;
-	        auto func = _map_cmd_cb.find(req->message.request.command);
-	        if(func != std::end(_map_cmd_cb)) {
+            msg_t resp;
+            auto func = _map_cmd_cb.find(req->message.request.command);
+            if(func != std::end(_map_cmd_cb)) {
             func->second(_host, peer, std::move(req));
-	        }
-	        else {
+            }
+            else {
             cmd_not_found(_host, peer, std::move(req));
-	        }
+            }
 
-	        return;
+            return;
         }
           break;
         case ENET_EVENT_TYPE_CONNECT:
@@ -779,10 +779,10 @@ void respond(host_t &host, peer_t peer, msg_t &resp) {
   int serialized_len;
   util::c_ptr<char> raw_resp { serializeRtspMessage(resp.get(), &serialized_len) };
   std::cout << "---Begin Response---"sv << std::endl
-	    << std::string_view { raw_resp.get(), (std::size_t)serialized_len } << std::endl
-	    << std::string_view { payload.first, (std::size_t)payload.second } << std::endl
-	    << "---End Response---"sv << std::endl 
-	    << std::endl;
+        << std::string_view { raw_resp.get(), (std::size_t)serialized_len } << std::endl
+        << std::string_view { payload.first, (std::size_t)payload.second } << std::endl
+        << "---End Response---"sv << std::endl 
+        << std::endl;
 
   std::string_view tmp_resp { raw_resp.get(), (size_t)serialized_len };
 
