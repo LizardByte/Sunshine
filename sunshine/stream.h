@@ -14,6 +14,8 @@ namespace stream {
 struct launch_session_t {
   crypto::aes_t gcm_key;
   crypto::aes_t iv;
+
+  bool has_process;
 };
 
 extern safe::event_t<launch_session_t> launch_event;

@@ -516,6 +516,9 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
     current_appid = appid;
   }
 
+  // Needed to determine if session must be closed when no process is running in proc::proc
+  launch_session.has_process = current_appid >= 0;
+
   auto clientID = args.at("uniqueid"s);
   launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
   uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
@@ -534,6 +537,7 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
   }
 */
 
+  g.disable();
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.gamesession", 1);
 
@@ -541,7 +545,6 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
 
   pt::write_xml(data, tree);
   response->write(data.str());
-
 }
 
 template<class T>

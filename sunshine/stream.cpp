@@ -115,6 +115,8 @@ struct session_t {
 
   crypto::aes_t gcm_key;
   crypto::aes_t iv;
+
+  bool has_process;
 } session;
 std::atomic_bool has_session;
 
@@ -547,7 +549,7 @@ void controlThread(video::idr_event_t idr_events) {
       stop(session);
     }
 
-    if(!proc::proc.running()) {
+    if(session.has_process && !proc::proc.running()) {
       std::cout << "Process terminated"sv << std::endl;
 
       std::uint16_t reason = 0x0100;
@@ -898,7 +900,7 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     respond(host, peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
     return;
   }
-  auto launch_session { *launch_event.pop() };
+  auto launch_session { launch_event.pop() };
 
   std::string_view payload { req->payload, (size_t)req->payloadLength };
 
@@ -965,11 +967,13 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
 
   has_session.store(true);
 
-  auto &gcm_key  = launch_session.gcm_key;
-  auto &iv       = launch_session.iv;
+  auto &gcm_key  = launch_session->gcm_key;
+  auto &iv       = launch_session->iv;
 
   std::copy(std::begin(gcm_key), std::end(gcm_key), std::begin(session.gcm_key));
   std::copy(std::begin(iv), std::end(iv), std::begin(session.iv));
+
+  session.has_process = launch_session->has_process;
 
   session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
