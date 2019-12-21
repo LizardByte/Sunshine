@@ -115,7 +115,13 @@ void encodeThread(
   av_dict_set(&options, "preset", config::video.preset.c_str(), 0);
   av_dict_set(&options, "tune", config::video.tune.c_str(), 0);
 
-  if(config::video.crf != 0) {
+  if(config.bitrate > 500) {
+    ctx->rc_max_rate = 2000000;
+    ctx->rc_buffer_size = 2000000;
+    ctx->bit_rate = config.bitrate * 1000;
+//    av_dict_set_int(&options, "qp", config::video.qp, 0);
+  }
+  else if(config::video.crf != 0) {
     av_dict_set_int(&options, "crf", config::video.crf, 0);
   }
   else {
