@@ -4,7 +4,7 @@ Requirements:
 Compilation:
 	* git clone <repository> --recurse-submodules
 	* mkdir build && cd build
-	* cmake -DCMAKE_BUILD_TYPE=Release ..
+	* cmake ..
 	* make
 
 
@@ -31,6 +31,12 @@ Usage:
 
 Note:
 	* The Windows key is not passed through by Moonlight, therefore Sunshine maps Right-Alt key to the Windows key
+	* If you set Video Bitrate to 0.5Mb/s:
+		* Sunshine will use CRF or QP to controll the quality of the stream. (See example configuration file for more details)
+		* This is less CPU intensive and it has lower average bandwith requirements compared to manually setting bitrate to acceptable quality
+		* However, it has higher peak bitrates, forcing Sunshine to drop entire frames when streaming 1080P due to their size.
+		* When this happens, the video portion of the stream appears to be frozen.
+		* This is rare enough that using this for the desktop environment is tolerable (in my opinion), however for gaming not so much.
 
 
 Credits:
