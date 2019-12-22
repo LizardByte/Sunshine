@@ -14,22 +14,6 @@
 #include "sunshine/utility.h"
 
 namespace platf {
-constexpr std::uint16_t DPAD_UP      = 0x0001;
-constexpr std::uint16_t DPAD_DOWN    = 0x0002;
-constexpr std::uint16_t DPAD_LEFT    = 0x0004;
-constexpr std::uint16_t DPAD_RIGHT   = 0x0008;
-constexpr std::uint16_t START        = 0x0010;
-constexpr std::uint16_t BACK         = 0x0020;
-constexpr std::uint16_t LEFT_STICK   = 0x0040;
-constexpr std::uint16_t RIGHT_STICK  = 0x0080;
-constexpr std::uint16_t LEFT_BUTTON  = 0x0100;
-constexpr std::uint16_t RIGHT_BUTTON = 0x0200;
-constexpr std::uint16_t HOME         = 0x0400;
-constexpr std::uint16_t A            = 0x1000;
-constexpr std::uint16_t B            = 0x2000;
-constexpr std::uint16_t X            = 0x4000;
-constexpr std::uint16_t Y            = 0x8000;
-	
 using namespace std::literals;
 using evdev_t = util::safe_ptr<libevdev, libevdev_free>;
 using uinput_t = util::safe_ptr<libevdev_uinput, libevdev_uinput_destroy>;
@@ -217,71 +201,89 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   XFlush(disp.display);
 }
 
-void gamepad(input_t &input, const gamepad_state_t &gamepad_state) {
+namespace gp {
+// up pressed == -1, down pressed == 1, else 0
+void dpad_y(input_t &input, int button_state) {
   auto &gp = *(input_raw_t*)input.get();
-
-  auto bf = gamepad_state.buttonFlags ^ gp.gamepad_state.buttonFlags;
-  auto bf_new = gamepad_state.buttonFlags;
-
-  if(bf) {
-    // up pressed == -1, down pressed == 1, else 0
-    if(DPAD_UP & bf) {
-      int val = bf_new & DPAD_UP ? -1 : (bf_new & DPAD_DOWN ? 1 : 0);
-      libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_HAT0Y, val);
-    }
-    else if(DPAD_DOWN & bf) {
-      int val = bf_new & DPAD_DOWN ? 1 : 0;
-      libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_HAT0Y, val);
-    }
-
-    if(DPAD_LEFT & bf) {
-      int val = bf_new & DPAD_LEFT ? -1 : (bf_new & DPAD_RIGHT ? 1 : 0);
-      libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_HAT0X, val);
-    }
-    else if(DPAD_RIGHT & bf) {
-      int val = bf_new & DPAD_RIGHT ? 1 : 0;
-      libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_HAT0X, val);
-    }
-
-    if(START & bf)        libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_START, bf_new & START        ? 1 : 0);
-    if(BACK & bf)         libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_SELECT, bf_new & BACK        ? 1 : 0);
-    if(LEFT_STICK & bf)   libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_THUMBL, bf_new & LEFT_STICK  ? 1 : 0);
-    if(RIGHT_STICK & bf)  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_THUMBR, bf_new & RIGHT_STICK ? 1 : 0);
-    if(LEFT_BUTTON & bf)  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_TL, bf_new & LEFT_BUTTON     ? 1 : 0);
-    if(RIGHT_BUTTON & bf) libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_TR, bf_new & RIGHT_BUTTON    ? 1 : 0);
-    if(HOME & bf)         libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_MODE, bf_new & HOME          ? 1 : 0);
-    if(A & bf)            libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_SOUTH, bf_new & A            ? 1 : 0);
-    if(B & bf)            libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_EAST, bf_new & B             ? 1 : 0);
-    if(X & bf)            libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_NORTH, bf_new & X            ? 1 : 0);
-    if(Y & bf)            libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_WEST, bf_new & Y             ? 1 : 0);
-  }
-
-  if(gp.gamepad_state.lt != gamepad_state.lt) {
-    libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_Z, gamepad_state.lt);
-  }
-
-  if(gp.gamepad_state.rt != gamepad_state.rt) {
-    libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_RZ, gamepad_state.rt);
-  }
-
-  if(gp.gamepad_state.lsX != gamepad_state.lsX) {
-    libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_X, gamepad_state.lsX);
-  }
-
-  if(gp.gamepad_state.lsY != gamepad_state.lsY) {
-    libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_Y, -gamepad_state.lsY);
-  }
-
-  if(gp.gamepad_state.rsX != gamepad_state.rsX) {
-    libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_RX, gamepad_state.rsX);
-  }
-
-  if(gp.gamepad_state.rsY != gamepad_state.rsY) {
-    libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_RY, -gamepad_state.rsY);
-  }
-
-  gp.gamepad_state = gamepad_state;
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_HAT0Y, button_state);
+}
+// left pressed == -1, right pressed == 1, else 0
+void dpad_x(input_t &input, int button_state) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_HAT0X, button_state);
+}
+void start(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_START, button_down);
+}
+void back(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_SELECT, button_down);
+}
+void left_stick(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_THUMBL, button_down);
+}
+void right_stick(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_THUMBR, button_down);
+}
+void left_button(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_TL, button_down);
+}
+void right_button(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_TR, button_down);
+}
+void home(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_MODE, button_down);
+}
+void a(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_SOUTH, button_down);
+}
+void b(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_EAST, button_down);
+}
+void x(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_NORTH, button_down);
+}
+void y(input_t &input, int button_down) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_KEY, BTN_WEST, button_down);
+}
+void left_trigger(input_t &input, std::uint8_t abs_z) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_Z, abs_z);
+}
+void right_trigger(input_t &input, std::uint8_t abs_z) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_RZ, abs_z);
+}
+void left_stick_x(input_t &input, std::int16_t x) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_X, x);
+}
+void left_stick_y(input_t &input, std::int16_t y) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_Y, -y);
+}
+void right_stick_x(input_t &input, std::int16_t x) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_RX, x);
+}
+void right_stick_y(input_t &input, std::int16_t y) {
+  auto &gp = *(input_raw_t*)input.get();
+  libevdev_uinput_write_event(gp.uinput.get(), EV_ABS, ABS_RY, -y);
+}
+void sync(input_t &input) {
+  auto &gp = *(input_raw_t*)input.get();
   libevdev_uinput_write_event(gp.uinput.get(), EV_SYN, SYN_REPORT, 0);
+}
 }
 
 input_t input() {

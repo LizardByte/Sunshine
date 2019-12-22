@@ -15,6 +15,22 @@ extern "C" {
 namespace input {
 using namespace std::literals;
 
+constexpr std::uint16_t DPAD_UP      = 0x0001;
+constexpr std::uint16_t DPAD_DOWN    = 0x0002;
+constexpr std::uint16_t DPAD_LEFT    = 0x0004;
+constexpr std::uint16_t DPAD_RIGHT   = 0x0008;
+constexpr std::uint16_t START        = 0x0010;
+constexpr std::uint16_t BACK         = 0x0020;
+constexpr std::uint16_t LEFT_STICK   = 0x0040;
+constexpr std::uint16_t RIGHT_STICK  = 0x0080;
+constexpr std::uint16_t LEFT_BUTTON  = 0x0100;
+constexpr std::uint16_t RIGHT_BUTTON = 0x0200;
+constexpr std::uint16_t HOME         = 0x0400;
+constexpr std::uint16_t A            = 0x1000;
+constexpr std::uint16_t B            = 0x2000;
+constexpr std::uint16_t X            = 0x4000;
+constexpr std::uint16_t Y            = 0x8000;
+
 void print(PNV_MOUSE_MOVE_PACKET packet) {
   std::cout << "--begin mouse move packet--"sv << std::endl;
 
@@ -116,12 +132,11 @@ void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
   platf::scroll(input, util::endian::big(packet->scrollAmt1));
 }
 
-void passthrough(platf::input_t &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+void passthrough(input_t &input, PNV_MULTI_CONTROLLER_PACKET packet) {
   std::uint16_t bf;
-
-  static_assert(sizeof(bf) == sizeof(packet->buttonFlags), "Can't memcpy :(");
   std::memcpy(&bf, &packet->buttonFlags, sizeof(std::uint16_t));
-  platf::gamepad_state_t gamepad_state {
+
+  gamepad_state_t gamepad_state {
     bf,
     packet->leftTrigger,
     packet->rightTrigger,
@@ -131,27 +146,81 @@ void passthrough(platf::input_t &input, PNV_MULTI_CONTROLLER_PACKET packet) {
     packet->rightStickY
   };
 
-  platf::gamepad(input, gamepad_state);
+  bf = gamepad_state.buttonFlags ^ input.gamepad_state.buttonFlags;
+  auto bf_new = gamepad_state.buttonFlags;
+
+  if(bf) {
+    // up pressed == -1, down pressed == 1, else 0
+    if((DPAD_UP | DPAD_DOWN) & bf) {
+      int val = bf_new & DPAD_UP ? -1 : (bf_new & DPAD_DOWN ? 1 : 0);
+
+      platf::gp::dpad_y(input.input, val);
+    }
+
+    if((DPAD_LEFT | DPAD_RIGHT) & bf) {
+      int val = bf_new & DPAD_LEFT ? -1 : (bf_new & DPAD_RIGHT ? 1 : 0);
+      platf::gp::dpad_x(input.input, val);
+    }
+
+    if(START & bf)        platf::gp::start(input.input,        bf_new & START        ? 1 : 0);
+    if(BACK & bf)         platf::gp::back(input.input,         bf_new & BACK         ? 1 : 0);
+    if(LEFT_STICK & bf)   platf::gp::left_stick(input.input,   bf_new & LEFT_STICK   ? 1 : 0);
+    if(RIGHT_STICK & bf)  platf::gp::right_stick(input.input,  bf_new & RIGHT_STICK  ? 1 : 0);
+    if(LEFT_BUTTON & bf)  platf::gp::left_button(input.input,  bf_new & LEFT_BUTTON  ? 1 : 0);
+    if(RIGHT_BUTTON & bf) platf::gp::right_button(input.input, bf_new & RIGHT_BUTTON ? 1 : 0);
+    if(HOME & bf)         platf::gp::home(input.input,         bf_new & HOME         ? 1 : 0);
+    if(A & bf)            platf::gp::a(input.input,            bf_new & A            ? 1 : 0);
+    if(B & bf)            platf::gp::b(input.input,            bf_new & B            ? 1 : 0);
+    if(X & bf)            platf::gp::x(input.input,            bf_new & X            ? 1 : 0);
+    if(Y & bf)            platf::gp::y(input.input,            bf_new & Y            ? 1 : 0);
+  }
+
+  if(input.gamepad_state.lt != gamepad_state.lt) {
+    platf::gp::left_trigger(input.input, gamepad_state.lt);
+  }
+
+  if(input.gamepad_state.rt != gamepad_state.rt) {
+    platf::gp::right_trigger(input.input, gamepad_state.rt);
+  }
+
+  if(input.gamepad_state.lsX != gamepad_state.lsX) {
+    platf::gp::left_stick_x(input.input, gamepad_state.lsX);
+  }
+
+  if(input.gamepad_state.lsY != gamepad_state.lsY) {
+    platf::gp::left_stick_y(input.input, gamepad_state.lsY);
+  }
+
+  if(input.gamepad_state.rsX != gamepad_state.rsX) {
+    platf::gp::right_stick_x(input.input, gamepad_state.rsX);
+  }
+
+  if(input.gamepad_state.rsY != gamepad_state.rsY) {
+    platf::gp::right_stick_y(input.input, gamepad_state.rsY);
+  }
+
+  input.gamepad_state = gamepad_state;
+  platf::gp::sync(input.input);
 }
 
-void passthrough(platf::input_t &input, void *payload) {
+void passthrough(input_t &input, void *payload) {
   int input_type = util::endian::big(*(int*)payload);
 
   switch(input_type) {
     case PACKET_TYPE_MOUSE_MOVE:
-      passthrough(input, (PNV_MOUSE_MOVE_PACKET)payload);
+      passthrough(input.input, (PNV_MOUSE_MOVE_PACKET)payload);
       break;
     case PACKET_TYPE_MOUSE_BUTTON:
-      passthrough(input, (PNV_MOUSE_BUTTON_PACKET)payload);
+      passthrough(input.input, (PNV_MOUSE_BUTTON_PACKET)payload);
       break;
     case PACKET_TYPE_SCROLL_OR_KEYBOARD:
     {
       char *tmp_input = (char*)payload + 4;
       if(tmp_input[0] == 0x0A) {
-        passthrough(input, (PNV_SCROLL_PACKET)payload);
+        passthrough(input.input, (PNV_SCROLL_PACKET)payload);
       }
       else {
-        passthrough(input, (PNV_KEYBOARD_PACKET)payload);
+        passthrough(input.input, (PNV_KEYBOARD_PACKET)payload);
       }
 
       break;
@@ -161,4 +230,6 @@ void passthrough(platf::input_t &input, void *payload) {
       break;
   }
 }
+
+input_t::input_t() : gamepad_state { 0 }, input { platf::input() } {}
 }
