@@ -468,7 +468,7 @@ void control_server_t::send(const std::string_view & payload) {
 void controlThread(video::idr_event_t idr_events) {
   control_server_t server { CONTROL_PORT };
 
-  input::input_t input;
+  auto input = std::make_shared<input::input_t>();
   server.map(packetTypes[IDX_START_A], [](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
@@ -539,7 +539,7 @@ void controlThread(video::idr_event_t idr_events) {
     }
 
     input::print(plaintext.data());
-    input::passthrough(input, plaintext.data());
+    input::passthrough(input, std::move(plaintext));
   });
 
   while(has_session) {

@@ -37,9 +37,14 @@ struct nvhttp_t {
   std::string external_ip;
 };
 
+struct input_t {
+  std::chrono::milliseconds back_button_timeout;
+};
+
 extern video_t video;
 extern stream_t stream;
 extern nvhttp_t nvhttp;
+extern input_t input;
 
 void parse_file(const char *file);
 }

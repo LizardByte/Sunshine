@@ -10,12 +10,15 @@
 #include "stream.h"
 #include "config.h"
 #include "process.h"
+#include "thread_pool.h"
 
 extern "C" {
 #include <rs.h>
 }
 
 using namespace std::literals;
+
+util::ThreadPool task_pool;
 int main(int argc, char *argv[]) {
   if(argc > 1) {
     if(!std::filesystem::exists(argv[1])) {
@@ -34,11 +37,12 @@ int main(int argc, char *argv[]) {
 
   reed_solomon_init();
 
-  std::thread httpThread { nvhttp::start };
-  std::thread rtpThread { stream::rtpThread };
+  task_pool.start(1);
 
+  std::thread httpThread { nvhttp::start };
+
+  stream::rtpThread();
   httpThread.join();
-  rtpThread.join();
 
   return 0;
 }

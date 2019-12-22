@@ -62,6 +62,7 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/config.h
 	sunshine/config.cpp
 	sunshine/main.cpp
+	sunshine/main.h
 	sunshine/crypto.cpp
 	sunshine/crypto.h
 	sunshine/nvhttp.cpp
@@ -78,6 +79,9 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/platform/common.h
 	sunshine/process.cpp
 	sunshine/process.h
+	sunshine/move_by_copy.h
+	sunshine/task_pool.h
+	sunshine/thread_pool.h
 	${PLATFORM_TARGET_FILES})
 
 include_directories(

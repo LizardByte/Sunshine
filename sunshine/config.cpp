@@ -43,6 +43,10 @@ nvhttp_t nvhttp {
   "devices.json" // file_devices
 };
 
+input_t input {
+  2s
+};
+
 bool whitespace(char ch) {
   return ch == ' ' || ch == '\t';
 }
@@ -143,6 +147,13 @@ void parse_file(const char *file) {
   }
   string_f(vars, "file_apps", stream.file_apps);
   int_f(vars, "fec_percentage", stream.fec_percentage);
+
+  to = std::numeric_limits<int>::min();
+  int_f(vars, "back_button_timeout", to);
+
+  if(to > std::numeric_limits<int>::min()) {
+    input.back_button_timeout = std::chrono::milliseconds {to };
+  }
 }
 
 

@@ -6,6 +6,7 @@
 #define SUNSHINE_INPUT_H
 
 #include "platform/common.h"
+#include "thread_pool.h"
 
 namespace input {
 struct gamepad_state_t {
@@ -22,11 +23,13 @@ struct input_t {
   input_t();
 
   gamepad_state_t gamepad_state;
+  util::ThreadPool::task_id_t back_timeout_id;
+
   platf::input_t input;
 };
 
 void print(void *input);
-void passthrough(input_t &, void *input);
+void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data);
 }
 
 #endif //SUNSHINE_INPUT_H
