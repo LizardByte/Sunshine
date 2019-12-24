@@ -207,18 +207,18 @@ public:
               std::copy(std::begin(old_payload), std::end(old_payload), std::begin(full_payload));
               std::copy(std::begin(new_payload), std::end(new_payload), std::begin(full_payload) + old_payload.size());
 
-            parseRtspMessage(req.get(), full_payload.data(), full_payload.size());
+              parseRtspMessage(req.get(), full_payload.data(), full_payload.size());
             }
 
-          print_msg(req.get());
+            print_msg(req.get());
 
             msg_t resp;
             auto func = _map_cmd_cb.find(req->message.request.command);
             if(func != std::end(_map_cmd_cb)) {
-            func->second(_host, peer, std::move(req));
+              func->second(_host, peer, std::move(req));
             }
             else {
-            cmd_not_found(_host, peer, std::move(req));
+              cmd_not_found(_host, peer, std::move(req));
             }
 
             return;
