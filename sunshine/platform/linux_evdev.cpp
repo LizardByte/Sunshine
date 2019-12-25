@@ -26,11 +26,9 @@ struct input_raw_t {
   uinput_t mouse_input;
 
   display_t display;
-
-  gamepad_state_t gamepad_state;
 };
 
-//TODO: Use libevdev for keyboard and mouse, then any  mention of X11 can be removed from linux_input.cpp
+//TODO: Use libevdev for keyboard and mouse, then any  mention of X11 can be removed from linux_evdev.cpp
 struct display_attr_t {
   display_attr_t() : display { XOpenDisplay(nullptr) }, window { DefaultRootWindow(display) }, attr {} {
     XGetWindowAttributes(display, window, &attr);

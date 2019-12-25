@@ -19,6 +19,8 @@ extern "C" {
 using namespace std::literals;
 
 util::ThreadPool task_pool;
+bool display_cursor;
+
 int main(int argc, char *argv[]) {
   if(argc > 1) {
     if(!std::filesystem::exists(argv[1])) {

@@ -115,7 +115,7 @@ display_t display() {
   return display_t { new display_attr_t {} };
 }
 
-img_t snapshot(display_t &display_void) {
+img_t snapshot(display_t &display_void, bool cursor) {
   auto &display = *((display_attr_t*)display_void.get());
 
   display.refresh();
@@ -126,6 +126,10 @@ img_t snapshot(display_t &display_void) {
     display.attr.width, display.attr.height,
     AllPlanes, ZPixmap)
   };
+
+  if(!cursor) {
+    return img_t { img };
+  }
 
   XFixesCursorImage *overlay = XFixesGetCursorImage(display.display);
   overlay->x -= overlay->xhot;

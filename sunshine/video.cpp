@@ -6,15 +6,15 @@
 #include <fstream>
 #include <thread>
 
-#include "platform/common.h"
-
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
 }
 
+#include "platform/common.h"
 #include "config.h"
 #include "video.h"
+#include "main.h"
 
 namespace video {
 using namespace std::literals;
@@ -121,9 +121,11 @@ void encodeThread(
     ctx->rc_min_rate = config.bitrate;
   }
   else if(config::video.crf != 0) {
+    ctx->gop_size = config::video.gop_size;
     av_dict_set_int(&options, "crf", config::video.crf, 0);
   }
   else {
+    ctx->gop_size = config::video.gop_size;
     av_dict_set_int(&options, "qp", config::video.qp, 0);
   }
   
@@ -169,8 +171,6 @@ void encodeThread(
       TUPLE_2D_REF(start, end, *event);
 
       frame = start;
-
-      // For some reason, the encoder does not always accept the key_frame when using "end + 1"
       key_frame = end + 2;
     }
     else if(frame == key_frame) {
@@ -184,6 +184,8 @@ void encodeThread(
 }
 
 void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t config) {
+  display_cursor = true;
+
   int framerate = config.framerate;
 
   img_event_t images {new img_event_t::element_type };
@@ -195,7 +197,7 @@ void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t co
   auto time_span = std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate;
   while(packets->running()) {
     auto next_snapshot = std::chrono::steady_clock::now() + time_span;
-    auto img = platf::snapshot(disp);
+    auto img = platf::snapshot(disp, display_cursor);
 
     images->raise(std::move(img));
     img.reset();

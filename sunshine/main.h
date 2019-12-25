@@ -8,5 +8,6 @@
 #include "thread_pool.h"
 
 extern util::ThreadPool task_pool;
+extern bool display_cursor;
 
 #endif //SUNSHINE_MAIN_H

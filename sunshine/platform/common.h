@@ -22,16 +22,6 @@ using mic_t     = util::safe_ptr<void, freeMic>;
 using audio_t   = util::safe_ptr<void, freeAudio>;
 using input_t   = util::safe_ptr<void, freeInput>;
 
-struct gamepad_state_t {
-  std::uint16_t buttonFlags;
-  std::uint8_t lt;
-  std::uint8_t rt;
-  std::int16_t lsX;
-  std::int16_t lsY;
-  std::int16_t rsX;
-  std::int16_t rsY;
-};
-
 std::string get_local_ip();
 
 void terminate_process(std::uint64_t handle);
@@ -40,7 +30,7 @@ mic_t microphone();
 audio_t audio(mic_t &mic, std::uint32_t sample_size);
 
 display_t display();
-img_t snapshot(display_t &display);
+img_t snapshot(display_t &display_void, bool cursor);
 int32_t img_width(img_t &);
 int32_t img_height(img_t &);
 

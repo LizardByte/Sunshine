@@ -115,11 +115,15 @@ void print(void *input) {
 }
 
 void passthrough(platf::input_t &input, PNV_MOUSE_MOVE_PACKET packet) {
+  display_cursor = true;
+
   platf::move_mouse(input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
 }
 
 void passthrough(platf::input_t &input, PNV_MOUSE_BUTTON_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x09;
+
+  display_cursor = true;
 
   platf::button_mouse(input, util::endian::big(packet->button), packet->action == BUTTON_RELEASED);
 }
@@ -131,10 +135,14 @@ void passthrough(platf::input_t &input, PNV_KEYBOARD_PACKET packet) {
 }
 
 void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
+  display_cursor = true;
+
   platf::scroll(input, util::endian::big(packet->scrollAmt1));
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+  display_cursor = false;
+
   std::uint16_t bf;
   std::memcpy(&bf, &packet->buttonFlags, sizeof(std::uint16_t));
 
