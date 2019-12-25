@@ -97,12 +97,10 @@ void encodeThread(
 
   ctx->width = config.width;
   ctx->height = config.height;
-  ctx->bit_rate = config.bitrate;
   ctx->time_base = AVRational{1, framerate};
   ctx->framerate = AVRational{framerate, 1};
   ctx->pix_fmt = AV_PIX_FMT_YUV420P;
   ctx->max_b_frames = config::video.max_b_frames;
-  ctx->gop_size = config::video.gop_size;
   ctx->has_b_frames = 1;
 
   ctx->slices = config.slicesPerFrame;
@@ -118,8 +116,9 @@ void encodeThread(
   if(config.bitrate > 500) {
     config.bitrate *= 1000;
     ctx->rc_max_rate = config.bitrate;
-    ctx->rc_buffer_size = 100000;
+    ctx->rc_buffer_size = config.bitrate / 100;
     ctx->bit_rate = config.bitrate;
+    ctx->rc_min_rate = config.bitrate;
   }
   else if(config::video.crf != 0) {
     av_dict_set_int(&options, "crf", config::video.crf, 0);
@@ -139,7 +138,8 @@ void encodeThread(
 
   av_frame_get_buffer(yuv_frame.get(), 0);
 
-  int64_t frame = 1;
+  int64_t frame = 0;
+  int64_t key_frame = 0;
 
   auto img_width  = 0;
   auto img_height = 0;
@@ -164,7 +164,17 @@ void encodeThread(
 
     if(idr_events->peek()) {
       yuv_frame->pict_type = AV_PICTURE_TYPE_I;
-      frame = idr_events->pop()->first;
+
+      auto event = idr_events->pop();
+      TUPLE_2D_REF(start, end, *event);
+
+      frame = start;
+
+      // For some reason, the encoder does not always accept the key_frame when using "end + 1"
+      key_frame = end + 2;
+    }
+    else if(frame == key_frame) {
+      yuv_frame->pict_type = AV_PICTURE_TYPE_I;
     }
 
     encode(frame++, ctx, sws, yuv_frame, img, packets);
