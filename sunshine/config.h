@@ -31,6 +31,8 @@ struct nvhttp_t {
   std::string pkey; // must be 2048 bits
   std::string cert; // must be signed with a key of 2048 bits
 
+  std::string sunshine_name;
+
   std::string unique_id; //UUID
   std::string file_devices;
 

@@ -395,7 +395,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   pt::ptree tree;
 
   tree.put("root.<xmlattr>.status_code", 200);
-  tree.put("root.hostname", "loki-pc");
+  tree.put("root.hostname", config::nvhttp.sunshine_name);
 
   tree.put("root.appversion", VERSION);
   tree.put("root.GfeVersion", GFE_VERSION);

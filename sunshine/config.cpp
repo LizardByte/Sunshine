@@ -39,6 +39,7 @@ nvhttp_t nvhttp {
   PRIVATE_KEY_FILE,
   CERTIFICATE_FILE,
 
+  "sunshine", // sunshine_name
   "03904e64-51da-4fb3-9afd-a9f7ff70fea4", // unique_id
   "devices.json" // file_devices
 };
@@ -136,6 +137,7 @@ void parse_file(const char *file) {
 
   string_f(vars, "pkey", nvhttp.pkey);
   string_f(vars, "cert", nvhttp.cert);
+  string_f(vars, "sunshine_name", nvhttp.sunshine_name);
   string_f(vars, "unique_id", nvhttp.unique_id);
   string_f(vars, "file_devices", nvhttp.file_devices);
   string_f(vars, "external_ip", nvhttp.external_ip);
