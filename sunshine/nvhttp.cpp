@@ -79,6 +79,8 @@ enum class op_e {
   REMOVE
 };
 
+std::int64_t current_appid { -1 };
+
 void save_devices() {
   pt::ptree root;
 
@@ -409,7 +411,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   }
   
   tree.put("root.PairStatus", pair_status);
-  tree.put("root.currentgame", 0);
+  tree.put("root.currentgame", current_appid >= 0 ? current_appid + 2 : 0);
   tree.put("root.state", "_SERVER_BUSY"); 
 
   std::ostringstream data;
@@ -468,12 +470,8 @@ template<class T>
 void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
-  static std::int64_t current_appid { -1 };
-
   pt::ptree tree;
   auto g = util::fail_guard([&]() {
-    tree.put("root.gamesession", 0);
-
     std::ostringstream data;
 
     pt::write_xml(data, tree);
@@ -487,6 +485,7 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
 
   if(stream::has_session) {
     tree.put("root.<xmlattr>.status_code", 503);
+    tree.put("root.gamesession", 0);
 
     return;
   }
@@ -499,6 +498,7 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
     auto &apps = proc::proc.get_apps();
     if(appid >= apps.size()) {
       tree.put("root.<xmlattr>.status_code", 404);
+      tree.put("root.gamesession", 0);
 
       return;
     }
@@ -509,6 +509,7 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
     auto err = proc::proc.execute(pos->first);
     if(err) {
       tree.put("root.<xmlattr>.status_code", 500);
+      tree.put("root.gamesession", 0);
 
       return;
     }
@@ -527,7 +528,7 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
   auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
   std::fill(next, std::end(launch_session.iv), 0);
 
-  stream::launch_event.raise(std::move(launch_session));
+  stream::launch_event.raise(launch_session);
 
 /*
   bool sops = args.at("sops"s) == "1";
@@ -537,14 +538,71 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
   }
 */
 
-  g.disable();
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.gamesession", 1);
+}
 
-  std::ostringstream data;
+template<class T>
+void resume(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+  print_req<T>(request);
 
-  pt::write_xml(data, tree);
-  response->write(data.str());
+  pt::ptree tree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_xml(data, tree);
+    response->write(data.str());
+  });
+
+  stream::launch_session_t launch_session;
+
+  if(stream::has_session) {
+    tree.put("root.gamesession", 0);
+    tree.put("root.<xmlattr>.status_code", 503);
+
+    return;
+  }
+
+  // Needed to determine if session must be closed when no process is running in proc::proc
+  launch_session.has_process = current_appid >= 0;
+
+  auto args = request->parse_query_string();
+  auto clientID = args.at("uniqueid"s);
+  launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
+  uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
+  auto prepend_iv_p = (uint8_t*)&prepend_iv;
+
+  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
+  std::fill(next, std::end(launch_session.iv), 0);
+
+  stream::launch_event.raise(launch_session);
+
+  tree.put("root.<xmlattr>.status_code", 200);
+  tree.put("root.gamesession", 1);
+}
+
+template<class T>
+void cancel(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+  print_req<T>(request);
+
+  pt::ptree tree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_xml(data, tree);
+    response->write(data.str());
+  });
+
+  if(stream::has_session) {
+    tree.put("root.<xmlattr>.status_code", 503);
+
+    return;
+  }
+
+  proc::proc.terminate();
+  current_appid = -1;
+
+  tree.put("root.<xmlattr>.status_code", 200);
 }
 
 template<class T>
@@ -576,6 +634,8 @@ void start() {
   https_server.resource["^/appasset$"]["GET"] = appasset<SimpleWeb::HTTPS>;
   https_server.resource["^/launch$"]["GET"] = launch<SimpleWeb::HTTPS>;
   https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
+  https_server.resource["^/resume$"]["GET"] = resume<SimpleWeb::HTTPS>;
+  https_server.resource["^/cancel$"]["GET"] = cancel<SimpleWeb::HTTPS>;
 
   https_server.config.reuse_address = true;
   https_server.config.address = "0.0.0.0"s;
@@ -588,6 +648,8 @@ void start() {
   http_server.resource["^/appasset$"]["GET"] = appasset<SimpleWeb::HTTP>;
   http_server.resource["^/launch$"]["GET"] = launch<SimpleWeb::HTTP>;
   http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
+  http_server.resource["^/resume$"]["GET"] = resume<SimpleWeb::HTTP>;
+  http_server.resource["^/cancel$"]["GET"] = cancel<SimpleWeb::HTTP>;
 
   http_server.config.reuse_address = true;
   http_server.config.address = "0.0.0.0"s;

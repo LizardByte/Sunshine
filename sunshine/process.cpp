@@ -21,8 +21,7 @@ namespace pt = boost::property_tree;
 
 proc_t proc;
 
-template<class Rep, class Period>
-void process_end(bp::child &proc, bp::group &proc_handle, const std::chrono::duration<Rep, Period>& rel_time) {
+void process_end(bp::child &proc, bp::group &proc_handle) {
   if(!proc.running()) {
     return;
   }
@@ -46,7 +45,7 @@ int proc_t::execute(const std::string &name) {
   auto it = _name_to_proc.find(name);
 
   // Ensure starting from a clean slate
-  _undo_pre_cmd();
+  terminate();
 
   if(it == std::end(_name_to_proc)) {
     std::cout << "Error: Couldn't find ["sv << name << ']' << std::endl;
@@ -65,7 +64,7 @@ int proc_t::execute(const std::string &name) {
   std::error_code ec;
   //Executed when returning from function
   auto fg = util::fail_guard([&]() {
-    _undo_pre_cmd();
+    terminate();
   });
 
   for(; _undo_it != std::end(proc.prep_cmds); ++_undo_it) {
@@ -107,11 +106,11 @@ bool proc_t::running() {
   return _process.running();
 }
 
-void proc_t::_undo_pre_cmd() {
+void proc_t::terminate() {
   std::error_code ec;
 
   // Ensure child process is terminated
-  process_end(_process, _process_handle, 10s);
+  process_end(_process, _process_handle);
 
   if(ec) {
     std::cout << "FATAL Error: System: "sv << ec.message() << std::endl;
@@ -148,7 +147,7 @@ const std::unordered_map<std::string, ctx_t> &proc_t::get_apps() const {
 }
 
 proc_t::~proc_t() {
-  _undo_pre_cmd();
+  terminate();
 }
 
 std::string_view::iterator find_match(std::string_view::iterator begin, std::string_view::iterator end) {

@@ -57,9 +57,9 @@ public:
   ~proc_t();
 
   const std::unordered_map<std::string, ctx_t> &get_apps() const;
-private:
-  void _undo_pre_cmd();
+  void terminate();
 
+private:
   boost::process::environment _env;
   std::unordered_map<std::string, ctx_t> _name_to_proc;
 
