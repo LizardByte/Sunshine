@@ -52,8 +52,7 @@ public:
 
   const char *verify(x509_t::element_type *cert);
 private:
-  std::vector<x509_t> _certs;
-  x509_store_t _cert_store;
+  std::vector<std::pair<x509_t, x509_store_t>> _certs;
   x509_store_ctx_t _cert_ctx;
 };
 

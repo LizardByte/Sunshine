@@ -5,27 +5,41 @@
 #include <openssl/pem.h>
 #include "crypto.h"
 namespace crypto {
-cert_chain_t::cert_chain_t() : _certs {}, _cert_store {X509_STORE_new() }, _cert_ctx {X509_STORE_CTX_new() } {}
+cert_chain_t::cert_chain_t() : _certs {}, _cert_ctx {X509_STORE_CTX_new() } {}
 void cert_chain_t::add(x509_t &&cert) {
-  _certs.emplace_back(std::move(cert));
+  x509_store_t x509_store { X509_STORE_new() };
 
-  X509_STORE_add_cert(_cert_store.get(), _certs.back().get());
+  X509_STORE_add_cert(x509_store.get(), cert.get());
+  _certs.emplace_back(std::make_pair(std::move(cert), std::move(x509_store)));
 }
 
+/*
+ * When certificates from two or more instances of Moonlight have been added to x509_store_t,
+ * only one of them will be verified by X509_verify_cert, resulting in only a single instance of
+ * Moonlight to be able to use Sunshine
+ *
+ * To circumvent this, x509_store_t instance will be created for each instance of the certificates.
+ */
 const char *cert_chain_t::verify(x509_t::element_type *cert) {
-  util::fail_guard([this]() {
-    X509_STORE_CTX_cleanup(_cert_ctx.get());
-  });
+  for(auto &[_,x509_store] : _certs) {
+    util::fail_guard([this]() {
+      X509_STORE_CTX_cleanup(_cert_ctx.get());
+    });
 
-  X509_STORE_CTX_init(_cert_ctx.get(), _cert_store.get(), nullptr, nullptr);
-  X509_STORE_CTX_set_cert(_cert_ctx.get(), cert);
+    X509_STORE_CTX_init(_cert_ctx.get(), x509_store.get(), nullptr, nullptr);
+    X509_STORE_CTX_set_cert(_cert_ctx.get(), cert);
 
-  auto err = X509_verify_cert(_cert_ctx.get());
-  if(err != 1) {
-    return X509_verify_cert_error_string(X509_STORE_CTX_get_error(_cert_ctx.get()));
+    auto err = X509_verify_cert(_cert_ctx.get());
+    if (err == 1) {
+      return nullptr;
+    }
+    auto err_code = X509_STORE_CTX_get_error(_cert_ctx.get());
+    if (err_code != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT) {
+      return X509_verify_cert_error_string(err_code);
+    }
   }
 
-  return nullptr;
+  return X509_verify_cert_error_string(X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT);
 }
 
 cipher_t::cipher_t(const crypto::aes_t &key) : ctx { EVP_CIPHER_CTX_new() }, key { key }, padding { true } {}

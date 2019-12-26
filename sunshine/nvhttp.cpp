@@ -48,11 +48,14 @@ struct conf_intern_t {
 
 struct client_t {
   std::string uniqueID;
-  std::string cert;
+  std::vector<std::string> certs;
 };
 
 struct pair_session_t {
-  client_t client;
+  struct {
+    std::string uniqueID;
+    std::string cert;
+  } client;
 
   std::unique_ptr<crypto::aes_t> cipher_key;
   std::vector<uint8_t> clienthash;
@@ -94,9 +97,16 @@ void save_devices() {
     pt::ptree node;
 
     node.put("uniqueid"s, client.uniqueID);
-    node.put("cert"s, client.cert);
 
-    nodes.push_back(std::make_pair("", node));
+    pt::ptree cert_nodes;
+    for(auto &cert : client.certs) {
+      pt::ptree cert_node;
+      cert_node.put_value(cert);
+      cert_nodes.push_back(std::make_pair(""s, cert_node));
+    }
+    node.add_child("certs"s, cert_nodes);
+    
+    nodes.push_back(std::make_pair(""s, node));
   }
 
   pt::write_json(config::nvhttp.file_devices, root);
@@ -125,20 +135,24 @@ void load_devices() {
     auto &client = map_id_client.emplace(uniqID, client_t {}).first->second;
 
     client.uniqueID = uniqID;
-    client.cert = node.get<std::string>("cert");
+
+    for(auto &[_, el] : node.get_child("certs")) {
+      client.certs.emplace_back(el.get_value<std::string>());
+    }
   }
 }
 
-void update_id_client(client_t &client, op_e op) {
+void update_id_client(const std::string &uniqueID, std::string &&cert, op_e op) {
   switch(op) {
     case op_e::ADD:
     {
-      auto uniqID = client.uniqueID;
-      map_id_client.emplace(std::move(uniqID), std::move(client));
+      auto &client = map_id_client[uniqueID];
+      client.certs.emplace_back(std::move(cert));
+      client.uniqueID = uniqueID;
     }
       break;
     case op_e::REMOVE:
-      map_id_client.erase(client.uniqueID);
+      map_id_client.erase(uniqueID);
       break;
   }
 
@@ -222,7 +236,7 @@ void clientpairingsecret(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cer
 
   assert((secret.size() + sign.size()) == pairingsecret.size());
 
-  auto x509 = crypto::x509(sess.client.cert);
+  auto x509 = crypto::x509(client.cert);
   auto x509_sign = crypto::signature(x509);
 
   std::string data;
@@ -248,8 +262,7 @@ void clientpairingsecret(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cer
 
     auto it = map_id_sess.find(client.uniqueID);
 
-    auto uniqID = client.uniqueID;
-    update_id_client(client, op_e::ADD);
+    update_id_client(client.uniqueID, std::move(client.cert), op_e::ADD);
     map_id_sess.erase(it);
   }
   else {
@@ -632,15 +645,17 @@ void start() {
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
   ctx->use_certificate_chain_file(config::nvhttp.cert);
   ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
+
+  crypto::cert_chain_t cert_chain;
   for(auto &[_,client] : map_id_client) {
-    ctx->add_certificate_authority(boost::asio::buffer(client.cert));
+    for(auto &cert : client.certs) {
+      cert_chain.add(crypto::x509(cert));
+    }
   }
 
   auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>();
-  crypto::cert_chain_t cert_chain;
 
-  // When Moonlight has recently paired, the certificate has not yet been added to ctx
-  // Thus it needs to be verified manually
+  // Ugly hack for verifying certificates, see crypto::cert_chain_t::verify() for details
   ctx->set_verify_callback([&cert_chain, add_cert](int verified, boost::asio::ssl::verify_context &ctx) {
     util::fail_guard([&]() {
       char subject_name[256];
@@ -656,7 +671,13 @@ void start() {
     }
 
     while(add_cert->peek()) {
-      cert_chain.add(add_cert->pop());
+      char subject_name[256];
+
+      auto cert = add_cert->pop();
+      X509_NAME_oneline(X509_get_subject_name(cert.get()), subject_name, sizeof(subject_name));
+
+      std::cout << "Added cert ["sv << subject_name << "]"sv << std::endl;
+      cert_chain.add(std::move(cert));
     }
 
     auto err_str = cert_chain.verify(X509_STORE_CTX_get_current_cert(ctx.native_handle()));
