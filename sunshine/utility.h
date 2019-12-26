@@ -10,6 +10,10 @@
 #include <mutex>
 #include <condition_variable>
 #include <string_view>
+#define KITTY_DECL_CONSTR(x)\
+  x(x&&) noexcept = default;\
+  x&operator=(x&&) noexcept = default;\
+  x();
 
 #define KITTY_DEFAULT_CONSTR(x)\
   x(x&&) noexcept = default;\

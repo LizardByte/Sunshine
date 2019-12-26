@@ -5,6 +5,29 @@
 #include <openssl/pem.h>
 #include "crypto.h"
 namespace crypto {
+cert_chain_t::cert_chain_t() : _certs {}, _cert_store {X509_STORE_new() }, _cert_ctx {X509_STORE_CTX_new() } {}
+void cert_chain_t::add(x509_t &&cert) {
+  _certs.emplace_back(std::move(cert));
+
+  X509_STORE_add_cert(_cert_store.get(), _certs.back().get());
+}
+
+const char *cert_chain_t::verify(x509_t::element_type *cert) {
+  util::fail_guard([this]() {
+    X509_STORE_CTX_cleanup(_cert_ctx.get());
+  });
+
+  X509_STORE_CTX_init(_cert_ctx.get(), _cert_store.get(), nullptr, nullptr);
+  X509_STORE_CTX_set_cert(_cert_ctx.get(), cert);
+
+  auto err = X509_verify_cert(_cert_ctx.get());
+  if(err != 1) {
+    return X509_verify_cert_error_string(X509_STORE_CTX_get_error(_cert_ctx.get()));
+  }
+
+  return nullptr;
+}
+
 cipher_t::cipher_t(const crypto::aes_t &key) : ctx { EVP_CIPHER_CTX_new() }, key { key }, padding { true } {}
 int cipher_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext) {
   int len;

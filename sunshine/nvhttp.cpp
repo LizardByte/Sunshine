@@ -13,6 +13,7 @@
 
 #include <Simple-Web-Server/server_http.hpp>
 #include <Simple-Web-Server/server_https.hpp>
+#include <boost/asio/ssl/context_base.hpp>
 
 #include "uuid.h"
 #include "config.h"
@@ -211,7 +212,7 @@ void clientchallenge(pair_session_t &sess, pt::ptree &tree, const args_t &args) 
   tree.put("root.<xmlattr>.status_code", 200);
 }
 
-void clientpairingsecret(pair_session_t &sess, pt::ptree &tree, const args_t &args) {
+void clientpairingsecret(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, pair_session_t &sess, pt::ptree &tree, const args_t &args) {
   auto &client = sess.client;
 
   auto pairingsecret = util::from_hex_vec(args.at("clientpairingsecret"), true);
@@ -243,6 +244,7 @@ void clientpairingsecret(pair_session_t &sess, pt::ptree &tree, const args_t &ar
 
   if(crypto::verify256(crypto::x509(client.cert), secret, sign)) {
     tree.put("root.paired", 1);
+    add_cert->raise(crypto::x509(client.cert));
 
     auto it = map_id_sess.find(client.uniqueID);
 
@@ -307,7 +309,7 @@ void not_found(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> resp
 }
 
 template<class T>
-void pair(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
   auto args = request->parse_query_string();
@@ -343,7 +345,7 @@ void pair(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response,
     serverchallengeresp(sess_it->second, tree, args);
   }
   else if(it = args.find("clientpairingsecret"); it != std::end(args)) {
-    clientpairingsecret(sess_it->second, tree, args);
+    clientpairingsecret(add_cert, sess_it->second, tree, args);
   }
   else {
     tree.put("root.<xmlattr>.status_code", 404);
@@ -627,12 +629,53 @@ void start() {
   conf_intern.pkey = read_file(config::nvhttp.pkey.c_str());
   conf_intern.servercert = read_file(config::nvhttp.cert.c_str());
 
-  https_server_t https_server { config::nvhttp.cert, config::nvhttp.pkey };
+  auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
+  ctx->use_certificate_chain_file(config::nvhttp.cert);
+  ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
+  for(auto &[_,client] : map_id_client) {
+    ctx->add_certificate_authority(boost::asio::buffer(client.cert));
+  }
+
+  auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>();
+  crypto::cert_chain_t cert_chain;
+
+  // When Moonlight has recently paired, the certificate has not yet been added to ctx
+  // Thus it needs to be verified manually
+  ctx->set_verify_callback([&cert_chain, add_cert](int verified, boost::asio::ssl::verify_context &ctx) {
+    util::fail_guard([&]() {
+      char subject_name[256];
+
+      auto x509 = ctx.native_handle();
+      X509_NAME_oneline(X509_get_subject_name(X509_STORE_CTX_get_current_cert(x509)), subject_name, sizeof(subject_name));
+
+      std::cout << subject_name << " -- "sv << (verified ? "verfied"sv : "denied"sv) << std::endl;
+    });
+
+    if(verified) {
+      return 1;
+    }
+
+    while(add_cert->peek()) {
+      cert_chain.add(add_cert->pop());
+    }
+
+    auto err_str = cert_chain.verify(X509_STORE_CTX_get_current_cert(ctx.native_handle()));
+    if(err_str) {
+      std::cout << "SSL Verification error :: "sv << err_str << std::endl;
+      return 0;
+    }
+
+    verified = true;
+    return 1;
+  });
+
+
+  https_server_t https_server { ctx, boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once };
   http_server_t http_server;
 
   https_server.default_resource = not_found<SimpleWeb::HTTPS>;
   https_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTPS>;
-  https_server.resource["^/pair$"]["GET"] = pair<SimpleWeb::HTTPS>;
+  https_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTPS>(add_cert, resp, req); };
   https_server.resource["^/applist$"]["GET"] = applist;
   https_server.resource["^/appasset$"]["GET"] = appasset;
   https_server.resource["^/launch$"]["GET"] = launch;
@@ -646,7 +689,7 @@ void start() {
 
   http_server.default_resource = not_found<SimpleWeb::HTTP>;
   http_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTP>;
-  http_server.resource["^/pair$"]["GET"] = pair<SimpleWeb::HTTP>;
+  http_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTP>(add_cert, resp, req); };
   http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
 
   http_server.config.reuse_address = true;

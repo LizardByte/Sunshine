@@ -23,6 +23,8 @@ using sha256_t = std::array<std::uint8_t, SHA256_DIGEST_LENGTH>;
 
 using aes_t = std::array<std::uint8_t, 16>;
 using x509_t = util::safe_ptr<X509, X509_free>;
+using x509_store_t = util::safe_ptr<X509_STORE, X509_STORE_free>;
+using x509_store_ctx_t = util::safe_ptr<X509_STORE_CTX, X509_STORE_CTX_free>;
 using cipher_ctx_t = util::safe_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free>;
 using md_ctx_t = util::safe_ptr<EVP_MD_CTX, md_ctx_destroy>;
 using bio_t = util::safe_ptr<BIO, BIO_free_all>;
@@ -41,6 +43,19 @@ bool verify256(const x509_t &x509, const std::string_view &data, const std::stri
 std::string_view signature(const x509_t &x);
 
 std::string rand(std::size_t bytes);
+
+class cert_chain_t {
+public:
+  KITTY_DECL_CONSTR(cert_chain_t)
+
+  void add(x509_t &&cert);
+
+  const char *verify(x509_t::element_type *cert);
+private:
+  std::vector<x509_t> _certs;
+  x509_store_t _cert_store;
+  x509_store_ctx_t _cert_ctx;
+};
 
 class cipher_t {
 public:
