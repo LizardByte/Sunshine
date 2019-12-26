@@ -73,6 +73,10 @@ std::unordered_map<std::string, pair_session_t> map_id_sess;
 std::unordered_map<std::string, client_t> map_id_client;
 
 using args_t = SimpleWeb::CaseInsensitiveMultimap;
+using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
+using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+using resp_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>;
+using req_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request>;
 
 enum class op_e {
   ADD,
@@ -381,14 +385,16 @@ template<class T>
 void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
-  auto args = request->parse_query_string();
-  auto clientID = args.find("uniqueid"s);
-
   int pair_status = 0;
+  if constexpr (std::is_same_v<SimpleWeb::HTTPS, T>) {
+    auto args = request->parse_query_string();
+    auto clientID = args.find("uniqueid"s);
 
-  if(clientID != std::end(args)) {
-    if (auto it = map_id_client.find(clientID->second); it != std::end(map_id_client)) {
-      pair_status = 1;
+
+    if(clientID != std::end(args)) {
+      if (auto it = map_id_client.find(clientID->second); it != std::end(map_id_client)) {
+        pair_status = 1;
+      }
     }
   }
 
@@ -420,9 +426,8 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   response->write(data.str());
 }
 
-template<class T>
-void applist(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-  print_req<T>(request);
+void applist(resp_https_t response, req_https_t request) {
+  print_req<SimpleWeb::HTTPS>(request);
 
   auto args = request->parse_query_string();
   auto clientID = args.at("uniqueid"s);
@@ -466,9 +471,8 @@ void applist(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respon
   apps.push_back(std::make_pair("App", desktop));
 }
 
-template<class T>
-void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-  print_req<T>(request);
+void launch(resp_https_t response, req_https_t request) {
+  print_req<SimpleWeb::HTTPS>(request);
 
   pt::ptree tree;
   auto g = util::fail_guard([&]() {
@@ -542,9 +546,8 @@ void launch(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
   tree.put("root.gamesession", 1);
 }
 
-template<class T>
-void resume(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-  print_req<T>(request);
+void resume(resp_https_t response, req_https_t request) {
+  print_req<SimpleWeb::HTTPS>(request);
 
   pt::ptree tree;
   auto g = util::fail_guard([&]() {
@@ -581,9 +584,8 @@ void resume(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
   tree.put("root.gamesession", 1);
 }
 
-template<class T>
-void cancel(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-  print_req<T>(request);
+void cancel(resp_https_t response, req_https_t request) {
+  print_req<SimpleWeb::HTTPS>(request);
 
   pt::ptree tree;
   auto g = util::fail_guard([&]() {
@@ -605,8 +607,9 @@ void cancel(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> respons
   tree.put("root.<xmlattr>.status_code", 200);
 }
 
-template<class T>
-void appasset(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+void appasset(resp_https_t response, req_https_t request) {
+  print_req<SimpleWeb::HTTPS>(request);
+
   std::ifstream in(SUNSHINE_ASSETS_DIR "/box.png");
   response->write(SimpleWeb::StatusCode::success_ok, in);
 }
@@ -630,12 +633,12 @@ void start() {
   https_server.default_resource = not_found<SimpleWeb::HTTPS>;
   https_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTPS>;
   https_server.resource["^/pair$"]["GET"] = pair<SimpleWeb::HTTPS>;
-  https_server.resource["^/applist$"]["GET"] = applist<SimpleWeb::HTTPS>;
-  https_server.resource["^/appasset$"]["GET"] = appasset<SimpleWeb::HTTPS>;
-  https_server.resource["^/launch$"]["GET"] = launch<SimpleWeb::HTTPS>;
+  https_server.resource["^/applist$"]["GET"] = applist;
+  https_server.resource["^/appasset$"]["GET"] = appasset;
+  https_server.resource["^/launch$"]["GET"] = launch;
   https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
-  https_server.resource["^/resume$"]["GET"] = resume<SimpleWeb::HTTPS>;
-  https_server.resource["^/cancel$"]["GET"] = cancel<SimpleWeb::HTTPS>;
+  https_server.resource["^/resume$"]["GET"] = resume;
+  https_server.resource["^/cancel$"]["GET"] = cancel;
 
   https_server.config.reuse_address = true;
   https_server.config.address = "0.0.0.0"s;
@@ -644,12 +647,7 @@ void start() {
   http_server.default_resource = not_found<SimpleWeb::HTTP>;
   http_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTP>;
   http_server.resource["^/pair$"]["GET"] = pair<SimpleWeb::HTTP>;
-  http_server.resource["^/applist$"]["GET"] = applist<SimpleWeb::HTTP>;
-  http_server.resource["^/appasset$"]["GET"] = appasset<SimpleWeb::HTTP>;
-  http_server.resource["^/launch$"]["GET"] = launch<SimpleWeb::HTTP>;
   http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
-  http_server.resource["^/resume$"]["GET"] = resume<SimpleWeb::HTTP>;
-  http_server.resource["^/cancel$"]["GET"] = cancel<SimpleWeb::HTTP>;
 
   http_server.config.reuse_address = true;
   http_server.config.address = "0.0.0.0"s;
