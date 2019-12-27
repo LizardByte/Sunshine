@@ -28,6 +28,10 @@ struct stream_t {
 };
 
 struct nvhttp_t {
+  // Could be any of the following values:
+  // pc|lan|wan
+  std::string origin_pin_allowed;
+
   std::string pkey; // must be 2048 bits
   std::string cert; // must be signed with a key of 2048 bits
 

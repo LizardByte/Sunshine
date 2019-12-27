@@ -79,6 +79,8 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/platform/common.h
 	sunshine/process.cpp
 	sunshine/process.h
+	sunshine/network.cpp
+	sunshine/network.h
 	sunshine/move_by_copy.h
 	sunshine/task_pool.h
 	sunshine/thread_pool.h

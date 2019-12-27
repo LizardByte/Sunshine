@@ -22,6 +22,7 @@
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
+#include "network.h"
 
 
 namespace nvhttp {
@@ -37,7 +38,6 @@ namespace pt = boost::property_tree;
 
 std::string read_file(const char *path);
 
-std::string local_ip;
 using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 using http_server_t  = SimpleWeb::Server<SimpleWeb::HTTP>;
 
@@ -88,6 +88,8 @@ enum class op_e {
 };
 
 std::int64_t current_appid { -1 };
+std::string local_ip;
+net::net_e origin_pin_allowed;
 
 void save_devices() {
   pt::ptree root;
@@ -105,7 +107,7 @@ void save_devices() {
       cert_nodes.push_back(std::make_pair(""s, cert_node));
     }
     node.add_child("certs"s, cert_nodes);
-    
+
     nodes.push_back(std::make_pair(""s, node));
   }
 
@@ -374,6 +376,16 @@ template<class T>
 void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
+  auto address = request->remote_endpoint_address();
+  auto ip_type = net::from_address(address);
+  if(ip_type > origin_pin_allowed) {
+    std::cout << '[' << address << "] -- denied"sv << std::endl;
+
+    response->write(SimpleWeb::StatusCode::client_error_forbidden);
+
+    return;
+  }
+
   pt::ptree tree;
 
   auto &sess = std::begin(map_id_sess)->second;
@@ -384,16 +396,22 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
   pt::write_xml(data, tree);
 
   auto &async_response = sess.async_insert_pin.response;
-  if(async_response.left()) {
+  if(async_response.has_left() && async_response.left()) {
     async_response.left()->write(data.str());
   }
-  else {
+  else if(async_response.has_right() && async_response.right()){
     async_response.right()->write(data.str());
   }
+  else {
+    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
 
+    return;
+  }
+
+  // reset async_response
   async_response = std::decay_t<decltype(async_response.left())>();
   // response to the current request
-  response->write(""s);
+  response->write(SimpleWeb::StatusCode::success_ok);
 }
 
 template<class T>
@@ -631,6 +649,8 @@ void appasset(resp_https_t response, req_https_t request) {
 
 void start() {
   local_ip = platf::get_local_ip();
+  origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
+
   if(local_ip.empty()) {
     std::cout << "Error: Could not determine the local ip-address"sv << std::endl;
 
