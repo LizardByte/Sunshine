@@ -16,6 +16,7 @@ extern "C" {
 #include <rs.h>
 }
 
+#include "platform/common.h"
 using namespace std::literals;
 
 util::ThreadPool task_pool;

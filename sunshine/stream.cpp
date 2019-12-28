@@ -91,6 +91,7 @@ struct audio_packet_raw_t {
 #pragma pack(pop)
 
 safe::event_t<launch_session_t> launch_event;
+auto input = std::make_shared<input::input_t>();
 
 struct config_t {
   audio::config_t audio;
@@ -468,7 +469,6 @@ void control_server_t::send(const std::string_view & payload) {
 void controlThread(video::idr_event_t idr_events) {
   control_server_t server { CONTROL_PORT };
 
-  auto input = std::make_shared<input::input_t>();
   server.map(packetTypes[IDX_START_A], [](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
@@ -514,7 +514,7 @@ void controlThread(video::idr_event_t idr_events) {
     idr_events->raise(std::make_pair(firstFrame, lastFrame));
   });
 
-  server.map(packetTypes[IDX_INPUT_DATA], [&input](const std::string_view &payload) mutable {
+  server.map(packetTypes[IDX_INPUT_DATA], [](const std::string_view &payload) mutable {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
     std::cout << "type [IDX_INPUT_DATA]"sv << std::endl;

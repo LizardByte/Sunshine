@@ -4,11 +4,11 @@
 #include <X11/X.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <X11/XKBlib.h>
 #include <X11/extensions/XTest.h>
 
+#include <cstring>
+#include <filesystem>
 #include <iostream>
-#include <string.h>
 
 #include "common.h"
 #include "sunshine/utility.h"
@@ -432,6 +432,18 @@ input_t input() {
   if(mouse(gp)) {
     return nullptr;
   }
+
+  std::filesystem::path mouse_path { "sunshine_mouse" };
+  std::filesystem::path gamepad_path { "sunshine_gamepad" };
+  if(std::filesystem::exists(mouse_path)) {
+    std::filesystem::remove(mouse_path);
+  }
+  if(std::filesystem::exists(gamepad_path)) {
+    std::filesystem::remove(gamepad_path);
+  }
+
+  std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.mouse_input.get()), mouse_path);
+  std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.gamepad_input.get()), gamepad_path);
 
   gp.display = display();
   return result;
