@@ -593,7 +593,7 @@ void resume(resp_https_t response, req_https_t request) {
   stream::launch_session_t launch_session;
 
   if(stream::has_session) {
-    tree.put("root.gamesession", 0);
+    tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
     return;
@@ -614,7 +614,7 @@ void resume(resp_https_t response, req_https_t request) {
   stream::launch_event.raise(launch_session);
 
   tree.put("root.<xmlattr>.status_code", 200);
-  tree.put("root.gamesession", 1);
+  tree.put("root.resume", 1);
 }
 
 void cancel(resp_https_t response, req_https_t request) {
@@ -630,6 +630,7 @@ void cancel(resp_https_t response, req_https_t request) {
 
   if(stream::has_session) {
     tree.put("root.<xmlattr>.status_code", 503);
+    tree.put("root.cancel", 0);
 
     return;
   }
@@ -637,6 +638,7 @@ void cancel(resp_https_t response, req_https_t request) {
   proc::proc.terminate();
   current_appid = -1;
 
+  tree.put("root.cancel", 1);
   tree.put("root.<xmlattr>.status_code", 200);
 }
 
