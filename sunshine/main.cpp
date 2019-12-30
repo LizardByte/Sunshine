@@ -36,6 +36,7 @@ int main(int argc, char *argv[]) {
   if(!proc_opt) {
     return 7;
   }
+
   proc::proc = std::move(*proc_opt);
 
   reed_solomon_init();

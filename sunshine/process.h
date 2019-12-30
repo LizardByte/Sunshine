@@ -37,6 +37,7 @@ struct cmd_t {
 struct ctx_t {
   std::vector<cmd_t> prep_cmds;
 
+  std::string name;
   std::string cmd;
   std::string output;
 };
@@ -47,21 +48,27 @@ public:
 
   proc_t(
     boost::process::environment &&env,
-    std::unordered_map<std::string, ctx_t> &&name_to_proc) :
+    std::vector<ctx_t> &&apps) :
     _env(std::move(env)),
-    _name_to_proc(std::move(name_to_proc)) {}
+    _apps(std::move(apps)) {}
 
-  int execute(const std::string &name);
-  bool running();
+  int execute(int app_id);
+
+  /**
+   * @return _app_id if a process is running, otherwise returns -1
+   */
+  int running();
 
   ~proc_t();
 
-  const std::unordered_map<std::string, ctx_t> &get_apps() const;
+  const std::vector<ctx_t> &get_apps() const;
   void terminate();
 
 private:
+  int _app_id;
+
   boost::process::environment _env;
-  std::unordered_map<std::string, ctx_t> _name_to_proc;
+  std::vector<ctx_t> _apps;
 
   boost::process::child _process;
   boost::process::group _process_handle;

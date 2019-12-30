@@ -549,7 +549,7 @@ void controlThread(video::idr_event_t idr_events) {
       stop(session);
     }
 
-    if(session.has_process && !proc::proc.running()) {
+    if(session.has_process && proc::proc.running() == -1) {
       std::cout << "Process terminated"sv << std::endl;
 
       std::uint16_t reason = 0x0100;

@@ -41,18 +41,18 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
   return bp::system(cmd, env, bp::std_out > file.get(), bp::std_err > file.get(), ec);
 }
 
-int proc_t::execute(const std::string &name) {
-  auto it = _name_to_proc.find(name);
+int proc_t::execute(int app_id) {
+  if(app_id >= _apps.size()) {
+    std::cout << "Error: Couldn't find app with ID ["sv << app_id << ']' << std::endl;
+
+    return 404;
+  }
 
   // Ensure starting from a clean slate
   terminate();
 
-  if(it == std::end(_name_to_proc)) {
-    std::cout << "Error: Couldn't find ["sv << name << ']' << std::endl;
-    return 404;
-  }
-
-  auto &proc = it->second;
+  _app_id = app_id;
+  auto &proc = _apps[app_id];
 
   _undo_begin = std::begin(proc.prep_cmds);
   _undo_it = _undo_begin;
@@ -102,8 +102,12 @@ int proc_t::execute(const std::string &name) {
   return 0;
 }
 
-bool proc_t::running() {
-  return _process.running();
+int proc_t::running() {
+  if(_process.running()) {
+    return _app_id;
+  }
+
+  return -1;
 }
 
 void proc_t::terminate() {
@@ -142,8 +146,8 @@ void proc_t::terminate() {
   _pipe.reset();
 }
 
-const std::unordered_map<std::string, ctx_t> &proc_t::get_apps() const {
-  return _name_to_proc;
+const std::vector<ctx_t> &proc_t::get_apps() const {
+  return _apps;
 }
 
 proc_t::~proc_t() {
@@ -221,7 +225,7 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
 
     auto this_env = boost::this_process::environment();
 
-    std::unordered_map<std::string, proc::ctx_t> apps;
+    std::vector<proc::ctx_t> apps;
     for(auto &[_,app_node] : apps_node) {
       proc::ctx_t ctx;
 
@@ -255,9 +259,10 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
         ctx.cmd = "sh -c \"while true; do sleep 10000; done;\"";
       }
 
+      ctx.name = std::move(name);
       ctx.prep_cmds = std::move(prep_cmds);
 
-      apps.emplace(std::move(name), std::move(ctx));
+      apps.emplace_back(std::move(ctx));
     }
 
     bp::environment env = boost::this_process::environment();

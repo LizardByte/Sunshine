@@ -87,7 +87,6 @@ enum class op_e {
   REMOVE
 };
 
-std::int64_t current_appid { -1 };
 std::string local_ip;
 net::net_e origin_pin_allowed;
 
@@ -448,7 +447,8 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   else {
     tree.put("root.ExternalIP", config::nvhttp.external_ip);
   }
-  
+
+  auto current_appid = proc::proc.running();
   tree.put("root.PairStatus", pair_status);
   tree.put("root.currentgame", current_appid >= 0 ? current_appid + 2 : 0);
   tree.put("root.state", "_SERVER_BUSY"); 
@@ -491,11 +491,11 @@ void applist(resp_https_t response, req_https_t request) {
   desktop.put("ID"s, 1);
 
   int x = 2;
-  for(auto &[name, proc] : proc::proc.get_apps()) {
+  for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
     app.put("IsHdrSupported"s, 0);
-    app.put("AppTitle"s, name);
+    app.put("AppTitle"s, proc.name);
     app.put("ID"s, x++);
 
     apps.push_back(std::make_pair("App", std::move(app)));
@@ -527,25 +527,11 @@ void launch(resp_https_t response, req_https_t request) {
     return;
   }
 
-  if(!proc::proc.running()) {
-    current_appid = -1;
-  }
-
+  auto current_appid = proc::proc.running();
   if(appid >= 0 && appid != current_appid) {
-    auto &apps = proc::proc.get_apps();
-    if(appid >= apps.size()) {
-      tree.put("root.<xmlattr>.status_code", 404);
-      tree.put("root.gamesession", 0);
-
-      return;
-    }
-
-    auto pos = std::begin(apps);
-    std::advance(pos, appid);
-
-    auto err = proc::proc.execute(pos->first);
+    auto err = proc::proc.execute(appid);
     if(err) {
-      tree.put("root.<xmlattr>.status_code", 500);
+      tree.put("root.<xmlattr>.status_code", err);
       tree.put("root.gamesession", 0);
 
       return;
@@ -590,15 +576,15 @@ void resume(resp_https_t response, req_https_t request) {
     response->write(data.str());
   });
 
-  stream::launch_session_t launch_session;
-
-  if(stream::has_session) {
+  auto current_appid = proc::proc.running();
+  if(current_appid == -1 || stream::has_session) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
     return;
   }
 
+  stream::launch_session_t launch_session;
   // Needed to determine if session must be closed when no process is running in proc::proc
   launch_session.has_process = current_appid >= 0;
 
@@ -628,6 +614,13 @@ void cancel(resp_https_t response, req_https_t request) {
     response->write(data.str());
   });
 
+  if(proc::proc.running() == -1) {
+    tree.put("root.cancel", 1);
+    tree.put("root.<xmlattr>.status_code", 200);
+
+    return;
+  }
+
   if(stream::has_session) {
     tree.put("root.<xmlattr>.status_code", 503);
     tree.put("root.cancel", 0);
@@ -636,7 +629,6 @@ void cancel(resp_https_t response, req_https_t request) {
   }
 
   proc::proc.terminate();
-  current_appid = -1;
 
   tree.put("root.cancel", 1);
   tree.put("root.<xmlattr>.status_code", 200);
