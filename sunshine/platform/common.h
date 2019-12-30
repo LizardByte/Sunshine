@@ -22,25 +22,24 @@ public:
 class display_t {
 public:
   virtual std::unique_ptr<img_t> snapshot(bool cursor) = 0;
-  virtual ~display_t() {};
+  virtual ~display_t() = default;
 };
 
-void freeAudio(void*);
-void freeMic(void*);
+class mic_t {
+public:
+  virtual std::vector<std::int16_t> sample(std::size_t sample_size) = 0;
+
+  virtual ~mic_t() = default;
+};
+
 void freeInput(void*);
 
-using mic_t     = util::safe_ptr<void, freeMic>;
-using audio_t   = util::safe_ptr<void, freeAudio>;
 using input_t   = util::safe_ptr<void, freeInput>;
 
 std::string get_local_ip();
 
-mic_t microphone();
-audio_t audio(mic_t &mic, std::uint32_t sample_size);
-
+std::unique_ptr<mic_t> microphone();
 std::unique_ptr<display_t> display();
-
-int16_t *audio_data(audio_t &);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

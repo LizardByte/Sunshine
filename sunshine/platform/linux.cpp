@@ -211,9 +211,23 @@ struct shm_attr_t : display_t {
   }
 };
 
-struct mic_attr_t {
+struct mic_attr_t : public mic_t {
   pa_sample_spec ss;
   util::safe_ptr<pa_simple, pa_simple_free> mic;
+
+  explicit mic_attr_t(const pa_sample_spec& ss) : ss(ss), mic {} {}
+  std::vector<std::int16_t> sample(std::size_t sample_size) override {
+    std::vector<std::int16_t> sample_buf;
+    sample_buf.resize(sample_size);
+
+    auto buf = sample_buf.data();
+    int error;
+    if(pa_simple_read(mic.get(), buf, sample_size * 2, &error)) {
+      std::cout << "pa_simple_read() failed: "sv << pa_strerror(error) << std::endl;
+    }
+
+    return sample_buf;
+  }
 };
 
 std::unique_ptr<display_t> shm_display() {
@@ -264,21 +278,19 @@ std::unique_ptr<display_t> display() {
 }
 
 //FIXME: Pass frame_rate instead of hard coding it
-mic_t microphone() {
-  mic_t mic {
-    new mic_attr_t { 
-      { PA_SAMPLE_S16LE, 48000, 2 },
-      { }
+std::unique_ptr<mic_t> microphone() {
+  std::unique_ptr<mic_attr_t> mic {
+    new mic_attr_t {
+      { PA_SAMPLE_S16LE, 48000, 2 }
     }
   };
 
   int error;
-  mic_attr_t *mic_attr = (mic_attr_t*)mic.get();
-  mic_attr->mic.reset(
-    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, nullptr, "sunshine_record", &mic_attr->ss, nullptr, nullptr, &error)
+  mic->mic.reset(
+    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, nullptr, "sunshine_record", &mic->ss, nullptr, nullptr, &error)
   );
 
-  if(!mic_attr->mic) {
+  if(!mic->mic) {
     auto err_str = pa_strerror(error);
     std::cout << "pa_simple_new() failed: "sv << err_str << std::endl;
 
@@ -286,24 +298,6 @@ mic_t microphone() {
   }
 
   return mic;
-}
-
-audio_t audio(mic_t &mic, std::uint32_t buf_size) {
-  auto mic_attr = (mic_attr_t*)mic.get();
-
-  audio_t result { new std::uint8_t[buf_size] };
-
-  auto buf = (std::uint8_t*)result.get();
-  int error;
-  if(pa_simple_read(mic_attr->mic.get(), buf, buf_size, &error)) {
-    std::cout << "pa_simple_read() failed: "sv << pa_strerror(error) << std::endl;
-  }
-
-  return result;
-}
-
-std::int16_t *audio_data(audio_t &audio) {
-  return (int16_t*)audio.get();
 }
 
 ifaddr_t get_ifaddrs() {
@@ -367,13 +361,5 @@ std::string get_local_ip() { return get_local_ip(AF_INET); }
 
 void freeImage(XImage *p) {
   XDestroyImage(p);
-}
-
-void freeMic(void*p) {
-  delete (mic_attr_t*)p;
-}
-
-void freeAudio(void*p) {
-  delete[] (std::uint8_t*)p;
 }
 }

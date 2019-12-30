@@ -12,6 +12,7 @@
 namespace audio {
 using namespace std::literals;
 using opus_t = util::safe_ptr<OpusMSEncoder, opus_multistream_encoder_destroy>;
+using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<std::int16_t>>>;
 
 struct opus_stream_config_t {
   std::int32_t sampleRate;
@@ -49,7 +50,7 @@ static opus_stream_config_t HighSurround51 = {
     map_high_surround51
 };
 
-void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, std::shared_ptr<safe::queue_t<platf::audio_t>> samples, config_t config) {
+void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, sample_queue_t samples, config_t config) {
   //FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stereo;
    opus_t opus { opus_multistream_encoder_create(
@@ -66,7 +67,7 @@ void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, std::shared_
   while(auto sample = samples->pop()) {
     packet_t packet { 16*1024 }; // 16KB
 
-    int bytes = opus_multistream_encode(opus.get(), platf::audio_data(sample), frame_size, std::begin(packet), packet.size());  
+    int bytes = opus_multistream_encode(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
     if(bytes < 0) {
       std::cout << "Error: "sv << opus_strerror(bytes) << std::endl;
       exit(7);
@@ -78,7 +79,7 @@ void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, std::shared_
 }
 
 void capture(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) {
-  auto samples = std::make_shared<safe::queue_t<platf::audio_t>>();
+  auto samples = std::make_shared<sample_queue_t::element_type>();
 
   auto mic = platf::microphone();
   if(!mic) {
@@ -89,11 +90,11 @@ void capture(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) 
   auto stream = &stereo;
 
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
-  int bytes_per_frame = frame_size * sizeof(std::int16_t) * stream->channelCount;
+  int samples_per_frame = frame_size * stream->channelCount;
 
   std::thread thread { encodeThread, packets, samples, config };
   while(packets->running()) {
-    auto sample = platf::audio(mic, bytes_per_frame);
+    auto sample = mic->sample(samples_per_frame);
 
     samples->raise(std::move(sample));
   }
