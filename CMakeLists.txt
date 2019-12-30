@@ -15,6 +15,9 @@ set(PLATFORM_TARGET_FILES
 set(PLATFORM_LIBRARIES
 	Xfixes
 	Xtst
+	xcb
+	xcb-shm
+	xcb-xfixes
 	${X11_LIBRARIES}
 	evdev
 	pulse

@@ -10,31 +10,36 @@
 
 namespace platf {
 
-void freeDisplay(void*);
-void freeImage(void*);
+struct img_t {
+public:
+  std::uint8_t *data;
+  std::int32_t width;
+  std::int32_t height;
+
+  virtual ~img_t() {};
+};
+
+class display_t {
+public:
+  virtual std::unique_ptr<img_t> snapshot(bool cursor) = 0;
+  virtual ~display_t() {};
+};
+
 void freeAudio(void*);
 void freeMic(void*);
 void freeInput(void*);
 
-using display_t = util::safe_ptr<void, freeDisplay>;
-using img_t     = util::safe_ptr<void, freeImage>;
 using mic_t     = util::safe_ptr<void, freeMic>;
 using audio_t   = util::safe_ptr<void, freeAudio>;
 using input_t   = util::safe_ptr<void, freeInput>;
 
 std::string get_local_ip();
 
-void terminate_process(std::uint64_t handle);
-
 mic_t microphone();
 audio_t audio(mic_t &mic, std::uint32_t sample_size);
 
-display_t display();
-img_t snapshot(display_t &display_void, bool cursor);
-int32_t img_width(img_t &);
-int32_t img_height(img_t &);
+std::unique_ptr<display_t> display();
 
-uint8_t *img_data(img_t &);
 int16_t *audio_data(audio_t &);
 
 input_t input();

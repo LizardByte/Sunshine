@@ -18,6 +18,7 @@ using namespace std::literals;
 using evdev_t = util::safe_ptr<libevdev, libevdev_free>;
 using uinput_t = util::safe_ptr<libevdev_uinput, libevdev_uinput_destroy>;
 
+using keyboard_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
 struct input_raw_t {
   evdev_t gamepad_dev;
   uinput_t gamepad_input;
@@ -25,22 +26,7 @@ struct input_raw_t {
   evdev_t mouse_dev;
   uinput_t mouse_input;
 
-  display_t display;
-};
-
-//TODO: Use libevdev for keyboard and mouse, then any  mention of X11 can be removed from linux_evdev.cpp
-struct display_attr_t {
-  display_attr_t() : display { XOpenDisplay(nullptr) }, window { DefaultRootWindow(display) }, attr {} {
-    XGetWindowAttributes(display, window, &attr);
-  }
-
-  ~display_attr_t() {
-    XCloseDisplay(display);
-  }
-
-  Display *display;
-  Window window;
-  XWindowAttributes attr;
+  keyboard_t keyboard;
 };
 
 void move_mouse(input_t &input, int deltaX, int deltaY) {
@@ -203,17 +189,17 @@ uint16_t keysym(uint16_t modcode) {
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
-  auto &disp = *((display_attr_t *) ((input_raw_t*)input.get())->display.get());
-  KeyCode kc = XKeysymToKeycode(disp.display, keysym(modcode));
+  auto &keyboard = ((input_raw_t*)input.get())->keyboard;
+  KeyCode kc = XKeysymToKeycode(keyboard.get(), keysym(modcode));
 
   if(!kc) {
     return;
   }
 
-  XTestFakeKeyEvent(disp.display, kc, !release, 0);
+  XTestFakeKeyEvent(keyboard.get(), kc, !release, 0);
 
-  XSync(disp.display, 0);
-  XFlush(disp.display);
+  XSync(keyboard.get(), 0);
+  XFlush(keyboard.get());
 }
 
 namespace gp {
@@ -425,6 +411,11 @@ input_t input() {
   input_t result { new input_raw_t() };
   auto &gp = *(input_raw_t*)result.get();
 
+  gp.keyboard.reset(XOpenDisplay(nullptr));
+  if(!gp.keyboard) {
+    return nullptr;
+  }
+
   if(gamepad(gp)) {
     return nullptr;
   }
@@ -445,7 +436,6 @@ input_t input() {
   std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.mouse_input.get()), mouse_path);
   std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.gamepad_input.get()), gamepad_path);
 
-  gp.display = display();
   return result;
 }
 

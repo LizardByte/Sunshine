@@ -34,7 +34,7 @@ void free_packet(AVPacket *packet) {
 using ctx_t       = util::safe_ptr<AVCodecContext, free_ctx>;
 using frame_t     = util::safe_ptr<AVFrame, free_frame>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
-using img_event_t = std::shared_ptr<safe::event_t<platf::img_t>>;
+using img_event_t = std::shared_ptr<safe::event_t<std::unique_ptr<platf::img_t>>>;
 
 auto open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
   avcodec_open2(ctx.get(), codec, options);
@@ -48,11 +48,11 @@ void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::im
   av_frame_make_writable(yuv_frame.get());
 
   const int linesizes[2] {
-    (int)(platf::img_width(img) * sizeof(int)), 0
+    (int)(img.width * sizeof(int)), 0
   };
 
-  auto data = platf::img_data(img);
-  int ret = sws_scale(sws.get(), (uint8_t*const*)&data, linesizes, 0, platf::img_height(img), yuv_frame->data, yuv_frame->linesize);
+  auto data = img.data;
+  int ret = sws_scale(sws.get(), (uint8_t*const*)&data, linesizes, 0, img.height, yuv_frame->data, yuv_frame->linesize);
 
   if(ret <= 0) {
     exit(1);
@@ -149,8 +149,8 @@ void encodeThread(
   // Initiate scaling context with correct height and width
   sws_t sws;
   while (auto img = images->pop()) {
-    auto new_width  = platf::img_width(img);
-    auto new_height = platf::img_height(img);
+    auto new_width  = img->width;
+    auto new_height = img->height;
 
     if(img_width != new_width || img_height != new_height) {
       img_width  = new_width;
@@ -177,7 +177,7 @@ void encodeThread(
       yuv_frame->pict_type = AV_PICTURE_TYPE_I;
     }
 
-    encode(frame++, ctx, sws, yuv_frame, img, packets);
+    encode(frame++, ctx, sws, yuv_frame, *img, packets);
     
     yuv_frame->pict_type = AV_PICTURE_TYPE_NONE;
   }
@@ -197,7 +197,7 @@ void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t co
   auto time_span = std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate;
   while(packets->running()) {
     auto next_snapshot = std::chrono::steady_clock::now() + time_span;
-    auto img = platf::snapshot(disp, display_cursor);
+    auto img = disp->snapshot(display_cursor);
 
     images->raise(std::move(img));
     img.reset();
