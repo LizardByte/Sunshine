@@ -49,6 +49,7 @@ public:
   proc_t(
     boost::process::environment &&env,
     std::vector<ctx_t> &&apps) :
+    _app_id(-1),
     _env(std::move(env)),
     _apps(std::move(apps)) {}
 

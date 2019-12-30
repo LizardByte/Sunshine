@@ -42,6 +42,13 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
 }
 
 int proc_t::execute(int app_id) {
+  if(!_process.running() && _app_id != -1) {
+    // previous process exited on it's own, reset _process_handle
+    _process_handle = bp::group();
+
+    _app_id = -1;
+  }
+
   if(app_id >= _apps.size()) {
     std::cout << "Error: Couldn't find app with ID ["sv << app_id << ']' << std::endl;
 
@@ -115,6 +122,7 @@ void proc_t::terminate() {
 
   // Ensure child process is terminated
   process_end(_process, _process_handle);
+  _app_id = -1;
 
   if(ec) {
     std::cout << "FATAL Error: System: "sv << ec.message() << std::endl;
