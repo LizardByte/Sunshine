@@ -120,18 +120,24 @@ void passthrough(platf::input_t &input, PNV_MOUSE_MOVE_PACKET packet) {
   platf::move_mouse(input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
 }
 
-void passthrough(platf::input_t &input, PNV_MOUSE_BUTTON_PACKET packet) {
+void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x09;
 
   display_cursor = true;
 
-  platf::button_mouse(input, util::endian::big(packet->button), packet->action == BUTTON_RELEASED);
+  auto button = util::endian::big(packet->button);
+  if(button > 0 && button < 4) {
+    input->mouse_press[button] = packet->action != BUTTON_RELEASED;
+  }
+
+  platf::button_mouse(input->input, button, packet->action == BUTTON_RELEASED);
 }
 
-void passthrough(platf::input_t &input, PNV_KEYBOARD_PACKET packet) {
+void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x04;
 
-  platf::keyboard(input, packet->keyCode & 0x00FF, packet->keyAction == BUTTON_RELEASED);
+  input->key_press[packet->keyCode] = packet->keyAction != BUTTON_RELEASED;
+  platf::keyboard(input->input, packet->keyCode & 0x00FF, packet->keyAction == BUTTON_RELEASED);
 }
 
 void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
@@ -242,7 +248,7 @@ void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t
       passthrough(input->input, (PNV_MOUSE_MOVE_PACKET)payload);
       break;
     case PACKET_TYPE_MOUSE_BUTTON:
-      passthrough(input->input, (PNV_MOUSE_BUTTON_PACKET)payload);
+      passthrough(input, (PNV_MOUSE_BUTTON_PACKET)payload);
       break;
     case PACKET_TYPE_SCROLL_OR_KEYBOARD:
     {
@@ -251,7 +257,7 @@ void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t
         passthrough(input->input, (PNV_SCROLL_PACKET)payload);
       }
       else {
-        passthrough(input->input, (PNV_KEYBOARD_PACKET)payload);
+        passthrough(input, (PNV_KEYBOARD_PACKET)payload);
       }
 
       break;
@@ -262,8 +268,41 @@ void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t
   }
 }
 
+void reset_helper(std::shared_ptr<input_t> input) {
+  for(auto &[key_press, key_down] : input->key_press) {
+    if(key_down) {
+      key_down = false;
+      platf::keyboard(input->input, key_press & 0x00FF, true);
+    }
+  }
+
+  auto &mouse_press = input->mouse_press;
+  for(int x = 0; x < mouse_press.size(); ++x) {
+    if(mouse_press[x]) {
+      mouse_press[x] = false;
+
+      platf::button_mouse(input->input, x + 1, true);
+    }
+  }
+  
+  NV_MULTI_CONTROLLER_PACKET fake_packet;
+  fake_packet.buttonFlags = 0;
+  fake_packet.leftStickX = 0;
+  fake_packet.leftStickY = 0;
+  fake_packet.rightStickX = 0;
+  fake_packet.rightStickY = 0;
+  fake_packet.leftTrigger = 0;
+  fake_packet.rightTrigger = 0;
+
+  passthrough(input, &fake_packet);
+}
+
 void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
   task_pool.push(passthrough_helper, input, util::cmove(input_data));
+}
+
+void reset(std::shared_ptr<input_t> &input) {
+  task_pool.push(reset_helper, input);
 }
 
 input_t::input_t() : gamepad_state { 0 }, back_timeout_id { nullptr }, input { platf::input() } {}

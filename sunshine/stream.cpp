@@ -161,6 +161,7 @@ void stop(session_t &session) {
   session.video_packets->stop();
   session.audio_packets->stop();
 
+  input::reset(input);
   has_session.store(false);
 }
 
