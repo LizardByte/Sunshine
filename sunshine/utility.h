@@ -568,7 +568,8 @@ struct endianness {
     defined(__ARMEB__) || \
     defined(__THUMBEB__) || \
     defined(__AARCH64EB__) || \
-    defined(_MIBSEB) || defined(__MIBSEB) || defined(__MIBSEB__)
+    defined(_MIBSEB) || defined(__MIBSEB) || defined(__MIBSEB__) || \
+    defined(WIN32)
     // It's a big-endian target architecture
     little = false,
 #elif defined(__BYTE_ORDER) && __BYTE_ORDER == __LITTLE_ENDIAN || \

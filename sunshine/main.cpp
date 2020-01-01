@@ -2,6 +2,8 @@
 // Created by loki on 5/30/19.
 //
 
+#include "process.h"
+
 #include <thread>
 #include <filesystem>
 #include <iostream>
@@ -9,7 +11,6 @@
 #include "nvhttp.h"
 #include "stream.h"
 #include "config.h"
-#include "process.h"
 #include "thread_pool.h"
 
 extern "C" {

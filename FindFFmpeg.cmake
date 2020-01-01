@@ -56,7 +56,7 @@ MACRO(FFMPEG_FIND varname shortname headername)
 	ELSE()
 		MESSAGE(STATUS "Found ${shortname} include dirs: ${${varname}_INCLUDE_DIR}")
 
-#		GET_DIRECTORY_PROPERTY(FFMPEG_PARENT DIRECTORY ${${varname}_INCLUDE_DIR} PARENT_DIRECTORY)
+		#GET_DIRECTORY_PROPERTY(FFMPEG_PARENT DIRECTORY ${${varname}_INCLUDE_DIR} PARENT_DIRECTORY)
 		GET_FILENAME_COMPONENT(FFMPEG_PARENT ${${varname}_INCLUDE_DIR} PATH)
 		MESSAGE(STATUS "Using FFMpeg dir parent as hint: ${FFMPEG_PARENT}")
 
@@ -64,8 +64,8 @@ MACRO(FFMPEG_FIND varname shortname headername)
 			FIND_LIBRARY(${varname}_LIBRARIES NAMES ${shortname}
 				HINTS ${PC_${varname}_LIBDIR} ${PC_${varname}_LIBRARY_DIR} ${FFMPEG_PARENT})
 		ELSE()
-#			FIND_PATH(${varname}_LIBRARIES "${shortname}.dll.a" HINTS ${FFMPEG_PARENT})
-			FILE(GLOB_RECURSE ${varname}_LIBRARIES "${FFMPEG_PARENT}/*${shortname}.lib") 
+			FIND_PATH(${varname}_LIBRARIES "${shortname}.dll.a" HINTS ${FFMPEG_PARENT})
+			#			FILE(GLOB_RECURSE ${varname}_LIBRARIES "${FFMPEG_PARENT}/*${shortname}.lib") 
 			# GLOBing is very bad... but windows sux, this is the only thing that works
 		ENDIF()
 

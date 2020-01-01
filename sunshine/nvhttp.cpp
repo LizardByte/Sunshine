@@ -2,6 +2,8 @@
 // Created by loki on 6/3/19.
 //
 
+#include "process.h"
+
 #include <iostream>
 #include <filesystem>
 
@@ -21,7 +23,6 @@
 #include "stream.h"
 #include "nvhttp.h"
 #include "platform/common.h"
-#include "process.h"
 #include "network.h"
 
 

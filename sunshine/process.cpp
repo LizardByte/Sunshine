@@ -2,6 +2,8 @@
 // Created by loki on 12/14/19.
 //
 
+#include "process.h"
+
 #include <vector>
 #include <string>
 #include <iostream>
@@ -9,7 +11,6 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-#include "process.h"
 #include "config.h"
 #include "utility.h"
 #include "platform/common.h"

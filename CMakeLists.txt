@@ -4,62 +4,50 @@ project(Sunshine)
 # set up include-directories
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+
+find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(FFMpeg REQUIRED)
+find_package(Boost COMPONENTS filesystem REQUIRED)
+
 add_subdirectory(Simple-Web-Server)
 add_subdirectory(moonlight-common-c/enet)
 
-find_package(X11 REQUIRED)
-set(PLATFORM_TARGET_FILES
-	sunshine/platform/linux.cpp
-	sunshine/platform/linux_evdev.cpp)
-
-set(PLATFORM_LIBRARIES
-	Xfixes
-	Xtst
-	xcb
-	xcb-shm
-	xcb-xfixes
-	${X11_LIBRARIES}
-	evdev
-	pulse
-	pulse-simple)
-
-set(PLATFORM_INCLUDE_DIRS
-	${X11_INCLUDE_DIR}
-	/usr/include/libevdev-1.0)
-
+if(WIN32)
+	set(PLATFORM_TARGET_FILES
+		sunshine/platform/windows.cpp)
+	set(PLATFORM_LIBRARIES
+		winmm
+		wsock32
+		ws2_32)
+else()
+	find_package(X11 REQUIRED)
+	set(PLATFORM_TARGET_FILES
+		sunshine/platform/linux.cpp
+		sunshine/platform/linux_evdev.cpp)
+	
+	set(PLATFORM_LIBRARIES
+		Xfixes
+		Xtst
+		xcb
+		xcb-shm
+		xcb-xfixes
+		${X11_LIBRARIES}
+		evdev
+		pulse
+		pulse-simple)
+	
+	set(PLATFORM_INCLUDE_DIRS
+		${X11_INCLUDE_DIR}
+		/usr/include/libevdev-1.0)
+endif()
 set(SUNSHINE_TARGET_FILES
 	moonlight-common-c/reedsolomon/rs.c
 	moonlight-common-c/reedsolomon/rs.h
-	moonlight-common-c/src/AudioStream.c
-	moonlight-common-c/src/ByteBuffer.c
-	moonlight-common-c/src/ByteBuffer.h
-	moonlight-common-c/src/Connection.c
-	moonlight-common-c/src/ControlStream.c
-	moonlight-common-c/src/FakeCallbacks.c
 	moonlight-common-c/src/Input.h
-	moonlight-common-c/src/InputStream.c
-	moonlight-common-c/src/Limelight.h
-	moonlight-common-c/src/Limelight-internal.h
-	moonlight-common-c/src/LinkedBlockingQueue.c
-	moonlight-common-c/src/LinkedBlockingQueue.h
-	moonlight-common-c/src/Misc.c
-	moonlight-common-c/src/Platform.c
-	moonlight-common-c/src/Platform.h
-	moonlight-common-c/src/PlatformSockets.c
-	moonlight-common-c/src/PlatformSockets.h
-	moonlight-common-c/src/PlatformThreads.h
-	moonlight-common-c/src/RtpFecQueue.c
-	moonlight-common-c/src/RtpFecQueue.h
-	moonlight-common-c/src/RtpReorderQueue.c
-	moonlight-common-c/src/RtpReorderQueue.h
-	moonlight-common-c/src/RtspConnection.c
 	moonlight-common-c/src/Rtsp.h
 	moonlight-common-c/src/RtspParser.c
-	moonlight-common-c/src/SdpGenerator.c
-	moonlight-common-c/src/SimpleStun.c
-	moonlight-common-c/src/VideoDepacketizer.c
 	moonlight-common-c/src/Video.h
-	moonlight-common-c/src/VideoStream.c
 	sunshine/utility.h
 	sunshine/uuid.h
 	sunshine/config.h
@@ -98,14 +86,11 @@ include_directories(
   ${PLATFORM_INCLUDE_DIRS}
 )
 
-find_package(Threads REQUIRED)
-find_package(OpenSSL REQUIRED)
-find_package(FFmpeg REQUIRED)
-
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
-	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
+	#list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
+	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0)
 else()
 	add_definitions(-DNDEBUG)
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)
@@ -117,6 +102,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		enet
 		opus
 		${FFMPEG_LIBRARIES}
+		${Boost_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
 add_definitions(-DSUNSHINE_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")

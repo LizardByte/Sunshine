@@ -1,6 +1,9 @@
 //
 // Created by loki on 6/5/19.
 //
+
+#include "process.h"
+
 #include <boost/version.hpp>
 #if ((BOOST_VERSION / 1000) >= 107)
 #define EXECUTOR(x) (x->get_executor())
@@ -32,7 +35,6 @@ extern "C" {
 #include "thread_safe.h"
 #include "crypto.h"
 #include "input.h"
-#include "process.h"
 
 #define IDX_START_A 0
 #define IDX_REQUEST_IDR_FRAME 0

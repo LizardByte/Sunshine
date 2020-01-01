@@ -5,6 +5,10 @@
 #ifndef SUNSHINE_PROCESS_H
 #define SUNSHINE_PROCESS_H
 
+#ifndef __kernel_entry
+#define __kernel_entry
+#endif
+
 #include <unordered_map>
 #include <optional>
 
