@@ -199,6 +199,11 @@ void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t co
     auto next_snapshot = std::chrono::steady_clock::now() + time_span;
     auto img = disp->snapshot(display_cursor);
 
+    if(!img) {
+      std::this_thread::sleep_until(next_snapshot);
+      continue;
+    }
+
     images->raise(std::move(img));
     img.reset();
 
