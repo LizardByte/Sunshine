@@ -7,7 +7,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(FFMpeg REQUIRED)
+find_package(FFmpeg REQUIRED)
 find_package(Boost COMPONENTS filesystem REQUIRED)
 
 add_subdirectory(Simple-Web-Server)
@@ -35,7 +35,8 @@ else()
 		${X11_LIBRARIES}
 		evdev
 		pulse
-		pulse-simple)
+		pulse-simple
+		)
 	
 	set(PLATFORM_INCLUDE_DIRS
 		${X11_INCLUDE_DIR}
@@ -89,8 +90,10 @@ include_directories(
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
-	#list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
-	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0)
+	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
+	if(WIN32)
+		set_source_files_properties(sunshine/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
+	endif()
 else()
 	add_definitions(-DNDEBUG)
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)

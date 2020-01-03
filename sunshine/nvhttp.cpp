@@ -76,6 +76,8 @@ struct pair_session_t {
 // uniqueID, session
 std::unordered_map<std::string, pair_session_t> map_id_sess;
 std::unordered_map<std::string, client_t> map_id_client;
+std::string local_ip;
+net::net_e origin_pin_allowed;
 
 using args_t = SimpleWeb::CaseInsensitiveMultimap;
 using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
@@ -87,9 +89,6 @@ enum class op_e {
   ADD,
   REMOVE
 };
-
-std::string local_ip;
-net::net_e origin_pin_allowed;
 
 void save_devices() {
   pt::ptree root;
