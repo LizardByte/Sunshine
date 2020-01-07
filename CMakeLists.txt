@@ -19,7 +19,8 @@ if(WIN32)
 	set(PLATFORM_LIBRARIES
 		winmm
 		wsock32
-		ws2_32)
+		ws2_32
+		d3d11 dxgi)
 else()
 	find_package(X11 REQUIRED)
 	set(PLATFORM_TARGET_FILES
