@@ -7,7 +7,6 @@ extern "C" {
 }
 
 #include <cstring>
-#include <iostream>
 
 #include "main.h"
 #include "config.h"
@@ -34,55 +33,50 @@ constexpr std::uint16_t X            = 0x4000;
 constexpr std::uint16_t Y            = 0x8000;
 
 void print(PNV_MOUSE_MOVE_PACKET packet) {
-  std::cout << "--begin mouse move packet--"sv << std::endl;
-
-  std::cout << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl;
-  std::cout << "deltaY ["sv << util::endian::big(packet->deltaY) << ']' << std::endl;
-
-  std::cout << "--end mouse move packet--"sv  << std::endl;
+  BOOST_LOG(debug)
+    << "--begin mouse move packet--"sv << std::endl
+    << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl
+    << "deltaY ["sv << util::endian::big(packet->deltaY) << ']' << std::endl
+    << "--end mouse move packet--"sv;
 }
 
 void print(PNV_MOUSE_BUTTON_PACKET packet) {
-  std::cout << "--begin mouse button packet--"sv << std::endl;
-
-  std::cout << "action ["sv << util::hex(packet->action).to_string_view() << ']' << std::endl;
-  std::cout << "button ["sv << util::hex(packet->button).to_string_view() << ']' << std::endl;
-
-  std::cout << "--end mouse button packet--"sv  << std::endl;
+  BOOST_LOG(debug)
+    << "--begin mouse button packet--"sv << std::endl
+    << "action ["sv << util::hex(packet->action).to_string_view() << ']' << std::endl
+    << "button ["sv << util::hex(packet->button).to_string_view() << ']' << std::endl
+    << "--end mouse button packet--"sv;
 }
 
 void print(PNV_SCROLL_PACKET packet) {
-  std::cout << "--begin mouse scroll packet--"sv << std::endl;
-
-  std::cout << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl;
-
-  std::cout << "--end mouse scroll packet--"sv  << std::endl;
+  BOOST_LOG(debug)
+    << "--begin mouse scroll packet--"sv << std::endl
+    << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl
+    << "--end mouse scroll packet--"sv;
 }
 
 void print(PNV_KEYBOARD_PACKET packet) {
-  std::cout << "--begin keyboard packet--"sv << std::endl;
-
-  std::cout << "keyAction ["sv << util::hex(packet->keyAction).to_string_view() << ']' << std::endl;
-  std::cout << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl;
-  std::cout << "modifiers ["sv << util::hex(packet->modifiers).to_string_view() << ']' << std::endl;
-
-  std::cout << "--end keyboard packet--"sv  << std::endl;
+  BOOST_LOG(debug)
+    << "--begin keyboard packet--"sv << std::endl
+    << "keyAction ["sv << util::hex(packet->keyAction).to_string_view() << ']' << std::endl
+    << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl
+    << "modifiers ["sv << util::hex(packet->modifiers).to_string_view() << ']' << std::endl
+    << "--end keyboard packet--"sv;
 }
 
 void print(PNV_MULTI_CONTROLLER_PACKET packet) {
-  std::cout << "--begin controller packet--"sv << std::endl;
-
-  std::cout << "controllerNumber ["sv << packet->controllerNumber << ']' << std::endl;
-  std::cout << "activeGamepadMask ["sv << util::hex(packet->activeGamepadMask).to_string_view() << ']' << std::endl;
-  std::cout << "buttonFlags ["sv << util::hex(packet->buttonFlags).to_string_view() << ']' << std::endl;
-  std::cout << "leftTrigger ["sv << util::hex(packet->leftTrigger).to_string_view() << ']' << std::endl;
-  std::cout << "rightTrigger ["sv << util::hex(packet->rightTrigger).to_string_view() << ']' << std::endl;
-  std::cout << "leftStickX ["sv << packet->leftStickX << ']' << std::endl;
-  std::cout << "leftStickY ["sv << packet->leftStickY << ']' << std::endl;
-  std::cout << "rightStickX ["sv << packet->rightStickX << ']' << std::endl;
-  std::cout << "rightStickY ["sv << packet->rightStickY << ']' << std::endl;
-
-  std::cout << "--end controller packet--"sv << std::endl;
+  BOOST_LOG(debug)
+    << "--begin controller packet--"sv << std::endl
+    << "controllerNumber ["sv << packet->controllerNumber << ']' << std::endl
+    << "activeGamepadMask ["sv << util::hex(packet->activeGamepadMask).to_string_view() << ']' << std::endl
+    << "buttonFlags ["sv << util::hex(packet->buttonFlags).to_string_view() << ']' << std::endl
+    << "leftTrigger ["sv << util::hex(packet->leftTrigger).to_string_view() << ']' << std::endl
+    << "rightTrigger ["sv << util::hex(packet->rightTrigger).to_string_view() << ']' << std::endl
+    << "leftStickX ["sv << packet->leftStickX << ']' << std::endl
+    << "leftStickY ["sv << packet->leftStickY << ']' << std::endl
+    << "rightStickX ["sv << packet->rightStickX << ']' << std::endl
+    << "rightStickY ["sv << packet->rightStickY << ']' << std::endl
+    << "--end controller packet--"sv;
 }
 
 constexpr int PACKET_TYPE_SCROLL_OR_KEYBOARD = PACKET_TYPE_SCROLL;

@@ -6,14 +6,12 @@
 
 #include <vector>
 #include <string>
-#include <iostream>
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-#include "config.h"
 #include "utility.h"
-#include "platform/common.h"
+#include "main.h"
 
 namespace proc {
 using namespace std::literals;
@@ -27,7 +25,7 @@ void process_end(bp::child &proc, bp::group &proc_handle) {
     return;
   }
 
-  std::cout << "Force termination Child-Process"sv << std::endl;
+  BOOST_LOG(debug) << "Force termination Child-Process"sv;
   proc_handle.terminate();
 
   // avoid zombie process
@@ -51,7 +49,7 @@ int proc_t::execute(int app_id) {
   }
 
   if(app_id >= _apps.size()) {
-    std::cout << "Error: Couldn't find app with ID ["sv << app_id << ']' << std::endl;
+    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
 
     return 404;
   }
@@ -78,21 +76,21 @@ int proc_t::execute(int app_id) {
   for(; _undo_it != std::end(proc.prep_cmds); ++_undo_it) {
     auto &cmd = _undo_it->do_cmd;
 
-    std::cout << "Executing: ["sv << cmd << ']' << std::endl;
+    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
     auto ret = exe(cmd, _env, _pipe, ec);
 
     if(ec) {
-      std::cout << "Error: System: "sv << ec.message() << std::endl;
+      BOOST_LOG(error) << "System: "sv << ec.message();
       return -1;
     }
 
     if(ret != 0) {
-      std::cout << "Error: return code ["sv << ret << ']';
+      BOOST_LOG(error) << "Return code ["sv << ret << ']';
       return -1;
     }
   }
 
-  std::cout << "Starting ["sv << proc.cmd << ']' << std::endl;
+  BOOST_LOG(debug) << "Starting ["sv << proc.cmd << ']';
   if(proc.output.empty() || proc.output == "null"sv) {
     _process = bp::child(_process_handle, proc.cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
@@ -101,7 +99,7 @@ int proc_t::execute(int app_id) {
   }
 
   if(ec) {
-    std::cout << "Error: System: "sv << ec.message() << std::endl;
+    BOOST_LOG(info) << "System: "sv << ec.message();
     return -1;
   }
 
@@ -126,7 +124,8 @@ void proc_t::terminate() {
   _app_id = -1;
 
   if(ec) {
-    std::cout << "FATAL Error: System: "sv << ec.message() << std::endl;
+    BOOST_LOG(fatal) << "System: "sv << ec.message();
+    log_flush();
     std::abort();
   }
 
@@ -137,17 +136,19 @@ void proc_t::terminate() {
       continue;
     }
 
-    std::cout << "Executing: ["sv << cmd << ']' << std::endl;
+    BOOST_LOG(debug) << "Executing: ["sv << cmd << ']';
 
     auto ret = exe(cmd, _env, _pipe, ec);
 
     if(ec) {
-      std::cout << "FATAL Error: System: "sv << ec.message() << std::endl;
+      BOOST_LOG(fatal) << "System: "sv << ec.message();
+      log_flush();
       std::abort();
     }
 
     if(ret != 0) {
-      std::cout << "FATAL Error: return code ["sv << ret << ']';
+      BOOST_LOG(fatal) << "Return code ["sv << ret << ']';
+      log_flush();
       std::abort();
     }
   }
@@ -283,7 +284,7 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
       std::move(this_env), std::move(apps)
     };
   } catch (std::exception &e) {
-    std::cout << e.what() << std::endl;
+    BOOST_LOG(error) << e.what();
   }
 
   return std::nullopt;

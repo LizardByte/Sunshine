@@ -1,4 +1,3 @@
-#include <iostream>
 #include <thread>
 
 #include <dxgi.h>
@@ -6,6 +5,7 @@
 #include <d3dcommon.h>
 #include <dxgi1_2.h>
 
+#include "sunshine/main.h"
 #include "common.h"
 
 namespace platf {
@@ -52,7 +52,7 @@ public:
         case DXGI_ERROR_ACCESS_DENIED:
           return capture_e::reinit;
         default:
-          std::cout << "Error: Couldn't release frame [0x"sv << util::hex(status).to_string_view() << std::endl;
+          BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
           return capture_e::error;
       }
     }
@@ -69,7 +69,7 @@ public:
       case DXGI_ERROR_ACCESS_DENIED:
         return capture_e::reinit;
       default:
-        std::cout << "Error: Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view() << std::endl;
+        BOOST_LOG(error) << "Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view();
         return capture_e::error;
     }
   }
@@ -96,7 +96,7 @@ public:
       case DXGI_ERROR_ACCESS_DENIED:
         return capture_e::reinit;
       default:
-        std::cout << "Error: Couldn't release frame [0x"sv << util::hex(status).to_string_view() << std::endl;
+        BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
         return capture_e::error;
     }
   }
@@ -153,13 +153,13 @@ public:
       UINT dummy;
       status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &shape_info);
       if (FAILED(status)) {
-        std::cout << "Error: Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+        BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
 
         return capture_e::error;
       }
 
       if (shape_info.Type != DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) {
-        std::cout << "Warning: Unsupported cursor format ["sv << shape_info.Type << ']' << std::endl;
+        BOOST_LOG(warning) << "Unsupported cursor format ["sv << shape_info.Type << ']';
       }
 
       cursor.width = shape_info.Width;
@@ -177,7 +177,7 @@ public:
       texture2d_t src{src_p};
 
       if (FAILED(status)) {
-        std::cout << "Error: Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+        BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
         return capture_e::error;
       }
 
@@ -195,7 +195,7 @@ public:
         return capture_e::timeout;
       }
 
-      std::cout << "Error: Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
       return capture_e::error;
     }
@@ -221,7 +221,7 @@ public:
       dxgi::output1_t output1 {output1_p };
 
       if(FAILED(status)) {
-        std::cout << "Error: Failed to query IDXGIOutput1 from the output"sv << std::endl;
+        BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
         return -1;
       }
 
@@ -237,7 +237,7 @@ public:
       }
 
       if(FAILED(status)) {
-        std::cout << "Error: DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+        BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
     }
@@ -247,7 +247,7 @@ public:
 
     format = dup_desc.ModeDesc.Format;
 
-    std::cout << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']' << std::endl;
+    BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
 
     D3D11_TEXTURE2D_DESC t {};
     t.Width  = width;
@@ -264,7 +264,7 @@ public:
     dxgi::texture2d_t tex { tex_p };
 
     if(FAILED(status)) {
-      std::cout << "Error: Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -273,7 +273,7 @@ public:
 
     status = device_ctx->Map((ID3D11Resource *)tex.get(), 0, D3D11_MAP_READ, 0, &mapping);
     if(FAILED(status)) {
-      std::cout << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      BOOST_LOG(error) << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -303,7 +303,7 @@ public:
     dxgi::texture2d_t tex { tex_p };
 
     if(FAILED(status)) {
-      std::cout << "Error: Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
       return nullptr;
     }
 
@@ -340,7 +340,7 @@ public:
     status = CreateDXGIFactory1(IID_IDXGIFactory1, (void**)&factory_p);
     factory.reset(factory_p);
     if(FAILED(status)) {
-      std::cout << "Error: Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -369,7 +369,7 @@ public:
     }
 
     if(!output) {
-      std::cout << "Error: Failed to locate an output device"sv << std::endl;
+      BOOST_LOG(error) << "Failed to locate an output device"sv;
       return -1;
     }
 
@@ -387,7 +387,7 @@ public:
 
     status = adapter->QueryInterface(IID_IDXGIAdapter, (void**)&adapter_p);
     if(FAILED(status)) {
-      std::cout << "Error: Failed to query IDXGIAdapter interface"sv <<std::endl;
+      BOOST_LOG(error) << "Failed to query IDXGIAdapter interface"sv;
 
       return -1;
     }
@@ -408,14 +408,14 @@ public:
     device.reset(device_p);
     device_ctx.reset(device_ctx_p);
     if(FAILED(status)) {
-      std::cout << "Error: Failed to create D3D11 device [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      BOOST_LOG(error) << "Failed to create D3D11 device [0x"sv << util::hex(status).to_string_view() << ']';
 
       return -1;
     }
 
     DXGI_ADAPTER_DESC adapter_desc;
     adapter->GetDesc(&adapter_desc);
-    std::cout
+    BOOST_LOG(info)
       << "Device Description : "sv << adapter_desc.Description << std::endl
       << "Device Vendor ID   : 0x"sv << util::hex(adapter_desc.VendorId).to_string_view() << std::endl
       << "Device Device ID   : 0x"sv << util::hex(adapter_desc.DeviceId).to_string_view() << std::endl
@@ -423,7 +423,7 @@ public:
       << "Device Sys Mem     : "sv << adapter_desc.DedicatedSystemMemory / 1048576 << " MiB"sv << std::endl
       << "Share Sys Mem      : "sv << adapter_desc.SharedSystemMemory / 1048576 << " MiB"sv << std::endl
       << "Feature Level      : 0x"sv << util::hex(feature_level).to_string_view() << std::endl
-      << "Capture size       : "sv << width << 'x'  << height << std::endl;
+      << "Capture size       : "sv << width << 'x'  << height;
 
     // Bump up thread priority
     {
@@ -432,7 +432,7 @@ public:
       dxgi::dxgi_t dxgi { dxgi_p };
 
       if(FAILED(status)) {
-        std::cout << "Error: Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+        BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
@@ -446,7 +446,7 @@ public:
       dxgi::dxgi1_t dxgi { dxgi_p };
 
       if(FAILED(status)) {
-        std::cout << "Error: Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+        BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
@@ -454,17 +454,6 @@ public:
     }
 
     return reinit();
-  }
-
-  int deinit() {
-    dup.reset();
-    device_ctx.reset();
-    device.reset();
-    output.reset();
-    adapter.reset();
-    factory.reset();
-
-    return 0;
   }
 
   factory1_t factory;

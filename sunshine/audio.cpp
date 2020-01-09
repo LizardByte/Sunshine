@@ -1,5 +1,4 @@
 #include <thread>
-#include <iostream>
 
 #include <opus/opus_multistream.h>
 
@@ -8,6 +7,7 @@
 #include "utility.h"
 #include "thread_safe.h"
 #include "audio.h"
+#include "main.h"
 
 namespace audio {
 using namespace std::literals;
@@ -69,8 +69,10 @@ void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, sample_queue
 
     int bytes = opus_multistream_encode(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
     if(bytes < 0) {
-      std::cout << "Error: "sv << opus_strerror(bytes) << std::endl;
-      exit(7);
+      BOOST_LOG(error) << opus_strerror(bytes);
+      packets->stop();
+
+      return;
     }
 
     packet.fake_resize(bytes);
@@ -83,7 +85,7 @@ void capture(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) 
 
   auto mic = platf::microphone();
   if(!mic) {
-    std::cout << "Error creating audio input"sv << std::endl;
+    BOOST_LOG(error) << "Couldn't create audio input"sv ;
   }
 
   //FIXME: Pick correct opus_stream_config_t based on config.channels

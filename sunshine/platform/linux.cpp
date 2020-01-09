@@ -21,7 +21,6 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
-#include <iostream>
 #include <bitset>
 #include <sunshine/task_pool.h>
 
@@ -216,7 +215,7 @@ struct shm_attr_t : public x11_attr_t {
 
     xcb_img_t img_reply { xcb_shm_get_image_reply(xcb.get(), img_cookie, nullptr) };
     if(!img_reply) {
-      std::cout << "Info: Could not get image reply"sv << std::endl;
+      BOOST_LOG(error) << "Could not get image reply"sv;
       return capture_e::reinit;
     }
 
@@ -253,7 +252,7 @@ struct shm_attr_t : public x11_attr_t {
     }
 
     if(!xcb_get_extension_data(xcb.get(), &xcb_shm_id)->present) {
-      std::cout << "Missing SHM extension"sv << std::endl;
+      BOOST_LOG(error) << "Missing SHM extension"sv;
 
       return -1;
     }
@@ -264,7 +263,7 @@ struct shm_attr_t : public x11_attr_t {
 
     shm_id.id = shmget(IPC_PRIVATE, frame_size(), IPC_CREAT | 0777);
     if(shm_id.id == -1) {
-      std::cout << "shmget failed"sv << std::endl;
+      BOOST_LOG(error) << "shmget failed"sv;
       return -1;
     }
 
@@ -272,7 +271,7 @@ struct shm_attr_t : public x11_attr_t {
     data.data = shmat(shm_id.id, nullptr, 0);
 
     if ((uintptr_t)data.data == -1) {
-      std::cout << "shmat failed"sv << std::endl;
+      BOOST_LOG(error) << "shmat failed"sv;
 
       return -1;
     }
@@ -295,9 +294,9 @@ struct mic_attr_t : public mic_t {
     sample_buf.resize(sample_size);
 
     auto buf = sample_buf.data();
-    int error;
-    if(pa_simple_read(mic.get(), buf, sample_size * 2, &error)) {
-      std::cout << "pa_simple_read() failed: "sv << pa_strerror(error) << std::endl;
+    int status;
+    if(pa_simple_read(mic.get(), buf, sample_size * 2, &status)) {
+      BOOST_LOG(error) << "pa_simple_read() failed: "sv << pa_strerror(status);
     }
 
     return sample_buf;
@@ -332,14 +331,14 @@ std::unique_ptr<mic_t> microphone() {
     }
   };
 
-  int error;
+  int status;
   mic->mic.reset(
-    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, nullptr, "sunshine_record", &mic->ss, nullptr, nullptr, &error)
+    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, nullptr, "sunshine_record", &mic->ss, nullptr, nullptr, &status)
   );
 
   if(!mic->mic) {
-    auto err_str = pa_strerror(error);
-    std::cout << "pa_simple_new() failed: "sv << err_str << std::endl;
+    auto err_str = pa_strerror(status);
+    BOOST_LOG(error) << "pa_simple_new() failed: "sv << err_str;
 
     exit(1);
   }

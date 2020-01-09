@@ -8,9 +8,9 @@
 
 #include <cstring>
 #include <filesystem>
-#include <iostream>
 
 #include "common.h"
+#include "sunshine/main.h"
 #include "sunshine/utility.h"
 
 namespace platf {
@@ -331,7 +331,7 @@ int mouse(input_raw_t &gp) {
 
   gp.mouse_input.reset(buf);
   if(err) {
-    std::cout << "Could not create Sunshine Mouse: "sv << strerror(-err) << std::endl;
+    BOOST_LOG(error) << "Could not create Sunshine Mouse: "sv << strerror(-err);
     return -1;
   }
 
@@ -400,7 +400,7 @@ int gamepad(input_raw_t &gp) {
 
   gp.gamepad_input.reset(buf);
   if(err) {
-    std::cout << "Could not create Sunshine Gamepad: "sv << strerror(-err) << std::endl;
+    BOOST_LOG(error) << "Could not create Sunshine Gamepad: "sv << strerror(-err);
     return -1;
   }
 

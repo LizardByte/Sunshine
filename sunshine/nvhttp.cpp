@@ -4,7 +4,6 @@
 
 #include "process.h"
 
-#include <iostream>
 #include <filesystem>
 
 #include <boost/property_tree/ptree.hpp>
@@ -17,13 +16,13 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
-#include "uuid.h"
 #include "config.h"
 #include "utility.h"
 #include "stream.h"
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "network.h"
+#include "main.h"
 
 
 namespace nvhttp {
@@ -124,7 +123,7 @@ void load_devices() {
   try {
     pt::read_json(config::nvhttp.file_devices, root);
   } catch (std::exception &e) {
-    std::cout << e.what() << std::endl;
+    BOOST_LOG(warning) << e.what();
 
     return;
   }
@@ -289,22 +288,22 @@ struct tunnel<SimpleWeb::HTTP> {
 
 template<class T>
 void print_req(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-  std::cout << "TUNNEL :: "sv << tunnel<T>::to_string << std::endl;
+  BOOST_LOG(debug) << "TUNNEL :: "sv << tunnel<T>::to_string;
 
-  std::cout << "METHOD :: "sv << request->method << std::endl;
-  std::cout << "DESTINATION :: "sv << request->path << std::endl;
+  BOOST_LOG(debug)  << "METHOD :: "sv << request->method;
+  BOOST_LOG(debug)  << "DESTINATION :: "sv << request->path;
 
   for(auto &[name, val] : request->header) {
-    std::cout << name << " -- " << val << std::endl;
+    BOOST_LOG(debug) << name << " -- " << val;
   }
 
-  std::cout << std::endl;
+  BOOST_LOG(debug) << " [--] "sv;
 
   for(auto &[name, val] : request->parse_query_string()) {
-    std::cout << name << " -- " << val << std::endl;
+    BOOST_LOG(debug) << name << " -- " << val;
   }
 
-  std::cout << std::endl;
+  BOOST_LOG(debug) << " [--] "sv;
 }
 
 template<class T>
@@ -340,7 +339,7 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
       sess.client.uniqueID = std::move(uniqID);
       sess.client.cert = util::from_hex_vec(args.at("clientcert"s), true);
 
-      std::cout << sess.client.cert;
+      BOOST_LOG(debug) << sess.client.cert;
       auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
       ptr->second.async_insert_pin.salt = std::move(args.at("salt"s));
@@ -378,7 +377,7 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
   if(ip_type > origin_pin_allowed) {
-    std::cout << '[' << address << "] -- denied"sv << std::endl;
+    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
 
     response->write(SimpleWeb::StatusCode::client_error_forbidden);
 
@@ -646,9 +645,9 @@ void start() {
   origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
 
   if(local_ip.empty()) {
-    std::cout << "Error: Could not determine the local ip-address"sv << std::endl;
-
-    exit(8);
+    BOOST_LOG(fatal) << "Could not determine the local ip-address"sv;
+    log_flush();
+    std::abort();
   }
 
   load_devices();
@@ -677,7 +676,7 @@ void start() {
       auto x509 = ctx.native_handle();
       X509_NAME_oneline(X509_get_subject_name(X509_STORE_CTX_get_current_cert(x509)), subject_name, sizeof(subject_name));
 
-      std::cout << subject_name << " -- "sv << (verified ? "verfied"sv : "denied"sv) << std::endl;
+      BOOST_LOG(info) << subject_name << " -- "sv << (verified ? "verfied"sv : "denied"sv);
     });
 
     if(verified) {
@@ -690,17 +689,17 @@ void start() {
       auto cert = add_cert->pop();
       X509_NAME_oneline(X509_get_subject_name(cert.get()), subject_name, sizeof(subject_name));
 
-      std::cout << "Added cert ["sv << subject_name << "]"sv << std::endl;
+      BOOST_LOG(debug) << "Added cert ["sv << subject_name << ']';
       cert_chain.add(std::move(cert));
     }
 
     auto err_str = cert_chain.verify(X509_STORE_CTX_get_current_cert(ctx.native_handle()));
     if(err_str) {
-      std::cout << "SSL Verification error :: "sv << err_str << std::endl;
+      BOOST_LOG(warning) << "SSL Verification error :: "sv << err_str;
       return 0;
     }
 
-    verified = true;
+    verified = 1;
     return 1;
   });
 

@@ -1,6 +1,5 @@
-#include <iostream>
 #include <fstream>
-#include <iterator>
+#include <iostream>
 #include <functional>
 #include <unordered_map>
 
@@ -47,6 +46,10 @@ nvhttp_t nvhttp {
 
 input_t input {
   2s
+};
+
+sunshine_t sunshine {
+  2 // min_log_level
 };
 
 bool whitespace(char ch) {
@@ -150,7 +153,7 @@ void parse_file(const char *file) {
   });
 
   for(auto &[name, val] : vars) {
-    std::cout << "["sv << name << "] -- ["sv << val << "]"sv << std::endl;
+    std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
   }
 
   int_f(vars, "max_b_frames", video.max_b_frames);
@@ -186,6 +189,35 @@ void parse_file(const char *file) {
 
   if(to > std::numeric_limits<int>::min()) {
     input.back_button_timeout = std::chrono::milliseconds {to };
+  }
+
+  std::string log_level_string;
+  string_restricted_f(vars, "min_log_level", log_level_string, {
+    "verbose"sv, "debug"sv, "info"sv, "warning"sv, "error"sv, "fatal"sv, "none"sv
+  });
+
+  if(log_level_string.empty()) {
+    if(log_level_string == "verbose"sv) {
+      sunshine.min_log_level = 0;
+    }
+    else if(log_level_string == "debug"sv) {
+      sunshine.min_log_level = 1;
+    }
+    else if(log_level_string == "info"sv) {
+      sunshine.min_log_level = 2;
+    }
+    else if(log_level_string == "warning"sv) {
+      sunshine.min_log_level = 3;
+    }
+    else if(log_level_string == "error"sv) {
+      sunshine.min_log_level = 4;
+    }
+    else if(log_level_string == "fatal"sv) {
+      sunshine.min_log_level = 5;
+    }
+    else if(log_level_string == "none"sv) {
+      sunshine.min_log_level = 6;
+    }
   }
 }
 

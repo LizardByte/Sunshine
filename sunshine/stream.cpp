@@ -13,7 +13,6 @@
 
 
 #include <queue>
-#include <iostream>
 #include <future>
 #include <boost/asio.hpp>
 #include <moonlight-common-c/enet/include/enet/enet.h>
@@ -35,6 +34,7 @@ extern "C" {
 #include "thread_safe.h"
 #include "crypto.h"
 #include "input.h"
+#include "main.h"
 
 #define IDX_START_A 0
 #define IDX_REQUEST_IDR_FRAME 0
@@ -229,10 +229,10 @@ public:
         }
           break;
         case ENET_EVENT_TYPE_CONNECT:
-          std::cout << "CLIENT CONNECTED TO RTSP" << std::endl;
+          BOOST_LOG(info) << "CLIENT CONNECTED TO RTSP"sv;
           break;
         case ENET_EVENT_TYPE_DISCONNECT:
-          std::cout << "CLIENT DISCONNECTED FROM RTSP" << std::endl;
+          BOOST_LOG(info) << "CLIENT DISCONNECTED FROM RTSP"sv;
           break;
         case ENET_EVENT_TYPE_NONE:
           break;
@@ -277,8 +277,9 @@ public:
 
           auto cb = _map_type_cb.find(*type);
           if(cb == std::end(_map_type_cb)) {
-            std::cout << "type [Unknown] { " << util::hex(*type).to_string_view() << " }" << std::endl;
-            std::cout << "---data---" << std::endl << util::hex_vec(payload) << std::endl << "---end data---" << std::endl;
+            BOOST_LOG(warning)
+              << "type [Unknown] { "sv << util::hex(*type).to_string_view() << " }"sv << std::endl
+              << "---data---"sv << std::endl << util::hex_vec(payload) << std::endl << "---end data---"sv;
           }
 
           else {
@@ -287,10 +288,10 @@ public:
         }
           break;
         case ENET_EVENT_TYPE_CONNECT:
-          std::cout << "CLIENT CONNECTED" << std::endl;
+          BOOST_LOG(info) << "CLIENT CONNECTED"sv;
           break;
         case ENET_EVENT_TYPE_DISCONNECT:
-          std::cout << "CLIENT DISCONNECTED" << std::endl;
+          BOOST_LOG(info) << "CLIENT DISCONNECTED"sv;
           break;
         case ENET_EVENT_TYPE_NONE:
           break;
@@ -335,8 +336,9 @@ fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercen
   auto nr_shards = data_shards + parity_shards;
 
   if(nr_shards > DATA_SHARDS_MAX) {
-    std::cout << "Error: number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl;
-    std::cout << nr_shards << " > "sv << DATA_SHARDS_MAX << std::endl;
+    BOOST_LOG(error)
+      << "Number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl
+      << nr_shards << " > "sv << DATA_SHARDS_MAX;
 
     return { 0 };
   }
@@ -403,10 +405,10 @@ void print_msg(PRTSP_MESSAGE msg) {
   auto seqnm = msg->sequenceNumber;
   std::string_view messageBuffer { msg->messageBuffer };
 
-  std::cout << "type ["sv << type << ']' << std::endl;
-  std::cout << "sequence number ["sv << seqnm << ']' << std::endl;
-  std::cout << "protocol :: "sv << protocol << std::endl;
-  std::cout << "payload :: "sv << payload << std::endl;
+  BOOST_LOG(debug) << "type ["sv << type << ']';
+  BOOST_LOG(debug) << "sequence number ["sv << seqnm << ']';
+  BOOST_LOG(debug) << "protocol :: "sv << protocol;
+  BOOST_LOG(debug) << "payload :: "sv << payload;
 
   if(msg->type == TYPE_RESPONSE) {
     auto &resp = msg->message.response;
@@ -414,8 +416,8 @@ void print_msg(PRTSP_MESSAGE msg) {
     auto statuscode = resp.statusCode;
     std::string_view status { resp.statusString };
 
-    std::cout << "statuscode :: "sv << statuscode << std::endl;
-    std::cout << "status :: "sv << status << std::endl;
+    BOOST_LOG(debug) << "statuscode :: "sv << statuscode;
+    BOOST_LOG(debug) << "status :: "sv << status;
   }
   else {
     auto& req = msg->message.request;
@@ -423,18 +425,18 @@ void print_msg(PRTSP_MESSAGE msg) {
     std::string_view command { req.command };
     std::string_view target { req.target };
 
-    std::cout << "command :: "sv << command << std::endl;
-    std::cout << "target :: "sv << target << std::endl;
+    BOOST_LOG(debug) << "command :: "sv << command;
+    BOOST_LOG(debug) << "target :: "sv << target;
   }
 
   for(auto option = msg->options; option != nullptr; option = option->next) {
     std::string_view content { option->content };
     std::string_view name { option->option };
 
-    std::cout << name << " :: "sv << content << std::endl;
+    BOOST_LOG(debug) << name << " :: "sv << content;
   }
 
-  std::cout << "---Begin MessageBuffer---"sv << std::endl << messageBuffer << std::endl << "---End MessageBuffer---"sv << std::endl << std::endl;
+  BOOST_LOG(debug) << "---Begin MessageBuffer---"sv << std::endl << messageBuffer << std::endl << "---End MessageBuffer---"sv << std::endl;
 }
 
 std::vector<uint8_t> replace(const std::string_view &original, const std::string_view &old, const std::string_view &_new) {
@@ -475,19 +477,17 @@ void controlThread(video::idr_event_t idr_events) {
   server.map(packetTypes[IDX_START_A], [](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-    std::cout << "type [IDX_START_A]"sv << std::endl;
+    BOOST_LOG(debug) << "type [IDX_START_A]"sv;
   });
 
   server.map(packetTypes[IDX_START_B], [](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-    std::cout << "type [IDX_START_B]"sv << std::endl;
+    BOOST_LOG(debug) << "type [IDX_START_B]"sv;
   });
 
   server.map(packetTypes[IDX_LOSS_STATS], [](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
-
-    std::cout << "type [IDX_LOSS_STATS]"sv << std::endl;
 
     int32_t *stats = (int32_t*)payload.data();
     auto count = stats[0];
@@ -495,24 +495,26 @@ void controlThread(video::idr_event_t idr_events) {
 
     auto lastGoodFrame = stats[3];
 
-    std::cout << "---begin stats---" << std::endl;
-    std::cout << "loss count since last report [" << count << ']' << std::endl;
-    std::cout << "time in milli since last report [" << t.count() << ']' << std::endl;
-    std::cout << "last good frame [" << lastGoodFrame << ']' << std::endl;
-    std::cout << "---end stats---" << std::endl;
+    BOOST_LOG(debug)
+      << "type [IDX_LOSS_STATS]"sv << std::endl
+      << "---begin stats---" << std::endl
+      << "loss count since last report [" << count << ']' << std::endl
+      << "time in milli since last report [" << t.count() << ']' << std::endl
+      << "last good frame [" << lastGoodFrame << ']' << std::endl
+      << "---end stats---";
   });
 
   server.map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [idr_events](const std::string_view &payload) {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-    std::cout << "type [IDX_INVALIDATE_REF_FRAMES]"sv << std::endl;
-
-    std::int64_t *frames = (std::int64_t *)payload.data();
+    std::int64_t *frames = (std::int64_t *) payload.data();
     auto firstFrame = frames[0];
-    auto lastFrame  = frames[1];
+    auto lastFrame = frames[1];
 
-    std::cout << "firstFrame [" << firstFrame << ']' << std::endl;
-    std::cout << "lastFrame [" << lastFrame << ']' << std::endl;
+    BOOST_LOG(debug)
+      << "type [IDX_INVALIDATE_REF_FRAMES]"sv << std::endl
+      << "firstFrame [" << firstFrame << ']' << std::endl
+      << "lastFrame [" << lastFrame << ']';
 
     idr_events->raise(std::make_pair(firstFrame, lastFrame));
   });
@@ -520,7 +522,7 @@ void controlThread(video::idr_event_t idr_events) {
   server.map(packetTypes[IDX_INPUT_DATA], [](const std::string_view &payload) mutable {
     session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-    std::cout << "type [IDX_INPUT_DATA]"sv << std::endl;
+    BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
 
     int32_t tagged_cipher_length = util::endian::big(*(int32_t*)payload.data());
     std::string_view tagged_cipher { payload.data() + sizeof(tagged_cipher_length), (size_t)tagged_cipher_length };
@@ -532,7 +534,7 @@ void controlThread(video::idr_event_t idr_events) {
     if(cipher.decrypt_gcm(session.iv, tagged_cipher, plaintext)) {
       // something went wrong :(
 
-      std::cout << "failed to verify tag"sv << std::endl;
+      BOOST_LOG(error) << "Failed to verify tag"sv;
 
       stop(session);
     }
@@ -547,13 +549,13 @@ void controlThread(video::idr_event_t idr_events) {
 
   while(has_session) {
     if(std::chrono::steady_clock::now() > session.pingTimeout) {
-      std::cout << "ping timeout"sv << std::endl;
+      BOOST_LOG(debug) << "Ping timeout"sv;
 
       stop(session);
     }
 
     if(session.has_process && proc::proc.running() == -1) {
-      std::cout << "Process terminated"sv << std::endl;
+      BOOST_LOG(debug) << "Process terminated"sv;
 
       std::uint16_t reason = 0x0100;
 
@@ -625,12 +627,12 @@ std::optional<udp::endpoint> recv_peer(std::shared_ptr<safe::queue_t<T>> &queue,
 
     auto len = len_or_err.left();
     if (len == 4 && !std::memcmp(ping, buf.data(), sizeof(ping))) {
-      std::cout << "PING from ["sv << peer.address().to_string() << ':' << peer.port() << ']' << std::endl;
+      BOOST_LOG(debug) << "PING from ["sv << peer.address().to_string() << ':' << peer.port() << ']';
 
       return std::make_optional(std::move(peer));
     }
 
-    std::cout << "Unknown transmission: "sv << util::hex_vec(std::string_view{buf.data(), len}) << std::endl;
+    BOOST_LOG(warning) << "Unknown transmission: "sv << util::hex_vec(std::string_view{buf.data(), len});
   }
 
   return std::nullopt;
@@ -660,9 +662,10 @@ void audioThread() {
     std::copy(std::begin(*packet), std::end(*packet), audio_packet->payload());
 
     sock.send_to(asio::buffer((char*)audio_packet.get(), sizeof(audio_packet_raw_t) + packet->size()), *peer);
-    // std::cout << "Audio ["sv << frame << "] ::  send..."sv << std::endl;
+    BOOST_LOG(verbose) << "Audio ["sv << frame - 1 << "] ::  send..."sv;
   }
 
+  stop(session);
   captureThread.join();
 }
 
@@ -739,7 +742,7 @@ void videoThread(video::idr_event_t idr_events) {
 
     auto shards = fec::encode(payload, blocksize, fecPercentage);
     if(shards.data_shards == 0) {
-      std::cout << "skipping frame..."sv << std::endl;
+      BOOST_LOG(info) << "skipping frame..."sv << std::endl;
       continue;
     }
 
@@ -761,14 +764,16 @@ void videoThread(video::idr_event_t idr_events) {
     }
 
     if(packet->flags & AV_PKT_FLAG_KEY) {
-      std::cout << "Key "sv;
+      BOOST_LOG(verbose) << "Key Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv;
+    }
+    else {
+      BOOST_LOG(verbose) << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
     }
 
-    std::cout << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
     lowseq += shards.size();
-
   }
 
+  stop(session);
   captureThread.join();
 }
 
@@ -785,11 +790,11 @@ void respond(host_t &host, peer_t peer, msg_t &resp) {
 
   int serialized_len;
   util::c_ptr<char> raw_resp { serializeRtspMessage(resp.get(), &serialized_len) };
-  std::cout << "---Begin Response---"sv << std::endl
-        << std::string_view { raw_resp.get(), (std::size_t)serialized_len } << std::endl
-        << std::string_view { payload.first, (std::size_t)payload.second } << std::endl
-        << "---End Response---"sv << std::endl 
-        << std::endl;
+  BOOST_LOG(debug)
+    << "---Begin Response---"sv << std::endl
+    << std::string_view { raw_resp.get(), (std::size_t)serialized_len } << std::endl
+    << std::string_view { payload.first, (std::size_t)payload.second } << std::endl
+    << "---End Response---"sv << std::endl;
 
   std::string_view tmp_resp { raw_resp.get(), (size_t)serialized_len };
 
@@ -1022,14 +1027,14 @@ void rtpThread() {
       // Ensure all threads are stopping
       stop(session);
 
-      std::cout << "Waiting for Audio to end..."sv << std::endl;
+      BOOST_LOG(debug) << "Waiting for Audio to end..."sv;
       session.audioThread.join();
-      std::cout << "Waiting for Video to end..."sv << std::endl;
+      BOOST_LOG(debug) << "Waiting for Video to end..."sv;
       session.videoThread.join();
-      std::cout << "Waiting for Control to end..."sv << std::endl;
+      BOOST_LOG(debug) << "Waiting for Control to end..."sv;
       session.controlThread.join();
 
-      std::cout << "Resetting Session..."sv << std::endl;
+      BOOST_LOG(debug) << "Resetting Session..."sv << std::endl;
       session.video_packets = video::packet_queue_t();
       session.audio_packets = audio::packet_queue_t();
     }

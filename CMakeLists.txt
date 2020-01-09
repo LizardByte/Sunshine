@@ -8,7 +8,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
-find_package(Boost COMPONENTS filesystem REQUIRED)
+find_package(Boost COMPONENTS filesystem log REQUIRED)
 
 add_subdirectory(Simple-Web-Server)
 add_subdirectory(moonlight-common-c/enet)

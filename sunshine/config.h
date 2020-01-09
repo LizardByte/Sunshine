@@ -47,10 +47,15 @@ struct input_t {
   std::chrono::milliseconds back_button_timeout;
 };
 
+struct sunshine_t {
+  int min_log_level;
+};
+
 extern video_t video;
 extern stream_t stream;
 extern nvhttp_t nvhttp;
 extern input_t input;
+extern sunshine_t sunshine;
 
 void parse_file(const char *file);
 }
