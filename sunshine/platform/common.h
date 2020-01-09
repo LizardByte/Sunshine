@@ -16,12 +16,22 @@ public:
   std::int32_t width;
   std::int32_t height;
 
-  virtual ~img_t() {};
+  virtual ~img_t() = default;
+};
+
+enum class capture_e : int {
+  ok,
+  reinit,
+  timeout,
+  error
 };
 
 class display_t {
 public:
-  virtual std::unique_ptr<img_t> snapshot(bool cursor) = 0;
+  virtual capture_e snapshot(std::unique_ptr<img_t> &img, bool cursor) = 0;
+  virtual int reinit() = 0;
+  virtual std::unique_ptr<img_t> alloc_img() = 0;
+
   virtual ~display_t() = default;
 };
 
@@ -34,12 +44,12 @@ public:
 
 void freeInput(void*);
 
-using input_t   = util::safe_ptr<void, freeInput>;
+using input_t = util::safe_ptr<void, freeInput>;
 
 std::string get_local_ip();
 
 std::unique_ptr<mic_t> microphone();
-std::unique_ptr<display_t> display();
+std::shared_ptr<display_t> display();
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

@@ -75,12 +75,6 @@ public:
 };
 
 struct x11_img_t : public img_t {
-  x11_img_t(std::uint8_t *data, std::int32_t width, std::int32_t height, XImage *img) : img { img } {
-    this->data = data;
-    this->width = width;
-    this->height = height;
-  }
-
   ximg_t img;
 };
 
@@ -141,7 +135,7 @@ struct x11_attr_t : public display_t {
     XGetWindowAttributes(xdisplay.get(), xwindow, &xattr);
   }
 
-  std::unique_ptr<img_t> snapshot(bool cursor) override {
+  capture_e snapshot(std::unique_ptr<img_t> &img_out_base, bool cursor) override {
     refresh();
     XImage *img { XGetImage(
       xdisplay.get(),
@@ -151,12 +145,27 @@ struct x11_attr_t : public display_t {
       AllPlanes, ZPixmap)
     };
 
-    if(!cursor) {
-      return std::make_unique<x11_img_t>((std::uint8_t*)img->data, img->width, img->height, img);
+    auto img_out = (x11_img_t*)img_out_base.get();
+    img_out->width = img->width;
+    img_out->height = img->height;
+    img_out->data = (uint8_t*)img->data;
+    img_out->img.reset(img);
+
+    if(cursor) {
+      blend_cursor(xdisplay.get(), (std::uint8_t*)img->data, img->width, img->height);
     }
 
-    blend_cursor(xdisplay.get(), (std::uint8_t*)img->data, img->width, img->height);
-    return std::make_unique<x11_img_t>((std::uint8_t*)img->data, img->width, img->height, img);
+    return capture_e::ok;
+  }
+
+  int reinit() override {
+    refresh();
+
+    return 0;
+  }
+
+  std::unique_ptr<img_t> alloc_img() override {
+    return std::make_unique<x11_img_t>();
   }
 
   xdisplay_t xdisplay;
@@ -178,25 +187,20 @@ struct shm_attr_t : public x11_attr_t {
   void delayed_refresh() {
     refresh();
 
-    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 1s, this).task_id;
+    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
   shm_attr_t() : x11_attr_t(), shm_xdisplay {XOpenDisplay(nullptr) } {
-    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 1s, this).task_id;
+    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
-  ~shm_attr_t() {
+  ~shm_attr_t() override {
     while(!task_pool.cancel(refresh_task_id));
   }
 
-  std::unique_ptr<img_t> snapshot(bool cursor) override {
+  capture_e snapshot(std::unique_ptr<img_t> &img, bool cursor) override {
     if(display->width_in_pixels != xattr.width || display->height_in_pixels != xattr.height) {
-      deinit();
-      if(init()) {
-        std::cout << "FATAL ERROR: Couldn't reinitialize shm_attr_t"sv << std::endl;
-
-        std::abort();
-      }
+      return capture_e::reinit;
     }
 
     auto img_cookie = xcb_shm_get_image_unchecked(
@@ -213,29 +217,32 @@ struct shm_attr_t : public x11_attr_t {
     xcb_img_t img_reply { xcb_shm_get_image_reply(xcb.get(), img_cookie, nullptr) };
     if(!img_reply) {
       std::cout << "Info: Could not get image reply"sv << std::endl;
-      return nullptr;
+      return capture_e::reinit;
     }
 
-    auto img = std::make_unique<shm_img_t>();
     img->data = new std::uint8_t[frame_size()];
     img->width = display->width_in_pixels;
     img->height = display->height_in_pixels;
 
-    std::copy((std::uint8_t*)data.data, (std::uint8_t*)data.data + frame_size(), img->data);
+    std::copy_n((std::uint8_t*)data.data, frame_size(), img->data);
 
-    if(!cursor) {
-      return img;
+    if(cursor) {
+      blend_cursor(shm_xdisplay.get(), img->data, img->width, img->height);
     }
 
-    blend_cursor(shm_xdisplay.get(), img->data, img->width, img->height);
-
-    return img;
+    return capture_e::ok;
   }
 
-  void deinit() {
+  std::unique_ptr<img_t> alloc_img() override {
+    return std::make_unique<shm_img_t>();
+  }
+
+  int reinit() override {
     data.~shm_data_t();
     shm_id.~shm_id_t();
     xcb.reset(nullptr);
+
+    return init();
   }
 
   int init() {
@@ -307,7 +314,7 @@ std::unique_ptr<display_t> shm_display() {
   return shm;
 }
 
-std::unique_ptr<display_t> display() {
+std::shared_ptr<display_t> display() {
   auto shm_disp = shm_display();
 
   if(!shm_disp) {

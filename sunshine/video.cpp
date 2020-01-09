@@ -188,24 +188,40 @@ void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t co
 
   int framerate = config.framerate;
 
-  img_event_t images {new img_event_t::element_type };
-
-  std::thread encoderThread { &encodeThread, images, packets, idr_events, config };
-
   auto disp = platf::display();
+  if(!disp) {
+    packets->stop();
+    return;
+  }
+
+  img_event_t images {new img_event_t::element_type };
+  std::thread encoderThread { &encodeThread, images, packets, idr_events, config };
 
   auto time_span = std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate;
   while(packets->running()) {
     auto next_snapshot = std::chrono::steady_clock::now() + time_span;
-    auto img = disp->snapshot(display_cursor);
 
-    if(!img) {
-      std::this_thread::sleep_until(next_snapshot);
-      continue;
+    auto img = disp->alloc_img();
+    auto status = disp->snapshot(img, display_cursor);
+
+    switch(status) {
+      case platf::capture_e::reinit:
+        if(disp->reinit()) {
+          packets->stop();
+        }
+        continue;
+      case platf::capture_e::timeout:
+        std::this_thread::sleep_until(next_snapshot);
+        continue;
+      case platf::capture_e::error:
+        packets->stop();
+        continue;
+      // Prevent warning during compilation
+      case platf::capture_e::ok:
+        break;
     }
 
     images->raise(std::move(img));
-    img.reset();
 
     auto t = std::chrono::steady_clock::now();
     if(t > next_snapshot) {

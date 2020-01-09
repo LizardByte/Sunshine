@@ -28,27 +28,292 @@ using output_t     = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
 using output1_t    = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
 using dup_t        = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
 using texture2d_t  = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
+using resource_t   = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
 
 extern const char *format_str[];
 
-struct texture_t {
-  enum state_e {
-    UNUSED,
-    PENDING_MAP,
-    MAPPED
-  } state;
+class duplication_t {
+public:
+  dup_t dup;
+  bool has_frame {};
 
-  texture2d_t tex;
+  capture_e next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, resource_t::pointer *res_p) {
+    HRESULT status;
+    if(has_frame) {
+      status = dup->ReleaseFrame();
+
+      switch(status) {
+        case S_OK:
+          has_frame = false;
+          break;
+        case DXGI_ERROR_WAIT_TIMEOUT:
+          return capture_e::timeout;
+        case WAIT_ABANDONED:
+        case DXGI_ERROR_ACCESS_DENIED:
+          return capture_e::reinit;
+        default:
+          std::cout << "Error: Couldn't release frame [0x"sv << util::hex(status).to_string_view() << std::endl;
+          return capture_e::error;
+      }
+    }
+
+    status = dup->AcquireNextFrame(1000, &frame_info, res_p);
+
+    switch(status) {
+      case S_OK:
+        has_frame = true;
+        return capture_e::ok;
+      case DXGI_ERROR_WAIT_TIMEOUT:
+        return capture_e::timeout;
+      case WAIT_ABANDONED:
+      case DXGI_ERROR_ACCESS_DENIED:
+        return capture_e::reinit;
+      default:
+        std::cout << "Error: Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view() << std::endl;
+        return capture_e::error;
+    }
+  }
+
+  capture_e reset(dup_t::pointer dup_p = dup_t::pointer()) {
+    auto capture_status = capture_e::ok;
+    if(has_frame) {
+      capture_status = release_frame();
+    }
+
+    dup.reset(dup_p);
+
+    return capture_status;
+  }
+
+  capture_e release_frame() {
+    auto status = dup->ReleaseFrame();
+    switch (status) {
+      case S_OK:
+        return capture_e::ok;
+      case DXGI_ERROR_WAIT_TIMEOUT:
+        return capture_e::timeout;
+      case WAIT_ABANDONED:
+      case DXGI_ERROR_ACCESS_DENIED:
+        return capture_e::reinit;
+      default:
+        std::cout << "Error: Couldn't release frame [0x"sv << util::hex(status).to_string_view() << std::endl;
+        return capture_e::error;
+    }
+  }
+
+  ~duplication_t() {
+    if(has_frame) {
+      release_frame();
+    }
+  }
 };
 
-class display_t : public ::platf::display_t {
+class display_t;
+struct img_t : public ::platf::img_t  {
+  std::shared_ptr<display_t> owner; //Ensure texture remains valid while img is still needed
+
+  texture2d_t texture;
+  D3D11_MAPPED_SUBRESOURCE map {};
+
+  ~img_t() override;
+};
+
+struct cursor_t {
+  int x, y;
+  int width, height;
+  int pitch;
+
+  std::vector<std::uint8_t> img_data;
+  bool visible;
+
+};
+
+class display_t : public ::platf::display_t, public std::enable_shared_from_this<display_t> {
 public:
-  std::unique_ptr<img_t> snapshot(bool cursor) override {
-    return nullptr;
+  capture_e snapshot(std::unique_ptr<::platf::img_t> &img_base, bool cursor_visible) override {
+    auto img = (img_t *) img_base.get();
+    HRESULT status;
+
+    DXGI_OUTDUPL_FRAME_INFO frame_info;
+
+    resource_t::pointer res_p {};
+    auto capture_status = dup.next_frame(frame_info, &res_p);
+    resource_t res{res_p};
+
+    if (capture_status != capture_e::ok) {
+      return capture_status;
+    }
+
+    if (frame_info.PointerShapeBufferSize > 0) {
+      cursor.img_data.resize(frame_info.PointerShapeBufferSize);
+      DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info;
+
+      auto &img_data = cursor.img_data;
+
+      UINT dummy;
+      status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &shape_info);
+      if (FAILED(status)) {
+        std::cout << "Error: Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+
+        return capture_e::error;
+      }
+
+      if (shape_info.Type != DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) {
+        std::cout << "Warning: Unsupported cursor format ["sv << shape_info.Type << ']' << std::endl;
+      }
+
+      cursor.width = shape_info.Width;
+      cursor.height = shape_info.Height;
+      cursor.pitch = shape_info.Pitch;
+    }
+
+    if (frame_info.LastPresentTime.QuadPart == 0) {
+      return capture_e::timeout;
+    }
+
+    {
+      texture2d_t::pointer src_p {};
+      status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
+      texture2d_t src{src_p};
+
+      if (FAILED(status)) {
+        std::cout << "Error: Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+        return capture_e::error;
+      }
+
+      //Copy from GPU to CPU
+      device_ctx->CopyResource((ID3D11Resource *) img->texture.get(), (ID3D11Resource *) src.get());
+    }
+
+    cursor.x = frame_info.PointerPosition.Position.x;
+    cursor.y = frame_info.PointerPosition.Position.y;
+    cursor.visible = frame_info.PointerPosition.Visible;
+
+    status = device_ctx->Map((ID3D11Resource *) img->texture.get(), 0, D3D11_MAP_READ, 0, &img->map);
+    if (FAILED(status)) {
+      if (status == DXGI_ERROR_WAS_STILL_DRAWING) {
+        return capture_e::timeout;
+      }
+
+      std::cout << "Error: Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+
+      return capture_e::error;
+    }
+
+    img->data = (std::uint8_t *) img->map.pData;
+    img->width = width;
+    img->height = height;
+
+    return capture_e::ok;
+  }
+
+  /*
+   * Called when access is lost. Dup must be reinitialized
+   */
+  int reinit() override {
+    HRESULT status;
+
+    dup.reset();
+    //TODO: Use IDXGIOutput5 for improved performance
+    {
+      dxgi::output1_t::pointer output1_p {};
+      status = output->QueryInterface(IID_IDXGIOutput1, (void**)&output1_p);
+      dxgi::output1_t output1 {output1_p };
+
+      if(FAILED(status)) {
+        std::cout << "Error: Failed to query IDXGIOutput1 from the output"sv << std::endl;
+        return -1;
+      }
+
+      // We try this twice, in case we still get an error on reinitialization
+      for(int x = 0; x < 2; ++x) {
+        dxgi::dup_t::pointer dup_p {};
+        status = output1->DuplicateOutput((IUnknown*)device.get(), &dup_p);
+        if(SUCCEEDED(status)) {
+          dup.reset(dup_p);
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
+      }
+
+      if(FAILED(status)) {
+        std::cout << "Error: DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+        return -1;
+      }
+    }
+
+    DXGI_OUTDUPL_DESC dup_desc;
+    dup.dup->GetDesc(&dup_desc);
+
+    format = dup_desc.ModeDesc.Format;
+
+    std::cout << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']' << std::endl;
+
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = width;
+    t.Height = height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_STAGING;
+    t.Format = format;
+    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    dxgi::texture2d_t::pointer tex_p {};
+    status = device->CreateTexture2D(&t, nullptr, &tex_p);
+    dxgi::texture2d_t tex { tex_p };
+
+    if(FAILED(status)) {
+      std::cout << "Error: Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      return -1;
+    }
+
+    // map the texture simply to get the pitch and stride
+    D3D11_MAPPED_SUBRESOURCE mapping;
+
+    status = device_ctx->Map((ID3D11Resource *)tex.get(), 0, D3D11_MAP_READ, 0, &mapping);
+    if(FAILED(status)) {
+      std::cout << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      return -1;
+    }
+
+    pitch = (int)mapping.RowPitch;
+    stride = (int)mapping.RowPitch / 4;
+
+    device_ctx->Unmap((ID3D11Resource *)tex.get(), 0);
+
+    return 0;
+  }
+
+  std::unique_ptr<::platf::img_t> alloc_img() override {
+    auto img = std::make_unique<img_t>();
+
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = width;
+    t.Height = height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_STAGING;
+    t.Format = format;
+    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    dxgi::texture2d_t::pointer tex_p {};
+    HRESULT status = device->CreateTexture2D(&t, nullptr, &tex_p);
+    dxgi::texture2d_t tex { tex_p };
+
+    if(FAILED(status)) {
+      std::cout << "Error: Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+      return nullptr;
+    }
+
+    img->texture = std::move(tex);
+    img->owner = shared_from_this();
+    return img;
   }
 
   int init() {
-    /* Uncomment when use of IDXGIOutput5 is implemented
+/* Uncomment when use of IDXGIOutput5 is implemented
   std::call_once(windows_cpp_once_flag, []() {
     DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
     const auto DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ((DPI_AWARENESS_CONTEXT)-4);
@@ -81,9 +346,9 @@ public:
 
 
     for(int x = 0; factory_p->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
-      dxgi::adapter_t adapter { adapter_p };
+      dxgi::adapter_t adapter_tmp { adapter_p };
 
-      for(int y = 0; adapter->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+      for(int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
         dxgi::output_t output_tmp {output_p };
 
         DXGI_OUTPUT_DESC desc;
@@ -98,7 +363,7 @@ public:
       }
 
       if(output) {
-        adapter = std::move(adapter);
+        adapter = std::move(adapter_tmp);
         break;
       }
     }
@@ -162,7 +427,7 @@ public:
 
     // Bump up thread priority
     {
-      dxgi::dxgi_t::pointer dxgi_p;
+      dxgi::dxgi_t::pointer dxgi_p {};
       status = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgi_p);
       dxgi::dxgi_t dxgi { dxgi_p };
 
@@ -176,7 +441,7 @@ public:
 
     // Try to reduce latency
     {
-      dxgi::dxgi1_t::pointer dxgi_p;
+      dxgi::dxgi1_t::pointer dxgi_p {};
       status = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgi_p);
       dxgi::dxgi1_t dxgi { dxgi_p };
 
@@ -188,88 +453,18 @@ public:
       dxgi->SetMaximumFrameLatency(1);
     }
 
-    //TODO: Use IDXGIOutput5 for improved performance
-    {
-      dxgi::output1_t::pointer output1_p {};
-      status = output->QueryInterface(IID_IDXGIOutput1, (void**)&output1_p);
-      dxgi::output1_t output1 {output1_p };
-
-      if(FAILED(status)) {
-        std::cout << "Error: Failed to query IDXGIOutput1 from the output"sv << std::endl;
-        return -1;
-      }
-
-      // We try this twice, in case we still get an error on reinitialization
-      for(int x = 0; x < 2; ++x) {
-        dxgi::dup_t::pointer dup_p {};
-        status = output1->DuplicateOutput((IUnknown*)device.get(), &dup_p);
-        if(SUCCEEDED(status)) {
-          dup.reset(dup_p);
-          break;
-        }
-        std::this_thread::sleep_for(200ms);
-      }
-
-      if(FAILED(status)) {
-        std::cout << "Error: DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-        return -1;
-      }
-    }
-
-    DXGI_OUTDUPL_DESC dup_desc;
-    dup->GetDesc(&dup_desc);
-
-    std::cout << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']' << std::endl;
-
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width  = width;
-    t.Height = height;
-    t.MipLevels = 1;
-    t.ArraySize = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage = D3D11_USAGE_STAGING;
-    t.Format = dup_desc.ModeDesc.Format;
-    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-
-    textures.resize(3);
-    for(auto &texture : textures) {
-      dxgi::texture2d_t::pointer tex_p {};
-      status = device->CreateTexture2D(&t, nullptr, &tex_p);
-      texture.tex.reset(tex_p);
-
-      if(FAILED(status)) {
-        std::cout << "Error: Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-        return -1;
-      }
-    }
-
-    // map the texture simply to get the pitch and stride
-    D3D11_MAPPED_SUBRESOURCE mapping;
-
-    status = device_ctx->Map((ID3D11Resource *)textures[0].tex.get(), 0, D3D11_MAP_READ, 0, &mapping);
-    if(FAILED(status)) {
-      std::cout << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-      return -1;
-    }
-
-    pitch = (int)mapping.RowPitch;
-    stride = (int)mapping.RowPitch / 4;
-
-    return 0;
+    return reinit();
   }
 
   int deinit() {
-    for(auto &texture : textures) {
-      texture.state = texture_t::UNUSED;
-      texture.tex.reset();
-    }
-
     dup.reset();
     device_ctx.reset();
     device.reset();
     output.reset();
     adapter.reset();
     factory.reset();
+
+    return 0;
   }
 
   factory1_t factory;
@@ -277,15 +472,22 @@ public:
   output_t output;
   device_t device;
   device_ctx_t device_ctx;
-  dup_t dup;
-
-  std::vector<texture_t> textures;
+  duplication_t dup;
+  cursor_t cursor;
 
   int width, height;
   int pitch, stride;
 
+  DXGI_FORMAT format;
   D3D_FEATURE_LEVEL feature_level;
 };
+
+img_t::~img_t() {
+  if(map.pData) {
+    owner->device_ctx->Unmap((ID3D11Resource *)texture.get(), 0);
+    map.pData = nullptr;
+  }
+}
 }
 
 class dummy_mic_t : public mic_t {
@@ -303,7 +505,7 @@ std::unique_ptr<mic_t> microphone() {
 }
 
 //std::once_flag windows_cpp_once_flag;
-std::unique_ptr<display_t> display() {
+std::shared_ptr<display_t> display() {
   auto disp = std::make_unique<dxgi::display_t>();
 
   if(disp->init()) {

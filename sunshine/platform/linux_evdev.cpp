@@ -426,10 +426,10 @@ input_t input() {
 
   std::filesystem::path mouse_path { "sunshine_mouse" };
   std::filesystem::path gamepad_path { "sunshine_gamepad" };
-  if(std::filesystem::exists(mouse_path)) {
+  if(std::filesystem::is_symlink(mouse_path)) {
     std::filesystem::remove(mouse_path);
   }
-  if(std::filesystem::exists(gamepad_path)) {
+  if(std::filesystem::is_symlink(gamepad_path)) {
     std::filesystem::remove(gamepad_path);
   }
 

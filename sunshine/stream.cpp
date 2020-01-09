@@ -1019,6 +1019,9 @@ void rtpThread() {
     server.iterate(config::stream.ping_timeout);
 
     if(session.video_packets && !session.video_packets->running()) {
+      // Ensure all threads are stopping
+      stop(session);
+
       std::cout << "Waiting for Audio to end..."sv << std::endl;
       session.audioThread.join();
       std::cout << "Waiting for Video to end..."sv << std::endl;
