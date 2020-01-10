@@ -5,13 +5,14 @@ project(Sunshine)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
+add_subdirectory(Simple-Web-Server)
+add_subdirectory(moonlight-common-c/enet)
+
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
-find_package(Boost COMPONENTS filesystem log REQUIRED)
+find_package(Boost COMPONENTS log filesystem REQUIRED)
 
-add_subdirectory(Simple-Web-Server)
-add_subdirectory(moonlight-common-c/enet)
 
 if(WIN32)
 	set(PLATFORM_TARGET_FILES
