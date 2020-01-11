@@ -79,14 +79,14 @@ std::optional<std::pair<std::string, std::string>> parse_line(std::string_view::
 std::unordered_map<std::string, std::string> parse_config(std::string_view file_content) {
   std::unordered_map<std::string, std::string> vars;
 
-  auto pos = std::begin(file_content) - 1;
+  auto pos = std::begin(file_content);
   auto end = std::end(file_content);
 
-  while(pos <= end) {
-    auto newline = std::find(pos, end, '\n');
-    auto var = parse_line(pos, *(newline - 1) == '\r' ? newline - 1 : newline);
+  while(pos < end) {
+    auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
+    auto var = parse_line(pos, newline);
 
-    pos = newline + 1;
+    pos = (*newline == '\r') ? newline + 2 : newline + 1;
     if(!var) {
       continue;
     }

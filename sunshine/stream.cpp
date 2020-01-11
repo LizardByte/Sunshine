@@ -657,8 +657,12 @@ void audioThread() {
   while (auto packet = packets->pop()) {
     audio_packet_t audio_packet { (audio_packet_raw_t*)malloc(sizeof(audio_packet_raw_t) + packet->size()) };
 
-    audio_packet->rtp.sequenceNumber = util::endian::big(frame++);
+    audio_packet->rtp.header = 0;
     audio_packet->rtp.packetType = 97;
+    audio_packet->rtp.sequenceNumber = util::endian::big(frame++);
+    audio_packet->rtp.timestamp = 0;
+    audio_packet->rtp.ssrc = 0;
+
     std::copy(std::begin(*packet), std::end(*packet), audio_packet->payload());
 
     sock.send_to(asio::buffer((char*)audio_packet.get(), sizeof(audio_packet_raw_t) + packet->size()), *peer);
@@ -925,7 +929,7 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
       if (whitespace(*pos++)) {
         lines.emplace_back(begin, pos - begin - 1);
 
-        while(whitespace(*pos)) { ++pos; }
+        while(pos != std::end(payload) && whitespace(*pos)) { ++pos; }
         begin = pos;
       }
     }

@@ -12,9 +12,13 @@ namespace platf {
 
 struct img_t {
 public:
-  std::uint8_t *data;
-  std::int32_t width;
-  std::int32_t height;
+  std::uint8_t *data  {};
+  std::int32_t width  {};
+  std::int32_t height {};
+
+  img_t() = default;
+  img_t(const img_t&) = delete;
+  img_t(img_t&&) = delete;
 
   virtual ~img_t() = default;
 };

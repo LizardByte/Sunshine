@@ -299,5 +299,5 @@ void reset(std::shared_ptr<input_t> &input) {
   task_pool.push(reset_helper, input);
 }
 
-input_t::input_t() : gamepad_state { 0 }, back_timeout_id { nullptr }, input { platf::input() } {}
+input_t::input_t() : gamepad_state {}, mouse_press {}, back_timeout_id { nullptr }, input { platf::input() } {}
 }

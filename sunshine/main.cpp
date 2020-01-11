@@ -63,8 +63,6 @@ int main(int argc, char *argv[]) {
   boost::shared_ptr<std::ostream> stream { &std::cout, NoDelete {} };
   sink->locked_backend()->add_stream(stream);
   sink->set_filter(severity >= config::sunshine.min_log_level);
-//  sink->set_formatter(bl::expressions::stream
-//    << "log level "sv << severity << ": "sv << bl::expressions::smessage);
 
   sink->set_formatter([severity="Severity"s](const bl::record_view &view, bl::formatting_ostream &os) {
     auto log_level = view.attribute_values()[severity].extract<int>().get();

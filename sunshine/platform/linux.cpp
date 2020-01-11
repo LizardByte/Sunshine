@@ -28,6 +28,7 @@ namespace platf {
 using namespace std::literals;
 
 void freeImage(XImage *);
+void freeX(XFixesCursorImage *);
 
 using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 using xcb_connect_t = util::safe_ptr<xcb_connection_t, xcb_disconnect>;
@@ -36,6 +37,7 @@ using xcb_cursor_img = util::c_ptr<xcb_xfixes_get_cursor_image_reply_t>;
 
 using xdisplay_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
 using ximg_t = util::safe_ptr<XImage, freeImage>;
+using xcursor_t = util::safe_ptr<XFixesCursorImage, freeX>;
 
 class shm_id_t {
 public:
@@ -80,13 +82,19 @@ struct x11_img_t : public img_t {
 struct shm_img_t : public img_t {
   ~shm_img_t() override {
     if(data) {
-      delete(data);
+      delete[] data;
     }
   }
 };
 
 void blend_cursor(Display *display, std::uint8_t *img_data, int width, int height) {
-  XFixesCursorImage *overlay = XFixesGetCursorImage(display);
+  xcursor_t overlay { XFixesGetCursorImage(display) };
+
+  if(!overlay) {
+    BOOST_LOG(error) << "Couldn't get cursor from XFixesGetCursorImage"sv;
+    return;
+  }
+
   overlay->x -= overlay->xhot;
   overlay->y -= overlay->yhot;
 
@@ -219,10 +227,16 @@ struct shm_attr_t : public x11_attr_t {
       return capture_e::reinit;
     }
 
-    img->data = new std::uint8_t[frame_size()];
-    img->width = display->width_in_pixels;
-    img->height = display->height_in_pixels;
+    if(img->width != display->width_in_pixels || img->height != display->height_in_pixels) {
+      if(img->data) {
+        delete[] img->data;
+      }
 
+      img->data = new std::uint8_t[frame_size()];
+      img->width = display->width_in_pixels;
+      img->height = display->height_in_pixels;
+    }
+    
     std::copy_n((std::uint8_t*)data.data, frame_size(), img->data);
 
     if(cursor) {
@@ -407,5 +421,8 @@ std::string get_local_ip() { return get_local_ip(AF_INET); }
 
 void freeImage(XImage *p) {
   XDestroyImage(p);
+}
+void freeX(XFixesCursorImage *p) {
+  XFree(p);
 }
 }
