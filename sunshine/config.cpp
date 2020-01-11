@@ -196,7 +196,7 @@ void parse_file(const char *file) {
     "verbose"sv, "debug"sv, "info"sv, "warning"sv, "error"sv, "fatal"sv, "none"sv
   });
 
-  if(log_level_string.empty()) {
+  if(!log_level_string.empty()) {
     if(log_level_string == "verbose"sv) {
       sunshine.min_log_level = 0;
     }
