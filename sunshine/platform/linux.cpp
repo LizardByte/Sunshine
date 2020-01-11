@@ -81,9 +81,8 @@ struct x11_img_t : public img_t {
 
 struct shm_img_t : public img_t {
   ~shm_img_t() override {
-    if(data) {
-      delete[] data;
-    }
+    delete[] data;
+    data = nullptr;
   }
 };
 

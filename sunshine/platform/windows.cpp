@@ -38,26 +38,12 @@ public:
   bool has_frame {};
 
   capture_e next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, resource_t::pointer *res_p) {
-    HRESULT status;
-    if(has_frame) {
-      status = dup->ReleaseFrame();
-
-      switch(status) {
-        case S_OK:
-          has_frame = false;
-          break;
-        case DXGI_ERROR_WAIT_TIMEOUT:
-          return capture_e::timeout;
-        case WAIT_ABANDONED:
-        case DXGI_ERROR_ACCESS_DENIED:
-          return capture_e::reinit;
-        default:
-          BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
-          return capture_e::error;
-      }
+    auto capture_status = release_frame();
+    if(capture_status != capture_e::ok) {
+      return capture_status;
     }
 
-    status = dup->AcquireNextFrame(1000, &frame_info, res_p);
+    auto status = dup->AcquireNextFrame(1000, &frame_info, res_p);
 
     switch(status) {
       case S_OK:
@@ -75,10 +61,7 @@ public:
   }
 
   capture_e reset(dup_t::pointer dup_p = dup_t::pointer()) {
-    auto capture_status = capture_e::ok;
-    if(has_frame) {
-      capture_status = release_frame();
-    }
+    auto capture_status = release_frame();
 
     dup.reset(dup_p);
 
@@ -86,9 +69,14 @@ public:
   }
 
   capture_e release_frame() {
+    if(!has_frame) {
+      return capture_e::ok;
+    }
+
     auto status = dup->ReleaseFrame();
     switch (status) {
       case S_OK:
+        has_frame = false;
         return capture_e::ok;
       case DXGI_ERROR_WAIT_TIMEOUT:
         return capture_e::timeout;
@@ -102,20 +90,16 @@ public:
   }
 
   ~duplication_t() {
-    if(has_frame) {
-      release_frame();
-    }
+    release_frame();
   }
 };
 
 class display_t;
 struct img_t : public ::platf::img_t  {
-  std::shared_ptr<display_t> owner; //Ensure texture remains valid while img is still needed
-
-  texture2d_t texture;
-  D3D11_MAPPED_SUBRESOURCE map {};
-
-  ~img_t() override;
+  ~img_t() override {
+    delete[] data;
+    data = nullptr;
+  }
 };
 
 struct cursor_t {
@@ -131,21 +115,42 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
   int width  = cursor.shape_info.Width;
   int pitch  = cursor.shape_info.Pitch;
 
-  int delta_height = std::min(height, std::max(0, img.height - cursor.y));
-  int delta_width = std::min(width, std::max(0, img.width - cursor.x));
+  // img cursor.y < 0, skip parts of the cursor.img_data
+  auto cursor_skip_y = std::min(0, cursor.y);
+  auto cursor_skip_x = std::min(0, cursor.x);
+  auto img_skip_y    = std::max(0, cursor.y);
+  auto img_skip_x    = std::max(0, cursor.x);
+
+  if(cursor_skip_y > height || cursor_skip_x > width) {
+    return;
+  }
+
+  height -= cursor_skip_y;
+  width  -= cursor_skip_x;
+  auto cursor_img_data = cursor.img_data.data() + cursor_skip_y * pitch;
+
+  int delta_height = std::min(height, std::max(0, img.height - img_skip_y));
+  int delta_width = std::min(width, std::max(0, img.width - img_skip_x));
 
   auto pixels_per_byte = width / pitch;
   auto bytes_per_row = delta_width / pixels_per_byte;
 
   auto img_data = (int*)img.data;
   for(int i = 0; i < delta_height; ++i) {
-    auto and_mask = &cursor.img_data[i * pitch];
-    auto xor_mask = &cursor.img_data[(i + height) * pitch];
+    auto and_mask = &cursor_img_data[i * pitch];
+    auto xor_mask = &cursor_img_data[(i + height) * pitch];
 
-    auto img_pixel_p = &img_data[(i + cursor.y) * img.width + cursor.x];
+    auto img_pixel_p = &img_data[(i + img_skip_y) * img.width + img_skip_x];
 
+    auto skip_y = cursor_skip_y;
     for(int x = 0; x < bytes_per_row; ++x) {
       for(auto bit = 0u; bit < 8; ++bit) {
+        if(skip_y > 0) {
+          --skip_y;
+
+          continue;
+        }
+
         int and_ = *and_mask & (1 << (7 - bit)) ? -1 : 0;
         int xor_ = *xor_mask & (1 << (7 - bit)) ? -1 : 0;
 
@@ -162,22 +167,36 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
 }
 
 void blend_cursor_color(const cursor_t &cursor, img_t &img) {
-  int height = cursor.shape_info.Height;
+  int height = cursor.shape_info.Height / 2;
   int width  = cursor.shape_info.Width;
   int pitch  = cursor.shape_info.Pitch;
+  int stride = cursor.shape_info.Pitch / width;
 
-  int delta_height = std::min(height, std::max(0, img.height - cursor.y));
-  int delta_width = std::min(width, std::max(0, img.width - cursor.x));
+  // img cursor.y < 0, skip parts of the cursor.img_data
+  auto cursor_skip_y = std::min(0, cursor.y);
+  auto cursor_skip_x = std::min(0, cursor.x);
+  auto img_skip_y    = std::max(0, cursor.y);
+  auto img_skip_x    = std::max(0, cursor.x);
+
+  if(cursor_skip_y > height || cursor_skip_x > width) {
+    return;
+  }
+
+  height -= cursor_skip_y;
+  width  -= cursor_skip_x;
+  auto cursor_img_data = cursor.img_data.data() + cursor_skip_y * pitch;
+
+  int delta_height = std::min(height, std::max(0, img.height - img_skip_y));
+  int delta_width = std::min(width, std::max(0, img.width - img_skip_x));
 
   auto img_data = (int*)img.data;
-  auto size_of_pixel = pitch / width;
-  BOOST_LOG(info) << "size_of_pixel ["sv << size_of_pixel << ']';
-  for(int i = 0; i < delta_height; ++i) {
-    auto cursor_begin = &cursor.img_data[i * pitch];
-    auto cursor_end = cursor_begin + delta_width * size_of_pixel;
 
-    auto img_pixel_p = &img_data[(i + cursor.y) * img.width + cursor.x];
-    for(auto cursor_p = cursor_begin; cursor_p != cursor_end; cursor_p += size_of_pixel) {
+  for(int i = 0; i < delta_height; ++i) {
+    auto cursor_begin = &cursor_img_data[i * pitch + cursor_skip_x * stride];
+    auto cursor_end = &cursor_begin[delta_width * stride];
+
+    auto img_pixel_p = &img_data[(i + img_skip_y) * img.width + img_skip_x];
+    for(auto cursor_p = cursor_begin; cursor_p != cursor_end; cursor_p += stride) {
       auto colors_in = (uint8_t*)img_pixel_p;
 
       //TODO: When use of IDXGIOutput5 is implemented, support different color formats
@@ -211,7 +230,7 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
-class display_t : public ::platf::display_t, public std::enable_shared_from_this<display_t> {
+class display_t : public ::platf::display_t {
 public:
   capture_e snapshot(std::unique_ptr<::platf::img_t> &img_base, bool cursor_visible) override {
     auto img = (img_t *) img_base.get();
@@ -247,40 +266,54 @@ public:
       cursor.visible = frame_info.PointerPosition.Visible;
     }
 
-    // If frame has not been updated, skip
-    if (frame_info.LastPresentTime.QuadPart == 0) {
+    // If frame has been updated
+    if (frame_info.LastPresentTime.QuadPart != 0) {
+      {
+        texture2d_t::pointer src_p {};
+        status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
+        texture2d_t src{src_p};
+
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
+          return capture_e::error;
+        }
+
+        //Copy from GPU to CPU
+        device_ctx->CopyResource(texture.get(), src.get());
+      }
+
+      if(current_img.pData) {
+        device_ctx->Unmap(texture.get(), 0);
+        current_img.pData = nullptr;
+      }
+
+      status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &current_img);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return capture_e::error;
+      }
+    }
+
+    const bool update_flag =
+      frame_info.LastMouseUpdateTime.QuadPart  ||
+      frame_info.LastPresentTime.QuadPart != 0 ||
+      frame_info.PointerShapeBufferSize > 0;
+
+
+    if(!update_flag) {
       return capture_e::timeout;
     }
 
-    {
-      texture2d_t::pointer src_p {};
-      status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
-      texture2d_t src{src_p};
+    if(img->width != width || img->height != height) {
+      delete[] img->data;
+      img->data = new std::uint8_t[height * current_img.RowPitch];
 
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
-        return capture_e::error;
-      }
-
-      //Copy from GPU to CPU
-      device_ctx->CopyResource((ID3D11Resource *) img->texture.get(), (ID3D11Resource *) src.get());
+      img->width = width;
+      img->height = height;
     }
 
-    status = device_ctx->Map((ID3D11Resource *) img->texture.get(), 0, D3D11_MAP_READ, 0, &img->map);
-    if (FAILED(status)) {
-      if (status == DXGI_ERROR_WAS_STILL_DRAWING) {
-        return capture_e::timeout;
-      }
-
-      BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
-
-      return capture_e::error;
-    }
-
-    img->data = (std::uint8_t *) img->map.pData;
-    img->width = width;
-    img->height = height;
-
+    std::copy_n((std::uint8_t*)current_img.pData, height * current_img.RowPitch, (std::uint8_t*)img->data);
     if(cursor_visible && cursor.visible) {
       blend_cursor(cursor, *img);
     }
@@ -342,7 +375,8 @@ public:
 
     dxgi::texture2d_t::pointer tex_p {};
     status = device->CreateTexture2D(&t, nullptr, &tex_p);
-    dxgi::texture2d_t tex { tex_p };
+
+    texture.reset(tex_p);
 
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
@@ -350,18 +384,11 @@ public:
     }
 
     // map the texture simply to get the pitch and stride
-    D3D11_MAPPED_SUBRESOURCE mapping;
-
-    status = device_ctx->Map((ID3D11Resource *)tex.get(), 0, D3D11_MAP_READ, 0, &mapping);
+    status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &current_img);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-
-    pitch = (int)mapping.RowPitch;
-    stride = (int)mapping.RowPitch / 4;
-
-    device_ctx->Unmap((ID3D11Resource *)tex.get(), 0);
 
     return 0;
   }
@@ -369,27 +396,10 @@ public:
   std::unique_ptr<::platf::img_t> alloc_img() override {
     auto img = std::make_unique<img_t>();
 
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width  = width;
-    t.Height = height;
-    t.MipLevels = 1;
-    t.ArraySize = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage = D3D11_USAGE_STAGING;
-    t.Format = format;
-    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    img->data   = nullptr;
+    img->height = 0;
+    img->width  = 0;
 
-    dxgi::texture2d_t::pointer tex_p {};
-    HRESULT status = device->CreateTexture2D(&t, nullptr, &tex_p);
-    dxgi::texture2d_t tex { tex_p };
-
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return nullptr;
-    }
-
-    img->texture = std::move(tex);
-    img->owner = shared_from_this();
     return img;
   }
 
@@ -410,6 +420,8 @@ public:
     FreeLibrary(user32);
   });
 */
+    current_img.pData = nullptr; // current_img is not yet mapped
+
     dxgi::factory1_t::pointer   factory_p {};
     dxgi::adapter_t::pointer    adapter_p {};
     dxgi::output_t::pointer     output_p {};
@@ -537,6 +549,13 @@ public:
     return reinit();
   }
 
+  ~display_t() override {
+    if(current_img.pData) {
+      device_ctx->Unmap(texture.get(), 0);
+      current_img.pData = nullptr;
+    }
+  }
+
   factory1_t factory;
   adapter_t adapter;
   output_t output;
@@ -544,20 +563,15 @@ public:
   device_ctx_t device_ctx;
   duplication_t dup;
   cursor_t cursor;
+  texture2d_t texture;
 
   int width, height;
-  int pitch, stride;
 
   DXGI_FORMAT format;
   D3D_FEATURE_LEVEL feature_level;
+  D3D11_MAPPED_SUBRESOURCE current_img;
 };
 
-img_t::~img_t() {
-  if(map.pData) {
-    owner->device_ctx->Unmap((ID3D11Resource *)texture.get(), 0);
-    map.pData = nullptr;
-  }
-}
 }
 
 class dummy_mic_t : public mic_t {
