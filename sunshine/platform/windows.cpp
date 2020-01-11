@@ -167,10 +167,9 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
 }
 
 void blend_cursor_color(const cursor_t &cursor, img_t &img) {
-  int height = cursor.shape_info.Height / 2;
+  int height = cursor.shape_info.Height;
   int width  = cursor.shape_info.Width;
   int pitch  = cursor.shape_info.Pitch;
-  int stride = cursor.shape_info.Pitch / width;
 
   // img cursor.y < 0, skip parts of the cursor.img_data
   auto cursor_skip_y = std::min(0, cursor.y);
@@ -184,7 +183,7 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img) {
 
   height -= cursor_skip_y;
   width  -= cursor_skip_x;
-  auto cursor_img_data = cursor.img_data.data() + cursor_skip_y * pitch;
+  auto cursor_img_data = (int*)&cursor.img_data[cursor_skip_y * pitch];
 
   int delta_height = std::min(height, std::max(0, img.height - img_skip_y));
   int delta_width = std::min(width, std::max(0, img.width - img_skip_x));
@@ -192,27 +191,26 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img) {
   auto img_data = (int*)img.data;
 
   for(int i = 0; i < delta_height; ++i) {
-    auto cursor_begin = &cursor_img_data[i * pitch + cursor_skip_x * stride];
-    auto cursor_end = &cursor_begin[delta_width * stride];
+    auto cursor_begin = &cursor_img_data[i * width + cursor_skip_x];
+    auto cursor_end = &cursor_begin[delta_width];
 
     auto img_pixel_p = &img_data[(i + img_skip_y) * img.width + img_skip_x];
-    for(auto cursor_p = cursor_begin; cursor_p != cursor_end; cursor_p += stride) {
-      auto colors_in = (uint8_t*)img_pixel_p;
+    std::for_each(cursor_begin, cursor_end, [&](int cursor_pixel) {
+      auto colors_out = (std::uint8_t*)&cursor_pixel;
+      auto colors_in  = (std::uint8_t*)img_pixel_p;
 
       //TODO: When use of IDXGIOutput5 is implemented, support different color formats
-      auto alpha = cursor_p[0];
+      auto alpha = colors_out[3];
       if(alpha == 255) {
-        colors_in[0] = cursor_p[3];
-        colors_in[1] = cursor_p[2];
-        colors_in[2] = cursor_p[1];
+        *img_pixel_p = cursor_pixel;
       }
       else {
-        colors_in[0] = cursor_p[3] + (colors_in[0] * (255 - alpha) + 255/2) / 255;
-        colors_in[1] = cursor_p[2] + (colors_in[1] * (255 - alpha) + 255/2) / 255;
-        colors_in[2] = cursor_p[1] + (colors_in[2] * (255 - alpha) + 255/2) / 255;
+        colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255/2) / 255;
+        colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255/2) / 255;
+        colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255/2) / 255;
       }
       ++img_pixel_p;
-    }
+    });
   }
 }
 

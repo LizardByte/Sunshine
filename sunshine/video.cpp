@@ -220,12 +220,6 @@ void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t co
     }
 
     images->raise(std::move(img));
-
-    auto t = std::chrono::steady_clock::now();
-    if(t > next_snapshot) {
-      BOOST_LOG(warning) << "Taking snapshot took "sv << std::chrono::floor<std::chrono::milliseconds>(t - next_snapshot).count() << " milliseconds too long"sv;
-    }
-
     std::this_thread::sleep_until(next_snapshot);
   }
 
