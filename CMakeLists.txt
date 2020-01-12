@@ -16,7 +16,8 @@ find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 if(WIN32)
 	set(PLATFORM_TARGET_FILES
-		sunshine/platform/windows.cpp)
+		sunshine/platform/windows.cpp
+		sunshine/platform/windows_dxgi.cpp)
 	set(PLATFORM_LIBRARIES
 		winmm
 		wsock32
