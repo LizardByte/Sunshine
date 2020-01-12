@@ -21,6 +21,7 @@ void cert_chain_t::add(x509_t &&cert) {
  * To circumvent this, x509_store_t instance will be created for each instance of the certificates.
  */
 const char *cert_chain_t::verify(x509_t::element_type *cert) {
+  int err_code = 0;
   for(auto &[_,x509_store] : _certs) {
     util::fail_guard([this]() {
       X509_STORE_CTX_cleanup(_cert_ctx.get());
@@ -30,16 +31,23 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
     X509_STORE_CTX_set_cert(_cert_ctx.get(), cert);
 
     auto err = X509_verify_cert(_cert_ctx.get());
+
     if (err == 1) {
       return nullptr;
     }
-    auto err_code = X509_STORE_CTX_get_error(_cert_ctx.get());
-    if (err_code != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT) {
+
+    err_code = X509_STORE_CTX_get_error(_cert_ctx.get());
+
+    //FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get mmonlight-embedded to work on the raspberry pi
+    if(err_code == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
+      return nullptr;
+    }
+    if (err_code != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT && err_code != X509_V_ERR_INVALID_CA) {
       return X509_verify_cert_error_string(err_code);
     }
   }
 
-  return X509_verify_cert_error_string(X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT);
+  return X509_verify_cert_error_string(err_code);
 }
 
 cipher_t::cipher_t(const crypto::aes_t &key) : ctx { EVP_CIPHER_CTX_new() }, key { key }, padding { true } {}

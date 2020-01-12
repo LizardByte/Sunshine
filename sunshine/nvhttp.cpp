@@ -670,11 +670,12 @@ void start() {
 
   // Ugly hack for verifying certificates, see crypto::cert_chain_t::verify() for details
   ctx->set_verify_callback([&cert_chain, add_cert](int verified, boost::asio::ssl::verify_context &ctx) {
-    util::fail_guard([&]() {
+    auto fg = util::fail_guard([&]() {
       char subject_name[256];
 
       auto x509 = ctx.native_handle();
       X509_NAME_oneline(X509_get_subject_name(X509_STORE_CTX_get_current_cert(x509)), subject_name, sizeof(subject_name));
+
 
       BOOST_LOG(info) << subject_name << " -- "sv << (verified ? "verfied"sv : "denied"sv);
     });
