@@ -227,15 +227,13 @@ struct shm_attr_t : public x11_attr_t {
     }
 
     if(img->width != display->width_in_pixels || img->height != display->height_in_pixels) {
-      if(img->data) {
-        delete[] img->data;
-      }
+      delete[] img->data;
 
       img->data = new std::uint8_t[frame_size()];
       img->width = display->width_in_pixels;
       img->height = display->height_in_pixels;
     }
-    
+
     std::copy_n((std::uint8_t*)data.data, frame_size(), img->data);
 
     if(cursor) {
