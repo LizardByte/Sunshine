@@ -13,15 +13,17 @@ find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
 find_package(Boost COMPONENTS log filesystem REQUIRED)
 
-
 if(WIN32)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/windows.cpp
-		sunshine/platform/windows_dxgi.cpp)
+		sunshine/platform/windows_dxgi.cpp
+		sunshine/platform/windows_wasapi.cpp)
 	set(PLATFORM_LIBRARIES
 		winmm
+		ksuser
 		wsock32
 		ws2_32
+		windowsapp
 		d3d11 dxgi)
 else()
 	find_package(X11 REQUIRED)

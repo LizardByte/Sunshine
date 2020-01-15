@@ -82,26 +82,51 @@ void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, sample_queue
 
 void capture(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) {
   auto samples = std::make_shared<sample_queue_t::element_type>();
+  std::thread thread { encodeThread, packets, samples, config };
 
-  auto mic = platf::microphone();
-  if(!mic) {
-    BOOST_LOG(error) << "Couldn't create audio input"sv ;
-  }
+  auto fg = util::fail_guard([&]() {
+    packets->stop();
+    samples->stop();
+    thread.join();
+  });
 
   //FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stereo;
 
+  auto mic = platf::microphone(stream->sampleRate);
+  if(!mic) {
+    BOOST_LOG(error) << "Couldn't create audio input"sv ;
+
+    return;
+  }
+
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   int samples_per_frame = frame_size * stream->channelCount;
 
-  std::thread thread { encodeThread, packets, samples, config };
   while(packets->running()) {
-    auto sample = mic->sample(samples_per_frame);
+    std::vector<std::int16_t> sample_buffer;
+    sample_buffer.resize(samples_per_frame);
 
-    samples->raise(std::move(sample));
+    auto status = mic->sample(sample_buffer);
+    switch(status) {
+      case platf::capture_e::ok:
+        break;
+      case platf::capture_e::timeout:
+        continue;
+      case platf::capture_e::reinit:
+        mic.reset();
+        mic = platf::microphone(stream->sampleRate);
+        if(!mic) {
+          BOOST_LOG(error) << "Couldn't re-initialize audio input"sv ;
+
+          return;
+        }
+        return;
+      default:
+        return;
+    }
+
+    samples->raise(std::move(sample_buffer));
   }
-
-  samples->stop();
-  thread.join();
 }
 }

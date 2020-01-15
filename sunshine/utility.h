@@ -134,7 +134,7 @@ private:
 };
 
 template<class T>
-auto fail_guard(T && f) {
+[[nodiscard]] auto fail_guard(T && f) {
   return FailGuard<T> { std::forward<T>(f) };
 }
 

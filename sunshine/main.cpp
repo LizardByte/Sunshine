@@ -18,6 +18,7 @@
 #include "config.h"
 #include "thread_pool.h"
 
+#include "platform/common.h"
 extern "C" {
 #include <rs.h>
 }

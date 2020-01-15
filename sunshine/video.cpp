@@ -200,7 +200,7 @@ void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t co
     auto next_snapshot = std::chrono::steady_clock::now() + time_span;
 
     auto img = disp->alloc_img();
-    auto status = disp->snapshot(img, display_cursor);
+    auto status = disp->snapshot(img.get(), display_cursor);
 
     switch(status) {
       case platf::capture_e::reinit:

@@ -32,7 +32,7 @@ enum class capture_e : int {
 
 class display_t {
 public:
-  virtual capture_e snapshot(std::unique_ptr<img_t> &img, bool cursor) = 0;
+  virtual capture_e snapshot(img_t *img, bool cursor) = 0;
   virtual int reinit() = 0;
   virtual std::unique_ptr<img_t> alloc_img() = 0;
 
@@ -41,7 +41,7 @@ public:
 
 class mic_t {
 public:
-  virtual std::vector<std::int16_t> sample(std::size_t sample_size) = 0;
+  virtual capture_e sample(std::vector<std::int16_t> &frame_buffer) = 0;
 
   virtual ~mic_t() = default;
 };
@@ -52,7 +52,7 @@ using input_t = util::safe_ptr<void, freeInput>;
 
 std::string get_local_ip();
 
-std::unique_ptr<mic_t> microphone();
+std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
 std::shared_ptr<display_t> display();
 
 input_t input();

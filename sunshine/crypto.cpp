@@ -23,7 +23,7 @@ void cert_chain_t::add(x509_t &&cert) {
 const char *cert_chain_t::verify(x509_t::element_type *cert) {
   int err_code = 0;
   for(auto &[_,x509_store] : _certs) {
-    util::fail_guard([this]() {
+    auto fg = util::fail_guard([this]() {
       X509_STORE_CTX_cleanup(_cert_ctx.get());
     });
 

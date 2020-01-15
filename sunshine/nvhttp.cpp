@@ -744,6 +744,7 @@ std::string read_file(const char *path) {
   std::string input;
   std::string base64_cert;
 
+  //FIXME:  Being unable to read file could result in infinite loop
   while(!in.eof()) {
     std::getline(in, input);
     base64_cert += input + '\n';

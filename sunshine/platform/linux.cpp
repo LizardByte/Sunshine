@@ -141,7 +141,7 @@ struct x11_attr_t : public display_t {
     XGetWindowAttributes(xdisplay.get(), xwindow, &xattr);
   }
 
-  capture_e snapshot(std::unique_ptr<img_t> &img_out_base, bool cursor) override {
+  capture_e snapshot(img_t *img_out_base, bool cursor) override {
     refresh();
     XImage *img { XGetImage(
       xdisplay.get(),
@@ -151,7 +151,7 @@ struct x11_attr_t : public display_t {
       AllPlanes, ZPixmap)
     };
 
-    auto img_out = (x11_img_t*)img_out_base.get();
+    auto img_out = (x11_img_t*)img_out_base;
     img_out->width = img->width;
     img_out->height = img->height;
     img_out->data = (uint8_t*)img->data;
@@ -204,7 +204,7 @@ struct shm_attr_t : public x11_attr_t {
     while(!task_pool.cancel(refresh_task_id));
   }
 
-  capture_e snapshot(std::unique_ptr<img_t> &img, bool cursor) override {
+  capture_e snapshot(img_t *img, bool cursor) override {
     if(display->width_in_pixels != xattr.width || display->height_in_pixels != xattr.height) {
       return capture_e::reinit;
     }
@@ -300,17 +300,18 @@ struct mic_attr_t : public mic_t {
   util::safe_ptr<pa_simple, pa_simple_free> mic;
 
   explicit mic_attr_t(const pa_sample_spec& ss) : ss(ss), mic {} {}
-  std::vector<std::int16_t> sample(std::size_t sample_size) override {
-    std::vector<std::int16_t> sample_buf;
-    sample_buf.resize(sample_size);
+  capture_e sample(std::vector<std::int16_t> &sample_buf) override {
+    auto sample_size = sample_buf.size();
 
     auto buf = sample_buf.data();
     int status;
     if(pa_simple_read(mic.get(), buf, sample_size * 2, &status)) {
       BOOST_LOG(error) << "pa_simple_read() failed: "sv << pa_strerror(status);
+
+      return capture_e::error;
     }
 
-    return sample_buf;
+    return capture_e::ok;
   }
 };
 
@@ -335,10 +336,10 @@ std::shared_ptr<display_t> display() {
 }
 
 //FIXME: Pass frame_rate instead of hard coding it
-std::unique_ptr<mic_t> microphone() {
+std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   std::unique_ptr<mic_attr_t> mic {
     new mic_attr_t {
-      { PA_SAMPLE_S16LE, 48000, 2 }
+      { PA_SAMPLE_S16LE, sample_rate, 2 }
     }
   };
 

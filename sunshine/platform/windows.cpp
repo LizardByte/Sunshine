@@ -6,20 +6,6 @@ namespace platf {
 using namespace std::literals;
 std::string get_local_ip() { return "192.168.0.119"s; }
 
-class dummy_mic_t : public mic_t {
-public:
-  std::vector<std::int16_t> sample(std::size_t sample_size) override {
-    std::vector<std::int16_t> sample_buf;
-    sample_buf.resize(sample_size);
-
-    return sample_buf;
-  }
-};
-
-std::unique_ptr<mic_t> microphone() {
-  return std::unique_ptr<mic_t> { new dummy_mic_t {} };
-}
-
 input_t input() {
   return nullptr;
 }

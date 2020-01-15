@@ -132,7 +132,7 @@ public:
     _cv.notify_all();
   }
 
-  bool running() const {
+  [[nodiscard]] bool running() const {
     return _continue;
   }
 

@@ -231,8 +231,8 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
 
 class display_t : public ::platf::display_t {
 public:
-  capture_e snapshot(std::unique_ptr<::platf::img_t> &img_base, bool cursor_visible) override {
-    auto img = (img_t *) img_base.get();
+  capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
+    auto img = (img_t *) img_base;
     HRESULT status;
 
     DXGI_OUTDUPL_FRAME_INFO frame_info;
