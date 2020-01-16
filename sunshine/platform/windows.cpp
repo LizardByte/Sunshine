@@ -76,12 +76,18 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   i.type = INPUT_KEYBOARD;
   auto &ki = i.ki;
 
-//  ki.dwFlags = KEYEVENTF_SCANCODE;
+  // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
+  if(modcode != VK_LWIN && modcode != VK_RWIN) {
+    ki.wScan = MapVirtualKey(modcode, MAPVK_VK_TO_VSC);
+    ki.dwFlags = KEYEVENTF_SCANCODE;
+  }
+  else {
+    ki.wVk = modcode;
+  }
+
   if(release) {
     ki.dwFlags = KEYEVENTF_KEYUP;
   }
-
-  ki.wVk = modcode;
 
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
