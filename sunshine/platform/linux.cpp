@@ -164,12 +164,6 @@ struct x11_attr_t : public display_t {
     return capture_e::ok;
   }
 
-  int reinit() override {
-    refresh();
-
-    return 0;
-  }
-
   std::unique_ptr<img_t> alloc_img() override {
     return std::make_unique<x11_img_t>();
   }
@@ -245,14 +239,6 @@ struct shm_attr_t : public x11_attr_t {
 
   std::unique_ptr<img_t> alloc_img() override {
     return std::make_unique<shm_img_t>();
-  }
-
-  int reinit() override {
-    data.~shm_data_t();
-    shm_id.~shm_id_t();
-    xcb.reset(nullptr);
-
-    return init();
   }
 
   int init() {

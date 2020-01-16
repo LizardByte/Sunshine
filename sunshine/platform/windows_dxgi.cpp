@@ -53,6 +53,7 @@ public:
       case DXGI_ERROR_WAIT_TIMEOUT:
         return capture_e::timeout;
       case WAIT_ABANDONED:
+      case DXGI_ERROR_ACCESS_LOST:
       case DXGI_ERROR_ACCESS_DENIED:
         return capture_e::reinit;
       default:
@@ -82,7 +83,9 @@ public:
       case DXGI_ERROR_WAIT_TIMEOUT:
         return capture_e::timeout;
       case WAIT_ABANDONED:
+      case DXGI_ERROR_ACCESS_LOST:
       case DXGI_ERROR_ACCESS_DENIED:
+        has_frame = false;
         return capture_e::reinit;
       default:
         BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
@@ -320,78 +323,6 @@ public:
     return capture_e::ok;
   }
 
-  /*
-   * Called when access is lost. Dup must be reinitialized
-   */
-  int reinit() override {
-    HRESULT status;
-
-    dup.reset();
-    //TODO: Use IDXGIOutput5 for improved performance
-    {
-      dxgi::output1_t::pointer output1_p {};
-      status = output->QueryInterface(IID_IDXGIOutput1, (void**)&output1_p);
-      dxgi::output1_t output1 {output1_p };
-
-      if(FAILED(status)) {
-        BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
-        return -1;
-      }
-
-      // We try this twice, in case we still get an error on reinitialization
-      for(int x = 0; x < 2; ++x) {
-        dxgi::dup_t::pointer dup_p {};
-        status = output1->DuplicateOutput((IUnknown*)device.get(), &dup_p);
-        if(SUCCEEDED(status)) {
-          dup.reset(dup_p);
-          break;
-        }
-        std::this_thread::sleep_for(200ms);
-      }
-
-      if(FAILED(status)) {
-        BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-    }
-
-    DXGI_OUTDUPL_DESC dup_desc;
-    dup.dup->GetDesc(&dup_desc);
-
-    format = dup_desc.ModeDesc.Format;
-
-    BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
-
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width  = width;
-    t.Height = height;
-    t.MipLevels = 1;
-    t.ArraySize = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage = D3D11_USAGE_STAGING;
-    t.Format = format;
-    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-
-    dxgi::texture2d_t::pointer tex_p {};
-    status = device->CreateTexture2D(&t, nullptr, &tex_p);
-
-    texture.reset(tex_p);
-
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    // map the texture simply to get the pitch and stride
-    status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &current_img);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    return 0;
-  }
-
   std::unique_ptr<::platf::img_t> alloc_img() override {
     auto img = std::make_unique<img_t>();
 
@@ -545,7 +476,69 @@ public:
       dxgi->SetMaximumFrameLatency(1);
     }
 
-    return reinit();
+    //TODO: Use IDXGIOutput5 for improved performance
+    {
+      dxgi::output1_t::pointer output1_p {};
+      status = output->QueryInterface(IID_IDXGIOutput1, (void**)&output1_p);
+      dxgi::output1_t output1 {output1_p };
+
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+        return -1;
+      }
+
+      // We try this twice, in case we still get an error on reinitialization
+      for(int x = 0; x < 2; ++x) {
+        dxgi::dup_t::pointer dup_p {};
+        status = output1->DuplicateOutput((IUnknown*)device.get(), &dup_p);
+        if(SUCCEEDED(status)) {
+          dup.reset(dup_p);
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
+      }
+
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+    }
+
+    DXGI_OUTDUPL_DESC dup_desc;
+    dup.dup->GetDesc(&dup_desc);
+
+    format = dup_desc.ModeDesc.Format;
+
+    BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
+
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = width;
+    t.Height = height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_STAGING;
+    t.Format = format;
+    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    dxgi::texture2d_t::pointer tex_p {};
+    status = device->CreateTexture2D(&t, nullptr, &tex_p);
+
+    texture.reset(tex_p);
+
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // map the texture simply to get the pitch and stride
+    status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &current_img);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    return 0;
   }
 
   ~display_t() override {

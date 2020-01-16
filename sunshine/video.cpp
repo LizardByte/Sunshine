@@ -203,11 +203,24 @@ void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t co
     auto status = disp->snapshot(img.get(), display_cursor);
 
     switch(status) {
-      case platf::capture_e::reinit:
-        if(disp->reinit()) {
+      case platf::capture_e::reinit: {
+        // We try this twice, in case we still get an error on reinitialization
+        for(int x = 0; x < 2; ++x) {
+          disp.reset();
+          disp = platf::display();
+
+          if (disp) {
+            break;
+          }
+
+          std::this_thread::sleep_for(200ms);
+        }
+
+        if (!disp) {
           packets->stop();
         }
         continue;
+      }
       case platf::capture_e::timeout:
         std::this_thread::sleep_until(next_snapshot);
         continue;
