@@ -122,7 +122,7 @@ uint16_t keysym(uint16_t modcode) {
     case 0x2B:
       return XK_Execute;
     case 0x2C:
-      return XK_Print; //FIXME: is this correct? (printscreen)
+      return XK_Print;
     case 0x2D:
       return XK_Insert;
     case 0x2E:
@@ -134,15 +134,15 @@ uint16_t keysym(uint16_t modcode) {
     case 0x6B:
       return XK_KP_Add;
     case 0x6C:
-      return XK_KP_Decimal; //FIXME: is this correct? (Comma)
+      return XK_KP_Decimal;
     case 0x6D:
       return XK_KP_Subtract;
     case 0x6E:
-      return XK_KP_Separator; //FIXME: is this correct? (Period)
+      return XK_KP_Separator;
     case 0x6F:
       return XK_KP_Divide;
     case 0x90:
-      return XK_Num_Lock; //FIXME: is this correct: (NumlockClear)
+      return XK_Num_Lock;
     case 0x91:
       return XK_Scroll_Lock;
     case 0xA0:

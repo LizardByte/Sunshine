@@ -1,5 +1,9 @@
 #include <thread>
 
+#include <windows.h>
+#include <winuser.h>
+
+#include "sunshine/main.h"
 #include "common.h"
 
 namespace platf {
@@ -10,10 +14,80 @@ input_t input() {
   return nullptr;
 }
 
-void move_mouse(input_t &input, int deltaX, int deltaY) {}
-void button_mouse(input_t &input, int button, bool release) {}
-void scroll(input_t &input, int distance) {}
-void keyboard(input_t &input, uint16_t modcode, bool release) {}
+void move_mouse(input_t &input, int deltaX, int deltaY) {
+  INPUT i {};
+
+  i.type = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  mi.dwFlags = MOUSEEVENTF_MOVE;
+  mi.dx = deltaX;
+  mi.dy = deltaY;
+
+  auto send = SendInput(1, &i, sizeof(INPUT));
+  if(send != 1) {
+    BOOST_LOG(warning) << "Couldn't send mouse movement input"sv;
+  }
+}
+
+void button_mouse(input_t &input, int button, bool release) {
+  INPUT i {};
+
+  i.type = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  if(button == 1) {
+    mi.dwFlags = release ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+  }
+  else if(button == 2) {
+    mi.dwFlags = release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
+  }
+  else {
+    mi.dwFlags = release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
+  }
+
+  auto send = SendInput(1, &i, sizeof(INPUT));
+  if(send != 1) {
+    BOOST_LOG(warning) << "Couldn't send mouse button input"sv;
+  }
+}
+
+void scroll(input_t &input, int distance) {
+  INPUT i {};
+
+  i.type = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  mi.dwFlags = MOUSEEVENTF_WHEEL;
+  mi.mouseData = distance / 120;
+
+  auto send = SendInput(1, &i, sizeof(INPUT));
+  if(send != 1) {
+    BOOST_LOG(warning) << "Couldn't send moue movement input"sv;
+  }
+}
+
+void keyboard(input_t &input, uint16_t modcode, bool release) {
+  if(modcode == VK_RMENU) {
+    modcode = VK_LBUTTON;
+  }
+
+  INPUT i {};
+  i.type = INPUT_KEYBOARD;
+  auto &ki = i.ki;
+
+//  ki.dwFlags = KEYEVENTF_SCANCODE;
+  if(release) {
+    ki.dwFlags = KEYEVENTF_KEYUP;
+  }
+
+  ki.wVk = modcode;
+
+  auto send = SendInput(1, &i, sizeof(INPUT));
+  if(send != 1) {
+    BOOST_LOG(warning) << "Couldn't send moue movement input"sv;
+  }
+}
 
 namespace gp {
 void dpad_y(input_t &input, int button_state) {} // up pressed == -1, down pressed == 1, else 0
