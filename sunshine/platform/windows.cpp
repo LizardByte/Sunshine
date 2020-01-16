@@ -59,7 +59,7 @@ void scroll(input_t &input, int distance) {
   auto &mi = i.mi;
 
   mi.dwFlags = MOUSEEVENTF_WHEEL;
-  mi.mouseData = distance / 120;
+  mi.mouseData = distance;
 
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
