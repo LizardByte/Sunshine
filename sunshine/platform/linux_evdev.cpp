@@ -13,6 +13,11 @@
 #include "sunshine/main.h"
 #include "sunshine/utility.h"
 
+// Support older versions
+#ifndef REL_HWHEEL_HI_RES
+#define REL_HWHEEL_HI_RES 0x0c
+#endif
+
 namespace platf {
 using namespace std::literals;
 using evdev_t = util::safe_ptr<libevdev, libevdev_free>;
