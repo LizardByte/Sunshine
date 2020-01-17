@@ -26,6 +26,8 @@ video_t video {
   "zerolatency"s // tune
 };
 
+audio_t audio {};
+
 stream_t stream {
   2s, // ping_timeout
 
@@ -171,6 +173,8 @@ void parse_file(const char *file) {
   string_f(vars, "unique_id", nvhttp.unique_id);
   string_f(vars, "file_devices", nvhttp.file_devices);
   string_f(vars, "external_ip", nvhttp.external_ip);
+
+  string_f(vars, "audio_sink", audio.sink);
 
   string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, {
     "pc"sv, "lan"sv, "wan"sv

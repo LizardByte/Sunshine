@@ -19,6 +19,10 @@ struct video_t {
   std::string tune;
 };
 
+struct audio_t {
+  std::string sink;
+};
+
 struct stream_t {
   std::chrono::milliseconds ping_timeout;
 
@@ -52,6 +56,7 @@ struct sunshine_t {
 };
 
 extern video_t video;
+extern audio_t audio;
 extern stream_t stream;
 extern nvhttp_t nvhttp;
 extern input_t input;

@@ -75,6 +75,10 @@ Trouleshooting:
 	* If you get "Could not create Sunshine Gamepad: Permission Denied" Try the following steps before running sunshine:
 		* sudo chown root:input /dev/uinput
 		* sudo chmod 660 /dev/uinput
+	* If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
+		* pacmd list-sources | grep "name:"
+		* Copy the name to the configuration option "audio_sink"
+		* restart sunshine
 
 When an application is started, if there is an application already running, it will be terminated.
 When the application has been shutdown, the stream shuts down as well.

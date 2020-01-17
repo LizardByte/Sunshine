@@ -23,6 +23,7 @@
 
 #include <bitset>
 #include <sunshine/task_pool.h>
+#include <sunshine/config.h>
 
 namespace platf {
 using namespace std::literals;
@@ -330,15 +331,22 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   };
 
   int status;
+
+  const char *audio_sink = nullptr;
+  if(!config::audio.sink.empty()) {
+    audio_sink = config::audio.sink.c_str();
+  }
+
   mic->mic.reset(
-    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, nullptr, "sunshine_record", &mic->ss, nullptr, nullptr, &status)
+    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, audio_sink, "sunshine_record", &mic->ss, nullptr, nullptr, &status)
   );
 
   if(!mic->mic) {
     auto err_str = pa_strerror(status);
     BOOST_LOG(error) << "pa_simple_new() failed: "sv << err_str;
 
-    exit(1);
+    log_flush();
+    std::abort();
   }
 
   return mic;
