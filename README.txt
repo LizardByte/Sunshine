@@ -11,6 +11,9 @@ Compilation:
 Setup:
 	* sunshine needs access to uinput to create mouse and gamepad events:
 		* Add user to group 'input': "usermod -a -G input username
+		* Create a file: "/etc/udev/rules.d/85-input.rules"
+		* The contents of the file is as follows:
+			SUBSYSTEM=="input", mode="660"
 	* assets/sunshine.conf is an example configuration file. Modify it as you see fit and use it by running: "sunshine path/to/sunshine.conf"
 	* assets/sunshine.service is used to start sunshine in the background:
 		* cp sunshine.service $HOME/.config/systemd/user/
