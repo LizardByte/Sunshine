@@ -31,19 +31,33 @@ void move_mouse(input_t &input, int deltaX, int deltaY) {
 }
 
 void button_mouse(input_t &input, int button, bool release) {
+  constexpr SHORT KEY_STATE_DOWN = 0x8000;
+
   INPUT i {};
 
   i.type = INPUT_MOUSE;
   auto &mi = i.mi;
 
+  int mouse_button;
   if(button == 1) {
     mi.dwFlags = release ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+    mouse_button = VK_LBUTTON;
   }
   else if(button == 2) {
     mi.dwFlags = release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
+    mouse_button = VK_MBUTTON;
   }
   else {
     mi.dwFlags = release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
+    mouse_button = VK_RBUTTON;
+  }
+
+  auto key_state = GetAsyncKeyState(mouse_button);
+  bool key_state_down = (key_state & KEY_STATE_DOWN) != 0;
+  if(key_state_down != release) {
+    BOOST_LOG(warning) << "Button state of mouse_button ["sv << button << "] does not match the desired state"sv;
+
+    return;
   }
 
   auto send = SendInput(1, &i, sizeof(INPUT));
@@ -68,8 +82,18 @@ void scroll(input_t &input, int distance) {
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
+  constexpr SHORT KEY_STATE_DOWN = 0x8000;
+
   if(modcode == VK_RMENU) {
     modcode = VK_LWIN;
+  }
+
+  auto key_state = GetAsyncKeyState(modcode);
+  bool key_state_down = (key_state & KEY_STATE_DOWN) != 0;
+  if(key_state_down != release) {
+    BOOST_LOG(warning) << "Key state of vkey ["sv << util::hex(modcode).to_string_view() << "] does not match the desired state ["sv << (release ? "on]"sv : "off]"sv);
+
+    return;
   }
 
   INPUT i {};
@@ -86,7 +110,7 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   }
 
   if(release) {
-    ki.dwFlags = KEYEVENTF_KEYUP;
+    ki.dwFlags |= KEYEVENTF_KEYUP;
   }
 
   auto send = SendInput(1, &i, sizeof(INPUT));
