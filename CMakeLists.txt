@@ -93,8 +93,8 @@ include_directories(
 )
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
-string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
-if("x${BUILD_TYPE}" STREQUAL "xDEBUG")
+string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
+if("${BUILD_TYPE}" STREQUAL "XDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
 	if(WIN32)
 		set_source_files_properties(sunshine/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
