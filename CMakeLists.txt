@@ -11,7 +11,6 @@ add_subdirectory(moonlight-common-c/enet)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
-find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 if(WIN32)
 	set(PLATFORM_TARGET_FILES
@@ -26,6 +25,7 @@ if(WIN32)
 		windowsapp
 		d3d11 dxgi)
 else()
+	set(Boost_USE_STATIC_LIBS ON)
 	find_package(X11 REQUIRED)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux.cpp
@@ -47,6 +47,9 @@ else()
 		${X11_INCLUDE_DIR}
 		/usr/include/libevdev-1.0)
 endif()
+
+find_package(Boost COMPONENTS log filesystem REQUIRED)
+
 set(SUNSHINE_TARGET_FILES
 	moonlight-common-c/reedsolomon/rs.c
 	moonlight-common-c/reedsolomon/rs.h
