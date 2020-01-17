@@ -9,6 +9,8 @@ Compilation:
 
 
 Setup:
+	* sunshine needs access to uinput to create mouse and gamepad events:
+		* Add user to group 'input': "usermod -a -G input username
 	* assets/sunshine.conf is an example configuration file. Modify it as you see fit and use it by running: "sunshine path/to/sunshine.conf"
 	* assets/sunshine.service is used to start sunshine in the background:
 		* cp sunshine.service $HOME/.config/systemd/user/
@@ -19,12 +21,12 @@ Setup:
 		* See below for a detailed explanation
 
 Usage:
-	* run "sunshine"
+	* run "sunshine path/to/sunshine.conf"
 	* In Moonlight: Add PC manually
 	* When Moonlight request you insert the correct pin on sunshine:
-		wget xxx.xxx.xxx.xxx:47989/pin/xxxx -- where the final 4 x'es are subsituted by the pin
+		wget xxx.xxx.xxx.xxx:47989/pin/xxxx -- where the first few x's are substituted by the ip of Sunshine and the final 4 x'es are substituted by the pin
 			or
-		Type in the URL bar of your browser: xxx.xxx.xxx.xxx:47989/pin/xxxx -- where the final 4 x'es are subsituted by the pin
+		Type in the URL bar of your browser: xxx.xxx.xxx.xxx:47989/pin/xxxx -- where the first few x's are substituted by the ip of the final 4 x'es are subsituted by the pin
 	* Click on one of the Applications listed
 	* Have fun :)
 
@@ -65,6 +67,11 @@ Application List:
 				* If it fails, Sunshine is terminated
 		* cmd <optional>: The main application
 			* If not specified, a processs is started that sleeps indefinitely
+
+Trouleshooting:
+	* If you get "Could not create Sunshine Gamepad: Permission Denied" Try the following steps before running sunshine:
+		* sudo chown root:input /dev/uinput
+		* sudo chmod 660 /dev/uinput
 
 When an application is started, if there is an application already running, it will be terminated.
 When the application has been shutdown, the stream shuts down as well.
