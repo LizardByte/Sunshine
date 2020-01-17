@@ -18,6 +18,10 @@
 #define REL_HWHEEL_HI_RES 0x0c
 #endif
 
+#ifndef REL_WHEEL_HI_RES
+#define REL_WHEEL_HI_RES 0x0b
+#endif
+
 namespace platf {
 using namespace std::literals;
 using evdev_t = util::safe_ptr<libevdev, libevdev_free>;
