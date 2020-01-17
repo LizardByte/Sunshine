@@ -109,6 +109,7 @@ endif()
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${CMAKE_THREAD_LIBS_INIT}
+		stdc++fs
 		${OPENSSL_LIBRARIES}
 		enet
 		opus
