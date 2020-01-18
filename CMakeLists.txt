@@ -13,17 +13,23 @@ find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
 
 if(WIN32)
+	include_directories(
+		ViGEmClient/include)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/windows.cpp
 		sunshine/platform/windows_dxgi.cpp
-		sunshine/platform/windows_wasapi.cpp)
+		sunshine/platform/windows_wasapi.cpp
+		ViGEmClient/src/ViGEmClient.cpp)
 	set(PLATFORM_LIBRARIES
 		winmm
 		ksuser
 		wsock32
 		ws2_32
 		windowsapp
-		d3d11 dxgi)
+		d3d11 dxgi
+		setupapi)
+	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
+	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 else()
 	set(Boost_USE_STATIC_LIBS ON)
 	find_package(X11 REQUIRED)
@@ -96,6 +102,7 @@ include_directories(
 )
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
+
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)

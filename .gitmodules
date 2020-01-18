@@ -4,3 +4,6 @@
 [submodule "Simple-Web-Server"]
 	path = Simple-Web-Server
 	url = https://github.com/loki-47-6F-64/Simple-Web-Server.git
+[submodule "ViGEmClient"]
+	path = ViGEmClient
+	url = https://github.com/ViGEm/ViGEmClient
