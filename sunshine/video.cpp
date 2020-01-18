@@ -61,19 +61,22 @@ void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::im
   /* send the frame to the encoder */
   ret = avcodec_send_frame(ctx.get(), yuv_frame.get());
   if (ret < 0) {
-    fprintf(stderr, "error sending a frame for encoding\n");
-    exit(1);
+    BOOST_LOG(fatal) << "Could not send a frame for encoding"sv;
+    log_flush();
+    std::abort();
   }
 
   while (ret >= 0) {
     packet_t packet { av_packet_alloc() };
 
     ret = avcodec_receive_packet(ctx.get(), packet.get());
-    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+    if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
       return;
+    }
     else if (ret < 0) {
-      fprintf(stderr, "error during encoding\n");
-      exit(1);
+      BOOST_LOG(fatal) << "Could not encode video packet"sv;
+      log_flush();
+      std::abort();
     }
 
     packets->raise(std::move(packet));
