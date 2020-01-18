@@ -970,6 +970,7 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     config.monitor.framerate      = util::from_view(args.at("x-nv-video[0].maxFPS"sv));
     config.monitor.bitrate        = util::from_view(args.at("x-nv-vqos[0].bw.maximumBitrateKbps"sv));
     config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
+    config.monitor.numRefFrames   = util::from_view(args.at("x-nv-video[0].maxNumReferenceFrames"sv));
 
   } catch(std::out_of_range &) {
 

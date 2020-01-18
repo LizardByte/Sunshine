@@ -16,8 +16,6 @@
 namespace config {
 using namespace std::literals;
 video_t video {
-  16, // max_b_frames
-  24, // gop_size
   35, // crf
   35, // qp
 
@@ -160,8 +158,6 @@ void parse_file(const char *file) {
     std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
   }
 
-  int_f(vars, "max_b_frames", video.max_b_frames);
-  int_f(vars, "gop_size", video.gop_size);
   int_f(vars, "crf", video.crf);
   int_f(vars, "qp", video.qp);
   int_f(vars, "threads", video.threads);
