@@ -93,7 +93,9 @@ struct audio_packet_raw_t {
 #pragma pack(pop)
 
 safe::event_t<launch_session_t> launch_event;
-auto input = std::make_shared<input::input_t>();
+
+//FIXME: This smells bad
+std::shared_ptr<input::input_t> input;
 
 struct config_t {
   audio::config_t audio;
@@ -1016,6 +1018,7 @@ void cmd_play(host_t &host, peer_t peer, msg_t &&req) {
 }
 
 void rtpThread() {
+  input = std::make_shared<input::input_t>();
   rtsp_server_t server(RTSP_SETUP_PORT);
 
   server.map("OPTIONS"sv, &cmd_option);

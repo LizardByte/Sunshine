@@ -42,7 +42,7 @@ public:
 
   ~vigem_t() {
     if(client) {
-      if(vigem_target_is_attached(x360.get())) {
+      if(x360 && vigem_target_is_attached(x360.get())) {
         auto status = vigem_target_remove(client.get(), x360.get());
         if(!VIGEM_SUCCESS(status)) {
           BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
