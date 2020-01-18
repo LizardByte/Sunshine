@@ -98,12 +98,20 @@ void encodeThread(
   ctx->time_base = AVRational{1, framerate};
   ctx->framerate = AVRational{framerate, 1};
   ctx->pix_fmt = AV_PIX_FMT_YUV420P;
-  ctx->max_b_frames = config::video.max_b_frames;
-  ctx->has_b_frames = 1;
+
+  // B-frames delay decoder output, so never use them
+  ctx->max_b_frames = 0;
+
+  // Use an infinite GOP length since I-frames are generated on demand
+  ctx->gop_size = std::numeric_limits<int>::max();
+  ctx->keyint_min = ctx->gop_size;
+
+  // Some client decoders have limits on the number of reference frames
+  ctx->refs = config.numRefFrames;
 
   ctx->slices = config.slicesPerFrame;
   ctx->thread_type = FF_THREAD_SLICE;
-  ctx->thread_count = config::video.threads;
+  ctx->thread_count = std::min(ctx->slices, config::video.threads);
 
 
   AVDictionary *options {nullptr};
@@ -119,11 +127,9 @@ void encodeThread(
     ctx->rc_min_rate = config.bitrate;
   }
   else if(config::video.crf != 0) {
-    ctx->gop_size = config::video.gop_size;
     av_dict_set_int(&options, "crf", config::video.crf, 0);
   }
   else {
-    ctx->gop_size = config::video.gop_size;
     av_dict_set_int(&options, "qp", config::video.qp, 0);
   }
   

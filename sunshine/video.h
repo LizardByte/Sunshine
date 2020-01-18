@@ -21,6 +21,7 @@ struct config_t {
   int framerate;
   int bitrate;
   int slicesPerFrame;
+  int numRefFrames;
 };
 
 void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t config);
