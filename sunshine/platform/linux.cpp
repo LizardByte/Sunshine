@@ -336,6 +336,9 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   if(!config::audio.sink.empty()) {
     audio_sink = config::audio.sink.c_str();
   }
+  else {
+    audio_sink = "@DEFAULT_MONITOR@";
+  }
 
   mic->mic.reset(
     pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, audio_sink, "sunshine_record", &mic->ss, nullptr, nullptr, &status)
