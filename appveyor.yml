@@ -1,0 +1,22 @@
+image: Ubuntu
+
+environment:
+  matrix:
+    - BUILD_TYPE: Debug
+    - BUILD_TYPE: Release
+
+install:
+  - sudo add-apt-repository ppa:hnakamur/icu
+  - sudo add-apt-repository ppa:hnakamur/boost
+  - sudo apt update
+  - sudo apt install -y cmake libssl-dev libavdevice-dev libboost-thread1.67-dev libboost-filesystem1.67-dev libboost-log1.67-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
+  - sudo update-alternatives --set gcc /usr/bin/gcc-8
+
+before_build:
+  - git submodule update --init --recursive
+  - mkdir build
+  - cd build
+
+build_script:
+  - cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
+  - make -j$(nproc)
