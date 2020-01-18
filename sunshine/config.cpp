@@ -3,6 +3,8 @@
 #include <functional>
 #include <unordered_map>
 
+#include <boost/asio.hpp>
+
 #include "utility.h"
 #include "config.h"
 
@@ -41,7 +43,7 @@ nvhttp_t nvhttp {
   PRIVATE_KEY_FILE,
   CERTIFICATE_FILE,
 
-  "sunshine"s, // sunshine_name,
+  boost::asio::ip::host_name(), // sunshine_name,
   "03904e64-51da-4fb3-9afd-a9f7ff70fea4"s, // unique_id
   "devices.json"s // file_devices
 };
