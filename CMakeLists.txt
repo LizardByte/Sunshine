@@ -19,7 +19,11 @@ if(WIN32)
 		sunshine/platform/windows.cpp
 		sunshine/platform/windows_dxgi.cpp
 		sunshine/platform/windows_wasapi.cpp
-		ViGEmClient/src/ViGEmClient.cpp)
+		ViGEmClient/src/ViGEmClient.cpp
+		ViGEmClient/include/ViGEm/Client.h
+		ViGEmClient/include/ViGEm/Common.h
+		ViGEmClient/include/ViGEm/Util.h
+		ViGEmClient/include/ViGEm/km/BusShared.h)
 	set(PLATFORM_LIBRARIES
 		winmm
 		ksuser

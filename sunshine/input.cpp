@@ -16,22 +16,6 @@ extern "C" {
 namespace input {
 using namespace std::literals;
 
-constexpr std::uint16_t DPAD_UP      = 0x0001;
-constexpr std::uint16_t DPAD_DOWN    = 0x0002;
-constexpr std::uint16_t DPAD_LEFT    = 0x0004;
-constexpr std::uint16_t DPAD_RIGHT   = 0x0008;
-constexpr std::uint16_t START        = 0x0010;
-constexpr std::uint16_t BACK         = 0x0020;
-constexpr std::uint16_t LEFT_STICK   = 0x0040;
-constexpr std::uint16_t RIGHT_STICK  = 0x0080;
-constexpr std::uint16_t LEFT_BUTTON  = 0x0100;
-constexpr std::uint16_t RIGHT_BUTTON = 0x0200;
-constexpr std::uint16_t HOME         = 0x0400;
-constexpr std::uint16_t A            = 0x1000;
-constexpr std::uint16_t B            = 0x2000;
-constexpr std::uint16_t X            = 0x4000;
-constexpr std::uint16_t Y            = 0x8000;
-
 void print(PNV_MOUSE_MOVE_PACKET packet) {
   BOOST_LOG(debug)
     << "--begin mouse move packet--"sv << std::endl
@@ -146,7 +130,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
   std::uint16_t bf;
   std::memcpy(&bf, &packet->buttonFlags, sizeof(std::uint16_t));
 
-  gamepad_state_t gamepad_state {
+  platf::gamepad_state_t gamepad_state{
     bf,
     packet->leftTrigger,
     packet->rightTrigger,
@@ -159,77 +143,36 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
   bf = gamepad_state.buttonFlags ^ input->gamepad_state.buttonFlags;
   auto bf_new = gamepad_state.buttonFlags;
 
-  if(bf) {
-    // up pressed == -1, down pressed == 1, else 0
-    if((DPAD_UP | DPAD_DOWN) & bf) {
-      int val = bf_new & DPAD_UP ? -1 : (bf_new & DPAD_DOWN ? 1 : 0);
+  // up pressed == -1, down pressed == 1, else 0
+  if (platf::BACK & bf) {
+    if (platf::BACK & bf_new) {
+      input->back_timeout_id = task_pool.pushDelayed([input]() {
+        auto &state = input->gamepad_state;
 
-      platf::gp::dpad_y(input->input, val);
-    }
+        // Release Back button
+//        state.buttonFlags &= ~platf::BACK;
+//        platf::gamepad(input->input, state);
 
-    if((DPAD_LEFT | DPAD_RIGHT) & bf) {
-      int val = bf_new & DPAD_LEFT ? -1 : (bf_new & DPAD_RIGHT ? 1 : 0);
-      platf::gp::dpad_x(input->input, val);
-    }
+        // Press Home button
+        state.buttonFlags |= platf::HOME;
+        platf::gamepad(input->input, state);
 
-    if(START & bf)        platf::gp::start(input->input,        bf_new & START        ? 1 : 0);
-    if(LEFT_STICK & bf)   platf::gp::left_stick(input->input,   bf_new & LEFT_STICK   ? 1 : 0);
-    if(RIGHT_STICK & bf)  platf::gp::right_stick(input->input,  bf_new & RIGHT_STICK  ? 1 : 0);
-    if(LEFT_BUTTON & bf)  platf::gp::left_button(input->input,  bf_new & LEFT_BUTTON  ? 1 : 0);
-    if(RIGHT_BUTTON & bf) platf::gp::right_button(input->input, bf_new & RIGHT_BUTTON ? 1 : 0);
-    if(HOME & bf)         platf::gp::home(input->input,         bf_new & HOME         ? 1 : 0);
-    if(A & bf)            platf::gp::a(input->input,            bf_new & A            ? 1 : 0);
-    if(B & bf)            platf::gp::b(input->input,            bf_new & B            ? 1 : 0);
-    if(X & bf)            platf::gp::x(input->input,            bf_new & X            ? 1 : 0);
-    if(Y & bf)            platf::gp::y(input->input,            bf_new & Y            ? 1 : 0);
+        // Release Home button
+        state.buttonFlags &= ~platf::HOME;
+        platf::gamepad(input->input, state);
 
-    if(BACK & bf) {
-      if(BACK & bf_new) {
-        platf::gp::back(input->input,1);
-        input->back_timeout_id = task_pool.pushDelayed([input]() {
-          platf::gp::back(input->input, 0);
-
-          platf::gp::home(input->input,1);
-          platf::gp::home(input->input,0);
-
-          input->back_timeout_id = nullptr;
-        }, config::input.back_button_timeout).task_id;
-      }
-      else if(input->back_timeout_id) {
-        platf::gp::back(input->input, 0);
-
-        task_pool.cancel(input->back_timeout_id);
         input->back_timeout_id = nullptr;
-      }
+      }, config::input.back_button_timeout).task_id;
+    }
+    else if (input->back_timeout_id) {
+      task_pool.cancel(input->back_timeout_id);
+      input->back_timeout_id = nullptr;
     }
   }
 
-  if(input->gamepad_state.lt != gamepad_state.lt) {
-    platf::gp::left_trigger(input->input, gamepad_state.lt);
-  }
-
-  if(input->gamepad_state.rt != gamepad_state.rt) {
-    platf::gp::right_trigger(input->input, gamepad_state.rt);
-  }
-
-  if(input->gamepad_state.lsX != gamepad_state.lsX) {
-    platf::gp::left_stick_x(input->input, gamepad_state.lsX);
-  }
-
-  if(input->gamepad_state.lsY != gamepad_state.lsY) {
-    platf::gp::left_stick_y(input->input, gamepad_state.lsY);
-  }
-
-  if(input->gamepad_state.rsX != gamepad_state.rsX) {
-    platf::gp::right_stick_x(input->input, gamepad_state.rsX);
-  }
-
-  if(input->gamepad_state.rsY != gamepad_state.rsY) {
-    platf::gp::right_stick_y(input->input, gamepad_state.rsY);
-  }
+  platf::gamepad(input->input, gamepad_state);
 
   input->gamepad_state = gamepad_state;
-  platf::gp::sync(input->input);
 }
 
 void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t> &&input_data) {

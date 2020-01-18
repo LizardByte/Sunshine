@@ -3,15 +3,71 @@
 #include <windows.h>
 #include <winuser.h>
 
+#include <ViGEm/Client.h>
+
 #include "sunshine/main.h"
 #include "common.h"
 
 namespace platf {
 using namespace std::literals;
+
+class vigem_t {
+public:
+  using client_t = util::safe_ptr<_VIGEM_CLIENT_T, vigem_free>;
+  using target_t = util::safe_ptr<_VIGEM_TARGET_T, vigem_target_free>;
+
+  int init() {
+    VIGEM_ERROR status;
+
+    client.reset(vigem_alloc());
+
+    status = vigem_connect(client.get());
+    if(!VIGEM_SUCCESS(status)) {
+      BOOST_LOG(warning) << "Couldn't setup connection to ViGEm for gamepad support ["sv << util::hex(status).to_string_view() << ']';
+
+      return -1;
+    }
+
+    x360.reset(vigem_target_x360_alloc());
+
+    status = vigem_target_add(client.get(), x360.get());
+    if(!VIGEM_SUCCESS(status)) {
+      BOOST_LOG(error) << "Couldn't add Gamepad to ViGEm connection ["sv << util::hex(status).to_string_view() << ']';
+
+      return -1;
+    }
+
+    return 0;
+  }
+
+  ~vigem_t() {
+    if(client) {
+      if(vigem_target_is_attached(x360.get())) {
+        auto status = vigem_target_remove(client.get(), x360.get());
+        if(!VIGEM_SUCCESS(status)) {
+          BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
+        }
+      }
+
+      vigem_disconnect(client.get());
+    }
+  }
+
+  target_t x360;
+  client_t client;
+};
+
 std::string get_local_ip() { return "192.168.0.119"s; }
 
 input_t input() {
-  return nullptr;
+  input_t result { new vigem_t {} };
+
+  auto vigem = (vigem_t*)result.get();
+  if(vigem->init()) {
+    return nullptr;
+  }
+
+  return result;
 }
 
 void move_mouse(input_t &input, int deltaX, int deltaY) {
@@ -119,6 +175,24 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   }
 }
 
+void gamepad(input_t &input, const gamepad_state_t &gamepad_state) {
+  // If there is no gamepad support
+  if(!input) {
+    return;
+  }
+
+  auto vigem = (vigem_t*)input.get();
+  auto &xusb = *(PXUSB_REPORT)&gamepad_state;
+
+  auto status = vigem_target_x360_update(vigem->client.get(), vigem->x360.get(), xusb);
+  if(!VIGEM_SUCCESS(status)) {
+    BOOST_LOG(fatal) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+
+    log_flush();
+    std::abort();
+  }
+}
+
 namespace gp {
 void dpad_y(input_t &input, int button_state) {} // up pressed == -1, down pressed == 1, else 0
 void dpad_x(input_t &input, int button_state) {} // left pressed == -1, right pressed == 1, else 0
@@ -142,5 +216,9 @@ void right_stick_y(input_t &input, std::int16_t y) {}
 void sync(input_t &input) {}
 }
 
-void freeInput(void*) {}
+void freeInput(void *p) {
+  auto vigem = (vigem_t*)p;
+
+  delete vigem;
+}
 }

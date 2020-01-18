@@ -9,20 +9,10 @@
 #include "thread_pool.h"
 
 namespace input {
-struct gamepad_state_t {
-  std::uint16_t buttonFlags;
-  std::uint8_t lt;
-  std::uint8_t rt;
-  std::int16_t lsX;
-  std::int16_t lsY;
-  std::int16_t rsX;
-  std::int16_t rsY;
-};
-
 struct input_t {
   input_t();
 
-  gamepad_state_t gamepad_state;
+  platf::gamepad_state_t gamepad_state;
   std::unordered_map<short, bool> key_press;
   std::array<std::uint8_t, 3> mouse_press;
 

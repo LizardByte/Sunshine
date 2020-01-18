@@ -9,6 +9,31 @@
 #include "sunshine/utility.h"
 
 namespace platf {
+constexpr std::uint16_t DPAD_UP      = 0x0001;
+constexpr std::uint16_t DPAD_DOWN    = 0x0002;
+constexpr std::uint16_t DPAD_LEFT    = 0x0004;
+constexpr std::uint16_t DPAD_RIGHT   = 0x0008;
+constexpr std::uint16_t START        = 0x0010;
+constexpr std::uint16_t BACK         = 0x0020;
+constexpr std::uint16_t LEFT_STICK   = 0x0040;
+constexpr std::uint16_t RIGHT_STICK  = 0x0080;
+constexpr std::uint16_t LEFT_BUTTON  = 0x0100;
+constexpr std::uint16_t RIGHT_BUTTON = 0x0200;
+constexpr std::uint16_t HOME         = 0x0400;
+constexpr std::uint16_t A            = 0x1000;
+constexpr std::uint16_t B            = 0x2000;
+constexpr std::uint16_t X            = 0x4000;
+constexpr std::uint16_t Y            = 0x8000;
+
+struct gamepad_state_t {
+  std::uint16_t buttonFlags;
+  std::uint8_t lt;
+  std::uint8_t rt;
+  std::int16_t lsX;
+  std::int16_t lsY;
+  std::int16_t rsX;
+  std::int16_t rsY;
+};
 
 struct img_t {
 public:
@@ -59,29 +84,7 @@ void move_mouse(input_t &input, int deltaX, int deltaY);
 void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
-
-namespace gp {
-void dpad_y(input_t &input, int button_state); // up pressed == -1, down pressed == 1, else 0
-void dpad_x(input_t &input, int button_state); // left pressed == -1, right pressed == 1, else 0
-void start(input_t &input, int button_down);
-void back(input_t &input, int button_down);
-void left_stick(input_t &input, int button_down);
-void right_stick(input_t &input, int button_down);
-void left_button(input_t &input, int button_down);
-void right_button(input_t &input, int button_down);
-void home(input_t &input, int button_down);
-void a(input_t &input, int button_down);
-void b(input_t &input, int button_down);
-void x(input_t &input, int button_down);
-void y(input_t &input, int button_down);
-void left_trigger(input_t &input, std::uint8_t abs_z);
-void right_trigger(input_t &input, std::uint8_t abs_z);
-void left_stick_x(input_t &input, std::int16_t x);
-void left_stick_y(input_t &input, std::int16_t y);
-void right_stick_x(input_t &input, std::int16_t x);
-void right_stick_y(input_t &input, std::int16_t y);
-void sync(input_t &input);
-}
+void gamepad(input_t &input, const gamepad_state_t &gamepad_state);
 }
 
 #endif //SUNSHINE_COMMON_H
