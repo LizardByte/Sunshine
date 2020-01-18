@@ -421,16 +421,22 @@ input_t input() {
   auto &gp = *(input_raw_t*)result.get();
 
   gp.keyboard.reset(XOpenDisplay(nullptr));
+
+  // If we do not have a keyboard, gamepad or mouse, no input is possible and we should abort
   if(!gp.keyboard) {
-    return nullptr;
+    BOOST_LOG(fatal) << "Could not open x11 display for keyboard"sv;
+    log_flush();
+    std::abort();
   }
 
   if(gamepad(gp)) {
-    return nullptr;
+    log_flush();
+    std::abort();
   }
 
   if(mouse(gp)) {
-    return nullptr;
+    log_flush();
+    std::abort();
   }
 
   std::filesystem::path mouse_path { "sunshine_mouse" };

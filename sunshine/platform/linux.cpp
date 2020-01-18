@@ -134,7 +134,15 @@ void blend_cursor(Display *display, std::uint8_t *img_data, int width, int heigh
   }
 }
 struct x11_attr_t : public display_t {
-  x11_attr_t() : xdisplay {XOpenDisplay(nullptr) }, xwindow {DefaultRootWindow(xdisplay.get()) }, xattr {} {
+  x11_attr_t() : xdisplay {XOpenDisplay(nullptr) }, xwindow { }, xattr {} {
+    if(!xdisplay) {
+      BOOST_LOG(fatal) << "Could not open x11 display"sv;
+      log_flush();
+      std::abort();
+    }
+
+    xwindow = DefaultRootWindow(xdisplay.get());
+
     refresh();
   }
 
