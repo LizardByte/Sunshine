@@ -120,20 +120,6 @@ void string_restricted_f(std::unordered_map<std::string, std::string> &vars, con
   }
 }
 
-void int_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::vector<std::string_view> &allowed_vals) {
-  std::string temp;
-  string_f(vars, name, temp);
-
-  for(int x = 0; x < allowed_vals.size(); ++x) {
-    auto &allowed_val = allowed_vals[x];
-
-    if(temp == allowed_val) {
-      input = x;
-      return;
-    }
-  }
-}
-
 void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
   auto it = vars.find(name);
 
@@ -143,6 +129,17 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
 
   auto &val = it->second;
   input = util::from_chars(&val[0], &val[0] + val.size());
+}
+
+void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
+  int temp = input;
+
+  int_f(vars, name, temp);
+
+  TUPLE_2D_REF(lower, upper, range);
+  if(temp >= lower && temp <= upper) {
+    input = temp;
+  }
 }
 
 void parse_file(const char *file) {
@@ -184,7 +181,9 @@ void parse_file(const char *file) {
     stream.ping_timeout = std::chrono::milliseconds(to);
   }
   string_f(vars, "file_apps", stream.file_apps);
-  int_f(vars, "fec_percentage", stream.fec_percentage);
+  int_between_f(vars, "fec_percentage", stream.fec_percentage, {
+    1, 100
+  });
 
   to = std::numeric_limits<int>::min();
   int_f(vars, "back_button_timeout", to);
