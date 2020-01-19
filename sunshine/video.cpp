@@ -147,8 +147,8 @@ void encodeThread(
 
   av_frame_get_buffer(yuv_frame.get(), 0);
 
-  int64_t frame = 0;
-  int64_t key_frame = 0;
+  int64_t frame = 1;
+  int64_t key_frame = 1;
 
   auto img_width  = 0;
   auto img_height = 0;
@@ -175,10 +175,10 @@ void encodeThread(
       yuv_frame->pict_type = AV_PICTURE_TYPE_I;
 
       auto event = idr_events->pop();
-      TUPLE_2D_REF(start, end, *event);
+      TUPLE_2D_REF(_, end, *event);
 
-      frame = start;
-      key_frame = end + 2;
+      frame = end;
+      key_frame = end + config.framerate;
     }
     else if(frame == key_frame) {
       yuv_frame->pict_type = AV_PICTURE_TYPE_I;

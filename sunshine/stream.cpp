@@ -996,7 +996,6 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
   session.audio_packets = std::make_shared<audio::packet_queue_t::element_type>();
 
   video::idr_event_t idr_events {new video::idr_event_t::element_type };
-  idr_events->raise(std::pair<std::int64_t, std::int64_t> { 1, 13 });
 
   session.audioThread   = std::thread {audioThread};
   session.videoThread   = std::thread {videoThread, idr_events};
