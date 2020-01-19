@@ -120,7 +120,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
   display_cursor = true;
 
   auto button = util::endian::big(packet->button);
-  if(button > 0 && button < 4) {
+  if(button > 0 && button < input->mouse_press.size()) {
     input->mouse_press[button] = packet->action != BUTTON_RELEASED;
   }
 

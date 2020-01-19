@@ -47,9 +47,19 @@ void button_mouse(input_t &input, int button, bool release) {
     mi.dwFlags = release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
     mouse_button = VK_MBUTTON;
   }
-  else {
+  else if(button == 3) {
     mi.dwFlags = release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
     mouse_button = VK_RBUTTON;
+  }
+  else if(button == 4) {
+    mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
+    mi.mouseData = XBUTTON1;
+    mouse_button = VK_XBUTTON1;
+  }
+  else {
+    mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
+    mi.mouseData = XBUTTON2;
+    mouse_button = VK_XBUTTON2;
   }
 
   auto key_state = GetAsyncKeyState(mouse_button);
