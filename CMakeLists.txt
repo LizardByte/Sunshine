@@ -35,7 +35,6 @@ if(WIN32)
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 else()
-	set(Boost_USE_STATIC_LIBS ON)
 	find_package(X11 REQUIRED)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux.cpp
@@ -58,6 +57,7 @@ else()
 		/usr/include/libevdev-1.0)
 endif()
 
+set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 set(SUNSHINE_TARGET_FILES
