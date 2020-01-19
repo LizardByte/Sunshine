@@ -66,9 +66,17 @@ void button_mouse(input_t &input, int button, bool release) {
     btn_type = BTN_MIDDLE;
     scan = 90003;
   }
-  else {
+  else if(button == 3) {
     btn_type = BTN_RIGHT;
     scan = 90002;
+  }
+  else if(button == 4) {
+    btn_type = BTN_SIDE;
+    scan = 90004;
+  }
+  else {
+    btn_type = BTN_EXTRA;
+    scan = 90005;
   }
 
   auto mouse = ((input_raw_t*)input.get())->mouse_input.get();
@@ -168,6 +176,10 @@ uint16_t keysym(uint16_t modcode) {
       return XK_Alt_L;
     case 0xA5: /* return XK_Alt_R; */
       return XK_Super_L;
+    case 0x5B:
+      return XK_Super_L;
+    case 0x5C:
+      return XK_Super_R;
     case 0xBA:
       return XK_semicolon;
     case 0xBB:
@@ -190,10 +202,6 @@ uint16_t keysym(uint16_t modcode) {
       return XK_bracketright;
     case 0xDE:
       return XK_apostrophe;
-    case 0x01: //FIXME: Moonlight doesn't support Super key
-      return XK_Super_L;
-    case 0x02:
-      return XK_Super_R;
   }
 
   return modcode;

@@ -14,7 +14,7 @@ struct input_t {
 
   platf::gamepad_state_t gamepad_state;
   std::unordered_map<short, bool> key_press;
-  std::array<std::uint8_t, 3> mouse_press;
+  std::array<std::uint8_t, 5> mouse_press;
 
   util::ThreadPool::task_id_t back_timeout_id;
 
