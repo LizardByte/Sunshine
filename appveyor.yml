@@ -1,4 +1,6 @@
-image: Ubuntu
+image:
+  - Ubuntu
+  - Visual Studio 2019
 
 environment:
   matrix:
@@ -6,11 +8,12 @@ environment:
     - BUILD_TYPE: Release
 
 install:
-  - sudo add-apt-repository ppa:hnakamur/icu
-  - sudo add-apt-repository ppa:hnakamur/boost
-  - sudo apt update
-  - sudo apt install -y cmake libssl-dev libavdevice-dev libboost-thread1.67-dev libboost-filesystem1.67-dev libboost-log1.67-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
-  - sudo update-alternatives --set gcc /usr/bin/gcc-8
+  - sh: sudo add-apt-repository ppa:hnakamur/icu
+  - sh: sudo add-apt-repository ppa:hnakamur/boost
+  - sh: sudo apt update
+  - sh: sudo apt install -y cmake libssl-dev libavdevice-dev libboost-thread1.67-dev libboost-filesystem1.67-dev libboost-log1.67-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
+  - sh: sudo update-alternatives --set gcc /usr/bin/gcc-8
+  - cmd: C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost"
 
 before_build:
   - git submodule update --init --recursive
@@ -18,5 +21,8 @@ before_build:
   - cd build
 
 build_script:
-  - cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
-  - make -j$(nproc)
+  - cmd: set PATH=C:\msys64\mingw64\bin
+  - sh: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
+  - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -G "MinGW Makefiles" ..
+  - sh: make -j$(nproc)
+  - cmd: mingw32-make -j2
