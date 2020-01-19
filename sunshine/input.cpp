@@ -149,10 +149,6 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
       input->back_timeout_id = task_pool.pushDelayed([input]() {
         auto &state = input->gamepad_state;
 
-        // Release Back button
-//        state.buttonFlags &= ~platf::BACK;
-//        platf::gamepad(input->input, state);
-
         // Press Home button
         state.buttonFlags |= platf::HOME;
         platf::gamepad(input->input, state);

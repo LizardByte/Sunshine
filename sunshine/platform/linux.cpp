@@ -330,7 +330,6 @@ std::shared_ptr<display_t> display() {
   return shm_disp;
 }
 
-//FIXME: Pass frame_rate instead of hard coding it
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   std::unique_ptr<mic_attr_t> mic {
     new mic_attr_t {
