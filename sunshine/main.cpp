@@ -7,6 +7,7 @@
 #include <thread>
 #include <filesystem>
 #include <iostream>
+#include <csignal>
 
 #include <boost/log/common.hpp>
 #include <boost/log/sinks.hpp>
@@ -47,6 +48,18 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
 void log_flush() {
   sink->flush();
+}
+
+std::map<int, std::function<void()>> signal_handlers;
+void on_signal_forwarder(int sig) {
+  signal_handlers.at(sig)();
+}
+
+template<class FN>
+void on_signal(int sig, FN &&fn) {
+  signal_handlers.emplace(sig, std::forward<FN>(fn));
+
+  std::signal(sig, on_signal_forwarder);
 }
 
 int main(int argc, char *argv[]) {
@@ -96,6 +109,13 @@ int main(int argc, char *argv[]) {
   bl::core::get()->add_sink(sink);
   auto fg = util::fail_guard(log_flush);
 
+  // Create signal handler after logging has been initialized
+  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  on_signal(SIGINT, [shutdown_event]() {
+    BOOST_LOG(info) << "Interrupt handler called"sv;
+    shutdown_event->raise(true);
+  });
+
   auto proc_opt = proc::parse(config::stream.file_apps);
   if(!proc_opt) {
     return 7;
@@ -107,9 +127,9 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-  std::thread httpThread { nvhttp::start };
+  std::thread httpThread { nvhttp::start, shutdown_event };
+  stream::rtpThread(shutdown_event);
 
-  stream::rtpThread();
   httpThread.join();
 
   return 0;

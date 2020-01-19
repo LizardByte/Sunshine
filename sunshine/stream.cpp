@@ -94,7 +94,6 @@ struct audio_packet_raw_t {
 
 safe::event_t<launch_session_t> launch_event;
 
-//FIXME: This smells bad
 std::shared_ptr<input::input_t> input;
 
 struct config_t {
@@ -123,7 +122,7 @@ struct session_t {
 
   bool has_process;
 } session;
-std::atomic_bool has_session;
+std::atomic<state_e> session_state;
 
 void free_host(ENetHost *host) {
   std::for_each(host->peers, host->peers + host->peerCount, [](ENetPeer &peer_ref) {
@@ -165,8 +164,8 @@ void stop(session_t &session) {
   session.video_packets->stop();
   session.audio_packets->stop();
 
-  input::reset(input);
-  has_session.store(false);
+  auto expected = state_e::RUNNING;
+  session_state.compare_exchange_strong(expected, state_e::STOPPING);
 }
 
 class rtsp_server_t {
@@ -549,7 +548,11 @@ void controlThread(video::idr_event_t idr_events) {
     input::passthrough(input, std::move(plaintext));
   });
 
-  while(has_session) {
+  while(session_state == state_e::STARTING) {
+    std::this_thread::sleep_for(1ms);
+  }
+
+  while(session_state == state_e::RUNNING) {
     if(std::chrono::steady_clock::now() > session.pingTimeout) {
       BOOST_LOG(debug) << "Ping timeout"sv;
 
@@ -641,6 +644,10 @@ std::optional<udp::endpoint> recv_peer(std::shared_ptr<safe::queue_t<T>> &queue,
 }
 
 void audioThread() {
+  while(session_state == state_e::STARTING) {
+    std::this_thread::sleep_for(1ms);
+  }
+
   auto &config = session.config;
 
   asio::io_service io;
@@ -676,6 +683,10 @@ void audioThread() {
 }
 
 void videoThread(video::idr_event_t idr_events) {
+  while(session_state == state_e::STARTING) {
+    std::this_thread::sleep_for(1ms);
+  }
+
   auto &config = session.config;
 
   int lowseq = 0;
@@ -908,8 +919,15 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
   auto seqn_str = std::to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
-  if(has_session || !launch_event.peek()) {
+  auto expected_state = state_e::STOPPED;
+  auto abort = !session_state.compare_exchange_strong(expected_state, state_e::STARTING);
+
+  if(abort || !launch_event.peek()) {
     //Either already streaming or /launch has not been used
+
+    if(!abort) {
+      session_state.store(state_e::STOPPED);
+    }
 
     respond(host, peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
     return;
@@ -980,8 +998,6 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     return;
   }
 
-  has_session.store(true);
-
   auto &gcm_key  = launch_session->gcm_key;
   auto &iv       = launch_session->iv;
 
@@ -1001,6 +1017,7 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
   session.videoThread   = std::thread {videoThread, idr_events};
   session.controlThread = std::thread {controlThread, idr_events};
 
+  session_state.store(state_e::RUNNING);
   respond(host, peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 
@@ -1016,8 +1033,12 @@ void cmd_play(host_t &host, peer_t peer, msg_t &&req) {
   respond(host, peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 
-void rtpThread() {
+void rtpThread(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
   input = std::make_shared<input::input_t>();
+  auto fg = util::fail_guard([&]() {
+    input.reset();
+  });
+
   rtsp_server_t server(RTSP_SETUP_PORT);
 
   server.map("OPTIONS"sv, &cmd_option);
@@ -1027,13 +1048,10 @@ void rtpThread() {
 
   server.map("PLAY"sv, &cmd_play);
 
-  while(true) {
-    server.iterate(config::stream.ping_timeout);
+  while(!shutdown_event->peek()) {
+    server.iterate(std::min(500ms, config::stream.ping_timeout));
 
-    if(session.video_packets && !session.video_packets->running()) {
-      // Ensure all threads are stopping
-      stop(session);
-
+    if(session_state == state_e::STOPPING) {
       BOOST_LOG(debug) << "Waiting for Audio to end..."sv;
       session.audioThread.join();
       BOOST_LOG(debug) << "Waiting for Video to end..."sv;
@@ -1044,7 +1062,29 @@ void rtpThread() {
       BOOST_LOG(debug) << "Resetting Session..."sv << std::endl;
       session.video_packets = video::packet_queue_t();
       session.audio_packets = audio::packet_queue_t();
+
+      input::reset(input);
+
+      session_state.store(state_e::STOPPED);
     }
+  }
+
+  if(session_state != state_e::STOPPED) {
+    // Wait until the session is properly running
+    while(session_state == state_e::STARTING) {
+      std::this_thread::sleep_for(1ms);
+    }
+
+    stop(session);
+
+    BOOST_LOG(debug) << "Waiting for Audio to end..."sv;
+    session.audioThread.join();
+    BOOST_LOG(debug) << "Waiting for Video to end..."sv;
+    session.videoThread.join();
+    BOOST_LOG(debug) << "Waiting for Control to end..."sv;
+    session.controlThread.join();
+
+    input::reset(input);
   }
 }
 

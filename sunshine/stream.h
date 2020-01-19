@@ -9,7 +9,15 @@
 
 #include "crypto.h"
 #include "thread_safe.h"
+
 namespace stream {
+
+enum class state_e : int {
+  STOPPED,
+  STOPPING,
+  STARTING,
+  RUNNING,
+};
 
 struct launch_session_t {
   crypto::aes_t gcm_key;
@@ -19,9 +27,9 @@ struct launch_session_t {
 };
 
 extern safe::event_t<launch_session_t> launch_event;
-extern std::atomic_bool has_session;
+extern std::atomic<state_e> session_state;
 
-void rtpThread();
+void rtpThread(std::shared_ptr<safe::event_t<bool>> shutdown_event);
 
 }
 

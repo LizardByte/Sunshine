@@ -29,6 +29,7 @@ public:
     _cv.notify_all();
   }
 
+  // pop and view shoud not be used interchangebly
   status_t pop() {
     std::unique_lock ul{_lock};
 
@@ -47,6 +48,25 @@ public:
     auto val = std::move(_status);
     _status = util::false_v<status_t>;
     return val;
+  }
+
+  // pop and view shoud not be used interchangebly
+  const status_t &view() {
+    std::unique_lock ul{_lock};
+
+    if (!_continue) {
+      return util::false_v<status_t>;
+    }
+
+    while (!_status) {
+      _cv.wait(ul);
+
+      if (!_continue) {
+        return util::false_v<status_t>;
+      }
+    }
+
+    return _status;
   }
 
   bool peek() {

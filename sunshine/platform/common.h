@@ -70,6 +70,7 @@ public:
   virtual ~mic_t() = default;
 };
 
+
 void freeInput(void*);
 
 using input_t = util::safe_ptr<void, freeInput>;

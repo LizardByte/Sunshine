@@ -519,7 +519,7 @@ void launch(resp_https_t response, req_https_t request) {
 
   stream::launch_session_t launch_session;
 
-  if(stream::has_session) {
+  if(stream::session_state != stream::state_e::STOPPED) {
     tree.put("root.<xmlattr>.status_code", 503);
     tree.put("root.gamesession", 0);
 
@@ -576,7 +576,7 @@ void resume(resp_https_t response, req_https_t request) {
   });
 
   auto current_appid = proc::proc.running();
-  if(current_appid == -1 || stream::has_session) {
+  if(current_appid == -1 || stream::session_state != stream::state_e::STOPPED) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
@@ -620,7 +620,7 @@ void cancel(resp_https_t response, req_https_t request) {
     return;
   }
 
-  if(stream::has_session) {
+  if(stream::session_state != stream::state_e::STOPPED) {
     tree.put("root.<xmlattr>.status_code", 503);
     tree.put("root.cancel", 0);
 
@@ -640,7 +640,7 @@ void appasset(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in);
 }
 
-void start() {
+void start(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
   local_ip = platf::get_local_ip();
   origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
 
@@ -733,6 +733,12 @@ void start() {
 
   std::thread ssl { &https_server_t::start, &https_server };
   std::thread tcp { &http_server_t::start, &http_server };
+
+  // Wait for any event
+  shutdown_event->view();
+
+  https_server.stop();
+  http_server.stop();
 
   ssl.join();
   tcp.join();
