@@ -1,3 +1,5 @@
+######### Linux ##############
+
 Requirements:
 	Ubuntu 19.10: cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
 
@@ -22,6 +24,36 @@ Setup:
 
 	* assets/apps.json is an example of a list of applications that are started just before running a stream:
 		* See below for a detailed explanation
+
+Trouleshooting:
+	* If you get "Could not create Sunshine Gamepad: Permission Denied" Try the following steps before running sunshine:
+		* sudo chown root:input /dev/uinput
+		* sudo chmod 660 /dev/uinput
+	* If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
+		* pacmd list-sources | grep "name:"
+		* Copy the name to the configuration option "audio_sink"
+		* restart sunshine
+
+
+
+######### Windows ############
+
+Requirements:
+	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost
+
+Compilation:
+	* git clone <repository> --recurse-submodules
+	* mkdir build && cd build
+	* cmake -G"Unix Makefiles" ..
+	* make
+
+Setup:
+	* <optional> Gamepad support: Download and run 'ViGEmBus_Setup_1.16.116.exe' from [https://github.com/ViGEm/ViGEmBus/releases]
+
+
+
+
+######### Common #############
 
 Usage:
 	* run "sunshine path/to/sunshine.conf"
@@ -70,15 +102,6 @@ Application List:
 				* If it fails, Sunshine is terminated
 		* cmd <optional>: The main application
 			* If not specified, a processs is started that sleeps indefinitely
-
-Trouleshooting:
-	* If you get "Could not create Sunshine Gamepad: Permission Denied" Try the following steps before running sunshine:
-		* sudo chown root:input /dev/uinput
-		* sudo chmod 660 /dev/uinput
-	* If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
-		* pacmd list-sources | grep "name:"
-		* Copy the name to the configuration option "audio_sink"
-		* restart sunshine
 
 When an application is started, if there is an application already running, it will be terminated.
 When the application has been shutdown, the stream shuts down as well.
