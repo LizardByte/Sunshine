@@ -22,6 +22,7 @@
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "network.h"
+#include "uuid.h"
 #include "main.h"
 
 
@@ -75,6 +76,7 @@ struct pair_session_t {
 // uniqueID, session
 std::unordered_map<std::string, pair_session_t> map_id_sess;
 std::unordered_map<std::string, client_t> map_id_client;
+std::string unique_id;
 std::string local_ip;
 net::net_e origin_pin_allowed;
 
@@ -89,9 +91,10 @@ enum class op_e {
   REMOVE
 };
 
-void save_devices() {
+void save_state() {
   pt::ptree root;
 
+  root.put("root.uniqueid", unique_id);
   auto &nodes = root.add_child("root.devices", pt::ptree {});
   for(auto &[_,client] : map_id_client) {
     pt::ptree node;
@@ -109,34 +112,36 @@ void save_devices() {
     nodes.push_back(std::make_pair(""s, node));
   }
 
-  pt::write_json(config::nvhttp.file_devices, root);
+  pt::write_json(config::nvhttp.file_state, root);
 }
 
-void load_devices() {
-  auto file_devices = fs::current_path() / config::nvhttp.file_devices;
+void load_state() {
+  auto file_state = fs::current_path() / config::nvhttp.file_state;
 
-  if(!fs::exists(file_devices)) {
+  if(!fs::exists(file_state)) {
+    unique_id = util::uuid_t::generate().string();
     return;
   }
 
   pt::ptree root;
   try {
-    pt::read_json(config::nvhttp.file_devices, root);
+    pt::read_json(config::nvhttp.file_state, root);
   } catch (std::exception &e) {
     BOOST_LOG(warning) << e.what();
 
     return;
   }
 
-  auto nodes = root.get_child("root.devices");
+  unique_id = root.get<std::string>("root.uniqueid");
+  auto device_nodes = root.get_child("root.devices");
 
-  for(auto &[_,node] : nodes) {
-    auto uniqID = node.get<std::string>("uniqueid");
+  for(auto &[_,device_node] : device_nodes) {
+    auto uniqID = device_node.get<std::string>("uniqueid");
     auto &client = map_id_client.emplace(uniqID, client_t {}).first->second;
 
     client.uniqueID = uniqID;
 
-    for(auto &[_, el] : node.get_child("certs")) {
+    for(auto &[_, el] : device_node.get_child("certs")) {
       client.certs.emplace_back(el.get_value<std::string>());
     }
   }
@@ -156,7 +161,7 @@ void update_id_client(const std::string &uniqueID, std::string &&cert, op_e op) 
       break;
   }
 
-  save_devices();
+  save_state();
 }
 
 void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin) {
@@ -436,7 +441,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 
   tree.put("root.appversion", VERSION);
   tree.put("root.GfeVersion", GFE_VERSION);
-  tree.put("root.uniqueid", config::nvhttp.unique_id);
+  tree.put("root.uniqueid", unique_id);
   tree.put("root.mac", "00:00:00:00:00:00");
   tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 0 ? "1869449984" : "0");
   tree.put("root.LocalIP", local_ip);
@@ -658,7 +663,7 @@ void start(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
     std::abort();
   }
 
-  load_devices();
+  load_state();
 
   conf_intern.pkey = read_file(config::nvhttp.pkey.c_str());
   conf_intern.servercert = read_file(config::nvhttp.cert.c_str());

@@ -39,8 +39,7 @@ struct nvhttp_t {
 
   std::string sunshine_name;
 
-  std::string unique_id; //UUID
-  std::string file_devices;
+  std::string file_state;
 
   std::string external_ip;
 };
