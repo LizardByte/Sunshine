@@ -293,6 +293,10 @@ public:
           break;
         case ENET_EVENT_TYPE_DISCONNECT:
           BOOST_LOG(info) << "CLIENT DISCONNECTED"sv;
+          // No more clients to send video data to ^_^
+          if(session_state == state_e::RUNNING) {
+            stop(session);
+          }
           break;
         case ENET_EVENT_TYPE_NONE:
           break;
