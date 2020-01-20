@@ -21,7 +21,7 @@ video_t video {
 
   4, // threads
 
-  "baseline"s, // profile
+  0, // hevc_mode
   "superfast"s, // preset
   "zerolatency"s // tune
 };
@@ -158,7 +158,9 @@ void parse_file(const char *file) {
   int_f(vars, "crf", video.crf);
   int_f(vars, "qp", video.qp);
   int_f(vars, "threads", video.threads);
-  string_f(vars, "profile", video.profile);
+  int_between_f(vars, "hevc_mode", video.hevc_mode, {
+    0, 2
+  });
   string_f(vars, "preset", video.preset);
   string_f(vars, "tune", video.tune);
 

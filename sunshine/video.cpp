@@ -90,7 +90,14 @@ void encodeThread(
   config_t config) {
   int framerate = config.framerate;
 
-  auto codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+  AVCodec *codec;
+
+  if(config.videoFormat == 0) {
+    codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+  }
+  else {
+    codec = avcodec_find_encoder(AV_CODEC_ID_HEVC);
+  }
 
   ctx_t ctx{avcodec_alloc_context3(codec)};
 
@@ -100,7 +107,53 @@ void encodeThread(
   ctx->height = config.height;
   ctx->time_base = AVRational{1, framerate};
   ctx->framerate = AVRational{framerate, 1};
-  ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+
+  if(config.videoFormat == 0) {
+    ctx->profile = FF_PROFILE_H264_HIGH;
+  }
+  else if(config.dynamicRange == 0) {
+    ctx->profile = FF_PROFILE_HEVC_MAIN;
+  }
+  else {
+    ctx->profile = FF_PROFILE_HEVC_MAIN_10;
+  }
+
+  if(config.dynamicRange == 0) {
+    ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+  }
+  else {
+    ctx->pix_fmt = AV_PIX_FMT_YUV420P10;
+  }
+
+  ctx->color_range = (config.encoderCscMode & 0x1) ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
+
+  int swsColorSpace;
+  switch (config.encoderCscMode >> 1) {
+    case 0:
+    default:
+      // Rec. 601
+      ctx->color_primaries = AVCOL_PRI_SMPTE170M;
+      ctx->color_trc = AVCOL_TRC_SMPTE170M;
+      ctx->colorspace = AVCOL_SPC_SMPTE170M;
+      swsColorSpace = SWS_CS_SMPTE170M;
+      break;
+
+    case 1:
+      // Rec. 709
+      ctx->color_primaries = AVCOL_PRI_BT709;
+      ctx->color_trc = AVCOL_TRC_BT709;
+      ctx->colorspace = AVCOL_SPC_BT709;
+      swsColorSpace = SWS_CS_ITU709;
+      break;
+
+    case 2:
+      // Rec. 2020
+      ctx->color_primaries = AVCOL_PRI_BT2020;
+      ctx->color_trc = AVCOL_TRC_BT2020_10;
+      ctx->colorspace = AVCOL_SPC_BT2020_NCL;
+      swsColorSpace = SWS_CS_BT2020;
+      break;
+  }
 
   // B-frames delay decoder output, so never use them
   ctx->max_b_frames = 0;
@@ -118,7 +171,6 @@ void encodeThread(
 
 
   AVDictionary *options {nullptr};
-  av_dict_set(&options, "profile", config::video.profile.c_str(), 0);
   av_dict_set(&options, "preset", config::video.preset.c_str(), 0);
   av_dict_set(&options, "tune", config::video.tune.c_str(), 0);
 
@@ -134,6 +186,14 @@ void encodeThread(
   }
   else {
     av_dict_set_int(&options, "qp", config::video.qp, 0);
+  }
+
+  if(config.videoFormat == 1) {
+    // x265's Info SEI is so long that it causes the IDR picture data to be
+    // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
+    // It also looks like gop_size isn't passed on to x265, so we have to set
+    // 'keyint=-1' in the parameters ourselves.
+    av_dict_set(&options, "x265-params", "info=0:keyint=-1", 0);
   }
   
   ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
@@ -169,6 +229,10 @@ void encodeThread(
           ctx->width, ctx->height, ctx->pix_fmt,
           SWS_LANCZOS | SWS_ACCURATE_RND,
           nullptr, nullptr, nullptr));
+
+      sws_setColorspaceDetails(sws.get(), sws_getCoefficients(SWS_CS_DEFAULT), 0,
+                               sws_getCoefficients(swsColorSpace), config.encoderCscMode & 0x1,
+                               0, 1 << 16, 1 << 16);
     }
 
     if(idr_events->peek()) {
