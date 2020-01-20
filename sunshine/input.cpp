@@ -140,25 +140,51 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
     packet->rightStickY
   };
 
-  bf = gamepad_state.buttonFlags ^ input->gamepad_state.buttonFlags;
   auto bf_new = gamepad_state.buttonFlags;
+  switch(input->back_button_state) {
+    case button_state_e::UP:
+      if(!(platf::BACK & bf_new)) {
+        input->back_button_state = button_state_e::NONE;
+      }
+      gamepad_state.buttonFlags &= ~platf::BACK;
+      break;
+    case button_state_e::DOWN:
+      if(platf::BACK & bf_new) {
+        input->back_button_state = button_state_e::NONE;
+      }
+      gamepad_state.buttonFlags |= platf::BACK;
+      break;
+    case button_state_e::NONE:
+      break;
+  }
 
-  // up pressed == -1, down pressed == 1, else 0
+  bf = gamepad_state.buttonFlags ^ input->gamepad_state.buttonFlags;
+  bf_new = gamepad_state.buttonFlags;
+
   if (platf::BACK & bf) {
     if (platf::BACK & bf_new) {
-      input->back_timeout_id = task_pool.pushDelayed([input]() {
-        auto &state = input->gamepad_state;
 
-        // Press Home button
-        state.buttonFlags |= platf::HOME;
-        platf::gamepad(input->input, state);
+      // Don't emulate home button if timeout < 0
+      if(config::input.back_button_timeout >= 0ms) {
+        input->back_timeout_id = task_pool.pushDelayed([input]() {
+          auto &state = input->gamepad_state;
 
-        // Release Home button
-        state.buttonFlags &= ~platf::HOME;
-        platf::gamepad(input->input, state);
+          // Force the back button up
+          input->back_button_state = button_state_e::UP;
+          state.buttonFlags &= ~platf::BACK;
+          platf::gamepad(input->input, state);
 
-        input->back_timeout_id = nullptr;
-      }, config::input.back_button_timeout).task_id;
+          // Press Home button
+          state.buttonFlags |= platf::HOME;
+          platf::gamepad(input->input, state);
+
+          // Release Home button
+          state.buttonFlags &= ~platf::HOME;
+          platf::gamepad(input->input, state);
+
+          input->back_timeout_id = nullptr;
+        }, config::input.back_button_timeout).task_id;
+      }
     }
     else if (input->back_timeout_id) {
       task_pool.cancel(input->back_timeout_id);

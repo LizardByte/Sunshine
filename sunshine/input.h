@@ -9,6 +9,11 @@
 #include "thread_pool.h"
 
 namespace input {
+enum class button_state_e {
+  NONE,
+  DOWN,
+  UP
+};
 struct input_t {
   input_t();
 
@@ -19,6 +24,13 @@ struct input_t {
   util::ThreadPool::task_id_t back_timeout_id;
 
   platf::input_t input;
+
+  // When emulating the HOME button, we may need to artificially release the back button.
+  // Afterwards, the gamepad state on sunshine won't match the state on Moonlight
+  // To prevent Sunshine from sending erronious input data to the active application,
+  // Sunshine forces the button to be in a specific state until the gamepad state matches that of
+  // Moonlight once more.
+  button_state_e back_button_state {button_state_e::NONE };
 };
 
 void print(void *input);
