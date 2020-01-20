@@ -703,13 +703,21 @@ void videoThread(video::idr_event_t idr_events) {
 
     // make sure moonlight recognizes the nalu code for IDR frames
     if (packet->flags & AV_PKT_FLAG_KEY) {
-      //TODO: Not all encoders encode their IDR frames with `"\000\000\001e"`
-      auto seq_i_frame_old = "\000\000\001e"sv;
-      auto seq_i_frame = "\000\000\000\001e"sv;
-
-      assert(std::search(std::begin(payload), std::end(payload), std::begin(seq_i_frame), std::end(seq_i_frame)) ==
-             std::end(payload));
-      payload_new = replace(payload, seq_i_frame_old, seq_i_frame);
+      // TODO: Not all encoders encode their IDR frames with the 4 byte NALU prefix
+      if(config.monitor.videoFormat == 0) {
+        auto h264_i_frame_old = "\000\000\001e"sv;
+        auto h264_i_frame = "\000\000\000\001e"sv;
+        assert(std::search(std::begin(payload), std::end(payload), std::begin(h264_i_frame), std::end(h264_i_frame)) ==
+               std::end(payload));
+        payload_new = replace(payload, h264_i_frame_old, h264_i_frame);
+      }
+      else {
+        auto hevc_i_frame_old = "\000\000\001("sv;
+        auto hevc_i_frame = "\000\000\000\001("sv;
+        assert(std::search(std::begin(payload), std::end(payload), std::begin(hevc_i_frame), std::end(hevc_i_frame)) ==
+               std::end(payload));
+        payload_new = replace(payload, hevc_i_frame_old, hevc_i_frame);
+      }
 
       payload = {(char *) payload_new.data(), payload_new.size()};
     }
@@ -858,7 +866,7 @@ void cmd_describe(host_t &host, peer_t peer, msg_t&& req) {
   option.content = const_cast<char*>(seqn_str.c_str());
 
   // FIXME: Moonlight will accept the payload, but the value of the option is not correct
-  respond(host, peer, &option, 200, "OK", req->sequenceNumber, "surround-params=NONE"sv);
+  respond(host, peer, &option, 200, "OK", req->sequenceNumber, "sprop-parameter-sets=AAAAAU;surround-params=NONE"sv);
 }
 
 void cmd_setup(host_t &host, peer_t peer, msg_t &&req) {
@@ -958,6 +966,12 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     }
   }
 
+  // Initialize any omitted parameters to defaults
+  args.try_emplace("x-nv-video[0].encoderCscMode"sv, "0"sv);
+  args.try_emplace("x-nv-vqos[0].bitStreamFormat"sv, "0"sv);
+  args.try_emplace("x-nv-video[0].dynamicRangeMode"sv, "0"sv);
+  args.try_emplace("x-nv-aqos.packetDuration"sv, "5"sv);
+
   try {
 
     auto &config = session.config;
@@ -973,6 +987,9 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     config.monitor.bitrate        = util::from_view(args.at("x-nv-vqos[0].bw.maximumBitrateKbps"sv));
     config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
     config.monitor.numRefFrames   = util::from_view(args.at("x-nv-video[0].maxNumReferenceFrames"sv));
+    config.monitor.encoderCscMode = util::from_view(args.at("x-nv-video[0].encoderCscMode"sv));
+    config.monitor.videoFormat    = util::from_view(args.at("x-nv-vqos[0].bitStreamFormat"sv));
+    config.monitor.dynamicRange   = util::from_view(args.at("x-nv-video[0].dynamicRangeMode"sv));
 
   } catch(std::out_of_range &) {
 

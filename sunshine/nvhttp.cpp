@@ -437,13 +437,21 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   tree.put("root.appversion", VERSION);
   tree.put("root.GfeVersion", GFE_VERSION);
   tree.put("root.uniqueid", config::nvhttp.unique_id);
-  tree.put("root.mac", "42:45:F0:65:D6:F4");
+  tree.put("root.mac", "00:00:00:00:00:00");
+  tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 0 ? "1869449984" : "0");
   tree.put("root.LocalIP", local_ip);
 
-  if(config::nvhttp.external_ip.empty()) {
-    tree.put("root.ExternalIP", local_ip);
+  if(config::video.hevc_mode == 2) {
+    tree.put("root.ServerCodecModeSupport", "3843");
+  }
+  else if(config::video.hevc_mode == 1) {
+    tree.put("root.ServerCodecModeSupport", "259");
   }
   else {
+    tree.put("root.ServerCodecModeSupport", "3");
+  }
+
+  if(!config::nvhttp.external_ip.empty()) {
     tree.put("root.ExternalIP", config::nvhttp.external_ip);
   }
 
@@ -485,7 +493,7 @@ void applist(resp_https_t response, req_https_t request) {
   pt::ptree desktop;
 
   apps.put("<xmlattr>.status_code", 200);
-  desktop.put("IsHdrSupported"s, 0);
+  desktop.put("IsHdrSupported"s, config::video.hevc_mode == 2 ? 1 : 0);
   desktop.put("AppTitle"s, "Desktop");
   desktop.put("ID"s, 1);
 
@@ -493,7 +501,7 @@ void applist(resp_https_t response, req_https_t request) {
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
-    app.put("IsHdrSupported"s, 0);
+    app.put("IsHdrSupported"s, config::video.hevc_mode == 2 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
     app.put("ID"s, x++);
 

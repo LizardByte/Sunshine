@@ -12,7 +12,7 @@ struct video_t {
 
   int threads; // Number threads used by ffmpeg
 
-  std::string profile;
+  int hevc_mode;
   std::string preset;
   std::string tune;
 };
