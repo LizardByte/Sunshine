@@ -77,7 +77,6 @@ struct pair_session_t {
 std::unordered_map<std::string, pair_session_t> map_id_sess;
 std::unordered_map<std::string, client_t> map_id_client;
 std::string unique_id;
-std::string local_ip;
 net::net_e origin_pin_allowed;
 
 using args_t = SimpleWeb::CaseInsensitiveMultimap;
@@ -442,9 +441,9 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   tree.put("root.appversion", VERSION);
   tree.put("root.GfeVersion", GFE_VERSION);
   tree.put("root.uniqueid", unique_id);
-  tree.put("root.mac", "00:00:00:00:00:00");
+  tree.put("root.mac", platf::get_mac_address(request->local_endpoint_address()));
   tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 0 ? "1869449984" : "0");
-  tree.put("root.LocalIP", local_ip);
+  tree.put("root.LocalIP", request->local_endpoint_address());
 
   if(config::video.hevc_mode == 2) {
     tree.put("root.ServerCodecModeSupport", "3843");
@@ -654,15 +653,7 @@ void appasset(resp_https_t response, req_https_t request) {
 }
 
 void start(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
-  local_ip = platf::get_local_ip();
   origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
-
-  if(local_ip.empty()) {
-    BOOST_LOG(fatal) << "Could not determine the local ip-address"sv;
-    log_flush();
-    std::abort();
-  }
-
   load_state();
 
   conf_intern.pkey = read_file(config::nvhttp.pkey.c_str());

@@ -5,6 +5,8 @@
 #include "common.h"
 #include "../main.h"
 
+#include <fstream>
+
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -385,41 +387,21 @@ std::string from_sockaddr(const sockaddr *const ip_addr) {
   return std::string { data };
 }
 
-std::string get_local_ip(int family) {
-  std::bitset<2> family_f {};
-
-  if(family == 0) {
-    family_f[0] = true;
-    family_f[1] = true;
-  }
-
-  if(family == AF_INET) {
-    family_f[0] = true;
-  }
-
-  if(family == AF_INET6) {
-    family_f[1] = true;
-  }
-
-
-  std::string ip_addr;
-  auto ifaddr = get_ifaddrs();
-  for(auto pos = ifaddr.get(); pos != nullptr; pos = pos->ifa_next) {
-    if(pos->ifa_addr && pos->ifa_flags & IFF_UP && !(pos->ifa_flags & IFF_LOOPBACK)) {
-      if(
-        (family_f[0] && pos->ifa_addr->sa_family == AF_INET) ||
-        (family_f[1] && pos->ifa_addr->sa_family == AF_INET6)
-        ){
-        ip_addr = from_sockaddr(pos->ifa_addr);
-        break;
+std::string get_mac_address(const std::string_view &address) {
+  auto ifaddrs = get_ifaddrs();
+  for(auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
+    if(pos->ifa_addr && address == from_sockaddr(pos->ifa_addr)) {
+      std::ifstream mac_file("/sys/class/net/"s + pos->ifa_name + "/address");
+      if(mac_file.good()) {
+        std::string mac_address;
+        std::getline(mac_file, mac_address);
+        return mac_address;
       }
     }
   }
-
-  return ip_addr;
+  BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
+  return "00:00:00:00:00:00"s;
 }
-
-std::string get_local_ip() { return get_local_ip(AF_INET); }
 
 void freeImage(XImage *p) {
   XDestroyImage(p);

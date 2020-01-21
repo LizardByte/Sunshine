@@ -75,7 +75,7 @@ void freeInput(void*);
 
 using input_t = util::safe_ptr<void, freeInput>;
 
-std::string get_local_ip();
+std::string get_mac_address(const std::string_view &address);
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
 std::shared_ptr<display_t> display();
