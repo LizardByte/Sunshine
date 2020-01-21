@@ -880,8 +880,15 @@ void cmd_describe(host_t &host, peer_t peer, msg_t&& req) {
   auto seqn_str = std::to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
-  // FIXME: Moonlight will accept the payload, but the value of the option is not correct
-  respond(host, peer, &option, 200, "OK", req->sequenceNumber, "sprop-parameter-sets=AAAAAU;surround-params=NONE"sv);
+  std::string_view payload;
+  if(config::video.hevc_mode == 0) {
+    payload = "surround-params=NONE"sv;
+  }
+  else {
+    payload = "sprop-parameter-sets=AAAAAU;surround-params=NONE"sv;
+  }
+
+  respond(host, peer, &option, 200, "OK", req->sequenceNumber, payload);
 }
 
 void cmd_setup(host_t &host, peer_t peer, msg_t &&req) {
@@ -1018,6 +1025,14 @@ void cmd_announce(host_t &host, peer_t peer, msg_t &&req) {
     respond(host, peer, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
     return;
   }
+
+  if(session.config.monitor.videoFormat != 0 && config::video.hevc_mode == 0) {
+    BOOST_LOG(error) << "HEVC is disabled, yet the client requested HEVC"sv;
+
+    respond(host, peer, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
+    return;
+  }
+
 
   auto &gcm_key  = launch_session->gcm_key;
   auto &iv       = launch_session->iv;
