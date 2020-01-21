@@ -105,6 +105,8 @@ void string_f(std::unordered_map<std::string, std::string> &vars, const std::str
   }
 
   input = std::move(it->second);
+
+  vars.erase(it);
 }
 
 void string_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input, const std::vector<std::string_view> &allowed_vals) {
@@ -128,6 +130,8 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
 
   auto &val = it->second;
   input = util::from_chars(&val[0], &val[0] + val.size());
+
+  vars.erase(it);
 }
 
 void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
@@ -218,6 +222,12 @@ void parse_file(const char *file) {
     }
     else if(log_level_string == "none"sv) {
       sunshine.min_log_level = 6;
+    }
+  }
+
+  if(sunshine.min_log_level <= 3) {
+    for(auto &[var,_] : vars) {
+      std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
     }
   }
 }
