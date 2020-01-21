@@ -21,8 +21,16 @@ before_build:
   - cd build
 
 build_script:
+  - cmd: set OLDPATH=%PATH%
   - cmd: set PATH=C:\msys64\mingw64\bin
   - sh: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
-  - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -G "MinGW Makefiles" ..
+  - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -DSUNSHINE_ROOT=. -G "MinGW Makefiles" ..
   - sh: make -j$(nproc)
   - cmd: mingw32-make -j2
+  - cmd: set PATH=%OLDPATH%
+
+after_build:
+  - cmd: 7z a Sunshine-Windows.zip C:\msys64\mingw64\bin\*.dll
+  - cmd: 7z a Sunshine-Windows.zip ..\assets\
+  - cmd: 7z a Sunshine-Windows.zip sunshine.exe
+  - cmd: appveyor PushArtifact Sunshine-Windows.zip

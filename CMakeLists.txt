@@ -118,6 +118,10 @@ else()
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)
 endif()
 
+if(NOT SUNSHINE_ROOT)
+	set(SUNSHINE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${CMAKE_THREAD_LIBS_INIT}
 		stdc++fs
@@ -128,7 +132,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${Boost_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
-add_definitions(-DSUNSHINE_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+add_definitions(-DSUNSHINE_ASSETS_DIR="${SUNSHINE_ROOT}/assets")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
