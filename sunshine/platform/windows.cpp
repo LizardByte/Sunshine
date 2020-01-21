@@ -57,7 +57,9 @@ public:
   client_t client;
 };
 
-std::string get_local_ip() { return "192.168.0.119"s; }
+std::string get_mac_address(const std::string_view &address) {
+  return "00:00:00:00:00:00"s;
+}
 
 input_t input() {
   input_t result { new vigem_t {} };
