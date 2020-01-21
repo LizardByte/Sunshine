@@ -165,10 +165,12 @@ void encodeThread(
   // Some client decoders have limits on the number of reference frames
   ctx->refs = config.numRefFrames;
 
-  ctx->slices = config.slicesPerFrame;
+  // Clients will request for the fewest slices per frame to get the
+  // most efficient encode, but we may want to provide more slices than
+  // requested to ensure we have enough parallelism for good performance.
+  ctx->slices = std::max(config.slicesPerFrame, config::video.min_threads);
   ctx->thread_type = FF_THREAD_SLICE;
-  ctx->thread_count = std::min(ctx->slices, config::video.threads);
-
+  ctx->thread_count = ctx->slices;
 
   AVDictionary *options {nullptr};
   av_dict_set(&options, "preset", config::video.preset.c_str(), 0);

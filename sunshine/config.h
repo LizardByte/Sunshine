@@ -10,7 +10,7 @@ struct video_t {
   int crf; // higher == more compression and less quality
   int qp; // higher == more compression and less quality, ignored if crf != 0
 
-  int threads; // Number threads used by ffmpeg
+  int min_threads; // Minimum number of threads/slices for CPU encoding
 
   int hevc_mode;
   std::string preset;

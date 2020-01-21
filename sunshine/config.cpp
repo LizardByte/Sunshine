@@ -19,7 +19,7 @@ video_t video {
   35, // crf
   35, // qp
 
-  4, // threads
+  2, // min_threads
 
   0, // hevc_mode
   "superfast"s, // preset
@@ -156,7 +156,7 @@ void parse_file(const char *file) {
 
   int_f(vars, "crf", video.crf);
   int_f(vars, "qp", video.qp);
-  int_f(vars, "threads", video.threads);
+  int_f(vars, "min_threads", video.min_threads);
   int_between_f(vars, "hevc_mode", video.hevc_mode, {
     0, 2
   });
