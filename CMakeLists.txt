@@ -29,6 +29,7 @@ if(WIN32)
 		ksuser
 		wsock32
 		ws2_32
+		iphlpapi
 		windowsapp
 		d3d11 dxgi
 		setupapi)
