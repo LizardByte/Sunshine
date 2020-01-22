@@ -1,7 +1,12 @@
 #include <thread>
+#include <sstream>
+#include <iomanip>
 
+#include <Ws2tcpip.h>
+#include <Winsock2.h>
 #include <windows.h>
 #include <winuser.h>
+#include <iphlpapi.h>
 
 #include <ViGEm/Client.h>
 
@@ -10,6 +15,8 @@
 
 namespace platf {
 using namespace std::literals;
+
+using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
 class vigem_t {
 public:
@@ -57,7 +64,50 @@ public:
   client_t client;
 };
 
+std::string from_socket_address(const SOCKET_ADDRESS &socket_address) {
+  char data[INET6_ADDRSTRLEN];
+
+  auto family = socket_address.lpSockaddr->sa_family;
+  if(family == AF_INET6) {
+    inet_ntop(AF_INET6, &((sockaddr_in6*)socket_address.lpSockaddr)->sin6_addr, data, INET6_ADDRSTRLEN);
+  }
+
+  if(family == AF_INET) {
+    inet_ntop(AF_INET, &((sockaddr_in*)socket_address.lpSockaddr)->sin_addr, data, INET_ADDRSTRLEN);
+  }
+
+  return std::string { data };
+}
+
+adapteraddrs_t get_adapteraddrs() {
+  adapteraddrs_t info { nullptr };
+  ULONG size = 0;
+
+  while(GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, info.get(), &size) == ERROR_BUFFER_OVERFLOW) {
+    info.reset((PIP_ADAPTER_ADDRESSES)malloc(size));
+  }
+
+  return info;
+}
+
 std::string get_mac_address(const std::string_view &address) {
+  adapteraddrs_t info = get_adapteraddrs();
+  for(auto adapter_pos = info.get(); adapter_pos != nullptr; adapter_pos = adapter_pos->Next) {
+    for(auto addr_pos = adapter_pos->FirstUnicastAddress; addr_pos != nullptr; addr_pos = addr_pos->Next) {
+      if(adapter_pos->PhysicalAddressLength != 0 && address == from_socket_address(addr_pos->Address)) {
+        std::stringstream mac_addr;
+        mac_addr << std::hex;
+        for(int i = 0; i < adapter_pos->PhysicalAddressLength; i++) {
+          if(i > 0) {
+            mac_addr << ':';
+          }
+          mac_addr << std::setw(2) << std::setfill('0') << (int)adapter_pos->PhysicalAddress[i];
+        }
+        return mac_addr.str();
+      }
+    }
+  }
+  BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
   return "00:00:00:00:00:00"s;
 }
 
