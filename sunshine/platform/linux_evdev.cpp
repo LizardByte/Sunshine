@@ -153,11 +153,11 @@ uint16_t keysym(uint16_t modcode) {
     case 0x6B:
       return XK_KP_Add;
     case 0x6C:
-      return XK_KP_Decimal;
+      return XK_KP_Separator;
     case 0x6D:
       return XK_KP_Subtract;
     case 0x6E:
-      return XK_KP_Separator;
+      return XK_KP_Decimal;
     case 0x6F:
       return XK_KP_Divide;
     case 0x90:
