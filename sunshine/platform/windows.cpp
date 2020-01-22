@@ -219,12 +219,33 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   auto &ki = i.ki;
 
   // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
-  if(modcode != VK_LWIN && modcode != VK_RWIN) {
+  if(modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE) {
     ki.wScan = MapVirtualKey(modcode, MAPVK_VK_TO_VSC);
     ki.dwFlags = KEYEVENTF_SCANCODE;
   }
   else {
     ki.wVk = modcode;
+  }
+
+  // https://docs.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#keystroke-message-flags
+  switch(modcode) {
+    case VK_RMENU:
+    case VK_RCONTROL:
+    case VK_INSERT:
+    case VK_DELETE:
+    case VK_HOME:
+    case VK_END:
+    case VK_PRIOR:
+    case VK_NEXT:
+    case VK_UP:
+    case VK_DOWN:
+    case VK_LEFT:
+    case VK_RIGHT:
+    case VK_DIVIDE:
+      ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+      break;
+    default:
+      break;
   }
 
   if(release) {
