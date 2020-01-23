@@ -7,9 +7,8 @@
 		"name":"Steam BigPicture",
 
 		"output":"steam.txt",
-		"cmd":"steam -tenfoot",
 		"prep-cmd":[
-		{ "do":"steam -shutdown" }
+			{"do":"steam \"steam://open/bigpicture\""}
 		]
 	}
 	]

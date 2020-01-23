@@ -41,7 +41,7 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
 }
 
 int proc_t::execute(int app_id) {
-  if(!_process.running() && _app_id != -1) {
+  if(!running() && _app_id != -1) {
     // previous process exited on it's own, reset _process_handle
     _process_handle = bp::group();
 
@@ -91,7 +91,10 @@ int proc_t::execute(int app_id) {
   }
 
   BOOST_LOG(debug) << "Starting ["sv << proc.cmd << ']';
-  if(proc.output.empty() || proc.output == "null"sv) {
+  if(proc.cmd.empty()) {
+    placebo = true;
+  }
+  else if(proc.output.empty() || proc.output == "null"sv) {
     _process = bp::child(_process_handle, proc.cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
   else {
@@ -109,7 +112,7 @@ int proc_t::execute(int app_id) {
 }
 
 int proc_t::running() {
-  if(_process.running()) {
+  if(placebo || _process.running()) {
     return _app_id;
   }
 
@@ -120,6 +123,7 @@ void proc_t::terminate() {
   std::error_code ec;
 
   // Ensure child process is terminated
+  placebo = false;
   process_end(_process, _process_handle);
   _app_id = -1;
 
@@ -264,9 +268,6 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
 
       if(cmd) {
         ctx.cmd = parse_env_val(this_env, *cmd);
-      }
-      else {
-        ctx.cmd = "sh -c \"while true; do sleep 10000; done;\"";
       }
 
       ctx.name = std::move(name);

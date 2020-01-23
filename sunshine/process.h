@@ -75,6 +75,9 @@ private:
   boost::process::environment _env;
   std::vector<ctx_t> _apps;
 
+  // If no command associated with _app_id, yet it's still running
+  bool placebo {};
+
   boost::process::child _process;
   boost::process::group _process_handle;
 
