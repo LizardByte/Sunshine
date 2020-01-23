@@ -476,6 +476,7 @@ public:
       dxgi->SetMaximumFrameLatency(1);
     }
 
+    //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
     //TODO: Use IDXGIOutput5 for improved performance
     {
       dxgi::output1_t::pointer output1_p {};
