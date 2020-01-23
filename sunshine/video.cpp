@@ -46,7 +46,7 @@ void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::im
   av_frame_make_writable(yuv_frame.get());
 
   const int linesizes[2] {
-    (int)(img.width * sizeof(int)), 0
+    img.row_pitch, 0
   };
 
   auto data = img.data;

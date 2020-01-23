@@ -144,7 +144,7 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
     auto and_mask = &cursor_img_data[i * pitch];
     auto xor_mask = &cursor_img_data[(i + height) * pitch];
 
-    auto img_pixel_p = &img_data[(i + img_skip_y) * img.width + img_skip_x];
+    auto img_pixel_p = &img_data[(i + img_skip_y) * (img.row_pitch / img.pixel_pitch) + img_skip_x];
 
     auto skip_y = cursor_skip_y;
     for(int x = 0; x < bytes_per_row; ++x) {
@@ -198,7 +198,7 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img) {
     auto cursor_begin = &cursor_img_data[i * width + cursor_skip_x];
     auto cursor_end = &cursor_begin[delta_width];
 
-    auto img_pixel_p = &img_data[(i + img_skip_y) * img.width + img_skip_x];
+    auto img_pixel_p = &img_data[(i + img_skip_y) * (img.row_pitch / img.pixel_pitch) + img_skip_x];
     std::for_each(cursor_begin, cursor_end, [&](int cursor_pixel) {
       auto colors_out = (std::uint8_t*)&cursor_pixel;
       auto colors_in  = (std::uint8_t*)img_pixel_p;
@@ -313,6 +313,7 @@ public:
 
       img->width = width;
       img->height = height;
+      img->row_pitch = current_img.RowPitch;
     }
 
     std::copy_n((std::uint8_t*)current_img.pData, height * current_img.RowPitch, (std::uint8_t*)img->data);
@@ -329,6 +330,8 @@ public:
     img->data   = nullptr;
     img->height = 0;
     img->width  = 0;
+    img->row_pitch = 0;
+    img->pixel_pitch = 4;
 
     return img;
   }
