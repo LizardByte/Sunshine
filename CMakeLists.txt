@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
 project(Sunshine)
-# set up include-directories
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -12,7 +11,10 @@ find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
 
+list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 if(WIN32)
+	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
+
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_windows.json")
 	include_directories(
 		ViGEmClient/include)
@@ -108,8 +110,6 @@ include_directories(
   ${FFMPEG_INCLUDE_DIRS}
   ${PLATFORM_INCLUDE_DIRS}
 )
-
-list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
