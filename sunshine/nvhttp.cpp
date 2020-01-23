@@ -391,6 +391,12 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
 
   pt::ptree tree;
 
+  if(map_id_sess.empty()) {
+    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
+
+    return;
+  }
+
   auto &sess = std::begin(map_id_sess)->second;
   getservercert(sess, tree, request->path_match[1]);
 
