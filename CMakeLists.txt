@@ -13,6 +13,7 @@ find_package(OpenSSL REQUIRED)
 find_package(FFmpeg REQUIRED)
 
 if(WIN32)
+	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_windows.json")
 	include_directories(
 		ViGEmClient/include)
 	set(PLATFORM_TARGET_FILES
@@ -36,6 +37,8 @@ if(WIN32)
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 else()
+	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
+
 	find_package(X11 REQUIRED)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux.cpp
@@ -133,7 +136,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${Boost_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
-add_definitions(-DSUNSHINE_ASSETS_DIR="${SUNSHINE_ROOT}/assets")
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ROOT}/assets")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})

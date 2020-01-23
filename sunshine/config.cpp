@@ -12,7 +12,7 @@
 #define PRIVATE_KEY_FILE CA_DIR    "/cakey.pem"
 #define CERTIFICATE_FILE CA_DIR    "/cacert.pem"
 
-#define APPS_JSON SUNSHINE_ASSETS_DIR "/apps.json"
+#define APPS_JSON_PATH SUNSHINE_ASSETS_DIR "/" APPS_JSON
 namespace config {
 using namespace std::literals;
 video_t video {
@@ -31,7 +31,7 @@ audio_t audio {};
 stream_t stream {
   2s, // ping_timeout
 
-  APPS_JSON,
+  APPS_JSON_PATH,
 
   13 // fecPercentage
 };
