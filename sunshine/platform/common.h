@@ -40,6 +40,8 @@ public:
   std::uint8_t *data  {};
   std::int32_t width  {};
   std::int32_t height {};
+  std::int32_t pixel_pitch {};
+  std::int32_t row_pitch {};
 
   img_t() = default;
   img_t(const img_t&) = delete;
