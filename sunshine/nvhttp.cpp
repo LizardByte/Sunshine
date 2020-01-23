@@ -38,6 +38,7 @@ namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
 std::string read_file(const char *path);
+int write_file(const char *path, const std::string_view &contents);
 
 using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 using http_server_t  = SimpleWeb::Server<SimpleWeb::HTTP>;
@@ -652,7 +653,69 @@ void appasset(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in);
 }
 
+int create_creds(const std::string &pkey, const std::string &cert) {
+  fs::path pkey_path = pkey;
+  fs::path cert_path = cert;
+
+  auto creds = crypto::gen_creds("Sunshine Gamestream Host"sv, 2048);
+
+  auto pkey_dir = pkey_path;
+  auto cert_dir = cert_path;
+  pkey_dir.remove_filename();
+  cert_dir.remove_filename();
+
+  std::error_code err_code{};
+  fs::create_directories(pkey_dir, err_code);
+  if (err_code) {
+    BOOST_LOG(fatal) << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
+    return -1;
+  }
+
+  fs::create_directories(cert_dir, err_code);
+  if (err_code) {
+    BOOST_LOG(fatal) << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
+    return -1;
+  }
+
+  if (write_file(pkey.c_str(), creds.pkey)) {
+    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
+    return -1;
+  }
+
+  if (write_file(cert.c_str(), creds.x509)) {
+    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.cert << ']';
+    return -1;
+  }
+
+  fs::permissions(pkey_path,
+    fs::perms::owner_read | fs::perms::owner_write,
+    fs::perm_options::replace, err_code);
+
+  if (err_code) {
+    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
+    return -1;
+  }
+
+  fs::permissions(cert_path,
+    fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write,
+    fs::perm_options::replace, err_code);
+
+  if (err_code) {
+    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
+    return -1;
+  }
+
+  return 0;
+}
+
 void start(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
+  if(!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) {
+    if(create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
+      shutdown_event->raise(true);
+      return;
+    }
+  }
+
   origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
   load_state();
 
@@ -746,6 +809,18 @@ void start(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
 
   ssl.join();
   tcp.join();
+}
+
+int write_file(const char *path, const std::string_view &contents) {
+  std::ofstream out(path);
+
+  if(!out.is_open()) {
+    return -1;
+  }
+
+  out << contents;
+
+  return 0;
 }
 
 std::string read_file(const char *path) {

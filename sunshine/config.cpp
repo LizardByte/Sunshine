@@ -8,9 +8,9 @@
 #include "utility.h"
 #include "config.h"
 
-#define CA_DIR SUNSHINE_ASSETS_DIR "/demoCA"
-#define PRIVATE_KEY_FILE CA_DIR    "/cakey.pem"
-#define CERTIFICATE_FILE CA_DIR    "/cacert.pem"
+#define CA_DIR "credentials"
+#define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
+#define CERTIFICATE_FILE CA_DIR "/cacert.pem"
 
 #define APPS_JSON_PATH SUNSHINE_ASSETS_DIR "/" APPS_JSON
 namespace config {

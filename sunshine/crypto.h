@@ -15,6 +15,10 @@
 #include "utility.h"
 
 namespace crypto {
+struct creds_t {
+  std::string x509;
+  std::string pkey;
+};
 constexpr std::size_t digest_size = 256;
 
 void md_ctx_destroy(EVP_MD_CTX *);
@@ -35,10 +39,13 @@ aes_t gen_aes_key(const std::array<uint8_t, 16> &salt, const std::string_view &p
 
 x509_t x509(const std::string_view &x);
 pkey_t pkey(const std::string_view &k);
+std::string pem(x509_t &x509);
+std::string pem(pkey_t &pkey);
 
 std::vector<uint8_t> sign256(const pkey_t &pkey, const std::string_view &data);
 bool verify256(const x509_t &x509, const std::string_view &data, const std::string_view &signature);
 
+creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits);
 
 std::string_view signature(const x509_t &x);
 

@@ -5,6 +5,10 @@
 #include <openssl/pem.h>
 #include "crypto.h"
 namespace crypto {
+using big_num_t = util::safe_ptr<BIGNUM, BN_free>;
+//using rsa_t = util::safe_ptr<RSA, RSA_free>;
+using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
+
 cert_chain_t::cert_chain_t() : _certs {}, _cert_ctx {X509_STORE_CTX_new() } {}
 void cert_chain_t::add(x509_t &&cert) {
   x509_store_t x509_store { X509_STORE_new() };
@@ -200,6 +204,25 @@ pkey_t pkey(const std::string_view &k) {
   return pkey_t { p };
 }
 
+std::string pem(x509_t &x509) {
+  bio_t bio { BIO_new(BIO_s_mem()) };
+
+  PEM_write_bio_X509(bio.get(), x509.get());
+  BUF_MEM *mem_ptr;
+  BIO_get_mem_ptr(bio.get(), &mem_ptr);
+
+  return { mem_ptr->data, mem_ptr->length };
+}
+
+std::string pem(pkey_t &pkey) {
+  bio_t bio { BIO_new(BIO_s_mem()) };
+
+  PEM_write_bio_PrivateKey(bio.get(), pkey.get(), nullptr, nullptr, 0, nullptr, nullptr);
+  BUF_MEM *mem_ptr;
+  BIO_get_mem_ptr(bio.get(), &mem_ptr);
+
+  return { mem_ptr->data, mem_ptr->length };
+}
 
 std::string_view signature(const x509_t &x) {
   // X509_ALGOR *_ = nullptr;
@@ -240,6 +263,48 @@ std::vector<uint8_t> sign(const pkey_t &pkey, const std::string_view &data, cons
   }
 
   return digest;
+}
+
+creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits) {
+  x509_t x509 { X509_new() };
+  pkey_t pkey { EVP_PKEY_new() };
+
+  big_num_t big_num { BN_new() };
+  BN_set_word(big_num.get(), RSA_F4);
+
+  auto rsa = RSA_new();
+  RSA_generate_key_ex(rsa, key_bits, big_num.get(), nullptr);
+  EVP_PKEY_assign_RSA(pkey.get(), rsa);
+
+  X509_set_version(x509.get(), 2);
+  ASN1_INTEGER_set(X509_get_serialNumber(x509.get()), 0);
+
+  constexpr auto year = 60 * 60 * 24 * 365;
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+  X509_gmtime_adj(X509_get_notBefore(x509.get()), 0);
+  X509_gmtime_adj(X509_get_notAfter(x509.get()), 20 * year);
+#else
+  asn1_string_t not_before { ASN1_STRING_dup(X509_get0_notBefore(x509.get())) };
+  asn1_string_t not_after { ASN1_STRING_dup(X509_get0_notAfter(x509.get())) };
+
+  X509_gmtime_adj(not_before.get(), 0);
+  X509_gmtime_adj(not_after.get(), 20 * year);
+
+  X509_set1_notBefore(x509.get(), not_before.get());
+  X509_set1_notAfter(x509.get(), not_after.get());
+#endif
+
+  X509_set_pubkey(x509.get(), pkey.get());
+
+  auto name = X509_get_subject_name(x509.get());
+  X509_NAME_add_entry_by_txt(name,"CN", MBSTRING_ASC,
+    (const std::uint8_t*)cn.data(), cn.size(),
+    -1, 0);
+
+  X509_set_issuer_name(x509.get(), name);
+  X509_sign(x509.get(), pkey.get(), EVP_sha256());
+
+  return { pem(x509), pem(pkey) };
 }
 
 std::vector<uint8_t> sign256(const pkey_t &pkey, const std::string_view &data) {
