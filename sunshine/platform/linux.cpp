@@ -89,7 +89,7 @@ struct shm_img_t : public img_t {
   }
 };
 
-void blend_cursor(Display *display, std::uint8_t *img_data, int width, int height) {
+void blend_cursor(Display *display, img_t &img) {
   xcursor_t overlay { XFixesGetCursorImage(display) };
 
   if(!overlay) {
@@ -103,10 +103,10 @@ void blend_cursor(Display *display, std::uint8_t *img_data, int width, int heigh
   overlay->x = std::max((short)0, overlay->x);
   overlay->y = std::max((short)0, overlay->y);
 
-  auto pixels = (int*)img_data;
+  auto pixels = (int*)img.data;
 
-  auto screen_height = height;
-  auto screen_width  = width;
+  auto screen_height = img.height;
+  auto screen_width  = img.width;
 
   auto delta_height = std::min<uint16_t>(overlay->height, std::max(0, screen_height - overlay->y));
   auto delta_width = std::min<uint16_t>(overlay->width, std::max(0, screen_width - overlay->x));
@@ -115,7 +115,7 @@ void blend_cursor(Display *display, std::uint8_t *img_data, int width, int heigh
     auto overlay_begin = &overlay->pixels[y * overlay->width];
     auto overlay_end   = &overlay->pixels[y * overlay->width + delta_width];
 
-    auto pixels_begin = &pixels[(y + overlay->y) * screen_width + overlay->x];
+    auto pixels_begin = &pixels[(y + overlay->y) * (img.row_pitch / img.pixel_pitch) + overlay->x];
     std::for_each(overlay_begin, overlay_end, [&](long pixel) {
       int *pixel_p = (int*)&pixel;
 
@@ -166,10 +166,12 @@ struct x11_attr_t : public display_t {
     img_out->width = img->width;
     img_out->height = img->height;
     img_out->data = (uint8_t*)img->data;
+    img_out->row_pitch = img->bytes_per_line;
+    img_out->pixel_pitch = img->bits_per_pixel / 8;
     img_out->img.reset(img);
 
     if(cursor) {
-      blend_cursor(xdisplay.get(), (std::uint8_t*)img->data, img->width, img->height);
+      blend_cursor(xdisplay.get(), *img_out_base);
     }
 
     return capture_e::ok;
@@ -237,12 +239,14 @@ struct shm_attr_t : public x11_attr_t {
       img->data = new std::uint8_t[frame_size()];
       img->width = display->width_in_pixels;
       img->height = display->height_in_pixels;
+      img->pixel_pitch = 4;
+      img->row_pitch = img->width * img->pixel_pitch;
     }
 
     std::copy_n((std::uint8_t*)data.data, frame_size(), img->data);
 
     if(cursor) {
-      blend_cursor(shm_xdisplay.get(), img->data, img->width, img->height);
+      blend_cursor(shm_xdisplay.get(), *img);
     }
 
     return capture_e::ok;
