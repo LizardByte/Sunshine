@@ -7,6 +7,9 @@
 #include <d3dcommon.h>
 #include <dxgi1_2.h>
 
+#include <codecvt>
+#include <sunshine/config.h>
+
 #include "sunshine/main.h"
 #include "common.h"
 
@@ -370,15 +373,30 @@ public:
       return -1;
     }
 
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+
+    auto adapter_name = converter.from_bytes(config::video.adapter_name);
+    auto output_name = converter.from_bytes(config::video.output_name);
 
     for(int x = 0; factory_p->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
       dxgi::adapter_t adapter_tmp { adapter_p };
+
+      DXGI_ADAPTER_DESC1 adapter_desc;
+      adapter_tmp->GetDesc1(&adapter_desc);
+
+      if(!adapter_name.empty() && adapter_desc.Description != adapter_name) {
+        continue;
+      }
 
       for(int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
         dxgi::output_t output_tmp {output_p };
 
         DXGI_OUTPUT_DESC desc;
         output_tmp->GetDesc(&desc);
+
+        if(!output_name.empty() && desc.DeviceName != output_name) {
+          continue;
+        }
 
         if(desc.AttachedToDesktop) {
           output = std::move(output_tmp);
@@ -443,7 +461,9 @@ public:
     DXGI_ADAPTER_DESC adapter_desc;
     adapter->GetDesc(&adapter_desc);
 
-    BOOST_LOG(info)
+    auto description = converter.to_bytes(adapter_desc.Description);
+    BOOST_LOG(info) << std::endl
+      << "Device Description : " << description << std::endl
       << "Device Vendor ID   : 0x"sv << util::hex(adapter_desc.VendorId).to_string_view() << std::endl
       << "Device Device ID   : 0x"sv << util::hex(adapter_desc.DeviceId).to_string_view() << std::endl
       << "Device Video Mem   : "sv << adapter_desc.DedicatedVideoMemory / 1048576 << " MiB"sv << std::endl

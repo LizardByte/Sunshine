@@ -15,6 +15,9 @@ struct video_t {
   int hevc_mode;
   std::string preset;
   std::string tune;
+
+  std::string adapter_name;
+  std::string output_name;
 };
 
 struct audio_t {

@@ -23,7 +23,9 @@ video_t video {
 
   0, // hevc_mode
   "superfast"s, // preset
-  "zerolatency"s // tune
+  "zerolatency"s, // tune
+  {}, // adapter_name
+  {} // output_name
 };
 
 audio_t audio {};
@@ -166,6 +168,8 @@ void parse_file(const char *file) {
   });
   string_f(vars, "preset", video.preset);
   string_f(vars, "tune", video.tune);
+  string_f(vars, "adapter_name", video.adapter_name);
+  string_f(vars, "output_name", video.output_name);
 
   string_f(vars, "pkey", nvhttp.pkey);
   string_f(vars, "cert", nvhttp.cert);
