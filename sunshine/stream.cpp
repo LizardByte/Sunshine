@@ -500,7 +500,7 @@ void controlThread(video::idr_event_t idr_events) {
 
     auto lastGoodFrame = stats[3];
 
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "type [IDX_LOSS_STATS]"sv << std::endl
       << "---begin stats---" << std::endl
       << "loss count since last report [" << count << ']' << std::endl
