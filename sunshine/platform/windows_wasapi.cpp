@@ -6,8 +6,11 @@
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 
+#include <codecvt>
+
 #include <synchapi.h>
 
+#include "sunshine/config.h"
 #include "sunshine/main.h"
 #include "common.h"
 
@@ -83,14 +86,23 @@ public:
     }
 
     device_t::pointer device_p{};
-    status = device_enum->GetDefaultAudioEndpoint(
-      eRender,
-      eConsole,
-      &device_p);
+
+    if(config::audio.sink.empty()) {
+      status = device_enum->GetDefaultAudioEndpoint(
+        eRender,
+        eConsole,
+        &device_p);
+    }
+    else {
+      std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+      auto wstring_device_id = converter.from_bytes(config::audio.sink);
+
+      status = device_enum->GetDevice(wstring_device_id.c_str(), &device_p);
+    }
     device.reset(device_p);
 
     if (FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't create Device [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Couldn't create audio Device [0x"sv << util::hex(status).to_string_view() << ']';
 
       return -1;
     }
@@ -104,7 +116,7 @@ public:
     audio_client.reset(audio_client_p);
 
     if (FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't activate Device [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Couldn't activate audio Device [0x"sv << util::hex(status).to_string_view() << ']';
 
       return -1;
     }
@@ -167,7 +179,7 @@ public:
     std::uint32_t frames;
     status = audio_client->GetBufferSize(&frames);
     if (FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't acquire the number of frames [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Couldn't acquire the number of audio frames [0x"sv << util::hex(status).to_string_view() << ']';
 
       return -1;
     }
