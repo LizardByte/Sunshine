@@ -2,12 +2,6 @@
 // Created by loki on 1/12/20.
 //
 
-// Acquire definition of CreateEventEx
-//#if _WIN32_WINNT < 0x0600
-//#undef _WIN32_WINNT
-//#define _WIN32_WINNT 0x0600
-//#endif
-
 #include <roapi.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
