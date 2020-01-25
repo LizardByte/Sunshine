@@ -9,6 +9,8 @@
 #include "sunshine/utility.h"
 
 namespace platf {
+constexpr auto MAX_GAMEPADS = 2;
+
 constexpr std::uint16_t DPAD_UP      = 0x0001;
 constexpr std::uint16_t DPAD_DOWN    = 0x0002;
 constexpr std::uint16_t DPAD_LEFT    = 0x0004;
@@ -87,7 +89,7 @@ void move_mouse(input_t &input, int deltaX, int deltaY);
 void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
-void gamepad(input_t &input, const gamepad_state_t &gamepad_state);
+void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_state);
 }
 
 #endif //SUNSHINE_COMMON_H

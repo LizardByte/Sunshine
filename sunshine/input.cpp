@@ -125,6 +125,14 @@ void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+  if(packet->controllerNumber < 0 || packet->controllerNumber > input->gamepads.size()) {
+    BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+
+    return;
+  }
+
+  auto &gamepad = input->gamepads[packet->controllerNumber];
+
   display_cursor = false;
 
   std::uint16_t bf;
@@ -141,16 +149,16 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
   };
 
   auto bf_new = gamepad_state.buttonFlags;
-  switch(input->back_button_state) {
+  switch(gamepad.back_button_state) {
     case button_state_e::UP:
       if(!(platf::BACK & bf_new)) {
-        input->back_button_state = button_state_e::NONE;
+        gamepad.back_button_state = button_state_e::NONE;
       }
       gamepad_state.buttonFlags &= ~platf::BACK;
       break;
     case button_state_e::DOWN:
       if(platf::BACK & bf_new) {
-        input->back_button_state = button_state_e::NONE;
+        gamepad.back_button_state = button_state_e::NONE;
       }
       gamepad_state.buttonFlags |= platf::BACK;
       break;
@@ -158,7 +166,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
       break;
   }
 
-  bf = gamepad_state.buttonFlags ^ input->gamepad_state.buttonFlags;
+  bf = gamepad_state.buttonFlags ^ gamepad.gamepad_state.buttonFlags;
   bf_new = gamepad_state.buttonFlags;
 
   if (platf::BACK & bf) {
@@ -166,35 +174,37 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
 
       // Don't emulate home button if timeout < 0
       if(config::input.back_button_timeout >= 0ms) {
-        input->back_timeout_id = task_pool.pushDelayed([input]() {
-          auto &state = input->gamepad_state;
+        gamepad.back_timeout_id = task_pool.pushDelayed([input, controller=packet->controllerNumber]() {
+          auto &gamepad = input->gamepads[controller];
+
+          auto &state = gamepad.gamepad_state;
 
           // Force the back button up
-          input->back_button_state = button_state_e::UP;
+          gamepad.back_button_state = button_state_e::UP;
           state.buttonFlags &= ~platf::BACK;
-          platf::gamepad(input->input, state);
+          platf::gamepad(input->input, controller, state);
 
           // Press Home button
           state.buttonFlags |= platf::HOME;
-          platf::gamepad(input->input, state);
+          platf::gamepad(input->input, controller, state);
 
           // Release Home button
           state.buttonFlags &= ~platf::HOME;
-          platf::gamepad(input->input, state);
+          platf::gamepad(input->input, controller, state);
 
-          input->back_timeout_id = nullptr;
+          gamepad.back_timeout_id = nullptr;
         }, config::input.back_button_timeout).task_id;
       }
     }
-    else if (input->back_timeout_id) {
-      task_pool.cancel(input->back_timeout_id);
-      input->back_timeout_id = nullptr;
+    else if (gamepad.back_timeout_id) {
+      task_pool.cancel(gamepad.back_timeout_id);
+      gamepad.back_timeout_id = nullptr;
     }
   }
 
-  platf::gamepad(input->input, gamepad_state);
+  platf::gamepad(input->input, packet->controllerNumber, gamepad_state);
 
-  input->gamepad_state = gamepad_state;
+  gamepad.gamepad_state = gamepad_state;
 }
 
 void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t> &&input_data) {
@@ -264,5 +274,6 @@ void reset(std::shared_ptr<input_t> &input) {
   task_pool.push(reset_helper, input);
 }
 
-input_t::input_t() : gamepad_state {}, mouse_press {}, back_timeout_id { nullptr }, input { platf::input() } {}
+input_t::input_t() : mouse_press {}, input { platf::input() }, gamepads(platf::MAX_GAMEPADS) {}
+gamepad_t::gamepad_t() : gamepad_state {}, back_timeout_id {}, back_button_state { button_state_e::NONE } {}
 }

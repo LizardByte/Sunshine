@@ -28,16 +28,16 @@ using evdev_t = util::safe_ptr<libevdev, libevdev_free>;
 using uinput_t = util::safe_ptr<libevdev_uinput, libevdev_uinput_destroy>;
 
 using keyboard_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
+
 struct input_raw_t {
   evdev_t gamepad_dev;
-  uinput_t gamepad_input;
+
+  std::vector<std::pair<uinput_t, gamepad_state_t>> gamepads;
 
   evdev_t mouse_dev;
   uinput_t mouse_input;
 
   keyboard_t keyboard;
-
-  gamepad_state_t gamepad_state {};
 };
 
 void move_mouse(input_t &input, int deltaX, int deltaY) {
@@ -221,10 +221,17 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   XFlush(keyboard.get());
 }
 
-void gamepad(input_t &input, const gamepad_state_t &gamepad_state) {
-  auto uinput = (input_raw_t*)input.get();
+void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_state) {
+  auto &gamepads = ((input_raw_t*)input.get())->gamepads;
+  if(controller < 0 || controller > gamepads.size()) {
+    BOOST_LOG(warning) << "Controller number out of range: ["sv << controller << " > "sv << gamepads.size() << ']';
+    return;
+  }
 
-  auto bf = gamepad_state.buttonFlags ^ uinput->gamepad_state.buttonFlags;
+  TUPLE_2D_REF(uinput, gamepad_state_old, gamepads[controller]);
+
+
+  auto bf = gamepad_state.buttonFlags ^ gamepad_state_old.buttonFlags;
   auto bf_new = gamepad_state.buttonFlags;
 
   if(bf) {
@@ -232,54 +239,54 @@ void gamepad(input_t &input, const gamepad_state_t &gamepad_state) {
     if((DPAD_UP | DPAD_DOWN) & bf) {
       int button_state = bf_new & DPAD_UP ? -1 : (bf_new & DPAD_DOWN ? 1 : 0);
 
-      libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_HAT0Y, button_state);
+      libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_HAT0Y, button_state);
     }
 
     if((DPAD_LEFT | DPAD_RIGHT) & bf) {
       int button_state = bf_new & DPAD_LEFT ? -1 : (bf_new & DPAD_RIGHT ? 1 : 0);
 
-      libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_HAT0X, button_state);
+      libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_HAT0X, button_state);
     }
 
-    if(START & bf)        libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_START,  bf_new & START        ? 1 : 0);
-    if(BACK & bf)         libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_SELECT, bf_new & BACK         ? 1 : 0);
-    if(LEFT_STICK & bf)   libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_THUMBL, bf_new & LEFT_STICK   ? 1 : 0);
-    if(RIGHT_STICK & bf)  libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_THUMBR, bf_new & RIGHT_STICK  ? 1 : 0);
-    if(LEFT_BUTTON & bf)  libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_TL,     bf_new & LEFT_BUTTON  ? 1 : 0);
-    if(RIGHT_BUTTON & bf) libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_TR,     bf_new & RIGHT_BUTTON ? 1 : 0);
-    if(HOME & bf)         libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_MODE,   bf_new & HOME         ? 1 : 0);
-    if(A & bf)            libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_SOUTH,  bf_new & A            ? 1 : 0);
-    if(B & bf)            libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_EAST,   bf_new & B            ? 1 : 0);
-    if(X & bf)            libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_NORTH,  bf_new & X            ? 1 : 0);
-    if(Y & bf)            libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_KEY, BTN_WEST,   bf_new & Y            ? 1 : 0);
+    if(START & bf)        libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_START,  bf_new & START        ? 1 : 0);
+    if(BACK & bf)         libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_SELECT, bf_new & BACK         ? 1 : 0);
+    if(LEFT_STICK & bf)   libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_THUMBL, bf_new & LEFT_STICK   ? 1 : 0);
+    if(RIGHT_STICK & bf)  libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_THUMBR, bf_new & RIGHT_STICK  ? 1 : 0);
+    if(LEFT_BUTTON & bf)  libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_TL,     bf_new & LEFT_BUTTON  ? 1 : 0);
+    if(RIGHT_BUTTON & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_TR,     bf_new & RIGHT_BUTTON ? 1 : 0);
+    if(HOME & bf)         libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_MODE,   bf_new & HOME         ? 1 : 0);
+    if(A & bf)            libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_SOUTH,  bf_new & A            ? 1 : 0);
+    if(B & bf)            libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_EAST,   bf_new & B            ? 1 : 0);
+    if(X & bf)            libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_NORTH,  bf_new & X            ? 1 : 0);
+    if(Y & bf)            libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_WEST,   bf_new & Y            ? 1 : 0);
   }
 
-  if(uinput->gamepad_state.lt != gamepad_state.lt) {
-    libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_Z, gamepad_state.lt);
+  if(gamepad_state_old.lt != gamepad_state.lt) {
+    libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_Z, gamepad_state.lt);
   }
 
-  if(uinput->gamepad_state.rt != gamepad_state.rt) {
-    libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_RZ, gamepad_state.rt);
+  if(gamepad_state_old.rt != gamepad_state.rt) {
+    libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_RZ, gamepad_state.rt);
   }
 
-  if(uinput->gamepad_state.lsX != gamepad_state.lsX) {
-    libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_X, gamepad_state.lsX);
+  if(gamepad_state_old.lsX != gamepad_state.lsX) {
+    libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_X, gamepad_state.lsX);
   }
 
-  if(uinput->gamepad_state.lsY != gamepad_state.lsY) {
-    libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_Y, -gamepad_state.lsY);
+  if(gamepad_state_old.lsY != gamepad_state.lsY) {
+    libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_Y, -gamepad_state.lsY);
   }
 
-  if(uinput->gamepad_state.rsX != gamepad_state.rsX) {
-    libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_RX, gamepad_state.rsX);
+  if(gamepad_state_old.rsX != gamepad_state.rsX) {
+    libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_RX, gamepad_state.rsX);
   }
 
-  if(uinput->gamepad_state.rsY != gamepad_state.rsY) {
-    libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_ABS, ABS_RY, -gamepad_state.rsY);
+  if(gamepad_state_old.rsY != gamepad_state.rsY) {
+    libevdev_uinput_write_event(uinput.get(), EV_ABS, ABS_RY, -gamepad_state.rsY);
   }
 
-  uinput->gamepad_state = gamepad_state;
-  libevdev_uinput_write_event(uinput->gamepad_input.get(), EV_SYN, SYN_REPORT, 0);
+  gamepad_state_old = gamepad_state;
+  libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
 }
 
 int mouse(input_raw_t &gp) {
@@ -390,13 +397,18 @@ int gamepad(input_raw_t &gp) {
   libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_Y, &stick);
   libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_RY, &stick);
 
-  libevdev_uinput *buf;
-  int err = libevdev_uinput_create_from_device(gp.gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
+  gp.gamepads.resize(MAX_GAMEPADS);
 
-  gp.gamepad_input.reset(buf);
-  if(err) {
-    BOOST_LOG(error) << "Could not create Sunshine Gamepad: "sv << strerror(-err);
-    return -1;
+  for(auto &[uinput, _] : gp.gamepads) {
+    libevdev_uinput *buf {};
+    int err = libevdev_uinput_create_from_device(gp.gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
+
+    uinput.reset(buf);
+
+    if(err) {
+      BOOST_LOG(error) << "Could not create Sunshine Gamepad: "sv << strerror(-err);
+      return -1;
+    }
   }
 
   return 0;
@@ -426,16 +438,24 @@ input_t input() {
   }
 
   std::filesystem::path mouse_path { "sunshine_mouse" };
-  std::filesystem::path gamepad_path { "sunshine_gamepad" };
+
   if(std::filesystem::is_symlink(mouse_path)) {
     std::filesystem::remove(mouse_path);
   }
-  if(std::filesystem::is_symlink(gamepad_path)) {
-    std::filesystem::remove(gamepad_path);
-  }
-
   std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.mouse_input.get()), mouse_path);
-  std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.gamepad_input.get()), gamepad_path);
+
+  for(int x = 0; x < gp.gamepads.size(); ++x) {
+    std::stringstream ss;
+
+    ss << "sunshine_gamepad_"sv << x;
+
+    std::filesystem::path gamepad_path { ss.str() };
+    if(std::filesystem::is_symlink(gamepad_path)) {
+      std::filesystem::remove(gamepad_path);
+    }
+
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.gamepads[0].first.get()), gamepad_path);
+  }
 
   return result;
 }
