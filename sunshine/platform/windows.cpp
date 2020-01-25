@@ -35,13 +35,15 @@ public:
       return -1;
     }
 
-    x360.reset(vigem_target_x360_alloc());
+    for(auto &x360 : x360s) {
+      x360.reset(vigem_target_x360_alloc());
 
-    status = vigem_target_add(client.get(), x360.get());
-    if(!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(error) << "Couldn't add Gamepad to ViGEm connection ["sv << util::hex(status).to_string_view() << ']';
+      status = vigem_target_add(client.get(), x360.get());
+      if(!VIGEM_SUCCESS(status)) {
+        BOOST_LOG(error) << "Couldn't add Gamepad to ViGEm connection ["sv << util::hex(status).to_string_view() << ']';
 
-      return -1;
+        return -1;
+      }
     }
 
     return 0;
@@ -49,10 +51,12 @@ public:
 
   ~vigem_t() {
     if(client) {
-      if(x360 && vigem_target_is_attached(x360.get())) {
-        auto status = vigem_target_remove(client.get(), x360.get());
-        if(!VIGEM_SUCCESS(status)) {
-          BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
+      for(auto &x360 : x360s) {
+        if(x360 && vigem_target_is_attached(x360.get())) {
+          auto status = vigem_target_remove(client.get(), x360.get());
+          if(!VIGEM_SUCCESS(status)) {
+            BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
+          }
         }
       }
 
@@ -60,7 +64,7 @@ public:
     }
   }
 
-  target_t x360;
+  std::vector<target_t> x360s;
   client_t client;
 };
 
@@ -258,16 +262,23 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   }
 }
 
-void gamepad(input_t &input, const gamepad_state_t &gamepad_state) {
+void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_state) {
   // If there is no gamepad support
   if(!input) {
     return;
   }
 
   auto vigem = (vigem_t*)input.get();
-  auto &xusb = *(PXUSB_REPORT)&gamepad_state;
 
-  auto status = vigem_target_x360_update(vigem->client.get(), vigem->x360.get(), xusb);
+  if(controller < 0 && controller >= vigem->x360s.size()) {
+    BOOST_LOG(warning) << "Controller number out of range: ["sv << controller << " > "sv << vigem->x360s.size() << ']';
+    return;
+  }
+
+  auto &xusb = *(PXUSB_REPORT)&gamepad_state;
+  auto &x360 = vigem->x360s[controller];
+
+  auto status = vigem_target_x360_update(vigem->client.get(), x360.get(), xusb);
   if(!VIGEM_SUCCESS(status)) {
     BOOST_LOG(fatal) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
 

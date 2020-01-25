@@ -125,7 +125,7 @@ void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
-  if(packet->controllerNumber < 0 || packet->controllerNumber > input->gamepads.size()) {
+  if(packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
     BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
 
     return;

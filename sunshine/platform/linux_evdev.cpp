@@ -223,7 +223,7 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
 
 void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_state) {
   auto &gamepads = ((input_raw_t*)input.get())->gamepads;
-  if(controller < 0 || controller > gamepads.size()) {
+  if(controller < 0 || controller >= gamepads.size()) {
     BOOST_LOG(warning) << "Controller number out of range: ["sv << controller << " > "sv << gamepads.size() << ']';
     return;
   }
@@ -454,7 +454,7 @@ input_t input() {
       std::filesystem::remove(gamepad_path);
     }
 
-    std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.gamepads[0].first.get()), gamepad_path);
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.gamepads[x].first.get()), gamepad_path);
   }
 
   return result;
