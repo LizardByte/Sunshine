@@ -30,6 +30,78 @@ using uinput_t = util::safe_ptr<libevdev_uinput, libevdev_uinput_destroy>;
 using keyboard_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
 
 struct input_raw_t {
+public:
+  void clear_mouse() {
+    std::filesystem::path mouse_path { "sunshine_mouse"sv };
+
+    if(std::filesystem::is_symlink(mouse_path)) {
+      std::filesystem::remove(mouse_path);
+    }
+
+    mouse_input.reset();
+  }
+
+  void clear_gamepad(int nr) {
+    std::stringstream ss;
+
+    ss << "sunshine_gamepad_"sv << nr;
+
+    std::filesystem::path gamepad_path { ss.str() };
+    if(std::filesystem::is_symlink(gamepad_path)) {
+      std::filesystem::remove(gamepad_path);
+    }
+
+    gamepads[nr].first.reset();
+  }
+
+  int create_mouse() {
+    libevdev_uinput *buf;
+    int err = libevdev_uinput_create_from_device(mouse_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
+    mouse_input.reset(buf);
+
+    if(err) {
+      BOOST_LOG(error) << "Could not create Sunshine Mouse: "sv << strerror(-err);
+      return -1;
+    }
+
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(mouse_input.get()), "sunshine_mouse"sv);
+
+    return 0;
+  }
+
+  int create_gamepad(int nr) {
+    TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
+
+    libevdev_uinput *buf;
+    int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
+
+    input.reset(buf);
+    gamepad_state = gamepad_state_t {};
+
+    if(err) {
+      BOOST_LOG(error) << "Could not create Sunshine Gamepad: "sv << strerror(-err);
+      return -1;
+    }
+
+    std::stringstream ss;
+    ss << "sunshine_gamepad_"sv << nr;
+    std::filesystem::path gamepad_path { ss.str() };
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(input.get()), gamepad_path);
+
+    return 0;
+  }
+
+  void clear() {
+    clear_mouse();
+    for(int x = 0; x < gamepads.size(); ++x) {
+      clear_gamepad(x);
+    }
+  }
+
+  ~input_raw_t() {
+    clear();
+  }
+
   evdev_t gamepad_dev;
 
   std::vector<std::pair<uinput_t, gamepad_state_t>> gamepads;
@@ -221,14 +293,8 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   XFlush(keyboard.get());
 }
 
-void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_state) {
-  auto &gamepads = ((input_raw_t*)input.get())->gamepads;
-  if(controller < 0 || controller >= gamepads.size()) {
-    BOOST_LOG(warning) << "Controller number out of range: ["sv << controller << " > "sv << gamepads.size() << ']';
-    return;
-  }
-
-  TUPLE_2D_REF(uinput, gamepad_state_old, gamepads[controller]);
+void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
+  TUPLE_2D_REF(uinput, gamepad_state_old, ((input_raw_t*)input.get())->gamepads[nr]);
 
 
   auto bf = gamepad_state.buttonFlags ^ gamepad_state_old.buttonFlags;
@@ -289,59 +355,50 @@ void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_stat
   libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
 }
 
-int mouse(input_raw_t &gp) {
-  gp.mouse_dev.reset(libevdev_new());
+evdev_t mouse() {
+  evdev_t dev  { libevdev_new() };
 
-  libevdev_set_uniq(gp.mouse_dev.get(), "Sunshine Gamepad");
-  libevdev_set_id_product(gp.mouse_dev.get(), 0x4038);
-  libevdev_set_id_vendor(gp.mouse_dev.get(), 0x46D);
-  libevdev_set_id_bustype(gp.mouse_dev.get(), 0x3);
-  libevdev_set_id_version(gp.mouse_dev.get(), 0x111);
-  libevdev_set_name(gp.mouse_dev.get(), "Logitech Wireless Mouse PID:4038");
+  libevdev_set_uniq(dev.get(), "Sunshine Mouse");
+  libevdev_set_id_product(dev.get(), 0x4038);
+  libevdev_set_id_vendor(dev.get(), 0x46D);
+  libevdev_set_id_bustype(dev.get(), 0x3);
+  libevdev_set_id_version(dev.get(), 0x111);
+  libevdev_set_name(dev.get(), "Logitech Wireless Mouse PID:4038");
 
-  libevdev_enable_event_type(gp.mouse_dev.get(), EV_KEY);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_LEFT, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_RIGHT, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_MIDDLE, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_SIDE, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_EXTRA, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_FORWARD, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_BACK, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, BTN_TASK, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 280, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 281, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 282, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 283, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 284, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 285, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 286, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_KEY, 287, nullptr);
+  libevdev_enable_event_type(dev.get(), EV_KEY);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_LEFT, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_RIGHT, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_MIDDLE, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_SIDE, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_EXTRA, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_FORWARD, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_BACK, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TASK, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 280, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 281, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 282, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 283, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 284, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 285, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 286, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, 287, nullptr);
 
-  libevdev_enable_event_type(gp.mouse_dev.get(), EV_REL);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_REL, REL_X, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_REL, REL_Y, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_REL, REL_WHEEL, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_REL, REL_WHEEL_HI_RES, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_REL, REL_HWHEEL, nullptr);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_REL, REL_HWHEEL_HI_RES, nullptr);
+  libevdev_enable_event_type(dev.get(), EV_REL);
+  libevdev_enable_event_code(dev.get(), EV_REL, REL_X, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_REL, REL_Y, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_REL, REL_WHEEL, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_REL, REL_WHEEL_HI_RES, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_REL, REL_HWHEEL, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_REL, REL_HWHEEL_HI_RES, nullptr);
 
-  libevdev_enable_event_type(gp.mouse_dev.get(), EV_MSC);
-  libevdev_enable_event_code(gp.mouse_dev.get(), EV_MSC, MSC_SCAN, nullptr);
+  libevdev_enable_event_type(dev.get(), EV_MSC);
+  libevdev_enable_event_code(dev.get(), EV_MSC, MSC_SCAN, nullptr);
 
-  libevdev_uinput *buf;
-  int err = libevdev_uinput_create_from_device(gp.mouse_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
-
-  gp.mouse_input.reset(buf);
-  if(err) {
-    BOOST_LOG(error) << "Could not create Sunshine Mouse: "sv << strerror(-err);
-    return -1;
-  }
-
-  return 0;
+  return dev;
 }
 
-int gamepad(input_raw_t &gp) {
-  gp.gamepad_dev.reset(libevdev_new());
+evdev_t x360() {
+  evdev_t dev { libevdev_new() };
 
   input_absinfo stick {
     0,
@@ -367,57 +424,44 @@ int gamepad(input_raw_t &gp) {
     0
   };
 
-  libevdev_set_uniq(gp.gamepad_dev.get(), "Sunshine Gamepad");
-  libevdev_set_id_product(gp.gamepad_dev.get(), 0x28E);
-  libevdev_set_id_vendor(gp.gamepad_dev.get(), 0x45E);
-  libevdev_set_id_bustype(gp.gamepad_dev.get(), 0x3);
-  libevdev_set_id_version(gp.gamepad_dev.get(), 0x110);
-  libevdev_set_name(gp.gamepad_dev.get(), "Microsoft X-Box 360 pad");
+  libevdev_set_uniq(dev.get(), "Sunshine Gamepad");
+  libevdev_set_id_product(dev.get(), 0x28E);
+  libevdev_set_id_vendor(dev.get(), 0x45E);
+  libevdev_set_id_bustype(dev.get(), 0x3);
+  libevdev_set_id_version(dev.get(), 0x110);
+  libevdev_set_name(dev.get(), "Microsoft X-Box 360 pad");
 
-  libevdev_enable_event_type(gp.gamepad_dev.get(), EV_KEY);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_WEST, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_EAST, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_NORTH, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_SOUTH, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_THUMBL, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_THUMBR, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_TR, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_TL, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_SELECT, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_MODE, nullptr);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_KEY, BTN_START, nullptr);
+  libevdev_enable_event_type(dev.get(), EV_KEY);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_WEST, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_EAST, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_NORTH, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_SOUTH, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_THUMBL, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_THUMBR, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TR, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TL, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_SELECT, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_MODE, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_START, nullptr);
 
-  libevdev_enable_event_type(gp.gamepad_dev.get(), EV_ABS);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_HAT0Y, &dpad);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_HAT0X, &dpad);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_Z, &trigger);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_RZ, &trigger);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_X, &stick);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_RX, &stick);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_Y, &stick);
-  libevdev_enable_event_code(gp.gamepad_dev.get(), EV_ABS, ABS_RY, &stick);
+  libevdev_enable_event_type(dev.get(), EV_ABS);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_HAT0Y, &dpad);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_HAT0X, &dpad);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_Z, &trigger);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_RZ, &trigger);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_X, &stick);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_RX, &stick);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_Y, &stick);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_RY, &stick);
 
-  gp.gamepads.resize(MAX_GAMEPADS);
-
-  for(auto &[uinput, _] : gp.gamepads) {
-    libevdev_uinput *buf {};
-    int err = libevdev_uinput_create_from_device(gp.gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
-
-    uinput.reset(buf);
-
-    if(err) {
-      BOOST_LOG(error) << "Could not create Sunshine Gamepad: "sv << strerror(-err);
-      return -1;
-    }
-  }
-
-  return 0;
+  return dev;
 }
 
 input_t input() {
   input_t result { new input_raw_t() };
   auto &gp = *(input_raw_t*)result.get();
 
+  gp.gamepads.resize(MAX_GAMEPADS);
   gp.keyboard.reset(XOpenDisplay(nullptr));
 
   // If we do not have a keyboard, gamepad or mouse, no input is possible and we should abort
@@ -427,34 +471,21 @@ input_t input() {
     std::abort();
   }
 
-  if(gamepad(gp)) {
-    log_flush();
-    std::abort();
-  }
-
-  if(mouse(gp)) {
-    log_flush();
-    std::abort();
-  }
-
-  std::filesystem::path mouse_path { "sunshine_mouse" };
-
-  if(std::filesystem::is_symlink(mouse_path)) {
-    std::filesystem::remove(mouse_path);
-  }
-  std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.mouse_input.get()), mouse_path);
+  // Ensure starting from clean slate
+  gp.clear();
+  gp.mouse_dev = mouse();
+  gp.gamepad_dev = x360();
 
   for(int x = 0; x < gp.gamepads.size(); ++x) {
-    std::stringstream ss;
-
-    ss << "sunshine_gamepad_"sv << x;
-
-    std::filesystem::path gamepad_path { ss.str() };
-    if(std::filesystem::is_symlink(gamepad_path)) {
-      std::filesystem::remove(gamepad_path);
+    if(gp.create_gamepad(x)) {
+      log_flush();
+      std::abort();
     }
+  }
 
-    std::filesystem::create_symlink(libevdev_uinput_get_devnode(gp.gamepads[x].first.get()), gamepad_path);
+  if(gp.create_mouse()) {
+    log_flush();
+    std::abort();
   }
 
   return result;

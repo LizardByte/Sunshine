@@ -35,6 +35,7 @@ public:
       return -1;
     }
 
+    x360s.resize(MAX_GAMEPADS);
     for(auto &x360 : x360s) {
       x360.reset(vigem_target_x360_alloc());
 
@@ -262,7 +263,7 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   }
 }
 
-void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_state) {
+void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   // If there is no gamepad support
   if(!input) {
     return;
@@ -270,13 +271,8 @@ void gamepad(input_t &input, int controller, const gamepad_state_t &gamepad_stat
 
   auto vigem = (vigem_t*)input.get();
 
-  if(controller < 0 && controller >= vigem->x360s.size()) {
-    BOOST_LOG(warning) << "Controller number out of range: ["sv << controller << " > "sv << vigem->x360s.size() << ']';
-    return;
-  }
-
   auto &xusb = *(PXUSB_REPORT)&gamepad_state;
-  auto &x360 = vigem->x360s[controller];
+  auto &x360 = vigem->x360s[nr];
 
   auto status = vigem_target_x360_update(vigem->client.get(), x360.get(), xusb);
   if(!VIGEM_SUCCESS(status)) {

@@ -23,7 +23,7 @@ struct gamepad_t {
 
 
   // When emulating the HOME button, we may need to artificially release the back button.
-  // Afterwards, the gamepad state on sunshine won't match the state on Moonlight
+  // Afterwards, the gamepad state on sunshine won't match the state on Moonlight.
   // To prevent Sunshine from sending erronious input data to the active application,
   // Sunshine forces the button to be in a specific state until the gamepad state matches that of
   // Moonlight once more.
