@@ -36,7 +36,7 @@ Trouleshooting:
 
 
 
-######### Windows ############
+######### Windows 10 ############
 
 Requirements:
 	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost
