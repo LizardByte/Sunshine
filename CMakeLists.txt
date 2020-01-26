@@ -22,7 +22,8 @@ if(WIN32)
 		C:/msys64/mingw64/lib/libiconv.a
 		)
 
-	set(FFMPEG_INCLUDE_DIRS /usr/local/include)
+	set(FFMPEG_INCLUDE_DIRS
+		C:/msys64/usr/local/include)
 	set(FFMPEG_LIBRARIES
 		C:/msys64/usr/local/lib/libavcodec.a
 		C:/msys64/usr/local/lib/libavdevice.a
