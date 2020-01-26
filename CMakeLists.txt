@@ -4,14 +4,53 @@ project(Sunshine)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
+# On MSYS2, building a stand-alone binary that links with ffmpeg is not possible,
+# Therefore, ffmpeg, libx264 and libx265 must be build from source
+if(WIN32)
+	option(SUNSHINE_STANDALONE "Compile stand-alone binary of Sunshine" OFF)
+	if(SUNSHINE_STANDALONE)
+		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+	
+		if(NOT DEFINED SUNSHINE_X265_BUILD_DIR)
+			message("Warning: Missing SUNSHINE_X265_BUILD_DIR")
+		endif()
+	endif()
+
+	list(PREPEND PLATFORM_LIBRARIES
+		C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/${CMAKE_CXX_COMPILER_VERSION}/libstdc++.a
+		C:/msys64/mingw64/x86_64-w64-mingw32/lib/libwinpthread.a
+		C:/msys64/mingw64/lib/libiconv.a
+		)
+
+	set(FFMPEG_INCLUDE_DIRS /usr/local/include)
+	set(FFMPEG_LIBRARIES
+		C:/msys64/usr/local/lib/libavcodec.a
+		C:/msys64/usr/local/lib/libavdevice.a
+		C:/msys64/usr/local/lib/libavfilter.a
+		C:/msys64/usr/local/lib/libavformat.a
+		C:/msys64/usr/local/lib/libavutil.a
+		C:/msys64/usr/local/lib/libpostproc.a
+		C:/msys64/usr/local/lib/libswresample.a
+		C:/msys64/usr/local/lib/libswscale.a
+		C:/msys64/usr/local/lib/libx264.a
+		${SUNSHINE_X265_BUILD_DIR}/libx265.a
+		z lzma bcrypt)
+else()
+	set(SUNSHINE_STANDALONE OFF)
+endif()
+
 add_subdirectory(Simple-Web-Server)
 add_subdirectory(moonlight-common-c/enet)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(FFmpeg REQUIRED)
+
+if(NOT SUNSHINE_STANDALONE)
+	find_package(FFmpeg REQUIRED)
+endif()
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
+
 if(WIN32)
 	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
 
@@ -27,7 +66,7 @@ if(WIN32)
 		ViGEmClient/include/ViGEm/Common.h
 		ViGEmClient/include/ViGEm/Util.h
 		ViGEmClient/include/ViGEm/km/BusShared.h)
-	set(PLATFORM_LIBRARIES
+	list(PREPEND PLATFORM_LIBRARIES
 		winmm
 		ksuser
 		wsock32
@@ -35,7 +74,9 @@ if(WIN32)
 		iphlpapi
 		windowsapp
 		d3d11 dxgi
-		setupapi)
+		setupapi
+		)
+
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 else()
@@ -126,14 +167,19 @@ if(NOT SUNSHINE_ROOT)
 	set(SUNSHINE_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
+if(SUNSHINE_STANDALONE)
+	set(OPENSSL_LIBRARIES
+		C:/msys64/mingw64/lib/libssl.a
+		C:/msys64/mingw64/lib/libcrypto.a)
+endif()
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${CMAKE_THREAD_LIBS_INIT}
 		stdc++fs
-		${OPENSSL_LIBRARIES}
 		enet
 		opus
 		${FFMPEG_LIBRARIES}
 		${Boost_LIBRARIES}
+		${OPENSSL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ROOT}/assets")
