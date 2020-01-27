@@ -11,31 +11,29 @@ if(WIN32)
 	if(SUNSHINE_STANDALONE)
 		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	
-		if(NOT DEFINED SUNSHINE_X265_BUILD_DIR)
-			message("Warning: Missing SUNSHINE_X265_BUILD_DIR")
+		if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+			set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/pre-compiled/windows")
 		endif()
+		list(PREPEND PLATFORM_LIBRARIES
+			C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/${CMAKE_CXX_COMPILER_VERSION}/libstdc++.a
+			C:/msys64/mingw64/x86_64-w64-mingw32/lib/libwinpthread.a
+			)
+
+		set(FFMPEG_INCLUDE_DIRS
+			${SUNSHINE_PREPARED_BINARIES}/include)
+		set(FFMPEG_LIBRARIES
+			${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+			z lzma bcrypt C:/msys64/mingw64/lib/libiconv.a)
 	endif()
-
-	list(PREPEND PLATFORM_LIBRARIES
-		C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/${CMAKE_CXX_COMPILER_VERSION}/libstdc++.a
-		C:/msys64/mingw64/x86_64-w64-mingw32/lib/libwinpthread.a
-		C:/msys64/mingw64/lib/libiconv.a
-		)
-
-	set(FFMPEG_INCLUDE_DIRS
-		C:/msys64/usr/local/include)
-	set(FFMPEG_LIBRARIES
-		C:/msys64/usr/local/lib/libavcodec.a
-		C:/msys64/usr/local/lib/libavdevice.a
-		C:/msys64/usr/local/lib/libavfilter.a
-		C:/msys64/usr/local/lib/libavformat.a
-		C:/msys64/usr/local/lib/libavutil.a
-		C:/msys64/usr/local/lib/libpostproc.a
-		C:/msys64/usr/local/lib/libswresample.a
-		C:/msys64/usr/local/lib/libswscale.a
-		C:/msys64/usr/local/lib/libx264.a
-		${SUNSHINE_X265_BUILD_DIR}/libx265.a
-		z lzma bcrypt)
 else()
 	set(SUNSHINE_STANDALONE OFF)
 endif()
@@ -173,6 +171,7 @@ if(SUNSHINE_STANDALONE)
 		C:/msys64/mingw64/lib/libssl.a
 		C:/msys64/mingw64/lib/libcrypto.a)
 endif()
+
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${CMAKE_THREAD_LIBS_INIT}
 		stdc++fs
