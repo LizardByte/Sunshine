@@ -26,11 +26,11 @@ build_script:
   - cmd: C:\msys64\usr\bin\bash -lc "git clone --single-branch --branch release/4.2 https://github.com/FFmpeg/FFmpeg.git"
   - cmd: C:\msys64\usr\bin\bash -lc "export PATH=/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/c/Windows/System32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0/:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl && mkdir -p x265/cmake-build && cd x265/cmake-build && cmake -G'Unix Makefiles' ../source && make -j2"
   - cmd: C:\msys64\usr\bin\bash -lc "export PATH=/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/c/Windows/System32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0/:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl && cd x264 && ./configure --enable-static --disable-cli --host=mingw64 && make -j2 && make install"
-  - cmd: C:\msys64\usr\bin\bash -lc "export PATH=/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/c/Windows/System32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0/:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl && cd FFmpeg && ./configure --disable-decoders --disable-encoders --disable-hwaccels --disable-doc --disable-programs --enable-static --disable-shared --enable-libx264 --enable-libx265 --enable-nonfree --enable-gpl --extra-cflags=-I../x264 --extra-ldflags=-L../x264 --target-os=mingw64 && make -j2 && make install"
+  - cmd: C:\msys64\usr\bin\bash -lc "export PATH=/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/c/Windows/System32:/c/Windows:/c/Windows/System32/Wbem:/c/Windows/System32/WindowsPowerShell/v1.0/:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl && cd FFmpeg && ./configure --enable-nonfree --enable-gpl --disable-decoders --disable-encoders --disable-doc --disable-programs --disable-network --disable-indevs --disable-outdevs --enable-static --disable-shared --enable-libx264 --enable-libx265 --extra-cflags=-I../x264 --extra-ldflags=-L../x264 --target-os=mingw64 && make -j2 && make install"
   - cmd: set OLDPATH=%PATH%
   - cmd: set PATH=C:\msys64\mingw64\bin
   - sh: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
-  - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -DSUNSHINE_STANDALONE=ON -DSUNSHINE_X265_BUILD_DIR=C:\msys64\home\appveyor\x265 -DSUNSHINE_ROOT=. -G "MinGW Makefiles" ..
+  - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -DSUNSHINE_STANDALONE=ON -DSUNSHINE_X265_BUILD_DIR=C:/msys64/home/appveyor/x265/cmake-build -DSUNSHINE_ROOT=. -G "MinGW Makefiles" ..
   - sh: make -j$(nproc)
   - cmd: mingw32-make -j2
   - cmd: set PATH=%OLDPATH%
