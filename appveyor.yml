@@ -30,9 +30,11 @@ build_script:
   - cmd: set PATH=%OLDPATH%
 
 after_build:
+  - sh: ./gen-deb
   - cmd: 7z a Sunshine-Windows.zip ..\assets\apps_windows.json
   - cmd: 7z a Sunshine-Windows.zip ..\assets\box.png
   - cmd: 7z a Sunshine-Windows.zip sunshine.exe
   - cmd: 7z a Sunshine-Windows.zip tools\dxgi-info.exe
   - cmd: 7z a Sunshine-Windows.zip tools\audio-info.exe
   - cmd: appveyor PushArtifact Sunshine-Windows.zip
+  - sh: appveyor PushArtifact package-deb/sunshine.deb
