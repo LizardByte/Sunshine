@@ -30,7 +30,8 @@ build_script:
   - cmd: set PATH=%OLDPATH%
 
 after_build:
-  - cmd: 7z a Sunshine-Windows.zip ..\assets\
+  - cmd: 7z a Sunshine-Windows.zip ..\assets\apps_windows.json
+  - cmd: 7z a Sunshine-Windows.zip ..\assets\box.png
   - cmd: 7z a Sunshine-Windows.zip sunshine.exe
   - cmd: 7z a Sunshine-Windows.zip tools\dxgi-info.exe
   - cmd: 7z a Sunshine-Windows.zip tools\audio-info.exe

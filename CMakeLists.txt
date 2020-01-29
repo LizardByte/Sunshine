@@ -101,6 +101,8 @@ else()
 	set(PLATFORM_INCLUDE_DIRS
 		${X11_INCLUDE_DIR}
 		/usr/include/libevdev-1.0)
+
+	configure_file(gen-deb.in gen-deb @ONLY)
 endif()
 
 set(Boost_USE_STATIC_LIBS ON)

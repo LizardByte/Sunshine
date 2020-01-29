@@ -1,0 +1,75 @@
+#!/bin/sh
+
+if [ -d package-deb ]; then
+	echo "package-deb already exists: It will be replaced"
+	rm -rf package-deb
+fi
+
+export DEBIAN=package-deb/sunshine/DEBIAN
+export RULES=package-deb/sunshine/etc/udev/rules.d
+export BIN=package-deb/sunshine/usr/bin
+export ASSETS=package-deb/sunshine/etc/sunshine
+
+mkdir -p $DEBIAN
+mkdir -p $RULES
+mkdir -p $BIN
+mkdir -p $ASSETS
+
+if [ ! -f sunshine ]; then
+	echo "Error: Can't find sunshine"
+	exit 1
+fi
+
+cat << 'EOF' > $DEBIAN/conffiles
+/etc/sunshine/sunshine.conf
+/etc/sunshine/apps_linux.json
+EOF
+
+cat << 'EOF' > $DEBIAN/control
+Package: sunshine
+Architecture: amd64
+Maintainer: @loki
+Priority: optional
+Version: 0.1.0
+Depends: libssl | libavdevice | libboost-thread (>= 1.67) | libboost-filesystem (>= 1.67) | libboost-log (>= 1.67) | libpulse | libopus | libxtst | libx11 | libxfixes | libevdev | libxcb1 | libxcb-shm0 | libxcb-xfixes0
+Description: Gamestream host for Moonlight
+EOF
+
+cat << 'EOF' > $DEBIAN/postinst
+#!/bin/sh
+
+export GROUP_INPUT=input
+
+if [ -f /etc/group ]; then
+        if ! grep -q $GROUP_INPUT /etc/group; then
+                echo "Creating group $GROUP_INPUT"
+
+                groupadd $GROUP_INPUT
+        fi
+else
+        echo "Warning: /etc/group not found"
+fi
+
+# Prevent necessity of rebooting system
+chmod 0660 /dev/uinput
+chown root:$GROUP_INPUT /dev/uinput
+EOF
+
+cat << 'EOF' > $RULES/85-sunshine-rules.rules
+KERNEL=="uinput", GROUP="input", MODE="0660"
+EOF
+
+cp sunshine $BIN/sunshine
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/apps_linux.json $ASSETS/apps_linux.json
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf $ASSETS/sunshine.conf
+
+chmod 755 $DEBIAN/postinst
+chmod 755 $BIN/sunshine
+chmod 644 $RULES/85-sunshine-rules.rules
+
+cd package-deb
+if fakeroot dpkg-deb --build sunshine; then
+	echo "generated debian package: @CMAKE_CURRENT_BINARY_DIR@/package-deb/sunshine.deb"
+fi
+cd ..
+
