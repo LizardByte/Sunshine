@@ -11,7 +11,7 @@ install:
   - sh: sudo add-apt-repository ppa:hnakamur/icu
   - sh: sudo add-apt-repository ppa:hnakamur/boost
   - sh: sudo apt update
-  - sh: sudo apt install -y cmake libssl-dev libavdevice-dev libboost-thread1.67-dev libboost-filesystem1.67-dev libboost-log1.67-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
+  - sh: sudo apt install -y fakeroot cmake libssl-dev libavdevice-dev libboost-thread1.67-dev libboost-filesystem1.67-dev libboost-log1.67-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
   - sh: sudo update-alternatives --set gcc /usr/bin/gcc-8
   - cmd: C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make"
 
