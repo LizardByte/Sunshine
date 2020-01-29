@@ -23,8 +23,8 @@ before_build:
 build_script:
   - cmd: set OLDPATH=%PATH%
   - cmd: set PATH=C:\msys64\mingw64\bin
-  - sh: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
-  - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -DSUNSHINE_STANDALONE=ON -DSUNSHINE_ROOT=. -G "MinGW Makefiles" ..
+  - sh: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DSUNSHINE_ASSETS_DIR=/etc/sunshine ..
+  - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -DSUNSHINE_STANDALONE=ON -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
   - sh: make -j$(nproc)
   - cmd: mingw32-make -j2
   - cmd: set PATH=%OLDPATH%

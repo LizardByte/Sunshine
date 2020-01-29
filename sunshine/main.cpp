@@ -63,13 +63,16 @@ void on_signal(int sig, FN &&fn) {
 }
 
 int main(int argc, char *argv[]) {
+  const char *config_file = SUNSHINE_ASSETS_DIR "/sunshine.conf";
   if(argc > 1) {
-    if(!std::filesystem::exists(argv[1])) {
-      std::cout << "Fatal Error: Couldn't find configuration file ["sv << argv[1] << ']' << std::endl;
-      return 7;
-    }
+    config_file = argv[1];
+  }
 
-    config::parse_file(argv[1]);
+  if(!std::filesystem::exists(config_file)) {
+    std::cout << "Warning: Couldn't find configuration file ["sv << config_file << ']' << std::endl;
+  }
+  else {
+    config::parse_file(config_file);
   }
 
   sink = boost::make_shared<text_sink>();
