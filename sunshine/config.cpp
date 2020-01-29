@@ -16,8 +16,8 @@
 namespace config {
 using namespace std::literals;
 video_t video {
-  35, // crf
-  35, // qp
+  0, // crf
+  28, // qp
 
   2, // min_threads
 
@@ -35,7 +35,7 @@ stream_t stream {
 
   APPS_JSON_PATH,
 
-  13 // fecPercentage
+  10 // fecPercentage
 };
 
 nvhttp_t nvhttp {
