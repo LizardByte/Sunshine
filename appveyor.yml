@@ -10,6 +10,8 @@ environment:
 install:
   - sh: sudo add-apt-repository ppa:hnakamur/icu
   - sh: sudo add-apt-repository ppa:hnakamur/boost
+  - sh: sudo add-apt-repository ppa:savoury1/build-tools
+  - sh: sudo add-apt-repository ppa:savoury1/backports
   - sh: sudo add-apt-repository ppa:savoury1/graphics
   - sh: sudo add-apt-repository ppa:savoury1/multimedia
   - sh: sudo add-apt-repository ppa:savoury1/ffmpeg4
