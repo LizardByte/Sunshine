@@ -17,7 +17,7 @@ Setup:
 		* The contents of the file is as follows:
 			KERNEL=="uinput", GROUP="input", mode="0660"
 	* assets/sunshine.conf is an example configuration file. Modify it as you see fit and use it by running: "sunshine path/to/sunshine.conf"
-	* assets/sunshine.service is used to start sunshine in the background:
+	* path/to/build/dir/sunshine.service is used to start sunshine in the background:
 		* cp sunshine.service $HOME/.config/systemd/user/
 		* Modify $HOME/.config/systemd/user/sunshine.conf to point to the sunshine executable
 		* systemctl --user start sunshine
