@@ -13,9 +13,9 @@ Compilation:
 Setup:
 	* sunshine needs access to uinput to create mouse and gamepad events:
 		* Add user to group 'input': "usermod -a -G input username
-		* Create a file: "/etc/udev/rules.d/85-input.rules"
+		* Create a file: "/etc/udev/rules.d/85-sunshine-input.rules"
 		* The contents of the file is as follows:
-			SUBSYSTEM=="input", mode="660"
+			KERNEL=="uinput", GROUP="input", mode="0660"
 	* assets/sunshine.conf is an example configuration file. Modify it as you see fit and use it by running: "sunshine path/to/sunshine.conf"
 	* assets/sunshine.service is used to start sunshine in the background:
 		* cp sunshine.service $HOME/.config/systemd/user/
@@ -26,9 +26,8 @@ Setup:
 		* See below for a detailed explanation
 
 Trouleshooting:
-	* If you get "Could not create Sunshine Gamepad: Permission Denied" Try the following steps before running sunshine:
-		* sudo chown root:input /dev/uinput
-		* sudo chmod 660 /dev/uinput
+	* If you get "Could not create Sunshine Gamepad: Permission Denied", ensure you are part of the group "input":
+		* groups
 	* If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
 		* pacmd list-sources | grep "name:"
 		* Copy the name to the configuration option "audio_sink"
