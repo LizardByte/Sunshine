@@ -30,7 +30,7 @@ before_build:
 build_script:
   - cmd: set OLDPATH=%PATH%
   - cmd: set PATH=C:\msys64\mingw64\bin
-  - sh: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DSUNSHINE_ASSETS_DIR=/etc/sunshine ..
+  - sh: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DSUNSHINE_EXECUTABLE_PATH=sunshine -DSUNSHINE_ASSETS_DIR=/etc/sunshine ..
   - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DOPENSSL_ROOT_DIR=C:\OpenSSL-v111-Win64 -DSUNSHINE_STANDALONE=ON -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
   - sh: make -j$(nproc)
   - cmd: mingw32-make -j2
@@ -38,10 +38,11 @@ build_script:
 
 after_build:
   - sh: ./gen-deb
-  - cmd: Del ..\assets\apps_linux.json ..\assets\sunshine.service
+  - cmd: Del ..\assets\apps_linux.json
   - cmd: 7z a Sunshine-Windows.zip ..\assets
   - cmd: 7z a Sunshine-Windows.zip sunshine.exe
   - cmd: 7z a Sunshine-Windows.zip tools\dxgi-info.exe
   - cmd: 7z a Sunshine-Windows.zip tools\audio-info.exe
   - cmd: appveyor PushArtifact Sunshine-Windows.zip
   - sh: appveyor PushArtifact package-deb/sunshine.deb
+  - sh: appveyor PushArtifact sunshine.service

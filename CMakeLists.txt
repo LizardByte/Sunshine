@@ -102,7 +102,11 @@ else()
 		${X11_INCLUDE_DIR}
 		/usr/include/libevdev-1.0)
 
+	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
+		set(SUNSHINE_EXECUTABLE_PATH "${CMAKE_CURRENT_BINARY_DIR}/sunshine")
+	endif()
 	configure_file(gen-deb.in gen-deb @ONLY)
+	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
 set(Boost_USE_STATIC_LIBS ON)
