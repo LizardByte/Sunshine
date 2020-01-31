@@ -2,8 +2,8 @@
 #include <sstream>
 #include <iomanip>
 
-#include <Ws2tcpip.h>
-#include <Winsock2.h>
+#include <ws2tcpip.h>
+#include <winsock2.h>
 #include <windows.h>
 #include <winuser.h>
 #include <iphlpapi.h>
@@ -36,18 +36,36 @@ public:
     }
 
     x360s.resize(MAX_GAMEPADS);
-    for(auto &x360 : x360s) {
-      x360.reset(vigem_target_x360_alloc());
 
-      status = vigem_target_add(client.get(), x360.get());
-      if(!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(error) << "Couldn't add Gamepad to ViGEm connection ["sv << util::hex(status).to_string_view() << ']';
+    return 0;
+  }
 
-        return -1;
-      }
+  int alloc_x360(int nr) {
+    auto &x360 = x360s[nr];
+    assert(!x360);
+
+    x360.reset(vigem_target_x360_alloc());
+    auto status = vigem_target_add(client.get(), x360.get());
+    if(!VIGEM_SUCCESS(status)) {
+      BOOST_LOG(error) << "Couldn't add Gamepad to ViGEm connection ["sv << util::hex(status).to_string_view() << ']';
+
+      return -1;
     }
 
     return 0;
+  }
+
+  void free_target(int nr) {
+    auto &x360 = x360s[nr];
+
+    if(x360 && vigem_target_is_attached(x360.get())) {
+      auto status = vigem_target_remove(client.get(), x360.get());
+      if(!VIGEM_SUCCESS(status)) {
+        BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
+      }
+    }
+
+    x360.reset();
   }
 
   ~vigem_t() {
@@ -263,6 +281,21 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   }
 }
 
+int alloc_gamepad(input_t &input, int nr) {
+  if(!input) {
+    return 0;
+  }
+
+  return ((vigem_t*)input.get())->alloc_x360(nr);
+}
+
+void free_gamepad(input_t &input, int nr) {
+  if(!input) {
+    return;
+  }
+
+  ((vigem_t*)input.get())->free_target(nr);
+}
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   // If there is no gamepad support
   if(!input) {

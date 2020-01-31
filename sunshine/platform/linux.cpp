@@ -326,7 +326,7 @@ std::unique_ptr<display_t> shm_display() {
   return shm;
 }
 
-std::shared_ptr<display_t> display() {
+std::unique_ptr<display_t> display() {
   auto shm_disp = shm_display();
 
   if(!shm_disp) {

@@ -82,7 +82,7 @@ using input_t = util::safe_ptr<void, freeInput>;
 std::string get_mac_address(const std::string_view &address);
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
-std::shared_ptr<display_t> display();
+std::unique_ptr<display_t> display();
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
@@ -90,6 +90,9 @@ void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
+
+int alloc_gamepad(input_t &input, int nr);
+void free_gamepad(input_t &input, int nr);
 }
 
 #endif //SUNSHINE_COMMON_H

@@ -51,7 +51,7 @@ public:
       std::filesystem::remove(gamepad_path);
     }
 
-    gamepads[nr].first.reset();
+    gamepads[nr] = std::make_pair(uinput_t{}, gamepad_state_t {});
   }
 
   int create_mouse() {
@@ -69,7 +69,7 @@ public:
     return 0;
   }
 
-  int create_gamepad(int nr) {
+  int alloc_gamepad(int nr) {
     TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
 
     libevdev_uinput *buf;
@@ -86,8 +86,12 @@ public:
     std::stringstream ss;
     ss << "sunshine_gamepad_"sv << nr;
     std::filesystem::path gamepad_path { ss.str() };
-    std::filesystem::create_symlink(libevdev_uinput_get_devnode(input.get()), gamepad_path);
 
+    if(std::filesystem::is_symlink(gamepad_path)) {
+      std::filesystem::remove(gamepad_path);
+    }
+
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(input.get()), gamepad_path);
     return 0;
   }
 
@@ -293,6 +297,14 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   XFlush(keyboard.get());
 }
 
+int alloc_gamepad(input_t &input, int nr) {
+  return ((input_raw_t*)input.get())->alloc_gamepad(nr);
+}
+
+void free_gamepad(input_t &input, int nr) {
+  ((input_raw_t*)input.get())->clear_gamepad(nr);
+}
+
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   TUPLE_2D_REF(uinput, gamepad_state_old, ((input_raw_t*)input.get())->gamepads[nr]);
 
@@ -461,7 +473,6 @@ input_t input() {
   input_t result { new input_raw_t() };
   auto &gp = *(input_raw_t*)result.get();
 
-  gp.gamepads.resize(MAX_GAMEPADS);
   gp.keyboard.reset(XOpenDisplay(nullptr));
 
   // If we do not have a keyboard, gamepad or mouse, no input is possible and we should abort
@@ -471,17 +482,12 @@ input_t input() {
     std::abort();
   }
 
+  gp.gamepads.resize(MAX_GAMEPADS);
+
   // Ensure starting from clean slate
   gp.clear();
   gp.mouse_dev = mouse();
   gp.gamepad_dev = x360();
-
-  for(int x = 0; x < gp.gamepads.size(); ++x) {
-    if(gp.create_gamepad(x)) {
-      log_flush();
-      std::abort();
-    }
-  }
 
   if(gp.create_mouse()) {
     log_flush();

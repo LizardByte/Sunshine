@@ -717,7 +717,7 @@ const char *format_str[] = {
 }
 
 namespace platf {
-std::shared_ptr<display_t> display() {
+std::unique_ptr<display_t> display() {
   auto disp = std::make_unique<dxgi::display_t>();
 
   if (disp->init()) {

@@ -37,6 +37,7 @@ struct input_t {
 
   platf::input_t input;
 
+  std::uint16_t active_gamepad_state;
   std::vector<gamepad_t> gamepads;
 };
 

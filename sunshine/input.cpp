@@ -125,9 +125,28 @@ void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
-  if(packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
-    BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+  auto xorGamepadMask = input->active_gamepad_state ^ packet->activeGamepadMask;
 
+  for(int x = 0; x < platf::MAX_GAMEPADS; ++x) {
+    if((xorGamepadMask >> x) & 1) {
+      if((input->active_gamepad_state >> x) & 1) {
+        platf::gamepad(input->input, x, platf::gamepad_state_t {});
+        platf::free_gamepad(input->input, x);
+      }
+      else if(platf::alloc_gamepad(input->input, x)) {
+        //TODO: abort stream session
+      }
+    }
+  }
+  input->active_gamepad_state = packet->activeGamepadMask;
+
+  if(packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+    BOOST_LOG(error) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+
+    return;
+  }
+
+  if(!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
     return;
   }
 
@@ -135,9 +154,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
 
   display_cursor = false;
 
-  std::uint16_t bf;
-  std::memcpy(&bf, &packet->buttonFlags, sizeof(std::uint16_t));
-
+  std::uint16_t bf = packet->buttonFlags;
   platf::gamepad_state_t gamepad_state{
     bf,
     packet->leftTrigger,
@@ -254,15 +271,7 @@ void reset_helper(std::shared_ptr<input_t> input) {
     }
   }
   
-  NV_MULTI_CONTROLLER_PACKET fake_packet;
-  fake_packet.buttonFlags = 0;
-  fake_packet.leftStickX = 0;
-  fake_packet.leftStickY = 0;
-  fake_packet.rightStickX = 0;
-  fake_packet.rightStickY = 0;
-  fake_packet.leftTrigger = 0;
-  fake_packet.rightTrigger = 0;
-
+  NV_MULTI_CONTROLLER_PACKET fake_packet {};
   passthrough(input, &fake_packet);
 }
 
@@ -274,6 +283,6 @@ void reset(std::shared_ptr<input_t> &input) {
   task_pool.push(reset_helper, input);
 }
 
-input_t::input_t() : mouse_press {}, input { platf::input() }, gamepads(platf::MAX_GAMEPADS) {}
+input_t::input_t() : mouse_press {}, input { platf::input() }, active_gamepad_state {}, gamepads (platf::MAX_GAMEPADS) {}
 gamepad_t::gamepad_t() : gamepad_state {}, back_timeout_id {}, back_button_state { button_state_e::NONE } {}
 }
