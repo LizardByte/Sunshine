@@ -6,8 +6,6 @@ extern "C" {
 #include <moonlight-common-c/src/Input.h>
 }
 
-#include <cstring>
-
 #include "main.h"
 #include "config.h"
 #include "input.h"
@@ -134,14 +132,16 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
         platf::free_gamepad(input->input, x);
       }
       else if(platf::alloc_gamepad(input->input, x)) {
-        //TODO: abort stream session
+        // allocating a gamepad failed: solution: ignore gamepads
+        // The implementations of platf::alloc_gamepad already have logging
+        return;
       }
     }
   }
   input->active_gamepad_state = packet->activeGamepadMask;
 
   if(packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
-    BOOST_LOG(error) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+    BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
 
     return;
   }
