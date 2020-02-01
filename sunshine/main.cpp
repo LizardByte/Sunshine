@@ -126,6 +126,7 @@ int main(int argc, char *argv[]) {
 
   proc::proc = std::move(*proc_opt);
 
+  auto deinit_guard = platf::init();
   reed_solomon_init();
 
   task_pool.start(1);

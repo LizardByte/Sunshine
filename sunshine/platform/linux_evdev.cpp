@@ -501,4 +501,6 @@ void freeInput(void *p) {
   auto *input = (input_raw_t*)p;
   delete input;
 }
+
+std::unique_ptr<deinit_t> init() { return nullptr; }
 }

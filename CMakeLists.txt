@@ -71,7 +71,6 @@ if(WIN32)
 		wsock32
 		ws2_32
 		iphlpapi
-		windowsapp
 		d3d11 dxgi
 		setupapi
 		)

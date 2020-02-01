@@ -38,6 +38,17 @@ using audio_capture_t = util::safe_ptr<IAudioCaptureClient, Release<IAudioCaptur
 using wave_format_t   = util::safe_ptr<WAVEFORMATEX, co_task_free<WAVEFORMATEX>>;
 using handle_t = util::safe_ptr_v2<void, BOOL, CloseHandle>;
 
+class co_init_t : public deinit_t {
+public:
+  co_init_t() {
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
+  }
+
+  ~co_init_t() override {
+    CoUninitialize();
+  }
+};
+
 class mic_wasapi_t : public mic_t {
 public:
   capture_e sample(std::vector<std::int16_t> &sample_in) override {
@@ -317,7 +328,6 @@ public:
 };
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
-  Windows::Foundation::Initialize(RO_INIT_MULTITHREADED);
   auto mic = std::make_unique<audio::mic_wasapi_t>();
 
   if(mic->init(sample_rate)) {
@@ -325,5 +335,9 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   }
 
   return mic;
+}
+
+std::unique_ptr<deinit_t> init() {
+  return std::make_unique<platf::audio::co_init_t>();
 }
 }

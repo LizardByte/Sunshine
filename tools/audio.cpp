@@ -172,6 +172,12 @@ void print_help() {
 }
 
 int main(int argc, char *argv[]) {
+  CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
+
+  auto fg = util::fail_guard([]() {
+    CoUninitialize();
+  });
+
   if(argc > 1) {
     device_state_filter = 0;
   }
@@ -204,8 +210,6 @@ int main(int argc, char *argv[]) {
       return 2;
     }
   }
-
-  Windows::Foundation::Initialize(RO_INIT_MULTITHREADED);
 
   HRESULT status;
 

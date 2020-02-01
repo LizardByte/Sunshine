@@ -37,6 +37,11 @@ struct gamepad_state_t {
   std::int16_t rsY;
 };
 
+class deinit_t {
+public:
+  virtual ~deinit_t() = default;
+};
+
 struct img_t {
 public:
   std::uint8_t *data  {};
@@ -93,6 +98,8 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
 
 int alloc_gamepad(input_t &input, int nr);
 void free_gamepad(input_t &input, int nr);
+
+[[nodiscard]] std::unique_ptr<deinit_t> init();
 }
 
 #endif //SUNSHINE_COMMON_H
