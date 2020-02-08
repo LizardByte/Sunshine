@@ -2,14 +2,15 @@
 // Created by loki on 6/6/19.
 //
 
+#include <atomic>
 #include <thread>
 
 extern "C" {
-#include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
 }
 
 #include "platform/common.h"
+#include "thread_pool.h"
 #include "config.h"
 #include "video.h"
 #include "main.h"
@@ -32,9 +33,20 @@ void free_packet(AVPacket *packet) {
 using ctx_t       = util::safe_ptr<AVCodecContext, free_ctx>;
 using frame_t     = util::safe_ptr<AVFrame, free_frame>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
-using img_event_t = std::shared_ptr<safe::event_t<std::unique_ptr<platf::img_t>>>;
+using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
-auto open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
+struct capture_ctx_t {
+  img_event_t images;
+  std::chrono::nanoseconds delay;
+  std::chrono::steady_clock::time_point next_frame;
+};
+
+struct capture_thread_ctx_t {
+  std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue;
+  std::thread capture_thread;
+};
+
+[[nodiscard]] auto open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
   avcodec_open2(ctx.get(), codec, options);
 
   return util::fail_guard([&]() {
@@ -42,7 +54,87 @@ auto open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
   });
 }
 
-void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::img_t &img, packet_queue_t &packets) {
+int capture_display(platf::img_t *img, std::unique_ptr<platf::display_t> &disp) {
+  auto status = disp->snapshot(img, display_cursor);
+  switch (status) {
+    case platf::capture_e::reinit: {
+      // We try this twice, in case we still get an error on reinitialization
+      for(int x = 0; x < 2; ++x) {
+        disp.reset();
+        disp = platf::display();
+
+        if(disp) {
+          break;
+        }
+
+        std::this_thread::sleep_for(200ms);
+      }
+
+      if(!disp) {
+        return -1;
+      }
+
+      return -1;
+    }
+    case platf::capture_e::error:
+     return -1;
+     // Prevent warning during compilation
+    case platf::capture_e::timeout:
+    case platf::capture_e::ok:
+      return 0;
+    default:
+      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+      return -1;
+  }
+}
+
+void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue) {
+  std::vector<capture_ctx_t> capture_ctxs;
+
+  auto fg = util::fail_guard([&]() {
+    capture_ctx_queue->stop();
+
+    // Stop all sessions listening to this thread
+    for(auto &capture_ctx : capture_ctxs) {
+      capture_ctx.images->stop();
+    }
+    for(auto &capture_ctx : capture_ctx_queue->unsafe()) {
+      capture_ctx.images->stop();
+    }
+
+  });
+
+  auto disp = platf::display();
+  while(capture_ctx_queue->running()) {
+    while(capture_ctx_queue->peek()) {
+      capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+    }
+
+    std::shared_ptr<platf::img_t> img = disp->alloc_img();
+    auto has_error = capture_display(img.get(), disp);
+    if(has_error) {
+      return;
+    }
+
+    auto time_point = std::chrono::steady_clock::now();
+    for(auto capture_ctx = std::begin(capture_ctxs); capture_ctx != std::end(capture_ctxs); ++capture_ctx) {
+      if(!capture_ctx->images->running()) {
+        capture_ctx = capture_ctxs.erase(capture_ctx);
+
+        continue;
+      }
+
+      if(time_point > capture_ctx->next_frame) {
+        continue;
+      }
+
+      capture_ctx->images->raise(img);
+      capture_ctx->next_frame = time_point + capture_ctx->delay;
+    }
+  }
+}
+
+void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::img_t &img, packet_queue_t &packets, void *channel_data) {
   av_frame_make_writable(yuv_frame.get());
 
   const int linesizes[2] {
@@ -67,7 +159,7 @@ void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::im
   }
 
   while (ret >= 0) {
-    packet_t packet { av_packet_alloc() };
+    auto packet = std::make_unique<packet_t::element_type>(nullptr);
 
     ret = avcodec_receive_packet(ctx.get(), packet.get());
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
@@ -79,16 +171,50 @@ void encode(int64_t frame, ctx_t &ctx, sws_t &sws, frame_t &yuv_frame, platf::im
       std::abort();
     }
 
+    packet->channel_data = channel_data;
     packets->raise(std::move(packet));
   }
 }
 
-void encodeThread(
-  img_event_t images,
+int start_capture(capture_thread_ctx_t &capture_thread_ctx) {
+  capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>();
+
+  capture_thread_ctx.capture_thread = std::thread {
+    captureThread, capture_thread_ctx.capture_ctx_queue
+  };
+
+  return 0;
+}
+void end_capture(capture_thread_ctx_t &capture_thread_ctx) {
+  capture_thread_ctx.capture_ctx_queue->stop();
+
+  capture_thread_ctx.capture_thread.join();
+}
+
+void capture(
   packet_queue_t packets,
   idr_event_t idr_events,
-  config_t config) {
+  config_t config,
+  void *channel_data) {
+
   int framerate = config.framerate;
+
+  auto images = std::make_shared<img_event_t::element_type>();
+  // Keep a reference counter to ensure the capture thread only runs when other threads have a reference to the capture thread
+  static auto capture_thread = safe::make_shared<capture_thread_ctx_t>(start_capture, end_capture);
+  auto ref = capture_thread.ref();
+  if(!ref) {
+    return;
+  }
+
+  ref->capture_ctx_queue->raise(capture_ctx_t {
+    images, std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate, std::chrono::steady_clock::now()
+  });
+
+  if(!ref->capture_ctx_queue->running()) {
+    return;
+  }
+
 
   AVCodec *codec;
 
@@ -217,7 +343,11 @@ void encodeThread(
 
   // Initiate scaling context with correct height and width
   sws_t sws;
-  while (auto img = images->pop()) {
+  while(auto img = images->pop()) {
+    if(!idr_events->running()) {
+      break;
+    }
+
     auto new_width  = img->width;
     auto new_height = img->height;
 
@@ -250,68 +380,11 @@ void encodeThread(
       yuv_frame->pict_type = AV_PICTURE_TYPE_I;
     }
 
-    encode(frame++, ctx, sws, yuv_frame, *img, packets);
+    encode(frame++, ctx, sws, yuv_frame, *img, packets, channel_data);
     
     yuv_frame->pict_type = AV_PICTURE_TYPE_NONE;
   }
-}
-
-void capture_display(packet_queue_t packets, idr_event_t idr_events, config_t config) {
-  display_cursor = true;
-
-  int framerate = config.framerate;
-
-  auto disp = platf::display();
-  if(!disp) {
-    packets->stop();
-    return;
-  }
-
-  img_event_t images {new img_event_t::element_type };
-  std::thread encoderThread { &encodeThread, images, packets, idr_events, config };
-
-  auto time_span = std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate;
-  while(packets->running()) {
-    auto next_snapshot = std::chrono::steady_clock::now() + time_span;
-
-    auto img = disp->alloc_img();
-    auto status = disp->snapshot(img.get(), display_cursor);
-
-    switch(status) {
-      case platf::capture_e::reinit: {
-        // We try this twice, in case we still get an error on reinitialization
-        for(int x = 0; x < 2; ++x) {
-          disp.reset();
-          disp = platf::display();
-
-          if (disp) {
-            break;
-          }
-
-          std::this_thread::sleep_for(200ms);
-        }
-
-        if (!disp) {
-          packets->stop();
-        }
-        continue;
-      }
-      case platf::capture_e::timeout:
-        std::this_thread::sleep_until(next_snapshot);
-        continue;
-      case platf::capture_e::error:
-        packets->stop();
-        continue;
-      // Prevent warning during compilation
-      case platf::capture_e::ok:
-        break;
-    }
-
-    images->raise(std::move(img));
-    std::this_thread::sleep_until(next_snapshot);
-  }
 
   images->stop();
-  encoderThread.join();
 }
 }

@@ -163,6 +163,9 @@ void proc_t::terminate() {
 const std::vector<ctx_t> &proc_t::get_apps() const {
   return _apps;
 }
+std::vector<ctx_t> &proc_t::get_apps() {
+  return _apps;
+}
 
 proc_t::~proc_t() {
   terminate();

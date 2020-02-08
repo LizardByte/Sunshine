@@ -8,6 +8,7 @@
 #include <string>
 #include "sunshine/utility.h"
 
+struct sockaddr;
 namespace platf {
 constexpr auto MAX_GAMEPADS = 2;
 
@@ -85,6 +86,8 @@ void freeInput(void*);
 using input_t = util::safe_ptr<void, freeInput>;
 
 std::string get_mac_address(const std::string_view &address);
+
+std::string from_sockaddr(const sockaddr *const);
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
 std::unique_ptr<display_t> display();

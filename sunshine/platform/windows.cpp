@@ -86,16 +86,16 @@ public:
   client_t client;
 };
 
-std::string from_socket_address(const SOCKET_ADDRESS &socket_address) {
+std::string from_sockaddr(const sockaddr *const socket_address) {
   char data[INET6_ADDRSTRLEN];
 
-  auto family = socket_address.lpSockaddr->sa_family;
+  auto family = socket_address->sa_family;
   if(family == AF_INET6) {
-    inet_ntop(AF_INET6, &((sockaddr_in6*)socket_address.lpSockaddr)->sin6_addr, data, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &((sockaddr_in6*)socket_address)->sin6_addr, data, INET6_ADDRSTRLEN);
   }
 
   if(family == AF_INET) {
-    inet_ntop(AF_INET, &((sockaddr_in*)socket_address.lpSockaddr)->sin_addr, data, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &((sockaddr_in*)socket_address)->sin_addr, data, INET_ADDRSTRLEN);
   }
 
   return std::string { data };
@@ -116,7 +116,7 @@ std::string get_mac_address(const std::string_view &address) {
   adapteraddrs_t info = get_adapteraddrs();
   for(auto adapter_pos = info.get(); adapter_pos != nullptr; adapter_pos = adapter_pos->Next) {
     for(auto addr_pos = adapter_pos->FirstUnicastAddress; addr_pos != nullptr; addr_pos = addr_pos->Next) {
-      if(adapter_pos->PhysicalAddressLength != 0 && address == from_socket_address(addr_pos->Address)) {
+      if(adapter_pos->PhysicalAddressLength != 0 && address == from_sockaddr(addr_pos->Address.lpSockaddr)) {
         std::stringstream mac_addr;
         mac_addr << std::hex;
         for(int i = 0; i < adapter_pos->PhysicalAddressLength; i++) {

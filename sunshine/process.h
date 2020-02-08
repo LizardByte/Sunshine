@@ -67,6 +67,8 @@ public:
   ~proc_t();
 
   const std::vector<ctx_t> &get_apps() const;
+  std::vector<ctx_t> &get_apps();
+  
   void terminate();
 
 private:

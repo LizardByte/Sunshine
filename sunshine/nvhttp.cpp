@@ -18,7 +18,8 @@
 
 #include "config.h"
 #include "utility.h"
-#include "stream.h"
+#include "rtsp.h"
+#include "crypto.h"
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "network.h"
@@ -504,17 +505,14 @@ void applist(resp_https_t response, req_https_t request) {
   pt::ptree desktop;
 
   apps.put("<xmlattr>.status_code", 200);
-  desktop.put("IsHdrSupported"s, config::video.hevc_mode == 2 ? 1 : 0);
-  desktop.put("AppTitle"s, "Desktop");
-  desktop.put("ID"s, 1);
 
-  int x = 2;
+  int x = 0;
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
     app.put("IsHdrSupported"s, config::video.hevc_mode == 2 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
-    app.put("ID"s, x++);
+    app.put("ID"s, ++x);
 
     apps.push_back(std::make_pair("App", std::move(app)));
   }
@@ -536,17 +534,15 @@ void launch(resp_https_t response, req_https_t request) {
   auto args = request->parse_query_string();
   auto appid = util::from_view(args.at("appid")) -2;
 
-  stream::launch_session_t launch_session;
-
-  if(stream::session_state != stream::state_e::STOPPED) {
-    tree.put("root.<xmlattr>.status_code", 503);
-    tree.put("root.gamesession", 0);
+  auto current_appid = proc::proc.running();
+  if(current_appid != -1) {
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 400);
 
     return;
   }
 
-  auto current_appid = proc::proc.running();
-  if(appid >= 0 && appid != current_appid) {
+  if(appid >= 0) {
     auto err = proc::proc.execute(appid);
     if(err) {
       tree.put("root.<xmlattr>.status_code", err);
@@ -554,12 +550,9 @@ void launch(resp_https_t response, req_https_t request) {
 
       return;
     }
-
-    current_appid = appid;
   }
 
-  // Needed to determine if session must be closed when no process is running in proc::proc
-  launch_session.has_process = current_appid >= 0;
+  stream::launch_session_t launch_session;
 
   auto clientID = args.at("uniqueid"s);
   launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
@@ -570,14 +563,6 @@ void launch(resp_https_t response, req_https_t request) {
   std::fill(next, std::end(launch_session.iv), 0);
 
   stream::launch_event.raise(launch_session);
-
-/*
-  bool sops = args.at("sops"s) == "1";
-  std::optional<int> gcmap { std::nullopt };
-  if(auto it = args.find("gcmap"s); it != std::end(args)) {
-    gcmap = std::stoi(it->second);
-  }
-*/
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.gamesession", 1);
@@ -595,7 +580,7 @@ void resume(resp_https_t response, req_https_t request) {
   });
 
   auto current_appid = proc::proc.running();
-  if(current_appid == -1 || stream::session_state != stream::state_e::STOPPED) {
+  if(current_appid == -1) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
@@ -603,8 +588,6 @@ void resume(resp_https_t response, req_https_t request) {
   }
 
   stream::launch_session_t launch_session;
-  // Needed to determine if session must be closed when no process is running in proc::proc
-  launch_session.has_process = current_appid >= 0;
 
   auto args = request->parse_query_string();
   auto clientID = args.at("uniqueid"s);
@@ -635,13 +618,6 @@ void cancel(resp_https_t response, req_https_t request) {
   if(proc::proc.running() == -1) {
     tree.put("root.cancel", 1);
     tree.put("root.<xmlattr>.status_code", 200);
-
-    return;
-  }
-
-  if(stream::session_state != stream::state_e::STOPPED) {
-    tree.put("root.<xmlattr>.status_code", 503);
-    tree.put("root.cancel", 0);
 
     return;
   }

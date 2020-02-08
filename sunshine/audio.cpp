@@ -50,7 +50,7 @@ static opus_stream_config_t HighSurround51 = {
     map_high_surround51
 };
 
-void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, sample_queue_t samples, config_t config) {
+void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t config, void *channel_data) {
   //FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stereo;
    opus_t opus { opus_multistream_encoder_create(
@@ -76,13 +76,13 @@ void encodeThread(std::shared_ptr<safe::queue_t<packet_t>> packets, sample_queue
     }
 
     packet.fake_resize(bytes);
-    packets->raise(std::move(packet));
+    packets->raise(std::make_pair(channel_data, std::move(packet)));
   }
 }
 
-void capture(std::shared_ptr<safe::queue_t<packet_t>> packets, config_t config) {
+void capture(packet_queue_t packets, config_t config, void *channel_data) {
   auto samples = std::make_shared<sample_queue_t::element_type>();
-  std::thread thread { encodeThread, packets, samples, config };
+  std::thread thread { encodeThread, packets, samples, config, channel_data };
 
   auto fg = util::fail_guard([&]() {
     packets->stop();

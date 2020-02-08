@@ -93,4 +93,23 @@ std::string_view to_enum_string(net_e net) {
   // avoid warning
   return "wan"sv;
 }
+
+host_t host_create(ENetAddress &addr, std::size_t peers, std::uint16_t port) {
+  enet_address_set_host(&addr, "0.0.0.0");
+  enet_address_set_port(&addr, port);
+
+  return host_t { enet_host_create(PF_INET, &addr, peers, 1, 0, 0) };
+}
+
+void free_host(ENetHost *host) {
+  std::for_each(host->peers, host->peers + host->peerCount, [](ENetPeer &peer_ref) {
+    ENetPeer *peer = &peer_ref;
+
+    if(peer) {
+      enet_peer_disconnect_now(peer, 0);
+    }
+  });
+
+  enet_host_destroy(host);
+}
 }

@@ -15,7 +15,7 @@
 #include <boost/log/sources/severity_logger.hpp>
 
 #include "nvhttp.h"
-#include "stream.h"
+#include "rtsp.h"
 #include "config.h"
 #include "thread_pool.h"
 
@@ -122,6 +122,12 @@ int main(int argc, char *argv[]) {
   auto proc_opt = proc::parse(config::stream.file_apps);
   if(!proc_opt) {
     return 7;
+  }
+
+  {
+    proc::ctx_t ctx;
+    ctx.name = "Desktop"s;
+    proc_opt->get_apps().emplace(std::begin(proc_opt->get_apps()), std::move(ctx));
   }
 
   proc::proc = std::move(*proc_opt);

@@ -35,7 +35,8 @@ stream_t stream {
 
   APPS_JSON_PATH,
 
-  10 // fecPercentage
+  10, // fecPercentage
+  1 // channels
 };
 
 nvhttp_t nvhttp {
@@ -184,10 +185,15 @@ void parse_file(const char *file) {
   });
 
   int to = -1;
-  int_f(vars, "ping_timeout", to);
-  if(to > 0) {
-    stream.ping_timeout = std::chrono::milliseconds(to);
-  }
+  int_between_f(vars, "ping_timeout", to, {
+    -1, std::numeric_limits<int>::max()
+  });
+  stream.ping_timeout = std::chrono::milliseconds(to);
+
+  int_between_f(vars, "channels", stream.channels, {
+    1, std::numeric_limits<int>::max()
+  });
+
   string_f(vars, "file_apps", stream.file_apps);
   int_between_f(vars, "fec_percentage", stream.fec_percentage, {
     1, 100

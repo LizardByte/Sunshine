@@ -30,6 +30,9 @@ struct stream_t {
   std::string file_apps;
 
   int fec_percentage;
+
+  // max unique instances of video and audio streams
+  int channels;
 };
 
 struct nvhttp_t {
