@@ -72,8 +72,6 @@ using rh_t           = util::safe_ptr<reed_solomon, reed_solomon_release>;
 using video_packet_t = util::c_ptr<video_packet_raw_t>;
 using audio_packet_t = util::c_ptr<audio_packet_raw_t>;
 
-using session_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::string, std::shared_ptr<session_t>>>>;
-
 int start_broadcast(broadcast_ctx_t &ctx);
 void end_broadcast(broadcast_ctx_t &ctx);
 
@@ -92,7 +90,7 @@ public:
   control_server_t(control_server_t &&) noexcept = default;
   control_server_t &operator=(control_server_t &&) noexcept = default;
 
-  explicit control_server_t(std::uint16_t port) : _host { net::host_create(_addr, config::stream.channels, port) } {}
+  explicit control_server_t(session_queue_t session_queue, std::uint16_t port) : session_queue { session_queue }, _host { net::host_create(_addr, config::stream.channels, port) } {}
 
   template<class T, class X>
   void iterate(std::chrono::duration<T, X> timeout) {
@@ -294,8 +292,8 @@ void control_server_t::send(const std::string_view & payload) {
   enet_host_flush(_host.get());
 }
 
-void controlBroadcastThread(safe::event_t<bool> *shutdown_event) {
-  control_server_t server { CONTROL_PORT };
+void controlBroadcastThread(safe::event_t<bool> *shutdown_event, session_queue_t session_queue) {
+  control_server_t server { session_queue, CONTROL_PORT };
 
   server.map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
     BOOST_LOG(debug) << "type [IDX_START_A]"sv;
@@ -395,7 +393,7 @@ void recvThread(broadcast_ctx_t &ctx) {
   auto &video_sock = ctx.video_sock;
   auto &audio_sock = ctx.audio_sock;
 
-  auto &session_queue = ctx.session_queue;
+  auto &session_queue = ctx.message_queue_queue;
   auto &io = ctx.io;
 
   udp::endpoint peer;
@@ -585,10 +583,12 @@ void audioBroadcastThread(safe::event_t<bool> *shutdown_event, udp::socket &sock
 int start_broadcast(broadcast_ctx_t &ctx) {
   ctx.video_packets = std::make_shared<video::packet_queue_t::element_type>();
   ctx.audio_packets = std::make_shared<audio::packet_queue_t::element_type>();
+  ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>();
+  ctx.session_queue = std::make_shared<session_queue_t::element_type>();
 
   ctx.video_thread = std::thread { videoBroadcastThread, &ctx.shutdown_event, std::ref(ctx.video_sock), ctx.video_packets };
   ctx.audio_thread = std::thread { audioBroadcastThread, &ctx.shutdown_event, std::ref(ctx.audio_sock), ctx.audio_packets };
-  ctx.control_thread = std::thread { controlBroadcastThread, &ctx.shutdown_event };
+  ctx.control_thread = std::thread { controlBroadcastThread, &ctx.shutdown_event, ctx.session_queue };
 
   ctx.recv_thread = std::thread { recvThread, std::ref(ctx) };
 
@@ -600,7 +600,7 @@ void end_broadcast(broadcast_ctx_t &ctx) {
   ctx.video_packets->stop();
   ctx.audio_packets->stop();
 
-  ctx.session_queue->stop();
+  ctx.message_queue_queue->stop();
 
   ctx.video_sock.cancel();
   ctx.audio_sock.cancel();
@@ -623,11 +623,11 @@ int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &
   };
 
   auto messages = std::make_shared<message_queue_t::element_type>();
-  ref->session_queue->raise(std::make_tuple(type, addr, messages));
+  ref->message_queue_queue->raise(std::make_tuple(type, addr, messages));
 
   auto fg = util::fail_guard([&]() {
     // remove message queue from session
-    ref->session_queue->raise(std::make_tuple(type, addr, nullptr));
+    ref->message_queue_queue->raise(std::make_tuple(type, addr, nullptr));
   });
 
   auto msg_opt = messages->pop(config::stream.ping_timeout);

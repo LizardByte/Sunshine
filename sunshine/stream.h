@@ -39,8 +39,10 @@ enum class state_e : int {
   RUNNING,
 };
 
+struct session_t;
 using message_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::uint16_t, std::string>>>;
 using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e, asio::ip::address, message_queue_t>>>;
+using session_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::string, std::shared_ptr<session_t>>>>;
 
 struct config_t {
   audio::config_t audio;
@@ -57,7 +59,8 @@ struct broadcast_ctx_t {
   video::packet_queue_t video_packets;
   audio::packet_queue_t audio_packets;
 
-  message_queue_queue_t session_queue;
+  message_queue_queue_t message_queue_queue;
+  session_queue_t session_queue;
 
   std::thread video_thread;
   std::thread audio_thread;
@@ -80,8 +83,6 @@ struct session_t {
 
   udp::endpoint video_peer;
   udp::endpoint audio_peer;
-
-
 
   video::idr_event_t idr_events;
 

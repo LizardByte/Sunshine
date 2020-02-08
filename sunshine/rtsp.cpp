@@ -32,7 +32,7 @@ void free_msg(PRTSP_MESSAGE msg) {
 class rtsp_server_t;
 
 using msg_t = util::safe_ptr<RTSP_MESSAGE, free_msg>;
-using cmd_func_t = std::function<void(rtsp_server_t *, const std::shared_ptr<session_t> &, net::peer_t, msg_t&&)>;
+using cmd_func_t = std::function<void(rtsp_server_t*, net::peer_t, msg_t&&)>;
 
 safe::event_t<launch_session_t> launch_event;
 
@@ -90,7 +90,7 @@ public:
           msg_t resp;
           auto func = _map_cmd_cb.find(req->message.request.command);
           if (func != std::end(_map_cmd_cb)) {
-            func->second(this, nullptr, peer, std::move(req));
+            func->second(this, peer, std::move(req));
           }
           else {
             cmd_not_found(host(), peer, std::move(req));
@@ -219,7 +219,7 @@ void cmd_not_found(net::host_t::pointer host, net::peer_t peer, msg_t&& req) {
   respond(host, peer, nullptr, 404, "NOT FOUND", req->sequenceNumber, {});
 }
 
-void cmd_option(rtsp_server_t *server, const std::shared_ptr<session_t> &session, net::peer_t peer, msg_t&& req) {
+void cmd_option(rtsp_server_t *server, net::peer_t peer, msg_t&& req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified
@@ -231,7 +231,7 @@ void cmd_option(rtsp_server_t *server, const std::shared_ptr<session_t> &session
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 
-void cmd_describe(rtsp_server_t *server, const std::shared_ptr<session_t> &session, net::peer_t peer, msg_t&& req) {
+void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t&& req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified
@@ -251,7 +251,7 @@ void cmd_describe(rtsp_server_t *server, const std::shared_ptr<session_t> &sessi
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, payload);
 }
 
-void cmd_setup(rtsp_server_t *server, const std::shared_ptr<session_t> &session, net::peer_t peer, msg_t &&req) {
+void cmd_setup(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   OPTION_ITEM options[2] {};
 
   auto &seqn           = options[0];
@@ -261,13 +261,6 @@ void cmd_setup(rtsp_server_t *server, const std::shared_ptr<session_t> &session,
 
   auto seqn_str = std::to_string(req->sequenceNumber);
   seqn.content = const_cast<char*>(seqn_str.c_str());
-
-  if(session->idr_events) {
-    // already streaming
-
-    respond(server->host(), peer, &seqn, 503, "Service Unavailable", req->sequenceNumber, {});
-    return;
-  }
 
   std::string_view target { req->message.request.target };
   auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
@@ -289,7 +282,7 @@ void cmd_setup(rtsp_server_t *server, const std::shared_ptr<session_t> &session,
   respond(server->host(), peer, &seqn, 200, "OK", req->sequenceNumber, {});
 }
 
-void cmd_announce(rtsp_server_t *server, const std::shared_ptr<session_t> &session, net::peer_t peer, msg_t &&req) {
+void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified
@@ -298,15 +291,8 @@ void cmd_announce(rtsp_server_t *server, const std::shared_ptr<session_t> &sessi
   auto seqn_str = std::to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
-  auto expected_state = state_e::STOPPED;
-  auto abort = session->state.compare_exchange_strong(expected_state, state_e::STARTING);
-
-  if(abort || !launch_event.peek()) {
-    //Either already streaming or /launch has not been used
-
-    if(!abort) {
-      session->state.store(state_e::STOPPED);
-    }
+  if(!launch_event.peek()) {
+    // /launch has not been used
 
     respond(server->host(), peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
     return;
@@ -361,6 +347,7 @@ void cmd_announce(rtsp_server_t *server, const std::shared_ptr<session_t> &sessi
   args.try_emplace("x-nv-video[0].dynamicRangeMode"sv, "0"sv);
   args.try_emplace("x-nv-aqos.packetDuration"sv, "5"sv);
 
+  auto session = std::make_shared<session_t>();
   try {
 
     auto &config = session->config;
@@ -393,6 +380,13 @@ void cmd_announce(rtsp_server_t *server, const std::shared_ptr<session_t> &sessi
     return;
   }
 
+  if(!server->accept(session)) {
+    BOOST_LOG(info) << "Ran out of slots for client from ["sv << ']';
+
+    respond(server->host(), peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
+    return;
+  }
+
   auto &gcm_key  = launch_session->gcm_key;
   auto &iv       = launch_session->iv;
 
@@ -410,7 +404,7 @@ void cmd_announce(rtsp_server_t *server, const std::shared_ptr<session_t> &sessi
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 
-void cmd_play(rtsp_server_t *server, const std::shared_ptr<session_t> &session, net::peer_t peer, msg_t &&req) {
+void cmd_play(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified

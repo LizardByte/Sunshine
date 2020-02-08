@@ -469,7 +469,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 
   auto current_appid = proc::proc.running();
   tree.put("root.PairStatus", pair_status);
-  tree.put("root.currentgame", current_appid >= 0 ? current_appid + 2 : 0);
+  tree.put("root.currentgame", current_appid >= 0 ? current_appid + 1 : 0);
   tree.put("root.state", "_SERVER_BUSY"); 
 
   std::ostringstream data;
@@ -502,8 +502,6 @@ void applist(resp_https_t response, req_https_t request) {
 
   auto &apps = tree.add_child("root", pt::ptree {});
 
-  pt::ptree desktop;
-
   apps.put("<xmlattr>.status_code", 200);
 
   int x = 0;
@@ -516,8 +514,6 @@ void applist(resp_https_t response, req_https_t request) {
 
     apps.push_back(std::make_pair("App", std::move(app)));
   }
-
-  apps.push_back(std::make_pair("App", desktop));
 }
 
 void launch(resp_https_t response, req_https_t request) {
