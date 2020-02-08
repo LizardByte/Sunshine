@@ -528,7 +528,7 @@ void launch(resp_https_t response, req_https_t request) {
   });
 
   auto args = request->parse_query_string();
-  auto appid = util::from_view(args.at("appid")) -2;
+  auto appid = util::from_view(args.at("appid")) -1;
 
   auto current_appid = proc::proc.running();
   if(current_appid != -1) {

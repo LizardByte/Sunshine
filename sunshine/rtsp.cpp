@@ -122,19 +122,8 @@ public:
         continue;
       }
 
-      // Wait until the session is properly running
-      while (session->state == state_e::STARTING) {
-        std::this_thread::sleep_for(1ms);
-      }
-
       ::stream::stop(*session);
-
-      BOOST_LOG(debug) << "Waiting for Audio to end..."sv;
-      session->audioThread.join();
-      BOOST_LOG(debug) << "Waiting for Video to end..."sv;
-      session->videoThread.join();
-
-      input::reset(input);
+      ::stream::join(*session);
     }
   }
 
@@ -347,10 +336,8 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   args.try_emplace("x-nv-video[0].dynamicRangeMode"sv, "0"sv);
   args.try_emplace("x-nv-aqos.packetDuration"sv, "5"sv);
 
-  auto session = std::make_shared<session_t>();
+  config_t config;
   try {
-
-    auto &config = session->config;
     config.audio.channels       = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
     config.audio.mask           = util::from_view(args.at("x-nv-audio.surround.channelMask"sv));
     config.audio.packetDuration = util::from_view(args.at("x-nv-aqos.packetDuration"sv));
@@ -373,13 +360,14 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     return;
   }
 
-  if(session->config.monitor.videoFormat != 0 && config::video.hevc_mode == 0) {
+  if(config.monitor.videoFormat != 0 && config::video.hevc_mode == 0) {
     BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
     respond(server->host(), peer, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
     return;
   }
 
+  auto session = alloc_session(config, launch_session->gcm_key, launch_session->iv);
   if(!server->accept(session)) {
     BOOST_LOG(info) << "Ran out of slots for client from ["sv << ']';
 
@@ -387,20 +375,8 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     return;
   }
 
-  auto &gcm_key  = launch_session->gcm_key;
-  auto &iv       = launch_session->iv;
+  start_session(session, platf::from_sockaddr((sockaddr*)&peer->address.address));
 
-  std::copy(std::begin(gcm_key), std::end(gcm_key), std::begin(session->gcm_key));
-  std::copy(std::begin(iv), std::end(iv), std::begin(session->iv));
-
-  session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
-
-  session->idr_events    = std::make_shared<video::idr_event_t::element_type>();
-
-  session->audioThread   = std::thread {audioThread, session, platf::from_sockaddr((sockaddr*)&peer->address.address)};
-  session->videoThread   = std::thread {videoThread, session, platf::from_sockaddr((sockaddr*)&peer->address.address)};
-
-  session->state.store(state_e::RUNNING);
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 

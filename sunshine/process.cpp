@@ -48,7 +48,7 @@ int proc_t::execute(int app_id) {
     _app_id = -1;
   }
 
-  if(app_id >= _apps.size()) {
+  if(app_id < 0 || app_id >= _apps.size()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
 
     return 404;

@@ -217,22 +217,29 @@ public:
   struct ptr_t {
     shared_t *owner;
 
+    ptr_t() : owner { nullptr } {}
     explicit ptr_t(shared_t *owner) : owner { owner } {}
 
-    ptr_t(ptr_t &&ptr) noexcept {
-      owner = ptr.owner;
-
+    ptr_t(ptr_t &&ptr) noexcept : owner { ptr.owner } {
       ptr.owner = nullptr;
     }
 
-    ptr_t(const ptr_t &ptr) noexcept {
-      auto tmp = ptr.owner->ref();
+    ptr_t(const ptr_t &ptr) noexcept : owner { ptr.owner } {
+      if(!owner) {
+        return;
+      }
 
-      owner = tmp.owner;
+      auto tmp = ptr.owner->ref();
       tmp.owner = nullptr;
     }
 
     ptr_t &operator=(const ptr_t &ptr) noexcept {
+      if(!ptr.owner) {
+        release();
+
+        return *this;
+      }
+
       return *this = std::move(*ptr.owner->ref());
     }
 
