@@ -125,11 +125,9 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
       }
 
       if(time_point > capture_ctx->next_frame) {
-        continue;
+        capture_ctx->images->raise(img);
+        capture_ctx->next_frame = time_point + capture_ctx->delay;
       }
-
-      capture_ctx->images->raise(img);
-      capture_ctx->next_frame = time_point + capture_ctx->delay;
     }
   }
 }
@@ -214,7 +212,6 @@ void capture(
   if(!ref->capture_ctx_queue->running()) {
     return;
   }
-
 
   AVCodec *codec;
 

@@ -114,6 +114,7 @@ struct broadcast_ctx_t {
   std::thread recv_thread;
 
   asio::io_service io;
+
   udp::socket video_sock { io, udp::endpoint(udp::v4(), VIDEO_STREAM_PORT) };
   udp::socket audio_sock { io, udp::endpoint(udp::v4(), AUDIO_STREAM_PORT) };
 };
@@ -492,6 +493,8 @@ void recvThread(broadcast_ctx_t &ctx) {
 
   auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<asio::ip::address, message_queue_t> &peer_to_session) {
     recv_func[buf_elem] = [&,buf_elem](const boost::system::error_code &ec, size_t bytes) {
+      auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
+
       populate_peer_to_session();
 
       if(ec || !bytes) {
@@ -503,6 +506,7 @@ void recvThread(broadcast_ctx_t &ctx) {
 
       auto it = peer_to_session.find(peer.address());
       if(it != std::end(peer_to_session)) {
+        BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ":"sv << peer.port() << " :: " << type_str;
         it->second->raise(peer.port(), std::string { buf[buf_elem].data(), bytes });
       }
 
@@ -517,9 +521,7 @@ void recvThread(broadcast_ctx_t &ctx) {
   audio_sock.async_receive_from(asio::buffer(buf[1]), peer, 0, recv_func[1]);
 
   while(!ctx.shutdown_event.peek()) {
-
-
-    io.run_one();
+    io.run();
   }
 }
 
@@ -670,8 +672,8 @@ void end_broadcast(broadcast_ctx_t &ctx) {
   ctx.shutdown_event.raise(true);
   ctx.video_packets->stop();
   ctx.audio_packets->stop();
-
   ctx.message_queue_queue->stop();
+  ctx.io.stop();
 
   ctx.video_sock.cancel();
   ctx.audio_sock.cancel();
@@ -694,11 +696,11 @@ int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &
   };
 
   auto messages = std::make_shared<message_queue_t::element_type>();
-  ref->message_queue_queue->raise(std::make_tuple(type, addr, messages));
+  ref->message_queue_queue->raise(type, addr, messages);
 
   auto fg = util::fail_guard([&]() {
     // remove message queue from session
-    ref->message_queue_queue->raise(std::make_tuple(type, addr, nullptr));
+    ref->message_queue_queue->raise(type, addr, nullptr);
   });
 
   auto msg_opt = messages->pop(config::stream.ping_timeout);
@@ -737,12 +739,11 @@ void videoThread(std::shared_ptr<session_t> session, std::string addr_str) {
     return;
   }
 
-  auto &idr_events = session->idr_events;
-
   session->video_peer.address(addr);
   session->video_peer.port(port);
 
-  video::capture(ref->video_packets, idr_events, session->config.monitor, session.get());
+  BOOST_LOG(debug) << "Start capturing Video"sv;
+  video::capture(ref->video_packets, session->idr_events, session->config.monitor, session.get());
 }
 
 void audioThread(std::shared_ptr<session_t> session, std::string addr_str) {
@@ -765,6 +766,7 @@ void audioThread(std::shared_ptr<session_t> session, std::string addr_str) {
   session->audio_peer.address(addr);
   session->audio_peer.port(port);
 
+  BOOST_LOG(debug) << "Start capturing Audio"sv;
   audio::capture(ref->audio_packets, session->config.audio, session.get());
 }
 
