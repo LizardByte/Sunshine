@@ -187,6 +187,7 @@ public:
       }
 
       auto &session = it->second;
+      session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
       switch(event.type) {
         case ENET_EVENT_TYPE_RECEIVE:
@@ -396,8 +397,6 @@ void controlBroadcastThread(safe::event_t<bool> *shutdown_event, session_queue_t
   });
 
   server.map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
-    session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
-
     BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
 
     int32_t tagged_cipher_length = util::endian::big(*(int32_t*)payload.data());
@@ -707,7 +706,7 @@ int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &
   messages->stop();
 
   if(!msg_opt) {
-    BOOST_LOG(error) << "Ping Timeout"sv;
+    BOOST_LOG(error) << "Initial Ping Timeout"sv;
 
     return -1;
   }

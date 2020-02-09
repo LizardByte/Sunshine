@@ -74,14 +74,14 @@ int capture_display(platf::img_t *img, std::unique_ptr<platf::display_t> &disp) 
         return -1;
       }
 
-      return -1;
+      return 0;
     }
     case platf::capture_e::error:
      return -1;
      // Prevent warning during compilation
     case platf::capture_e::timeout:
     case platf::capture_e::ok:
-      return 0;
+      return 1;
     default:
       BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
       return -1;
@@ -111,16 +111,17 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
     }
 
     std::shared_ptr<platf::img_t> img = disp->alloc_img();
-    auto has_error = capture_display(img.get(), disp);
-    if(has_error) {
+    auto result = capture_display(img.get(), disp);
+    if(result < 0) {
       return;
     }
+    if(!result) {
+      continue;
+    }
 
-    auto time_point = std::chrono::steady_clock::now();
-    for(auto capture_ctx = std::begin(capture_ctxs); capture_ctx != std::end(capture_ctxs); ++capture_ctx) {
+    KITTY_WHILE_LOOP(auto time_point = std::chrono::steady_clock::now(); auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
       if(!capture_ctx->images->running()) {
         capture_ctx = capture_ctxs.erase(capture_ctx);
-
         continue;
       }
 
@@ -128,7 +129,9 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
         capture_ctx->images->raise(img);
         capture_ctx->next_frame = time_point + capture_ctx->delay;
       }
-    }
+
+      ++capture_ctx;
+    })
   }
 }
 

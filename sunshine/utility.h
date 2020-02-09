@@ -10,6 +10,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <string_view>
+
+#define KITTY_WHILE_LOOP(x, y, z) { x;while(y) z }
 #define KITTY_DECL_CONSTR(x)\
   x(x&&) noexcept = default;\
   x&operator=(x&&) noexcept = default;\
