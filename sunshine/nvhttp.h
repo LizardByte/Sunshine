@@ -15,7 +15,7 @@
 #define CERTIFICATE_FILE CA_DIR    "/cacert.pem"
 
 namespace nvhttp {
-void start(std::shared_ptr<safe::event_t<bool>> shutdown_event);
+void start(std::shared_ptr<safe::signal_t> shutdown_event);
 }
 
 #endif //SUNSHINE_NVHTTP_H

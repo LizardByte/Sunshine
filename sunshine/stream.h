@@ -26,13 +26,23 @@ struct config_t {
   std::optional<int> gcmap;
 };
 
-std::shared_ptr<session_t> alloc_session(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv);
-void start_session(std::shared_ptr<session_t> session, const std::string &addr_string);
+namespace session {
+enum class state_e : int {
+  STOPPED,
+  STOPPING,
+  STARTING,
+  RUNNING,
+};
 
+std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv);
+void start(session_t &session, const std::string &addr_string);
 void stop(session_t &session);
 void join(session_t &session);
+state_e state(session_t &session);
+}
 
 extern std::shared_ptr<input::input_t> input;
+extern safe::signal_t broadcast_shutdown_event;
 }
 
 #endif //SUNSHINE_STREAM_H

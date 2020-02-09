@@ -80,12 +80,11 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
   }
 }
 
-void capture(packet_queue_t packets, config_t config, void *channel_data) {
+void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t config, void *channel_data) {
   auto samples = std::make_shared<sample_queue_t::element_type>();
   std::thread thread { encodeThread, packets, samples, config, channel_data };
 
   auto fg = util::fail_guard([&]() {
-    packets->stop();
     samples->stop();
     thread.join();
   });
@@ -103,7 +102,7 @@ void capture(packet_queue_t packets, config_t config, void *channel_data) {
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   int samples_per_frame = frame_size * stream->channelCount;
 
-  while(packets->running()) {
+  while(!shutdown_event->peek()) {
     std::vector<std::int16_t> sample_buffer;
     sample_buffer.resize(samples_per_frame);
 

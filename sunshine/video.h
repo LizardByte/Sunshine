@@ -51,6 +51,7 @@ struct config_t {
 };
 
 void capture(
+  safe::signal_t *shutdown_event,
   packet_queue_t packets,
   idr_event_t idr_events,
   config_t config,

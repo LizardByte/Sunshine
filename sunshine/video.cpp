@@ -193,6 +193,7 @@ void end_capture(capture_thread_ctx_t &capture_thread_ctx) {
 }
 
 void capture(
+  safe::signal_t *shutdown_event,
   packet_queue_t packets,
   idr_event_t idr_events,
   config_t config,
@@ -344,7 +345,7 @@ void capture(
   // Initiate scaling context with correct height and width
   sws_t sws;
   while(auto img = images->pop()) {
-    if(!idr_events->running()) {
+    if(shutdown_event->peek()) {
       break;
     }
 

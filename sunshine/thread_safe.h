@@ -93,7 +93,7 @@ public:
   bool peek() {
     std::lock_guard lg { _lock };
 
-    return (bool)_status;
+    return _continue && (bool)_status;
   }
 
   void stop() {
@@ -104,7 +104,15 @@ public:
     _cv.notify_all();
   }
 
-  bool running() const {
+  void reset() {
+    std::lock_guard lg{_lock};
+
+    _continue = true;
+
+    _status = util::false_v<status_t>;
+  }
+
+  [[nodiscard]] bool running() const {
     return _continue;
   }
 private:
@@ -137,7 +145,7 @@ public:
   bool peek() {
     std::lock_guard lg { _lock };
 
-    return !_queue.empty();
+    return _continue && !_queue.empty();
   }
 
   template<class Rep, class Period>
@@ -315,6 +323,8 @@ auto make_shared(F_Construct &&fc, F_Destruct &&fd) {
     std::forward<F_Construct>(fc), std::forward<F_Destruct>(fd)
   };
 }
+
+using signal_t = event_t<bool>;
 }
 
 #endif //SUNSHINE_THREAD_SAFE_H

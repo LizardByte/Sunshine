@@ -18,7 +18,7 @@ struct launch_session_t {
 
 extern safe::event_t<launch_session_t> launch_event;
 
-void rtpThread(std::shared_ptr<safe::event_t<bool>> shutdown_event);
+void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event);
 
 }
 

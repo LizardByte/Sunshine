@@ -46,6 +46,10 @@ public:
 
   explicit rtsp_server_t(std::uint16_t port) : _session_slots (config::stream.channels), _host {net::host_create(_addr, 1, port) } {}
 
+  ~rtsp_server_t() {
+    stop();
+  }
+
   template<class T, class X>
   void iterate(std::chrono::duration<T, X> timeout) {
     ENetEvent event;
@@ -114,22 +118,26 @@ public:
     _map_cmd_cb.emplace(type, std::move(cb));
   }
 
-  void stop() {
+  void stop(bool all = true) {
     for(auto &slot : _session_slots) {
-      auto session = slot.lock();
+      if (slot && (all || session::state(*slot) == session::state_e::STOPPING)) {
+        session::stop(*slot);
+        session::join(*slot);
 
-      if (!session) {
-        continue;
+        slot.reset();
       }
+    }
 
-      ::stream::stop(*session);
-      ::stream::join(*session);
+    if(all) {
+      std::for_each(_host->peers, _host->peers + _host->peerCount, [](auto &peer) {
+        enet_peer_disconnect_now(&peer, 0);
+      });
     }
   }
 
   bool accept(const std::shared_ptr<session_t> &session) {
     for(auto &slot : _session_slots) {
-      if(slot.expired()) {
+      if(!slot) {
         slot = session;
 
         return true;
@@ -150,7 +158,7 @@ private:
 
   std::unordered_map<std::string_view, cmd_func_t> _map_cmd_cb;
 
-  std::vector<std::weak_ptr<session_t>> _session_slots;
+  std::vector<std::shared_ptr<session_t>> _session_slots;
 
   ENetAddress _addr;
   net::host_t _host;
@@ -367,7 +375,7 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     return;
   }
 
-  auto session = alloc_session(config, launch_session->gcm_key, launch_session->iv);
+  auto session = session::alloc(config, launch_session->gcm_key, launch_session->iv);
   if(!server->accept(session)) {
     BOOST_LOG(info) << "Ran out of slots for client from ["sv << ']';
 
@@ -375,7 +383,7 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     return;
   }
 
-  start_session(session, platf::from_sockaddr((sockaddr*)&peer->address.address));
+  session::start(*session, platf::from_sockaddr((sockaddr*)&peer->address.address));
 
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
@@ -392,7 +400,7 @@ void cmd_play(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 
-void rtpThread(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
+void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
   input = std::make_shared<input::input_t>();
   auto fg = util::fail_guard([&]() {
     input.reset();
@@ -409,9 +417,15 @@ void rtpThread(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
 
   while(!shutdown_event->peek()) {
     server.iterate(std::min(500ms, config::stream.ping_timeout));
-  }
 
-  server.stop();
+    if(broadcast_shutdown_event.peek()) {
+      server.stop();
+    }
+    else {
+      // cleanup all stopped sessions
+      server.stop(false);
+    }
+  }
 }
 
 void print_msg(PRTSP_MESSAGE msg) {

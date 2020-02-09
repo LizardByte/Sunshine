@@ -62,13 +62,6 @@ enum class socket_e : int {
   audio
 };
 
-enum class state_e : int {
-  STOPPED,
-  STOPPING,
-  STARTING,
-  RUNNING,
-};
-
 #pragma pack(push, 1)
 
 struct video_packet_raw_t {
@@ -96,22 +89,19 @@ using audio_packet_t = util::c_ptr<audio_packet_raw_t>;
 
 using message_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::uint16_t, std::string>>>;
 using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e, asio::ip::address, message_queue_t>>>;
-using session_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::string, std::shared_ptr<session_t>>>>;
+using session_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::string, session_t*>>>;
 
 struct broadcast_ctx_t {
-  safe::event_t<bool> shutdown_event;
-
   video::packet_queue_t video_packets;
   audio::packet_queue_t audio_packets;
 
   message_queue_queue_t message_queue_queue;
   session_queue_t session_queue;
 
+  std::thread recv_thread;
   std::thread video_thread;
   std::thread audio_thread;
   std::thread control_thread;
-
-  std::thread recv_thread;
 
   asio::io_service io;
 
@@ -136,17 +126,17 @@ struct session_t {
   crypto::aes_t gcm_key;
   crypto::aes_t iv;
 
-  std::atomic<state_e> state;
+  safe::signal_t shutdown_event;
+  std::atomic<session::state_e> state;
 };
-
-void videoThread(std::shared_ptr<session_t> session, std::string addr_str);
-void audioThread(std::shared_ptr<session_t> session, std::string addr_str);
 
 int start_broadcast(broadcast_ctx_t &ctx);
 void end_broadcast(broadcast_ctx_t &ctx);
 
 std::shared_ptr<input::input_t> input;
+
 static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
+safe::signal_t broadcast_shutdown_event;
 
 class control_server_t {
 public:
@@ -155,27 +145,30 @@ public:
 
   explicit control_server_t(session_queue_t session_queue, std::uint16_t port) : session_queue { session_queue }, _host { net::host_create(_addr, config::stream.channels, port) } {}
 
+  void populate_addr_to_session() {
+    while(session_queue->peek()) {
+      auto session_opt = session_queue->pop();
+      if(!session_opt) {
+        break;
+      }
+      TUPLE_2D_REF(addr_string, session, *session_opt);
+
+      if(session) {
+        _map_addr_session.try_emplace(addr_string, session).second;
+      }
+      else {
+        _map_addr_session.erase(addr_string);
+      }
+    }
+  }
+
   template<class T, class X>
   void iterate(std::chrono::duration<T, X> timeout) {
     ENetEvent event;
     auto res = enet_host_service(_host.get(), &event, std::chrono::floor<std::chrono::milliseconds>(timeout).count());
 
+    populate_addr_to_session();
     if(res > 0) {
-      while(session_queue->peek()) {
-        auto session_opt = session_queue->pop();
-        if(!session_opt) {
-          return;
-        }
-
-        TUPLE_2D_REF(addr_string, session, *session_opt);
-
-        if(session) {
-          _map_addr_session.try_emplace(addr_string, session);
-        }
-        else {
-          _map_addr_session.erase(addr_string);
-        }
-      }
       auto addr_string = platf::from_sockaddr((sockaddr*)&event.peer->address.address);
 
       auto it = _map_addr_session.find(addr_string);
@@ -206,7 +199,7 @@ public:
           }
 
           else {
-            cb->second(session.get(), payload);
+            cb->second(session, payload);
           }
         }
           break;
@@ -216,8 +209,8 @@ public:
         case ENET_EVENT_TYPE_DISCONNECT:
           BOOST_LOG(info) << "CLIENT DISCONNECTED"sv;
           // No more clients to send video data to ^_^
-          if(session->state == state_e::RUNNING) {
-            stop(*session);
+          if(session->state == session::state_e::RUNNING) {
+            session::stop(*session);
           }
           break;
         case ENET_EVENT_TYPE_NONE:
@@ -233,7 +226,7 @@ public:
   void send(const std::string_view &payload);
 
   std::unordered_map<std::uint16_t, std::function<void(session_t *, const std::string_view&)>> _map_type_cb;
-  std::unordered_map<std::string, std::shared_ptr<session_t>> _map_addr_session;
+  std::unordered_map<std::string, session_t*> _map_addr_session;
 
   session_queue_t session_queue;
 
@@ -356,7 +349,7 @@ void control_server_t::send(const std::string_view & payload) {
   enet_host_flush(_host.get());
 }
 
-void controlBroadcastThread(safe::event_t<bool> *shutdown_event, session_queue_t session_queue) {
+void controlBroadcastThread(safe::signal_t *shutdown_event, session_queue_t session_queue) {
   control_server_t server { session_queue, CONTROL_PORT };
 
   server.map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
@@ -411,7 +404,7 @@ void controlBroadcastThread(safe::event_t<bool> *shutdown_event, session_queue_t
 
       BOOST_LOG(error) << "Failed to verify tag"sv;
 
-      stop(*session);
+      session::stop(*session);
     }
 
     if(tagged_cipher_length >= 16 + session->iv.size()) {
@@ -427,7 +420,7 @@ void controlBroadcastThread(safe::event_t<bool> *shutdown_event, session_queue_t
     for(auto &[addr,session] : server._map_addr_session) {
       if(now > session->pingTimeout) {
         BOOST_LOG(info) << addr << ": Ping Timeout"sv;
-        stop(*session);
+        session::stop(*session);
       }
     }
 
@@ -442,7 +435,8 @@ void controlBroadcastThread(safe::event_t<bool> *shutdown_event, session_queue_t
 
       server.send(std::string_view {(char*)payload.data(), payload.size()});
 
-      //TODO: Terminate session
+      shutdown_event->raise(true);
+      continue;
     }
 
     server.iterate(500ms);
@@ -519,12 +513,12 @@ void recvThread(broadcast_ctx_t &ctx) {
   video_sock.async_receive_from(asio::buffer(buf[0]), peer, 0, recv_func[0]);
   audio_sock.async_receive_from(asio::buffer(buf[1]), peer, 0, recv_func[1]);
 
-  while(!ctx.shutdown_event.peek()) {
+  while(!broadcast_shutdown_event.peek()) {
     io.run();
   }
 }
 
-void videoBroadcastThread(safe::event_t<bool> *shutdown_event, udp::socket &sock, video::packet_queue_t packets) {
+void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, video::packet_queue_t packets) {
   int lowseq = 0;
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
@@ -626,7 +620,7 @@ void videoBroadcastThread(safe::event_t<bool> *shutdown_event, udp::socket &sock
   shutdown_event->raise(true);
 }
 
-void audioBroadcastThread(safe::event_t<bool> *shutdown_event, udp::socket &sock, audio::packet_queue_t packets) {
+void audioBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, audio::packet_queue_t packets) {
   uint16_t frame{1};
 
   while (auto packet = packets->pop()) {
@@ -658,9 +652,9 @@ int start_broadcast(broadcast_ctx_t &ctx) {
   ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>();
   ctx.session_queue = std::make_shared<session_queue_t::element_type>();
 
-  ctx.video_thread = std::thread { videoBroadcastThread, &ctx.shutdown_event, std::ref(ctx.video_sock), ctx.video_packets };
-  ctx.audio_thread = std::thread { audioBroadcastThread, &ctx.shutdown_event, std::ref(ctx.audio_sock), ctx.audio_packets };
-  ctx.control_thread = std::thread { controlBroadcastThread, &ctx.shutdown_event, ctx.session_queue };
+  ctx.video_thread = std::thread { videoBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.video_sock), ctx.video_packets };
+  ctx.audio_thread = std::thread { audioBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.audio_sock), ctx.audio_packets };
+  ctx.control_thread = std::thread { controlBroadcastThread, &broadcast_shutdown_event, ctx.session_queue };
 
   ctx.recv_thread = std::thread { recvThread, std::ref(ctx) };
 
@@ -668,25 +662,32 @@ int start_broadcast(broadcast_ctx_t &ctx) {
 }
 
 void end_broadcast(broadcast_ctx_t &ctx) {
-  ctx.shutdown_event.raise(true);
+  broadcast_shutdown_event.raise(true);
+
+  // Minimize delay stopping video/audio threads
   ctx.video_packets->stop();
   ctx.audio_packets->stop();
+
   ctx.message_queue_queue->stop();
   ctx.io.stop();
 
-  ctx.video_sock.cancel();
-  ctx.audio_sock.cancel();
-
-  BOOST_LOG(debug) << "Waiting for video thread to end..."sv;
-  ctx.video_thread.join();
-  BOOST_LOG(debug) << "Waiting for audio thread to end..."sv;
-  ctx.audio_thread.join();
-  BOOST_LOG(debug) << "Waiting for control thread to end..."sv;
-  ctx.control_thread.join();
-  BOOST_LOG(debug) << "All broadcasting threads ended"sv;
+  ctx.video_sock.close();
+  ctx.audio_sock.close();
 
   ctx.video_packets.reset();
   ctx.audio_packets.reset();
+
+  BOOST_LOG(debug) << "Waiting for main listening thread to end..."sv;
+  ctx.recv_thread.join();
+  BOOST_LOG(debug) << "Waiting for main video thread to end..."sv;
+  ctx.video_thread.join();
+  BOOST_LOG(debug) << "Waiting for main audio thread to end..."sv;
+  ctx.audio_thread.join();
+  BOOST_LOG(debug) << "Waiting for main control thread to end..."sv;
+  ctx.control_thread.join();
+  BOOST_LOG(debug) << "All broadcasting threads ended"sv;
+
+  broadcast_shutdown_event.reset();
 }
 
 int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &addr, std::chrono::milliseconds timeout) {
@@ -721,12 +722,12 @@ int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &
   return port;
 }
 
-void videoThread(std::shared_ptr<session_t> session, std::string addr_str) {
+void videoThread(session_t *session, std::string addr_str) {
   auto fg = util::fail_guard([&]() {
-    stop(*session);
+    session::stop(*session);
   });
 
-  while(session->state == state_e::STARTING) {
+  while(session->state == session::state_e::STARTING) {
     std::this_thread::sleep_for(1ms);
   }
 
@@ -742,15 +743,15 @@ void videoThread(std::shared_ptr<session_t> session, std::string addr_str) {
   session->video_peer.port(port);
 
   BOOST_LOG(debug) << "Start capturing Video"sv;
-  video::capture(ref->video_packets, session->idr_events, session->config.monitor, session.get());
+  video::capture(&session->shutdown_event, ref->video_packets, session->idr_events, session->config.monitor, session);
 }
 
-void audioThread(std::shared_ptr<session_t> session, std::string addr_str) {
+void audioThread(session_t *session, std::string addr_str) {
   auto fg = util::fail_guard([&]() {
-    stop(*session);
+    session::stop(*session);
   });
 
-  while(session->state == state_e::STARTING) {
+  while(session->state == session::state_e::STARTING) {
     std::this_thread::sleep_for(1ms);
   }
 
@@ -766,11 +767,17 @@ void audioThread(std::shared_ptr<session_t> session, std::string addr_str) {
   session->audio_peer.port(port);
 
   BOOST_LOG(debug) << "Start capturing Audio"sv;
-  audio::capture(ref->audio_packets, session->config.audio, session.get());
+  audio::capture(&session->shutdown_event, ref->audio_packets, session->config.audio, session);
+}
+
+namespace session {
+state_e state(session_t &session) {
+  return session.state.load(std::memory_order_relaxed);
 }
 
 void stop(session_t &session) {
-  session.idr_events->stop();
+  session.broadcast_ref->session_queue->raise(session.video_peer.address().to_string(), nullptr);
+  session.shutdown_event.raise(true);
 
   auto expected = state_e::RUNNING;
   session.state.compare_exchange_strong(expected, state_e::STOPPING);
@@ -783,19 +790,19 @@ void join(session_t &session) {
   session.audioThread.join();
 }
 
-void start_session(std::shared_ptr<session_t> session, const std::string &addr_string) {
-  session->broadcast_ref = broadcast.ref();
-  session->broadcast_ref->session_queue->raise(addr_string, session);
+void start(session_t &session, const std::string &addr_string) {
+  session.broadcast_ref = broadcast.ref();
+  session.broadcast_ref->session_queue->raise(addr_string, &session);
 
-  session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
+  session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-  session->audioThread = std::thread {audioThread, session, addr_string};
-  session->videoThread = std::thread {videoThread, session, addr_string};
+  session.audioThread = std::thread {audioThread, &session, addr_string};
+  session.videoThread = std::thread {videoThread, &session, addr_string};
 
-  session->state.store(state_e::RUNNING, std::memory_order_relaxed);
+  session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 }
 
-std::shared_ptr<session_t> alloc_session(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv) {
+std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv) {
   auto session = std::make_shared<session_t>();
 
   session->config = config;
@@ -806,5 +813,6 @@ std::shared_ptr<session_t> alloc_session(config_t &config, crypto::aes_t &gcm_ke
   session->state.store(state_e::STOPPED, std::memory_order_relaxed);
 
   return session;
+}
 }
 }

@@ -686,7 +686,7 @@ int create_creds(const std::string &pkey, const std::string &cert) {
   return 0;
 }
 
-void start(std::shared_ptr<safe::event_t<bool>> shutdown_event) {
+void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   if(!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) {
     if(create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
       shutdown_event->raise(true);
