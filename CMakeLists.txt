@@ -134,7 +134,6 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/stream.h
 	sunshine/video.cpp
 	sunshine/video.h
-	sunshine/thread_safe.h
 	sunshine/input.cpp
 	sunshine/input.h
 	sunshine/audio.cpp
@@ -147,6 +146,8 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/move_by_copy.h
 	sunshine/task_pool.h
 	sunshine/thread_pool.h
+	sunshine/thread_safe.h
+	sunshine/sync.h
 	${PLATFORM_TARGET_FILES})
 
 include_directories(
