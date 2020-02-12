@@ -95,10 +95,10 @@ std::string_view to_enum_string(net_e net) {
 }
 
 host_t host_create(ENetAddress &addr, std::size_t peers, std::uint16_t port) {
-  enet_address_set_host(&addr, "::");
+  enet_address_set_host(&addr, "0.0.0.0");
   enet_address_set_port(&addr, port);
 
-  return host_t { enet_host_create(AF_INET6, &addr, peers, 1, 0, 0) };
+  return host_t { enet_host_create(AF_INET, &addr, peers, 1, 0, 0) };
 }
 
 void free_host(ENetHost *host) {

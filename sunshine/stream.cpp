@@ -201,8 +201,8 @@ struct broadcast_ctx_t {
 
   asio::io_service io;
 
-  udp::socket video_sock { io, udp::endpoint(udp::v6(), VIDEO_STREAM_PORT) };
-  udp::socket audio_sock { io, udp::endpoint(udp::v6(), AUDIO_STREAM_PORT) };
+  udp::socket video_sock { io, udp::endpoint(udp::v4(), VIDEO_STREAM_PORT) };
+  udp::socket audio_sock { io, udp::endpoint(udp::v4(), AUDIO_STREAM_PORT) };
   control_server_t control_server { CONTROL_PORT };
 };
 

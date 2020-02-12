@@ -3,13 +3,12 @@
 //
 
 #include "common.h"
-#include "../main.h"
 
 #include <fstream>
+#include <bitset>
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
-#include <net/if.h>
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -23,9 +22,9 @@
 #include <pulse/simple.h>
 #include <pulse/error.h>
 
-#include <bitset>
-#include <sunshine/task_pool.h>
-#include <sunshine/config.h>
+#include "sunshine/task_pool.h"
+#include "sunshine/config.h"
+#include "sunshine/main.h"
 
 namespace platf {
 using namespace std::literals;
@@ -300,7 +299,7 @@ struct mic_attr_t : public mic_t {
   pa_sample_spec ss;
   util::safe_ptr<pa_simple, pa_simple_free> mic;
 
-  explicit mic_attr_t(const pa_sample_spec& ss) : ss(ss), mic {} {}
+  explicit mic_attr_t(pa_sample_format format, std::uint32_t sample_rate, std::uint8_t channels) : ss { format, sample_rate, channels }, mic {} {}
   capture_e sample(std::vector<std::int16_t> &sample_buf) override {
     auto sample_size = sample_buf.size();
 
@@ -337,11 +336,7 @@ std::unique_ptr<display_t> display() {
 }
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
-  std::unique_ptr<mic_attr_t> mic {
-    new mic_attr_t {
-      { PA_SAMPLE_S16LE, sample_rate, 2 }
-    }
-  };
+  auto mic = std::make_unique<mic_attr_t>(PA_SAMPLE_S16LE, sample_rate, 2);
 
   int status;
 
@@ -354,7 +349,7 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   }
 
   mic->mic.reset(
-    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, audio_sink, "sunshine_record", &mic->ss, nullptr, nullptr, &status)
+    pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, audio_sink, "sunshine-record", &mic->ss, nullptr, nullptr, &status)
   );
 
   if(!mic->mic) {
