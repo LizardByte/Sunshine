@@ -216,10 +216,16 @@ struct session_t {
 
   safe::shared_t<broadcast_ctx_t>::ptr_t broadcast_ref;
 
-  udp::endpoint video_peer;
-  udp::endpoint audio_peer;
+  struct {
+    int lowseq;
+    udp::endpoint peer;
+    video::idr_event_t idr_events;
+  } video;
 
-  video::idr_event_t idr_events;
+  struct {
+    std::uint16_t frame;
+    udp::endpoint peer;
+  } audio;
 
   crypto::aes_t gcm_key;
   crypto::aes_t iv;
@@ -427,7 +433,7 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
       << "firstFrame [" << firstFrame << ']' << std::endl
       << "lastFrame [" << lastFrame << ']';
 
-    session->idr_events->raise(std::make_pair(firstFrame, lastFrame));
+    session->video.idr_events->raise(std::make_pair(firstFrame, lastFrame));
   });
 
   server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
@@ -565,13 +571,13 @@ void recvThread(broadcast_ctx_t &ctx) {
 }
 
 void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, video::packet_queue_t packets) {
-  int lowseq = 0;
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
       break;
     }
 
     auto session = (session_t*)packet->channel_data;
+    auto lowseq = session->video.lowseq;
 
     std::string_view payload{(char *) packet->data, (size_t) packet->size};
     std::vector<uint8_t> payload_new;
@@ -650,7 +656,7 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
     }
 
     for (auto x = 0; x < shards.size(); ++x) {
-      sock.send_to(asio::buffer(shards[x]), session->video_peer);
+      sock.send_to(asio::buffer(shards[x]), session->video.peer);
     }
 
     if(packet->flags & AV_PKT_FLAG_KEY) {
@@ -660,33 +666,35 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
       BOOST_LOG(verbose) << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
     }
 
-    lowseq += shards.size();
+    session->video.lowseq += shards.size();
   }
 
   shutdown_event->raise(true);
 }
 
 void audioBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, audio::packet_queue_t packets) {
-  uint16_t frame{1};
-
   while (auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
       break;
     }
 
-    TUPLE_2D_REF(session, packet_data, *packet);
+    TUPLE_2D_REF(channel_data, packet_data, *packet);
+    auto session = (session_t*)channel_data;
+
+    auto frame = session->audio.frame++;
+
     audio_packet_t audio_packet { (audio_packet_raw_t*)malloc(sizeof(audio_packet_raw_t) + packet_data.size()) };
 
     audio_packet->rtp.header = 0;
     audio_packet->rtp.packetType = 97;
-    audio_packet->rtp.sequenceNumber = util::endian::big(frame++);
+    audio_packet->rtp.sequenceNumber = util::endian::big(frame);
     audio_packet->rtp.timestamp = 0;
     audio_packet->rtp.ssrc = 0;
 
     std::copy(std::begin(packet_data), std::end(packet_data), audio_packet->payload());
 
-    sock.send_to(asio::buffer((char*)audio_packet.get(), sizeof(audio_packet_raw_t) + packet_data.size()), ((session_t*)session)->audio_peer);
-    BOOST_LOG(verbose) << "Audio ["sv << frame - 1 << "] ::  send..."sv;
+    sock.send_to(asio::buffer((char*)audio_packet.get(), sizeof(audio_packet_raw_t) + packet_data.size()), session->audio.peer);
+    BOOST_LOG(verbose) << "Audio ["sv << frame << "] ::  send..."sv;
   }
 
   shutdown_event->raise(true);
@@ -781,11 +789,11 @@ void videoThread(session_t *session, std::string addr_str) {
     return;
   }
 
-  session->video_peer.address(addr);
-  session->video_peer.port(port);
+  session->video.peer.address(addr);
+  session->video.peer.port(port);
 
   BOOST_LOG(debug) << "Start capturing Video"sv;
-  video::capture(&session->shutdown_event, ref->video_packets, session->idr_events, session->config.monitor, session);
+  video::capture(&session->shutdown_event, ref->video_packets, session->video.idr_events, session->config.monitor, session);
 }
 
 void audioThread(session_t *session, std::string addr_str) {
@@ -803,8 +811,8 @@ void audioThread(session_t *session, std::string addr_str) {
     return;
   }
 
-  session->audio_peer.address(addr);
-  session->audio_peer.port(port);
+  session->audio.peer.address(addr);
+  session->audio.peer.port(port);
 
   BOOST_LOG(debug) << "Start capturing Audio"sv;
   audio::capture(&session->shutdown_event, ref->audio_packets, session->config.audio, session);
@@ -854,7 +862,11 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
   session->gcm_key = gcm_key;
   session->iv = iv;
 
-  session->idr_events = std::make_shared<video::idr_event_t::element_type>();
+  session->video.idr_events = std::make_shared<video::idr_event_t::element_type>();
+  session->video.lowseq = 0;
+
+  session->audio.frame = 1;
+
   session->state.store(state_e::STOPPED, std::memory_order_relaxed);
 
   return session;
