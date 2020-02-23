@@ -78,8 +78,8 @@ int capture_display(platf::img_t *img, std::unique_ptr<platf::display_t> &disp) 
     }
     case platf::capture_e::error:
      return -1;
-     // Prevent warning during compilation
     case platf::capture_e::timeout:
+     return 0;
     case platf::capture_e::ok:
       return 1;
     default:
