@@ -843,7 +843,7 @@ void join(session_t &session) {
   session.videoThread.join();
   BOOST_LOG(debug) << "Waiting for audio to end..."sv;
   session.audioThread.join();
-  BOOST_LG(debug) << "Session ended"sv;
+  BOOST_LOG(debug) << "Session ended"sv;
 }
 
 void start(session_t &session, const std::string &addr_string) {
