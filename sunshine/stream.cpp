@@ -539,6 +539,8 @@ void recvThread(broadcast_ctx_t &ctx) {
   auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<asio::ip::address, message_queue_t> &peer_to_session) {
     recv_func[buf_elem] = [&,buf_elem](const boost::system::error_code &ec, size_t bytes) {
       auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
+      BOOST_LOG(debug) << "Recv: "sv << peer.address().to_string() << ":"sv << peer.port() << " :: " << type_str;
+
 
       populate_peer_to_session();
 
@@ -841,6 +843,7 @@ void join(session_t &session) {
   session.videoThread.join();
   BOOST_LOG(debug) << "Waiting for audio to end..."sv;
   session.audioThread.join();
+  BOOST_LG(debug) << "Session ended"sv;
 }
 
 void start(session_t &session, const std::string &addr_string) {

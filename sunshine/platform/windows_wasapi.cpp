@@ -172,7 +172,7 @@ public:
 
     REFERENCE_TIME default_latency;
     audio_client->GetDevicePeriod(&default_latency, nullptr);
-    default_latency_ms = default_latency / 10;
+    default_latency_ms = default_latency / 1000;
 
     status = audio_client->Initialize(
       AUDCLNT_SHAREMODE_SHARED,
@@ -249,7 +249,6 @@ private:
       case WAIT_OBJECT_0:
         break;
       case WAIT_TIMEOUT:
-        std::fill_n(std::begin(sample_buf), sample_buf.size(), 0);
         return capture_e::timeout;
       default:
         BOOST_LOG(error) << "Couldn't wait for audio event: [0x"sv << util::hex(status).to_string_view() << ']';
