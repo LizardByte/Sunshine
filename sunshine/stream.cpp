@@ -262,9 +262,8 @@ void control_server_t::iterate(std::chrono::milliseconds timeout) {
       {
         net::packet_t packet { event.packet };
 
-        std::uint16_t *type = (std::uint16_t *)packet->data;
+        auto type = (std::uint16_t *)packet->data;
         std::string_view payload { (char*)packet->data + sizeof(*type), packet->dataLength - sizeof(*type) };
-
 
         auto cb = _map_type_cb.find(*type);
         if(cb == std::end(_map_type_cb)) {
@@ -424,7 +423,7 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
   });
 
   server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
-    std::int64_t *frames = (std::int64_t *)payload.data();
+    auto frames = (std::int64_t *)payload.data();
     auto firstFrame = frames[0];
     auto lastFrame = frames[1];
 

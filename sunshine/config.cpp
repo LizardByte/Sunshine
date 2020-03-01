@@ -188,8 +188,10 @@ void parse_file(const char *file) {
   int_between_f(vars, "ping_timeout", to, {
     -1, std::numeric_limits<int>::max()
   });
-  stream.ping_timeout = std::chrono::milliseconds(to);
-
+  if(to == -1) {
+    stream.ping_timeout = std::chrono::milliseconds(to);
+  }
+  
   int_between_f(vars, "channels", stream.channels, {
     1, std::numeric_limits<int>::max()
   });
