@@ -101,7 +101,6 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
     for(auto &capture_ctx : capture_ctx_queue->unsafe()) {
       capture_ctx.images->stop();
     }
-
   });
 
   auto disp = platf::display();
