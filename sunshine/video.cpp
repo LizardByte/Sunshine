@@ -38,7 +38,6 @@ using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>
 struct capture_ctx_t {
   img_event_t images;
   std::chrono::nanoseconds delay;
-  std::chrono::steady_clock::time_point next_frame;
 };
 
 struct capture_thread_ctx_t {
@@ -103,10 +102,14 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
     }
   });
 
+  std::chrono::nanoseconds delay = 1s;
+
   auto disp = platf::display();
   while(capture_ctx_queue->running()) {
     while(capture_ctx_queue->peek()) {
       capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+
+      delay = std::min(delay, capture_ctxs.back().delay);
     }
 
     std::shared_ptr<platf::img_t> img = disp->alloc_img();
@@ -118,17 +121,20 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
       continue;
     }
 
-    KITTY_WHILE_LOOP(auto time_point = std::chrono::steady_clock::now(); auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+    KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
       if(!capture_ctx->images->running()) {
+        auto tmp_delay = capture_ctx->delay;
         capture_ctx = capture_ctxs.erase(capture_ctx);
+
+        if(tmp_delay == delay) {
+          delay = std::min_element(std::begin(capture_ctxs), std::end(capture_ctxs), [](const auto &l, const auto &r) {
+            return l.delay < r.delay;
+          })->delay;
+        }
         continue;
       }
 
-      if(time_point > capture_ctx->next_frame) {
-        capture_ctx->images->raise(img);
-        capture_ctx->next_frame = time_point + capture_ctx->delay;
-      }
-
+      capture_ctx->images->raise(img);
       ++capture_ctx;
     })
   }
@@ -208,8 +214,9 @@ void capture(
     return;
   }
 
+  auto delay = std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate;
   ref->capture_ctx_queue->raise(capture_ctx_t {
-    images, std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate, std::chrono::steady_clock::now()
+    images, delay
   });
 
   if(!ref->capture_ctx_queue->running()) {
@@ -343,8 +350,18 @@ void capture(
 
   // Initiate scaling context with correct height and width
   sws_t sws;
-  while(auto img = images->pop()) {
+
+  auto next_frame = std::chrono::steady_clock::now();
+  while(true) {
     if(shutdown_event->peek()) {
+      break;
+    }
+
+    std::this_thread::sleep_until(next_frame);
+    next_frame += delay;
+
+    auto img = images->pop();
+    if(!img) {
       break;
     }
 
