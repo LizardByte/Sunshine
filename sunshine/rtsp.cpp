@@ -401,11 +401,6 @@ void cmd_play(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
 }
 
 void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
-  input = std::make_shared<input::input_t>();
-  auto fg = util::fail_guard([&]() {
-    input.reset();
-  });
-
   rtsp_server_t server(RTSP_SETUP_PORT);
 
   server.map("OPTIONS"sv, &cmd_option);

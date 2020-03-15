@@ -10,7 +10,7 @@
 
 struct sockaddr;
 namespace platf {
-constexpr auto MAX_GAMEPADS = 2;
+constexpr auto MAX_GAMEPADS = 32;
 
 constexpr std::uint16_t DPAD_UP      = 0x0001;
 constexpr std::uint16_t DPAD_DOWN    = 0x0002;

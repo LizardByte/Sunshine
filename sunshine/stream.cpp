@@ -167,6 +167,7 @@ struct broadcast_ctx_t {
 
 struct session_t {
   config_t config;
+  std::shared_ptr<input::input_t> input;
 
   std::thread audioThread;
   std::thread videoThread;
@@ -202,7 +203,6 @@ struct session_t {
 int start_broadcast(broadcast_ctx_t &ctx);
 void end_broadcast(broadcast_ctx_t &ctx);
 
-std::shared_ptr<input::input_t> input;
 
 static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
 safe::signal_t broadcast_shutdown_event;
@@ -453,7 +453,7 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
     }
 
     input::print(plaintext.data());
-    input::passthrough(input, std::move(plaintext));
+    input::passthrough(session->input, std::move(plaintext));
   });
 
   while(!shutdown_event->peek()) {
@@ -855,6 +855,8 @@ void join(session_t &session) {
 }
 
 void start(session_t &session, const std::string &addr_string) {
+  session.input = input::alloc();
+
   session.broadcast_ref = broadcast.ref();
   session.broadcast_ref->control_server.emplace_addr_to_session(addr_string, session);
 

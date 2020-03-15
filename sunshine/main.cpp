@@ -14,6 +14,7 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 
+#include "input.h"
 #include "nvhttp.h"
 #include "rtsp.h"
 #include "config.h"
@@ -133,6 +134,7 @@ int main(int argc, char *argv[]) {
   proc::proc = std::move(*proc_opt);
 
   auto deinit_guard = platf::init();
+  input::init();
   reed_solomon_init();
 
   task_pool.start(1);

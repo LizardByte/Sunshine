@@ -11,10 +11,6 @@
 #include "audio.h"
 #include "crypto.h"
 
-namespace input {
-struct input_t;
-}
-
 namespace stream {
 struct session_t;
 struct config_t {
@@ -41,7 +37,6 @@ void join(session_t &session);
 state_e state(session_t &session);
 }
 
-extern std::shared_ptr<input::input_t> input;
 extern safe::signal_t broadcast_shutdown_event;
 }
 
