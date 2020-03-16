@@ -205,7 +205,7 @@ void parse_file(const char *file) {
   int_f(vars, "back_button_timeout", to);
 
   if(to > std::numeric_limits<int>::min()) {
-    input.back_button_timeout = std::chrono::milliseconds {to };
+    input.back_button_timeout = std::chrono::milliseconds { to };
   }
 
   std::string log_level_string;

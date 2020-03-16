@@ -753,9 +753,7 @@ void end_broadcast(broadcast_ctx_t &ctx) {
 }
 
 int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &addr, std::chrono::milliseconds timeout) {
-  constexpr char ping[] = {
-    0x50, 0x49, 0x4E, 0x47
-  };
+  auto constexpr ping = "PING"sv;
 
   auto messages = std::make_shared<message_queue_t::element_type>();
   ref->message_queue_queue->raise(type, addr, messages);
