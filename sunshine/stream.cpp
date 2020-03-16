@@ -776,7 +776,8 @@ int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &
 
   TUPLE_2D_REF(port, msg, *msg_opt);
   if(msg != ping) {
-    BOOST_LOG(error) << "First message is not a PING"sv;
+    BOOST_LOG(error) << "First message is not a PING";
+    BOOST_LOG(debug) << "Received from "sv << addr << ':' << port << " ["sv << util::hex_vec(msg) << ']';
 
     return -1;
   }
