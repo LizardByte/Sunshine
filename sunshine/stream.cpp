@@ -545,11 +545,20 @@ void recvThread(broadcast_ctx_t &ctx) {
 
   auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<asio::ip::address, message_queue_t> &peer_to_session) {
     recv_func[buf_elem] = [&,buf_elem](const boost::system::error_code &ec, size_t bytes) {
+      auto fg = util::fail_guard([&]() {
+        sock.async_receive_from(asio::buffer(buf[buf_elem]), peer, 0, recv_func[buf_elem]);
+      });
+
       auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
       BOOST_LOG(debug) << "Recv: "sv << peer.address().to_string() << ":"sv << peer.port() << " :: " << type_str;
 
 
       populate_peer_to_session();
+
+      // No data, yet no error
+      if(ec == boost::system::errc::connection_refused || ec == boost::system::errc::connection_reset) {
+        return;
+      }
 
       if(ec || !bytes) {
         BOOST_LOG(fatal) << "Couldn't receive data from udp socket: "sv << ec.message();
@@ -563,8 +572,6 @@ void recvThread(broadcast_ctx_t &ctx) {
         BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ":"sv << peer.port() << " :: " << type_str;
         it->second->raise(peer.port(), std::string { buf[buf_elem].data(), bytes });
       }
-
-      sock.async_receive_from(asio::buffer(buf[buf_elem]), peer, 0, recv_func[buf_elem]);
     };
   };
 
