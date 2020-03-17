@@ -122,22 +122,28 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
   int width  = cursor.shape_info.Width;
   int pitch  = cursor.shape_info.Pitch;
 
-  // img cursor.y < 0, skip parts of the cursor.img_data
-  auto cursor_skip_y = std::min(0, cursor.y);
-  auto cursor_skip_x = std::min(0, cursor.x);
-  auto img_skip_y    = std::max(0, cursor.y);
-  auto img_skip_x    = std::max(0, cursor.x);
+  // img cursor.{x,y} < 0, skip parts of the cursor.img_data
+  auto cursor_skip_y = -std::min(0, cursor.y);
+  auto cursor_skip_x = -std::min(0, cursor.x);
 
-  if(cursor_skip_y > height || cursor_skip_x > width) {
+  // img cursor.{x,y} > img.{x,y}, truncate parts of the cursor.img_data 
+  auto cursor_truncate_y = std::max(0, cursor.y - img.height);
+  auto cursor_truncate_x = std::max(0, cursor.x - img.width);
+
+  auto cursor_width = width - cursor_skip_x - cursor_truncate_x;
+  auto cursor_height = height - cursor_skip_y - cursor_truncate_y;
+
+  if(cursor_height > height || cursor_width > width) {
     return;
   }
 
-  height -= cursor_skip_y;
-  width  -= cursor_skip_x;
+  auto img_skip_y    = std::max(0, cursor.y);
+  auto img_skip_x    = std::max(0, cursor.x);
+
   auto cursor_img_data = cursor.img_data.data() + cursor_skip_y * pitch;
 
-  int delta_height = std::min(height, std::max(0, img.height - img_skip_y));
-  int delta_width = std::min(width, std::max(0, img.width - img_skip_x));
+  int delta_height = std::min(cursor_height - cursor_truncate_y, std::max(0, img.height - img_skip_y));
+  int delta_width = std::min(cursor_width - cursor_truncate_x, std::max(0, img.width - img_skip_x));
 
   auto pixels_per_byte = width / pitch;
   auto bytes_per_row = delta_width / pixels_per_byte;
@@ -149,11 +155,11 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
 
     auto img_pixel_p = &img_data[(i + img_skip_y) * (img.row_pitch / img.pixel_pitch) + img_skip_x];
 
-    auto skip_y = cursor_skip_y;
+    auto skip_x = cursor_skip_x;
     for(int x = 0; x < bytes_per_row; ++x) {
       for(auto bit = 0u; bit < 8; ++bit) {
-        if(skip_y > 0) {
-          --skip_y;
+        if(skip_x > 0) {
+          --skip_x;
 
           continue;
         }
@@ -179,26 +185,32 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img) {
   int pitch  = cursor.shape_info.Pitch;
 
   // img cursor.y < 0, skip parts of the cursor.img_data
-  auto cursor_skip_y = std::min(0, cursor.y);
-  auto cursor_skip_x = std::min(0, cursor.x);
+  auto cursor_skip_y = -std::min(0, cursor.y);
+  auto cursor_skip_x = -std::min(0, cursor.x);
+
+  // img cursor.{x,y} > img.{x,y}, truncate parts of the cursor.img_data 
+  auto cursor_truncate_y = std::max(0, cursor.y - img.height);
+  auto cursor_truncate_x = std::max(0, cursor.x - img.width);
+
   auto img_skip_y    = std::max(0, cursor.y);
   auto img_skip_x    = std::max(0, cursor.x);
 
-  if(cursor_skip_y > height || cursor_skip_x > width) {
+  auto cursor_width = width - cursor_skip_x - cursor_truncate_x;
+  auto cursor_height = height - cursor_skip_y - cursor_truncate_y;
+
+  if(cursor_height > height || cursor_width > width) {
     return;
   }
 
-  height -= cursor_skip_y;
-  width  -= cursor_skip_x;
   auto cursor_img_data = (int*)&cursor.img_data[cursor_skip_y * pitch];
 
-  int delta_height = std::min(height, std::max(0, img.height - img_skip_y));
-  int delta_width = std::min(width, std::max(0, img.width - img_skip_x));
+  int delta_height = std::min(cursor_height - cursor_truncate_y, std::max(0, img.height - img_skip_y));
+  int delta_width = std::min(cursor_width - cursor_truncate_x, std::max(0, img.width - img_skip_x));
 
   auto img_data = (int*)img.data;
 
   for(int i = 0; i < delta_height; ++i) {
-    auto cursor_begin = &cursor_img_data[i * width + cursor_skip_x];
+    auto cursor_begin = &cursor_img_data[i * cursor.shape_info.Width + cursor_skip_x];
     auto cursor_end = &cursor_begin[delta_width];
 
     auto img_pixel_p = &img_data[(i + img_skip_y) * (img.row_pitch / img.pixel_pitch) + img_skip_x];

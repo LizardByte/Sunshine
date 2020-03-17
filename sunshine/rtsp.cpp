@@ -21,6 +21,15 @@ using asio::ip::udp;
 using namespace std::literals;
 
 namespace stream {
+
+//FIXME: Quick and dirty workaround for bug in MinGW 9.3 causing a linker error when using std::to_string
+template<class T>
+std::string to_string(T && t)	{
+  std::stringstream ss;
+  ss << std::forward<T>(t);
+  return ss.str();
+}
+
 constexpr auto RTSP_SETUP_PORT = 48010;
 
 void free_msg(PRTSP_MESSAGE msg) {
@@ -222,7 +231,7 @@ void cmd_option(rtsp_server_t *server, net::peer_t peer, msg_t&& req) {
   // I know these string literals will not be modified
   option.option = const_cast<char*>("CSeq");
 
-  auto seqn_str = std::to_string(req->sequenceNumber);
+  auto seqn_str = to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
@@ -234,7 +243,7 @@ void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t&& req) {
   // I know these string literals will not be modified
   option.option = const_cast<char*>("CSeq");
 
-  auto seqn_str = std::to_string(req->sequenceNumber);
+  auto seqn_str = to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
   std::string_view payload;
@@ -256,7 +265,7 @@ void cmd_setup(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
 
   seqn.option = const_cast<char*>("CSeq");
 
-  auto seqn_str = std::to_string(req->sequenceNumber);
+  auto seqn_str = to_string(req->sequenceNumber);
   seqn.content = const_cast<char*>(seqn_str.c_str());
 
   std::string_view target { req->message.request.target };
@@ -285,7 +294,7 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   // I know these string literals will not be modified
   option.option = const_cast<char*>("CSeq");
 
-  auto seqn_str = std::to_string(req->sequenceNumber);
+  auto seqn_str = to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
   if(!launch_event.peek()) {
@@ -394,7 +403,7 @@ void cmd_play(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   // I know these string literals will not be modified
   option.option = const_cast<char*>("CSeq");
 
-  auto seqn_str = std::to_string(req->sequenceNumber);
+  auto seqn_str = to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
