@@ -456,6 +456,8 @@ void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
       server.clear(false);
     }
   }
+
+  server.clear();
 }
 
 void print_msg(PRTSP_MESSAGE msg) {
