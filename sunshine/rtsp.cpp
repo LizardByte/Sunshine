@@ -43,20 +43,31 @@ class rtsp_server_t;
 using msg_t = util::safe_ptr<RTSP_MESSAGE, free_msg>;
 using cmd_func_t = std::function<void(rtsp_server_t*, net::peer_t, msg_t&&)>;
 
-safe::event_t<launch_session_t> launch_event;
-
 void print_msg(PRTSP_MESSAGE msg);
 void cmd_not_found(net::host_t::pointer host, net::peer_t peer, msg_t&& req);
 
 class rtsp_server_t {
 public:
-  rtsp_server_t(rtsp_server_t &&) noexcept = default;
-  rtsp_server_t &operator=(rtsp_server_t &&) noexcept = default;
-
-  explicit rtsp_server_t(std::uint16_t port) : _session_slots (config::stream.channels), _host {net::host_create(_addr, 1, port) } {}
-
   ~rtsp_server_t() {
-    stop();
+    if(_host) {
+      clear();
+    }
+  }
+
+  void bind(std::uint16_t port) {
+    _session_slots.resize(config::stream.channels);
+    _slot_count = config::stream.channels;
+
+    _host = net::host_create(_addr, 1, port);
+  }
+
+  void session_raise(launch_session_t launch_session) {
+    --_slot_count;
+    launch_event.raise(launch_session);
+  }
+
+  int session_count() const {
+    return config::stream.channels - _slot_count;
   }
 
   template<class T, class X>
@@ -127,13 +138,15 @@ public:
     _map_cmd_cb.emplace(type, std::move(cb));
   }
 
-  void stop(bool all = true) {
+  void clear(bool all = true) {
     for(auto &slot : _session_slots) {
       if (slot && (all || session::state(*slot) == session::state_e::STOPPING)) {
         session::stop(*slot);
         session::join(*slot);
 
         slot.reset();
+
+        ++_slot_count;
       }
     }
 
@@ -159,6 +172,9 @@ public:
   net::host_t::pointer host() const {
     return _host.get();
   }
+
+  safe::event_t<launch_session_t> launch_event;
+
 private:
 
   // named _queue_packet because I want to make it an actual queue
@@ -169,9 +185,20 @@ private:
 
   std::vector<std::shared_ptr<session_t>> _session_slots;
 
+  int _slot_count;
   ENetAddress _addr;
   net::host_t _host;
 };
+
+rtsp_server_t server;
+
+void launch_session_raise(launch_session_t launch_session) {
+  server.session_raise(launch_session);
+}
+
+int session_count() {
+  return server.session_count();
+}
 
 void respond(net::host_t::pointer host, net::peer_t peer, msg_t &resp) {
   auto payload = std::make_pair(resp->payload, resp->payloadLength);
@@ -297,13 +324,13 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   auto seqn_str = to_string(req->sequenceNumber);
   option.content = const_cast<char*>(seqn_str.c_str());
 
-  if(!launch_event.peek()) {
+  if(!server->launch_event.peek()) {
     // /launch has not been used
 
     respond(server->host(), peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
     return;
   }
-  auto launch_session { launch_event.pop() };
+  auto launch_session { server->launch_event.pop() };
 
   std::string_view payload { req->payload, (size_t)req->payloadLength };
 
@@ -410,8 +437,6 @@ void cmd_play(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
 }
 
 void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
-  rtsp_server_t server(RTSP_SETUP_PORT);
-
   server.map("OPTIONS"sv, &cmd_option);
   server.map("DESCRIBE"sv, &cmd_describe);
   server.map("SETUP"sv, &cmd_setup);
@@ -419,15 +444,16 @@ void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
 
   server.map("PLAY"sv, &cmd_play);
 
+  server.bind(RTSP_SETUP_PORT);
   while(!shutdown_event->peek()) {
     server.iterate(std::min(500ms, config::stream.ping_timeout));
 
     if(broadcast_shutdown_event.peek()) {
-      server.stop();
+      server.clear();
     }
     else {
       // cleanup all stopped sessions
-      server.stop(false);
+      server.clear(false);
     }
   }
 }

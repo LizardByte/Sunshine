@@ -527,6 +527,15 @@ void launch(resp_https_t response, req_https_t request) {
     response->write(data.str());
   });
 
+  BOOST_LOG(fatal) << stream::session_count();
+
+  if(stream::session_count() == config::stream.channels) {
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 503);
+
+    return;
+  }
+
   auto args = request->parse_query_string();
   auto appid = util::from_view(args.at("appid")) -1;
 
@@ -558,7 +567,7 @@ void launch(resp_https_t response, req_https_t request) {
   auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
   std::fill(next, std::end(launch_session.iv), 0);
 
-  stream::launch_event.raise(launch_session);
+  stream::launch_session_raise(launch_session);
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.gamesession", 1);
@@ -574,6 +583,16 @@ void resume(resp_https_t response, req_https_t request) {
     pt::write_xml(data, tree);
     response->write(data.str());
   });
+
+  // It is possible that due a race condition that this if-statement gives a false negative,
+  // that is automatically resolved in rtsp_server_t
+  if(stream::session_count() == config::stream.channels) {
+    BOOST_LOG(fatal) << stream::session_count();
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 503);
+
+    return;
+  }
 
   auto current_appid = proc::proc.running();
   if(current_appid == -1) {
@@ -594,7 +613,7 @@ void resume(resp_https_t response, req_https_t request) {
   auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
   std::fill(next, std::end(launch_session.iv), 0);
 
-  stream::launch_event.raise(launch_session);
+  stream::launch_session_raise(launch_session);
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.resume", 1);
@@ -611,17 +630,21 @@ void cancel(resp_https_t response, req_https_t request) {
     response->write(data.str());
   });
 
-  if(proc::proc.running() == -1) {
-    tree.put("root.cancel", 1);
-    tree.put("root.<xmlattr>.status_code", 200);
+  // It is possible that due a race condition that this if-statement gives a false positive,
+  // the client should try again
+  if(stream::session_count() != 0) {
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 503);
 
     return;
   }
 
-  proc::proc.terminate();
-
   tree.put("root.cancel", 1);
   tree.put("root.<xmlattr>.status_code", 200);
+
+  if(proc::proc.running() != -1) {
+    proc::proc.terminate();
+  }
 }
 
 void appasset(resp_https_t response, req_https_t request) {

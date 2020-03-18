@@ -16,7 +16,8 @@ struct launch_session_t {
   crypto::aes_t iv;
 };
 
-extern safe::event_t<launch_session_t> launch_event;
+void launch_session_raise(launch_session_t launch_session);
+int session_count();
 
 void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event);
 
