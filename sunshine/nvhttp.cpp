@@ -162,7 +162,9 @@ void update_id_client(const std::string &uniqueID, std::string &&cert, op_e op) 
       break;
   }
 
-  save_state();
+  if(!config::sunshine.flags[config::flag::CLEAN_SLATE]) {
+    save_state();
+  }
 }
 
 void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin) {
@@ -349,8 +351,20 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
       auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
       ptr->second.async_insert_pin.salt = std::move(args.at("salt"s));
-      ptr->second.async_insert_pin.response = std::move(response);
-      return;
+
+      if(config::sunshine.flags[config::flag::PIN_STDIN]) {
+        std::string pin;
+
+        std::cout << "Please insert pin: "sv;
+        std::getline(std::cin, pin);
+
+        getservercert(ptr->second, tree, pin);
+      }
+      else {
+        ptr->second.async_insert_pin.response = std::move(response);
+
+        return;
+      }
     }
     else if(it->second == "pairchallenge"sv) {
       tree.put("root.paired", 1);
@@ -710,6 +724,17 @@ int create_creds(const std::string &pkey, const std::string &cert) {
 }
 
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
+  bool clean_slate = config::sunshine.flags[config::flag::CLEAN_SLATE];
+  if(clean_slate) {
+    unique_id = util::uuid_t::generate().string();
+
+    auto dir = std::filesystem::temp_directory_path() / "Sushine"sv;
+
+    config::nvhttp.cert = dir / ("cert-"s + unique_id);
+    config::nvhttp.pkey = dir / ("pkey-"s + unique_id);
+  }
+
+
   if(!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) {
     if(create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
       shutdown_event->raise(true);
@@ -718,7 +743,10 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   }
 
   origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
-  load_state();
+
+  if(!clean_slate) {
+    load_state();
+  }
 
   conf_intern.pkey = read_file(config::nvhttp.pkey.c_str());
   conf_intern.servercert = read_file(config::nvhttp.cert.c_str());

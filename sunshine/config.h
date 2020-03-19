@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <string>
+#include <bitset>
 
 namespace config {
 struct video_t {
@@ -54,8 +55,18 @@ struct input_t {
   std::chrono::milliseconds back_button_timeout;
 };
 
+namespace flag {
+enum flag_e : std::size_t {
+  PIN_STDIN = 0, // Read PIN from stdin instead of http
+  CLEAN_SLATE, // Do not load or save state
+  FLAG_SIZE
+};
+}
+
 struct sunshine_t {
   int min_log_level;
+
+  std::bitset<flag::FLAG_SIZE> flags;
 };
 
 extern video_t video;
@@ -65,7 +76,7 @@ extern nvhttp_t nvhttp;
 extern input_t input;
 extern sunshine_t sunshine;
 
-void parse_file(const char *file);
+int parse(int argc, char *argv[]);
 }
 
 #endif

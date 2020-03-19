@@ -53,7 +53,8 @@ input_t input {
 };
 
 sunshine_t sunshine {
-  2 // min_log_level
+  2, // min_log_level
+  0 // flags
 };
 
 bool whitespace(char ch) {
@@ -74,7 +75,7 @@ std::optional<std::pair<std::string, std::string>> parse_line(std::string_view::
     return std::nullopt;
   }
 
-  auto end_name = std::find_if(std::make_reverse_iterator(eq - 1), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
+  auto end_name = std::find_if(std::make_reverse_iterator(eq), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
   auto begin_val = std::find_if(eq + 1, end, std::not_fn(whitespace));
 
   return std::pair { to_string(begin, end_name), to_string(begin_val, end) };
@@ -148,15 +149,38 @@ void int_between_f(std::unordered_map<std::string, std::string> &vars, const std
   }
 }
 
-void parse_file(const char *file) {
-  std::ifstream in(file);
+void print_help(const char *name) {
+  std::cout <<
+    "Usage: "sv << name << " [options] [/path/to/configuration_file]"sv << std::endl <<
+    "    Any configurable option can be overwritten with: <name>=<value>"sv << std::endl << std::endl <<
+    "    --help | print help"sv << std::endl << std::endl <<
+    "    flags"sv << std::endl <<
+    "        -0 | Read PIN from stdin"sv << std::endl <<
+    "        -1 | Do not read/write state to/from disk" << std::endl;
+}
 
-  auto vars = parse_config(std::string {
-    // Quick and dirty
-    std::istreambuf_iterator<char>(in),
-    std::istreambuf_iterator<char>()
-  });
+int apply_flags(const char *line) {
+  int ret = 0;
+  while(*line != '\0') {
+    switch(*line) {
+      case '0':
+        config::sunshine.flags[config::flag::PIN_STDIN].flip();
+        break;
+      case '1':
+        config::sunshine.flags[config::flag::CLEAN_SLATE].flip();
+        break;
+      default:
+        std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;
+        ret = -1;
+    }
 
+    ++line;
+  }
+
+  return ret;
+}
+
+void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   for(auto &[name, val] : vars) {
     std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
   }
@@ -191,7 +215,7 @@ void parse_file(const char *file) {
   if(to != -1) {
     stream.ping_timeout = std::chrono::milliseconds(to);
   }
-  
+
   int_between_f(vars, "channels", stream.channels, {
     1, std::numeric_limits<int>::max()
   });
@@ -237,6 +261,13 @@ void parse_file(const char *file) {
     }
   }
 
+  auto it = vars.find("flags"s);
+  if(it != std::end(vars)) {
+    apply_flags(it->second.c_str());
+
+    vars.erase(it);
+  }
+
   if(sunshine.min_log_level <= 3) {
     for(auto &[var,_] : vars) {
       std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
@@ -244,5 +275,63 @@ void parse_file(const char *file) {
   }
 }
 
+int parse(int argc, char *argv[]) {
+  const char *config_file = SUNSHINE_ASSETS_DIR "/sunshine.conf";
 
+  std::unordered_map<std::string, std::string> cmd_vars;
+
+  for(auto x = argc -1; x > 0; --x) {
+    auto line = argv[x];
+
+    if(line == "--help"sv) {
+      print_help(*argv);
+      return 1;
+    }
+    else if(*line == '-') {
+      if(apply_flags(line + 1)) {
+        print_help(*argv);
+        return -1;
+      }
+    }
+    else {
+      auto line_end = line + strlen(line);
+
+      auto pos = std::find(line, line_end, '=');
+      if(pos == line_end) {
+        config_file = line;
+      }
+      else {
+        auto var = parse_line(line, line_end);
+        if(!var) {
+          print_help(*argv);
+          return -1;
+        }
+
+        cmd_vars.emplace(std::move(*var));
+      }
+    }
+  }
+
+  std::ifstream in { config_file };
+
+  if(!in.is_open()) {
+    std::cout << "Error: Couldn't open "sv << config_file << std::endl;
+
+    return -1;
+  }
+
+  auto vars = parse_config(std::string {
+    // Quick and dirty
+    std::istreambuf_iterator<char>(in),
+    std::istreambuf_iterator<char>()
+  });
+
+  for(auto &var : cmd_vars) {
+    vars.emplace(std::move(var));
+  }
+
+  apply_config(std::move(vars));
+
+  return 0;
+}
 }
