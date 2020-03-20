@@ -40,8 +40,28 @@ void free_id(std::bitset<N> &gamepad_mask, int id) {
   gamepad_mask[id] = false;
 }
 
+static std::unordered_map<short, bool> key_press {};
+static std::array<std::uint8_t, 5> mouse_press {};
+
+static platf::input_t platf_input;
+static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
+
+void free_gamepad(platf::input_t &platf_input, int id) {
+  platf::gamepad(platf_input, id, platf::gamepad_state_t{});
+  platf::free_gamepad(platf_input, id);
+
+  free_id(gamepadMask, id);
+}
 struct gamepad_t {
   gamepad_t() : gamepad_state {}, back_timeout_id {}, id { -1 }, back_button_state { button_state_e::NONE } {}
+  ~gamepad_t() {
+    if(id >= 0) {
+      task_pool.push([id=this->id]() {
+        free_gamepad(platf_input, id);
+      });
+    }
+  }
+
   platf::gamepad_state_t gamepad_state;
 
   util::ThreadPool::task_id_t back_timeout_id;
@@ -62,11 +82,6 @@ struct input_t {
   std::uint16_t active_gamepad_state;
   std::vector<gamepad_t> gamepads;
 };
-
-static std::unordered_map<short, bool> key_press {};
-static std::array<std::uint8_t, 5> mouse_press {};
-
-static platf::input_t platf_input;
 
 using namespace std::literals;
 
@@ -179,8 +194,6 @@ void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {
 }
 
 int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std::int16_t new_state) {
-  static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
-
   auto xorGamepadMask = old_state ^ new_state;
   if (!xorGamepadMask) {
     return 0;
@@ -195,11 +208,7 @@ int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std
           return -1;
         }
 
-        platf::gamepad(platf_input, gamepad.id, platf::gamepad_state_t{});
-        platf::free_gamepad(platf_input, gamepad.id);
-
-        free_id(gamepadMask, gamepad.id);
-
+        free_gamepad(platf_input, gamepad.id);
         gamepad.id = -1;
       }
       else {
@@ -362,6 +371,14 @@ void init() {
 }
 
 std::shared_ptr<input_t> alloc() {
-  return std::make_shared<input_t>();
+  auto input = std::make_shared<input_t>();
+
+  // Workaround to ensure new frames will be captured when a client connects
+  task_pool.pushDelayed([]() {
+    platf::move_mouse(platf_input, 1, 1);
+    platf::move_mouse(platf_input, -1, -1);
+  }, 100ms);
+
+  return input;
 }
 }
