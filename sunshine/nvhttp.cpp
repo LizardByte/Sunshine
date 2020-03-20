@@ -730,8 +730,8 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
 
     auto dir = std::filesystem::temp_directory_path() / "Sushine"sv;
 
-    config::nvhttp.cert = dir / ("cert-"s + unique_id);
-    config::nvhttp.pkey = dir / ("pkey-"s + unique_id);
+    config::nvhttp.cert = (dir / ("cert-"s + unique_id)).string();
+    config::nvhttp.pkey = (dir / ("pkey-"s + unique_id)).string();
   }
 
 

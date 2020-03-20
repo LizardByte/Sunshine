@@ -351,19 +351,50 @@ void capture(
   // Initiate scaling context with correct height and width
   sws_t sws;
 
+  // Temporary image to ensure something is send to Moonlight even if no frame has been captured yet.
+  int dummy_data = 0;
+  auto img = std::make_shared<platf::img_t>();
+  img->row_pitch = 4;
+  img->height = 1;
+  img->width = 1;
+  img->pixel_pitch = 4;
+  img->data = (std::uint8_t*)&dummy_data;
+
   auto next_frame = std::chrono::steady_clock::now();
   while(true) {
-    if(shutdown_event->peek()) {
+    if(shutdown_event->peek() || !images->running()) {
       break;
+    }
+
+    if(idr_events->peek()) {
+      yuv_frame->pict_type = AV_PICTURE_TYPE_I;
+
+      auto event = idr_events->pop();
+      TUPLE_2D_REF(_, end, *event);
+
+      frame = end;
+      key_frame = end + config.framerate;
+    }
+    else if(frame == key_frame) {
+      yuv_frame->pict_type = AV_PICTURE_TYPE_I;
     }
 
     std::this_thread::sleep_until(next_frame);
     next_frame += delay;
 
-    auto img = images->pop();
-    if(!img) {
-      break;
+    // When Moonlight request an IDR frame, send frames even if there is no new captured frame
+    if(frame > (key_frame + config.framerate) || images->peek()) {
+      if(auto tmp_img = images->pop(delay)) {
+        img = std::move(tmp_img);
+      }
+      else if(images->running()) {
+        continue;
+      }
+      else {
+        break;
+      }
     }
+
 
     auto new_width  = img->width;
     auto new_height = img->height;
@@ -382,19 +413,6 @@ void capture(
       sws_setColorspaceDetails(sws.get(), sws_getCoefficients(SWS_CS_DEFAULT), 0,
                                sws_getCoefficients(swsColorSpace), config.encoderCscMode & 0x1,
                                0, 1 << 16, 1 << 16);
-    }
-
-    if(idr_events->peek()) {
-      yuv_frame->pict_type = AV_PICTURE_TYPE_I;
-
-      auto event = idr_events->pop();
-      TUPLE_2D_REF(_, end, *event);
-
-      frame = end;
-      key_frame = end + config.framerate;
-    }
-    else if(frame == key_frame) {
-      yuv_frame->pict_type = AV_PICTURE_TYPE_I;
     }
 
     encode(frame++, ctx, sws, yuv_frame, *img, packets, channel_data);
