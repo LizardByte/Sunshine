@@ -4,8 +4,8 @@ Requirements:
 	Ubuntu 19.10: cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
 
 Compilation:
-	* git clone <repository> --recurse-submodules
-	* mkdir build && cd build
+	* git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules
+	* cd sunshine && mkdir build && cd build
 	* cmake ..
 	* make
 
@@ -41,14 +41,24 @@ Requirements:
 	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost
 
 Compilation:
-	* git clone <repository> --recurse-submodules
-	* mkdir build && cd build
+	* git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules
+	* cd sunshine && mkdir build && cd build
 	* cmake -G"Unix Makefiles" ..
 	* make
 
 Setup:
 	* <optional> Gamepad support: Download and run 'ViGEmBus_Setup_1.16.116.exe' from [https://github.com/ViGEm/ViGEmBus/releases]
 
+== Static build ==
+Requirements:
+	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost git-lfs
+
+Compilation:
+	* git lfs install
+	* git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules
+	* cd sunshine && mkdir build && cd build
+	* cmake -DSUNSHINE_STANDALONE=ON -DSUNSHINE_ASSETS_DIR=assets -G"Unix Makefiles" ..
+	* make
 
 
 

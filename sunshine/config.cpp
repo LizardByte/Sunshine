@@ -152,11 +152,12 @@ void int_between_f(std::unordered_map<std::string, std::string> &vars, const std
 void print_help(const char *name) {
   std::cout <<
     "Usage: "sv << name << " [options] [/path/to/configuration_file]"sv << std::endl <<
-    "    Any configurable option can be overwritten with: <name>=<value>"sv << std::endl << std::endl <<
+    "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl << std::endl <<
     "    --help | print help"sv << std::endl << std::endl <<
     "    flags"sv << std::endl <<
     "        -0 | Read PIN from stdin"sv << std::endl <<
-    "        -1 | Do not read/write state to/from disk" << std::endl;
+    "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl <<
+    "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv;
 }
 
 int apply_flags(const char *line) {
@@ -167,7 +168,7 @@ int apply_flags(const char *line) {
         config::sunshine.flags[config::flag::PIN_STDIN].flip();
         break;
       case '1':
-        config::sunshine.flags[config::flag::CLEAN_SLATE].flip();
+        config::sunshine.flags[config::flag::FRESH_STATE].flip();
         break;
       default:
         std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;

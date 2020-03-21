@@ -58,7 +58,7 @@ struct input_t {
 namespace flag {
 enum flag_e : std::size_t {
   PIN_STDIN = 0, // Read PIN from stdin instead of http
-  CLEAN_SLATE, // Do not load or save state
+  FRESH_STATE, // Do not load or save state
   FLAG_SIZE
 };
 }

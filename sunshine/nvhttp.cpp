@@ -162,7 +162,7 @@ void update_id_client(const std::string &uniqueID, std::string &&cert, op_e op) 
       break;
   }
 
-  if(!config::sunshine.flags[config::flag::CLEAN_SLATE]) {
+  if(!config::sunshine.flags[config::flag::FRESH_STATE]) {
     save_state();
   }
 }
@@ -724,7 +724,7 @@ int create_creds(const std::string &pkey, const std::string &cert) {
 }
 
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
-  bool clean_slate = config::sunshine.flags[config::flag::CLEAN_SLATE];
+  bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
   if(clean_slate) {
     unique_id = util::uuid_t::generate().string();
 
