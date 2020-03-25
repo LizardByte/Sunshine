@@ -339,8 +339,8 @@ public:
     return capture_e::ok;
   }
 
-  std::unique_ptr<::platf::img_t> alloc_img() override {
-    auto img = std::make_unique<img_t>();
+  std::shared_ptr<::platf::img_t> alloc_img() override {
+    auto img = std::make_shared<img_t>();
 
     img->data   = nullptr;
     img->height = 0;

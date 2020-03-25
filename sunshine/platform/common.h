@@ -68,7 +68,7 @@ enum class capture_e : int {
 class display_t {
 public:
   virtual capture_e snapshot(img_t *img, bool cursor) = 0;
-  virtual std::unique_ptr<img_t> alloc_img() = 0;
+  virtual std::shared_ptr<img_t> alloc_img() = 0;
 
   virtual ~display_t() = default;
 };

@@ -327,8 +327,8 @@ int parse(int argc, char *argv[]) {
     std::istreambuf_iterator<char>()
   });
 
-  for(auto &var : cmd_vars) {
-    vars.emplace(std::move(var));
+  for(auto &[name,value] : cmd_vars) {
+    vars.insert_or_assign(std::move(name), std::move(value));
   }
 
   apply_config(std::move(vars));

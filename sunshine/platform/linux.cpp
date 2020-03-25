@@ -176,8 +176,8 @@ struct x11_attr_t : public display_t {
     return capture_e::ok;
   }
 
-  std::unique_ptr<img_t> alloc_img() override {
-    return std::make_unique<x11_img_t>();
+  std::shared_ptr<img_t> alloc_img() override {
+    return std::make_shared<x11_img_t>();
   }
 
   xdisplay_t xdisplay;
@@ -251,8 +251,8 @@ struct shm_attr_t : public x11_attr_t {
     return capture_e::ok;
   }
 
-  std::unique_ptr<img_t> alloc_img() override {
-    return std::make_unique<shm_img_t>();
+  std::shared_ptr<img_t> alloc_img() override {
+    return std::make_shared<shm_img_t>();
   }
 
   int init() {

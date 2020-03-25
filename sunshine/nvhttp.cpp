@@ -541,8 +541,6 @@ void launch(resp_https_t response, req_https_t request) {
     response->write(data.str());
   });
 
-  BOOST_LOG(fatal) << stream::session_count();
-
   if(stream::session_count() == config::stream.channels) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
@@ -601,7 +599,6 @@ void resume(resp_https_t response, req_https_t request) {
   // It is possible that due a race condition that this if-statement gives a false negative,
   // that is automatically resolved in rtsp_server_t
   if(stream::session_count() == config::stream.channels) {
-    BOOST_LOG(fatal) << stream::session_count();
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
