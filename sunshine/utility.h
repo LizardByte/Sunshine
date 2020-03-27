@@ -388,69 +388,6 @@ void c_free(T *p) {
 template<class T>
 using c_ptr = safe_ptr<T, c_free<T>>;
 
-template<class T>
-class FakeContainer {
-  typedef T pointer;
-
-  pointer _begin;
-  pointer _end;
-
-public:
-  FakeContainer(pointer begin, pointer end) : _begin(begin), _end(end) {}
-
-  pointer begin() { return _begin; }
-  pointer end() { return  _end; }
-
-  const pointer begin() const { return _begin; }
-  const pointer end() const { return _end; }
-
-  const pointer cbegin() const { return _begin; }
-  const pointer cend() const { return _end; }
-
-  pointer data() { return begin(); }
-  const pointer data() const { return cbegin(); }
-
-  std::size_t size() const { return std::distance(begin(), end()); }
-};
-
-template<class T>
-FakeContainer<T> toContainer(T begin, T end) {
-  return { begin, end };
-}
-
-template<class T>
-FakeContainer<T> toContainer(T begin, std::size_t end) {
-  return { begin, begin + end };
-}
-
-template<class T>
-FakeContainer<T*> toContainer(T * const begin) {
-  T *end = begin;
-
-  auto default_val = T();
-  while(*end != default_val) {
-    ++end;
-  }
-
-  return toContainer(begin, end);
-}
-
-template<class T, class H>
-struct _init_helper;
-
-template<template<class...> class T, class H, class... Args>
-struct _init_helper<T<Args...>, H> {
-  using type = T<Args...>;
-
-  static type move(Args&&... args, H&&) {
-    return std::make_tuple(std::move(args)...);
-  }
-
-  static type copy(const Args&... args, const H&) {
-    return std::make_tuple(args...);
-  }
-};
-
 inline std::int64_t from_chars(const char *begin, const char *end) {
   std::int64_t res {};
   std::int64_t mul = 1;

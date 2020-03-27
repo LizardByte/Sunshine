@@ -315,8 +315,8 @@ struct mic_attr_t : public mic_t {
   }
 };
 
-std::unique_ptr<display_t> shm_display() {
-  auto shm = std::make_unique<shm_attr_t>();
+std::shared_ptr<display_t> shm_display() {
+  auto shm = std::make_shared<shm_attr_t>();
 
   if(shm->init()) {
     return nullptr;
@@ -325,11 +325,11 @@ std::unique_ptr<display_t> shm_display() {
   return shm;
 }
 
-std::unique_ptr<display_t> display() {
+std::shared_ptr<display_t> display() {
   auto shm_disp = shm_display();
 
   if(!shm_disp) {
-    return std::unique_ptr<display_t> { new x11_attr_t {} };
+    return std::make_shared<x11_attr_t>();
   }
 
   return shm_disp;

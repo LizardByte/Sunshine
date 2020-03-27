@@ -148,6 +148,7 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/thread_pool.h
 	sunshine/thread_safe.h
 	sunshine/sync.h
+	sunshine/round_robin.h
 	${PLATFORM_TARGET_FILES})
 
 include_directories(

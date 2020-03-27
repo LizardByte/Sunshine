@@ -104,9 +104,57 @@ public:
 class display_t;
 struct img_t : public ::platf::img_t  {
   ~img_t() override {
-    delete[] data;
-    data = nullptr;
+    unmap();
   }
+
+  void unmap() {
+    if(info.pData) {
+      device_ctx_p->Unmap(texture.get(), 0);
+
+      info.pData = nullptr;
+    }
+  }
+
+  int reset(int width, int height, DXGI_FORMAT format, device_t::pointer device, device_ctx_t::pointer device_ctx_p, const std::shared_ptr<display_t> &display) {
+    unmap();
+
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = width;
+    t.Height = height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_STAGING;
+    t.Format = format;
+    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    dxgi::texture2d_t::pointer tex_p {};
+    auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
+    texture.reset(tex_p);
+
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    this->display      = display;
+    this->device_ctx_p = device_ctx_p;
+    this->data         = nullptr;
+    this->row_pitch    = 0;
+    this->pixel_pitch  = 4;
+    this->width        = width;
+    this->height       = height;
+
+    return 0;
+  }
+
+  std::shared_ptr<display_t> display;
+
+  texture2d_t texture;
+  D3D11_MAPPED_SUBRESOURCE info {};
+
+
+  device_ctx_t::pointer device_ctx_p;
 };
 
 struct cursor_t {
@@ -247,10 +295,16 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
-class display_t : public ::platf::display_t {
+class display_t : public ::platf::display_t, public std::enable_shared_from_this<display_t> {
 public:
   capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
-    auto img = (img_t *) img_base;
+    auto img = (img_t*)img_base;
+    if(img->display.get() != this) {
+      if(img->reset(width, height, format, device.get(), device_ctx.get(), shared_from_this())) {
+        return capture_e::error;
+      }
+    }
+
     HRESULT status;
 
     DXGI_OUTDUPL_FRAME_INFO frame_info;
@@ -296,15 +350,15 @@ public:
         }
 
         //Copy from GPU to CPU
-        device_ctx->CopyResource(texture.get(), src.get());
+        device_ctx->CopyResource(img->texture.get(), src.get());
       }
 
-      if(current_img.pData) {
-        device_ctx->Unmap(texture.get(), 0);
-        current_img.pData = nullptr;
+      if(img->info.pData) {
+        device_ctx->Unmap(img->texture.get(), 0);
+        img->info.pData = nullptr;
       }
 
-      status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &current_img);
+      status = device_ctx->Map(img->texture.get(), 0, D3D11_MAP_READ, 0, &img->info);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -312,28 +366,23 @@ public:
       }
     }
 
+    /*
     const bool update_flag =
       frame_info.LastMouseUpdateTime.QuadPart  ||
       frame_info.LastPresentTime.QuadPart != 0 ||
       frame_info.PointerShapeBufferSize > 0;
-
+    */
+    const bool update_flag = frame_info.LastPresentTime.QuadPart != 0;
 
     if(!update_flag) {
       return capture_e::timeout;
     }
 
-    if(img->width != width || img->height != height) {
-      delete[] img->data;
-      img->data = new std::uint8_t[height * current_img.RowPitch];
+    img->row_pitch = img->info.RowPitch;
+    img->data = (std::uint8_t*)img->info.pData;
 
-      img->width = width;
-      img->height = height;
-      img->row_pitch = current_img.RowPitch;
-    }
-
-    std::copy_n((std::uint8_t*)current_img.pData, height * current_img.RowPitch, (std::uint8_t*)img->data);
-    if(cursor_visible && cursor.visible) {
-      blend_cursor(cursor, *img);
+    if(cursor_visible) { // && cursor.visible) {
+      //blend_cursor(cursor, *img);
     }
 
     return capture_e::ok;
@@ -342,11 +391,9 @@ public:
   std::shared_ptr<::platf::img_t> alloc_img() override {
     auto img = std::make_shared<img_t>();
 
-    img->data   = nullptr;
-    img->height = 0;
-    img->width  = 0;
-    img->row_pitch = 0;
-    img->pixel_pitch = 4;
+    if(img->reset(width, height, format, device.get(), device_ctx.get(), shared_from_this())) {
+      return nullptr;
+    }
 
     return img;
   }
@@ -368,8 +415,6 @@ public:
     FreeLibrary(user32);
   });
 */
-    current_img.pData = nullptr; // current_img is not yet mapped
-
     dxgi::factory1_t::pointer   factory_p {};
     dxgi::adapter_t::pointer    adapter_p {};
     dxgi::output_t::pointer     output_p {};
@@ -548,41 +593,7 @@ public:
 
     BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
 
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width  = width;
-    t.Height = height;
-    t.MipLevels = 1;
-    t.ArraySize = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage = D3D11_USAGE_STAGING;
-    t.Format = format;
-    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-
-    dxgi::texture2d_t::pointer tex_p {};
-    status = device->CreateTexture2D(&t, nullptr, &tex_p);
-
-    texture.reset(tex_p);
-
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    // map the texture simply to get the pitch and stride
-    status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &current_img);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
     return 0;
-  }
-
-  ~display_t() override {
-    if(current_img.pData) {
-      device_ctx->Unmap(texture.get(), 0);
-      current_img.pData = nullptr;
-    }
   }
 
   factory1_t factory;
@@ -592,13 +603,11 @@ public:
   device_ctx_t device_ctx;
   duplication_t dup;
   cursor_t cursor;
-  texture2d_t texture;
 
   int width, height;
 
   DXGI_FORMAT format;
   D3D_FEATURE_LEVEL feature_level;
-  D3D11_MAPPED_SUBRESOURCE current_img;
 };
 
 const char *format_str[] = {
@@ -729,8 +738,8 @@ const char *format_str[] = {
 }
 
 namespace platf {
-std::unique_ptr<display_t> display() {
-  auto disp = std::make_unique<dxgi::display_t>();
+std::shared_ptr<display_t> display() {
+  auto disp = std::make_shared<dxgi::display_t>();
 
   if (disp->init()) {
     return nullptr;

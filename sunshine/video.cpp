@@ -11,6 +11,7 @@ extern "C" {
 
 #include "platform/common.h"
 #include "thread_pool.h"
+#include "round_robin.h"
 #include "config.h"
 #include "video.h"
 #include "main.h"
@@ -138,40 +139,6 @@ struct capture_thread_ctx_t {
   return codec_t { ctx.get() };
 }
 
-int capture_display(platf::img_t *img, std::unique_ptr<platf::display_t> &disp) {
-  auto status = disp->snapshot(img, display_cursor);
-  switch (status) {
-    case platf::capture_e::reinit: {
-      // We try this twice, in case we still get an error on reinitialization
-      for(int x = 0; x < 2; ++x) {
-        disp.reset();
-        disp = platf::display();
-
-        if(disp) {
-          break;
-        }
-
-        std::this_thread::sleep_for(200ms);
-      }
-
-      if(!disp) {
-        return -1;
-      }
-
-      return 0;
-    }
-    case platf::capture_e::error:
-     return -1;
-    case platf::capture_e::timeout:
-     return 0;
-    case platf::capture_e::ok:
-      return 1;
-    default:
-      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
-      return -1;
-  }
-}
-
 void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue) {
   std::vector<capture_ctx_t> capture_ctxs;
 
@@ -190,6 +157,22 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
   std::chrono::nanoseconds delay = 1s;
 
   auto disp = platf::display();
+  if(!disp) {
+    return;
+  }
+
+  std::vector<std::shared_ptr<platf::img_t>> imgs(12);
+  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+
+  for(auto &img : imgs) {
+    img = disp->alloc_img();
+    if(!img) {
+      BOOST_LOG(error) << "Couldn't initialize an image"sv;
+      return;
+    }
+  }
+
+  auto next_frame = std::chrono::steady_clock::now();
   while(capture_ctx_queue->running()) {
     while(capture_ctx_queue->peek()) {
       capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
@@ -197,13 +180,62 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
       delay = std::min(delay, capture_ctxs.back().delay);
     }
 
-    std::shared_ptr<platf::img_t> img = disp->alloc_img();
-    auto result = capture_display(img.get(), disp);
-    if(result < 0) {
-      return;
+    auto now = std::chrono::steady_clock::now();
+    if(next_frame > now) {
+      std::this_thread::sleep_until(next_frame);
     }
-    if(!result) {
-      continue;
+    next_frame += delay;
+
+    auto &img = *round_robin++;
+    auto status = disp->snapshot(img.get(), display_cursor);
+    switch (status) {
+      case platf::capture_e::reinit: {
+        // Some classes of images contain references to the display --> display won't delete unless img is deleted
+        for(auto &img : imgs) {
+          img.reset();
+        }
+
+        while(disp.use_count() > 1) {
+          std::this_thread::sleep_for(100ms);
+        }
+
+        // We try this twice, in case we still get an error on reinitialization
+        for(int x = 0; x < 2; ++x) {
+          // Some classes of display cannot have multiple instances at once
+          disp.reset();
+          disp = platf::display();
+
+          if(disp) {
+            break;
+          }
+
+          std::this_thread::sleep_for(200ms);
+        }
+
+        if(!disp) {
+          return;
+        }
+
+        // Re-allocate images
+        for(auto &img : imgs) {
+          img = disp->alloc_img();
+          if(!img) {
+            BOOST_LOG(error) << "Couldn't initialize an image"sv;
+            return;
+          }
+        }
+
+        continue;
+      }
+      case platf::capture_e::error:
+       return;
+      case platf::capture_e::timeout:
+        continue;
+      case platf::capture_e::ok:
+        break;
+      default:
+        BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+        return;
     }
 
     KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
@@ -508,6 +540,20 @@ void capture(
   int framerate = config.framerate;
 
   auto images = std::make_shared<img_event_t::element_type>();
+
+  // Temporary image to ensure something is send to Moonlight even if no frame has been captured yet.
+  int dummy_data = 0;
+  {
+    auto img = std::make_shared<platf::img_t>();
+    img->row_pitch = 4;
+    img->height = 1;
+    img->width = 1;
+    img->pixel_pitch = 4;
+    img->data = (std::uint8_t*)&dummy_data;
+
+    images->raise(std::move(img));
+  }
+
   // Keep a reference counter to ensure the capture thread only runs when other threads have a reference to the capture thread
   static auto capture_thread = safe::make_shared<capture_thread_ctx_t>(start_capture, end_capture);
   auto ref = capture_thread.ref();
@@ -533,15 +579,6 @@ void capture(
   // Initiate scaling context with correct height and width
   sws_t sws;
 
-  // Temporary image to ensure something is send to Moonlight even if no frame has been captured yet.
-  int dummy_data = 0;
-  auto img = std::make_shared<platf::img_t>();
-  img->row_pitch = 4;
-  img->height = 1;
-  img->width = 1;
-  img->pixel_pitch = 4;
-  img->data = (std::uint8_t*)&dummy_data;
-
   auto next_frame = std::chrono::steady_clock::now();
   while(true) {
     if(shutdown_event->peek() || !images->running()) {
@@ -566,8 +603,29 @@ void capture(
 
     // When Moonlight request an IDR frame, send frames even if there is no new captured frame
     if(frame_nr > (key_frame_nr + config.framerate) || images->peek()) {
-      if(auto tmp_img = images->pop(delay)) {
-        img = std::move(tmp_img);
+      if(auto img = images->pop(delay)) {
+        if(software.system_memory) {
+          auto new_width  = img->width;
+          auto new_height = img->height;
+
+          if(img_width != new_width || img_height != new_height) {
+            img_width  = new_width;
+            img_height = new_height;
+
+            sws.reset(
+              sws_getContext(
+                img_width, img_height, AV_PIX_FMT_BGR0,
+                session->ctx->width, session->ctx->height, session->ctx->pix_fmt,
+                SWS_LANCZOS | SWS_ACCURATE_RND,
+                nullptr, nullptr, nullptr));
+
+            sws_setColorspaceDetails(sws.get(), sws_getCoefficients(SWS_CS_DEFAULT), 0,
+                                     sws_getCoefficients(session->sws_color_format), config.encoderCscMode & 0x1,
+                                     0, 1 << 16, 1 << 16);
+          }
+        }
+
+        software.img_to_frame(sws, *img, session->frame);
       }
       else if(images->running()) {
         continue;
@@ -576,29 +634,6 @@ void capture(
         break;
       }
     }
-
-    if(software.system_memory) {
-      auto new_width  = img->width;
-      auto new_height = img->height;
-
-      if(img_width != new_width || img_height != new_height) {
-        img_width  = new_width;
-        img_height = new_height;
-
-        sws.reset(
-          sws_getContext(
-            img_width, img_height, AV_PIX_FMT_BGR0,
-            session->ctx->width, session->ctx->height, session->ctx->pix_fmt,
-            SWS_LANCZOS | SWS_ACCURATE_RND,
-            nullptr, nullptr, nullptr));
-
-        sws_setColorspaceDetails(sws.get(), sws_getCoefficients(SWS_CS_DEFAULT), 0,
-                                 sws_getCoefficients(session->sws_color_format), config.encoderCscMode & 0x1,
-                                 0, 1 << 16, 1 << 16);
-      }
-    }
-
-    software.img_to_frame(sws, *img, session->frame);
 
     encode(frame_nr++, session->ctx, session->frame, packets, channel_data);
 

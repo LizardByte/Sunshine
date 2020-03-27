@@ -91,7 +91,7 @@ std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
-std::unique_ptr<display_t> display();
+std::shared_ptr<display_t> display();
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

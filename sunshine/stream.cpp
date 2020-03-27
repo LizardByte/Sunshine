@@ -614,7 +614,7 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
         frame_new = "\000\000\000\001("sv;
       }
 
-      assert(std::search(std::begin(payload), std::end(payload), std::begin(hevc_i_frame), std::end(hevc_i_frame)) ==
+      assert(std::search(std::begin(payload), std::end(payload), std::begin(frame_new), std::end(frame_new)) ==
              std::end(payload));
       payload_new = replace(payload, frame_old, frame_new);
       payload = {(char *) payload_new.data(), payload_new.size()};
