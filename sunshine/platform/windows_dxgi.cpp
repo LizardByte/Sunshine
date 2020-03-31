@@ -108,24 +108,9 @@ public:
 class display_t;
 struct img_t : public ::platf::img_t  {
   ~img_t() override {
-    unmap();
+    delete[] data;
+    data = nullptr;
   }
-
-  void unmap() {
-    if(info.pData) {
-      device_ctx_p->Unmap(texture.get(), 0);
-
-      info.pData = nullptr;
-    }
-  }
-
-  std::shared_ptr<display_t> display;
-
-  texture2d_t texture;
-  D3D11_MAPPED_SUBRESOURCE info {};
-
-
-  device_ctx_t::pointer device_ctx_p;
 };
 
 struct cursor_t {
@@ -283,7 +268,7 @@ public:
       return capture_status;
     }
 
-    if (frame_info.PointerShapeBufferSize > 0) {
+    if(frame_info.PointerShapeBufferSize > 0) {
       auto &img_data = cursor.img_data;
 
       img_data.resize(frame_info.PointerShapeBufferSize);
@@ -316,15 +301,15 @@ public:
         }
 
         //Copy from GPU to CPU
-        device_ctx->CopyResource(img->texture.get(), src.get());
+        device_ctx->CopyResource(texture.get(), src.get());
       }
 
-      if(img->info.pData) {
-        device_ctx->Unmap(img->texture.get(), 0);
-        img->info.pData = nullptr;
+      if(img_info.pData) {
+        device_ctx->Unmap(texture.get(), 0);
+        img_info.pData = nullptr;
       }
 
-      status = device_ctx->Map(img->texture.get(), 0, D3D11_MAP_READ, 0, &img->info);
+      status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -332,23 +317,29 @@ public:
       }
     }
 
-    /*
-    const bool update_flag =
-      frame_info.LastMouseUpdateTime.QuadPart  ||
-      frame_info.LastPresentTime.QuadPart != 0 ||
-      frame_info.PointerShapeBufferSize > 0;
-    */
-    const bool update_flag = frame_info.LastPresentTime.QuadPart != 0;
+    const bool mouse_update = 
+      (frame_info.LastMouseUpdateTime.QuadPart || frame_info.PointerShapeBufferSize > 0) &&
+      (cursor_visible && cursor.visible);
+
+    const bool update_flag = frame_info.LastPresentTime.QuadPart != 0 || mouse_update;
 
     if(!update_flag) {
       return capture_e::timeout;
     }
 
-    img->row_pitch = img->info.RowPitch;
-    img->data = (std::uint8_t*)img->info.pData;
+    if(img->width != width || img->height != height) {
+      delete[] img->data;
+      img->data = new std::uint8_t[height * img_info.RowPitch];
 
-    if(cursor_visible) { // && cursor.visible) {
-      //blend_cursor(cursor, *img);
+      img->width = width;
+      img->height = height;
+      img->row_pitch = img_info.RowPitch;
+    }
+
+    std::copy_n((std::uint8_t*)img_info.pData, height * img_info.RowPitch, (std::uint8_t*)img->data);
+
+    if(cursor_visible && cursor.visible) {
+      blend_cursor(cursor, *img);
     }
 
     return capture_e::ok;
@@ -357,40 +348,19 @@ public:
   std::shared_ptr<::platf::img_t> alloc_img() override {
     auto img = std::make_shared<img_t>();
 
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width  = width;
-    t.Height = height;
-    t.MipLevels = 1;
-    t.ArraySize = 1;
-    t.SampleDesc.Count = 1;
-    t.Format = format;
-
-    if(true) {
-      t.Usage = D3D11_USAGE_STAGING;
-      t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    }
-    else /* gpu memory */ {
-      t.Usage = D3D11_USAGE_DEFAULT;
-    }
-
-    dxgi::texture2d_t::pointer tex_p {};
-    auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
-    img->texture.reset(tex_p);
-
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return nullptr;
-    }
-
-    img->display      = shared_from_this();
-    img->device_ctx_p = device_ctx.get();
     img->data         = nullptr;
     img->row_pitch    = 0;
     img->pixel_pitch  = 4;
-    img->width        = width;
-    img->height       = height;
+    img->width        = 0;
+    img->height       = 0;
 
     return img;
+  }
+
+  int dummy_img(platf::img_t *img, int &) override {
+    auto dummy_data_p = new int[1];
+
+    return platf::display_t::dummy_img(img, *dummy_data_p);
   }
 
   int init() {
@@ -588,6 +558,33 @@ public:
 
     BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
 
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = width;
+    t.Height = height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_STAGING;
+    t.Format = format;
+    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+
+    dxgi::texture2d_t::pointer tex_p {};
+    status = device->CreateTexture2D(&t, nullptr, &tex_p);
+
+    texture.reset(tex_p);
+
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // map the texture simply to get the pitch and stride
+    status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
     return 0;
   }
 
@@ -598,11 +595,13 @@ public:
   device_ctx_t device_ctx;
   duplication_t dup;
   cursor_t cursor;
+  texture2d_t texture;
 
   int width, height;
 
   DXGI_FORMAT format;
   D3D_FEATURE_LEVEL feature_level;
+  D3D11_MAPPED_SUBRESOURCE img_info;
 };
 
 const char *format_str[] = {

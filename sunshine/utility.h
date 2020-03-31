@@ -107,6 +107,9 @@ using optional_t = either_t<
    std::is_pointer_v<T>),
   T, std::optional<T>>;
 
+template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+
 template<class T>
 class FailGuard {
 public:
