@@ -5,7 +5,6 @@
 #include "process.h"
 
 #include <thread>
-#include <filesystem>
 #include <iostream>
 #include <csignal>
 
@@ -14,6 +13,7 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 
+#include "video.h"
 #include "input.h"
 #include "nvhttp.h"
 #include "rtsp.h"
@@ -128,6 +128,7 @@ int main(int argc, char *argv[]) {
   auto deinit_guard = platf::init();
   input::init();
   reed_solomon_init();
+  video::init();
 
   task_pool.start(1);
 

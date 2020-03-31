@@ -70,6 +70,20 @@ public:
   virtual capture_e snapshot(img_t *img, bool cursor) = 0;
   virtual std::shared_ptr<img_t> alloc_img() = 0;
 
+  virtual int dummy_img(img_t *img, int &dummy_data_p) {
+    img->row_pitch   = 4;
+    img->height      = 1;
+    img->width       = 1;
+    img->pixel_pitch = 4;
+    img->data        = (std::uint8_t*)&dummy_data_p;
+
+    return 0;
+  }
+
+  virtual std::shared_ptr<void> get_hwdevice() {
+    return nullptr;
+  }
+
   virtual ~display_t() = default;
 };
 
@@ -91,7 +105,7 @@ std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
-std::shared_ptr<display_t> display();
+std::shared_ptr<display_t> display(int hwdevice_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

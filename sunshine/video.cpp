@@ -10,8 +10,8 @@ extern "C" {
 }
 
 #include "platform/common.h"
-#include "thread_pool.h"
 #include "round_robin.h"
+#include "sync.h"
 #include "config.h"
 #include "video.h"
 #include "main.h"
@@ -43,6 +43,7 @@ using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
 using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
 void sw_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame);
+void nv_d3d_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame);
 
 struct encoder_t {
   struct option_t {
@@ -78,6 +79,7 @@ struct session_t {
 
   frame_t frame;
 
+  AVPixelFormat sw_format;
   int sws_color_format;
 };
 
@@ -93,7 +95,7 @@ static encoder_t nvenc {
   },
   false,
 
-  nullptr
+  nv_d3d_img_to_frame
 
   // D3D11Device
 };
@@ -131,6 +133,10 @@ struct capture_ctx_t {
 struct capture_thread_ctx_t {
   std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue;
   std::thread capture_thread;
+
+  safe::signal_t reinit_event;
+  const encoder_t *encoder_p;
+  util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
 };
 
 [[nodiscard]] codec_t open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
@@ -139,7 +145,12 @@ struct capture_thread_ctx_t {
   return codec_t { ctx.get() };
 }
 
-void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue) {
+void captureThread(
+  std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
+  util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
+  safe::signal_t &reinit_event,
+  const encoder_t &encoder
+  ) {
   std::vector<capture_ctx_t> capture_ctxs;
 
   auto fg = util::fail_guard([&]() {
@@ -156,14 +167,16 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
 
   std::chrono::nanoseconds delay = 1s;
 
-  auto disp = platf::display();
+  auto disp = platf::display(encoder.dev_type);
   if(!disp) {
     return;
   }
+  display_wp = disp;
 
   std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs) +1, std::end(imgs));
 
+  int dummy_data = 0;
   for(auto &img : imgs) {
     img = disp->alloc_img();
     if(!img) {
@@ -171,11 +184,16 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
       return;
     }
   }
+  auto &dummy_img = imgs.front();
+  disp->dummy_img(dummy_img.get(), dummy_data);
 
   auto next_frame = std::chrono::steady_clock::now();
   while(capture_ctx_queue->running()) {
     while(capture_ctx_queue->peek()) {
       capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+
+      // Temporary image to ensure something is send to Moonlight even if no frame has been captured yet.
+      capture_ctxs.back().images->raise(dummy_img);
 
       delay = std::min(delay, capture_ctxs.back().delay);
     }
@@ -190,21 +208,24 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
     auto status = disp->snapshot(img.get(), display_cursor);
     switch (status) {
       case platf::capture_e::reinit: {
+        reinit_event.raise(true);
+
         // Some classes of images contain references to the display --> display won't delete unless img is deleted
         for(auto &img : imgs) {
           img.reset();
-        }
-
-        while(disp.use_count() > 1) {
-          std::this_thread::sleep_for(100ms);
         }
 
         // We try this twice, in case we still get an error on reinitialization
         for(int x = 0; x < 2; ++x) {
           // Some classes of display cannot have multiple instances at once
           disp.reset();
-          disp = platf::display();
 
+          // display_wp is modified in this thread only
+          while(!display_wp->expired()) {
+            std::this_thread::sleep_for(100ms);
+          }
+
+          disp = platf::display(encoder.dev_type);
           if(disp) {
             break;
           }
@@ -216,6 +237,7 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
           return;
         }
 
+        display_wp = disp;
         // Re-allocate images
         for(auto &img : imgs) {
           img = disp->alloc_img();
@@ -224,7 +246,9 @@ void captureThread(std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_que
             return;
           }
         }
+        disp->dummy_img(dummy_img.get(), dummy_data);
 
+        reinit_event.reset();
         continue;
       }
       case platf::capture_e::error:
@@ -291,31 +315,14 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   return 0;
 }
 
-void sw_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame) {
-  av_frame_make_writable(frame.get());
-
-  const int linesizes[2] {
-    img.row_pitch, 0
-  };
-
-  int ret = sws_scale(sws.get(), (std::uint8_t*const*)&img.data, linesizes, 0, img.height, frame->data, frame->linesize);
-  if(ret <= 0) {
-    BOOST_LOG(fatal) << "Couldn't convert image to required format and/or size"sv;
-
-    log_flush();
-    std::abort();
-  }
-}
-
-void encode(int64_t frame_nr, ctx_t &ctx, frame_t &frame, packet_queue_t &packets, void *channel_data) {
+int encode(int64_t frame_nr, ctx_t &ctx, frame_t &frame, packet_queue_t &packets, void *channel_data) {
   frame->pts = frame_nr;
 
   /* send the frame to the encoder */
   auto ret = avcodec_send_frame(ctx.get(), frame.get());
   if (ret < 0) {
-    BOOST_LOG(fatal) << "Could not send a frame for encoding"sv;
-    log_flush();
-    std::abort();
+    BOOST_LOG(error) << "Could not send a frame for encoding"sv;
+    return -1;
   }
 
   while (ret >= 0) {
@@ -323,24 +330,31 @@ void encode(int64_t frame_nr, ctx_t &ctx, frame_t &frame, packet_queue_t &packet
 
     ret = avcodec_receive_packet(ctx.get(), packet.get());
     if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-      return;
+      return 0;
     }
     else if (ret < 0) {
-      BOOST_LOG(fatal) << "Could not encode video packet"sv;
-      log_flush();
-      std::abort();
+      return ret;
     }
 
     packet->channel_data = channel_data;
     packets->raise(std::move(packet));
   }
+
+  return 0;
 }
 
 int start_capture(capture_thread_ctx_t &capture_thread_ctx) {
+  capture_thread_ctx.encoder_p = &software;
+  capture_thread_ctx.reinit_event.reset();
+
   capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>();
 
   capture_thread_ctx.capture_thread = std::thread {
-    captureThread, capture_thread_ctx.capture_ctx_queue
+    captureThread,
+    capture_thread_ctx.capture_ctx_queue,
+    std::ref(capture_thread_ctx.display_wp),
+    std::ref(capture_thread_ctx.reinit_event),
+    std::ref(*capture_thread_ctx.encoder_p)
   };
 
   return 0;
@@ -351,8 +365,8 @@ void end_capture(capture_thread_ctx_t &capture_thread_ctx) {
   capture_thread_ctx.capture_thread.join();
 }
 
-std::optional<session_t> make_session(const encoder_t &encoder, const config_t &config, void *device_ctx) {
-  bool hardware = device_ctx;
+std::optional<session_t>  make_session(const encoder_t &encoder, const config_t &config, void *device_ctx) {
+  bool hardware = encoder.dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
 
@@ -437,12 +451,12 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
       break;
   }
 
-  AVPixelFormat src_fmt;
+  AVPixelFormat sw_fmt;
   if(config.dynamicRange == 0) {
-    src_fmt = AV_PIX_FMT_YUV420P;
+    sw_fmt = AV_PIX_FMT_YUV420P;
   }
   else {
-    src_fmt = AV_PIX_FMT_YUV420P10;
+    sw_fmt = AV_PIX_FMT_YUV420P10;
   }
 
   if(hardware) {
@@ -450,7 +464,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
     ((AVHWFramesContext *)ctx->hw_frames_ctx->data)->device_ctx = (AVHWDeviceContext*)device_ctx;
 
-    if(auto err = hwframe_ctx(ctx, hwdevice, src_fmt); err < 0) {
+    if(auto err = hwframe_ctx(ctx, hwdevice, sw_fmt); err < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Failed to initialize hardware frame: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err) << std::endl;
 
@@ -458,7 +472,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     }
   }
   else /* software */ {
-    ctx->pix_fmt = src_fmt;
+    ctx->pix_fmt = sw_fmt;
 
     // Clients will request for the fewest slices per frame to get the
     // most efficient encode, but we may want to provide more slices than
@@ -503,7 +517,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   frame->height = ctx->height;
 
 
-  if(config.videoFormat == 1) {
+  if(hardware) {
     auto err = av_hwframe_get_buffer(ctx->hw_frames_ctx, frame.get(), 0);
     if(err < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
@@ -521,57 +535,30 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     std::move(ctx),
     std::move(codec_handle),
     std::move(frame),
+    sw_fmt,
     sws_color_space
   });
 }
 
-void capture(
-  safe::signal_t *shutdown_event,
+void encode_run(
+  int &frame_nr, int &key_frame_nr, // Store progress of the frame number
+  safe::signal_t* shutdown_event, // Signal for shutdown event of the session
   packet_queue_t packets,
   idr_event_t idr_events,
+  img_event_t images,
   config_t config,
+  platf::display_t &display,
+  safe::signal_t &reinit_event,
+  const encoder_t &encoder,
   void *channel_data) {
 
-  auto session = make_session(software, config, nullptr);
+  auto hwdevice = display.get_hwdevice();
+  auto session = make_session(encoder, config, hwdevice.get());
   if(!session) {
     return;
   }
 
-  int framerate = config.framerate;
-
-  auto images = std::make_shared<img_event_t::element_type>();
-
-  // Temporary image to ensure something is send to Moonlight even if no frame has been captured yet.
-  int dummy_data = 0;
-  {
-    auto img = std::make_shared<platf::img_t>();
-    img->row_pitch = 4;
-    img->height = 1;
-    img->width = 1;
-    img->pixel_pitch = 4;
-    img->data = (std::uint8_t*)&dummy_data;
-
-    images->raise(std::move(img));
-  }
-
-  // Keep a reference counter to ensure the capture thread only runs when other threads have a reference to the capture thread
-  static auto capture_thread = safe::make_shared<capture_thread_ctx_t>(start_capture, end_capture);
-  auto ref = capture_thread.ref();
-  if(!ref) {
-    return;
-  }
-
-  auto delay = std::chrono::floor<std::chrono::nanoseconds>(1s) / framerate;
-  ref->capture_ctx_queue->raise(capture_ctx_t {
-    images, delay
-  });
-
-  if(!ref->capture_ctx_queue->running()) {
-    return;
-  }
-
-  int64_t frame_nr = 1;
-  int64_t key_frame_nr = 1;
+  auto delay = std::chrono::floor<std::chrono::nanoseconds>(1s) / config.framerate;
 
   auto img_width  = 0;
   auto img_height = 0;
@@ -581,7 +568,7 @@ void capture(
 
   auto next_frame = std::chrono::steady_clock::now();
   while(true) {
-    if(shutdown_event->peek() || !images->running()) {
+    if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
       break;
     }
 
@@ -604,7 +591,7 @@ void capture(
     // When Moonlight request an IDR frame, send frames even if there is no new captured frame
     if(frame_nr > (key_frame_nr + config.framerate) || images->peek()) {
       if(auto img = images->pop(delay)) {
-        if(software.system_memory) {
+        if(encoder.system_memory) {
           auto new_width  = img->width;
           auto new_height = img->height;
 
@@ -615,7 +602,7 @@ void capture(
             sws.reset(
               sws_getContext(
                 img_width, img_height, AV_PIX_FMT_BGR0,
-                session->ctx->width, session->ctx->height, session->ctx->pix_fmt,
+                session->ctx->width, session->ctx->height, session->sw_format,
                 SWS_LANCZOS | SWS_ACCURATE_RND,
                 nullptr, nullptr, nullptr));
 
@@ -625,7 +612,7 @@ void capture(
           }
         }
 
-        software.img_to_frame(sws, *img, session->frame);
+        encoder.img_to_frame(sws, *img, session->frame);
       }
       else if(images->running()) {
         continue;
@@ -635,11 +622,173 @@ void capture(
       }
     }
 
-    encode(frame_nr++, session->ctx, session->frame, packets, channel_data);
+    if(encode(frame_nr++, session->ctx, session->frame, packets, channel_data)) {
+      BOOST_LOG(fatal) << "Could not encode video packet"sv;
+      log_flush();
+      std::abort();
+    }
 
     session->frame->pict_type = AV_PICTURE_TYPE_NONE;
   }
+}
+
+void capture(
+  safe::signal_t *shutdown_event,
+  packet_queue_t packets,
+  idr_event_t idr_events,
+  config_t config,
+  void *channel_data) {
+
+  auto images = std::make_shared<img_event_t::element_type>();
+
+  // Keep a reference counter to ensure the Fcapture thread only runs when other threads have a reference to the capture thread
+  static auto capture_thread = safe::make_shared<capture_thread_ctx_t>(start_capture, end_capture);
+  auto ref = capture_thread.ref();
+  if(!ref) {
+    return;
+  }
+
+  auto delay = std::chrono::floor<std::chrono::nanoseconds>(1s) / config.framerate;
+  ref->capture_ctx_queue->raise(capture_ctx_t {
+    images, delay
+  });
+
+  if(!ref->capture_ctx_queue->running()) {
+    return;
+  }
+
+  int frame_nr = 1;
+  int key_frame_nr = 1;
+  while(!shutdown_event->peek() && images->running()) {
+    // Wait for the display to be ready
+    std::shared_ptr<platf::display_t> display;
+    {
+      auto lg = ref->display_wp.lock();
+      if(ref->display_wp->expired()) {
+        continue;
+      }
+
+      display = ref->display_wp->lock();
+    }
+
+    encode_run(frame_nr, key_frame_nr, shutdown_event, packets, idr_events, images, config, *display, ref->reinit_event, *ref->encoder_p, channel_data);
+  }
 
   images->stop();
+}
+
+bool validate_config(const encoder_t &encoder, const config_t &config, platf::display_t &disp) {
+  auto hwdevice = disp.get_hwdevice();
+
+  auto session = make_session(encoder, config, hwdevice.get());
+  if(!session) {
+    return false;
+  }
+
+  int dummy_data;
+  auto img = disp.alloc_img();
+  disp.dummy_img(img.get(), dummy_data);
+
+  sws_t sws;
+  if(encoder.system_memory) {
+    sws.reset(sws_getContext(
+      img->width, img->height, AV_PIX_FMT_BGR0,
+      session->ctx->width, session->ctx->height, session->sw_format,
+      SWS_LANCZOS | SWS_ACCURATE_RND,
+      nullptr, nullptr, nullptr));
+
+    sws_setColorspaceDetails(sws.get(), sws_getCoefficients(SWS_CS_DEFAULT), 0,
+                             sws_getCoefficients(session->sws_color_format), config.encoderCscMode & 0x1,
+                             0, 1 << 16, 1 << 16);
+
+
+  }
+
+  encoder.img_to_frame(sws, *img, session->frame);
+
+  session->frame->pict_type = AV_PICTURE_TYPE_I;
+
+  auto packets = std::make_shared<packet_queue_t::element_type>();
+  if(encode(1, session->ctx, session->frame, packets, nullptr)) {
+    return false;
+  }
+
+  return true;
+}
+
+bool validate_encoder(const encoder_t &encoder) {
+  config_t config_h264 {
+    1920, 1080,
+    60,
+    1000,
+    1,
+    1,
+    1,
+    0,
+    0
+  };
+
+  config_t config_hevc {
+    1920, 1080,
+    60,
+    1000,
+    1,
+    1,
+    1,
+    1,
+    1
+  };
+
+  auto disp = platf::display(encoder.dev_type);
+  if(!disp) {
+    return false;
+  }
+
+  return
+    validate_config(encoder, config_h264, *disp) &&
+    validate_config(encoder, config_hevc, *disp);
+}
+
+void init() {
+  KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+    if(!validate_encoder(*pos)) {
+      pos = encoders.erase(pos);
+
+      continue;
+    }
+
+    ++pos;
+  })
+
+  for(auto &encoder : encoders) {
+    BOOST_LOG(info) << "Found encoder ["sv << encoder.h264.name << ", "sv << encoder.hevc.name << ']';
+  }
+}
+
+void sw_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame) {
+  av_frame_make_writable(frame.get());
+
+  const int linesizes[2] {
+    img.row_pitch, 0
+  };
+
+  int ret = sws_scale(sws.get(), (std::uint8_t*const*)&img.data, linesizes, 0, img.height, frame->data, frame->linesize);
+  if(ret <= 0) {
+    BOOST_LOG(fatal) << "Couldn't convert image to required format and/or size"sv;
+
+    log_flush();
+    std::abort();
+  }
+}
+
+void nv_d3d_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame) {
+  frame->data[0] = img.data;
+  frame->data[1] = 0;
+
+  frame->linesize[0] = img.row_pitch;
+  frame->linesize[1] = 0;
+
+  frame->height = img.height;
+  frame->width = img.width;
 }
 }

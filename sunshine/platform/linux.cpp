@@ -255,6 +255,12 @@ struct shm_attr_t : public x11_attr_t {
     return std::make_shared<shm_img_t>();
   }
 
+  int dummy_img(platf::img_t *img, int &) override {
+    auto dummy_data_p = new int[1];
+
+    return platf::display_t::dummy_img(img, *dummy_data_p);
+  }
+
   int init() {
     shm_xdisplay.reset(XOpenDisplay(nullptr));
     xcb.reset(xcb_connect(nullptr, nullptr));
@@ -325,7 +331,7 @@ std::shared_ptr<display_t> shm_display() {
   return shm;
 }
 
-std::shared_ptr<display_t> display() {
+std::shared_ptr<display_t> display(int hwdevice_type) {
   auto shm_disp = shm_display();
 
   if(!shm_disp) {

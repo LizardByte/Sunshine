@@ -2,14 +2,18 @@
 // Created by loki on 1/12/20.
 //
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
+
 #include <dxgi.h>
 #include <d3d11.h>
 #include <d3dcommon.h>
 #include <dxgi1_2.h>
 
 #include <codecvt>
-#include <sunshine/config.h>
 
+#include "sunshine/config.h"
 #include "sunshine/main.h"
 #include "common.h"
 
@@ -113,39 +117,6 @@ struct img_t : public ::platf::img_t  {
 
       info.pData = nullptr;
     }
-  }
-
-  int reset(int width, int height, DXGI_FORMAT format, device_t::pointer device, device_ctx_t::pointer device_ctx_p, const std::shared_ptr<display_t> &display) {
-    unmap();
-
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width  = width;
-    t.Height = height;
-    t.MipLevels = 1;
-    t.ArraySize = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage = D3D11_USAGE_STAGING;
-    t.Format = format;
-    t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-
-    dxgi::texture2d_t::pointer tex_p {};
-    auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
-    texture.reset(tex_p);
-
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    this->display      = display;
-    this->device_ctx_p = device_ctx_p;
-    this->data         = nullptr;
-    this->row_pitch    = 0;
-    this->pixel_pitch  = 4;
-    this->width        = width;
-    this->height       = height;
-
-    return 0;
   }
 
   std::shared_ptr<display_t> display;
@@ -299,11 +270,6 @@ class display_t : public ::platf::display_t, public std::enable_shared_from_this
 public:
   capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
     auto img = (img_t*)img_base;
-    if(img->display.get() != this) {
-      if(img->reset(width, height, format, device.get(), device_ctx.get(), shared_from_this())) {
-        return capture_e::error;
-      }
-    }
 
     HRESULT status;
 
@@ -391,9 +357,38 @@ public:
   std::shared_ptr<::platf::img_t> alloc_img() override {
     auto img = std::make_shared<img_t>();
 
-    if(img->reset(width, height, format, device.get(), device_ctx.get(), shared_from_this())) {
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = width;
+    t.Height = height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Format = format;
+
+    if(true) {
+      t.Usage = D3D11_USAGE_STAGING;
+      t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    }
+    else /* gpu memory */ {
+      t.Usage = D3D11_USAGE_DEFAULT;
+    }
+
+    dxgi::texture2d_t::pointer tex_p {};
+    auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
+    img->texture.reset(tex_p);
+
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
       return nullptr;
     }
+
+    img->display      = shared_from_this();
+    img->device_ctx_p = device_ctx.get();
+    img->data         = nullptr;
+    img->row_pitch    = 0;
+    img->pixel_pitch  = 4;
+    img->width        = width;
+    img->height       = height;
 
     return img;
   }
@@ -738,7 +733,11 @@ const char *format_str[] = {
 }
 
 namespace platf {
-std::shared_ptr<display_t> display() {
+std::shared_ptr<display_t> display(int hwdevice_type) {
+  if(hwdevice_type != AV_HWDEVICE_TYPE_NONE) {
+    return nullptr;
+  }
+
   auto disp = std::make_shared<dxgi::display_t>();
 
   if (disp->init()) {

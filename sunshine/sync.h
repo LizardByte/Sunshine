@@ -46,6 +46,15 @@ public:
     return *this;
   }
 
+  template<class V>
+  sync_t &operator=(V &&val) {
+    auto lg = lock();
+
+    raw = val;
+
+    return *this;
+  }
+
   sync_t &operator=(const value_t &val) noexcept {
     auto lg = lock();
 

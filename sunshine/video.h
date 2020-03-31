@@ -56,6 +56,8 @@ void capture(
   idr_event_t idr_events,
   config_t config,
   void *channel_data);
+
+void init();
 }
 
 #endif //SUNSHINE_VIDEO_H
