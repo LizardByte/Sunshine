@@ -48,7 +48,7 @@ void nv_d3d_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame);
 struct encoder_t {
   struct option_t {
     std::string name;
-    util::Either<std::int64_t, std::string> value;
+    std::variant<int, int*, std::string, std::string*> value;
   };
 
   struct {
@@ -109,10 +109,17 @@ static encoder_t software {
     // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
     // It also looks like gop_size isn't passed on to x265, so we have to set
     // 'keyint=-1' in the parameters ourselves.
-    {{ "x265-params"s, "info=0:keyint=-1"s }}, "libx265"s
+    {
+      { "x265-params"s, "info=0:keyint=-1"s },
+      { "preset"s, &config::video.preset },
+      { "tune"s, &config::video.tune }
+    }, "libx265"s
   },
   {
-    {{}}, "libx264"s
+    {
+      { "preset"s, &config::video.preset },
+      { "tune"s, &config::video.tune }
+    }, "libx264"s
   },
   true,
 
@@ -286,7 +293,6 @@ util::Either<buffer_t, int> hwdevice_ctx(AVHWDeviceType type) {
 
   AVBufferRef *ref;
   auto err = av_hwdevice_ctx_create(&ref, type, nullptr, nullptr, 0);
-//  auto err = av_hwdevice_ctx_create(&ref, type, "/dev/dri/renderD129", nullptr, 0);
 
   ctx.reset(ref);
   if(err < 0) {
@@ -484,12 +490,12 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
 
   AVDictionary *options {nullptr};
   for(auto &option : video_format.options) {
-    if(option.value.has_left()) {
-      av_dict_set_int(&options, option.name.c_str(), option.value.left(), 0);
-    }
-    else {
-      av_dict_set(&options, option.name.c_str(), option.value.right().c_str(), 0);
-    }
+    std::visit(util::overloaded {
+      [&](int v) { av_dict_set_int(&options, option.name.c_str(), v, 0); },
+      [&](int *v) { av_dict_set_int(&options, option.name.c_str(), *v, 0); },
+      [&](const std::string &v) { av_dict_set(&options, option.name.c_str(), v.c_str(), 0); },
+      [&](std::string *v) { av_dict_set(&options, option.name.c_str(), v->c_str(), 0); }
+    }, option.value);
   }
 
   if(config.bitrate > 500) {
