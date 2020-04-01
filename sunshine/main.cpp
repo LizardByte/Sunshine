@@ -12,6 +12,7 @@
 #include <boost/log/sinks.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/attributes/clock.hpp>
 
 #include "video.h"
 #include "input.h"
@@ -23,6 +24,7 @@
 #include "platform/common.h"
 extern "C" {
 #include <rs.h>
+#include <libavutil/log.h>
 }
 
 using namespace std::literals;
@@ -68,13 +70,19 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+  if(config::sunshine.min_log_level >= 2) {
+    av_log_set_level(AV_LOG_QUIET);
+  }
+
   sink = boost::make_shared<text_sink>();
 
   boost::shared_ptr<std::ostream> stream { &std::cout, NoDelete {} };
   sink->locked_backend()->add_stream(stream);
   sink->set_filter(severity >= config::sunshine.min_log_level);
 
-  sink->set_formatter([severity="Severity"s](const bl::record_view &view, bl::formatting_ostream &os) {
+  sink->set_formatter([message="Message"s, severity="Severity"s](const bl::record_view &view, bl::formatting_ostream &os) {
+    constexpr int DATE_BUFFER_SIZE = 21 +2 +1; // Full string plus ": \0"
+
     auto log_level = view.attribute_values()[severity].extract<int>().get();
 
     std::string_view log_type;
@@ -99,7 +107,11 @@ int main(int argc, char *argv[]) {
         break;
     };
 
-    os << log_type << view.attribute_values()["Message"].extract<std::string>();
+    char _date[DATE_BUFFER_SIZE];
+    std::time_t t = std::time(nullptr);
+    strftime(_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S]: ", std::localtime(&t));
+
+    os << _date << log_type << view.attribute_values()[message].extract<std::string>();
   });
 
   bl::core::get()->add_sink(sink);
