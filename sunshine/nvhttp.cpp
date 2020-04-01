@@ -33,7 +33,7 @@ constexpr auto PORT_HTTP  = 47989;
 constexpr auto PORT_HTTPS = 47984;
 
 constexpr auto VERSION     = "7.1.400.0";
-constexpr auto GFE_VERSION = "2.0.0.1";
+constexpr auto GFE_VERSION = "3.12.0.1";
 
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;

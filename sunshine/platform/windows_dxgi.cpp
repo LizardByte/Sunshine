@@ -183,7 +183,34 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
   }
 }
 
-void blend_cursor_color(const cursor_t &cursor, img_t &img) {
+void apply_color_alpha(int *img_pixel_p, int cursor_pixel) {
+  auto colors_out = (std::uint8_t*)&cursor_pixel;
+  auto colors_in  = (std::uint8_t*)img_pixel_p;
+
+  //TODO: When use of IDXGIOutput5 is implemented, support different color formats
+  auto alpha = colors_out[3];
+  if(alpha == 255) {
+    *img_pixel_p = cursor_pixel;
+  }
+  else {
+    colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255/2) / 255;
+    colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255/2) / 255;
+    colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255/2) / 255;
+  }
+}
+
+void apply_color_masked(int *img_pixel_p, int cursor_pixel) {
+  //TODO: When use of IDXGIOutput5 is implemented, support different color formats
+  auto alpha = ((std::uint8_t*)&cursor_pixel)[3];
+  if(alpha == 0xFF) {
+    *img_pixel_p ^= cursor_pixel;
+  }
+  else {
+    *img_pixel_p = cursor_pixel;
+  }
+}
+
+void blend_cursor_color(const cursor_t &cursor, img_t &img, const bool masked) {
   int height = cursor.shape_info.Height;
   int width  = cursor.shape_info.Width;
   int pitch  = cursor.shape_info.Pitch;
@@ -219,18 +246,11 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img) {
 
     auto img_pixel_p = &img_data[(i + img_skip_y) * (img.row_pitch / img.pixel_pitch) + img_skip_x];
     std::for_each(cursor_begin, cursor_end, [&](int cursor_pixel) {
-      auto colors_out = (std::uint8_t*)&cursor_pixel;
-      auto colors_in  = (std::uint8_t*)img_pixel_p;
-
-      //TODO: When use of IDXGIOutput5 is implemented, support different color formats
-      auto alpha = colors_out[3];
-      if(alpha == 255) {
-        *img_pixel_p = cursor_pixel;
+      if(masked) {
+        apply_color_masked(img_pixel_p, cursor_pixel);
       }
       else {
-        colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255/2) / 255;
-        colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255/2) / 255;
-        colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255/2) / 255;
+        apply_color_alpha(img_pixel_p, cursor_pixel);
       }
       ++img_pixel_p;
     });
@@ -240,12 +260,14 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img) {
 void blend_cursor(const cursor_t &cursor, img_t &img) {
   switch(cursor.shape_info.Type) {
     case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
-      blend_cursor_color(cursor, img);
+      blend_cursor_color(cursor, img, false);
       break;
     case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
       blend_cursor_monochrome(cursor, img);
       break;
     case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
+      blend_cursor_color(cursor, img, true);
+      break;
     default:
       BOOST_LOG(warning) << "Unsupported cursor format ["sv << cursor.shape_info.Type << ']';
   }

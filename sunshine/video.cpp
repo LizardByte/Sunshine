@@ -684,6 +684,11 @@ void capture(
 }
 
 bool validate_config(const encoder_t &encoder, const config_t &config, platf::display_t &disp) {
+  // Ensure everything but software fails succesfully, it's not ready yet
+  if(encoder.dev_type != AV_HWDEVICE_TYPE_NONE) {
+    return false;
+  }
+
   auto hwdevice = disp.get_hwdevice();
 
   auto session = make_session(encoder, config, hwdevice.get());
