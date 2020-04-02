@@ -38,6 +38,15 @@ using dup_t        = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputD
 using texture2d_t  = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
 using resource_t   = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
 
+namespace video {
+using device_t         = util::safe_ptr<ID3D11VideoDevice, Release<ID3D11VideoDevice>>;
+using ctx_t            = util::safe_ptr<ID3D11VideoContext, Release<ID3D11VideoContext>>;
+using processor_t      = util::safe_ptr<ID3D11VideoProcessor, Release<ID3D11VideoProcessor>>;
+using processor_out_t  = util::safe_ptr<ID3D11VideoProcessorOutputView, Release<ID3D11VideoProcessorOutputView>>;
+using processor_in_t   = util::safe_ptr<ID3D11VideoProcessorInputView, Release<ID3D11VideoProcessorInputView>>;
+using processor_enum_t = util::safe_ptr<ID3D11VideoProcessorEnumerator, Release<ID3D11VideoProcessorEnumerator>>;
+}
+
 extern const char *format_str[];
 
 class duplication_t {
@@ -105,12 +114,16 @@ public:
   }
 };
 
-class display_t;
 struct img_t : public ::platf::img_t  {
   ~img_t() override {
     delete[] data;
     data = nullptr;
   }
+};
+
+struct img_d3d_t : public ::platf::img_t {
+  std::shared_ptr<platf::display_t> display;
+  texture2d_t texture;
 };
 
 struct cursor_t {
@@ -273,118 +286,121 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
-class display_t : public ::platf::display_t, public std::enable_shared_from_this<display_t> {
+class hwdevice_ctx_t : public platf::hwdevice_ctx_t {
 public:
-  capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
-    auto img = (img_t*)img_base;
+  const platf::img_t*const convert(platf::img_t &img_base) override {
+    auto &img = (img_d3d_t&)img_base;
 
+    auto it = texture_to_processor_in.find(img.texture.get());
+    if(it == std::end(texture_to_processor_in)) {
+      D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_desc = { 0, (D3D11_VPIV_DIMENSION)D3D11_VPIV_DIMENSION_TEXTURE2D, { 0, 0 } };
+
+      video::processor_in_t::pointer processor_in_p;
+      auto status = device->CreateVideoProcessorInputView(img.texture.get(), processor_e.get(), &input_desc, &processor_in_p);
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create VideoProcessorInputView [0x"sv << util::hex(status).to_string_view() << ']';
+        return nullptr;
+      }
+      it = texture_to_processor_in.emplace(img.texture.get(), processor_in_p).first;
+    }
+    auto &processor_in = it->second;
+
+    D3D11_VIDEO_PROCESSOR_STREAM stream { TRUE, 0, 0, 0, 0, nullptr, processor_in.get(), nullptr };
+    auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, 1, &stream);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed size and color conversion 0x["sv << util::hex(status).to_string_view() << ']';
+      return nullptr;
+    }
+
+    return &img;
+  }
+
+  int init(std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
     HRESULT status;
 
-    DXGI_OUTDUPL_FRAME_INFO frame_info;
+    video::device_t::pointer vdevice_p;
+    status = device_p->QueryInterface(IID_ID3D11VideoDevice, (void**)&vdevice_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to query ID3D11VideoDevice interface [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    device.reset(vdevice_p);
 
-    resource_t::pointer res_p {};
-    auto capture_status = dup.next_frame(frame_info, &res_p);
-    resource_t res{res_p};
+    video::ctx_t::pointer ctx_p;
+    status = device_ctx_p->QueryInterface(IID_ID3D11VideoContext, (void**)&ctx_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to query ID3D11VideoContext interface [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    ctx.reset(ctx_p);
 
-    if (capture_status != capture_e::ok) {
-      return capture_status;
+    D3D11_VIDEO_PROCESSOR_CONTENT_DESC contentDesc {
+      D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
+      { 1, 1 }, (UINT)in_width, (UINT)in_height,
+      { 1, 1 }, (UINT)out_width, (UINT)out_height,
+      D3D11_VIDEO_USAGE_PLAYBACK_NORMAL
+    };
+
+    video::processor_enum_t::pointer vp_e_p;
+    status = device->CreateVideoProcessorEnumerator(&contentDesc, &vp_e_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create video processor enumerator [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    processor_e.reset(vp_e_p);
+
+    video::processor_t::pointer processor_p;
+    status = device->CreateVideoProcessor(processor_e.get(), 0, &processor_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create video processor [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    processor.reset(processor_p);
+
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = out_width;
+    t.Height = out_height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_DEFAULT;
+    t.Format = DXGI_FORMAT_420_OPAQUE;
+
+    dxgi::texture2d_t::pointer tex_p {};
+    status = device_p->CreateTexture2D(&t, nullptr, &tex_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
     }
 
-    if(frame_info.PointerShapeBufferSize > 0) {
-      auto &img_data = cursor.img_data;
+    img.texture.reset(tex_p);
+    img.display = std::move(display);
+    img.width = out_width;
+    img.height = out_height;
 
-      img_data.resize(frame_info.PointerShapeBufferSize);
-
-      UINT dummy;
-      status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &cursor.shape_info);
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
-
-        return capture_e::error;
-      }
+    D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC output_desc { D3D11_VPOV_DIMENSION_TEXTURE2D };
+    video::processor_out_t::pointer processor_out_p;
+    device->CreateVideoProcessorOutputView(img.texture.get(), processor_e.get(), &output_desc, &processor_out_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create VideoProcessorOutputView [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
     }
+    processor_out.reset(processor_out_p);
 
-    if(frame_info.LastMouseUpdateTime.QuadPart) {
-      cursor.x = frame_info.PointerPosition.Position.x;
-      cursor.y = frame_info.PointerPosition.Position.y;
-      cursor.visible = frame_info.PointerPosition.Visible;
-    }
-
-    // If frame has been updated
-    if (frame_info.LastPresentTime.QuadPart != 0) {
-      {
-        texture2d_t::pointer src_p {};
-        status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
-        texture2d_t src{src_p};
-
-        if (FAILED(status)) {
-          BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
-          return capture_e::error;
-        }
-
-        //Copy from GPU to CPU
-        device_ctx->CopyResource(texture.get(), src.get());
-      }
-
-      if(img_info.pData) {
-        device_ctx->Unmap(texture.get(), 0);
-        img_info.pData = nullptr;
-      }
-
-      status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
-
-        return capture_e::error;
-      }
-    }
-
-    const bool mouse_update = 
-      (frame_info.LastMouseUpdateTime.QuadPart || frame_info.PointerShapeBufferSize > 0) &&
-      (cursor_visible && cursor.visible);
-
-    const bool update_flag = frame_info.LastPresentTime.QuadPart != 0 || mouse_update;
-
-    if(!update_flag) {
-      return capture_e::timeout;
-    }
-
-    if(img->width != width || img->height != height) {
-      delete[] img->data;
-      img->data = new std::uint8_t[height * img_info.RowPitch];
-
-      img->width = width;
-      img->height = height;
-      img->row_pitch = img_info.RowPitch;
-    }
-
-    std::copy_n((std::uint8_t*)img_info.pData, height * img_info.RowPitch, (std::uint8_t*)img->data);
-
-    if(cursor_visible && cursor.visible) {
-      blend_cursor(cursor, *img);
-    }
-
-    return capture_e::ok;
+    return 0;
   }
 
-  std::shared_ptr<::platf::img_t> alloc_img() override {
-    auto img = std::make_shared<img_t>();
+  img_d3d_t img;
+  video::device_t device;
+  video::ctx_t ctx;
+  video::processor_enum_t processor_e;
+  video::processor_t processor;
+  video::processor_out_t processor_out;
+  std::unordered_map<texture2d_t::pointer, video::processor_in_t> texture_to_processor_in;
+};
 
-    img->data         = nullptr;
-    img->row_pitch    = 0;
-    img->pixel_pitch  = 4;
-    img->width        = 0;
-    img->height       = 0;
-
-    return img;
-  }
-
-  int dummy_img(platf::img_t *img, int &) override {
-    auto dummy_data_p = new int[1];
-
-    return platf::display_t::dummy_img(img, *dummy_data_p);
-  }
-
+class display_base_t : public ::platf::display_t {
+public:
   int init() {
 /* Uncomment when use of IDXGIOutput5 is implemented
   std::call_once(windows_cpp_once_flag, []() {
@@ -506,7 +522,8 @@ public:
     adapter->GetDesc(&adapter_desc);
 
     auto description = converter.to_bytes(adapter_desc.Description);
-    BOOST_LOG(info) << std::endl
+    BOOST_LOG(info)
+      << std::endl
       << "Device Description : " << description << std::endl
       << "Device Vendor ID   : 0x"sv << util::hex(adapter_desc.VendorId).to_string_view() << std::endl
       << "Device Device ID   : 0x"sv << util::hex(adapter_desc.DeviceId).to_string_view() << std::endl
@@ -580,6 +597,139 @@ public:
 
     BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
 
+    return 0;
+  }
+
+  factory1_t factory;
+  adapter_t adapter;
+  output_t output;
+  device_t device;
+  device_ctx_t device_ctx;
+  duplication_t dup;
+
+  int width, height;
+
+  DXGI_FORMAT format;
+  D3D_FEATURE_LEVEL feature_level;
+};
+
+class display_cpu_t : public display_base_t {
+public:
+  capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
+    auto img = (img_t*)img_base;
+
+    HRESULT status;
+
+    DXGI_OUTDUPL_FRAME_INFO frame_info;
+
+    resource_t::pointer res_p {};
+    auto capture_status = dup.next_frame(frame_info, &res_p);
+    resource_t res{res_p};
+
+    if (capture_status != capture_e::ok) {
+      return capture_status;
+    }
+
+    if(frame_info.PointerShapeBufferSize > 0) {
+      auto &img_data = cursor.img_data;
+
+      img_data.resize(frame_info.PointerShapeBufferSize);
+
+      UINT dummy;
+      status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &cursor.shape_info);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return capture_e::error;
+      }
+    }
+
+    if(frame_info.LastMouseUpdateTime.QuadPart) {
+      cursor.x = frame_info.PointerPosition.Position.x;
+      cursor.y = frame_info.PointerPosition.Position.y;
+      cursor.visible = frame_info.PointerPosition.Visible;
+    }
+
+    // If frame has been updated
+    if (frame_info.LastPresentTime.QuadPart != 0) {
+      {
+        texture2d_t::pointer src_p {};
+        status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
+        texture2d_t src{src_p};
+
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
+          return capture_e::error;
+        }
+
+        //Copy from GPU to CPU
+        device_ctx->CopyResource(texture.get(), src.get());
+      }
+
+      if(img_info.pData) {
+        device_ctx->Unmap(texture.get(), 0);
+        img_info.pData = nullptr;
+      }
+
+      status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return capture_e::error;
+      }
+    }
+
+    const bool mouse_update = 
+      (frame_info.LastMouseUpdateTime.QuadPart || frame_info.PointerShapeBufferSize > 0) &&
+      (cursor_visible && cursor.visible);
+
+    const bool update_flag = frame_info.LastPresentTime.QuadPart != 0 || mouse_update;
+
+    if(!update_flag) {
+      return capture_e::timeout;
+    }
+
+    if(img->width != width || img->height != height) {
+      delete[] img->data;
+      img->data = new std::uint8_t[height * img_info.RowPitch];
+
+      img->width = width;
+      img->height = height;
+      img->row_pitch = img_info.RowPitch;
+    }
+
+    std::copy_n((std::uint8_t*)img_info.pData, height * img_info.RowPitch, (std::uint8_t*)img->data);
+
+    if(cursor_visible && cursor.visible) {
+      blend_cursor(cursor, *img);
+    }
+
+    return capture_e::ok;
+  }
+
+  std::shared_ptr<platf::img_t> alloc_img() override {
+    auto img = std::make_shared<img_t>();
+
+    img->data         = nullptr;
+    img->row_pitch    = 0;
+    img->pixel_pitch  = 4;
+    img->width        = 0;
+    img->height       = 0;
+
+    return img;
+  }
+
+  int dummy_img(platf::img_t *img, int &) override {
+    auto dummy_data_p = new int[1];
+
+    return platf::display_t::dummy_img(img, *dummy_data_p);
+  }
+
+  int init() {
+    if(display_base_t::init()) {
+      return -1;
+    }
+
     D3D11_TEXTURE2D_DESC t {};
     t.Width  = width;
     t.Height = height;
@@ -591,7 +741,7 @@ public:
     t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
     dxgi::texture2d_t::pointer tex_p {};
-    status = device->CreateTexture2D(&t, nullptr, &tex_p);
+    auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
 
     texture.reset(tex_p);
 
@@ -603,27 +753,128 @@ public:
     // map the texture simply to get the pitch and stride
     status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Error: Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
     return 0;
   }
 
-  factory1_t factory;
-  adapter_t adapter;
-  output_t output;
-  device_t device;
-  device_ctx_t device_ctx;
-  duplication_t dup;
   cursor_t cursor;
-  texture2d_t texture;
-
-  int width, height;
-
-  DXGI_FORMAT format;
-  D3D_FEATURE_LEVEL feature_level;
   D3D11_MAPPED_SUBRESOURCE img_info;
+  texture2d_t texture;
+};
+
+class display_gpu_t : public display_base_t, public std::enable_shared_from_this<display_gpu_t> {
+  capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
+    auto img = (img_d3d_t*)img_base;
+
+    HRESULT status;
+
+    DXGI_OUTDUPL_FRAME_INFO frame_info;
+
+    resource_t::pointer res_p {};
+    auto capture_status = dup.next_frame(frame_info, &res_p);
+    resource_t res{res_p};
+
+    if (capture_status != capture_e::ok) {
+      return capture_status;
+    }
+
+    const bool update_flag = frame_info.LastPresentTime.QuadPart != 0;
+    if(!update_flag) {
+      return capture_e::timeout;
+    }
+
+    texture2d_t::pointer src_p{};
+    status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
+
+    if (FAILED(status)) {
+      BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
+      return capture_e::error;
+    }
+
+    img->row_pitch = 0;
+    img->width     = width;
+    img->height    = height;
+    img->data      = (std::uint8_t*)src_p;
+    img->texture.reset(src_p);
+
+    return capture_e::ok;
+  }
+
+  std::shared_ptr<platf::img_t> alloc_img() override {
+    auto img = std::make_shared<img_d3d_t>();
+
+    img->data        = nullptr;
+    img->row_pitch   = 0;
+    img->pixel_pitch = 4;
+    img->width       = 0;
+    img->height      = 0;
+    img->display     = shared_from_this();
+
+    return img;
+  }
+
+  int dummy_img(platf::img_t *img_base, int &dummy_data_p) override {
+    auto img = (img_d3d_t*)img_base;
+
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = 1;
+    t.Height = 1;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_DEFAULT;
+    t.Format = format;
+
+    D3D11_SUBRESOURCE_DATA data {
+      &dummy_data_p,
+      (UINT)img->row_pitch,
+      0
+    };
+
+    dxgi::texture2d_t::pointer tex_p {};
+    auto status = device->CreateTexture2D(&t, &data, &tex_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    img->texture.reset(tex_p);
+
+    D3D11_MAPPED_SUBRESOURCE img_info {};
+    // map the texture simply to get the pitch and stride
+    status = device_ctx->Map(img->texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    img->row_pitch = img_info.RowPitch;
+    img->height    = 1;
+    img->width     = 1;
+    img->data      = (std::uint8_t*)img->texture.get();
+
+    device_ctx->Unmap(img->texture.get(), 0);
+    return 0;
+  }
+
+  std::shared_ptr<platf::hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) override {
+    auto hwdevice = std::make_shared<hwdevice_ctx_t>();
+
+    auto ret = hwdevice->init(
+      shared_from_this(),
+      device.get(),
+      device_ctx.get(),
+      this->width, this->height,
+      width, height);
+
+    if(ret) {
+      return nullptr;
+    }
+
+    return hwdevice;
+  }
 };
 
 const char *format_str[] = {
@@ -755,16 +1006,21 @@ const char *format_str[] = {
 
 namespace platf {
 std::shared_ptr<display_t> display(int hwdevice_type) {
-  if(hwdevice_type != AV_HWDEVICE_TYPE_NONE) {
-    return nullptr;
+  if(hwdevice_type == AV_HWDEVICE_TYPE_D3D11VA) {
+    auto disp = std::make_shared<dxgi::display_gpu_t>();
+
+    if(!disp->init()) {
+      return disp;
+    }
+  }
+  else {
+    auto disp = std::make_shared<dxgi::display_cpu_t>();
+
+    if(!disp->init()) {
+      return disp;
+    }
   }
 
-  auto disp = std::make_shared<dxgi::display_t>();
-
-  if (disp->init()) {
-    return nullptr;
-  }
-
-  return disp;
+  return nullptr;
 }
 }

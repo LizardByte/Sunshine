@@ -28,6 +28,11 @@ constexpr std::uint16_t B            = 0x2000;
 constexpr std::uint16_t X            = 0x4000;
 constexpr std::uint16_t Y            = 0x8000;
 
+enum class pix_fmt_e {
+  yuv420p,
+  yuv420p10
+};
+
 struct gamepad_state_t {
   std::uint16_t buttonFlags;
   std::uint8_t lt;
@@ -58,6 +63,16 @@ public:
   virtual ~img_t() = default;
 };
 
+struct hwdevice_ctx_t {
+  std::shared_ptr<void> hwdevice;
+
+  virtual const platf::img_t*const convert(platf::img_t &img) {
+    return nullptr;
+  }
+
+  virtual ~hwdevice_ctx_t() = default;
+};
+
 enum class capture_e : int {
   ok,
   reinit,
@@ -80,7 +95,7 @@ public:
     return 0;
   }
 
-  virtual std::shared_ptr<void> get_hwdevice() {
+  virtual std::shared_ptr<hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) {
     return nullptr;
   }
 

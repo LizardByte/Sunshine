@@ -42,8 +42,8 @@ using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
 using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
-void sw_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame);
-void nv_d3d_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame);
+void sw_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame);
+void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame);
 
 struct encoder_t {
   struct option_t {
@@ -68,7 +68,7 @@ struct encoder_t {
 
   bool system_memory;
 
-  std::function<void(sws_t &, platf::img_t&, frame_t&)> img_to_frame;
+  std::function<void(sws_t &, const platf::img_t&, frame_t&)> img_to_frame;
 };
 
 struct session_t {
@@ -212,7 +212,11 @@ void captureThread(
     next_frame += delay;
 
     auto &img = *round_robin++;
-    auto status = disp->snapshot(img.get(), display_cursor);
+    platf::capture_e status;
+    {
+      auto lg = display_wp.lock();
+      status = disp->snapshot(img.get(), display_cursor);
+    }
     switch (status) {
       case platf::capture_e::reinit: {
         reinit_event.raise(true);
@@ -553,13 +557,14 @@ void encode_run(
   idr_event_t idr_events,
   img_event_t images,
   config_t config,
-  platf::display_t &display,
+  platf::hwdevice_ctx_t *hwdevice_ctx,
   safe::signal_t &reinit_event,
   const encoder_t &encoder,
   void *channel_data) {
 
-  auto hwdevice = display.get_hwdevice();
-  auto session = make_session(encoder, config, hwdevice.get());
+  void *hwdevice = hwdevice_ctx ? hwdevice_ctx->hwdevice.get() : nullptr;
+
+  auto session = make_session(encoder, config, hwdevice);
   if(!session) {
     return;
   }
@@ -616,9 +621,15 @@ void encode_run(
                                      sws_getCoefficients(session->sws_color_format), config.encoderCscMode & 0x1,
                                      0, 1 << 16, 1 << 16);
           }
-        }
 
-        encoder.img_to_frame(sws, *img, session->frame);
+          encoder.img_to_frame(sws, *img, session->frame);
+        }
+        else {
+          auto converted_img = hwdevice_ctx->convert(*img);
+ 
+          encoder.img_to_frame(sws, *converted_img, session->frame);
+
+        }
       }
       else if(images->running()) {
         continue;
@@ -667,38 +678,45 @@ void capture(
   int key_frame_nr = 1;
   while(!shutdown_event->peek() && images->running()) {
     // Wait for the display to be ready
-    std::shared_ptr<platf::display_t> display;
+    std::shared_ptr<platf::hwdevice_ctx_t> hwdevice_ctx;
     {
       auto lg = ref->display_wp.lock();
       if(ref->display_wp->expired()) {
         continue;
       }
 
-      display = ref->display_wp->lock();
+      auto display = ref->display_wp->lock();
+
+      auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
+      hwdevice_ctx = display->make_hwdevice_ctx(config.width, config.height, pix_fmt);
     }
 
-    encode_run(frame_nr, key_frame_nr, shutdown_event, packets, idr_events, images, config, *display, ref->reinit_event, *ref->encoder_p, channel_data);
+    encode_run(frame_nr, key_frame_nr, shutdown_event, packets, idr_events, images, config, hwdevice_ctx.get(), ref->reinit_event, *ref->encoder_p, channel_data);
   }
 
   images->stop();
 }
 
-bool validate_config(const encoder_t &encoder, const config_t &config, platf::display_t &disp) {
-  // Ensure everything but software fails succesfully, it's not ready yet
-  if(encoder.dev_type != AV_HWDEVICE_TYPE_NONE) {
+bool validate_config(const encoder_t &encoder, const config_t &config) {
+  auto disp = platf::display(encoder.dev_type);
+  if(!disp) {
     return false;
   }
 
-  auto hwdevice = disp.get_hwdevice();
 
-  auto session = make_session(encoder, config, hwdevice.get());
+  auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
+  auto hwdevice_ctx = disp->make_hwdevice_ctx(config.width, config.height, pix_fmt);
+
+  void *hwdevice = hwdevice_ctx ? hwdevice_ctx->hwdevice.get() : nullptr;
+
+  auto session = make_session(encoder, config, hwdevice);
   if(!session) {
     return false;
   }
 
   int dummy_data;
-  auto img = disp.alloc_img();
-  disp.dummy_img(img.get(), dummy_data);
+  auto img = disp->alloc_img();
+  disp->dummy_img(img.get(), dummy_data);
 
   sws_t sws;
   if(encoder.system_memory) {
@@ -712,10 +730,13 @@ bool validate_config(const encoder_t &encoder, const config_t &config, platf::di
                              sws_getCoefficients(session->sws_color_format), config.encoderCscMode & 0x1,
                              0, 1 << 16, 1 << 16);
 
-
+    encoder.img_to_frame(sws, *img, session->frame);
   }
+  else {
+    auto converted_img = hwdevice_ctx->convert(*img);
 
-  encoder.img_to_frame(sws, *img, session->frame);
+    encoder.img_to_frame(sws, *converted_img, session->frame);
+  }
 
   session->frame->pict_type = AV_PICTURE_TYPE_I;
 
@@ -747,17 +768,12 @@ bool validate_encoder(const encoder_t &encoder) {
     1,
     1,
     1,
-    1
+    0
   };
 
-  auto disp = platf::display(encoder.dev_type);
-  if(!disp) {
-    return false;
-  }
-
   return
-    validate_config(encoder, config_h264, *disp) &&
-    validate_config(encoder, config_hevc, *disp);
+    validate_config(encoder, config_h264) &&
+    validate_config(encoder, config_hevc);
 }
 
 void init() {
@@ -776,7 +792,7 @@ void init() {
   }
 }
 
-void sw_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame) {
+void sw_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
   av_frame_make_writable(frame.get());
 
   const int linesizes[2] {
@@ -792,7 +808,7 @@ void sw_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame) {
   }
 }
 
-void nv_d3d_img_to_frame(sws_t &sws, platf::img_t &img, frame_t &frame) {
+void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
   frame->data[0] = img.data;
   frame->data[1] = 0;
 
