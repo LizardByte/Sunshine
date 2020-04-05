@@ -59,18 +59,18 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - `make`
 
 ### Setup:
-	* <optional> Gamepad support: Download and run 'ViGEmBus_Setup_1.16.116.exe' from [https://github.com/ViGEm/ViGEmBus/releases]
+- **OPTIONAL** Gamepad support: Download and run 'ViGEmBus_Setup_1.16.116.exe' from [https://github.com/ViGEm/ViGEmBus/releases]
 
 ### Static build
 #### Requirements:
 	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost git-lfs
 
 #### Compilation:
-	* git lfs install
-	* git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules
-	* cd sunshine && mkdir build && cd build
-	* cmake -DSUNSHINE_STANDALONE=ON -DSUNSHINE_ASSETS_DIR=assets -G"Unix Makefiles" ..
-	* make
+- `git lfs install`
+- `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
+- `cd sunshine && mkdir build && cd build`
+- `cmake -DSUNSHINE_STANDALONE=ON -DSUNSHINE_ASSETS_DIR=assets -G"Unix Makefiles" ..`
+- `make`
 
 
 
@@ -109,6 +109,19 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - env: Adds or overwrites Environment variables for the commands/applications run by Sunshine.
 	- "Variable name":"Variable value"
 - apps: The list of applications
+	- Example:
+	```json
+	{
+	"name":"An App",
+	"cmd":"command to open app",
+	"prep-cmd":[
+			{
+			"do":"somecommand",
+			"undo":"undothatcommand"
+			}
+		]
+	}
+	```
 	- name: Self explanatory
 	- output <optional>: The file where the output of the command is stored
 		- If it is not specified, the output is ignored
