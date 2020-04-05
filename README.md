@@ -1,18 +1,28 @@
-# Linux
+# Introduction
+Bla bla what is sunshine
 
-## Requirements:
+
+
+# Building
+Building sunshine is super simple! With build guides for Linux and Windows!
+[Linux](README.md#linux)
+[Windows](README.md#windows-10)
+
+## Linux
+
+### Requirements:
 Ubuntu 19.10:
 
 	sudo apt install cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
 
-## Compilation:
+### Compilation:
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
 - `cd sunshine && mkdir build && cd build`
 - `cmake ..`
 - `make`: It is suggested to use the `-j C#` flags with this command, `C#` being the number of cores your PC has
 
 
-## Setup:
+### Setup:
 sunshine needs access to uinput to create mouse and gamepad events:
 - Add user to group 'input': "usermod -a -G input username
 - Create a file: "/etc/udev/rules.d/85-sunshine-input.rules"
@@ -27,7 +37,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - assets/apps.json is an example of a list of applications that are started just before running a stream:
 	- See below for a detailed explanation
 
-## Trouleshooting:
+### Trouleshooting:
 	* If you get "Could not create Sunshine Gamepad: Permission Denied", ensure you are part of the group "input":
 		* groups
 	* If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
@@ -37,26 +47,26 @@ sunshine needs access to uinput to create mouse and gamepad events:
 
 
 
-# Windows 10
+## Windows 10
 
-## Requirements:
+### Requirements:
 
 	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost
 
-## Compilation:
+### Compilation:
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
 - `cd sunshine && mkdir build && cd build`
 - `cmake -G"Unix Makefiles" ..`
 - `make`
 
-## Setup:
+### Setup:
 	* <optional> Gamepad support: Download and run 'ViGEmBus_Setup_1.16.116.exe' from [https://github.com/ViGEm/ViGEmBus/releases]
 
-## Static build
-### Requirements:
+### Static build
+#### Requirements:
 	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost git-lfs
 
-### Compilation:
+#### Compilation:
 	* git lfs install
 	* git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules
 	* cd sunshine && mkdir build && cd build
