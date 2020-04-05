@@ -1,12 +1,14 @@
 # Introduction
 Bla bla what is sunshine
 
-
+Quick Links~:
+- [Building](README.md#building)
+- [Credits](README.md#credits)
 
 # Building
 Building sunshine is super simple! With build guides for Linux and Windows!
-[Linux](README.md#linux)
-[Windows](README.md#windows-10)
+- [Linux](README.md#linux)
+- [Windows](README.md#windows-10)
 
 ## Linux
 
