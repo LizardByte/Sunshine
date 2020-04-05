@@ -1,12 +1,10 @@
 # Introduction
 Bla bla what is sunshine
 
-Quick Links~:
 - [Building](README.md#building)
 - [Credits](README.md#credits)
 
 # Building
-Building sunshine is super simple! With build guides for Linux and Windows!
 - [Linux](README.md#linux)
 - [Windows](README.md#windows-10)
 
@@ -36,8 +34,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	- Modify $HOME/.config/systemd/user/sunshine.conf to point to the sunshine executable
 	- `systemctl --user start sunshine`
 
-- assets/apps.json is an example of a list of applications that are started just before running a stream:
-	- See below for a detailed explanation
+- assets/apps.json is an [example](README.md#application-list) of a list of applications that are started just before running a stream
 
 ### Trouleshooting:
 	* If you get "Could not create Sunshine Gamepad: Permission Denied", ensure you are part of the group "input":
