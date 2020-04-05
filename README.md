@@ -101,9 +101,9 @@ sunshine needs access to uinput to create mouse and gamepad events:
 
 
 ## Credits:
-	* Simple-Web-Server [https://gitlab.com/eidheim/Simple-Web-Server]
-	* Moonlight [https://github.com/moonlight-stream]
-	* Looking-Glass [https://github.com/gnif/LookingGlass] (For showing me how to properly capture frames on Windows, saving me a lot of time :)
+- [Simple-Web-Server](https://gitlab.com/eidheim/Simple-Web-Server)
+- [Moonlight](https://github.com/moonlight-stream)
+- [Looking-Glass](https://github.com/gnif/LookingGlass) (For showing me how to properly capture frames on Windows, saving me a lot of time :)
 
 ## Application List:
 - You can use Environment variables in place of values
