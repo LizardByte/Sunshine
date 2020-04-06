@@ -833,6 +833,7 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
   int dummy_img(platf::img_t *img_base, int &dummy_data_p) override {
     auto img = (img_d3d_t*)img_base;
 
+    img->row_pitch = 4;
     D3D11_TEXTURE2D_DESC t {};
     t.Width  = 1;
     t.Height = 1;
@@ -859,7 +860,6 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
     img->height      = 1;
     img->width       = 1;
     img->data        = (std::uint8_t*)tex_p;
-    img->row_pitch   = 4;
     img->pixel_pitch = 4;
 
     return 0;

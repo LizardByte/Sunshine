@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <thread>
+#include <bitset>
 
 extern "C" {
 #include <libswscale/swscale.h>
@@ -49,6 +50,13 @@ void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame);
 util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwdevice_ctx);
 
 struct encoder_t {
+  enum flag_e {
+    PASSED, // Is supported
+    REF_FRAMES_RESTRICT, // Set maximum reference frames
+    REF_FRAMES_AUTOSELECT, // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
+    MAX_FLAGS
+  };
+
   struct option_t {
     std::string name;
     std::variant<int, int*, std::string, std::string*> value;
@@ -69,6 +77,11 @@ struct encoder_t {
   struct {
     std::vector<option_t> options;
     std::string name;
+    std::bitset<MAX_FLAGS> capabilities;
+
+    std::bitset<MAX_FLAGS>::reference operator[](flag_e flag) {
+      return capabilities[(std::size_t)flag];
+    }
   } hevc, h264;
 
   bool system_memory;
@@ -158,6 +171,19 @@ struct capture_thread_ctx_t {
   return codec_t { ctx.get() };
 }
 
+void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type) {
+  // We try this twice, in case we still get an error on reinitialization
+  for(int x = 0; x < 2; ++x) {
+    disp.reset();
+    disp = platf::display(type);
+    if(disp) {
+      break;
+    }
+ 
+    std::this_thread::sleep_for(200ms);
+  }
+}
+
 void captureThread(
   std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
   util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
@@ -234,24 +260,15 @@ void captureThread(
           img.reset();
         }
 
-        // We try this twice, in case we still get an error on reinitialization
-        for(int x = 0; x < 2; ++x) {
-          // Some classes of display cannot have multiple instances at once
-          disp.reset();
+        // Some classes of display cannot have multiple instances at once
+        disp.reset();
 
-          // display_wp is modified in this thread only
-          while(!display_wp->expired()) {
-            std::this_thread::sleep_for(100ms);
-          }
-
-          disp = platf::display(encoder.dev_type);
-          if(disp) {
-            break;
-          }
-
-          std::this_thread::sleep_for(200ms);
+        // display_wp is modified in this thread only
+        while(!display_wp->expired()) {
+          std::this_thread::sleep_for(100ms);
         }
 
+        reset_display(disp, encoder.dev_type);
         if(!disp) {
           return;
         }
@@ -702,8 +719,8 @@ void capture(
   }
 }
 
-bool validate_config(const encoder_t &encoder, const config_t &config) {
-  auto disp = platf::display(encoder.dev_type);
+bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
+  reset_display(disp, encoder.dev_type);
   if(!disp) {
     return false;
   }
@@ -759,8 +776,21 @@ bool validate_config(const encoder_t &encoder, const config_t &config) {
   return true;
 }
 
-bool validate_encoder(const encoder_t &encoder) {
-  config_t config_h264 {
+bool validate_encoder(encoder_t &encoder) {
+  std::shared_ptr<platf::display_t> disp;
+  // First, test encoder viability
+  config_t config_max_ref_frames {
+    1920, 1080,
+    60,
+    1000,
+    1,
+    1,
+    1,
+    0,
+    0
+  };
+
+  config_t config_autoselect {
     1920, 1080,
     60,
     1000,
@@ -771,20 +801,41 @@ bool validate_encoder(const encoder_t &encoder) {
     0
   };
 
-  config_t config_hevc {
-    1920, 1080,
-    60,
-    1000,
-    1,
-    0,
-    1,
-    1,
-    0
-  };
+  auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
+  auto autoselect_h264     = validate_config(disp, encoder, config_autoselect);
 
-  return
-    validate_config(encoder, config_h264) &&
-    validate_config(encoder, config_hevc);
+  if(!max_ref_frames_h264 && !autoselect_h264) {
+    return false;
+  }
+
+  auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
+  auto autoselect_hevc     = validate_config(disp, encoder, config_autoselect);
+
+  encoder.h264[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_h264;
+  encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264;
+  encoder.h264[encoder_t::PASSED] = true;
+  encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc;
+  encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc;
+  encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc || autoselect_hevc;
+
+  std::vector<std::pair<encoder_t::flag_e, config_t>> configs; 
+  for(auto &[flag, config] : configs) {
+    auto h264 = config;
+    auto hevc = config;
+
+    h264.videoFormat = 0;
+    hevc.videoFormat = 1;
+
+    if(validate_config(disp, encoder, h264)) {
+      encoder.h264[flag] = true;
+    }
+
+    if(validate_config(disp, encoder, hevc)) {
+      encoder.hevc[flag] = true;
+    }
+  }
+  
+  return true;
 }
 
 void init() {
