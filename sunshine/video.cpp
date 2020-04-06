@@ -7,6 +7,7 @@
 
 extern "C" {
 #include <libswscale/swscale.h>
+#include <libavutil/hwcontext_d3d11va.h>
 }
 
 #include "platform/common.h"
@@ -43,7 +44,9 @@ using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
 using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
 void sw_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame);
+
 void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame);
+util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwdevice_ctx);
 
 struct encoder_t {
   struct option_t {
@@ -58,8 +61,10 @@ struct encoder_t {
   } profile;
 
   AVHWDeviceType dev_type;
+  AVPixelFormat dev_pix_fmt;
 
-  AVPixelFormat pix_fmt;
+  AVPixelFormat static_pix_fmt;
+  AVPixelFormat dynamic_pix_fmt;
 
   struct {
     std::vector<option_t> options;
@@ -69,6 +74,7 @@ struct encoder_t {
   bool system_memory;
 
   std::function<void(sws_t &, const platf::img_t&, frame_t&)> img_to_frame;
+  std::function<util::Either<buffer_t, int>(platf::hwdevice_ctx_t *hwdevice)> make_hwdevice_ctx;
 };
 
 struct session_t {
@@ -87,23 +93,24 @@ static encoder_t nvenc {
   { 2, 0, 1 },
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
   {
-    { {"force-idr"s, 1} }, "nvenc_hevc"s
+    { {"force-idr"s, 1} }, "hevc_nvenc"s
   },
   {
-    { {"force-idr"s, 1} }, "nvenc_h264"s
+    { {"force-idr"s, 1} }, "h264_nvenc"s
   },
   false,
 
-  nv_d3d_img_to_frame
-
-  // D3D11Device
+  nv_d3d_img_to_frame,
+  nv_d3d_make_hwdevice_ctx
 };
 
 static encoder_t software {
   { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
   AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_NONE,
+  AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
   {
     // x265's Info SEI is so long that it causes the IDR picture data to be
     // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
@@ -123,9 +130,8 @@ static encoder_t software {
   },
   true,
 
-  sw_img_to_frame
-
-  // nullptr
+  sw_img_to_frame,
+  nullptr
 };
 
 static std::vector<encoder_t> encoders {
@@ -192,7 +198,9 @@ void captureThread(
     }
   }
   auto &dummy_img = imgs.front();
-  disp->dummy_img(dummy_img.get(), dummy_data);
+  if(disp->dummy_img(dummy_img.get(), dummy_data)) {
+    return;
+  }
 
   auto next_frame = std::chrono::steady_clock::now();
   while(capture_ctx_queue->running()) {
@@ -257,7 +265,9 @@ void captureThread(
             return;
           }
         }
-        disp->dummy_img(dummy_img.get(), dummy_data);
+        if(disp->dummy_img(dummy_img.get(), dummy_data)) {
+          return;
+        }
 
         reinit_event.reset();
         continue;
@@ -292,13 +302,22 @@ void captureThread(
   }
 }
 
-util::Either<buffer_t, int> hwdevice_ctx(AVHWDeviceType type) {
+util::Either<buffer_t, int> hwdevice_ctx(AVHWDeviceType type, void *hwdevice_ctx) {
   buffer_t ctx;
 
-  AVBufferRef *ref;
-  auto err = av_hwdevice_ctx_create(&ref, type, nullptr, nullptr, 0);
+  int err;
+  if(hwdevice_ctx) {
+    ctx.reset(av_hwdevice_ctx_alloc(type));
+    ((AVHWDeviceContext*)ctx.get())->hwctx = hwdevice_ctx;
 
-  ctx.reset(ref);
+    err = av_hwdevice_ctx_init(ctx.get());
+  }
+  else {
+    AVBufferRef *ref  {};
+    err = av_hwdevice_ctx_create(&ref, type, nullptr, nullptr, 0);
+    ctx.reset(ref);
+  }
+
   if(err < 0) {
     return err;
   }
@@ -314,7 +333,7 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   frame_ctx->sw_format = format;
   frame_ctx->height    = ctx->height;
   frame_ctx->width     = ctx->width;
-  frame_ctx->initial_pool_size = 20;
+  frame_ctx->initial_pool_size = 0;
 
   if(auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
     return err;
@@ -331,7 +350,9 @@ int encode(int64_t frame_nr, ctx_t &ctx, frame_t &frame, packet_queue_t &packets
   /* send the frame to the encoder */
   auto ret = avcodec_send_frame(ctx.get(), frame.get());
   if (ret < 0) {
-    BOOST_LOG(error) << "Could not send a frame for encoding"sv;
+    char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
+    BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
+
     return -1;
   }
 
@@ -375,7 +396,7 @@ void end_capture(capture_thread_ctx_t &capture_thread_ctx) {
   capture_thread_ctx.capture_thread.join();
 }
 
-std::optional<session_t>  make_session(const encoder_t &encoder, const config_t &config, void *device_ctx) {
+std::optional<session_t>  make_session(const encoder_t &encoder, const config_t &config, platf::hwdevice_ctx_t *device_ctx) {
   bool hardware = encoder.dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
@@ -385,21 +406,6 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
     BOOST_LOG(error) << "Couldn't open ["sv << video_format.name << ']';
 
     return std::nullopt;
-  }
-
-  buffer_t hwdevice;
-  if(hardware) {
-    auto buf_or_error = hwdevice_ctx(encoder.dev_type);
-    if(buf_or_error.has_right()) {
-      auto err = buf_or_error.right();
-
-      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-      BOOST_LOG(error) << "Failed to create FFMpeg "sv << video_format.name << ": "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
-
-      return std::nullopt;;
-    }
-
-    hwdevice = std::move(buf_or_error.left());
   }
 
   ctx_t ctx {avcodec_alloc_context3(codec) };
@@ -463,21 +469,23 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
 
   AVPixelFormat sw_fmt;
   if(config.dynamicRange == 0) {
-    sw_fmt = AV_PIX_FMT_YUV420P;
+    sw_fmt = encoder.static_pix_fmt;
   }
   else {
-    sw_fmt = AV_PIX_FMT_YUV420P10;
+    sw_fmt = encoder.dynamic_pix_fmt;
   }
 
+  buffer_t hwdevice;
   if(hardware) {
-    ctx->pix_fmt = encoder.pix_fmt;
+    ctx->pix_fmt = encoder.dev_pix_fmt;
 
-    ((AVHWFramesContext *)ctx->hw_frames_ctx->data)->device_ctx = (AVHWDeviceContext*)device_ctx;
+    auto buf_or_error = encoder.make_hwdevice_ctx(device_ctx);
+    if(buf_or_error.has_right()) {
+      return std::nullopt;
+    }
 
-    if(auto err = hwframe_ctx(ctx, hwdevice, sw_fmt); err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-      BOOST_LOG(error) << "Failed to initialize hardware frame: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err) << std::endl;
-
+    hwdevice = std::move(buf_or_error.left());
+    if(hwframe_ctx(ctx, hwdevice, sw_fmt)) {
       return std::nullopt;
     }
   }
@@ -516,9 +524,6 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
     av_dict_set_int(&options, "qp", config::video.qp, 0);
   }
 
-  av_dict_set(&options, "preset", config::video.preset.c_str(), 0);
-  av_dict_set(&options, "tune", config::video.tune.c_str(), 0);
-
   auto codec_handle = open_codec(ctx, codec, &options);
 
   frame_t frame {av_frame_alloc() };
@@ -528,15 +533,9 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
 
 
   if(hardware) {
-    auto err = av_hwframe_get_buffer(ctx->hw_frames_ctx, frame.get(), 0);
-    if(err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-      BOOST_LOG(error) << "Coudn't create hardware frame: "sv <<  av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err) << std::endl;
-
-      return std::nullopt;
-    }
+    frame->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
   }
-  else {
+  else /* software */ {
     av_frame_get_buffer(frame.get(), 0);
   }
 
@@ -562,9 +561,7 @@ void encode_run(
   const encoder_t &encoder,
   void *channel_data) {
 
-  void *hwdevice = hwdevice_ctx ? hwdevice_ctx->hwdevice.get() : nullptr;
-
-  auto session = make_session(encoder, config, hwdevice);
+  auto session = make_session(encoder, config, hwdevice_ctx);
   if(!session) {
     return;
   }
@@ -626,6 +623,9 @@ void encode_run(
         }
         else {
           auto converted_img = hwdevice_ctx->convert(*img);
+          if(!converted_img) {
+            return;
+          }
  
           encoder.img_to_frame(sws, *converted_img, session->frame);
 
@@ -657,6 +657,10 @@ void capture(
   void *channel_data) {
 
   auto images = std::make_shared<img_event_t::element_type>();
+  auto lg = util::fail_guard([&]() {
+    images->stop();
+    shutdown_event->raise(true);
+  });
 
   // Keep a reference counter to ensure the Fcapture thread only runs when other threads have a reference to the capture thread
   static auto capture_thread = safe::make_shared<capture_thread_ctx_t>(start_capture, end_capture);
@@ -689,12 +693,13 @@ void capture(
 
       auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
       hwdevice_ctx = display->make_hwdevice_ctx(config.width, config.height, pix_fmt);
+      if(!hwdevice_ctx) {
+        return;
+      }
     }
 
     encode_run(frame_nr, key_frame_nr, shutdown_event, packets, idr_events, images, config, hwdevice_ctx.get(), ref->reinit_event, *ref->encoder_p, channel_data);
   }
-
-  images->stop();
 }
 
 bool validate_config(const encoder_t &encoder, const config_t &config) {
@@ -706,17 +711,20 @@ bool validate_config(const encoder_t &encoder, const config_t &config) {
 
   auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
   auto hwdevice_ctx = disp->make_hwdevice_ctx(config.width, config.height, pix_fmt);
+  if(!hwdevice_ctx) {
+    return false;
+  }
 
-  void *hwdevice = hwdevice_ctx ? hwdevice_ctx->hwdevice.get() : nullptr;
-
-  auto session = make_session(encoder, config, hwdevice);
+  auto session = make_session(encoder, config, hwdevice_ctx.get());
   if(!session) {
     return false;
   }
 
   int dummy_data;
   auto img = disp->alloc_img();
-  disp->dummy_img(img.get(), dummy_data);
+  if(disp->dummy_img(img.get(), dummy_data)) {
+    return false;
+  }
 
   sws_t sws;
   if(encoder.system_memory) {
@@ -734,6 +742,9 @@ bool validate_config(const encoder_t &encoder, const config_t &config) {
   }
   else {
     auto converted_img = hwdevice_ctx->convert(*img);
+    if(!converted_img) {
+      return false;
+    }
 
     encoder.img_to_frame(sws, *converted_img, session->frame);
   }
@@ -754,7 +765,7 @@ bool validate_encoder(const encoder_t &encoder) {
     60,
     1000,
     1,
-    1,
+    0,
     1,
     0,
     0
@@ -765,7 +776,7 @@ bool validate_encoder(const encoder_t &encoder) {
     60,
     1000,
     1,
-    1,
+    0,
     1,
     1,
     0
@@ -809,13 +820,39 @@ void sw_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
 }
 
 void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
+  // Need to have something refcounted
+  if(!frame->buf[0]) {
+    frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor*));
+  }
+
+  auto desc = (AVD3D11FrameDescriptor*)frame->buf[0]->data;
+  desc->texture = (ID3D11Texture2D*)img.data;
+  desc->index = 0;
+
   frame->data[0] = img.data;
   frame->data[1] = 0;
 
   frame->linesize[0] = img.row_pitch;
-  frame->linesize[1] = 0;
 
   frame->height = img.height;
   frame->width = img.width;
+}
+
+util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwdevice_ctx) {
+  buffer_t ctx_buf { av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA) };
+  auto ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)ctx_buf->data)->hwctx;
+
+  std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
+  std::swap(ctx->device, *(ID3D11Device**)&hwdevice_ctx->hwdevice);
+
+  auto err = av_hwdevice_ctx_init(ctx_buf.get());
+  if(err) {
+    char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
+    BOOST_LOG(error) << "Failed to create FFMpeg nvenc: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+
+    return err;
+  }
+
+  return ctx_buf;
 }
 }

@@ -124,6 +124,8 @@ struct img_t : public ::platf::img_t  {
 struct img_d3d_t : public ::platf::img_t {
   std::shared_ptr<platf::display_t> display;
   texture2d_t texture;
+
+  ~img_d3d_t() override = default;
 };
 
 struct cursor_t {
@@ -308,11 +310,11 @@ public:
     D3D11_VIDEO_PROCESSOR_STREAM stream { TRUE, 0, 0, 0, 0, nullptr, processor_in.get(), nullptr };
     auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, 1, &stream);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed size and color conversion 0x["sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed size and color conversion [0x"sv << util::hex(status).to_string_view() << ']';
       return nullptr;
     }
 
-    return &img;
+    return &this->img;
   }
 
   int init(std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
@@ -364,7 +366,8 @@ public:
     t.ArraySize = 1;
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_DEFAULT;
-    t.Format = DXGI_FORMAT_420_OPAQUE;
+    t.Format = DXGI_FORMAT_NV12;
+    t.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_VIDEO_ENCODER;
 
     dxgi::texture2d_t::pointer tex_p {};
     status = device_p->CreateTexture2D(&t, nullptr, &tex_p);
@@ -377,17 +380,28 @@ public:
     img.display = std::move(display);
     img.width = out_width;
     img.height = out_height;
+    img.data = (std::uint8_t*)tex_p;
+    img.row_pitch = out_width;
+    img.pixel_pitch = 1;
 
-    D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC output_desc { D3D11_VPOV_DIMENSION_TEXTURE2D };
+    D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC output_desc { D3D11_VPOV_DIMENSION_TEXTURE2D, 0 };
     video::processor_out_t::pointer processor_out_p;
-    device->CreateVideoProcessorOutputView(img.texture.get(), processor_e.get(), &output_desc, &processor_out_p);
+    status = device->CreateVideoProcessorOutputView(tex_p, processor_e.get(), &output_desc, &processor_out_p);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create VideoProcessorOutputView [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
     processor_out.reset(processor_out_p);
 
+    device_p->AddRef();
+    hwdevice = device_p;
     return 0;
+  }
+
+  ~hwdevice_ctx_t() override {
+    if(hwdevice) {
+      ((ID3D11Device*)hwdevice)->Release();
+    }
   }
 
   img_d3d_t img;
@@ -837,25 +851,17 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
     dxgi::texture2d_t::pointer tex_p {};
     auto status = device->CreateTexture2D(&t, &data, &tex_p);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to create dummy texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
     img->texture.reset(tex_p);
 
-    D3D11_MAPPED_SUBRESOURCE img_info {};
-    // map the texture simply to get the pitch and stride
-    status = device_ctx->Map(img->texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
+    img->height      = 1;
+    img->width       = 1;
+    img->data        = (std::uint8_t*)tex_p;
+    img->row_pitch   = 4;
+    img->pixel_pitch = 4;
 
-    img->row_pitch = img_info.RowPitch;
-    img->height    = 1;
-    img->width     = 1;
-    img->data      = (std::uint8_t*)img->texture.get();
-
-    device_ctx->Unmap(img->texture.get(), 0);
     return 0;
   }
 

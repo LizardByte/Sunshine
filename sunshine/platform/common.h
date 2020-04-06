@@ -64,7 +64,7 @@ public:
 };
 
 struct hwdevice_ctx_t {
-  std::shared_ptr<void> hwdevice;
+  void *hwdevice {};
 
   virtual const platf::img_t*const convert(platf::img_t &img) {
     return nullptr;
@@ -96,7 +96,7 @@ public:
   }
 
   virtual std::shared_ptr<hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) {
-    return nullptr;
+    return std::make_shared<hwdevice_ctx_t>();
   }
 
   virtual ~display_t() = default;
