@@ -250,6 +250,7 @@ void captureThread(
     next_frame += delay;
 
     auto &img = *round_robin++;
+    while(img.use_count() > 1) {}
     platf::capture_e status;
     {
       auto lg = display_wp.lock();
@@ -626,6 +627,7 @@ void encode_run(
     // When Moonlight request an IDR frame, send frames even if there is no new captured frame
     if(frame_nr > (key_frame_nr + config.framerate) || images->peek()) {
       if(auto img = images->pop(delay)) {
+        const platf::img_t *img_p;
         if(encoder.system_memory) {
           auto new_width  = img->width;
           auto new_height = img->height;
@@ -646,17 +648,16 @@ void encode_run(
                                      0, 1 << 16, 1 << 16);
           }
 
-          encoder.img_to_frame(sws, *img, session->frame);
+          img_p = img;
         }
         else {
-          auto converted_img = hwdevice_ctx->convert(*img);
-          if(!converted_img) {
+          img_p = hwdevice_ctx->convert(*img);
+          if(!img_p) {
             return;
           }
- 
-          encoder.img_to_frame(sws, *converted_img, session->frame);
-
         }
+
+        encoder.img_to_frame(sws, *img_p, session->frame);
       }
       else if(images->running()) {
         continue;
@@ -843,13 +844,8 @@ bool validate_encoder(encoder_t &encoder) {
     h264.videoFormat = 0;
     hevc.videoFormat = 1;
 
-    if(validate_config(disp, encoder, h264)) {
-      encoder.h264[flag] = true;
-    }
-
-    if(validate_config(disp, encoder, hevc)) {
-      encoder.hevc[flag] = true;
-    }
+    encoder.h264[flag] = validate_config(disp, encoder, h264);
+    encoder.hevc[flag] = validate_config(disp, encoder, hevc);
   }
   
   return true;

@@ -808,7 +808,7 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
       return capture_e::error;
     }
 
-    img->row_pitch = 0;
+    img->row_pitch = width * 4;
     img->width     = width;
     img->height    = height;
     img->data      = (std::uint8_t*)src_p;
@@ -833,18 +833,19 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
   int dummy_img(platf::img_t *img_base, int &dummy_data_p) override {
     auto img = (img_d3d_t*)img_base;
 
-    img->row_pitch = 4;
+    img->row_pitch = width * 4;
     D3D11_TEXTURE2D_DESC t {};
-    t.Width  = 1;
-    t.Height = 1;
+    t.Width  = width;
+    t.Height = height;
     t.MipLevels = 1;
     t.ArraySize = 1;
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_DEFAULT;
     t.Format = format;
 
+    auto dummy_data = std::make_unique<int[]>(width * height);
     D3D11_SUBRESOURCE_DATA data {
-      &dummy_data_p,
+      dummy_data.get(),
       (UINT)img->row_pitch,
       0
     };
@@ -857,8 +858,8 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
     }
     img->texture.reset(tex_p);
 
-    img->height      = 1;
-    img->width       = 1;
+    img->height      = height;
+    img->width       = width;
     img->data        = (std::uint8_t*)tex_p;
     img->pixel_pitch = 4;
 
