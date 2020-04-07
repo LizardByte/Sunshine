@@ -308,6 +308,7 @@ public:
     auto &processor_in = it->second;
 
     D3D11_VIDEO_PROCESSOR_STREAM stream { TRUE, 0, 0, 0, 0, nullptr, processor_in.get(), nullptr };
+    std::lock_guard lg { *lock };
     auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, 1, &stream);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed size and color conversion [0x"sv << util::hex(status).to_string_view() << ']';
@@ -317,8 +318,11 @@ public:
     return &this->img;
   }
 
-  int init(std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
+  int init(std::shared_ptr<std::recursive_mutex> &lock, std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
     HRESULT status;
+
+    this->lock = lock;
+    std::lock_guard lg { *lock };
 
     video::device_t::pointer vdevice_p;
     status = device_p->QueryInterface(IID_ID3D11VideoDevice, (void**)&vdevice_p);
@@ -530,7 +534,6 @@ public:
 
       return -1;
     }
-
 
     DXGI_ADAPTER_DESC adapter_desc;
     adapter->GetDesc(&adapter_desc);
@@ -780,6 +783,7 @@ public:
 };
 
 class display_gpu_t : public display_base_t, public std::enable_shared_from_this<display_gpu_t> {
+public:
   capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
     auto img = (img_d3d_t*)img_base;
 
@@ -787,6 +791,7 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
 
     DXGI_OUTDUPL_FRAME_INFO frame_info;
 
+    std::lock_guard lg { *lock };
     resource_t::pointer res_p {};
     auto capture_status = dup.next_frame(frame_info, &res_p);
     resource_t res{res_p};
@@ -800,7 +805,7 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
       return capture_e::timeout;
     }
 
-    texture2d_t::pointer src_p{};
+    texture2d_t::pointer src_p {};
     status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
 
     if (FAILED(status)) {
@@ -808,11 +813,9 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
       return capture_e::error;
     }
 
-    img->row_pitch = width * 4;
-    img->width     = width;
-    img->height    = height;
-    img->data      = (std::uint8_t*)src_p;
-    img->texture.reset(src_p);
+    texture2d_t src { src_p };
+
+    device_ctx->CopyResource(img->texture.get(), src.get());
 
     return capture_e::ok;
   }
@@ -820,20 +823,6 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
   std::shared_ptr<platf::img_t> alloc_img() override {
     auto img = std::make_shared<img_d3d_t>();
 
-    img->data        = nullptr;
-    img->row_pitch   = 0;
-    img->pixel_pitch = 4;
-    img->width       = 0;
-    img->height      = 0;
-    img->display     = shared_from_this();
-
-    return img;
-  }
-
-  int dummy_img(platf::img_t *img_base, int &dummy_data_p) override {
-    auto img = (img_d3d_t*)img_base;
-
-    img->row_pitch = width * 4;
     D3D11_TEXTURE2D_DESC t {};
     t.Width  = width;
     t.Height = height;
@@ -843,6 +832,28 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
     t.Usage = D3D11_USAGE_DEFAULT;
     t.Format = format;
 
+    dxgi::texture2d_t::pointer tex_p {};
+    auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create img buf texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return nullptr;
+    }
+
+    img->data        = (std::uint8_t*)tex_p;
+    img->row_pitch   = 0;
+    img->pixel_pitch = 4;
+    img->width       = 0;
+    img->height      = 0;
+    img->texture.reset(tex_p);
+    img->display     = shared_from_this();
+
+    return img;
+  }
+
+  int dummy_img(platf::img_t *img_base, int &dummy_data_p) override {
+    auto img = (img_d3d_t*)img_base;
+
+    img->row_pitch = width * 4;
     auto dummy_data = std::make_unique<int[]>(width * height);
     D3D11_SUBRESOURCE_DATA data {
       dummy_data.get(),
@@ -850,14 +861,24 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
       0
     };
 
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width  = width;
+    t.Height = height;
+    t.MipLevels = 1;
+    t.ArraySize = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage = D3D11_USAGE_DEFAULT;
+    t.Format = format;
+
     dxgi::texture2d_t::pointer tex_p {};
     auto status = device->CreateTexture2D(&t, &data, &tex_p);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create dummy texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    img->texture.reset(tex_p);
 
+    img->data        = (std::uint8_t*)tex_p;
+    img->texture.reset(tex_p);
     img->height      = height;
     img->width       = width;
     img->data        = (std::uint8_t*)tex_p;
@@ -866,10 +887,17 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
     return 0;
   }
 
+  int init() {
+    lock = std::make_shared<std::recursive_mutex>();
+    std::lock_guard lg { *lock };
+    return display_base_t::init();
+  }
+
   std::shared_ptr<platf::hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) override {
     auto hwdevice = std::make_shared<hwdevice_ctx_t>();
 
     auto ret = hwdevice->init(
+      lock,
       shared_from_this(),
       device.get(),
       device_ctx.get(),
@@ -882,6 +910,8 @@ class display_gpu_t : public display_base_t, public std::enable_shared_from_this
 
     return hwdevice;
   }
+
+  std::shared_ptr<std::recursive_mutex> lock;
 };
 
 const char *format_str[] = {

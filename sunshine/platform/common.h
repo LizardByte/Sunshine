@@ -6,6 +6,7 @@
 #define SUNSHINE_COMMON_H
 
 #include <string>
+#include <mutex>
 #include "sunshine/utility.h"
 
 struct sockaddr;
@@ -65,6 +66,9 @@ public:
 
 struct hwdevice_ctx_t {
   void *hwdevice {};
+
+  // Could be nullptr, depends on the encoder
+  std::shared_ptr<std::recursive_mutex> lock;
 
   virtual const platf::img_t*const convert(platf::img_t &img) {
     return nullptr;

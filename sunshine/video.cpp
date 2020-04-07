@@ -38,7 +38,6 @@ void free_packet(AVPacket *packet) {
 }
 
 using ctx_t       = util::safe_ptr<AVCodecContext, free_ctx>;
-using codec_t     = util::safe_ptr_v2<AVCodecContext, int, avcodec_close>;
 using frame_t     = util::safe_ptr<AVFrame, free_frame>;
 using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
@@ -98,7 +97,6 @@ struct session_t {
   buffer_t hwdevice;
 
   ctx_t ctx;
-  codec_t codec_handle;
 
   frame_t frame;
 
@@ -112,10 +110,10 @@ static encoder_t nvenc {
   AV_PIX_FMT_D3D11,
   AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
   {
-    { {"force-idr"s, 1} }, "hevc_nvenc"s
+    { {"forced-idr"s, 1} }, "hevc_nvenc"s
   },
   {
-    { {"force-idr"s, 1} }, "h264_nvenc"s
+    { {"forced-idr"s, 1}, { "preset"s , 9} }, "h264_nvenc"s
   },
   false,
 
@@ -168,12 +166,6 @@ struct capture_thread_ctx_t {
   const encoder_t *encoder_p;
   util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
 };
-
-[[nodiscard]] codec_t open_codec(ctx_t &ctx, AVCodec *codec, AVDictionary **options) {
-  avcodec_open2(ctx.get(), codec, options);
-
-  return codec_t { ctx.get() };
-}
 
 void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type) {
   // We try this twice, in case we still get an error on reinitialization
@@ -251,11 +243,8 @@ void captureThread(
 
     auto &img = *round_robin++;
     while(img.use_count() > 1) {}
-    platf::capture_e status;
-    {
-      auto lg = display_wp.lock();
-      status = disp->snapshot(img.get(), display_cursor);
-    }
+
+    auto status = disp->snapshot(img.get(), display_cursor);
     switch (status) {
       case platf::capture_e::reinit: {
         reinit_event.raise(true);
@@ -552,7 +541,7 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
     av_dict_set_int(&options, "qp", config::video.qp, 0);
   }
 
-  auto codec_handle = open_codec(ctx, codec, &options);
+  avcodec_open2(ctx.get(), codec, &options);
 
   frame_t frame {av_frame_alloc() };
   frame->format = ctx->pix_fmt;
@@ -570,7 +559,6 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
   return std::make_optional(session_t {
     std::move(hwdevice),
     std::move(ctx),
-    std::move(codec_handle),
     std::move(frame),
     sw_fmt,
     sws_color_space
@@ -648,7 +636,7 @@ void encode_run(
                                      0, 1 << 16, 1 << 16);
           }
 
-          img_p = img;
+          img_p = img.get();
         }
         else {
           img_p = hwdevice_ctx->convert(*img);
@@ -667,7 +655,16 @@ void encode_run(
       }
     }
 
-    if(encode(frame_nr++, session->ctx, session->frame, packets, channel_data)) {
+    int err;
+    if(hwdevice_ctx && hwdevice_ctx->lock) {
+      std::lock_guard lg { *hwdevice_ctx->lock };
+      err = encode(frame_nr++, session->ctx, session->frame, packets, channel_data);
+    }
+    else {
+      err = encode(frame_nr++, session->ctx, session->frame, packets, channel_data);
+    }
+    
+    if(err) {
       BOOST_LOG(fatal) << "Could not encode video packet"sv;
       log_flush();
       std::abort();
@@ -710,20 +707,20 @@ void capture(
   int key_frame_nr = 1;
   while(!shutdown_event->peek() && images->running()) {
     // Wait for the display to be ready
-    std::shared_ptr<platf::hwdevice_ctx_t> hwdevice_ctx;
+    std::shared_ptr<platf::display_t> display;
     {
       auto lg = ref->display_wp.lock();
       if(ref->display_wp->expired()) {
         continue;
       }
 
-      auto display = ref->display_wp->lock();
+      display = ref->display_wp->lock();
+    }
 
-      auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
-      hwdevice_ctx = display->make_hwdevice_ctx(config.width, config.height, pix_fmt);
-      if(!hwdevice_ctx) {
-        return;
-      }
+    auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
+    auto hwdevice_ctx = display->make_hwdevice_ctx(config.width, config.height, pix_fmt);
+    if(!hwdevice_ctx) {
+      return;
     }
 
     encode_run(frame_nr, key_frame_nr, shutdown_event, packets, idr_events, images, config, hwdevice_ctx.get(), ref->reinit_event, *ref->encoder_p, channel_data);
@@ -886,7 +883,7 @@ void sw_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
 void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
   // Need to have something refcounted
   if(!frame->buf[0]) {
-    frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor*));
+    frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
   }
 
   auto desc = (AVD3D11FrameDescriptor*)frame->buf[0]->data;
@@ -902,12 +899,23 @@ void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
   frame->width = img.width;
 }
 
+void nvenc_lock(void *lock_p) {
+  ((std::recursive_mutex*)lock_p)->lock();
+}
+void nvenc_unlock(void *lock_p) {
+  ((std::recursive_mutex*)lock_p)->unlock();
+}
+
 util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwdevice_ctx) {
   buffer_t ctx_buf { av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA) };
   auto ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)ctx_buf->data)->hwctx;
-
+  
   std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
   std::swap(ctx->device, *(ID3D11Device**)&hwdevice_ctx->hwdevice);
+
+  ctx->lock_ctx = hwdevice_ctx->lock.get();
+  ctx->lock = nvenc_lock;
+  ctx->unlock = nvenc_unlock;
 
   auto err = av_hwdevice_ctx_init(ctx_buf.get());
   if(err) {
