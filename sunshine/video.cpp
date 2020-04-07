@@ -79,6 +79,10 @@ struct encoder_t {
     std::string name;
     std::bitset<MAX_FLAGS> capabilities;
 
+    bool operator[](flag_e flag) const {
+      return capabilities[(std::size_t)flag];
+    }
+
     std::bitset<MAX_FLAGS>::reference operator[](flag_e flag) {
       return capabilities[(std::size_t)flag];
     }
@@ -392,7 +396,7 @@ int encode(int64_t frame_nr, ctx_t &ctx, frame_t &frame, packet_queue_t &packets
 }
 
 int start_capture(capture_thread_ctx_t &capture_thread_ctx) {
-  capture_thread_ctx.encoder_p = &software;
+  capture_thread_ctx.encoder_p = &encoders.front();
   capture_thread_ctx.reinit_event.reset();
 
   capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>();
@@ -417,6 +421,7 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
   bool hardware = encoder.dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
+  assert(video_format[encoder_t::PASSED]);
 
   auto codec = avcodec_find_encoder_by_name(video_format.name.c_str());
   if(!codec) {
@@ -448,8 +453,13 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
   ctx->gop_size = std::numeric_limits<int>::max();
   ctx->keyint_min = ctx->gop_size;
 
-  // Some client decoders have limits on the number of reference frames
-  ctx->refs = config.numRefFrames;
+  if(config.numRefFrames == 0) {
+    ctx->refs = video_format[encoder_t::REF_FRAMES_AUTOSELECT] ? 0 : 1;
+  }
+  else {
+    // Some client decoders have limits on the number of reference frames
+    ctx->refs = video_format[encoder_t::REF_FRAMES_RESTRICT] ? config.numRefFrames : 0;
+  }
 
   ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
   ctx->flags2 |= AV_CODEC_FLAG2_FAST;
@@ -778,6 +788,10 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
 
 bool validate_encoder(encoder_t &encoder) {
   std::shared_ptr<platf::display_t> disp;
+
+  encoder.h264.capabilities.set();
+  encoder.hevc.capabilities.set();
+
   // First, test encoder viability
   config_t config_max_ref_frames {
     1920, 1080,
@@ -807,6 +821,9 @@ bool validate_encoder(encoder_t &encoder) {
   if(!max_ref_frames_h264 && !autoselect_h264) {
     return false;
   }
+
+  config_max_ref_frames.videoFormat = 1;
+  config_autoselect.videoFormat = 1;
 
   auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
   auto autoselect_hevc     = validate_config(disp, encoder, config_autoselect);
