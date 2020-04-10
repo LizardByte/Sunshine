@@ -331,6 +331,10 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   }
 }
 
+int thread_priority()  {
+  return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) ? 0 : 1;
+}
+
 void freeInput(void *p) {
   auto vigem = (vigem_t*)p;
 

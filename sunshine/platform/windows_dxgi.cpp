@@ -8,6 +8,7 @@ extern "C" {
 
 #include <dxgi.h>
 #include <d3d11.h>
+#include <d3d11_4.h>
 #include <d3dcommon.h>
 #include <dxgi1_2.h>
 
@@ -26,17 +27,17 @@ void Release(T *dxgi) {
   dxgi->Release();
 }
 
-using factory1_t   = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
-using dxgi_t       = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
-using dxgi1_t      = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
-using device_t     = util::safe_ptr<ID3D11Device, Release<ID3D11Device>>;
-using device_ctx_t = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11DeviceContext>>;
-using adapter_t    = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
-using output_t     = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
-using output1_t    = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
-using dup_t        = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
-using texture2d_t  = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
-using resource_t   = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
+using factory1_t    = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
+using dxgi_t        = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
+using dxgi1_t       = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
+using device_t      = util::safe_ptr<ID3D11Device, Release<ID3D11Device>>;
+using device_ctx_t  = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11DeviceContext>>;
+using adapter_t     = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
+using output_t      = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
+using output1_t     = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
+using dup_t         = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
+using texture2d_t   = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
+using resource_t    = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
 
 namespace video {
 using device_t         = util::safe_ptr<ID3D11VideoDevice, Release<ID3D11VideoDevice>>;
@@ -54,13 +55,13 @@ public:
   dup_t dup;
   bool has_frame {};
 
-  capture_e next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, resource_t::pointer *res_p) {
+  capture_e next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p) {
     auto capture_status = release_frame();
     if(capture_status != capture_e::ok) {
       return capture_status;
     }
 
-    auto status = dup->AcquireNextFrame(1000, &frame_info, res_p);
+    auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
 
     switch(status) {
       case S_OK:
@@ -300,7 +301,8 @@ public:
       video::processor_in_t::pointer processor_in_p;
       auto status = device->CreateVideoProcessorInputView(img.texture.get(), processor_e.get(), &input_desc, &processor_in_p);
       if(FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create VideoProcessorInputView [0x"sv << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create VideoProcessorInputView [0x"sv
+         << util::hex(status).to_string_view() << ']';
         return nullptr;
       }
       it = texture_to_processor_in.emplace(img.texture.get(), processor_in_p).first;
@@ -308,7 +310,7 @@ public:
     auto &processor_in = it->second;
 
     D3D11_VIDEO_PROCESSOR_STREAM stream { TRUE, 0, 0, 0, 0, nullptr, processor_in.get(), nullptr };
-    std::lock_guard lg { *lock };
+
     auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, 1, &stream);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed size and color conversion [0x"sv << util::hex(status).to_string_view() << ']';
@@ -318,11 +320,13 @@ public:
     return &this->img;
   }
 
-  int init(std::shared_ptr<std::recursive_mutex> &lock, std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
-    HRESULT status;
+  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
+    colorspace |= (color_range >> 4);
+    ctx->VideoProcessorSetOutputColorSpace(processor.get(), (D3D11_VIDEO_PROCESSOR_COLOR_SPACE*)&colorspace);
+  }
 
-    this->lock = lock;
-    std::lock_guard lg { *lock };
+  int init(std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
+    HRESULT status;
 
     video::device_t::pointer vdevice_p;
     status = device_p->QueryInterface(IID_ID3D11VideoDevice, (void**)&vdevice_p);
@@ -344,7 +348,7 @@ public:
       D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
       { 1, 1 }, (UINT)in_width, (UINT)in_height,
       { 1, 1 }, (UINT)out_width, (UINT)out_height,
-      D3D11_VIDEO_USAGE_PLAYBACK_NORMAL
+      D3D11_VIDEO_USAGE_OPTIMAL_QUALITY
     };
 
     video::processor_enum_t::pointer vp_e_p;
@@ -632,7 +636,7 @@ public:
 
 class display_cpu_t : public display_base_t {
 public:
-  capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
+  capture_e snapshot(::platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) override {
     auto img = (img_t*)img_base;
 
     HRESULT status;
@@ -640,7 +644,7 @@ public:
     DXGI_OUTDUPL_FRAME_INFO frame_info;
 
     resource_t::pointer res_p {};
-    auto capture_status = dup.next_frame(frame_info, &res_p);
+    auto capture_status = dup.next_frame(frame_info, timeout, &res_p);
     resource_t res{res_p};
 
     if (capture_status != capture_e::ok) {
@@ -736,10 +740,14 @@ public:
     return img;
   }
 
-  int dummy_img(platf::img_t *img, int &) override {
-    auto dummy_data_p = new int[1];
+  int dummy_img(platf::img_t *img) override {
+    img->data        = new std::uint8_t[4];
+    img->row_pitch   = 4;
+    img->pixel_pitch = 4;
+    img->width       = 1;
+    img->height      = 1;
 
-    return platf::display_t::dummy_img(img, *dummy_data_p);
+    return 0;
   }
 
   int init() {
@@ -784,23 +792,22 @@ public:
 
 class display_gpu_t : public display_base_t, public std::enable_shared_from_this<display_gpu_t> {
 public:
-  capture_e snapshot(::platf::img_t *img_base, bool cursor_visible) override {
+  capture_e snapshot(::platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) override {
     auto img = (img_d3d_t*)img_base;
 
     HRESULT status;
 
     DXGI_OUTDUPL_FRAME_INFO frame_info;
 
-    std::lock_guard lg { *lock };
     resource_t::pointer res_p {};
-    auto capture_status = dup.next_frame(frame_info, &res_p);
+    auto capture_status = dup.next_frame(frame_info, timeout, &res_p);
     resource_t res{res_p};
 
     if (capture_status != capture_e::ok) {
       return capture_status;
     }
 
-    const bool update_flag = frame_info.LastPresentTime.QuadPart != 0;
+    const bool update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
     if(!update_flag) {
       return capture_e::timeout;
     }
@@ -814,7 +821,6 @@ public:
     }
 
     texture2d_t src { src_p };
-
     device_ctx->CopyResource(img->texture.get(), src.get());
 
     return capture_e::ok;
@@ -850,7 +856,7 @@ public:
     return img;
   }
 
-  int dummy_img(platf::img_t *img_base, int &dummy_data_p) override {
+  int dummy_img(platf::img_t *img_base) override {
     auto img = (img_d3d_t*)img_base;
 
     img->row_pitch = width * 4;
@@ -887,17 +893,10 @@ public:
     return 0;
   }
 
-  int init() {
-    lock = std::make_shared<std::recursive_mutex>();
-    std::lock_guard lg { *lock };
-    return display_base_t::init();
-  }
-
   std::shared_ptr<platf::hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) override {
     auto hwdevice = std::make_shared<hwdevice_ctx_t>();
 
     auto ret = hwdevice->init(
-      lock,
       shared_from_this(),
       device.get(),
       device_ctx.get(),
@@ -910,8 +909,6 @@ public:
 
     return hwdevice;
   }
-
-  std::shared_ptr<std::recursive_mutex> lock;
 };
 
 const char *format_str[] = {

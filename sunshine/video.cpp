@@ -113,7 +113,12 @@ static encoder_t nvenc {
     { {"forced-idr"s, 1} }, "hevc_nvenc"s
   },
   {
-    { {"forced-idr"s, 1}, { "preset"s , 9} }, "h264_nvenc"s
+    {
+      { "forced-idr"s, 1},
+      { "profile"s, "high"s },
+      { "preset"s , "llhp" },
+      { "rc"s, "cbr_ld_hq"s },
+    }, "h264_nvenc"s
   },
   false,
 
@@ -209,9 +214,8 @@ void captureThread(
   display_wp = disp;
 
   std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs) +1, std::end(imgs));
+  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
 
-  int dummy_data = 0;
   for(auto &img : imgs) {
     img = disp->alloc_img();
     if(!img) {
@@ -219,9 +223,11 @@ void captureThread(
       return;
     }
   }
-  auto &dummy_img = imgs.front();
-  if(disp->dummy_img(dummy_img.get(), dummy_data)) {
-    return;
+
+  if(auto capture_ctx = capture_ctx_queue->pop())  {
+    capture_ctxs.emplace_back(std::move(*capture_ctx));
+
+    delay = capture_ctxs.back().delay;
   }
 
   auto next_frame = std::chrono::steady_clock::now();
@@ -229,22 +235,15 @@ void captureThread(
     while(capture_ctx_queue->peek()) {
       capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
 
-      // Temporary image to ensure something is send to Moonlight even if no frame has been captured yet.
-      capture_ctxs.back().images->raise(dummy_img);
-
       delay = std::min(delay, capture_ctxs.back().delay);
     }
 
     auto now = std::chrono::steady_clock::now();
-    if(next_frame > now) {
-      std::this_thread::sleep_until(next_frame);
-    }
-    next_frame += delay;
 
     auto &img = *round_robin++;
     while(img.use_count() > 1) {}
 
-    auto status = disp->snapshot(img.get(), display_cursor);
+    auto status = disp->snapshot(img.get(), 1000ms, display_cursor);
     switch (status) {
       case platf::capture_e::reinit: {
         reinit_event.raise(true);
@@ -276,16 +275,14 @@ void captureThread(
             return;
           }
         }
-        if(disp->dummy_img(dummy_img.get(), dummy_data)) {
-          return;
-        }
 
         reinit_event.reset();
         continue;
       }
       case platf::capture_e::error:
-       return;
+        return;
       case platf::capture_e::timeout:
+        std::this_thread::sleep_for(1ms);
         continue;
       case platf::capture_e::ok:
         break;
@@ -310,7 +307,34 @@ void captureThread(
       capture_ctx->images->raise(img);
       ++capture_ctx;
     })
+
+    if(next_frame > now) {
+      std::this_thread::sleep_until(next_frame);
+    }
+    next_frame += delay;
   }
+}
+
+int start_capture(capture_thread_ctx_t &capture_thread_ctx) {
+  capture_thread_ctx.encoder_p = &encoders.front();
+  capture_thread_ctx.reinit_event.reset();
+
+  capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>();
+
+  capture_thread_ctx.capture_thread = std::thread {
+    captureThread,
+    capture_thread_ctx.capture_ctx_queue,
+    std::ref(capture_thread_ctx.display_wp),
+    std::ref(capture_thread_ctx.reinit_event),
+    std::ref(*capture_thread_ctx.encoder_p)
+  };
+
+  return 0;
+}
+void end_capture(capture_thread_ctx_t &capture_thread_ctx) {
+  capture_thread_ctx.capture_ctx_queue->stop();
+
+  capture_thread_ctx.capture_thread.join();
 }
 
 util::Either<buffer_t, int> hwdevice_ctx(AVHWDeviceType type, void *hwdevice_ctx) {
@@ -383,28 +407,6 @@ int encode(int64_t frame_nr, ctx_t &ctx, frame_t &frame, packet_queue_t &packets
   }
 
   return 0;
-}
-
-int start_capture(capture_thread_ctx_t &capture_thread_ctx) {
-  capture_thread_ctx.encoder_p = &encoders.front();
-  capture_thread_ctx.reinit_event.reset();
-
-  capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>();
-
-  capture_thread_ctx.capture_thread = std::thread {
-    captureThread,
-    capture_thread_ctx.capture_ctx_queue,
-    std::ref(capture_thread_ctx.display_wp),
-    std::ref(capture_thread_ctx.reinit_event),
-    std::ref(*capture_thread_ctx.encoder_p)
-  };
-
-  return 0;
-}
-void end_capture(capture_thread_ctx_t &capture_thread_ctx) {
-  capture_thread_ctx.capture_ctx_queue->stop();
-
-  capture_thread_ctx.capture_thread.join();
 }
 
 std::optional<session_t>  make_session(const encoder_t &encoder, const config_t &config, platf::hwdevice_ctx_t *device_ctx) {
@@ -505,6 +507,8 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
     if(hwframe_ctx(ctx, hwdevice, sw_fmt)) {
       return std::nullopt;
     }
+
+    ctx->slices = config.slicesPerFrame;
   }
   else /* software */ {
     ctx->pix_fmt = sw_fmt;
@@ -530,7 +534,7 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
   if(config.bitrate > 500) {
     auto bitrate = config.bitrate * 1000;
     ctx->rc_max_rate = bitrate;
-    ctx->rc_buffer_size = bitrate / 100;
+    ctx->rc_buffer_size = bitrate / config.framerate;
     ctx->bit_rate = bitrate;
     ctx->rc_min_rate = bitrate;
   }
@@ -581,6 +585,8 @@ void encode_run(
   if(!session) {
     return;
   }
+
+  hwdevice_ctx->set_colorspace(session->sws_color_format, session->ctx->color_range);
 
   auto delay = std::chrono::floor<std::chrono::nanoseconds>(1s) / config.framerate;
 
@@ -654,17 +660,8 @@ void encode_run(
         break;
       }
     }
-
-    int err;
-    if(hwdevice_ctx && hwdevice_ctx->lock) {
-      std::lock_guard lg { *hwdevice_ctx->lock };
-      err = encode(frame_nr++, session->ctx, session->frame, packets, channel_data);
-    }
-    else {
-      err = encode(frame_nr++, session->ctx, session->frame, packets, channel_data);
-    }
     
-    if(err) {
+    if(encode(frame_nr++, session->ctx, session->frame, packets, channel_data)) {
       BOOST_LOG(fatal) << "Could not encode video packet"sv;
       log_flush();
       std::abort();
@@ -675,6 +672,110 @@ void encode_run(
 }
 
 void capture(
+  safe::signal_t *shutdown_event,
+  packet_queue_t packets,
+  idr_event_t idr_events,
+  config_t config,
+  void *channel_data) {
+
+  auto lg = util::fail_guard([&]() {
+    shutdown_event->raise(true);
+  });
+
+  const auto &encoder = encoders.front();
+  auto disp = platf::display(encoder.dev_type);
+  if(!disp) {
+    return;
+  }
+
+  auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
+  auto hwdevice_ctx = disp->make_hwdevice_ctx(config.width, config.height, pix_fmt);
+  if(!hwdevice_ctx) {
+    return;
+  }
+
+  auto session = make_session(encoder, config, hwdevice_ctx.get());
+  if(!session) {
+    return;
+  }
+  hwdevice_ctx->set_colorspace(session->sws_color_format, session->ctx->color_range);
+
+  auto img = disp->alloc_img();
+  if(disp->dummy_img(img.get())) {
+    return;
+  }
+
+  const platf::img_t* img_p = hwdevice_ctx->convert(*img);
+  if(!img_p) {
+    return;
+  }
+
+  sws_t sws;
+  encoder.img_to_frame(sws, *img_p, session->frame);
+
+  std::vector<std::shared_ptr<platf::img_t>> imgs(12);
+  for(auto &img : imgs) {
+    img = disp->alloc_img();
+  }
+
+  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+
+  int frame_nr = 1;
+  int key_frame_nr = 1;
+
+  auto max_delay = 1000ms / config.framerate;
+  
+  std::shared_ptr<platf::img_t> img_tmp;
+  auto next_frame = std::chrono::steady_clock::now();
+  while(!shutdown_event->peek()) {
+    if(idr_events->peek()) {
+      session->frame->pict_type = AV_PICTURE_TYPE_I;
+
+      auto event = idr_events->pop();
+      TUPLE_2D_REF(_, end, *event);
+
+      frame_nr = end;
+      key_frame_nr = end + config.framerate;
+    }
+    else if(frame_nr == key_frame_nr) {
+      session->frame->pict_type = AV_PICTURE_TYPE_I;
+    }
+
+    auto delay = std::max(0ms, std::chrono::duration_cast<std::chrono::milliseconds>(next_frame - std::chrono::steady_clock::now()));
+
+    auto status = disp->snapshot(round_robin->get(), delay, display_cursor);
+    switch(status)  {
+      case platf::capture_e::reinit:
+        return;
+      case platf::capture_e::error:
+        return;
+      case platf::capture_e::timeout:
+        next_frame += max_delay;
+        if(!img_tmp && frame_nr > (key_frame_nr + config.framerate))  {
+          continue;
+        }
+
+        break;
+      case platf::capture_e::ok:
+        img_tmp = *round_robin++;
+        break;
+    }
+
+    if(img_tmp) {
+      img_p = hwdevice_ctx->convert(*img_tmp);
+      img_tmp.reset();
+    }
+    
+    if(encode(frame_nr++, session->ctx, session->frame, packets, channel_data)) {
+      BOOST_LOG(fatal) << "Could not encode video packet"sv;
+      log_flush();
+      std::abort();
+    }
+
+    session->frame->pict_type = AV_PICTURE_TYPE_NONE;
+  }
+}
+void capture_async(
   safe::signal_t *shutdown_event,
   packet_queue_t packets,
   idr_event_t idr_events,
@@ -723,6 +824,12 @@ void capture(
       return;
     }
 
+    auto dummy_img = display->alloc_img();
+    if(display->dummy_img(dummy_img.get())) {
+      return;
+    }
+    images->raise(std::move(dummy_img));
+
     encode_run(frame_nr, key_frame_nr, shutdown_event, packets, idr_events, images, config, hwdevice_ctx.get(), ref->reinit_event, *ref->encoder_p, channel_data);
   }
 }
@@ -732,7 +839,6 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
   if(!disp) {
     return false;
   }
-
 
   auto pix_fmt = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
   auto hwdevice_ctx = disp->make_hwdevice_ctx(config.width, config.height, pix_fmt);
@@ -744,10 +850,10 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
   if(!session) {
     return false;
   }
+  hwdevice_ctx->set_colorspace(session->sws_color_format, session->ctx->color_range);
 
-  int dummy_data;
   auto img = disp->alloc_img();
-  if(disp->dummy_img(img.get(), dummy_data)) {
+  if(disp->dummy_img(img.get())) {
     return false;
   }
 
@@ -900,10 +1006,8 @@ void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
 }
 
 void nvenc_lock(void *lock_p) {
-  ((std::recursive_mutex*)lock_p)->lock();
 }
 void nvenc_unlock(void *lock_p) {
-  ((std::recursive_mutex*)lock_p)->unlock();
 }
 
 util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwdevice_ctx) {
@@ -912,10 +1016,6 @@ util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwde
   
   std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
   std::swap(ctx->device, *(ID3D11Device**)&hwdevice_ctx->hwdevice);
-
-  ctx->lock_ctx = hwdevice_ctx->lock.get();
-  ctx->lock = nvenc_lock;
-  ctx->unlock = nvenc_unlock;
 
   auto err = av_hwdevice_ctx_init(ctx_buf.get());
   if(err) {

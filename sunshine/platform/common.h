@@ -67,12 +67,10 @@ public:
 struct hwdevice_ctx_t {
   void *hwdevice {};
 
-  // Could be nullptr, depends on the encoder
-  std::shared_ptr<std::recursive_mutex> lock;
-
   virtual const platf::img_t*const convert(platf::img_t &img) {
     return nullptr;
   }
+  virtual void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
 
   virtual ~hwdevice_ctx_t() = default;
 };
@@ -86,18 +84,10 @@ enum class capture_e : int {
 
 class display_t {
 public:
-  virtual capture_e snapshot(img_t *img, bool cursor) = 0;
+  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) = 0;
   virtual std::shared_ptr<img_t> alloc_img() = 0;
 
-  virtual int dummy_img(img_t *img, int &dummy_data_p) {
-    img->row_pitch   = 4;
-    img->height      = 1;
-    img->width       = 1;
-    img->pixel_pitch = 4;
-    img->data        = (std::uint8_t*)&dummy_data_p;
-
-    return 0;
-  }
+  virtual int dummy_img(img_t *img) = 0;
 
   virtual std::shared_ptr<hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) {
     return std::make_shared<hwdevice_ctx_t>();
@@ -137,6 +127,8 @@ int alloc_gamepad(input_t &input, int nr);
 void free_gamepad(input_t &input, int nr);
 
 [[nodiscard]] std::unique_ptr<deinit_t> init();
+
+int thread_priority();
 }
 
 #endif //SUNSHINE_COMMON_H

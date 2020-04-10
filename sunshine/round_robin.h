@@ -118,6 +118,14 @@ public:
     }
   }
 
+  void dec() {
+    if(_pos == _begin)  {
+      _pos = _end;
+    }
+    
+    --_pos;
+  }
+
   bool eq(const round_robin_t &other) const {
     return *_pos == *other._pos;
   }

@@ -604,21 +604,21 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
 
     payload = {(char *) payload_new.data(), payload_new.size()};
 
-    // make sure moonlight recognizes the nalu code for IDR frames
-    if (packet->flags & AV_PKT_FLAG_KEY) {
-      // TODO: Not all encoders encode their IDR frames with the 4 byte NALU prefix
-      std::string_view frame_old = "\000\000\001e"sv;
-      std::string_view frame_new = "\000\000\000\001e"sv;
-      if(session->config.monitor.videoFormat != 0) {
-        frame_old = "\000\000\001("sv;
-        frame_new = "\000\000\000\001("sv;
-      }
+    // // make sure moonlight recognizes the nalu code for IDR frames
+    // if (packet->flags & AV_PKT_FLAG_KEY) {
+    //   // TODO: Not all encoders encode their IDR frames with the 4 byte NALU prefix
+    //   std::string_view frame_old = "\000\000\001e"sv;
+    //   std::string_view frame_new = "\000\000\000\001e"sv;
+    //   if(session->config.monitor.videoFormat != 0) {
+    //     frame_old = "\000\000\001("sv;
+    //     frame_new = "\000\000\000\001("sv;
+    //   }
 
-      assert(std::search(std::begin(payload), std::end(payload), std::begin(frame_new), std::end(frame_new)) ==
-             std::end(payload));
-      payload_new = replace(payload, frame_old, frame_new);
-      payload = {(char *) payload_new.data(), payload_new.size()};
-    }
+    //   assert(std::search(std::begin(payload), std::end(payload), std::begin(frame_new), std::end(frame_new)) ==
+    //          std::end(payload));
+    //   payload_new = replace(payload, frame_old, frame_new);
+    //   payload = {(char *) payload_new.data(), payload_new.size()};
+    // }
 
     // insert packet headers
     auto blocksize = session->config.packetsize + MAX_RTP_HEADER_SIZE;
