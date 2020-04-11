@@ -33,7 +33,7 @@ public:
 
   // pop and view shoud not be used interchangebly
   status_t pop() {
-    std::unique_lock ul{_lock};
+    std::unique_lock ul{ _lock };
 
     if (!_continue) {
       return util::false_v<status_t>;
@@ -55,7 +55,7 @@ public:
   // pop and view shoud not be used interchangebly
   template<class Rep, class Period>
   status_t pop(std::chrono::duration<Rep, Period> delay) {
-    std::unique_lock ul{_lock};
+    std::unique_lock ul{ _lock };
 
     if (!_continue) {
       return util::false_v<status_t>;
@@ -74,7 +74,7 @@ public:
 
   // pop and view shoud not be used interchangebly
   const status_t &view() {
-    std::unique_lock ul{_lock};
+    std::unique_lock ul{ _lock };
 
     if (!_continue) {
       return util::false_v<status_t>;
@@ -98,7 +98,7 @@ public:
   }
 
   void stop() {
-    std::lock_guard lg{_lock};
+    std::lock_guard lg{ _lock };
 
     _continue = false;
 
@@ -106,7 +106,7 @@ public:
   }
 
   void reset() {
-    std::lock_guard lg{_lock};
+    std::lock_guard lg{ _lock };
 
     _continue = true;
 
@@ -118,8 +118,8 @@ public:
   }
 private:
 
-  bool _continue{true};
-  status_t _status;
+  bool _continue { true };
+  status_t _status { util::false_v<status_t> };
 
   std::condition_variable _cv;
   std::mutex _lock;
@@ -170,7 +170,7 @@ public:
   }
 
   status_t pop() {
-    std::unique_lock ul{_lock};
+    std::unique_lock ul{ _lock };
 
     if (!_continue) {
       return util::false_v<status_t>;
@@ -191,11 +191,12 @@ public:
   }
 
   std::vector<T> &unsafe() {
+    std::lock_guard  { _lock };
     return _queue;
   }
 
   void stop() {
-    std::lock_guard lg{_lock};
+    std::lock_guard lg{ _lock };
 
     _continue = false;
 
@@ -208,7 +209,7 @@ public:
 
 private:
 
-  bool _continue{true};
+  bool _continue{ true };
 
   std::mutex _lock;
   std::condition_variable _cv;
@@ -274,9 +275,8 @@ public:
 
     void release() {
       std::lock_guard lg { owner->_lock };
-      auto c = owner->_count.fetch_sub(1, std::memory_order_acquire);
 
-      if(c - 1 == 0) {
+      if(!--owner->_count) {
         owner->_destruct(*get());
         (*this)->~element_type();
       }
@@ -296,10 +296,9 @@ public:
   template<class FC, class FD>
   shared_t(FC && fc, FD &&fd) : _construct { std::forward<FC>(fc) }, _destruct { std::forward<FD>(fd) } {}
   [[nodiscard]] ptr_t ref() {
-    auto c = _count.fetch_add(1, std::memory_order_acquire);
-    if(!c) {
-      std::lock_guard lg { _lock };
+    std::lock_guard lg { _lock };
 
+    if(!_count++) {
       new(_object_buf.data()) element_type;
       if(_construct(*reinterpret_cast<element_type*>(_object_buf.data()))) {
         return ptr_t { nullptr };
@@ -314,7 +313,7 @@ private:
 
   std::array<std::uint8_t, sizeof(element_type)> _object_buf;
 
-  std::atomic<std::uint32_t> _count;
+  std::uint32_t _count;
   std::mutex _lock;
 };
 

@@ -38,6 +38,7 @@ using output1_t     = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
 using dup_t         = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
 using texture2d_t   = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
 using resource_t    = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
+using multithread_t = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
 
 namespace video {
 using device_t         = util::safe_ptr<ID3D11VideoDevice, Release<ID3D11VideoDevice>>;
@@ -894,6 +895,12 @@ public:
   }
 
   std::shared_ptr<platf::hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) override {
+    if(pix_fmt != platf::pix_fmt_e::nv12) {
+      BOOST_LOG(error) << "display_gpu_t doesn't support pixel format ["sv << (int)pix_fmt << ']';
+
+      return nullptr;
+    }
+
     auto hwdevice = std::make_shared<hwdevice_ctx_t>();
 
     auto ret = hwdevice->init(
@@ -908,6 +915,24 @@ public:
     }
 
     return hwdevice;
+  }
+
+  int init() {
+    if(display_base_t::init()) {
+      return -1;
+    }
+
+    multithread_t::pointer multithread_p  {};
+    auto status = device->QueryInterface(__uuidof(multithread_t::element_type), (void**)&multithread_p);
+    multithread_t multithread { multithread_p };
+
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Couldn't query Multithread interface [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    multithread->SetMultithreadProtected(true);
+
+    return 0;
   }
 };
 
@@ -1039,15 +1064,15 @@ const char *format_str[] = {
 }
 
 namespace platf {
-std::shared_ptr<display_t> display(int hwdevice_type) {
-  if(hwdevice_type == AV_HWDEVICE_TYPE_D3D11VA) {
+std::shared_ptr<display_t> display(platf::dev_type_e hwdevice_type) {
+  if(hwdevice_type == platf::dev_type_e::dxgi) {
     auto disp = std::make_shared<dxgi::display_gpu_t>();
 
     if(!disp->init()) {
       return disp;
     }
   }
-  else {
+  else if(hwdevice_type == platf::dev_type_e::none) {
     auto disp = std::make_shared<dxgi::display_cpu_t>();
 
     if(!disp->init()) {

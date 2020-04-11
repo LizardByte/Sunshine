@@ -29,9 +29,17 @@ constexpr std::uint16_t B            = 0x2000;
 constexpr std::uint16_t X            = 0x4000;
 constexpr std::uint16_t Y            = 0x8000;
 
+enum class dev_type_e {
+  none,
+  dxgi,
+  unknown
+};
+
 enum class pix_fmt_e {
   yuv420p,
-  yuv420p10
+  yuv420p10,
+  nv12,
+  unknown
 };
 
 struct gamepad_state_t {
@@ -114,7 +122,7 @@ std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
-std::shared_ptr<display_t> display(int hwdevice_type);
+std::shared_ptr<display_t> display(dev_type_e hwdevice_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
