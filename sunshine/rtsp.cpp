@@ -97,7 +97,7 @@ public:
             std::vector<char> full_payload;
 
             auto old_msg = std::move(_queue_packet);
-            TUPLE_2D_REF(_, old_packet, old_msg);
+            auto &old_packet = old_msg.second;
 
             std::string_view new_payload{(char *) packet->data, packet->dataLength};
             std::string_view old_payload{(char *) old_packet->data, old_packet->dataLength};
@@ -274,7 +274,7 @@ void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t&& req) {
   option.content = const_cast<char*>(seqn_str.c_str());
 
   std::string_view payload;
-  if(config::video.hevc_mode == 0) {
+  if(config::video.hevc_mode == 1) {
     payload = "surround-params=NONE"sv;
   }
   else {
@@ -404,7 +404,7 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     return;
   }
 
-  if(config.monitor.videoFormat != 0 && config::video.hevc_mode == 0) {
+  if(config.monitor.videoFormat != 0 && config::video.hevc_mode == 1) {
     BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
     respond(server->host(), peer, &option, 400, "BAD REQUEST", req->sequenceNumber, {});

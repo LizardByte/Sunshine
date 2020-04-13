@@ -464,13 +464,13 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   tree.put("root.GfeVersion", GFE_VERSION);
   tree.put("root.uniqueid", unique_id);
   tree.put("root.mac", platf::get_mac_address(request->local_endpoint_address()));
-  tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 0 ? "1869449984" : "0");
+  tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 1 ? "1869449984" : "0");
   tree.put("root.LocalIP", request->local_endpoint_address());
 
-  if(config::video.hevc_mode == 2) {
+  if(config::video.hevc_mode == 3) {
     tree.put("root.ServerCodecModeSupport", "3843");
   }
-  else if(config::video.hevc_mode == 1) {
+  else if(config::video.hevc_mode == 2) {
     tree.put("root.ServerCodecModeSupport", "259");
   }
   else {
@@ -522,7 +522,7 @@ void applist(resp_https_t response, req_https_t request) {
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
-    app.put("IsHdrSupported"s, config::video.hevc_mode == 2 ? 1 : 0);
+    app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
     app.put("ID"s, ++x);
 

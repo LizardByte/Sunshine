@@ -4,6 +4,7 @@
 #include <chrono>
 #include <string>
 #include <bitset>
+#include <optional>
 
 namespace config {
 struct video_t {
@@ -11,12 +12,21 @@ struct video_t {
   int crf; // higher == more compression and less quality
   int qp; // higher == more compression and less quality, ignored if crf != 0
 
-  int min_threads; // Minimum number of threads/slices for CPU encoding
-
   int hevc_mode;
-  std::string preset;
-  std::string tune;
 
+  int min_threads; // Minimum number of threads/slices for CPU encoding
+  struct {
+    std::string preset;
+    std::string tune;
+  } sw;
+
+  struct {
+    std::optional<int> preset;
+    std::optional<int> rc;
+    int coder;
+  } nv;
+
+  std::string encoder;
   std::string adapter_name;
   std::string output_name;
 };

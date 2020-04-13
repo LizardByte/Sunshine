@@ -38,20 +38,6 @@ void free_packet(AVPacket *packet) {
 }
 
 namespace nv {
-enum class preset_e : int {
-    _default = 0,
-    slow,
-    medium,
-    fast,
-    hp,
-    hq,
-    bd,
-    ll_default,
-    llhq,
-    llhp,
-    lossless_default, // lossless presets must be the last ones
-    lossless_hp,
-};
 
 enum class profile_h264_e : int {
   baseline,
@@ -79,16 +65,23 @@ void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame);
 util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwdevice_ctx);
 
 struct encoder_t {
+  std::string_view name;
   enum flag_e {
     PASSED, // Is supported
     REF_FRAMES_RESTRICT, // Set maximum reference frames
     REF_FRAMES_AUTOSELECT, // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
+    DYNAMIC_RANGE,
     MAX_FLAGS
   };
 
   struct option_t {
+    KITTY_DEFAULT_CONSTR(option_t)
+    option_t(const option_t &) = default;
+
     std::string name;
-    std::variant<int, int*, std::string, std::string*> value;
+    std::variant<int, int*, std::optional<int>*, std::string, std::string*> value;
+
+    option_t(std::string &&name, decltype(value) &&value) : name { std::move(name) }, value  { std::move(value) } {}
   };
 
   struct {
@@ -105,6 +98,8 @@ struct encoder_t {
 
   struct {
     std::vector<option_t> options;
+    std::optional<option_t> crf, qp;
+
     std::string name;
     std::bitset<MAX_FLAGS> capabilities;
 
@@ -118,12 +113,27 @@ struct encoder_t {
   } hevc, h264;
 
   bool system_memory;
+  bool hevc_mode;
 
   std::function<void(sws_t &, const platf::img_t&, frame_t&)> img_to_frame;
   std::function<util::Either<buffer_t, int>(platf::hwdevice_ctx_t *hwdevice)> make_hwdevice_ctx;
 };
 
 struct session_t {
+  session_t() = default;
+  session_t(session_t&&) = default;
+
+  // Ensure objects are destroyed in the correct order
+  session_t &operator=(session_t &&other) {
+    sws_color_format = other.sws_color_format;
+    sw_format        = other.sw_format;
+    frame            = std::move(other.frame);
+    ctx              = std::move(other.ctx);
+    hwdevice         = std::move(other.hwdevice);
+
+    return *this;
+  }
+
   buffer_t hwdevice;
 
   ctx_t ctx;
@@ -159,66 +169,6 @@ struct encode_session_t {
 using encode_session_ctx_queue_t = safe::queue_t<encode_session_ctx_t>;
 using encode_e = platf::capture_e;
 
-struct capture_synced_ctx_t {
-  encode_session_ctx_queue_t encode_session_ctx_queue;
-};
-
-int start_capture_sync(capture_synced_ctx_t &ctx);
-void end_capture_sync(capture_synced_ctx_t &ctx);
-auto capture_thread_sync = safe::make_shared<capture_synced_ctx_t>(start_capture_sync, end_capture_sync);
-
-static encoder_t nvenc {
-  { (int)nv::profile_h264_e::high, (int)nv::profile_hevc_e::main, (int)nv::profile_hevc_e::main_10 },
-  AV_HWDEVICE_TYPE_D3D11VA,
-  AV_PIX_FMT_D3D11,
-  AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
-  {
-    { {"forced-idr"s, 1} }, "hevc_nvenc"s
-  },
-  {
-    {
-      { "forced-idr"s, 1},
-      { "preset"s , (int)nv::preset_e::llhq },
-    }, "h264_nvenc"s
-  },
-  false,
-
-  nv_d3d_img_to_frame,
-  nv_d3d_make_hwdevice_ctx
-};
-
-static encoder_t software {
-  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
-  AV_HWDEVICE_TYPE_NONE,
-  AV_PIX_FMT_NONE,
-  AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
-  {
-    // x265's Info SEI is so long that it causes the IDR picture data to be
-    // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
-    // It also looks like gop_size isn't passed on to x265, so we have to set
-    // 'keyint=-1' in the parameters ourselves.
-    {
-      { "x265-params"s, "info=0:keyint=-1"s },
-      { "preset"s, &config::video.preset },
-      { "tune"s, &config::video.tune }
-    }, "libx265"s
-  },
-  {
-    {
-      { "preset"s, &config::video.preset },
-      { "tune"s, &config::video.tune }
-    }, "libx264"s
-  },
-  true,
-
-  sw_img_to_frame,
-  nullptr
-};
-
-static std::vector<encoder_t> encoders {
-  nvenc, software
-};
-
 struct capture_ctx_t {
   img_event_t images;
   std::chrono::nanoseconds delay;
@@ -231,6 +181,91 @@ struct capture_thread_ctx_t {
   safe::signal_t reinit_event;
   const encoder_t *encoder_p;
   util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
+};
+
+struct capture_synced_ctx_t {
+  encode_session_ctx_queue_t encode_session_ctx_queue;
+};
+
+int start_capture_sync(capture_synced_ctx_t &ctx);
+void end_capture_sync(capture_synced_ctx_t &ctx);
+int start_capture(capture_thread_ctx_t &ctx);
+void end_capture(capture_thread_ctx_t &ctx);
+
+// Keep a reference counter to ensure the capture thread only runs when other threads have a reference to the capture thread
+auto capture_thread = safe::make_shared<capture_thread_ctx_t>(start_capture, end_capture);
+auto capture_thread_sync = safe::make_shared<capture_synced_ctx_t>(start_capture_sync, end_capture_sync);
+
+static encoder_t nvenc {
+  "nvenc"sv,
+  { (int)nv::profile_h264_e::high, (int)nv::profile_hevc_e::main, (int)nv::profile_hevc_e::main_10 },
+  AV_HWDEVICE_TYPE_D3D11VA,
+  AV_PIX_FMT_D3D11,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
+  {
+    {
+      { "forced-idr"s, 1 },
+      { "zerolatency"s, 1 },
+      { "preset"s, &config::video.nv.preset },
+      { "rc"s, &config::video.nv.rc }
+    },
+    std::nullopt, std::nullopt,
+    "hevc_nvenc"s,
+  },
+  {
+    {
+      { "forced-idr"s, 1 },
+      { "zerolatency"s, 1 },
+      { "preset"s, &config::video.nv.preset },
+      { "rc"s, &config::video.nv.rc },
+      { "coder"s, &config::video.nv.coder }
+    },
+    std::nullopt, std::make_optional<encoder_t::option_t>({"qp"s, &config::video.qp}),
+    "h264_nvenc"s
+  },
+  false,
+  true,
+
+  nv_d3d_img_to_frame,
+  nv_d3d_make_hwdevice_ctx
+};
+
+static encoder_t software {
+  "software"sv,
+  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
+  AV_HWDEVICE_TYPE_NONE,
+  AV_PIX_FMT_NONE,
+  AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
+  {
+    // x265's Info SEI is so long that it causes the IDR picture data to be
+    // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
+    // It also looks like gop_size isn't passed on to x265, so we have to set
+    // 'keyint=-1' in the parameters ourselves.
+    {
+      { "x265-params"s, "info=0:keyint=-1"s },
+      { "preset"s, &config::video.sw.preset },
+      { "tune"s, &config::video.sw.tune }
+    },
+    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf), std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+    "libx265"s
+  },
+  {
+    {
+      { "preset"s, &config::video.sw.preset },
+      { "tune"s, &config::video.sw.tune }
+    },
+    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf), std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+    "libx264"s
+  },
+  true,
+  false,
+
+  sw_img_to_frame,
+  nullptr
+};
+
+static std::vector<encoder_t> encoders {
+  nvenc, software
 };
 
 platf::dev_type_e map_dev_type(AVHWDeviceType type) {
@@ -502,7 +537,15 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
   bool hardware = encoder.dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
-  assert(video_format[encoder_t::PASSED]);
+  if(!video_format[encoder_t::PASSED]) {
+    BOOST_LOG(error) << encoder.name << ": "sv << video_format.name  << " mode not supported"sv;
+    return std::nullopt;
+  }
+
+  if(config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE]) {
+    BOOST_LOG(error) << video_format.name << ": dynamic range not supported"sv;
+    return std::nullopt;
+  }
 
   auto codec = avcodec_find_encoder_by_name(video_format.name.c_str());
   if(!codec) {
@@ -606,18 +649,24 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
     // most efficient encode, but we may want to provide more slices than
     // requested to ensure we have enough parallelism for good performance.
     ctx->slices = std::max(config.slicesPerFrame, config::video.min_threads);
-    ctx->thread_type = FF_THREAD_SLICE;
-    ctx->thread_count = ctx->slices;
   }
 
+  ctx->thread_type = FF_THREAD_SLICE;
+  ctx->thread_count = ctx->slices;
+
   AVDictionary *options {nullptr};
-  for(auto &option : video_format.options) {
+  auto handle_option = [&options](const encoder_t::option_t &option) {
     std::visit(util::overloaded {
       [&](int v) { av_dict_set_int(&options, option.name.c_str(), v, 0); },
       [&](int *v) { av_dict_set_int(&options, option.name.c_str(), *v, 0); },
+      [&](std::optional<int> *v) { if(*v) av_dict_set_int(&options, option.name.c_str(), **v, 0); },
       [&](const std::string &v) { av_dict_set(&options, option.name.c_str(), v.c_str(), 0); },
-      [&](std::string *v) { av_dict_set(&options, option.name.c_str(), v->c_str(), 0); }
+      [&](std::string *v) { if(!v->empty()) av_dict_set(&options, option.name.c_str(), v->c_str(), 0); }
     }, option.value);
+  };
+
+  for(auto &option : video_format.options) {
+    handle_option(option);
   }
 
   if(config.bitrate > 500) {
@@ -627,11 +676,15 @@ std::optional<session_t>  make_session(const encoder_t &encoder, const config_t 
     ctx->bit_rate = bitrate;
     ctx->rc_min_rate = bitrate;
   }
-  else if(config::video.crf != 0) {
-    av_dict_set_int(&options, "crf", config::video.crf, 0);
+  else if(video_format.crf && config::video.crf != 0) {
+    handle_option(*video_format.crf);
+  }
+  else if(video_format.qp) {
+    handle_option(*video_format.qp);
   }
   else {
-    av_dict_set_int(&options, "qp", config::video.qp, 0);
+    BOOST_LOG(error) << "Couldn't set video quality: encoder "sv << encoder.name << " doesn't support either crf or qp"sv;
+    return std::nullopt;
   }
 
   avcodec_open2(ctx.get(), codec, &options);
@@ -694,8 +747,11 @@ void encode_run(
       session->frame->pict_type = AV_PICTURE_TYPE_I;
 
       auto event = idr_events->pop();
-      TUPLE_2D_REF(_, end, *event);
+      if(!event) {
+        return;
+      }
 
+      auto end = event->second;
       frame_nr = end;
       key_frame_nr = end + config.framerate;
     }
@@ -750,9 +806,8 @@ void encode_run(
     }
     
     if(encode(frame_nr++, session->ctx, session->frame, packets, channel_data)) {
-      BOOST_LOG(fatal) << "Could not encode video packet"sv;
-      log_flush();
-      std::abort();
+      BOOST_LOG(error) << "Could not encode video packet"sv;
+      return;
     }
 
     session->frame->pict_type = AV_PICTURE_TYPE_NONE;
@@ -856,18 +911,12 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<encode_session_ctx_t>> &enc
     auto now = std::chrono::steady_clock::now();
     
     next_frame = now + 1s;
-    {auto pos = std::begin(encode_sessions);while( pos != std::end(encode_sessions)) {
+    KITTY_WHILE_LOOP(auto pos = std::begin(encode_sessions), pos != std::end(encode_sessions), {
       auto ctx = pos->ctx;
       if(ctx->shutdown_event->peek()) {
         // Let waiting thread know it can delete shutdown_event
         ctx->join_event->raise(true);
-
-        //FIXME: Causes segfault even if (pos + 1) != std::end()
-        // *pos = std::move(*(pos + 1));
-
-        {encode_session_t t { std::move(*pos) };}
         
-        //FIXME: encode_session_t = std::move(encode_session_t) <=> segfault
         pos = encode_sessions.erase(pos);
         encode_session_ctxs.erase(std::find_if(std::begin(encode_session_ctxs), std::end(encode_session_ctxs), [&ctx_p=ctx](auto &ctx) {
           return ctx.get() == ctx_p;
@@ -918,15 +967,16 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<encode_session_ctx_t>> &enc
       }
 
       if(encode(ctx->frame_nr++, pos->session.ctx, pos->session.frame, ctx->packets, ctx->channel_data)) {
-        BOOST_LOG(fatal) << "Could not encode video packet"sv;
-        log_flush();
-        std::abort();
+        BOOST_LOG(error) << "Could not encode video packet"sv;
+        ctx->shutdown_event->raise(true);
+
+        continue;
       }
 
       pos->session.frame->pict_type = AV_PICTURE_TYPE_NONE;
 
       ++pos;
-    }}
+    })
 
     img_tmp = nullptr;
   }
@@ -964,28 +1014,11 @@ int start_capture_sync(capture_synced_ctx_t &ctx) {
 
 void end_capture_sync(capture_synced_ctx_t &ctx) {}
 
-void capture(
-  safe::signal_t *shutdown_event,
-  packet_queue_t packets,
-  idr_event_t idr_events,
-  config_t config,
-  void *channel_data) {
-  
-  safe::signal_t join_event;
-  auto ref = capture_thread_sync.ref();
-  ref->encode_session_ctx_queue.raise(encode_session_ctx_t {
-    shutdown_event, &join_event, packets, idr_events, config, 1, 1, channel_data
-  });
-
-  // Wait for join signal
-  join_event.view();
-}
-
 void capture_async(
   safe::signal_t *shutdown_event,
-  packet_queue_t packets,
-  idr_event_t idr_events,
-  config_t config,
+  packet_queue_t &packets,
+  idr_event_t &idr_events,
+  config_t &config,
   void *channel_data) {
 
   auto images = std::make_shared<img_event_t::element_type>();
@@ -994,8 +1027,6 @@ void capture_async(
     shutdown_event->raise(true);
   });
 
-  // Keep a reference counter to ensure the Fcapture thread only runs when other threads have a reference to the capture thread
-  static auto capture_thread = safe::make_shared<capture_thread_ctx_t>(start_capture, end_capture);
   auto ref = capture_thread.ref();
   if(!ref) {
     return;
@@ -1037,6 +1068,28 @@ void capture_async(
     images->raise(std::move(dummy_img));
 
     encode_run(frame_nr, key_frame_nr, shutdown_event, packets, idr_events, images, config, hwdevice_ctx.get(), ref->reinit_event, *ref->encoder_p, channel_data);
+  }
+}
+
+void capture(
+  safe::signal_t *shutdown_event,
+  packet_queue_t packets,
+  idr_event_t idr_events,
+  config_t config,
+  void *channel_data) {
+  
+  if(encoders.front().system_memory) {
+    capture_async(shutdown_event, packets, idr_events, config, channel_data);
+  }
+  else {
+    safe::signal_t join_event;
+    auto ref = capture_thread_sync.ref();
+    ref->encode_session_ctx_queue.raise(encode_session_ctx_t {
+      shutdown_event, &join_event, packets, idr_events, config, 1, 1, channel_data
+    }); 
+
+    // Wait for join signal
+    join_event.view();
   }
 }
 
@@ -1099,31 +1152,15 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
 bool validate_encoder(encoder_t &encoder) {
   std::shared_ptr<platf::display_t> disp;
 
+  auto force_hevc = config::video.hevc_mode >= 2;
+  auto test_hevc = force_hevc || (config::video.hevc_mode == 0 && encoder.hevc_mode);
+
   encoder.h264.capabilities.set();
   encoder.hevc.capabilities.set();
 
   // First, test encoder viability
-  config_t config_max_ref_frames {
-    1920, 1080,
-    60,
-    1000,
-    1,
-    1,
-    1,
-    0,
-    0
-  };
-
-  config_t config_autoselect {
-    1920, 1080,
-    60,
-    1000,
-    1,
-    0,
-    1,
-    0,
-    0
-  };
+  config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
+  config_t config_autoselect     { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
 
   auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
   auto autoselect_h264     = validate_config(disp, encoder, config_autoselect);
@@ -1132,20 +1169,30 @@ bool validate_encoder(encoder_t &encoder) {
     return false;
   }
 
-  config_max_ref_frames.videoFormat = 1;
-  config_autoselect.videoFormat = 1;
-
-  auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
-  auto autoselect_hevc     = validate_config(disp, encoder, config_autoselect);
-
   encoder.h264[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_h264;
   encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264;
   encoder.h264[encoder_t::PASSED] = true;
-  encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc;
-  encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc;
-  encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc || autoselect_hevc;
 
-  std::vector<std::pair<encoder_t::flag_e, config_t>> configs; 
+  if(test_hevc) {
+    config_max_ref_frames.videoFormat = 1;
+    config_autoselect.videoFormat = 1;
+
+    auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
+    auto autoselect_hevc     = validate_config(disp, encoder, config_autoselect);
+
+    // If HEVC must be supported, but it is not supported
+    if(force_hevc && !max_ref_frames_hevc && !autoselect_hevc) {
+      return false;
+    }
+
+    encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc;
+    encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc;
+  }
+  encoder.hevc[encoder_t::PASSED] = test_hevc;
+
+  std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
+    { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 1, 1, 1 } }
+  };
   for(auto &[flag, config] : configs) {
     auto h264 = config;
     auto hevc = config;
@@ -1154,26 +1201,53 @@ bool validate_encoder(encoder_t &encoder) {
     hevc.videoFormat = 1;
 
     encoder.h264[flag] = validate_config(disp, encoder, h264);
-    encoder.hevc[flag] = validate_config(disp, encoder, hevc);
+    if(test_hevc && encoder.hevc[encoder_t::PASSED]) {
+      encoder.hevc[flag] = validate_config(disp, encoder, hevc);
+    }
   }
-  
+
   return true;
 }
 
-void init() {
+int init() {
   KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
-    if(!validate_encoder(*pos)) {
+    if(
+      (!config::video.encoder.empty() && pos->name != config::video.encoder)  ||
+      !validate_encoder(*pos)                                                 ||
+      (config::video.hevc_mode == 3 && !pos->hevc[encoder_t::DYNAMIC_RANGE])
+    ) {
       pos = encoders.erase(pos);
 
       continue;
     }
 
-    ++pos;
+    break;
   })
 
-  for(auto &encoder : encoders) {
-    BOOST_LOG(info) << "Found encoder ["sv << encoder.h264.name << ", "sv << encoder.hevc.name << ']';
+  if(encoders.empty()) {
+    if(config::video.encoder.empty())  {
+      BOOST_LOG(fatal) << "Couldn't find any encoder"sv;
+    }
+    else {
+      BOOST_LOG(fatal) << "Couldn't find any encoder matching ["sv << config::video.encoder << ']';
+    }
+
+    return -1;
   }
+
+  auto &encoder = encoders.front();
+  if(encoder.hevc[encoder_t::PASSED]) {
+    BOOST_LOG(info) << "Found encoder "sv << encoder.name << ": ["sv << encoder.h264.name << ", "sv << encoder.hevc.name << ']';
+  }
+  else {
+    BOOST_LOG(info) << "Found encoder "sv  << encoder.name << ": ["sv << encoder.h264.name << ']';
+  }
+
+  if(config::video.hevc_mode == 0) {
+    config::video.hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
+  }
+
+  return 0;
 }
 
 void sw_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
@@ -1209,11 +1283,6 @@ void nv_d3d_img_to_frame(sws_t &sws, const platf::img_t &img, frame_t &frame) {
 
   frame->height = img.height;
   frame->width = img.width;
-}
-
-void nvenc_lock(void *lock_p) {
-}
-void nvenc_unlock(void *lock_p) {
 }
 
 util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_ctx_t *hwdevice_ctx) {

@@ -888,7 +888,6 @@ public:
     img->texture.reset(tex_p);
     img->height      = height;
     img->width       = width;
-    img->data        = (std::uint8_t*)tex_p;
     img->pixel_pitch = 4;
 
     return 0;
@@ -915,24 +914,6 @@ public:
     }
 
     return hwdevice;
-  }
-
-  int init() {
-    if(display_base_t::init()) {
-      return -1;
-    }
-
-    multithread_t::pointer multithread_p  {};
-    auto status = device->QueryInterface(__uuidof(multithread_t::element_type), (void**)&multithread_p);
-    multithread_t multithread { multithread_p };
-
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't query Multithread interface [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-    multithread->SetMultithreadProtected(true);
-
-    return 0;
   }
 };
 
