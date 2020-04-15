@@ -145,14 +145,22 @@ struct x11_attr_t : public display_t {
     xwindow = DefaultRootWindow(xdisplay.get());
 
     refresh();
+
+    width  = xattr.width;
+    height = xattr.height;
   }
 
   void refresh() {
     XGetWindowAttributes(xdisplay.get(), xwindow, &xattr);
   }
 
-  capture_e snapshot(img_t *img_out_base, bool cursor) override {
+  capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) override {
     refresh();
+
+    if(width != xattr.width || height != xattr.height) {
+      return capture_e::reinit;
+    }
+    
     XImage *img { XGetImage(
       xdisplay.get(),
       xwindow,
@@ -178,6 +186,11 @@ struct x11_attr_t : public display_t {
 
   std::shared_ptr<img_t> alloc_img() override {
     return std::make_shared<x11_img_t>();
+  }
+
+  int dummy_img(img_t *img) override {
+    snapshot(img, 0s, true);
+    return 0;
   }
 
   xdisplay_t xdisplay;
@@ -210,8 +223,8 @@ struct shm_attr_t : public x11_attr_t {
     while(!task_pool.cancel(refresh_task_id));
   }
 
-  capture_e snapshot(img_t *img, bool cursor) override {
-    if(display->width_in_pixels != xattr.width || display->height_in_pixels != xattr.height) {
+  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) override {
+    if(width != xattr.width || height != xattr.height) {
       return capture_e::reinit;
     }
 
@@ -219,7 +232,7 @@ struct shm_attr_t : public x11_attr_t {
       xcb.get(),
       display->root,
       0, 0,
-      display->width_in_pixels, display->height_in_pixels,
+      width, height,
       ~0,
       XCB_IMAGE_FORMAT_Z_PIXMAP,
       seg,
@@ -232,16 +245,6 @@ struct shm_attr_t : public x11_attr_t {
       return capture_e::reinit;
     }
 
-    if(img->width != display->width_in_pixels || img->height != display->height_in_pixels) {
-      delete[] img->data;
-
-      img->data = new std::uint8_t[frame_size()];
-      img->width = display->width_in_pixels;
-      img->height = display->height_in_pixels;
-      img->pixel_pitch = 4;
-      img->row_pitch = img->width * img->pixel_pitch;
-    }
-
     std::copy_n((std::uint8_t*)data.data, frame_size(), img->data);
 
     if(cursor) {
@@ -252,13 +255,18 @@ struct shm_attr_t : public x11_attr_t {
   }
 
   std::shared_ptr<img_t> alloc_img() override {
-    return std::make_shared<shm_img_t>();
+    auto img = std::make_shared<shm_img_t>();
+    img->width  = width;
+    img->height = height;
+    img->pixel_pitch = 4;
+    img->row_pitch = img->pixel_pitch * width;
+    img->data = new std::uint8_t[height * img->row_pitch];
+
+    return img;
   }
 
-  int dummy_img(platf::img_t *img, int &) override {
-    auto dummy_data_p = new int[1];
-
-    return platf::display_t::dummy_img(img, *dummy_data_p);
+  int dummy_img(platf::img_t *img) override {
+    return 0;
   }
 
   int init() {
@@ -293,11 +301,14 @@ struct shm_attr_t : public x11_attr_t {
       return -1;
     }
 
+    width  = display->width_in_pixels;
+    height = display->height_in_pixels;
+
     return 0;
   }
 
   std::uint32_t frame_size() {
-    return display->height_in_pixels * display->width_in_pixels * 4;
+    return width * height * 4;
   }
 };
 
@@ -331,7 +342,11 @@ std::shared_ptr<display_t> shm_display() {
   return shm;
 }
 
-std::shared_ptr<display_t> display(int hwdevice_type) {
+std::shared_ptr<display_t> display(platf::dev_type_e hwdevice_type) {
+  if(hwdevice_type != platf::dev_type_e::none) {
+    return nullptr;
+  }
+
   auto shm_disp = shm_display();
 
   if(!shm_disp) {

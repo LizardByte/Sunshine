@@ -139,8 +139,6 @@ int alloc_gamepad(input_t &input, int nr);
 void free_gamepad(input_t &input, int nr);
 
 [[nodiscard]] std::unique_ptr<deinit_t> init();
-
-int thread_priority();
 }
 
 #endif //SUNSHINE_COMMON_H
