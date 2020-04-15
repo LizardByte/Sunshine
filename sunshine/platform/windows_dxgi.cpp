@@ -290,9 +290,9 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
-class hwdevice_ctx_t : public platf::hwdevice_ctx_t {
+class hwdevice_t : public platf::hwdevice_t {
 public:
-  const platf::img_t*const convert(platf::img_t &img_base) override {
+  int convert(platf::img_t &img_base) override {
     auto &img = (img_d3d_t&)img_base;
 
     auto it = texture_to_processor_in.find(img.texture.get());
@@ -304,7 +304,7 @@ public:
       if(FAILED(status)) {
         BOOST_LOG(error) << "Failed to create VideoProcessorInputView [0x"sv
          << util::hex(status).to_string_view() << ']';
-        return nullptr;
+        return -1;
       }
       it = texture_to_processor_in.emplace(img.texture.get(), processor_in_p).first;
     }
@@ -315,10 +315,10 @@ public:
     auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, 1, &stream);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed size and color conversion [0x"sv << util::hex(status).to_string_view() << ']';
-      return nullptr;
+      return -1;
     }
 
-    return &this->img;
+    return 0;
   }
 
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
@@ -328,6 +328,8 @@ public:
 
   int init(std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
     HRESULT status;
+
+    platf::hwdevice_t::img = &img;
 
     video::device_t::pointer vdevice_p;
     status = device_p->QueryInterface(IID_ID3D11VideoDevice, (void**)&vdevice_p);
@@ -403,13 +405,13 @@ public:
     processor_out.reset(processor_out_p);
 
     device_p->AddRef();
-    hwdevice = device_p;
+    data = device_p;
     return 0;
   }
 
-  ~hwdevice_ctx_t() override {
-    if(hwdevice) {
-      ((ID3D11Device*)hwdevice)->Release();
+  ~hwdevice_t() override {
+    if(data) {
+      ((ID3D11Device*)data)->Release();
     }
   }
 
@@ -629,8 +631,6 @@ public:
   device_ctx_t device_ctx;
   duplication_t dup;
 
-  int width, height;
-
   DXGI_FORMAT format;
   D3D_FEATURE_LEVEL feature_level;
 };
@@ -711,15 +711,6 @@ public:
       return capture_e::timeout;
     }
 
-    if(img->width != width || img->height != height) {
-      delete[] img->data;
-      img->data = new std::uint8_t[height * img_info.RowPitch];
-
-      img->width = width;
-      img->height = height;
-      img->row_pitch = img_info.RowPitch;
-    }
-
     std::copy_n((std::uint8_t*)img_info.pData, height * img_info.RowPitch, (std::uint8_t*)img->data);
 
     if(cursor_visible && cursor.visible) {
@@ -732,22 +723,16 @@ public:
   std::shared_ptr<platf::img_t> alloc_img() override {
     auto img = std::make_shared<img_t>();
 
-    img->data         = nullptr;
-    img->row_pitch    = 0;
     img->pixel_pitch  = 4;
-    img->width        = 0;
-    img->height       = 0;
+    img->row_pitch    = img->pixel_pitch * width;
+    img->width        = width;
+    img->height       = height;
+    img->data         = new std::uint8_t[img->row_pitch * height];
 
     return img;
   }
 
   int dummy_img(platf::img_t *img) override {
-    img->data        = new std::uint8_t[4];
-    img->row_pitch   = 4;
-    img->pixel_pitch = 4;
-    img->width       = 1;
-    img->height      = 1;
-
     return 0;
   }
 
@@ -893,14 +878,14 @@ public:
     return 0;
   }
 
-  std::shared_ptr<platf::hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) override {
+  std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) override {
     if(pix_fmt != platf::pix_fmt_e::nv12) {
       BOOST_LOG(error) << "display_gpu_t doesn't support pixel format ["sv << (int)pix_fmt << ']';
 
       return nullptr;
     }
 
-    auto hwdevice = std::make_shared<hwdevice_ctx_t>();
+    auto hwdevice = std::make_shared<hwdevice_t>();
 
     auto ret = hwdevice->init(
       shared_from_this(),

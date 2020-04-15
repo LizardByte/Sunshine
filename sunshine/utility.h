@@ -436,6 +436,72 @@ public:
   }
 };
 
+
+template<class T>
+class wrap_ptr {
+public:
+  using element_type = T;
+  using pointer = element_type*;
+  using reference = element_type&;
+
+  wrap_ptr() : _own_ptr { false }, _p { nullptr } {}
+  wrap_ptr(pointer p) : _own_ptr { false }, _p { p } {}
+  wrap_ptr(std::unique_ptr<element_type> &&uniq_p) : _own_ptr { true }, _p { uniq_p.release() } {}
+  wrap_ptr(wrap_ptr &&other) : _own_ptr { other._own_ptr }, _p { other._p } {
+    other._own_ptr = false;
+  }
+
+  wrap_ptr &operator=(wrap_ptr &&other) {
+    if(_own_ptr) {
+      delete _p;
+    }
+
+    _p = other._p;
+
+    _own_ptr = other._own_ptr;
+    other._own_ptr = false;
+
+    return *this;
+  }
+
+  template<class V>
+  wrap_ptr &operator=(std::unique_ptr<V> &&uniq_ptr) {
+    static_assert(std::is_base_of_v<element_type, V>, "element_type must be base class of V");
+    _own_ptr = true;
+    _p = uniq_ptr.release();
+
+    return *this;
+  }
+
+  wrap_ptr &operator=(pointer p) {
+    if(_own_ptr) {
+      delete _p;
+    }
+
+    _p = p;
+    _own_ptr = false;
+
+    return *this;
+  }
+
+  const reference operator*() const {
+    return *_p;
+  }
+  reference operator*() {
+    return *_p;
+  }
+  const pointer operator->() const {
+    return _p;
+  }
+  pointer operator->() {
+    return _p;
+  }
+
+private:
+  bool _own_ptr;
+  pointer _p;
+};
+
 template<class T>
 class buffer_t {
 public:

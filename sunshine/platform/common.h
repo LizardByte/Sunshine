@@ -72,15 +72,17 @@ public:
   virtual ~img_t() = default;
 };
 
-struct hwdevice_ctx_t {
-  void *hwdevice {};
+struct hwdevice_t {
+  void *data {};
+  platf::img_t *img {};
 
-  virtual const platf::img_t*const convert(platf::img_t &img) {
-    return nullptr;
+  virtual int convert(platf::img_t &img) {
+    return -1;
   }
+
   virtual void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
 
-  virtual ~hwdevice_ctx_t() = default;
+  virtual ~hwdevice_t() = default;
 };
 
 enum class capture_e : int {
@@ -97,11 +99,13 @@ public:
 
   virtual int dummy_img(img_t *img) = 0;
 
-  virtual std::shared_ptr<hwdevice_ctx_t> make_hwdevice_ctx(int width, int height, pix_fmt_e pix_fmt) {
-    return std::make_shared<hwdevice_ctx_t>();
+  virtual std::shared_ptr<hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) {
+    return std::make_shared<hwdevice_t>();
   }
 
   virtual ~display_t() = default;
+
+  int width, height;
 };
 
 class mic_t {
