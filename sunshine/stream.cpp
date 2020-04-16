@@ -494,8 +494,11 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
 
       server->send(std::string_view {(char*)payload.data(), payload.size()});
 
-      shutdown_event->raise(true);
-      continue;
+      auto lg = server->_map_addr_session.lock();
+      for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
+        auto session = pos->second.second;
+        session->shutdown_event.raise(true);
+      }
     }
 
     server->iterate(500ms);

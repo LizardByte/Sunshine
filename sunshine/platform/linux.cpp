@@ -160,7 +160,7 @@ struct x11_attr_t : public display_t {
     if(width != xattr.width || height != xattr.height) {
       return capture_e::reinit;
     }
-    
+
     XImage *img { XGetImage(
       xdisplay.get(),
       xwindow,
