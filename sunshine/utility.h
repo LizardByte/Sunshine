@@ -451,7 +451,7 @@ public:
     other._own_ptr = false;
   }
 
-  wrap_ptr &operator=(wrap_ptr &&other) {
+  wrap_ptr &operator=(wrap_ptr &&other) noexcept {
     if(_own_ptr) {
       delete _p;
     }
@@ -482,6 +482,14 @@ public:
     _own_ptr = false;
 
     return *this;
+  }
+
+  ~wrap_ptr() {
+    if(_own_ptr) {
+      delete _p;
+    }
+
+    _own_ptr = false;
   }
 
   const reference operator*() const {

@@ -545,7 +545,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   ctx->keyint_min = ctx->gop_size;
 
   if(config.numRefFrames == 0) {
-    ctx->refs = video_format[encoder_t::REF_FRAMES_AUTOSELECT] ? 0 : 1;
+    ctx->refs = video_format[encoder_t::REF_FRAMES_AUTOSELECT] ? 0 : 16;
   }
   else {
     // Some client decoders have limits on the number of reference frames
@@ -987,6 +987,7 @@ void capture_async(
 
   int frame_nr = 1;
   int key_frame_nr = 1;
+
   while(!shutdown_event->peek() && images->running()) {
     // Wait for the display to be ready
     std::shared_ptr<platf::display_t> display;
@@ -1028,7 +1029,8 @@ void capture(
   idr_event_t idr_events,
   config_t config,
   void *channel_data) {
-  
+
+  idr_events->raise(std::make_pair(0, 1));
   if(encoders.front().system_memory) {
     capture_async(shutdown_event, packets, idr_events, config, channel_data);
   }
