@@ -904,7 +904,6 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
         continue;
       }
 
-      sws_t sws;
       if(pos->img_tmp) {
         if(pos->hwdevice->convert(*pos->img_tmp)) {
           BOOST_LOG(error) << "Could not convert image"sv;
@@ -989,6 +988,11 @@ void capture_async(
   int key_frame_nr = 1;
 
   while(!shutdown_event->peek() && images->running()) {
+    // Wait for the main capture event when the display is being reinitialized
+    if(ref->reinit_event.peek()) {
+      std::this_thread::sleep_for(100ms);
+      continue;
+    }
     // Wait for the display to be ready
     std::shared_ptr<platf::display_t> display;
     {
