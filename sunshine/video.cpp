@@ -1255,7 +1255,10 @@ util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice
   auto ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)ctx_buf->data)->hwctx;
   
   std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
-  std::swap(ctx->device, *(ID3D11Device**)&hwdevice_ctx->data);
+
+  auto device = (ID3D11Device*)hwdevice_ctx->data;
+  device->AddRef();
+  ctx->device = device;
 
   auto err = av_hwdevice_ctx_init(ctx_buf.get());
   if(err) {
