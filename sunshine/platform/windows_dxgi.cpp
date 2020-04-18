@@ -326,7 +326,11 @@ public:
     ctx->VideoProcessorSetOutputColorSpace(processor.get(), (D3D11_VIDEO_PROCESSOR_COLOR_SPACE*)&colorspace);
   }
 
-  int init(std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p, int in_width, int in_height, int out_width, int out_height) {
+  int init(
+    std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p,
+    int in_width, int in_height, int out_width, int out_height,
+    pix_fmt_e pix_fmt
+  ) {
     HRESULT status;
 
     platf::hwdevice_t::img = &img;
@@ -377,13 +381,13 @@ public:
     t.ArraySize = 1;
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_DEFAULT;
-    t.Format = DXGI_FORMAT_NV12;
+    t.Format = pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010;
     t.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_VIDEO_ENCODER;
 
     dxgi::texture2d_t::pointer tex_p {};
     status = device_p->CreateTexture2D(&t, nullptr, &tex_p);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to create video output texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -823,6 +827,7 @@ public:
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_DEFAULT;
     t.Format = format;
+    t.BindFlags = D3D11_BIND_RENDER_TARGET;
 
     dxgi::texture2d_t::pointer tex_p {};
     auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
@@ -861,6 +866,7 @@ public:
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_DEFAULT;
     t.Format = format;
+    t.BindFlags = D3D11_BIND_RENDER_TARGET;
 
     dxgi::texture2d_t::pointer tex_p {};
     auto status = device->CreateTexture2D(&t, &data, &tex_p);
@@ -879,7 +885,7 @@ public:
   }
 
   std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) override {
-    if(pix_fmt != platf::pix_fmt_e::nv12) {
+    if(pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
       BOOST_LOG(error) << "display_gpu_t doesn't support pixel format ["sv << (int)pix_fmt << ']';
 
       return nullptr;
@@ -892,7 +898,8 @@ public:
       device.get(),
       device_ctx.get(),
       this->width, this->height,
-      width, height);
+      width, height,
+      pix_fmt);
 
     if(ret) {
       return nullptr;

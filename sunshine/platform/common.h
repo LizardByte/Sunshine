@@ -39,6 +39,7 @@ enum class pix_fmt_e {
   yuv420p,
   yuv420p10,
   nv12,
+  p010,
   unknown
 };
 

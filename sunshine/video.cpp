@@ -213,7 +213,7 @@ struct sync_session_t {
   sync_session_ctx_t *ctx;
   
   std::chrono::steady_clock::time_point next_frame;
-  std::chrono::milliseconds delay;
+  std::chrono::nanoseconds delay;
 
   platf::img_t *img_tmp;
   std::shared_ptr<platf::hwdevice_t> hwdevice;
@@ -256,7 +256,7 @@ static encoder_t nvenc {
   { (int)nv::profile_h264_e::high, (int)nv::profile_hevc_e::main, (int)nv::profile_hevc_e::main_10 },
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
-  AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
       { "forced-idr"s, 1 },
@@ -767,7 +767,7 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   encode_session.ctx = &ctx;
   encode_session.next_frame = std::chrono::steady_clock::now();
 
-  encode_session.delay = 1000ms / ctx.config.framerate;
+  encode_session.delay = std::chrono::nanoseconds { 1s } / ctx.config.framerate;
 
   auto pix_fmt = ctx.config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
   auto hwdevice = disp->make_hwdevice(ctx.config.width, ctx.config.height, pix_fmt);
@@ -1327,6 +1327,8 @@ platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt) {
       return platf::pix_fmt_e::yuv420p;
     case AV_PIX_FMT_NV12:
       return platf::pix_fmt_e::nv12;
+    case AV_PIX_FMT_P010:
+      return platf::pix_fmt_e::p010;
     default:
       return platf::pix_fmt_e::unknown;
   }
