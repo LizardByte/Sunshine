@@ -135,6 +135,51 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	- cmd <optional>: The main application
 		- If not specified, a processs is started that sleeps indefinitely
 
-When an application is started, if there is an application already running, it will be terminated.
-When the application has been shutdown, the stream shuts down as well.
-In addition to the apps listed, one app "Desktop" is hardcoded into Sunshine. It does not start an application, instead it simply starts a stream.
+1. When an application is started, if there is an application already running, it will be terminated.
+2. When the application has been shutdown, the stream shuts down as well.
+3. In addition to the apps listed, one app "Desktop" is hardcoded into Sunshine. It does not start an application, instead it simply starts a stream.
+
+Linux
+```json
+{
+	"env":{ 
+		"DISPLAY":":0",
+		"DRI_PRIME":"1",
+		"XAUTHORITY":"$(HOME)/.Xauthority",
+		"PATH":"$(PATH):$(HOME)/.local/bin"
+	},
+	"apps":[
+	{
+		"name":"Low Res Desktop",
+		"prep-cmd":[
+		{ "do":"xrandr --output HDMI-1 --mode 1920x1080", "undo":"xrandr --output HDMI-1 --mode 1920x1200" }
+		]
+	},
+	{
+		"name":"Steam BigPicture",
+
+		"output":"steam.txt",
+		"cmd":"steam -bigpicture",
+		"prep-cmd":[]
+	}
+	]
+}
+```
+Windows
+```json
+{
+	"env":{
+		"PATH":"$(PATH);C:\\Program Files (x86)\\Steam"
+	},
+	"apps":[
+	{
+		"name":"Steam BigPicture",
+
+		"output":"steam.txt",
+		"prep-cmd":[
+			{"do":"steam \"steam://open/bigpicture\""}
+		]
+	}
+	]
+}
+```
