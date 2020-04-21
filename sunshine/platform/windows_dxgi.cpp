@@ -138,6 +138,12 @@ struct cursor_t {
   bool visible;
 };
 
+struct gpu_cursor_t {
+  texture2d_t texture;
+
+  LONG width, height;
+};
+
 void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
   int height = cursor.shape_info.Height / 2;
   int width  = cursor.shape_info.Width;
@@ -290,8 +296,63 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
+std::vector<std::uint8_t> make_cursor_image(std::vector<std::uint8_t> &&img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info)  {
+  switch(shape_info.Type) {
+    case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
+    case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
+      return std::move(img_data);
+    default:
+      break;
+  }
+
+  shape_info.Height /= 2;
+
+  std::vector<std::uint8_t> cursor_img;
+  cursor_img.resize(shape_info.Width * shape_info.Height * 4);
+  std::fill_n((std::uint32_t*)cursor_img.data(), cursor_img.size() / sizeof(std::uint32_t), 0x99888888);
+
+  return cursor_img;
+}
+
 class hwdevice_t : public platf::hwdevice_t {
 public:
+  hwdevice_t(std::vector<hwdevice_t*> *hwdevices_p) : hwdevices_p { hwdevices_p } {}
+  hwdevice_t() = delete;
+
+  void set_cursor_pos(LONG rel_x, LONG rel_y, bool visible) {
+    LONG x = ((float)rel_x) / in_width * out_width;
+    LONG y = ((float)rel_y) / in_height * out_height;
+
+    // Ensure it's within bounds
+    auto left   = std::min<LONG>(out_width, std::max<LONG>(0, x));
+    auto top    = std::min<LONG>(out_height, std::max<LONG>(0, y));
+    auto right  = std::max<LONG>(0, std::min<LONG>(out_width, x + cursor_width));
+    auto bottom = std::max<LONG>(0, std::min<LONG>(out_height, y + cursor_height));
+
+    RECT rect { left, top, right, bottom };
+    ctx->VideoProcessorSetStreamDestRect(processor.get(), 1, TRUE, &rect);
+
+    cursor_visible = visible;
+  }
+
+  int set_cursor_texture(texture2d_t::pointer texture, LONG width, LONG height) {
+    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_desc = { 0, (D3D11_VPIV_DIMENSION)D3D11_VPIV_DIMENSION_TEXTURE2D, { 0, 0 } };
+
+    video::processor_in_t::pointer processor_in_p;
+    auto status = device->CreateVideoProcessorInputView(texture, processor_e.get(), &input_desc, &processor_in_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create cursor VideoProcessorInputView [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    cursor_in.reset(processor_in_p);
+
+    cursor_width = ((float)width) / in_width * out_width;
+    cursor_height = ((float)height) / in_height * out_height;
+
+    return 0;
+  }
+
   int convert(platf::img_t &img_base) override {
     auto &img = (img_d3d_t&)img_base;
 
@@ -302,17 +363,19 @@ public:
       video::processor_in_t::pointer processor_in_p;
       auto status = device->CreateVideoProcessorInputView(img.texture.get(), processor_e.get(), &input_desc, &processor_in_p);
       if(FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create VideoProcessorInputView [0x"sv
-         << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create VideoProcessorInputView [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
       it = texture_to_processor_in.emplace(img.texture.get(), processor_in_p).first;
     }
     auto &processor_in = it->second;
 
-    D3D11_VIDEO_PROCESSOR_STREAM stream { TRUE, 0, 0, 0, 0, nullptr, processor_in.get(), nullptr };
+    D3D11_VIDEO_PROCESSOR_STREAM stream[] {
+      { TRUE, 0, 0, 0, 0, nullptr, processor_in.get(), nullptr },
+      { TRUE, 0, 0, 0, 0, nullptr, cursor_in.get(), nullptr }
+    };
 
-    auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, 1, &stream);
+    auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, cursor_visible ? 2 : 1, stream);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed size and color conversion [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -333,7 +396,14 @@ public:
   ) {
     HRESULT status;
 
+    cursor_visible = false;
+
     platf::hwdevice_t::img = &img;
+
+    this->out_width  = out_width;
+    this->out_height = out_height;
+    this->in_width   = in_width;
+    this->in_height  = in_height;
 
     video::device_t::pointer vdevice_p;
     status = device_p->QueryInterface(IID_ID3D11VideoDevice, (void**)&vdevice_p);
@@ -401,12 +471,15 @@ public:
 
     D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC output_desc { D3D11_VPOV_DIMENSION_TEXTURE2D, 0 };
     video::processor_out_t::pointer processor_out_p;
-    status = device->CreateVideoProcessorOutputView(tex_p, processor_e.get(), &output_desc, &processor_out_p);
+    status = device->CreateVideoProcessorOutputView(img.texture.get(), processor_e.get(), &output_desc, &processor_out_p);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create VideoProcessorOutputView [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
     processor_out.reset(processor_out_p);
+
+    // Tell video processor alpha values need to be enabled
+    ctx->VideoProcessorSetStreamAlpha(processor.get(), 1, TRUE, 1.0f);
 
     device_p->AddRef();
     data = device_p;
@@ -417,6 +490,11 @@ public:
     if(data) {
       ((ID3D11Device*)data)->Release();
     }
+
+    auto it = std::find(std::begin(*hwdevices_p), std::end(*hwdevices_p), this);
+    if(it != std::end(*hwdevices_p)) {
+      hwdevices_p->erase(it);
+    }
   }
 
   img_d3d_t img;
@@ -426,6 +504,16 @@ public:
   video::processor_t processor;
   video::processor_out_t processor_out;
   std::unordered_map<texture2d_t::pointer, video::processor_in_t> texture_to_processor_in;
+
+  video::processor_in_t cursor_in;
+
+  bool cursor_visible;
+  LONG cursor_width, cursor_height;
+
+  float out_width, out_height;
+  float in_width, in_height;
+
+  std::vector<hwdevice_t*> *hwdevices_p;
 };
 
 class display_base_t : public ::platf::display_t {
@@ -797,9 +885,70 @@ public:
       return capture_status;
     }
 
-    const bool update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
+    const bool update_flag =
+      frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0 ||
+      frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
+
     if(!update_flag) {
       return capture_e::timeout;
+    }
+
+    if(frame_info.PointerShapeBufferSize > 0) {
+      DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info {};
+
+      std::vector<std::uint8_t> img_data;
+      img_data.resize(frame_info.PointerShapeBufferSize);
+
+      UINT dummy;
+      status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &shape_info);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return capture_e::error;
+      }
+
+      auto cursor_img = make_cursor_image(std::move(img_data), shape_info);
+
+      D3D11_SUBRESOURCE_DATA data {
+        cursor_img.data(),
+        4 * shape_info.Width,
+        0
+      };
+
+      // Create texture for cursor
+      D3D11_TEXTURE2D_DESC t {};
+      t.Width  = shape_info.Width;
+      t.Height = cursor_img.size() / data.SysMemPitch;
+      t.MipLevels = 1;
+      t.ArraySize = 1;
+      t.SampleDesc.Count = 1;
+      t.Usage = D3D11_USAGE_DEFAULT;
+      t.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+      t.BindFlags = D3D11_BIND_RENDER_TARGET;
+
+      dxgi::texture2d_t::pointer tex_p {};
+      auto status = device->CreateTexture2D(&t, &data, &tex_p);
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create dummy texture [0x"sv << util::hex(status).to_string_view() << ']';
+        return capture_e::error;
+      }
+      texture2d_t texture { tex_p };
+
+      for(auto *hwdevice : hwdevices) {
+        if(hwdevice->set_cursor_texture(tex_p, t.Width, t.Height)) {
+          return capture_e::error;
+        }
+      }
+
+      cursor.texture = std::move(texture);
+      cursor.width   = t.Width;
+      cursor.height  = t.Height;
+    }
+
+    if(frame_info.LastMouseUpdateTime.QuadPart) {
+      for(auto *hwdevice : hwdevices) {
+        hwdevice->set_cursor_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible && cursor_visible);
+      }
     }
 
     texture2d_t::pointer src_p {};
@@ -891,7 +1040,7 @@ public:
       return nullptr;
     }
 
-    auto hwdevice = std::make_shared<hwdevice_t>();
+    auto hwdevice = std::make_shared<hwdevice_t>(&hwdevices);
 
     auto ret = hwdevice->init(
       shared_from_this(),
@@ -905,8 +1054,17 @@ public:
       return nullptr;
     }
 
+    if(cursor.texture && hwdevice->set_cursor_texture(cursor.texture.get(), cursor.width, cursor.height)) {
+      return nullptr;
+    }
+
+    hwdevices.emplace_back(hwdevice.get());
+
     return hwdevice;
   }
+
+  gpu_cursor_t cursor;
+  std::vector<hwdevice_t*> hwdevices;
 };
 
 const char *format_str[] = {
