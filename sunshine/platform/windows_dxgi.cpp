@@ -296,7 +296,7 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
-std::vector<std::uint8_t> make_cursor_image(std::vector<std::uint8_t> &&img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info)  {
+util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info)  {
   switch(shape_info.Type) {
     case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
     case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
@@ -307,9 +307,69 @@ std::vector<std::uint8_t> make_cursor_image(std::vector<std::uint8_t> &&img_data
 
   shape_info.Height /= 2;
 
-  std::vector<std::uint8_t> cursor_img;
-  cursor_img.resize(shape_info.Width * shape_info.Height * 4);
-  std::fill_n((std::uint32_t*)cursor_img.data(), cursor_img.size() / sizeof(std::uint32_t), 0x99888888);
+  util::buffer_t<std::uint8_t> cursor_img { shape_info.Width * shape_info.Height * 4 };
+
+  auto bytes = shape_info.Pitch * shape_info.Height;
+  auto pixel_begin = (std::uint32_t*)std::begin(cursor_img);
+  auto pixel_data = pixel_begin;
+  auto and_mask = std::begin(img_data);
+  auto xor_mask = std::begin(img_data) + bytes;
+
+  for(auto x = 0; x < bytes; ++x)  {
+    for(auto c = 7; c >= 0; --c) {
+      auto bit = 1 << c;
+      auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
+
+      constexpr std::uint32_t black = 0xFF000000;
+      constexpr std::uint32_t white = 0xFFFFFFFF;
+      constexpr std::uint32_t transparent = 0;
+      switch(color_type) {
+        case 0: //black
+          *pixel_data = black;
+          break;
+        case 2: //white
+          *pixel_data = white;
+          break;
+        case 1: //transparent
+        {
+          *pixel_data = transparent;
+
+          break;
+        }
+        case 3: //inverse
+        {
+          auto top_p    = pixel_data - shape_info.Width;
+          auto left_p   = pixel_data - 1;
+          auto right_p  = pixel_data + 1;
+          auto bottom_p = pixel_data + shape_info.Width;
+
+          // Get the x coordinate of the pixel
+          auto column = (pixel_data - pixel_begin) % shape_info.Width != 0;
+
+          if(top_p >= pixel_begin && *top_p == transparent) {
+            *top_p = black;
+          }
+
+          if(column != 0 && left_p >= pixel_begin && *left_p == transparent) {
+            *left_p = black;
+          }
+
+          if(bottom_p < (std::uint32_t*)std::end(cursor_img)) {
+            *bottom_p = black;
+          }
+
+          if(column != shape_info.Width -1) {
+            *right_p = black;
+          }
+          *pixel_data = white;
+        }
+      }
+
+      ++pixel_data;
+    }
+    ++and_mask;
+    ++xor_mask;
+  }
 
   return cursor_img;
 }
@@ -896,11 +956,10 @@ public:
     if(frame_info.PointerShapeBufferSize > 0) {
       DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info {};
 
-      std::vector<std::uint8_t> img_data;
-      img_data.resize(frame_info.PointerShapeBufferSize);
+      util::buffer_t<std::uint8_t> img_data { frame_info.PointerShapeBufferSize };
 
       UINT dummy;
-      status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &shape_info);
+      status = dup.dup->GetFramePointerShape(img_data.size(), std::begin(img_data), &dummy, &shape_info);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -910,7 +969,7 @@ public:
       auto cursor_img = make_cursor_image(std::move(img_data), shape_info);
 
       D3D11_SUBRESOURCE_DATA data {
-        cursor_img.data(),
+        std::begin(cursor_img),
         4 * shape_info.Width,
         0
       };
