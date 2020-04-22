@@ -380,6 +380,12 @@ public:
   hwdevice_t() = delete;
 
   void set_cursor_pos(LONG rel_x, LONG rel_y, bool visible) {
+    cursor_visible = visible;
+
+    if(!visible) {
+      return;
+    }
+
     LONG x = ((double)rel_x) * out_width / (double)in_width;
     LONG y = ((double)rel_y) * out_height / (double)in_height;
 
@@ -399,8 +405,6 @@ public:
 
     ctx->VideoProcessorSetStreamSourceRect(processor.get(), 1, TRUE, &rect_in);
     ctx->VideoProcessorSetStreamDestRect(processor.get(), 1, TRUE, &rect_out);
-
-    cursor_visible = visible;
   }
 
   int set_cursor_texture(texture2d_t::pointer texture, LONG width, LONG height) {
