@@ -380,17 +380,25 @@ public:
   hwdevice_t() = delete;
 
   void set_cursor_pos(LONG rel_x, LONG rel_y, bool visible) {
-    LONG x = ((float)rel_x) / in_width * out_width;
-    LONG y = ((float)rel_y) / in_height * out_height;
+    LONG x = ((double)rel_x) * out_width / (double)in_width;
+    LONG y = ((double)rel_y) * out_height / (double)in_height;
 
     // Ensure it's within bounds
-    auto left   = std::min<LONG>(out_width, std::max<LONG>(0, x));
-    auto top    = std::min<LONG>(out_height, std::max<LONG>(0, y));
-    auto right  = std::max<LONG>(0, std::min<LONG>(out_width, x + cursor_width));
-    auto bottom = std::max<LONG>(0, std::min<LONG>(out_height, y + cursor_height));
+    auto left_out   = std::min<LONG>(out_width, std::max<LONG>(0, x));
+    auto top_out    = std::min<LONG>(out_height, std::max<LONG>(0, y));
+    auto right_out  = std::max<LONG>(0, std::min<LONG>(out_width, x + cursor_scaled_width));
+    auto bottom_out = std::max<LONG>(0, std::min<LONG>(out_height, y + cursor_scaled_height));
 
-    RECT rect { left, top, right, bottom };
-    ctx->VideoProcessorSetStreamDestRect(processor.get(), 1, TRUE, &rect);
+    auto left_in   = std::max<LONG>(0, -rel_x);
+    auto top_in    = std::max<LONG>(0, -rel_y);
+    auto right_in  = std::min<LONG>(in_width - rel_x, cursor_width);
+    auto bottom_in = std::min<LONG>(in_height - rel_y, cursor_height);
+
+    RECT rect_in { left_in, top_in, right_in, bottom_in };
+    RECT rect_out { left_out, top_out, right_out, bottom_out };
+
+    ctx->VideoProcessorSetStreamSourceRect(processor.get(), 1, TRUE, &rect_in);
+    ctx->VideoProcessorSetStreamDestRect(processor.get(), 1, TRUE, &rect_out);
 
     cursor_visible = visible;
   }
@@ -407,8 +415,10 @@ public:
 
     cursor_in.reset(processor_in_p);
 
-    cursor_width = ((float)width) / in_width * out_width;
-    cursor_height = ((float)height) / in_height * out_height;
+    cursor_width  = width;
+    cursor_height = height;
+    cursor_scaled_width = ((double)width) / in_width * out_width;
+    cursor_scaled_height = ((double)height) / in_height * out_height;
 
     return 0;
   }
@@ -568,10 +578,12 @@ public:
   video::processor_in_t cursor_in;
 
   bool cursor_visible;
-  LONG cursor_width, cursor_height;
 
-  float out_width, out_height;
-  float in_width, in_height;
+  LONG cursor_width, cursor_height;
+  LONG cursor_scaled_width, cursor_scaled_height;
+
+  LONG in_width, in_height;
+  double out_width, out_height;
 
   std::vector<hwdevice_t*> *hwdevices_p;
 };
