@@ -2,10 +2,6 @@
 // Created by loki on 1/12/20.
 //
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-}
-
 #include <codecvt>
 
 #include "sunshine/config.h"
