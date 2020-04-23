@@ -2,7 +2,7 @@
 // Created by loki on 6/21/19.
 //
 
-#include "common.h"
+#include "sunshine/platform/common.h"
 
 #include <fstream>
 #include <bitset>

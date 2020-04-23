@@ -85,8 +85,8 @@ else()
 
 	find_package(X11 REQUIRED)
 	set(PLATFORM_TARGET_FILES
-		sunshine/platform/linux.cpp
-		sunshine/platform/linux_evdev.cpp)
+		sunshine/platform/linux/display.cpp
+		sunshine/platform/linux/input.cpp)
 	
 	set(PLATFORM_LIBRARIES
 		Xfixes
