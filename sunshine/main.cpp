@@ -140,7 +140,9 @@ int main(int argc, char *argv[]) {
   auto deinit_guard = platf::init();
   input::init();
   reed_solomon_init();
-  video::init();
+  if(video::init()) {
+    return 2;
+  }
 
   task_pool.start(1);
 

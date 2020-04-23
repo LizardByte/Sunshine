@@ -57,7 +57,7 @@ void capture(
   config_t config,
   void *channel_data);
 
-void init();
+int init();
 }
 
 #endif //SUNSHINE_VIDEO_H

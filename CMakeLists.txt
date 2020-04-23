@@ -57,9 +57,12 @@ if(WIN32)
 	include_directories(
 		ViGEmClient/include)
 	set(PLATFORM_TARGET_FILES
-		sunshine/platform/windows.cpp
-		sunshine/platform/windows_dxgi.cpp
-		sunshine/platform/windows_wasapi.cpp
+		sunshine/platform/windows/input.cpp
+		sunshine/platform/windows/display.h
+		sunshine/platform/windows/display_base.cpp
+		sunshine/platform/windows/display_vram.cpp
+		sunshine/platform/windows/display_ram.cpp
+		sunshine/platform/windows/audio.cpp
 		ViGEmClient/src/ViGEmClient.cpp
 		ViGEmClient/include/ViGEm/Client.h
 		ViGEmClient/include/ViGEm/Common.h
@@ -82,8 +85,8 @@ else()
 
 	find_package(X11 REQUIRED)
 	set(PLATFORM_TARGET_FILES
-		sunshine/platform/linux.cpp
-		sunshine/platform/linux_evdev.cpp)
+		sunshine/platform/linux/display.cpp
+		sunshine/platform/linux/input.cpp)
 	
 	set(PLATFORM_LIBRARIES
 		Xfixes

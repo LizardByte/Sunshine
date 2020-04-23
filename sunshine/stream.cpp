@@ -494,8 +494,11 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
 
       server->send(std::string_view {(char*)payload.data(), payload.size()});
 
-      shutdown_event->raise(true);
-      continue;
+      auto lg = server->_map_addr_session.lock();
+      for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
+        auto session = pos->second.second;
+        session->shutdown_event.raise(true);
+      }
     }
 
     server->iterate(500ms);
@@ -614,8 +617,6 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
         frame_new = "\000\000\000\001("sv;
       }
 
-      assert(std::search(std::begin(payload), std::end(payload), std::begin(frame_new), std::end(frame_new)) ==
-             std::end(payload));
       payload_new = replace(payload, frame_old, frame_new);
       payload = {(char *) payload_new.data(), payload_new.size()};
     }

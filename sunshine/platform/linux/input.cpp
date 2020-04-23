@@ -9,7 +9,7 @@
 #include <cstring>
 #include <filesystem>
 
-#include "common.h"
+#include "sunshine/platform/common.h"
 #include "sunshine/main.h"
 #include "sunshine/utility.h"
 

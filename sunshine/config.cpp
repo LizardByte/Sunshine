@@ -15,17 +15,97 @@
 #define APPS_JSON_PATH SUNSHINE_ASSETS_DIR "/" APPS_JSON
 namespace config {
 using namespace std::literals;
+
+namespace nv {
+enum preset_e : int {
+  _default = 0,
+  slow,
+  medium,
+  fast,
+  hp,
+  hq,
+  bd,
+  ll_default,
+  llhq,
+  llhp,
+  lossless_default, // lossless presets must be the last ones
+  lossless_hp,
+};
+
+enum rc_e : int {
+  constqp   = 0x0,       /**< Constant QP mode */
+  vbr       = 0x1,       /**< Variable bitrate mode */
+  cbr       = 0x2,       /**< Constant bitrate mode */
+  cbr_ld_hq = 0x8,       /**< low-delay CBR, high quality */
+  cbr_hq    = 0x10,      /**< CBR, high quality (slower) */
+  vbr_hq    = 0x20       /**< VBR, high quality (slower) */
+};
+
+enum coder_e : int {
+  _auto = 0,
+  cabac,
+  cavlc
+};
+
+std::optional<preset_e> preset_from_view(const std::string_view &preset) {
+#define _CONVERT_(x) if(preset == #x##sv) return x
+  _CONVERT_(slow);
+  _CONVERT_(medium);
+  _CONVERT_(fast);
+  _CONVERT_(hp);
+  _CONVERT_(bd);
+  _CONVERT_(ll_default);
+  _CONVERT_(llhq);
+  _CONVERT_(llhp);
+  _CONVERT_(lossless_default);
+  _CONVERT_(lossless_hp);
+  if(preset == "default"sv) return _default;
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+std::optional<rc_e> rc_from_view(const std::string_view &rc) {
+#define _CONVERT_(x) if(rc == #x##sv) return x
+  _CONVERT_(constqp);
+  _CONVERT_(vbr);
+  _CONVERT_(cbr);
+  _CONVERT_(cbr_hq);
+  _CONVERT_(vbr_hq);
+  _CONVERT_(cbr_ld_hq);
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+int coder_from_view(const std::string_view &coder) {
+  if(coder == "auto"sv) return _auto;
+  if(coder == "cabac"sv  || coder == "ac"sv) return cabac;
+  if(coder == "cavlc"sv  || coder == "vlc"sv) return cavlc;
+
+  return -1;
+}
+}
+
 video_t video {
   0, // crf
   28, // qp
 
-  2, // min_threads
-
   0, // hevc_mode
-  "superfast"s, // preset
-  "zerolatency"s, // tune
+
+  1, // min_threads
+  {
+    "superfast"s, // preset
+    "zerolatency"s, // tune
+  }, // software
+
+  {
+    nv::llhq,
+    std::nullopt,
+    -1
+  }, // nv
+
+  {}, // encoder
   {}, // adapter_name
-  {} // output_name
+  {}  // output_name
 };
 
 audio_t audio {};
@@ -138,6 +218,37 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
   vars.erase(it);
 }
 
+void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input) {
+  auto it = vars.find(name);
+
+  if(it == std::end(vars)) {
+    return;
+  }
+
+  auto &val = it->second;
+  input = util::from_chars(&val[0], &val[0] + val.size());
+
+  vars.erase(it);
+}
+
+template<class F>
+void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, F &&f) {
+  std::string tmp;
+  string_f(vars, name, tmp);
+  if(!tmp.empty()) {
+    input = f(tmp);
+  }
+}
+
+template<class F>
+void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input, F &&f) {
+  std::string tmp;
+  string_f(vars, name, tmp);
+  if(!tmp.empty()) {
+    input = f(tmp);
+  }
+}
+
 void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
   int temp = input;
 
@@ -147,6 +258,28 @@ void int_between_f(std::unordered_map<std::string, std::string> &vars, const std
   if(temp >= lower && temp <= upper) {
     input = temp;
   }
+}
+
+bool to_bool(std::string &boolean) {
+  std::for_each(std::begin(boolean), std::end(boolean), [](char ch)  { return (char)std::tolower(ch);  });
+
+  return
+    boolean == "true"sv   ||
+    boolean == "yes"sv    ||
+    boolean == "enable"sv ||
+    (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
+}
+void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string  &name, int &input) {
+  std::string tmp;
+  string_restricted_f(vars, name, tmp, {
+    "enable"sv, "dis"
+  });
+
+  if(tmp.empty()) {
+    return;
+  }
+
+  input = to_bool(tmp) ? 1 : 0;
 }
 
 void print_help(const char *name) {
@@ -190,10 +323,14 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "qp", video.qp);
   int_f(vars, "min_threads", video.min_threads);
   int_between_f(vars, "hevc_mode", video.hevc_mode, {
-    0, 2
+    0, 3
   });
-  string_f(vars, "preset", video.preset);
-  string_f(vars, "tune", video.tune);
+  string_f(vars, "sw_preset", video.sw.preset);
+  string_f(vars, "sw_tune", video.sw.tune);
+  int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
+  int_f(vars, "nv_rc", video.nv.preset, nv::rc_from_view);
+  int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+  string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
 

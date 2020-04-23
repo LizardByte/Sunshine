@@ -10,7 +10,7 @@
 #include <ViGEm/Client.h>
 
 #include "sunshine/main.h"
-#include "common.h"
+#include "sunshine/platform/common.h"
 
 namespace platf {
 using namespace std::literals;
@@ -329,6 +329,10 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     log_flush();
     std::abort();
   }
+}
+
+int thread_priority()  {
+  return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) ? 0 : 1;
 }
 
 void freeInput(void *p) {
