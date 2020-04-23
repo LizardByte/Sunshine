@@ -12,7 +12,7 @@
 
 #include "sunshine/config.h"
 #include "sunshine/main.h"
-#include "common.h"
+#include "sunshine/platform/common.h"
 
 const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
 const IID IID_IMMDeviceEnumerator    = __uuidof(IMMDeviceEnumerator);

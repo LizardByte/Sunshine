@@ -10,7 +10,7 @@
 #include <ViGEm/Client.h>
 
 #include "sunshine/main.h"
-#include "common.h"
+#include "sunshine/platform/common.h"
 
 namespace platf {
 using namespace std::literals;
