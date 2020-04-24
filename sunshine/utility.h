@@ -515,13 +515,7 @@ class buffer_t {
 public:
   buffer_t() : _els { 0 } {};
   buffer_t(buffer_t&&) noexcept = default;
-  buffer_t &operator=(buffer_t&& other) noexcept {
-    std::swap(_els, other._els);
-
-    _buf = std::move(other._buf);
-
-    return *this;
-  };
+  buffer_t &operator=(buffer_t&& other) noexcept = default;
 
   explicit buffer_t(size_t elements) : _els { elements }, _buf { std::make_unique<T[]>(elements) } {}
   explicit buffer_t(size_t elements, const T &t) : _els { elements }, _buf { std::make_unique<T[]>(elements) } {

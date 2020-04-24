@@ -767,7 +767,7 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
     }
   }
 
-  auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>();
+  auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>(30);
 
   // Ugly hack for verifying certificates, see crypto::cert_chain_t::verify() for details
   ctx->set_verify_callback([&cert_chain, add_cert](int verified, boost::asio::ssl::verify_context &ctx) {

@@ -718,9 +718,9 @@ void audioBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, aud
 }
 
 int start_broadcast(broadcast_ctx_t &ctx) {
-  ctx.video_packets = std::make_shared<video::packet_queue_t::element_type>();
-  ctx.audio_packets = std::make_shared<audio::packet_queue_t::element_type>();
-  ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>();
+  ctx.video_packets = std::make_shared<video::packet_queue_t::element_type>(30);
+  ctx.audio_packets = std::make_shared<audio::packet_queue_t::element_type>(30);
+  ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
   ctx.video_thread = std::thread { videoBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.video_sock), ctx.video_packets };
   ctx.audio_thread = std::thread { audioBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.audio_sock), ctx.audio_packets };
@@ -763,7 +763,7 @@ void end_broadcast(broadcast_ctx_t &ctx) {
 int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &addr, std::chrono::milliseconds timeout) {
   auto constexpr ping = "PING"sv;
 
-  auto messages = std::make_shared<message_queue_t::element_type>();
+  auto messages = std::make_shared<message_queue_t::element_type>(30);
   ref->message_queue_queue->raise(type, addr, messages);
 
   auto fg = util::fail_guard([&]() {

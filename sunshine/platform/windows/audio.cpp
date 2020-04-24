@@ -319,18 +319,11 @@ public:
 }
 
 namespace platf {
-class dummy_mic_t : public mic_t {
-public:
-  capture_e sample(std::vector<std::int16_t> &sample_buf) override {
-    return capture_e::ok;
-  }
-};
-
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   auto mic = std::make_unique<audio::mic_wasapi_t>();
 
   if(mic->init(sample_rate)) {
-    return std::make_unique<dummy_mic_t>();
+    return nullptr;
   }
 
   return mic;

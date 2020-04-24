@@ -26,7 +26,12 @@ public:
       return;
     }
 
-    _status = status_t { std::forward<Args>(args)... };
+    if constexpr (std::is_same_v<std::optional<T>, status_t>) {
+      _status = std::make_optional<T>(std::forward<Args>(args)...);
+    }
+    else {
+      _status = status_t { std::forward<Args>(args)... };
+    }
 
     _cv.notify_all();
   }
@@ -74,7 +79,7 @@ public:
 
   // pop and view shoud not be used interchangebly
   const status_t &view() {
-    std::unique_lock ul{ _lock };
+    std::unique_lock ul { _lock };
 
     if (!_continue) {
       return util::false_v<status_t>;
@@ -130,12 +135,18 @@ class queue_t {
   using status_t = util::optional_t<T>;
 
 public:
+  queue_t(std::uint32_t max_elements) : _max_elements { max_elements } {}
+
   template<class ...Args>
   void raise(Args &&... args) {
-    std::lock_guard lg{_lock};
+    std::lock_guard ul { _lock };
 
     if(!_continue) {
       return;
+    }
+
+    if(_queue.size() == _max_elements) {
+      _queue.clear();
     }
 
     _queue.emplace_back(std::forward<Args>(args)...);
@@ -151,7 +162,7 @@ public:
 
   template<class Rep, class Period>
   status_t pop(std::chrono::duration<Rep, Period> delay) {
-    std::unique_lock ul{_lock};
+    std::unique_lock ul { _lock };
 
     if (!_continue) {
       return util::false_v<status_t>;
@@ -170,7 +181,7 @@ public:
   }
 
   status_t pop() {
-    std::unique_lock ul{ _lock };
+    std::unique_lock ul { _lock };
 
     if (!_continue) {
       return util::false_v<status_t>;
@@ -191,12 +202,12 @@ public:
   }
 
   std::vector<T> &unsafe() {
-    std::lock_guard  { _lock };
+    std::lock_guard { _lock };
     return _queue;
   }
 
   void stop() {
-    std::lock_guard lg{ _lock };
+    std::lock_guard lg { _lock };
 
     _continue = false;
 
@@ -209,10 +220,12 @@ public:
 
 private:
 
-  bool _continue{ true };
+  bool _continue { true };
+  std::uint32_t _max_elements;
 
   std::mutex _lock;
   std::condition_variable _cv;
+
   std::vector<T> _queue;
 };
 

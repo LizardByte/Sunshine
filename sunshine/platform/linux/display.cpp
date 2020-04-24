@@ -361,12 +361,9 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
 
   int status;
 
-  const char *audio_sink = nullptr;
+  const char *audio_sink = "@DEFAULT_MONITOR@";
   if(!config::audio.sink.empty()) {
     audio_sink = config::audio.sink.c_str();
-  }
-  else {
-    audio_sink = "@DEFAULT_MONITOR@";
   }
 
   mic->mic.reset(

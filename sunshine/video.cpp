@@ -238,7 +238,7 @@ struct capture_thread_async_ctx_t {
 };
 
 struct capture_thread_sync_ctx_t {
-  encode_session_ctx_queue_t encode_session_ctx_queue;
+  encode_session_ctx_queue_t encode_session_ctx_queue { 30 };
 };
 
 int start_capture_sync(capture_thread_sync_ctx_t &ctx);
@@ -1079,7 +1079,7 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
 
   session->frame->pict_type = AV_PICTURE_TYPE_I;
 
-  auto packets = std::make_shared<packet_queue_t::element_type>();
+  auto packets = std::make_shared<packet_queue_t::element_type>(30);
   if(encode(1, session->ctx, session->frame, packets, nullptr)) {
     return false;
   }
@@ -1282,7 +1282,7 @@ int start_capture_async(capture_thread_async_ctx_t &capture_thread_ctx) {
   capture_thread_ctx.encoder_p = &encoders.front();
   capture_thread_ctx.reinit_event.reset();
 
-  capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>();
+  capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>(30);
 
   capture_thread_ctx.capture_thread = std::thread {
     captureThread,

@@ -53,15 +53,15 @@ static opus_stream_config_t HighSurround51 = {
 void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t config, void *channel_data) {
   //FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stereo;
-   opus_t opus { opus_multistream_encoder_create(
-     stream->sampleRate,
-     stream->channelCount,
-     stream->streams,
-     stream->coupledStreams,
-     stream->mapping,
-     OPUS_APPLICATION_AUDIO,
-     nullptr)
-   };
+  opus_t opus { opus_multistream_encoder_create(
+    stream->sampleRate,
+    stream->channelCount,
+    stream->streams,
+    stream->coupledStreams,
+    stream->mapping,
+    OPUS_APPLICATION_AUDIO,
+    nullptr)
+  };
 
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   while(auto sample = samples->pop()) {
@@ -76,17 +76,19 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
     }
 
     packet.fake_resize(bytes);
-    packets->raise(std::make_pair(channel_data, std::move(packet)));
+    packets->raise(channel_data, std::move(packet));
   }
 }
 
 void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t config, void *channel_data) {
-  auto samples = std::make_shared<sample_queue_t::element_type>();
+  auto samples = std::make_shared<sample_queue_t::element_type>(30);
   std::thread thread { encodeThread, packets, samples, config, channel_data };
 
   auto fg = util::fail_guard([&]() {
     samples->stop();
     thread.join();
+
+    shutdown_event->view();
   });
 
   //FIXME: Pick correct opus_stream_config_t based on config.channels
