@@ -40,6 +40,7 @@ void free_id(std::bitset<N> &gamepad_mask, int id) {
   gamepad_mask[id] = false;
 }
 
+static util::TaskPool::task_id_t task_id {};
 static std::unordered_map<short, bool> key_press {};
 static std::array<std::uint8_t, 5> mouse_press {};
 
@@ -180,11 +181,46 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
   platf::button_mouse(platf_input, button, packet->action == BUTTON_RELEASED);
 }
 
+void repeat_key(short key_code) {
+  // If key no longer pressed, stop repeating
+  if(!key_press[key_code]) {
+    task_id = nullptr;
+    return;
+  }
+
+  platf::keyboard(platf_input, key_code & 0x00FF, false);
+
+  task_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
+}
+
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x04;
 
-  key_press[packet->keyCode] = packet->keyAction != BUTTON_RELEASED;
-  platf::keyboard(platf_input, packet->keyCode & 0x00FF, packet->keyAction == BUTTON_RELEASED);
+  auto release = packet->keyAction == BUTTON_RELEASED;
+
+  auto &pressed = key_press[packet->keyCode];
+  if(!pressed) {
+    if(!release) {
+      if(task_id) {
+        task_pool.cancel(task_id);
+      }
+
+      if(config::input.key_repeat_delay.count() > 0) {
+        task_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, packet->keyCode).task_id;
+      }
+    }
+    else {
+      // Already released
+      return;
+    }
+  }
+  else if(!release) {
+    // Already pressed down key
+    return;
+  }
+
+  pressed = !release;
+  platf::keyboard(platf_input, packet->keyCode & 0x00FF, release);
 }
 
 void passthrough(platf::input_t &input, PNV_SCROLL_PACKET packet) {

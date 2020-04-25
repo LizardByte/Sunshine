@@ -112,8 +112,14 @@ public:
 
     using __return = std::invoke_result_t<Function, Args &&...>;
     using task_t   = std::packaged_task<__return()>;
-    
-    __time_point time_point = std::chrono::steady_clock::now() + duration;
+
+    __time_point time_point;
+    if constexpr (std::is_floating_point_v<X>) {
+      time_point = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
+    }
+    else {
+      time_point = std::chrono::steady_clock::now() + duration;
+    }
 
     auto bind = [task = std::forward<Function>(newTask), tuple_args = std::make_tuple(std::forward<Args>(args)...)]() mutable {
       return std::apply(task, std::move(tuple_args));

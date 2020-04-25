@@ -129,7 +129,9 @@ nvhttp_t nvhttp {
 };
 
 input_t input {
-  2s
+  2s, // back_button_timeout
+  500ms, // key_repeat_delay
+  std::chrono::duration<double> { 1 / 24.9 }  // key_repeat_period
 };
 
 sunshine_t sunshine {
@@ -271,15 +273,42 @@ bool to_bool(std::string &boolean) {
 }
 void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string  &name, int &input) {
   std::string tmp;
-  string_restricted_f(vars, name, tmp, {
-    "enable"sv, "dis"
-  });
+  string_f(vars, name, tmp);
 
   if(tmp.empty()) {
     return;
   }
 
   input = to_bool(tmp) ? 1 : 0;
+}
+
+void double_f(std::unordered_map<std::string, std::string> &vars, const std::string  &name, double &input) {
+  std::string tmp;
+  string_f(vars, name, tmp);
+
+  if(tmp.empty()) {
+    return;
+  }
+
+  char *c_str_p;
+  auto val = std::strtod(tmp.c_str(), &c_str_p);
+
+  if(c_str_p == tmp.c_str()) {
+    return;
+  }
+
+  input = val;
+}
+
+void double_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input, const std::pair<double, double> &range) {
+  double temp = input;
+
+  double_f(vars, name, temp);
+
+  TUPLE_2D_REF(lower, upper, range);
+  if(temp >= lower && temp <= upper) {
+    input = temp;
+  }
 }
 
 void print_help(const char *name) {
@@ -368,6 +397,21 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 
   if(to > std::numeric_limits<int>::min()) {
     input.back_button_timeout = std::chrono::milliseconds { to };
+  }
+
+  double repeat_frequency { 0 };
+  double_between_f(vars, "key_repeat_frequency", repeat_frequency, {
+    0, std::numeric_limits<double>::max()
+  });
+
+  if(repeat_frequency > 0) {
+    config::input.key_repeat_period = std::chrono::duration<double> {1 / repeat_frequency };
+  }
+
+  to = -1;
+  int_f(vars, "key_repeat_delay", to);
+  if(to >= 0) {
+    input.key_repeat_delay = std::chrono::milliseconds { to };
   }
 
   std::string log_level_string;
