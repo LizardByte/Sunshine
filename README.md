@@ -69,7 +69,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - `git lfs install`
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
 - `cd sunshine && mkdir build && cd build`
-- `cmake -DSUNSHINE_STANDALONE=ON -DSUNSHINE_ASSETS_DIR=assets -G"Unix Makefiles" ..`
+- `cmake -DSUNSHINE_STANDALONE=ON -G"Unix Makefiles" ..`
 - `make`
 
 
@@ -80,9 +80,9 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - run "sunshine path/to/sunshine.conf"
 - In Moonlight: Add PC manually
 - When Moonlight request you insert the correct pin on sunshine, either:
-	- `wget xxx.xxx.xxx.xxx:47989/pin/####` 
 	- Type in the URL bar of your browser: `xxx.xxx.xxx.xxx:47989/pin/####`
-	- The x's are the IP of your instance, `####` is the pin
+	- `wget xxx.xxx.xxx.xxx:47989/pin/####` 
+	  - The x's are the IP of your instance, `####` is the pin
 - Click on one of the Applications listed
 - Have fun :)
 
