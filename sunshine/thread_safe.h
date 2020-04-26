@@ -311,12 +311,14 @@ public:
   [[nodiscard]] ptr_t ref() {
     std::lock_guard lg { _lock };
 
-    if(!_count++) {
+    if(!_count) {
       new(_object_buf.data()) element_type;
       if(_construct(*reinterpret_cast<element_type*>(_object_buf.data()))) {
         return ptr_t { nullptr };
       }
     }
+
+    ++_count;
 
     return ptr_t { this };
   }

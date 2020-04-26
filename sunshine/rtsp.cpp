@@ -54,11 +54,13 @@ public:
     }
   }
 
-  void bind(std::uint16_t port) {
+  int bind(std::uint16_t port) {
     _session_slots.resize(config::stream.channels);
     _slot_count = config::stream.channels;
 
     _host = net::host_create(_addr, 1, port);
+
+    return !(bool)_host;
   }
 
   void session_raise(launch_session_t launch_session) {
@@ -157,16 +159,21 @@ public:
     }
   }
 
-  bool accept(const std::shared_ptr<session_t> &session) {
+  void clear(std::shared_ptr<session_t> *session_p) {
+    session_p->reset();
+
+    ++_slot_count;
+  }
+
+  std::shared_ptr<session_t> *accept(std::shared_ptr<session_t> &session) {
     for(auto &slot : _session_slots) {
       if(!slot) {
         slot = session;
-
-        return true;
+        return &slot;
       }
     }
 
-    return false;
+    return nullptr;
   }
 
   net::host_t::pointer host() const {
@@ -412,14 +419,22 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   }
 
   auto session = session::alloc(config, launch_session->gcm_key, launch_session->iv);
-  if(!server->accept(session)) {
+
+  auto slot = server->accept(session);
+  if(!slot) {
     BOOST_LOG(info) << "Ran out of slots for client from ["sv << ']';
 
     respond(server->host(), peer, &option, 503, "Service Unavailable", req->sequenceNumber, {});
     return;
   }
 
-  session::start(*session, platf::from_sockaddr((sockaddr*)&peer->address.address));
+  if(session::start(*session, platf::from_sockaddr((sockaddr*)&peer->address.address))) {
+    BOOST_LOG(error) << "Failed to start a streaming session"sv;
+
+    server->clear(slot);
+    respond(server->host(), peer, &option, 500, "Internal Server Error", req->sequenceNumber, {});
+    return;
+  }
 
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
@@ -444,7 +459,13 @@ void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
 
   server.map("PLAY"sv, &cmd_play);
 
-  server.bind(RTSP_SETUP_PORT);
+  if(server.bind(RTSP_SETUP_PORT)) {
+    BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << RTSP_SETUP_PORT << "], likely another process already bound to the port"sv;
+    shutdown_event->raise(true);
+
+    return;
+  }
+
   while(!shutdown_event->peek()) {
     server.iterate(std::min(500ms, config::stream.ping_timeout));
 

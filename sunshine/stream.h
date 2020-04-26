@@ -31,7 +31,7 @@ enum class state_e : int {
 };
 
 std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv);
-void start(session_t &session, const std::string &addr_string);
+int start(session_t &session, const std::string &addr_string);
 void stop(session_t &session);
 void join(session_t &session);
 state_e state(session_t &session);

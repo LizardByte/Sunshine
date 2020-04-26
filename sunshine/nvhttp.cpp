@@ -832,8 +832,18 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   http_server.config.address = "0.0.0.0"s;
   http_server.config.port = PORT_HTTP;
 
-  std::thread ssl { &https_server_t::start, &https_server };
-  std::thread tcp { &http_server_t::start, &http_server };
+  try {
+    https_server.bind();
+    http_server.bind();
+  } catch(boost::system::system_error &err) {
+    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTP << "]: "sv << err.what();
+
+    shutdown_event->raise(true);
+    return;
+  }
+
+  std::thread ssl { &https_server_t::accept_and_run, &https_server };
+  std::thread tcp { &http_server_t::accept_and_run, &http_server };
 
   // Wait for any event
   shutdown_event->view();

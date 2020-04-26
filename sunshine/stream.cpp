@@ -99,10 +99,11 @@ static inline void while_starting_do_nothing(std::atomic<session::state_e> &stat
 
 class control_server_t {
 public:
-  control_server_t(control_server_t &&) noexcept = default;
-  control_server_t &operator=(control_server_t &&) noexcept = default;
+  int bind(std::uint16_t port) {
+    _host = net::host_create(_addr, config::stream.channels, port);
 
-  explicit control_server_t(std::uint16_t port) : _host { net::host_create(_addr, config::stream.channels, port) } {}
+    return !(bool)_host;
+  }
 
   void emplace_addr_to_session(const std::string &addr, session_t &session) {
     auto lg = _map_addr_session.lock();
@@ -160,9 +161,9 @@ struct broadcast_ctx_t {
 
   asio::io_service io;
 
-  udp::socket video_sock { io, udp::endpoint(udp::v4(), VIDEO_STREAM_PORT) };
-  udp::socket audio_sock { io, udp::endpoint(udp::v4(), AUDIO_STREAM_PORT) };
-  control_server_t control_server { CONTROL_PORT };
+  udp::socket video_sock { io };
+  udp::socket audio_sock { io };
+  control_server_t control_server;
 };
 
 struct session_t {
@@ -718,6 +719,41 @@ void audioBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, aud
 }
 
 int start_broadcast(broadcast_ctx_t &ctx) {
+  if(ctx.control_server.bind(CONTROL_PORT)) {
+    BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << CONTROL_PORT << "], likely another process already bound to the port"sv;
+
+    return -1;
+  }
+
+  boost::system::error_code ec;
+  ctx.video_sock.open(udp::v4(), ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
+
+    return -1;
+  }
+
+  ctx.video_sock.bind(udp::endpoint(udp::v4(), VIDEO_STREAM_PORT), ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << VIDEO_STREAM_PORT << "]: "sv << ec.message();
+
+    return -1;
+  }
+
+  ctx.audio_sock.open(udp::v4(), ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't open socket for Audio server: "sv << ec.message();
+
+    return -1;
+  }
+
+  ctx.audio_sock.bind(udp::endpoint(udp::v4(), AUDIO_STREAM_PORT), ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << AUDIO_STREAM_PORT << "]: "sv << ec.message();
+
+    return -1;
+  }
+
   ctx.video_packets = std::make_shared<video::packet_queue_t::element_type>(30);
   ctx.audio_packets = std::make_shared<audio::packet_queue_t::element_type>(30);
   ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
@@ -861,10 +897,14 @@ void join(session_t &session) {
   BOOST_LOG(debug) << "Session ended"sv;
 }
 
-void start(session_t &session, const std::string &addr_string) {
+int start(session_t &session, const std::string &addr_string) {
   session.input = input::alloc();
 
   session.broadcast_ref = broadcast.ref();
+  if(!session.broadcast_ref) {
+    return -1;
+  }
+
   session.broadcast_ref->control_server.emplace_addr_to_session(addr_string, session);
 
   session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
@@ -873,6 +913,8 @@ void start(session_t &session, const std::string &addr_string) {
   session.videoThread = std::thread {videoThread, &session, addr_string};
 
   session.state.store(state_e::RUNNING, std::memory_order_relaxed);
+
+  return 0;
 }
 
 std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv) {
