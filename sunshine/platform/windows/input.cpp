@@ -240,16 +240,8 @@ void scroll(input_t &input, int distance) {
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
-  constexpr SHORT KEY_STATE_DOWN = 0x8000;
-
   if(modcode == VK_RMENU) {
     modcode = VK_LWIN;
-  }
-
-  auto key_state = GetAsyncKeyState(modcode);
-  bool key_state_down = (key_state & KEY_STATE_DOWN) != 0;
-  if(key_state_down != release) {
-    BOOST_LOG(debug) << "Key state of vkey ["sv << util::hex(modcode).to_string_view() << "] does not match the desired state ["sv << (release ? "on]"sv : "off]"sv);
   }
 
   INPUT i {};
