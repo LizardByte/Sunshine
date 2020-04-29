@@ -252,7 +252,7 @@ std::shared_ptr<platf::img_t> display_ram_t::alloc_img() {
   auto img = std::make_shared<img_t>();
 
   img->pixel_pitch  = 4;
-  img->row_pitch    = img->pixel_pitch * width;
+  img->row_pitch    = img_info.RowPitch;
   img->width        = width;
   img->height       = height;
   img->data         = new std::uint8_t[img->row_pitch * height];
