@@ -324,15 +324,15 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
 
   resource_t::pointer res_p {};
   auto capture_status = dup.next_frame(frame_info, timeout, &res_p);
-  resource_t res{res_p};
+  resource_t res{ res_p };
 
-  if (capture_status != capture_e::ok) {
+  if(capture_status != capture_e::ok) {
     return capture_status;
   }
 
-  const bool update_flag =
-    frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0 ||
-    frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
+  const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
+  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
+  const bool update_flag = mouse_update_flag || frame_update_flag;
 
   if(!update_flag) {
     return capture_e::timeout;
@@ -395,16 +395,18 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     }
   }
 
-  texture2d_t::pointer src_p {};
-  status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
+  if(frame_update_flag) {
+    texture2d_t::pointer src_p {};
+    status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
 
-  if (FAILED(status)) {
-    BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
-    return capture_e::error;
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
+      return capture_e::error;
+    }
+
+    texture2d_t src { src_p };
+    device_ctx->CopyResource(img->texture.get(), src.get());
   }
-
-  texture2d_t src { src_p };
-  device_ctx->CopyResource(img->texture.get(), src.get());
 
   return capture_e::ok;
 }
