@@ -242,26 +242,35 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
 
     auto this_env = boost::this_process::environment();
 
+    for(auto &[name,val] : env_vars) {
+      this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
+    }
+
     std::vector<proc::ctx_t> apps;
     for(auto &[_,app_node] : apps_node) {
       proc::ctx_t ctx;
 
-      auto &prep_nodes = app_node.get_child("prep-cmd"s);
+      auto prep_nodes_opt = app_node.get_child_optional("prep-cmd"s);
       auto output = app_node.get_optional<std::string>("output"s);
       auto name = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd = app_node.get_optional<std::string>("cmd"s);
 
       std::vector<proc::cmd_t> prep_cmds;
-      prep_cmds.reserve(prep_nodes.size());
-      for(auto &[_, prep_node] : prep_nodes) {
-        auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
-        auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
 
-        if(undo_cmd) {
-          prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
-        }
-        else {
-          prep_cmds.emplace_back(std::move(do_cmd));
+      if(prep_nodes_opt) {
+        auto &prep_nodes = *prep_nodes_opt;
+
+        prep_cmds.reserve(prep_nodes.size());
+        for(auto &[_, prep_node] : prep_nodes) {
+          auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
+          auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
+
+          if(undo_cmd) {
+            prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
+          }
+          else {
+            prep_cmds.emplace_back(std::move(do_cmd));
+          }
         }
       }
 
@@ -277,11 +286,6 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
       ctx.prep_cmds = std::move(prep_cmds);
 
       apps.emplace_back(std::move(ctx));
-    }
-
-    bp::environment env = boost::this_process::environment();
-    for(auto &[name,val] : env_vars) {
-      this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
     }
 
     return proc::proc_t {
