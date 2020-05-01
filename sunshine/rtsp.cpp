@@ -12,6 +12,7 @@ extern "C" {
 #include "rtsp.h"
 #include "input.h"
 #include "stream.h"
+#include "sync.h"
 
 namespace asio = boost::asio;
 
@@ -55,8 +56,12 @@ public:
   }
 
   int bind(std::uint16_t port) {
-    _session_slots.resize(config::stream.channels);
-    _slot_count = config::stream.channels;
+    {
+      auto lg = _session_slots.lock();
+
+      _session_slots->resize(config::stream.channels);
+      _slot_count = config::stream.channels;
+    }
 
     _host = net::host_create(_addr, 1, port);
 
@@ -141,7 +146,9 @@ public:
   }
 
   void clear(bool all = true) {
-    for(auto &slot : _session_slots) {
+    auto lg = _session_slots.lock();
+
+    for(auto &slot : *_session_slots) {
       if (slot && (all || session::state(*slot) == session::state_e::STOPPING)) {
         session::stop(*slot);
         session::join(*slot);
@@ -160,13 +167,17 @@ public:
   }
 
   void clear(std::shared_ptr<session_t> *session_p) {
+    auto lg = _session_slots.lock();
+
     session_p->reset();
 
     ++_slot_count;
   }
 
   std::shared_ptr<session_t> *accept(std::shared_ptr<session_t> &session) {
-    for(auto &slot : _session_slots) {
+    auto lg = _session_slots.lock();
+
+    for(auto &slot : *_session_slots) {
       if(!slot) {
         slot = session;
         return &slot;
@@ -190,7 +201,7 @@ private:
 
   std::unordered_map<std::string_view, cmd_func_t> _map_cmd_cb;
 
-  std::vector<std::shared_ptr<session_t>> _session_slots;
+  util::sync_t<std::vector<std::shared_ptr<session_t>>> _session_slots;
 
   int _slot_count;
   ENetAddress _addr;
@@ -204,6 +215,9 @@ void launch_session_raise(launch_session_t launch_session) {
 }
 
 int session_count() {
+  // Ensure session_count is up to date
+  server.clear(false);
+
   return server.session_count();
 }
 
