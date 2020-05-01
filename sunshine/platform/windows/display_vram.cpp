@@ -14,9 +14,18 @@ struct img_d3d_t : public platf::img_t {
 };
 
 util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info)  {
+  constexpr std::uint32_t black = 0xFF000000;
+  constexpr std::uint32_t white = 0xFFFFFFFF;
+  constexpr std::uint32_t transparent = 0;
+
   switch(shape_info.Type) {
-    case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
     case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
+      std::for_each((std::uint32_t*)std::begin(img_data), (std::uint32_t*)std::end(img_data), [](auto &pixel) {
+        if(pixel & 0xFF000000) {
+          pixel = transparent;
+        }
+      });
+    case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
       return std::move(img_data);
     default:
       break;
@@ -37,9 +46,6 @@ util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&im
       auto bit = 1 << c;
       auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
 
-      constexpr std::uint32_t black = 0xFF000000;
-      constexpr std::uint32_t white = 0xFFFFFFFF;
-      constexpr std::uint32_t transparent = 0;
       switch(color_type) {
         case 0: //black
           *pixel_data = black;
