@@ -796,22 +796,16 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
     return encode_e::error;
   }
 
-  std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-  for(auto &img : imgs) {
-    img = disp->alloc_img();
-  }
+  auto img = disp->alloc_img();
 
-  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
-  
-  auto dummy_img = disp->alloc_img();
-  auto img_tmp = dummy_img.get();
+  auto img_tmp = img.get();
   if(disp->dummy_img(img_tmp)) {
     return encode_e::error;
   }
 
   std::vector<sync_session_t> synced_sessions;
   for(auto &ctx : synced_session_ctxs) {
-    auto synced_session = make_synced_session(disp.get(), encoder, *dummy_img, *ctx);
+    auto synced_session = make_synced_session(disp.get(), encoder, *img, *ctx);
     if(!synced_session) {
       return encode_e::error;
     }
@@ -829,7 +823,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
 
       synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
 
-      auto encode_session = make_synced_session(disp.get(), encoder, *dummy_img, *synced_session_ctxs.back());
+      auto encode_session = make_synced_session(disp.get(), encoder, *img, *synced_session_ctxs.back());
       if(!encode_session) {
         return encode_e::error;
       }
@@ -841,7 +835,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
 
     auto delay = std::max(0ms, std::chrono::duration_cast<std::chrono::milliseconds>(next_frame - std::chrono::steady_clock::now()));
 
-    auto status = disp->snapshot(round_robin->get(), delay, display_cursor);
+    auto status = disp->snapshot(img.get(), delay, display_cursor);
     switch(status)  {
       case platf::capture_e::reinit:
       case platf::capture_e::error:
@@ -849,8 +843,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
       case platf::capture_e::timeout:
         break;
       case platf::capture_e::ok:
-        img_tmp = round_robin->get();
-        ++round_robin;
+        img_tmp = img.get();
         break;
     }
     
@@ -896,7 +889,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
       if(timeout) {
         pos->next_frame += pos->delay;
       }
-      
+
       next_frame = std::min(next_frame, pos->next_frame);
 
       if(!timeout) {
