@@ -71,6 +71,7 @@ struct video_packet_raw_t {
   }
 
   RTP_PACKET rtp;
+  char reserved[4];
   NV_VIDEO_PACKET packet;
 };
 
@@ -299,6 +300,10 @@ struct fec_t {
 
   size_t blocksize;
   util::buffer_t<char> shards;
+
+  char *data(size_t el) {
+    return &shards[el*blocksize];
+  }
 
   std::string_view operator[](size_t el) const {
     return { &shards[el*blocksize], blocksize };
@@ -649,6 +654,7 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
           video_packet->packet.flags |= FLAG_EOF;
         }
 
+        video_packet->rtp.header = FLAG_EXTENSION;
         video_packet->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + fecIndex);
       });
 
@@ -661,7 +667,7 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
     }
 
     for (auto x = shards.data_shards; x < shards.size(); ++x) {
-      video_packet_raw_t *inspect = (video_packet_raw_t *)shards[x].data();
+      auto *inspect = (video_packet_raw_t *)shards.data(x);
 
       inspect->packet.frameIndex = packet->pts;
       inspect->packet.fecInfo = (
@@ -670,10 +676,11 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
         fecPercentage << 4
       );
 
+      inspect->rtp.header = FLAG_EXTENSION;
       inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
     }
 
-    for (auto x = 0; x < shards.size(); ++x) {
+    for(auto x = 0; x < shards.size(); ++x) {
       sock.send_to(asio::buffer(shards[x]), session->video.peer);
     }
 
