@@ -11,7 +11,7 @@ Sunshine is a Gamestream host for Moonlight
 ## Linux
 
 ### Requirements:
-Ubuntu 19.10:
+Ubuntu 20.04:
 
 	sudo apt install cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
 
