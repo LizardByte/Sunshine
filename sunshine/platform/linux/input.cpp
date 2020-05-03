@@ -55,7 +55,7 @@ public:
   }
 
   int create_mouse() {
-    libevdev_uinput *buf;
+    libevdev_uinput *buf {};
     int err = libevdev_uinput_create_from_device(mouse_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
     mouse_input.reset(buf);
 

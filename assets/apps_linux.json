@@ -1,8 +1,5 @@
 {
 	"env":{ 
-		"DISPLAY":":0",
-		"DRI_PRIME":"1",
-		"XAUTHORITY":"$(HOME)/.Xauthority",
 		"PATH":"$(PATH):$(HOME)/.local/bin"
 	},
 	"apps":[
@@ -16,8 +13,7 @@
 		"name":"Steam BigPicture",
 
 		"output":"steam.txt",
-		"cmd":"steam -bigpicture",
-		"prep-cmd":[]
+		"cmd":"steam -bigpicture"
 	}
 	]
 }
