@@ -206,6 +206,36 @@ int display_base_t::init() {
 
   // Bump up thread priority
   {
+    const DWORD flags = TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY;
+    TOKEN_PRIVILEGES tp;
+    HANDLE token;
+    LUID val;
+
+    if (OpenProcessToken(GetCurrentProcess(), flags, &token) &&
+       !!LookupPrivilegeValue(NULL, SE_INC_BASE_PRIORITY_NAME, &val)) {
+      tp.PrivilegeCount = 1;
+      tp.Privileges[0].Luid = val;
+      tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+      if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), NULL, NULL)) {
+        BOOST_LOG(error) << "Could not set privilege to increase GPU priority";
+      }
+    }
+
+    CloseHandle(token);
+
+    HMODULE gdi32 = GetModuleHandleA("GDI32");
+    if (gdi32) {
+      PD3DKMTSetProcessSchedulingPriorityClass fn =
+        (PD3DKMTSetProcessSchedulingPriorityClass)GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
+      if (fn) {
+        status = fn(GetCurrentProcess(), D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME);
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Failed to set realtime GPU priority. Please run application as administrator for optimal performance.";
+        }
+      }
+    }
+
     dxgi::dxgi_t::pointer dxgi_p {};
     status = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgi_p);
     dxgi::dxgi_t dxgi { dxgi_p };
