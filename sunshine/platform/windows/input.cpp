@@ -12,10 +12,14 @@
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
 
+#include "desktop.h"
+
 namespace platf {
 using namespace std::literals;
 
 using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
+
+volatile HDESK _lastKnownInputDesktop = NULL; 
 
 class vigem_t {
 public:
@@ -171,9 +175,15 @@ void move_mouse(input_t &input, int deltaX, int deltaY) {
   mi.dwFlags = MOUSEEVENTF_MOVE;
   mi.dx = deltaX;
   mi.dy = deltaY;
-
+  
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
     BOOST_LOG(warning) << "Couldn't send mouse movement input"sv;
   }
 }
@@ -218,8 +228,14 @@ void button_mouse(input_t &input, int button, bool release) {
     return;
   }
 
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
     BOOST_LOG(warning) << "Couldn't send mouse button input"sv;
   }
 }
@@ -233,9 +249,15 @@ void scroll(input_t &input, int distance) {
   mi.dwFlags = MOUSEEVENTF_WHEEL;
   mi.mouseData = distance;
 
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
-    BOOST_LOG(warning) << "Couldn't send moue movement input"sv;
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
+    BOOST_LOG(warning) << "Couldn't send mouse scroll input"sv;
   }
 }
 
@@ -282,9 +304,15 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
     ki.dwFlags |= KEYEVENTF_KEYUP;
   }
 
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
-    BOOST_LOG(warning) << "Couldn't send moue movement input"sv;
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
+    BOOST_LOG(warning) << "Couldn't send keyboard input"sv;
   }
 }
 

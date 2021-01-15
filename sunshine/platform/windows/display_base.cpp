@@ -10,6 +10,8 @@
 
 #include "display.h"
 
+#include "desktop.h"
+
 namespace platf {
 using namespace std::literals;
 }
@@ -90,6 +92,8 @@ int display_base_t::init() {
     FreeLibrary(user32);
   });
 */
+  pairInputDesktop();
+  
   dxgi::factory1_t::pointer   factory_p {};
   dxgi::adapter_t::pointer    adapter_p {};
   dxgi::output_t::pointer     output_p {};
@@ -150,8 +154,8 @@ int display_base_t::init() {
   }
 
   D3D_FEATURE_LEVEL featureLevels[] {
-    D3D_FEATURE_LEVEL_12_1,
-    D3D_FEATURE_LEVEL_12_0,
+    //D3D_FEATURE_LEVEL_12_1,
+    //D3D_FEATURE_LEVEL_12_0,
     D3D_FEATURE_LEVEL_11_1,
     D3D_FEATURE_LEVEL_11_0,
     D3D_FEATURE_LEVEL_10_1,
@@ -164,7 +168,6 @@ int display_base_t::init() {
   status = adapter->QueryInterface(IID_IDXGIAdapter, (void**)&adapter_p);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to query IDXGIAdapter interface"sv;
-
     return -1;
   }
 

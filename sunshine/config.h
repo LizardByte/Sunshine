@@ -71,7 +71,8 @@ namespace flag {
 enum flag_e : std::size_t {
   PIN_STDIN = 0, // Read PIN from stdin instead of http
   FRESH_STATE, // Do not load or save state
-  FLAG_SIZE
+  FLAG_SIZE,
+  CONST_PIN= 4 // Use "universal" pin
 };
 }
 
