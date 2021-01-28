@@ -85,6 +85,60 @@ int coder_from_view(const std::string_view &coder) {
 }
 }
 
+namespace amd {
+enum quality_e : int {
+  _default = 0,
+  speed,
+  balanced,
+  //quality2,
+};
+
+enum rc_e : int {
+  constqp   = 0x0,       /**< Constant QP mode */
+  vbr       = 0x1,       /**< Variable bitrate mode */
+  cbr       = 0x2,       /**< Constant bitrate mode */
+  cbr_ld_hq = 0x8,       /**< low-delay CBR, high quality */
+  cbr_hq    = 0x10,      /**< CBR, high quality (slower) */
+  vbr_hq    = 0x20       /**< VBR, high quality (slower) */
+};
+
+enum coder_e : int {
+  _auto = 0,
+  cabac,
+  cavlc
+};
+
+std::optional<quality_e> quality_from_view(const std::string_view &quality) {
+#define _CONVERT_(x) if(quality == #x##sv) return x
+  _CONVERT_(speed);
+  _CONVERT_(balanced);
+  //_CONVERT_(quality2);
+  if(quality == "default"sv) return _default;
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+std::optional<rc_e> rc_from_view(const std::string_view &rc) {
+#define _CONVERT_(x) if(rc == #x##sv) return x
+  _CONVERT_(constqp);
+  _CONVERT_(vbr);
+  _CONVERT_(cbr);
+  _CONVERT_(cbr_hq);
+  _CONVERT_(vbr_hq);
+  _CONVERT_(cbr_ld_hq);
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+int coder_from_view(const std::string_view &coder) {
+  if(coder == "auto"sv) return _auto;
+  if(coder == "cabac"sv  || coder == "ac"sv) return cabac;
+  if(coder == "cavlc"sv  || coder == "vlc"sv) return cavlc;
+
+  return -1;
+}
+}
+
 video_t video {
   0, // crf
   28, // qp
@@ -102,6 +156,12 @@ video_t video {
     std::nullopt,
     -1
   }, // nv
+
+  {
+    amd::balanced,
+    std::nullopt,
+    -1
+  }, // amd  
 
   {}, // encoder
   {}, // adapter_name
@@ -357,8 +417,13 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "sw_preset", video.sw.preset);
   string_f(vars, "sw_tune", video.sw.tune);
   int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
-  int_f(vars, "nv_rc", video.nv.preset, nv::rc_from_view);
+  int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
   int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+
+  int_f(vars, "amd_quality", video.amd.quality, amd::quality_from_view);
+  int_f(vars, "amd_rc", video.amd.rc, amd::rc_from_view);
+  int_f(vars, "amd_coder", video.amd.coder, amd::coder_from_view);
+
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
