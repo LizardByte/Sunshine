@@ -94,6 +94,7 @@ else()
 		xcb
 		xcb-shm
 		xcb-xfixes
+		Xrandr
 		${X11_LIBRARIES}
 		evdev
 		pulse
