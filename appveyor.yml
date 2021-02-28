@@ -6,6 +6,7 @@ environment:
   matrix:
     - BUILD_TYPE: Debug
     - BUILD_TYPE: Release
+    - GCC_VERSION: 8
 
 install:
   - sh: sudo apt update
