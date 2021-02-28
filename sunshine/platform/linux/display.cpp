@@ -202,7 +202,8 @@ struct x11_attr_t: public display_t
 
 		if (streamedMonitor != -1) //If the value has been set at all
 		{
-			BOOST_LOG(warning) << "Configuring selected monitor to stream. If it fails here, you may need Xrandr >= 1.5"sv;
+
+			BOOST_LOG(info) << "Configuring selected monitor ("<< streamedMonitor<<") to stream. If it fails here, you may need Xrandr >= 1.5"sv;
 			XRRScreenResources *screenr = XRRGetScreenResources(displayDisplay, xwindow);
 			// This is the key right here. Use XRRScreenResources::noutput
 			int output = screenr->noutput;
