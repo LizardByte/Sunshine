@@ -26,6 +26,12 @@ struct video_t {
     int coder;
   } nv;
 
+  struct {
+    std::optional<int> quality;
+    std::optional<int> rc;
+    int coder;
+  } amd;
+
   std::string encoder;
   std::string adapter_name;
   std::string output_name;
