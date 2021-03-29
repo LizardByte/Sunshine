@@ -32,6 +32,7 @@ if(WIN32)
 			${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
 			${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
 			${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
 			z lzma bcrypt C:/msys64/mingw64/lib/libiconv.a)
 	endif()
 else()

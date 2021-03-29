@@ -9,4 +9,4 @@
 	url = https://github.com/ViGEm/ViGEmClient
 [submodule "pre-compiled"]
 	path = pre-compiled
-	url = https://bitbucket.org/Loki-47-6F-64/pre-compiled.git
+	url = https://github.com/TheElixZammuto/sunshine-prebuilt.git
