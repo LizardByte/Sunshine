@@ -321,9 +321,11 @@ static encoder_t amdvce {
   {
     {
       { "quality"s, &config::video.amd.quality },
-      { "rc"s, &config::video.amd.rc }
+      { "rc"s, "1"s },
+      {"log_to_dbg"s,"1"s},
+      {"gops_per_idr","1"s}
     },
-    std::nullopt, std::make_optional<encoder_t::option_t>({"qp"s, &config::video.qp}),
+    std::nullopt, std::nullopt,
     "h264_amf"s
   },
   false,
@@ -769,7 +771,7 @@ void encode_run(
 
     if(idr_events->peek()) {
       session->frame->pict_type = AV_PICTURE_TYPE_I;
-
+      session->frame->key_frame = 1;
       auto event = idr_events->pop();
       if(!event) {
         return;
@@ -781,6 +783,7 @@ void encode_run(
     }
     else if(frame_nr == key_frame_nr) {
       session->frame->pict_type = AV_PICTURE_TYPE_I;
+      session->frame->key_frame = 1;
     }
 
     std::this_thread::sleep_until(next_frame);
@@ -919,6 +922,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
 
       if(ctx->idr_events->peek()) {
         pos->session.frame->pict_type = AV_PICTURE_TYPE_I;
+        pos->session.frame->key_frame = 1;
 
         auto event = ctx->idr_events->pop();
         auto end = event->second;
@@ -928,6 +932,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
       }
       else if(ctx->frame_nr == ctx->key_frame_nr) {
         pos->session.frame->pict_type = AV_PICTURE_TYPE_I;
+        pos->session.frame->key_frame = 1;
       }
 
       if(img_tmp) {
@@ -1120,6 +1125,7 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
   encoder.img_to_frame(*hwdevice->img, session->frame);
 
   session->frame->pict_type = AV_PICTURE_TYPE_I;
+  session->frame->key_frame = 1;
 
   auto packets = std::make_shared<packet_queue_t::element_type>(30);
   if(encode(1, session->ctx, session->frame, packets, nullptr)) {
