@@ -304,14 +304,14 @@ static encoder_t nvenc {
 static encoder_t amdvce {
   "amdvce"sv,
   { (int)amd::profile_h264_e::high, (int)amd::profile_hevc_e::main },
-  //AV_HWDEVICE_TYPE_D3D11VA,
-  //AV_PIX_FMT_NONE,
-  //AV_PIX_FMT_YUV420P,
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
   AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P,
   {
     {
+      { "header_insertion_mode"s, "idr"s },
+      { "gops_per_idr"s, 30 },
+      { "usage"s, "ultralowlatency"s },
       { "quality"s, &config::video.amd.quality },
       { "rc"s, &config::video.amd.rc }
     },
@@ -320,10 +320,10 @@ static encoder_t amdvce {
   },
   {
     {
+      { "usage"s, "ultralowlatency"s },
       { "quality"s, &config::video.amd.quality },
-      { "rc"s, "1"s },
+      { "rc"s, &config::video.amd.rc },
       {"log_to_dbg"s,"1"s},
-      {"gops_per_idr","1"s}
     },
     std::nullopt, std::nullopt,
     "h264_amf"s
@@ -1125,7 +1125,6 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
   encoder.img_to_frame(*hwdevice->img, session->frame);
 
   session->frame->pict_type = AV_PICTURE_TYPE_I;
-  session->frame->key_frame = 1;
 
   auto packets = std::make_shared<packet_queue_t::element_type>(30);
   if(encode(1, session->ctx, session->frame, packets, nullptr)) {
