@@ -315,7 +315,7 @@ static encoder_t amdvce {
       { "quality"s, &config::video.amd.quality },
       { "rc"s, &config::video.amd.rc }
     },
-    std::nullopt, std::nullopt,
+    std::nullopt, std::make_optional<encoder_t::option_t>({"qp"s, &config::video.qp}),
     "hevc_amf"s,
   },
   {
@@ -325,7 +325,7 @@ static encoder_t amdvce {
       { "rc"s, &config::video.amd.rc },
       {"log_to_dbg"s,"1"s},
     },
-    std::nullopt, std::nullopt,
+    std::nullopt, std::make_optional<encoder_t::option_t>({"qp"s, &config::video.qp}),
     "h264_amf"s
   },
   false,
@@ -810,6 +810,7 @@ void encode_run(
     }
 
     session->frame->pict_type = AV_PICTURE_TYPE_NONE;
+    session->frame->key_frame = 0;
   }
 }
 
@@ -971,6 +972,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
       }
 
       pos->session.frame->pict_type = AV_PICTURE_TYPE_NONE;
+      pos->session.frame->key_frame = 0;
 
       ++pos;
     })
