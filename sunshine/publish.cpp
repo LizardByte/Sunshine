@@ -8,7 +8,6 @@
 #include <avahi-common/error.h>
 #include <avahi-common/malloc.h>
 #include <avahi-common/simple-watch.h>
-#include <avahi-common/timeval.h>
 
 #include "publish.h"
 #include "nvhttp.h"
@@ -105,15 +104,15 @@ void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UNUSED vo
 
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   AvahiClient *client = NULL;
-  int error;
+  int avhi_error;
   if (!(simple_poll = avahi_simple_poll_new())) {
-    fprintf(stderr, "Failed to create simple poll object.\n");
+    BOOST_LOG(error) << "Failed to create simple poll object.";
     return;
   }
   name = avahi_strdup(SERVICE_NAME);
-  client = avahi_client_new(avahi_simple_poll_get(simple_poll), AvahiClientFlags(0), client_callback, NULL, &error);
+  client = avahi_client_new(avahi_simple_poll_get(simple_poll), AvahiClientFlags(0), client_callback, NULL, &avhi_error);
   if (!client) {
-    fprintf(stderr, "Failed to create client: %s\n", avahi_strerror(error));
+    BOOST_LOG(error) << "Failed to create client: " << avahi_strerror(avhi_error);
     avahi_simple_poll_free(simple_poll);
     return;
   }

@@ -1,9 +1,6 @@
 #ifndef SUNSHINE_PUBLISH_H
 #define SUNSHINE_PUBLISH_H
 
-#include <functional>
-#include <string>
-
 #include "thread_safe.h"
 
 #define SERVICE_NAME "Sunshine"
