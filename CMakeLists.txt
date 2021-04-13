@@ -84,6 +84,7 @@ else()
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	find_package(X11 REQUIRED)
+	pkg_check_modules(AVAHI REQUIRED avahi-client)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/input.cpp)
@@ -98,10 +99,12 @@ else()
 		evdev
 		pulse
 		pulse-simple
+		${AVAHI_LIBRARIES}
 		)
 	
 	set(PLATFORM_INCLUDE_DIRS
 		${X11_INCLUDE_DIR}
+		${AVAHI_INCLUDE_DIRS}
 		/usr/include/libevdev-1.0)
 
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
@@ -152,6 +155,8 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/thread_safe.h
 	sunshine/sync.h
 	sunshine/round_robin.h
+	sunshine/publish.h
+	sunshine/publish.cpp
 	${PLATFORM_TARGET_FILES})
 
 include_directories(

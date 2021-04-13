@@ -15,6 +15,8 @@
 #define CERTIFICATE_FILE CA_DIR    "/cacert.pem"
 
 namespace nvhttp {
+constexpr auto PORT_HTTP  = 47989;
+constexpr auto PORT_HTTPS = 47984;
 void start(std::shared_ptr<safe::signal_t> shutdown_event);
 }
 

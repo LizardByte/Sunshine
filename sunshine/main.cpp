@@ -20,6 +20,7 @@
 #include "rtsp.h"
 #include "config.h"
 #include "thread_pool.h"
+#include "publish.h"
 
 #include "platform/common.h"
 extern "C" {
@@ -147,6 +148,7 @@ int main(int argc, char *argv[]) {
   task_pool.start(1);
 
   std::thread httpThread { nvhttp::start, shutdown_event };
+  std::thread publishThread { publish::start, shutdown_event };
   stream::rtpThread(shutdown_event);
 
   httpThread.join();
