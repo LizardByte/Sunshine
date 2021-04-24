@@ -32,6 +32,7 @@ if(WIN32)
 			${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
 			${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
 			${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+			${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
 			z lzma bcrypt C:/msys64/mingw64/lib/libiconv.a)
 	endif()
 else()
@@ -69,6 +70,7 @@ if(WIN32)
 		ViGEmClient/include/ViGEm/Util.h
 		ViGEmClient/include/ViGEm/km/BusShared.h)
 	list(PREPEND PLATFORM_LIBRARIES
+		ssp
 		winmm
 		ksuser
 		wsock32

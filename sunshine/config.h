@@ -26,6 +26,12 @@ struct video_t {
     int coder;
   } nv;
 
+  struct {
+    std::optional<int> quality;
+    std::optional<int> rc;
+    int coder;
+  } amd;
+
   std::string encoder;
   std::string adapter_name;
   std::string output_name;
@@ -71,7 +77,8 @@ namespace flag {
 enum flag_e : std::size_t {
   PIN_STDIN = 0, // Read PIN from stdin instead of http
   FRESH_STATE, // Do not load or save state
-  FLAG_SIZE
+  FLAG_SIZE,
+  CONST_PIN= 4 // Use "universal" pin
 };
 }
 
