@@ -29,8 +29,6 @@ struct video_t {
   std::string encoder;
   std::string adapter_name;
   std::string output_name;
-
-  int linux_monitor_id; //Only used on linux
 };
 
 struct audio_t {
