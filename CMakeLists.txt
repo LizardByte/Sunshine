@@ -69,6 +69,7 @@ if(WIN32)
 		ViGEmClient/include/ViGEm/Util.h
 		ViGEmClient/include/ViGEm/km/BusShared.h)
 	list(PREPEND PLATFORM_LIBRARIES
+		ssp
 		winmm
 		ksuser
 		wsock32
