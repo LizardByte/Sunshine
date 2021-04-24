@@ -469,7 +469,14 @@ void captureThread(
           std::this_thread::sleep_for(100ms);
         }
 
-        reset_display(disp, encoder.dev_type);
+        while(capture_ctx_queue->running()) {
+          reset_display(disp, encoder.dev_type);
+
+          if(disp) {
+            break;
+          }
+          std::this_thread::sleep_for(200ms);
+        }
         if(!disp) {
           return;
         }
@@ -846,7 +853,16 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
   const auto &encoder = encoders.front();
 
   std::shared_ptr<platf::display_t> disp;
-  reset_display(disp, encoder.dev_type);
+
+  while(encode_session_ctx_queue.running()) {
+    reset_display(disp, encoder.dev_type);
+    if(disp) {
+      break;
+    }
+
+    std::this_thread::sleep_for(200ms);
+  }
+
   if(!disp) {
     return encode_e::error;
   }
