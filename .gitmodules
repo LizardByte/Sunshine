@@ -7,6 +7,3 @@
 [submodule "ViGEmClient"]
 	path = ViGEmClient
 	url = https://github.com/ViGEm/ViGEmClient
-[submodule "pre-compiled"]
-	path = pre-compiled
-	url = https://github.com/TheElixZammuto/sunshine-prebuilt.git
