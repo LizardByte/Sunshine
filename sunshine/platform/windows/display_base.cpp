@@ -10,8 +10,6 @@
 
 #include "display.h"
 
-#include "desktop.h"
-
 namespace platf {
 using namespace std::literals;
 }
@@ -92,7 +90,6 @@ int display_base_t::init() {
     FreeLibrary(user32);
   });
 */
-  pairInputDesktop();
   
   dxgi::factory1_t::pointer   factory_p {};
   dxgi::adapter_t::pointer    adapter_p {};

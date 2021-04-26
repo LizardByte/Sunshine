@@ -12,14 +12,13 @@
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
 
-#include "desktop.h"
-
 namespace platf {
 using namespace std::literals;
 
 using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
 volatile HDESK _lastKnownInputDesktop = NULL; 
+HDESK pairInputDesktop();
 
 class vigem_t {
 public:
@@ -354,6 +353,24 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
 int thread_priority()  {
   return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) ? 0 : 1;
 }
+
+HDESK pairInputDesktop() {
+  auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
+  if (NULL == hDesk) {
+    auto err = GetLastError();
+    BOOST_LOG(error) << "Failed to OpenInputDesktop [0x"sv << util::hex(err).to_string_view() << ']';
+  }
+  else {
+    BOOST_LOG(info) << std::endl << "Opened desktop [0x"sv << util::hex(hDesk).to_string_view() << ']';
+    if (!SetThreadDesktop(hDesk) ) {
+      auto err = GetLastError();
+      BOOST_LOG(error) << "Failed to SetThreadDesktop [0x"sv << util::hex(err).to_string_view() << ']';
+    }
+    CloseDesktop(hDesk);
+  }
+
+  return hDesk;
+};
 
 void freeInput(void *p) {
   auto vigem = (vigem_t*)p;
