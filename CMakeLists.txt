@@ -79,6 +79,10 @@ if(WIN32)
 		ViGEmClient/include/ViGEm/Util.h
 		ViGEmClient/include/ViGEm/km/BusShared.h)
 
+	set(OPENSSL_LIBRARIES
+		libssl.a
+		libcrypto.a)
+
 	set(FFMPEG_INCLUDE_DIRS
 		${SUNSHINE_PREPARED_BINARIES}/include)
 	set(FFMPEG_LIBRARIES
@@ -114,6 +118,7 @@ else()
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	find_package(X11 REQUIRED)
+	find_package(FFmpeg REQUIRED)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/input.cpp)
@@ -208,10 +213,6 @@ endif()
 if(NOT SUNSHINE_ASSETS_DIR)
 	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 endif()
-
-set(OPENSSL_LIBRARIES
-	libssl.a
-	libcrypto.a)
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${CMAKE_THREAD_LIBS_INIT}
