@@ -17,6 +17,9 @@ using namespace std::literals;
 
 using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
+volatile HDESK _lastKnownInputDesktop = NULL; 
+HDESK pairInputDesktop();
+
 class vigem_t {
 public:
   using client_t = util::safe_ptr<_VIGEM_CLIENT_T, vigem_free>;
@@ -171,15 +174,21 @@ void move_mouse(input_t &input, int deltaX, int deltaY) {
   mi.dwFlags = MOUSEEVENTF_MOVE;
   mi.dx = deltaX;
   mi.dy = deltaY;
-
+  
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
     BOOST_LOG(warning) << "Couldn't send mouse movement input"sv;
   }
 }
 
 void button_mouse(input_t &input, int button, bool release) {
-  constexpr SHORT KEY_STATE_DOWN = 0x8000;
+  constexpr auto KEY_STATE_DOWN = (SHORT)0x8000;
 
   INPUT i {};
 
@@ -218,8 +227,14 @@ void button_mouse(input_t &input, int button, bool release) {
     return;
   }
 
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
     BOOST_LOG(warning) << "Couldn't send mouse button input"sv;
   }
 }
@@ -233,9 +248,15 @@ void scroll(input_t &input, int distance) {
   mi.dwFlags = MOUSEEVENTF_WHEEL;
   mi.mouseData = distance;
 
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
-    BOOST_LOG(warning) << "Couldn't send moue movement input"sv;
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
+    BOOST_LOG(warning) << "Couldn't send mouse scroll input"sv;
   }
 }
 
@@ -282,9 +303,15 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
     ki.dwFlags |= KEYEVENTF_KEYUP;
   }
 
+retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
-    BOOST_LOG(warning) << "Couldn't send moue movement input"sv;
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
+    BOOST_LOG(warning) << "Couldn't send keyboard input"sv;
   }
 }
 
@@ -325,6 +352,24 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
 
 int thread_priority()  {
   return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) ? 0 : 1;
+}
+
+HDESK pairInputDesktop() {
+  auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
+  if (NULL == hDesk) {
+    auto err = GetLastError();
+    BOOST_LOG(error) << "Failed to OpenInputDesktop [0x"sv << util::hex(err).to_string_view() << ']';
+  }
+  else {
+    BOOST_LOG(info) << std::endl << "Opened desktop [0x"sv << util::hex(hDesk).to_string_view() << ']';
+    if (!SetThreadDesktop(hDesk) ) {
+      auto err = GetLastError();
+      BOOST_LOG(error) << "Failed to SetThreadDesktop [0x"sv << util::hex(err).to_string_view() << ']';
+    }
+    CloseDesktop(hDesk);
+  }
+
+  return hDesk;
 }
 
 void freeInput(void *p) {

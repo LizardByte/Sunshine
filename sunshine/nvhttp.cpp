@@ -360,7 +360,11 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
 
       ptr->second.async_insert_pin.salt = std::move(args.at("salt"s));
 
-      if(config::sunshine.flags[config::flag::PIN_STDIN]) {
+      if(config::sunshine.flags[config::flag::CONST_PIN]) {
+        std::string pin("6174");
+        getservercert(ptr->second, tree, pin);
+      }
+      else if(config::sunshine.flags[config::flag::PIN_STDIN]) {
         std::string pin;
 
         std::cout << "Please insert pin: "sv;

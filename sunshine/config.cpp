@@ -165,7 +165,7 @@ video_t video {
 
   {}, // encoder
   {}, // adapter_name
-  {}  // output_name
+  {},  // output_name
 };
 
 audio_t audio {};
@@ -391,6 +391,9 @@ int apply_flags(const char *line) {
         break;
       case '1':
         config::sunshine.flags[config::flag::FRESH_STATE].flip();
+        break;
+      case 'p':
+        config::sunshine.flags[config::flag::CONST_PIN].flip();
         break;
       default:
         std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;

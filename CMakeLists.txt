@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine)
 
@@ -7,56 +7,65 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 # On MSYS2, building a stand-alone binary that links with ffmpeg is not possible,
 # Therefore, ffmpeg, libx264 and libx265 must be build from source
 if(WIN32)
-	option(SUNSHINE_STANDALONE "Compile stand-alone binary of Sunshine" OFF)
-	if(SUNSHINE_STANDALONE)
-		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+	file(
+		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		TIMEOUT 60
+		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
+
+	file(ARCHIVE_EXTRACT
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	
-		if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-			set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/pre-compiled/windows")
-		endif()
-		list(PREPEND PLATFORM_LIBRARIES
-			C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/${CMAKE_CXX_COMPILER_VERSION}/libstdc++.a
-			C:/msys64/mingw64/x86_64-w64-mingw32/lib/libwinpthread.a
-			)
-
-		set(FFMPEG_INCLUDE_DIRS
-			${SUNSHINE_PREPARED_BINARIES}/include)
-		set(FFMPEG_LIBRARIES
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
-			z lzma bcrypt C:/msys64/mingw64/lib/libiconv.a)
+	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
 	endif()
-else()
-	set(SUNSHINE_STANDALONE OFF)
-endif()
 
+	set(FFMPEG_INCLUDE_DIRS
+		${SUNSHINE_PREPARED_BINARIES}/include)
+	set(FFMPEG_LIBRARIES
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
+		z lzma bcrypt libiconv.a)
+endif()
 add_subdirectory(Simple-Web-Server)
 add_subdirectory(moonlight-common-c/enet)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-if(NOT SUNSHINE_STANDALONE)
-	find_package(FFmpeg REQUIRED)
-endif()
-
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
 if(WIN32)
+	file(
+		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		TIMEOUT 60
+		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
+
+	file(ARCHIVE_EXTRACT
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+	
+	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
+	endif()
+
 	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
 
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_windows.json")
-	include_directories(
-		ViGEmClient/include)
+
+	include_directories(ViGEmClient/include)
+
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/windows/input.cpp
 		sunshine/platform/windows/display.h
@@ -69,7 +78,31 @@ if(WIN32)
 		ViGEmClient/include/ViGEm/Common.h
 		ViGEmClient/include/ViGEm/Util.h
 		ViGEmClient/include/ViGEm/km/BusShared.h)
+
+	set(OPENSSL_LIBRARIES
+		libssl.a
+		libcrypto.a)
+
+	set(FFMPEG_INCLUDE_DIRS
+		${SUNSHINE_PREPARED_BINARIES}/include)
+	set(FFMPEG_LIBRARIES
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
+		z lzma bcrypt libiconv.a)
+
 	list(PREPEND PLATFORM_LIBRARIES
+		libstdc++.a
+		libwinpthread.a
+		libssp.a
 		winmm
 		ksuser
 		wsock32
@@ -85,6 +118,7 @@ else()
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	find_package(X11 REQUIRED)
+	find_package(FFmpeg REQUIRED)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/input.cpp)
@@ -95,6 +129,7 @@ else()
 		xcb
 		xcb-shm
 		xcb-xfixes
+		Xrandr
 		${X11_LIBRARIES}
 		evdev
 		pulse
@@ -177,12 +212,6 @@ endif()
 
 if(NOT SUNSHINE_ASSETS_DIR)
 	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
-endif()
-
-if(SUNSHINE_STANDALONE)
-	set(OPENSSL_LIBRARIES
-		C:/msys64/mingw64/lib/libssl.a
-		C:/msys64/mingw64/lib/libcrypto.a)
 endif()
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES

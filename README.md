@@ -50,27 +50,16 @@ sunshine needs access to uinput to create mouse and gamepad events:
 
 ### Requirements:
 
-	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost
+	mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make
 
 ### Compilation:
-- `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
+- `git clone https://github.com/loki-47-6F-64/sunshine.git --recursive`
 - `cd sunshine && mkdir build && cd build`
 - `cmake -G"Unix Makefiles" ..`
 - `make`
 
 ### Setup:
 - **OPTIONAL** Gamepad support: Download and run 'ViGEmBus_Setup_1.16.116.exe' from [https://github.com/ViGEm/ViGEmBus/releases]
-
-### Static build
-#### Requirements:
-	MSYS2 : mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-ffmpeg mingw-w64-x86_64-boost git-lfs
-
-#### Compilation:
-- `git lfs install`
-- `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
-- `cd sunshine && mkdir build && cd build`
-- `cmake -DSUNSHINE_STANDALONE=ON -G"Unix Makefiles" ..`
-- `make`
 
 
 
