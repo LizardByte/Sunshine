@@ -99,6 +99,7 @@ util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&im
 
 class hwdevice_t : public platf::hwdevice_t {
 public:
+
   hwdevice_t(std::vector<hwdevice_t*> *hwdevices_p) : hwdevices_p { hwdevices_p } {}
   hwdevice_t() = delete;
 
@@ -168,8 +169,8 @@ public:
     auto &processor_in = it->second;
 
     D3D11_VIDEO_PROCESSOR_STREAM stream[] {
-      { TRUE, 0, 0, 0, 0, nullptr, processor_in.get(), nullptr },
-      { TRUE, 0, 0, 0, 0, nullptr, cursor_in.get(), nullptr }
+      { TRUE, 0, 0, 0, 0, nullptr, processor_in.get() },
+      { TRUE, 0, 0, 0, 0, nullptr, cursor_in.get() }
     };
 
     auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, cursor_visible ? 2 : 1, stream);
@@ -233,6 +234,12 @@ public:
     }
     processor_e.reset(vp_e_p);
 
+    D3D11_VIDEO_PROCESSOR_CAPS proc_caps;
+    processor_e->GetVideoProcessorCaps(&proc_caps);
+    if(!(proc_caps.FeatureCaps & D3D11_VIDEO_PROCESSOR_FEATURE_CAPS_ALPHA_STREAM)) {
+      BOOST_LOG(warning) << "VideoProcessorSetStreamAlpha() not supported, hardware accelerated mouse cannot be added to the video stream"sv;
+    }
+
     video::processor_t::pointer processor_p;
     status = device->CreateVideoProcessor(processor_e.get(), 0, &processor_p);
     if(FAILED(status)) {
@@ -240,6 +247,9 @@ public:
       return -1;
     }
     processor.reset(processor_p);
+
+    // Tell video processor alpha values need to be enabled
+    ctx->VideoProcessorSetStreamAlpha(processor.get(), 1, TRUE, 1.0f);
 
     D3D11_TEXTURE2D_DESC t {};
     t.Width  = out_width;
@@ -274,9 +284,6 @@ public:
       return -1;
     }
     processor_out.reset(processor_out_p);
-
-    // Tell video processor alpha values need to be enabled
-    ctx->VideoProcessorSetStreamAlpha(processor.get(), 1, TRUE, 1.0f);
 
     device_p->AddRef();
     data = device_p;
@@ -373,7 +380,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     dxgi::texture2d_t::pointer tex_p {};
     auto status = device->CreateTexture2D(&t, &data, &tex_p);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create dummy texture [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to create mouse texture [0x"sv << util::hex(status).to_string_view() << ']';
       return capture_e::error;
     }
     texture2d_t texture { tex_p };

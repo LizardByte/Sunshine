@@ -188,7 +188,7 @@ retry:
 }
 
 void button_mouse(input_t &input, int button, bool release) {
-  constexpr SHORT KEY_STATE_DOWN = 0x8000;
+  constexpr auto KEY_STATE_DOWN = (SHORT)0x8000;
 
   INPUT i {};
 
@@ -370,7 +370,7 @@ HDESK pairInputDesktop() {
   }
 
   return hDesk;
-};
+}
 
 void freeInput(void *p) {
   auto vigem = (vigem_t*)p;
