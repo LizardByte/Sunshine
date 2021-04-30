@@ -1,3 +1,7 @@
+#include <codecvt>
+
+#include <d3dcompiler.h>
+
 #include "sunshine/main.h"
 #include "display.h"
 
@@ -6,9 +10,29 @@ using namespace std::literals;
 }
 
 namespace platf::dxgi {
+constexpr float aquamarine[] { 0.498039246f, 1.000000000f, 0.831372619f, 1.000000000f };
+
+using input_layout_t        = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
+using render_target_t       = util::safe_ptr<ID3D11RenderTargetView, Release<ID3D11RenderTargetView>>;
+using shader_res_t          = util::safe_ptr<ID3D11ShaderResourceView, Release<ID3D11ShaderResourceView>>;
+using raster_state_t        = util::safe_ptr<ID3D11RasterizerState, Release<ID3D11RasterizerState>>;
+using sampler_state_t       = util::safe_ptr<ID3D11SamplerState, Release<ID3D11SamplerState>>;
+using vs_t                  = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
+using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
+using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
+using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
+using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
+
+blob_t merge_UV_vs_hlsl;
+blob_t merge_UV_ps_hlsl;
+blob_t screen_vs_hlsl;
+blob_t screen_ps_hlsl;
+blob_t YCrCb_ps_hlsl;
+
 struct img_d3d_t : public platf::img_t {
-  std::shared_ptr<platf::display_t> display;
+  shader_res_t input_res;
   texture2d_t texture;
+  std::shared_ptr<platf::display_t> display;
 
   ~img_d3d_t() override = default;
 };
@@ -97,9 +121,43 @@ util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&im
   return cursor_img;
 }
 
+blob_t compile_shader(LPCSTR file, LPCSTR entrypoint, LPCSTR shader_model) {
+  blob_t::pointer msg_p = nullptr;
+  blob_t::pointer compiled_p;
+
+  DWORD flags = D3DCOMPILE_ENABLE_STRICTNESS;
+
+#ifndef NDEBUG
+  flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+
+  auto wFile = converter.from_bytes(file);
+  auto status = D3DCompileFromFile(wFile.c_str(), nullptr, nullptr, entrypoint, shader_model, flags, 0, &compiled_p, &msg_p);
+
+  if(msg_p) {
+    BOOST_LOG(warning) << std::string_view { (const char *)msg_p->GetBufferPointer(), msg_p->GetBufferSize() - 1 };
+    msg_p->Release();
+  }
+
+  if(status) {
+    BOOST_LOG(error) << "Couldn't compile ["sv << file << "] [0x"sv << util::hex(status).to_string_view() << ']';
+    return nullptr;
+  }
+
+  return blob_t { compiled_p };
+}
+
+blob_t compile_pixel_shader(LPCSTR file) {
+  return compile_shader(file, "PS", "ps_5_0");
+}
+
+blob_t compile_vertex_shader(LPCSTR file) {
+  return compile_shader(file, "VS", "vs_5_0");
+}
+
 class hwdevice_t : public platf::hwdevice_t {
 public:
-
   hwdevice_t(std::vector<hwdevice_t*> *hwdevices_p) : hwdevices_p { hwdevices_p } {}
   hwdevice_t() = delete;
 
@@ -126,23 +184,9 @@ public:
 
     RECT rect_in { left_in, top_in, right_in, bottom_in };
     RECT rect_out { left_out, top_out, right_out, bottom_out };
-
-    ctx->VideoProcessorSetStreamSourceRect(processor.get(), 1, TRUE, &rect_in);
-    ctx->VideoProcessorSetStreamDestRect(processor.get(), 1, TRUE, &rect_out);
   }
 
   int set_cursor_texture(texture2d_t::pointer texture, LONG width, LONG height) {
-    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_desc = { 0, (D3D11_VPIV_DIMENSION)D3D11_VPIV_DIMENSION_TEXTURE2D, { 0, 0 } };
-
-    video::processor_in_t::pointer processor_in_p;
-    auto status = device->CreateVideoProcessorInputView(texture, processor_e.get(), &input_desc, &processor_in_p);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create cursor VideoProcessorInputView [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    cursor_in.reset(processor_in_p);
-
     cursor_width  = width;
     cursor_height = height;
     cursor_scaled_width = ((double)width) / in_width * out_width;
@@ -154,38 +198,75 @@ public:
   int convert(platf::img_t &img_base) override {
     auto &img = (img_d3d_t&)img_base;
 
-    auto it = texture_to_processor_in.find(img.texture.get());
-    if(it == std::end(texture_to_processor_in)) {
-      D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_desc = { 0, (D3D11_VPIV_DIMENSION)D3D11_VPIV_DIMENSION_TEXTURE2D, { 0, 0 } };
+    if(!img.input_res) {
+      auto device = (device_t::pointer)data;
 
-      video::processor_in_t::pointer processor_in_p;
-      auto status = device->CreateVideoProcessorInputView(img.texture.get(), processor_e.get(), &input_desc, &processor_in_p);
+      D3D11_SHADER_RESOURCE_VIEW_DESC desc {
+        DXGI_FORMAT_B8G8R8A8_UNORM,
+        D3D11_SRV_DIMENSION_TEXTURE2D
+      };
+      desc.Texture2D.MipLevels = 1;
+
+      shader_res_t::pointer input_rec_p;
+      auto status = device->CreateShaderResourceView(img.texture.get(), &desc, &input_rec_p);
       if(FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create VideoProcessorInputView [0x"sv << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create input shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
-      it = texture_to_processor_in.emplace(img.texture.get(), processor_in_p).first;
+      img.input_res.reset(input_rec_p);
     }
-    auto &processor_in = it->second;
 
-    D3D11_VIDEO_PROCESSOR_STREAM stream[] {
-      { TRUE, 0, 0, 0, 0, nullptr, processor_in.get() },
-      { TRUE, 0, 0, 0, 0, nullptr, cursor_in.get() }
+    auto nv12_rt_p = nv12_rt.get();
+    auto sampler_point_p = sampler_point.get();
+    auto input_res_p = img.input_res.get();
+    auto luma_sr_p = luma_sr.get();
+
+    render_target_t::pointer pYCbCrRT[] {
+      luma_rt.get(), chromaCB_rt.get(), chromaCR_rt.get()
     };
 
-    auto status = ctx->VideoProcessorBlt(processor.get(), processor_out.get(), 0, cursor_visible ? 2 : 1, stream);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed size and color conversion [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+    shader_res_t::pointer merge_ress[] {
+      chromaCB_sr.get(), chromaCR_sr.get(), shift_sr.get()
+    };
+
+    _init_view_port(out_width, out_height);
+    device_ctx_p->PSSetSamplers(0, 1, &sampler_point_p);
+
+    device_ctx_p->OMSetRenderTargets(3, pYCbCrRT, nullptr);
+    for(auto rt : pYCbCrRT) {
+      device_ctx_p->ClearRenderTargetView(rt, aquamarine);
     }
+    device_ctx_p->VSSetShader(screen_vs.get(), nullptr, 0);
+    device_ctx_p->PSSetShader(YCrCb_ps.get(), nullptr, 0);
+    device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
+    device_ctx_p->Draw(4, 0);
+    device_ctx_p->Flush();
+
+    // downsample
+    device_ctx_p->GenerateMips(chromaCR_sr.get());
+    device_ctx_p->GenerateMips(chromaCB_sr.get());
+
+    device_ctx_p->OMSetRenderTargets(1, &nv12_rt_p, nullptr);
+    device_ctx_p->ClearRenderTargetView(nv12_rt_p, aquamarine);
+    device_ctx_p->VSSetShader(screen_vs.get(), nullptr, 0);
+    device_ctx_p->PSSetShader(screen_ps.get(), nullptr, 0);
+    device_ctx_p->PSSetShaderResources(0, 1, &luma_sr_p);
+    device_ctx_p->Draw(4, 0);
+    device_ctx_p->Flush();
+
+    _init_view_port(out_width, out_height *2);
+    device_ctx_p->VSSetShader(merge_UV_vs.get(), nullptr, 0);
+    device_ctx_p->PSSetShader(merge_UV_ps.get(), nullptr, 0);
+    for(int x = 0; x < ARRAYSIZE(merge_ress); ++x) {
+      device_ctx_p->PSSetShaderResources(x, 1, &merge_ress[x]);
+    }
+    device_ctx_p->Draw(4, 0);
+    device_ctx_p->Flush();
 
     return 0;
   }
 
-  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
-    colorspace |= (color_range >> 4);
-    ctx->VideoProcessorSetOutputColorSpace(processor.get(), (D3D11_VIDEO_PROCESSOR_COLOR_SPACE*)&colorspace);
-  }
+  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {}
 
   int init(
     std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p,
@@ -193,6 +274,11 @@ public:
     pix_fmt_e pix_fmt
   ) {
     HRESULT status;
+
+    device_p->AddRef();
+    data = device_p;
+
+    this->device_ctx_p = device_ctx_p;
 
     cursor_visible = false;
 
@@ -203,53 +289,56 @@ public:
     this->in_width   = in_width;
     this->in_height  = in_height;
 
-    video::device_t::pointer vdevice_p;
-    status = device_p->QueryInterface(IID_ID3D11VideoDevice, (void**)&vdevice_p);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query ID3D11VideoDevice interface [0x"sv << util::hex(status).to_string_view() << ']';
+    vs_t::pointer screen_vs_p;
+    status = device_p->CreateVertexShader(screen_vs_hlsl->GetBufferPointer(), screen_vs_hlsl->GetBufferSize(), nullptr, &screen_vs_p);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create screen vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    device.reset(vdevice_p);
+    screen_vs.reset(screen_vs_p);
 
-    video::ctx_t::pointer ctx_p;
-    status = device_ctx_p->QueryInterface(IID_ID3D11VideoContext, (void**)&ctx_p);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query ID3D11VideoContext interface [0x"sv << util::hex(status).to_string_view() << ']';
+    ps_t::pointer screen_ps_p;
+    status = device_p->CreatePixelShader(screen_ps_hlsl->GetBufferPointer(), screen_ps_hlsl->GetBufferSize(), nullptr, &screen_ps_p);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create screen pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    ctx.reset(ctx_p);
+    screen_ps.reset(screen_ps_p);
 
-    D3D11_VIDEO_PROCESSOR_CONTENT_DESC contentDesc {
-      D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE,
-      { 1, 1 }, (UINT)in_width, (UINT)in_height,
-      { 1, 1 }, (UINT)out_width, (UINT)out_height,
-      D3D11_VIDEO_USAGE_OPTIMAL_QUALITY
+    ps_t::pointer YCrCb_ps_p;
+    status = device_p->CreatePixelShader(YCrCb_ps_hlsl->GetBufferPointer(), YCrCb_ps_hlsl->GetBufferSize(), nullptr, &YCrCb_ps_p);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create YCrCb pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    YCrCb_ps.reset(YCrCb_ps_p);
+
+    ps_t::pointer merge_UV_ps_p;
+    status = device_p->CreatePixelShader(merge_UV_ps_hlsl->GetBufferPointer(), merge_UV_ps_hlsl->GetBufferSize(), nullptr, &merge_UV_ps_p);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create mergeUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    merge_UV_ps.reset(merge_UV_ps_p);
+
+    vs_t::pointer merge_UV_vs_p;
+    status = device_p->CreateVertexShader(merge_UV_vs_hlsl->GetBufferPointer(), merge_UV_vs_hlsl->GetBufferSize(), nullptr, &merge_UV_vs_p);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create mergeUV vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    merge_UV_vs.reset(merge_UV_vs_p);
+
+    D3D11_INPUT_ELEMENT_DESC layout_desc {
+      "SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
     };
 
-    video::processor_enum_t::pointer vp_e_p;
-    status = device->CreateVideoProcessorEnumerator(&contentDesc, &vp_e_p);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create video processor enumerator [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-    processor_e.reset(vp_e_p);
-
-    D3D11_VIDEO_PROCESSOR_CAPS proc_caps;
-    processor_e->GetVideoProcessorCaps(&proc_caps);
-    if(!(proc_caps.FeatureCaps & D3D11_VIDEO_PROCESSOR_FEATURE_CAPS_ALPHA_STREAM)) {
-      BOOST_LOG(warning) << "VideoProcessorSetStreamAlpha() not supported, hardware accelerated mouse cannot be added to the video stream"sv;
-    }
-
-    video::processor_t::pointer processor_p;
-    status = device->CreateVideoProcessor(processor_e.get(), 0, &processor_p);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create video processor [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-    processor.reset(processor_p);
-
-    // Tell video processor alpha values need to be enabled
-    ctx->VideoProcessorSetStreamAlpha(processor.get(), 1, TRUE, 1.0f);
+    input_layout_t::pointer input_layout_p;
+    status = device_p->CreateInputLayout(
+      &layout_desc, 1,
+      merge_UV_vs_hlsl->GetBufferPointer(), merge_UV_vs_hlsl->GetBufferSize(),
+      &input_layout_p);
+    input_layout.reset(input_layout_p);
 
     D3D11_TEXTURE2D_DESC t {};
     t.Width  = out_width;
@@ -259,12 +348,12 @@ public:
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_DEFAULT;
     t.Format = pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010;
-    t.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_VIDEO_ENCODER;
+    t.BindFlags = D3D11_BIND_RENDER_TARGET;
 
     dxgi::texture2d_t::pointer tex_p {};
     status = device_p->CreateTexture2D(&t, nullptr, &tex_p);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create video output texture [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to create render target texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -276,17 +365,118 @@ public:
     img.row_pitch = out_width;
     img.pixel_pitch = 1;
 
-    D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC output_desc { D3D11_VPOV_DIMENSION_TEXTURE2D, 0 };
-    video::processor_out_t::pointer processor_out_p;
-    status = device->CreateVideoProcessorOutputView(img.texture.get(), processor_e.get(), &output_desc, &processor_out_p);
+    D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
+      DXGI_FORMAT_R8_UNORM,
+      D3D11_RTV_DIMENSION_TEXTURE2D
+    };
+
+    render_target_t::pointer nv12_rt_p;
+    status = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_rt_p);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create VideoProcessorOutputView [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    processor_out.reset(processor_out_p);
+    nv12_rt.reset(nv12_rt_p);
 
-    device_p->AddRef();
-    data = device_p;
+    if(
+      _init_rt(&luma_sr, &luma_rt, out_width, out_height, 1, DXGI_FORMAT_R8_UNORM) ||
+      _init_rt(&chromaCB_sr, &chromaCB_rt, out_width, out_height, 2, DXGI_FORMAT_R8_UNORM, D3D11_RESOURCE_MISC_GENERATE_MIPS) ||
+      _init_rt(&chromaCR_sr, &chromaCR_rt, out_width, out_height, 2, DXGI_FORMAT_R8_UNORM, D3D11_RESOURCE_MISC_GENERATE_MIPS) ||
+      _init_shift_sr(out_width))
+    {
+      return -1;
+    }
+
+    // t.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    // t.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    // status = device_p->CreateTexture2D(&t, nullptr, &tex_p);
+    // if(FAILED(status)) {
+    //   BOOST_LOG(error) << "Failed to create depth stencil texture [0x"sv << util::hex(status).to_string_view() << ']';
+    //   return -1;
+    // }
+    // depth_stencil.reset(tex_p);
+
+    D3D11_SAMPLER_DESC sampler_desc {};
+    sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampler_desc.MinLOD = 0;
+    sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    sampler_state_t::pointer sampler_state_p;
+    status = device_p->CreateSamplerState(&sampler_desc, &sampler_state_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create point sampler state [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    sampler_point.reset(sampler_state_p);
+
+    // D3D11_DEPTH_STENCIL_DESC depth_stencil_desc {};
+    // depth_stencil_desc.DepthEnable = FALSE;
+    // depth_stencil_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    // depth_stencil_desc.StencilEnable = true;
+    // depth_stencil_desc.StencilReadMask = 0xFF;
+    // depth_stencil_desc.StencilWriteMask = 0xFF;
+
+    // depth_stencil_desc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    // depth_stencil_desc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+    // depth_stencil_desc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    // depth_stencil_desc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+    // depth_stencil_desc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+    // depth_stencil_desc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+    // depth_stencil_desc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+    // depth_stencil_desc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+    // depth_stencil_state_t::pointer depth_state_p;
+    // status = device_p->CreateDepthStencilState(&depth_stencil_desc, &depth_state_p);
+    // if(FAILED(status)) {
+    //   BOOST_LOG(error) << "Failed to create depth stencil state [0x"sv << util::hex(status).to_string_view() << ']';
+    //   return -1;
+    // }
+    // depth_state.reset(depth_state_p);
+
+    // D3D11_DEPTH_STENCIL_VIEW_DESC depth_view_desc {};
+    // depth_view_desc.Format = t.Format;
+    // depth_view_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+
+    // depth_stencil_view_t::pointer depth_view_p;
+    // status = device_p->CreateDepthStencilView(depth_stencil.get(), &depth_view_desc, &depth_view_p);
+    // if(FAILED(status)) {
+    //   BOOST_LOG(error) << "Failed to create depth stencil view [0x"sv << util::hex(status).to_string_view() << ']';
+    //   return -1;
+    // }
+    // depth_view.reset(depth_view_p);
+
+    // // Setup the raster description which will determine how and what polygons will be drawn.
+    // D3D11_RASTERIZER_DESC raster_desc;
+    // raster_desc.AntialiasedLineEnable = false;
+    // raster_desc.CullMode = D3D11_CULL_BACK;
+    // raster_desc.DepthBias = 0;
+    // raster_desc.DepthBiasClamp = 0.0f;
+    // raster_desc.DepthClipEnable = true;
+    // raster_desc.FillMode = D3D11_FILL_SOLID;
+    // raster_desc.FrontCounterClockwise = false;
+    // raster_desc.MultisampleEnable = false;
+    // raster_desc.ScissorEnable = false;
+    // raster_desc.SlopeScaledDepthBias = 0.0f;
+
+    // raster_state_t::pointer raster_state_p;
+    // status = device_p->CreateRasterizerState(&raster_desc, &raster_state_p);
+    // if(FAILED(status)) {
+    //   BOOST_LOG(error) << "Failed to create rasterizer state [0x"sv << util::hex(status).to_string_view() << ']';
+    //   return -1;
+    // }
+    // raster_state.reset(raster_state_p);
+
+    auto sampler_p = sampler_point.get();
+    device_ctx_p->PSSetSamplers(0, 1, &sampler_p);
+    // device_ctx_p->RSSetState(raster_state.get());
+    device_ctx_p->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+    device_ctx_p->IASetInputLayout(input_layout.get());
+
     return 0;
   }
 
@@ -300,16 +490,148 @@ public:
       hwdevices_p->erase(it);
     }
   }
+private:
+  void _init_view_port(float width, float height) {
+    D3D11_VIEWPORT view {
+      0.0f, 0.0f,
+      width, height,
+      0.0f, 1.0f
+    };
+
+    device_ctx_p->RSSetViewports(1, &view);
+  }
+
+  int _init_rt(shader_res_t *shader_res, render_target_t *render_target, int width, int height, int mip_levels, DXGI_FORMAT format, int flags = 0) {
+    D3D11_TEXTURE2D_DESC desc {};
+
+    desc.Width            = width;
+    desc.Height           = height;
+    desc.Format           = format;
+    desc.Usage            = D3D11_USAGE_DEFAULT;
+    desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    desc.MipLevels        = mip_levels;
+    desc.ArraySize        = 1;
+    desc.SampleDesc.Count = 1;
+    desc.MiscFlags        = flags;
+
+    auto device = (device_t::pointer)data;
+
+    texture2d_t::pointer tex_p;
+    auto status = device->CreateTexture2D(&desc, nullptr, &tex_p);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    texture2d_t tex { tex_p };
+
+    if(shader_res) {
+      D3D11_SHADER_RESOURCE_VIEW_DESC shader_resource_desc {
+        format,
+        D3D11_SRV_DIMENSION_TEXTURE2D
+      };
+      shader_resource_desc.Texture2D.MipLevels = mip_levels;
+
+      shader_res_t::pointer shader_res_p;
+      device->CreateShaderResourceView(tex_p, &shader_resource_desc, &shader_res_p);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+      shader_res->reset(shader_res_p);
+    }
+
+    if(render_target) {
+      D3D11_RENDER_TARGET_VIEW_DESC render_target_desc {
+        format,
+        D3D11_RTV_DIMENSION_TEXTURE2D
+      };
+
+      render_target_t::pointer render_target_p;
+      device->CreateRenderTargetView(tex_p, &render_target_desc, &render_target_p);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+      render_target->reset(render_target_p);
+    }
+
+    return 0;
+  }
+
+  int _init_shift_sr(int width) {
+    auto device = (device_t::pointer)data;
+    D3D11_TEXTURE1D_DESC desc {};
+    desc.Width = width;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8_UNORM;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    util::buffer_t<BYTE> data { (std::size_t)width };
+    for(int x = 0; x < data.size(); ++x) {
+      data[x] = x & 1;
+    }
+
+    D3D11_SUBRESOURCE_DATA data_res {
+      std::begin(data),
+      (UINT)data.size()
+    };
+
+    texture1d_t::pointer tex_p {};
+    auto status = device->CreateTexture1D(&desc, &data_res, &tex_p);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create shift texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    texture1d_t tex { tex_p };
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC res_desc {
+      DXGI_FORMAT_R8_UNORM,
+      D3D11_SRV_DIMENSION_TEXTURE1D
+    };
+    res_desc.Texture1D.MipLevels = 1;
+
+    shader_res_t::pointer shader_res_p;
+    device->CreateShaderResourceView(tex_p, &res_desc, &shader_res_p);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+    shift_sr.reset(shader_res_p);
+
+    return 0;
+  }
+
+public:
+  // raster_state_t raster_state;
+
+  sampler_state_t sampler_point;
+
+  // depth_stencil_view_t depth_view;
+  // depth_stencil_state_t depth_state;
+
+  shader_res_t chromaCB_sr;
+  shader_res_t chromaCR_sr;
+  shader_res_t luma_sr;
+  shader_res_t shift_sr;
+
+  input_layout_t input_layout;
+  // texture2d_t depth_stencil;
+
+  render_target_t luma_rt;
+  render_target_t nv12_rt;
+  render_target_t chromaCB_rt;
+  render_target_t chromaCR_rt;
 
   img_d3d_t img;
-  video::device_t device;
-  video::ctx_t ctx;
-  video::processor_enum_t processor_e;
-  video::processor_t processor;
-  video::processor_out_t processor_out;
-  std::unordered_map<texture2d_t::pointer, video::processor_in_t> texture_to_processor_in;
 
-  video::processor_in_t cursor_in;
+  vs_t merge_UV_vs;
+  ps_t merge_UV_ps;
+  vs_t screen_vs;
+  ps_t screen_ps;
+  ps_t YCrCb_ps;
+  ps_t ChromaCbCr_ps;
 
   bool cursor_visible;
 
@@ -318,6 +640,8 @@ public:
 
   LONG in_width, in_height;
   double out_width, out_height;
+
+  device_ctx_t::pointer device_ctx_p;
 
   std::vector<hwdevice_t*> *hwdevices_p;
 };
@@ -429,7 +753,7 @@ std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   t.SampleDesc.Count = 1;
   t.Usage = D3D11_USAGE_DEFAULT;
   t.Format = format;
-  t.BindFlags = D3D11_BIND_RENDER_TARGET;
+  t.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
   dxgi::texture2d_t::pointer tex_p {};
   auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
@@ -438,12 +762,12 @@ std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
     return nullptr;
   }
 
+  img->texture.reset(tex_p);
   img->data        = (std::uint8_t*)tex_p;
   img->row_pitch   = 0;
   img->pixel_pitch = 4;
   img->width       = 0;
   img->height      = 0;
-  img->texture.reset(tex_p);
   img->display     = shared_from_this();
 
   return img;
@@ -456,8 +780,7 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
   auto dummy_data = std::make_unique<int[]>(width * height);
   D3D11_SUBRESOURCE_DATA data {
     dummy_data.get(),
-    (UINT)img->row_pitch,
-    0
+    (UINT)img->row_pitch
   };
 
   D3D11_TEXTURE2D_DESC t {};
@@ -468,7 +791,7 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
   t.SampleDesc.Count = 1;
   t.Usage = D3D11_USAGE_DEFAULT;
   t.Format = format;
-  t.BindFlags = D3D11_BIND_RENDER_TARGET;
+  t.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
   dxgi::texture2d_t::pointer tex_p {};
   auto status = device->CreateTexture2D(&t, &data, &tex_p);
@@ -477,8 +800,8 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
     return -1;
   }
 
-  img->data        = (std::uint8_t*)tex_p;
   img->texture.reset(tex_p);
+  img->data        = (std::uint8_t*)tex_p;
   img->height      = height;
   img->width       = width;
   img->pixel_pitch = 4;
@@ -487,10 +810,40 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
 }
 
 std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(int width, int height, pix_fmt_e pix_fmt) {
-  if(pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
-    BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << (int)pix_fmt << ']';
+  if(pix_fmt != platf::pix_fmt_e::nv12) {
+    BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
 
     return nullptr;
+  }
+
+  if(!screen_ps_hlsl) {
+    BOOST_LOG(info) << "Compiling shaders..."sv;
+    screen_vs_hlsl = compile_vertex_shader(SUNSHINE_ASSETS_DIR "/ScreenVS.hlsl");
+    if(!screen_vs_hlsl) {
+      return nullptr;
+    }
+
+    screen_ps_hlsl = compile_pixel_shader(SUNSHINE_ASSETS_DIR "/ScreenPS.hlsl");
+    if(!screen_ps_hlsl) {
+      return nullptr;
+    }
+
+    YCrCb_ps_hlsl = compile_pixel_shader(SUNSHINE_ASSETS_DIR "/YCbCrPS.hlsl");
+    if(!YCrCb_ps_hlsl) {
+      return nullptr;
+    }
+
+    merge_UV_ps_hlsl = compile_pixel_shader(SUNSHINE_ASSETS_DIR "/MergeUVPS.hlsl");
+    if(!merge_UV_ps_hlsl) {
+      return nullptr;
+    }
+
+    merge_UV_vs_hlsl = compile_vertex_shader(SUNSHINE_ASSETS_DIR "/MergeUVVS.hlsl");
+    if(!merge_UV_vs_hlsl) {
+      return nullptr;
+    }
+
+    BOOST_LOG(info) << "Compiled shaders"sv;
   }
 
   auto hwdevice = std::make_shared<hwdevice_t>(&hwdevices);
