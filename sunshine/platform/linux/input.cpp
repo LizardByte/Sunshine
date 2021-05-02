@@ -502,5 +502,5 @@ void freeInput(void *p) {
   delete input;
 }
 
-std::unique_ptr<deinit_t> init() { return nullptr; }
+std::unique_ptr<deinit_t> init() { return std::make_unique<deinit_t>(); }
 }

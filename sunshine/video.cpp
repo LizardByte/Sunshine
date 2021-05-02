@@ -622,6 +622,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     case 0:
     default:
       // Rec. 601
+      BOOST_LOG(info) << "Color coding [Rec. 601]"sv;
       ctx->color_primaries = AVCOL_PRI_SMPTE170M;
       ctx->color_trc = AVCOL_TRC_SMPTE170M;
       ctx->colorspace = AVCOL_SPC_SMPTE170M;
@@ -630,6 +631,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
     case 1:
       // Rec. 709
+      BOOST_LOG(info) << "Color coding [Rec. 709]"sv;
       ctx->color_primaries = AVCOL_PRI_BT709;
       ctx->color_trc = AVCOL_TRC_BT709;
       ctx->colorspace = AVCOL_SPC_BT709;
@@ -638,6 +640,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
     case 2:
       // Rec. 2020
+      BOOST_LOG(info) << "Color coding [Rec. 2020]"sv;
       ctx->color_primaries = AVCOL_PRI_BT2020;
       ctx->color_trc = AVCOL_TRC_BT2020_10;
       ctx->colorspace = AVCOL_SPC_BT2020_NCL;
