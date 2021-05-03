@@ -1,6 +1,7 @@
 #include <codecvt>
 
 #include <d3dcompiler.h>
+#include <directxmath.h>
 
 #include "sunshine/main.h"
 #include "display.h"
@@ -15,6 +16,7 @@ constexpr float aquamarine[] { 0.498039246f, 1.000000000f, 0.831372619f, 1.00000
 using input_layout_t        = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
 using render_target_t       = util::safe_ptr<ID3D11RenderTargetView, Release<ID3D11RenderTargetView>>;
 using shader_res_t          = util::safe_ptr<ID3D11ShaderResourceView, Release<ID3D11ShaderResourceView>>;
+using buf_t                 = util::safe_ptr<ID3D11Buffer, Release<ID3D11Buffer>>;
 using blend_t               = util::safe_ptr<ID3D11BlendState, Release<ID3D11BlendState>>;
 using raster_state_t        = util::safe_ptr<ID3D11RasterizerState, Release<ID3D11RasterizerState>>;
 using sampler_state_t       = util::safe_ptr<ID3D11SamplerState, Release<ID3D11SamplerState>>;
@@ -23,6 +25,49 @@ using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11Pi
 using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
 using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
 using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
+
+struct __attribute__ ((__aligned__ (16))) color_t {
+  DirectX::XMFLOAT4 color_vec_y;
+  DirectX::XMFLOAT4 color_vec_u;
+  DirectX::XMFLOAT4 color_vec_v;
+};
+
+color_t colors[] {
+  {
+    { 0.299f, 0.587f, 0.114f, 0.0625f },     // Color Luma (Y)
+    { -0.14713f, -0.28886f, 0.436f, 0.5f }, // Color Cb (U)
+    { 0.615f, -0.51499f, -0.10001f, 0.5f }, // Color Cr (V)
+  }, // BT602 -- MPEG
+  {
+    { 0.299f, 0.587f, 0.114f, 0.0f },     // Color Luma (Y)
+    { -0.168736f, -0.331264f, 0.5f, 0.5f }, // Color Cb (U)
+    { 0.5f, -0.418688f, -0.081312f, 0.5f }, // Color Cr (V)
+  } // BT601 -- JPEG
+};
+
+template<class T>
+buf_t make_buffer(device_t::pointer device, const T& t) {
+  static_assert(sizeof(T) % 16 == 0, "Buffer needs to be aligned on a 16-byte alignment");
+
+  D3D11_BUFFER_DESC buffer_desc {
+    sizeof(T),
+    D3D11_USAGE_IMMUTABLE,
+    D3D11_BIND_CONSTANT_BUFFER,
+  };
+
+  D3D11_SUBRESOURCE_DATA init_data {
+    &t
+  };
+
+  buf_t::pointer buf_p;
+  auto status = device->CreateBuffer(&buffer_desc, &init_data, &buf_p);
+  if(status) {
+    BOOST_LOG(error) << "Failed to create shader resource view"sv;
+    return nullptr;
+  }
+
+  return buf_t { buf_p };
+}
 
 blob_t merge_UV_vs_hlsl;
 blob_t merge_UV_ps_hlsl;
@@ -168,22 +213,22 @@ public:
       return;
     }
 
-    LONG x = ((double)rel_x) * out_width / (double)in_width;
-    LONG y = ((double)rel_y) * out_height / (double)in_height;
+    // LONG x = ((double)rel_x) * out_width / (double)in_width;
+    // LONG y = ((double)rel_y) * out_height / (double)in_height;
 
-    // Ensure it's within bounds
-    auto left_out   = std::min<LONG>(out_width, std::max<LONG>(0, x));
-    auto top_out    = std::min<LONG>(out_height, std::max<LONG>(0, y));
-    auto right_out  = std::max<LONG>(0, std::min<LONG>(out_width, x + cursor_scaled_width));
-    auto bottom_out = std::max<LONG>(0, std::min<LONG>(out_height, y + cursor_scaled_height));
+    // // Ensure it's within bounds
+    // auto left_out   = std::min<LONG>(out_width, std::max<LONG>(0, x));
+    // auto top_out    = std::min<LONG>(out_height, std::max<LONG>(0, y));
+    // auto right_out  = std::max<LONG>(0, std::min<LONG>(out_width, x + cursor_scaled_width));
+    // auto bottom_out = std::max<LONG>(0, std::min<LONG>(out_height, y + cursor_scaled_height));
 
-    auto left_in   = std::max<LONG>(0, -rel_x);
-    auto top_in    = std::max<LONG>(0, -rel_y);
-    auto right_in  = std::min<LONG>(in_width - rel_x, cursor_width);
-    auto bottom_in = std::min<LONG>(in_height - rel_y, cursor_height);
+    // auto left_in   = std::max<LONG>(0, -rel_x);
+    // auto top_in    = std::max<LONG>(0, -rel_y);
+    // auto right_in  = std::min<LONG>(in_width - rel_x, cursor_width);
+    // auto bottom_in = std::min<LONG>(in_height - rel_y, cursor_height);
 
-    RECT rect_in { left_in, top_in, right_in, bottom_in };
-    RECT rect_out { left_out, top_out, right_out, bottom_out };
+    // RECT rect_in { left_in, top_in, right_in, bottom_in };
+    // RECT rect_out { left_out, top_out, right_out, bottom_out };
   }
 
   int set_cursor_texture(texture2d_t::pointer texture, LONG width, LONG height) {
@@ -216,23 +261,19 @@ public:
       img.input_res.reset(input_rec_p);
     }
 
-    auto sampler_linear_p = sampler_linear.get();
     auto input_res_p = img.input_res.get();
 
     auto Y_rt_p = nv12_Y_rt.get();
     auto UV_rt_p = nv12_UV_rt.get();
 
-    // device_ctx_p->OMSetBlendState(blend.get(), nullptr, 0xffffffff);
     _init_view_port(out_width, out_height);
-    device_ctx_p->PSSetSamplers(0, 1, &sampler_linear_p);
 
     device_ctx_p->OMSetRenderTargets(1, &Y_rt_p, nullptr);
     device_ctx_p->ClearRenderTargetView(Y_rt_p, aquamarine);
     device_ctx_p->VSSetShader(merge_Y_vs.get(), nullptr, 0);
     device_ctx_p->PSSetShader(merge_Y_ps.get(), nullptr, 0);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
-    device_ctx_p->Draw(4, 0);
-    device_ctx_p->Flush();
+    device_ctx_p->Draw(3, 0);
 
     _init_view_port(out_width / 2, out_height / 2);
     device_ctx_p->OMSetRenderTargets(1, &UV_rt_p, nullptr);
@@ -240,13 +281,38 @@ public:
     device_ctx_p->VSSetShader(merge_UV_vs.get(), nullptr, 0);
     device_ctx_p->PSSetShader(merge_UV_ps.get(), nullptr, 0);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
-    device_ctx_p->Draw(4, 0);
-    device_ctx_p->Flush();
+    device_ctx_p->Draw(3, 0);
 
     return 0;
   }
 
-  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {}
+  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
+    switch (colorspace) {
+      case 5: // SWS_CS_SMPTE170M
+        color_p = &colors[0];
+        break;
+      case 1: // SWS_CS_ITU709
+      case 9: // SWS_CS_BT2020
+      default:
+        BOOST_LOG(warning) << "Colorspace: ["sv << colorspace << "] not yet supported: switching to default"sv;
+        color_p = &colors[0];
+    };
+
+    if(color_range > 1) {
+      // Full range
+      ++color_p;
+    }
+
+    auto color_matrix = make_buffer((device_t::pointer)data, *color_p);
+    if(!color_matrix) {
+      BOOST_LOG(warning) << "Failed to create color matrix"sv;
+      return;
+    }
+
+    auto buf_p = color_matrix.get();
+    device_ctx_p->PSSetConstantBuffers(0, 1, &buf_p);
+    this->color_matrix = std::move(color_matrix);
+  }
 
   int init(
     std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p,
@@ -299,6 +365,19 @@ public:
     }
     merge_UV_vs.reset(vs_p);
 
+    color_matrix = make_buffer(device_p, colors[0]);
+    if(!color_matrix) {
+      BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
+      return -1;
+    }
+
+    float info_in[16] { 1.0f / (float)out_width }; //aligned to 16-byte
+    info = make_buffer(device_p, info_in);
+    if(!info_in) {
+      BOOST_LOG(error) << "Failed to create info buffer"sv;
+      return -1;
+    }
+
     D3D11_INPUT_ELEMENT_DESC layout_desc {
       "SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
     };
@@ -309,20 +388,6 @@ public:
       merge_UV_vs_hlsl->GetBufferPointer(), merge_UV_vs_hlsl->GetBufferSize(),
       &input_layout_p);
     input_layout.reset(input_layout_p);
-
-    D3D11_BLEND_DESC blend_desc {};
-    blend_desc.RenderTarget[0].BlendEnable = FALSE;
-    blend_desc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
-    blend_desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-    blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-
-    blend_t::pointer blend_p;
-    status = device_p->CreateBlendState(&blend_desc, &blend_p);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create blend state [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-    blend.reset(blend_p);
 
     D3D11_TEXTURE2D_DESC t {};
     t.Width  = out_width;
@@ -395,6 +460,12 @@ public:
     }
     sampler_point.reset(sampler_state_p);
 
+    auto sampler_linear_p = sampler_linear.get();
+    auto color_matrix_buf_p = color_matrix.get();
+    auto info_buf_p = info.get();
+    device_ctx_p->PSSetSamplers(0, 1, &sampler_linear_p);
+    device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix_buf_p);
+    device_ctx_p->VSSetConstantBuffers(0, 1, &info_buf_p);
     device_ctx_p->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
     device_ctx_p->IASetInputLayout(input_layout.get());
 
@@ -480,6 +551,11 @@ private:
   }
 
 public:
+  color_t *color_p;
+
+  buf_t info;
+  buf_t color_matrix;
+
   sampler_state_t sampler_linear;
   sampler_state_t sampler_point;
 
@@ -487,8 +563,6 @@ public:
 
   render_target_t nv12_Y_rt;
   render_target_t nv12_UV_rt;
-
-  blend_t blend;
 
   img_d3d_t img;
 

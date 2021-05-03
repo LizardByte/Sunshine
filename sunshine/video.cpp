@@ -647,6 +647,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
       sws_color_space = SWS_CS_BT2020;
       break;
   }
+  BOOST_LOG(info) << "Color range: ["sv << ((config.encoderCscMode & 0x1) ? "JPEG"sv : "MPEG"sv) << ']';
 
   AVPixelFormat sw_fmt;
   if(config.dynamicRange == 0) {

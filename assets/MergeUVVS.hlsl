@@ -3,12 +3,15 @@ struct VertTexPosWide {
 	float4 pos : SV_POSITION;
 };
 
+cbuffer info : register(b0) {
+	float width_i;
+};
+
 //--------------------------------------------------------------------------------------
 // Vertex Shader
 //--------------------------------------------------------------------------------------
 VertTexPosWide VS(uint vI : SV_VERTEXID)
 {
-	float width_i = 1.0f / 1920.0f;
 	float idHigh = float(vI >> 1);
 	float idLow = float(vI & uint(1));
 
