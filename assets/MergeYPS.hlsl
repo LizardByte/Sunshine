@@ -22,7 +22,7 @@ struct PS_INPUT
 //--------------------------------------------------------------------------------------
 float PS(PS_INPUT frag_in) : SV_Target
 {
-	float3 rgb = image.Load(int3(frag_in.pos.xy, 0)).rgb;
+	float3 rgb = image.Sample(def_sampler, frag_in.tex, 0).rgb;
 	float y = dot(color_vec_y.xyz, rgb) + color_vec_y.w;
 
 	return y;

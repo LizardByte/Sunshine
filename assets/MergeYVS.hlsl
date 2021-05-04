@@ -15,8 +15,11 @@ PS_INPUT VS(uint vI : SV_VERTEXID)
 	float x = idHigh * 4.0 - 1.0;
 	float y = idLow * 4.0 - 1.0;
 
+	float u = idHigh * 2.0;
+	float v = 1.0 - idLow * 2.0;
+
 	PS_INPUT vert_out;
 	vert_out.pos = float4(x, y, 0.0, 1.0);
-	vert_out.tex = float2(idHigh, idLow);
+	vert_out.tex = float2(u, v);
 	return vert_out;
 }

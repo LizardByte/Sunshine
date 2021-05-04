@@ -82,10 +82,10 @@ platf::dev_type_e map_dev_type(AVHWDeviceType type);
 platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
 void sw_img_to_frame(const platf::img_t &img, frame_t &frame);
-void nv_d3d_img_to_frame(const platf::img_t &img, frame_t &frame);
-util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
-void amd_d3d_img_to_frame(const platf::img_t &img, frame_t &frame);
-util::Either<buffer_t, int> amd_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
+void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame);
+util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
+void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame);
+util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
 util::Either<buffer_t, int> make_hwdevice_ctx(AVHWDeviceType type, void *hwdevice_ctx);
 int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
@@ -297,8 +297,8 @@ static encoder_t nvenc {
   false,
   true,
 
-  nv_d3d_img_to_frame,
-  nv_d3d_make_hwdevice_ctx
+  dxgi_img_to_frame,
+  dxgi_make_hwdevice_ctx
 };
 
 static encoder_t amdvce {
@@ -331,8 +331,8 @@ static encoder_t amdvce {
   false,
   true,
 
-  amd_d3d_img_to_frame,
-  amd_d3d_make_hwdevice_ctx
+  dxgi_img_to_frame,
+  dxgi_make_hwdevice_ctx
 };
 #endif
 
@@ -1304,7 +1304,7 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
 void sw_img_to_frame(const platf::img_t &img, frame_t &frame) {}
 
 #ifdef _WIN32
-void nv_d3d_img_to_frame(const platf::img_t &img, frame_t &frame) {
+void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame) {
   if(img.data == frame->data[0]) {
     return;
   }
@@ -1327,31 +1327,7 @@ void nv_d3d_img_to_frame(const platf::img_t &img, frame_t &frame) {
   frame->width = img.width;
 }
 
-void amd_d3d_img_to_frame(const platf::img_t &img, frame_t &frame) {
-  if(img.data == frame->data[0]) {
-    return;
-  }
-  
-  // Need to have something refcounted
-  if(!frame->buf[0]) {
-    frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
-  }
-
-  auto desc = (AVD3D11FrameDescriptor*)frame->buf[0]->data;
-  desc->texture = (ID3D11Texture2D*)img.data;
-  desc->index = 0;
-
-  frame->data[0] = img.data;
-  frame->data[1] = 0;
-
-  frame->linesize[0] = img.row_pitch;
-
-  frame->height = img.height;
-  frame->width = img.width;
-}
-
-
-util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
+util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
   buffer_t ctx_buf { av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA) };
   auto ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)ctx_buf->data)->hwctx;
   
@@ -1365,27 +1341,6 @@ util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice
   if(err) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
     BOOST_LOG(error) << "Failed to create FFMpeg nvenc: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
-
-    return err;
-  }
-
-  return ctx_buf;
-}
-
-util::Either<buffer_t, int> amd_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
-  buffer_t ctx_buf { av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA) };
-  auto ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)ctx_buf->data)->hwctx;
-  
-  std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
-
-  auto device = (ID3D11Device*)hwdevice_ctx->data;
-  device->AddRef();
-  ctx->device = device;
-
-  auto err = av_hwdevice_ctx_init(ctx_buf.get());
-  if(err) {
-    char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-    BOOST_LOG(error) << "Failed to create FFMpeg amddech: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
     return err;
   }
