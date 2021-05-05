@@ -306,7 +306,7 @@ static encoder_t amdvce {
   { (int)amd::profile_h264_e::high, (int)amd::profile_hevc_e::main },
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
-  AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
       { "header_insertion_mode"s, "idr"s },
@@ -1200,7 +1200,7 @@ bool validate_encoder(encoder_t &encoder) {
   encoder.hevc[encoder_t::PASSED] = test_hevc;
 
   std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
-    { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 1, 1, 1 } }
+    { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } }
   };
   for(auto &[flag, config] : configs) {
     auto h264 = config;
