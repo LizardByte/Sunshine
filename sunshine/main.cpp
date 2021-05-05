@@ -154,6 +154,8 @@ int main(int argc, char *argv[]) {
   stream::rtpThread(shutdown_event);
 
   httpThread.join();
+  task_pool.stop();
+  task_pool.join();
 
   return 0;
 }
