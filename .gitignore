@@ -1,7 +1,8 @@
 build
-cmake-build-*
+cmake-build*
 .DS_Store
-
+.vscode
+.vs
 *.swp
 *.kdev4
 
