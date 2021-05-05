@@ -1304,6 +1304,15 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
 void sw_img_to_frame(const platf::img_t &img, frame_t &frame) {}
 
 #ifdef _WIN32
+}
+
+// Ugly, but need to declare for wio
+namespace platf::dxgi {
+void lock(void *hwdevice);
+void unlock(void *hwdevice);
+}
+void do_nothing(void*) {}
+namespace video {
 void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame) {
   if(img.data == frame->data[0]) {
     return;
@@ -1334,13 +1343,18 @@ util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_c
   std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
 
   auto device = (ID3D11Device*)hwdevice_ctx->data;
+
   device->AddRef();
   ctx->device = device;
+
+  ctx->lock_ctx = (void*)1;
+  ctx->lock = do_nothing;
+  ctx->unlock = do_nothing;
 
   auto err = av_hwdevice_ctx_init(ctx_buf.get());
   if(err) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-    BOOST_LOG(error) << "Failed to create FFMpeg nvenc: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+    BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
     return err;
   }

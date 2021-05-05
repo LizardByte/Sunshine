@@ -32,17 +32,24 @@ struct __attribute__ ((__aligned__ (16))) color_t {
   DirectX::XMFLOAT4 color_vec_v;
 };
 
+color_t make_color_matrix(float Cr, float Cb, float U_max, float V_max, float add_Y, float add_UV) {
+  float Cg = 1.0f - Cr - Cb;
+
+  float Cr_i = 1.0f - Cr;
+  float Cb_i = 1.0f - Cb;
+
+  return {
+    { Cr, Cg, Cb, add_Y },
+    { -(Cr * U_max / Cb_i), -(Cg * U_max / Cb_i), U_max, add_UV },
+    { V_max, -(Cg * V_max / Cr_i), -(Cb * V_max / Cr_i), add_UV }
+  };
+}
+
 color_t colors[] {
-  {
-    { 0.299f, 0.587f, 0.114f, 0.0625f },     // Color Luma (Y)
-    { -0.14713f, -0.28886f, 0.436f, 0.5f }, // Color Cb (U)
-    { 0.615f, -0.51499f, -0.10001f, 0.5f }, // Color Cr (V)
-  }, // BT602 -- MPEG
-  {
-    { 0.299f, 0.587f, 0.114f, 0.0f },     // Color Luma (Y)
-    { -0.168736f, -0.331264f, 0.5f, 0.5f }, // Color Cb (U)
-    { 0.5f, -0.418688f, -0.081312f, 0.5f }, // Color Cr (V)
-  } // BT601 -- JPEG
+  make_color_matrix(0.299f, 0.114f, 0.436f, 0.615f, 0.0625, 0.5f),   // BT601 MPEG
+  make_color_matrix(0.299f, 0.114f, 0.5f, 0.5f, 0.0f, 0.5f),         // BT601 JPEG
+  make_color_matrix(0.2126f, 0.0722f, 0.436f, 0.615f, 0.0625, 0.5f), //BT701 MPEG
+  make_color_matrix(0.2126f, 0.0722f, 0.5f, 0.5f, 0.0f, 0.5f),       //BT701 JPEG
 };
 
 template<class T>
@@ -267,13 +274,14 @@ public:
     auto UV_rt_p = nv12_UV_rt.get();
 
     _init_view_port(out_width, out_height);
-
     device_ctx_p->OMSetRenderTargets(1, &Y_rt_p, nullptr);
     device_ctx_p->ClearRenderTargetView(Y_rt_p, aquamarine);
     device_ctx_p->VSSetShader(merge_Y_vs.get(), nullptr, 0);
     device_ctx_p->PSSetShader(merge_Y_ps.get(), nullptr, 0);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
     device_ctx_p->Draw(3, 0);
+
+    device_ctx_p->Flush();
 
     _init_view_port(out_width / 2, out_height / 2);
     device_ctx_p->OMSetRenderTargets(1, &UV_rt_p, nullptr);
@@ -292,6 +300,8 @@ public:
         color_p = &colors[0];
         break;
       case 1: // SWS_CS_ITU709
+        color_p = &colors[2];
+        break;
       case 9: // SWS_CS_BT2020
       default:
         BOOST_LOG(warning) << "Colorspace: ["sv << colorspace << "] not yet supported: switching to default"sv;
@@ -581,6 +591,7 @@ public:
 
   device_ctx_t::pointer device_ctx_p;
 
+  // The destructor will remove itself from the list of hardware devices, this is done synchronously
   std::vector<hwdevice_t*> *hwdevices_p;
 };
 
