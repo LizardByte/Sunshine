@@ -373,11 +373,9 @@ static encoder_t software {
 static std::vector<encoder_t> encoders {
 #ifdef _WIN32
   nvenc,
-#endif
-  software,
-#ifdef _WIN32
   amdvce,
 #endif
+  software
 };
 
 void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type) {

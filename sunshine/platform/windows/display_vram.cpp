@@ -248,8 +248,8 @@ public:
       return;
     }
 
-    auto x = ((float)rel_x) * cursor_scale;
-    auto y = ((float)rel_y) * cursor_scale;
+    auto x = ((float)rel_x);
+    auto y = ((float)rel_y);
 
     cursor_view.TopLeftX = x;
     cursor_view.TopLeftY = y;
@@ -384,7 +384,6 @@ public:
 
     this->device_ctx_p = device_ctx_p;
 
-    cursor_scale = (float)out_width / (float)in_width;
     cursor_visible = false;
     cursor_view.MinDepth = 0.0f;
     cursor_view.MaxDepth = 1.0f;
@@ -644,7 +643,6 @@ public:
   ps_t scene_ps;
 
   D3D11_VIEWPORT cursor_view;
-  float cursor_scale;
   bool cursor_visible;
 
   float out_width, out_height;
