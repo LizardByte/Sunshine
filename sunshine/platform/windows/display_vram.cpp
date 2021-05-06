@@ -69,11 +69,38 @@ buf_t make_buffer(device_t::pointer device, const T& t) {
   buf_t::pointer buf_p;
   auto status = device->CreateBuffer(&buffer_desc, &init_data, &buf_p);
   if(status) {
-    BOOST_LOG(error) << "Failed to create buffer"sv;
+    BOOST_LOG(error) << "Failed to create buffer: [0x"sv << util::hex(status).to_string_view() << ']';
     return nullptr;
   }
 
   return buf_t { buf_p };
+}
+
+blend_t make_blend(device_t::pointer device, bool enable) {
+  D3D11_BLEND_DESC bdesc {};
+  auto &rt = bdesc.RenderTarget[0];
+  rt.BlendEnable = enable;
+  rt.RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+  if(enable) {
+    rt.BlendOp = D3D11_BLEND_OP_ADD;
+    rt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
+
+    rt.SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+
+    rt.SrcBlendAlpha = D3D11_BLEND_ZERO;
+    rt.DestBlendAlpha = D3D11_BLEND_ZERO;
+  }
+
+  blend_t::pointer blend_p;
+  auto status = device->CreateBlendState(&bdesc, &blend_p);
+  if(status) {
+    BOOST_LOG(error) << "Failed to create blend state: [0x"sv << util::hex(status).to_string_view() << ']';
+    return nullptr;
+  }
+
+  return blend_t { blend_p };
 }
 
 blob_t merge_UV_vs_hlsl;
@@ -290,12 +317,12 @@ public:
       device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
 
       device_ctx_p->Draw(3, 0);
-      device_ctx_p->Flush();
 
+      device_ctx_p->OMSetBlendState(blend_enable.get(), nullptr, 0xFFFFFFFFu);
       device_ctx_p->RSSetViewports(1, &cursor_view);
       device_ctx_p->PSSetShaderResources(0, 1, &cursor_res_p);
       device_ctx_p->Draw(3, 0);
-      device_ctx_p->Flush();
+      device_ctx_p->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
 
       input_res_p = scene_sr.get();
     }
@@ -306,8 +333,6 @@ public:
     device_ctx_p->PSSetShader(merge_Y_ps.get(), nullptr, 0);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
     device_ctx_p->Draw(3, 0);
-
-    device_ctx_p->Flush();
 
     _init_view_port(out_width / 2, out_height / 2);
     device_ctx_p->OMSetRenderTargets(1, &UV_rt_p, nullptr);
@@ -374,7 +399,7 @@ public:
     vs_t::pointer vs_p;
     status = device_p->CreateVertexShader(merge_Y_vs_hlsl->GetBufferPointer(), merge_Y_vs_hlsl->GetBufferSize(), nullptr, &vs_p);
     if(status) {
-      BOOST_LOG(error) << "Failed to create screen vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to create mergeY vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
     merge_Y_vs.reset(vs_p);
@@ -382,7 +407,7 @@ public:
     ps_t::pointer ps_p;
     status = device_p->CreatePixelShader(merge_Y_ps_hlsl->GetBufferPointer(), merge_Y_ps_hlsl->GetBufferSize(), nullptr, &ps_p);
     if(status) {
-      BOOST_LOG(error) << "Failed to create YCrCb pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Failed to create mergeY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
     merge_Y_ps.reset(ps_p);
@@ -408,6 +433,9 @@ public:
     }
     scene_ps.reset(ps_p);
 
+    blend_disable = make_blend(device_p, false);
+    blend_enable = make_blend(device_p, true);
+
     if(_init_rt(scene_sr, scene_rt, in_width, in_height, DXGI_FORMAT_B8G8R8A8_UNORM)) {
       return -1;
     }
@@ -418,7 +446,7 @@ public:
       return -1;
     }
 
-    float info_in[16] { 1.0f / (float)out_width }; //aligned to 16-byte
+    float info_in[16 / sizeof(float)] { 1.0f / (float)out_width }; //aligned to 16-byte
     info_scene = make_buffer(device_p, info_in);
     if(!info_in) {
       BOOST_LOG(error) << "Failed to create info scene buffer"sv;
@@ -502,6 +530,7 @@ public:
     auto sampler_linear_p = sampler_linear.get();
     auto color_matrix_buf_p = color_matrix.get();
     auto info_buf_p = info_scene.get();
+    device_ctx_p->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
     device_ctx_p->PSSetSamplers(0, 1, &sampler_linear_p);
     device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix_buf_p);
     device_ctx_p->VSSetConstantBuffers(0, 1, &info_buf_p);
@@ -591,6 +620,9 @@ private:
 
 public:
   color_t *color_p;
+
+  blend_t blend_enable;
+  blend_t blend_disable;
 
   buf_t info_scene;
   buf_t color_matrix;
