@@ -253,21 +253,19 @@ public:
 
     cursor_view.TopLeftX = x;
     cursor_view.TopLeftY = y;
-    cursor_view.Width = cursor_scaled_width;
-    cursor_view.Height = cursor_scaled_height;
   }
 
   int set_cursor_texture(texture2d_t::pointer texture, LONG width, LONG height) {
     auto device = (device_t::pointer)data;
 
-    cursor_scaled_width = ((float)width) * cursor_scale;
-    cursor_scaled_height = ((float)height) * cursor_scale;
+    cursor_view.Width = width;
+    cursor_view.Height = height;
 
     D3D11_SHADER_RESOURCE_VIEW_DESC desc {
-        DXGI_FORMAT_B8G8R8A8_UNORM,
-        D3D11_SRV_DIMENSION_TEXTURE2D
-      };
-      desc.Texture2D.MipLevels = 1;
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_SRV_DIMENSION_TEXTURE2D
+    };
+    desc.Texture2D.MipLevels = 1;
 
     shader_res_t::pointer cursor_res_p;
     auto status = device->CreateShaderResourceView(texture, &desc, &cursor_res_p);
@@ -646,7 +644,6 @@ public:
   ps_t scene_ps;
 
   D3D11_VIEWPORT cursor_view;
-  float cursor_scaled_width, cursor_scaled_height;
   float cursor_scale;
   bool cursor_visible;
 
