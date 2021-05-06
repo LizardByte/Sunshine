@@ -15,7 +15,7 @@ cbuffer ColorMatrix : register(b0) {
 //--------------------------------------------------------------------------------------
 // Pixel Shader
 //--------------------------------------------------------------------------------------
-float2 PS(FragTexWide input) : SV_Target
+float2 main_ps(FragTexWide input) : SV_Target
 {
 	float3 rgb_left = image.Sample(def_sampler, input.uuv.xz).rgb;
 	float3 rgb_right = image.Sample(def_sampler, input.uuv.yz).rgb;

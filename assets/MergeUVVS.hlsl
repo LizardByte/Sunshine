@@ -10,7 +10,7 @@ cbuffer info : register(b0) {
 //--------------------------------------------------------------------------------------
 // Vertex Shader
 //--------------------------------------------------------------------------------------
-VertTexPosWide VS(uint vI : SV_VERTEXID)
+VertTexPosWide main_vs(uint vI : SV_VERTEXID)
 {
 	float idHigh = float(vI >> 1);
 	float idLow = float(vI & uint(1));

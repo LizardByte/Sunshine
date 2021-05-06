@@ -4,10 +4,7 @@ struct PS_INPUT
 	float2 tex : TEXCOORD;
 };
 
-//--------------------------------------------------------------------------------------
-// Vertex Shader
-//--------------------------------------------------------------------------------------
-PS_INPUT VS(uint vI : SV_VERTEXID)
+PS_INPUT main_vs(uint vI : SV_VERTEXID)
 {
 	float idHigh = float(vI >> 1);
 	float idLow = float(vI & uint(1));

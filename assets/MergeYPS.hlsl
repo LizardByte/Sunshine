@@ -1,6 +1,3 @@
-//--------------------------------------------------------------------------------------
-// YCbCrPS2.hlsl
-//--------------------------------------------------------------------------------------
 Texture2D image : register(t0);
 
 SamplerState def_sampler : register(s0);
@@ -17,10 +14,7 @@ struct PS_INPUT
 	float2 tex : TEXCOORD;
 };
 
-//--------------------------------------------------------------------------------------
-// Pixel Shader
-//--------------------------------------------------------------------------------------
-float PS(PS_INPUT frag_in) : SV_Target
+float main_ps(PS_INPUT frag_in) : SV_Target
 {
 	float3 rgb = image.Sample(def_sampler, frag_in.tex, 0).rgb;
 	float y = dot(color_vec_y.xyz, rgb) + color_vec_y.w;
