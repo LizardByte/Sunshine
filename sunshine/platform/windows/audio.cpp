@@ -319,6 +319,12 @@ public:
 }
 
 namespace platf {
+
+// It's not big enough to justify it's own source file :/
+namespace dxgi {
+int init();
+}
+
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   auto mic = std::make_unique<audio::mic_wasapi_t>();
 
@@ -330,6 +336,9 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
 }
 
 std::unique_ptr<deinit_t> init() {
+  if(dxgi::init()) {
+    return nullptr;
+  }
   return std::make_unique<platf::audio::co_init_t>();
 }
 }

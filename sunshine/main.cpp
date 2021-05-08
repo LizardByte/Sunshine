@@ -138,6 +138,10 @@ int main(int argc, char *argv[]) {
   proc::proc = std::move(*proc_opt);
 
   auto deinit_guard = platf::init();
+  if(!deinit_guard) {
+    return 4;
+  }
+
   input::init();
   reed_solomon_init();
   if(video::init()) {
@@ -150,6 +154,8 @@ int main(int argc, char *argv[]) {
   stream::rtpThread(shutdown_event);
 
   httpThread.join();
+  task_pool.stop();
+  task_pool.join();
 
   return 0;
 }
