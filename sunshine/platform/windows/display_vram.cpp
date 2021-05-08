@@ -26,30 +26,42 @@ using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
 using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
 using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
 
+using float4 = DirectX::XMFLOAT4;
+using float3 = DirectX::XMFLOAT3;
+using float2 = DirectX::XMFLOAT2;
 struct __attribute__ ((__aligned__ (16))) color_t {
-  DirectX::XMFLOAT4 color_vec_y;
-  DirectX::XMFLOAT4 color_vec_u;
-  DirectX::XMFLOAT4 color_vec_v;
+  float4 color_vec_y;
+  float4 color_vec_u;
+  float4 color_vec_v;
+  float2 range_y;
+  float2 range_uv;
 };
 
-color_t make_color_matrix(float Cr, float Cb, float U_max, float V_max, float add_Y, float add_UV) {
+color_t make_color_matrix(float Cr, float Cb, float U_max, float V_max, float add_Y, float add_UV, float2 range_Y, float2 range_UV) {
   float Cg = 1.0f - Cr - Cb;
 
   float Cr_i = 1.0f - Cr;
   float Cb_i = 1.0f - Cb;
 
+  float shift_y = range_Y.x / 256.0f;
+  float shift_uv = range_UV.x / 256.0f;
+
+  float scale_y = (range_Y.y - range_Y.x) / 256.0f;
+  float scale_uv = (range_UV.y - range_UV.x) / 256.0f;
   return {
     { Cr, Cg, Cb, add_Y },
     { -(Cr * U_max / Cb_i), -(Cg * U_max / Cb_i), U_max, add_UV },
-    { V_max, -(Cg * V_max / Cr_i), -(Cb * V_max / Cr_i), add_UV }
+    { V_max, -(Cg * V_max / Cr_i), -(Cb * V_max / Cr_i), add_UV },
+    { scale_y, shift_y },
+    { scale_uv, shift_uv },
   };
 }
 
 color_t colors[] {
-  make_color_matrix(0.299f, 0.114f, 0.436f, 0.615f, 0.0625, 0.5f),   // BT601 MPEG
-  make_color_matrix(0.299f, 0.114f, 0.5f, 0.5f, 0.0f, 0.5f),         // BT601 JPEG
-  make_color_matrix(0.2126f, 0.0722f, 0.436f, 0.615f, 0.0625, 0.5f), //BT701 MPEG
-  make_color_matrix(0.2126f, 0.0722f, 0.5f, 0.5f, 0.0f, 0.5f),       //BT701 JPEG
+  make_color_matrix(0.299f, 0.114f, 0.436f, 0.615f, 0.0625, 0.5f, { 16.0f, 235.0f }, { 16.0f, 240.0f }),   // BT601 MPEG
+  make_color_matrix(0.299f, 0.114f, 0.5f, 0.5f, 0.0f, 0.5f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),           // BT601 JPEG
+  make_color_matrix(0.2126f, 0.0722f, 0.436f, 0.615f, 0.0625, 0.5f, { 16.0f, 235.0f }, { 16.0f, 240.0f }), //BT701 MPEG
+  make_color_matrix(0.2126f, 0.0722f, 0.5f, 0.5f, 0.0f, 0.5f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),         //BT701 JPEG
 };
 
 template<class T>
@@ -847,6 +859,15 @@ std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(int width, int 
 }
 
 int init() {
+  for(auto &color : colors) {
+    BOOST_LOG(debug) << "Color Matrix"sv;
+    BOOST_LOG(debug) << "Y ["sv << color.color_vec_y.x << ", "sv << color.color_vec_y.y << ", "sv << color.color_vec_y.z << ", "sv << color.color_vec_y.w << ']';
+    BOOST_LOG(debug) << "U ["sv << color.color_vec_u.x << ", "sv << color.color_vec_u.y << ", "sv << color.color_vec_u.z << ", "sv << color.color_vec_u.w << ']';
+    BOOST_LOG(debug) << "V ["sv << color.color_vec_v.x << ", "sv << color.color_vec_v.y << ", "sv << color.color_vec_v.z << ", "sv << color.color_vec_v.w << ']';
+    BOOST_LOG(debug) << "range Y  ["sv << color.range_y.x << ", "sv << color.range_y.y << ']';
+    BOOST_LOG(debug) << "range UV ["sv << color.range_uv.x << ", "sv << color.range_uv.y << ']';
+  }
+
   BOOST_LOG(info) << "Compiling shaders..."sv;
   merge_Y_vs_hlsl = compile_vertex_shader(SUNSHINE_ASSETS_DIR "/MergeYVS.hlsl");
   if(!merge_Y_vs_hlsl) {
