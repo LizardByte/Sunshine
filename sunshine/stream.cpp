@@ -884,7 +884,6 @@ state_e state(session_t &session) {
 
 void stop(session_t &session) {
   while_starting_do_nothing(session.state);
-
   auto expected = state_e::RUNNING;
   auto already_stopping = !session.state.compare_exchange_strong(expected, state_e::STOPPING);
   if(already_stopping) {
@@ -901,6 +900,9 @@ void join(session_t &session) {
   session.audioThread.join();
   BOOST_LOG(debug) << "Waiting for control to end..."sv;
   session.controlEnd.view();
+  //Reset input on session stop to avoid stuck repeated keys
+  BOOST_LOG(debug) << "Resetting Input..."sv;
+  input::reset();
   BOOST_LOG(debug) << "Session ended"sv;
 }
 
