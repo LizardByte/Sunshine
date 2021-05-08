@@ -885,6 +885,8 @@ state_e state(session_t &session) {
 void stop(session_t &session) {
   while_starting_do_nothing(session.state);
 
+  //Reset input on session stop to avoid stuck repeated keys
+  input::reset();
   auto expected = state_e::RUNNING;
   auto already_stopping = !session.state.compare_exchange_strong(expected, state_e::STOPPING);
   if(already_stopping) {

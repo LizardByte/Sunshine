@@ -11,6 +11,7 @@ namespace input {
 struct input_t;
 
 void print(void *input);
+void reset();
 void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data);
 
 void init();
