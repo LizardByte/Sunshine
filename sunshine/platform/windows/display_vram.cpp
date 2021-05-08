@@ -6,6 +6,7 @@
 #include "sunshine/main.h"
 #include "display.h"
 
+#define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders"
 namespace platf {
 using namespace std::literals;
 }
@@ -115,10 +116,10 @@ blend_t make_blend(device_t::pointer device, bool enable) {
   return blend_t { blend_p };
 }
 
-blob_t merge_UV_vs_hlsl;
-blob_t merge_UV_ps_hlsl;
-blob_t merge_Y_vs_hlsl;
-blob_t merge_Y_ps_hlsl;
+blob_t convert_UV_vs_hlsl;
+blob_t convert_UV_ps_hlsl;
+blob_t scene_vs_hlsl;
+blob_t convert_Y_ps_hlsl;
 blob_t scene_ps_hlsl;
 
 struct img_d3d_t : public platf::img_t {
@@ -322,7 +323,7 @@ public:
       _init_view_port(img.width, img.height);
 
       device_ctx_p->OMSetRenderTargets(1, &scene_rt_p, nullptr);
-      device_ctx_p->VSSetShader(merge_Y_vs.get(), nullptr, 0);
+      device_ctx_p->VSSetShader(scene_vs.get(), nullptr, 0);
       device_ctx_p->PSSetShader(scene_ps.get(), nullptr, 0);
       device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
 
@@ -339,15 +340,15 @@ public:
 
     _init_view_port(out_width, out_height);
     device_ctx_p->OMSetRenderTargets(1, &Y_rt_p, nullptr);
-    device_ctx_p->VSSetShader(merge_Y_vs.get(), nullptr, 0);
-    device_ctx_p->PSSetShader(merge_Y_ps.get(), nullptr, 0);
+    device_ctx_p->VSSetShader(scene_vs.get(), nullptr, 0);
+    device_ctx_p->PSSetShader(convert_Y_ps.get(), nullptr, 0);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
     device_ctx_p->Draw(3, 0);
 
     _init_view_port(out_width / 2, out_height / 2);
     device_ctx_p->OMSetRenderTargets(1, &UV_rt_p, nullptr);
-    device_ctx_p->VSSetShader(merge_UV_vs.get(), nullptr, 0);
-    device_ctx_p->PSSetShader(merge_UV_ps.get(), nullptr, 0);
+    device_ctx_p->VSSetShader(convert_UV_vs.get(), nullptr, 0);
+    device_ctx_p->PSSetShader(convert_UV_ps.get(), nullptr, 0);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
     device_ctx_p->Draw(3, 0);
 
@@ -406,34 +407,34 @@ public:
     this->out_height = out_height;
 
     vs_t::pointer vs_p;
-    status = device_p->CreateVertexShader(merge_Y_vs_hlsl->GetBufferPointer(), merge_Y_vs_hlsl->GetBufferSize(), nullptr, &vs_p);
+    status = device_p->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &vs_p);
     if(status) {
       BOOST_LOG(error) << "Failed to create mergeY vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    merge_Y_vs.reset(vs_p);
+    scene_vs.reset(vs_p);
 
     ps_t::pointer ps_p;
-    status = device_p->CreatePixelShader(merge_Y_ps_hlsl->GetBufferPointer(), merge_Y_ps_hlsl->GetBufferSize(), nullptr, &ps_p);
+    status = device_p->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &ps_p);
     if(status) {
       BOOST_LOG(error) << "Failed to create mergeY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    merge_Y_ps.reset(ps_p);
+    convert_Y_ps.reset(ps_p);
 
-    status = device_p->CreatePixelShader(merge_UV_ps_hlsl->GetBufferPointer(), merge_UV_ps_hlsl->GetBufferSize(), nullptr, &ps_p);
+    status = device_p->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &ps_p);
     if(status) {
       BOOST_LOG(error) << "Failed to create mergeUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    merge_UV_ps.reset(ps_p);
+    convert_UV_ps.reset(ps_p);
 
-    status = device_p->CreateVertexShader(merge_UV_vs_hlsl->GetBufferPointer(), merge_UV_vs_hlsl->GetBufferSize(), nullptr, &vs_p);
+    status = device_p->CreateVertexShader(convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(), nullptr, &vs_p);
     if(status) {
       BOOST_LOG(error) << "Failed to create mergeUV vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    merge_UV_vs.reset(vs_p);
+    convert_UV_vs.reset(vs_p);
 
     status = device_p->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &ps_p);
     if(status) {
@@ -469,7 +470,7 @@ public:
     input_layout_t::pointer input_layout_p;
     status = device_p->CreateInputLayout(
       &layout_desc, 1,
-      merge_UV_vs_hlsl->GetBufferPointer(), merge_UV_vs_hlsl->GetBufferSize(),
+      convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(),
       &input_layout_p);
     input_layout.reset(input_layout_p);
 
@@ -648,11 +649,11 @@ public:
 
   img_d3d_t img;
 
-  vs_t merge_UV_vs;
-  ps_t merge_UV_ps;
-  vs_t merge_Y_vs;
-  ps_t merge_Y_ps;
+  vs_t convert_UV_vs;
+  ps_t convert_UV_ps;
+  ps_t convert_Y_ps;
   ps_t scene_ps;
+  vs_t scene_vs;
 
   D3D11_VIEWPORT cursor_view;
   bool cursor_visible;
@@ -869,27 +870,27 @@ int init() {
   }
 
   BOOST_LOG(info) << "Compiling shaders..."sv;
-  merge_Y_vs_hlsl = compile_vertex_shader(SUNSHINE_ASSETS_DIR "/MergeYVS.hlsl");
-  if(!merge_Y_vs_hlsl) {
+  scene_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/SceneVS.hlsl");
+  if(!scene_vs_hlsl) {
     return -1;
   }
 
-  merge_Y_ps_hlsl = compile_pixel_shader(SUNSHINE_ASSETS_DIR "/MergeYPS.hlsl");
-  if(!merge_Y_ps_hlsl) {
+  convert_Y_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertYPS.hlsl");
+  if(!convert_Y_ps_hlsl) {
     return -1;
   }
 
-  merge_UV_ps_hlsl = compile_pixel_shader(SUNSHINE_ASSETS_DIR "/MergeUVPS.hlsl");
-  if(!merge_UV_ps_hlsl) {
+  convert_UV_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS.hlsl");
+  if(!convert_UV_ps_hlsl) {
     return -1;
   }
 
-  merge_UV_vs_hlsl = compile_vertex_shader(SUNSHINE_ASSETS_DIR "/MergeUVVS.hlsl");
-  if(!merge_UV_vs_hlsl) {
+  convert_UV_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/ConvertUVVS.hlsl");
+  if(!convert_UV_vs_hlsl) {
     return -1;
   }
 
-  scene_ps_hlsl = compile_pixel_shader(SUNSHINE_ASSETS_DIR "/scenePS.hlsl");
+  scene_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ScenePS.hlsl");
   if(!scene_ps_hlsl) {
     return -1;
   }
