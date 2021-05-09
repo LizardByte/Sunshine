@@ -58,20 +58,6 @@ enum class profile_hevc_e : int {
 };
 }
 
-namespace amd {
-
-enum class profile_h264_e : int {
-  main,
-  high,
-  constrained_baseline,
-  constrained_high,
-};
-
-enum class profile_hevc_e : int {
-  main,
-};
-}
-
 using ctx_t       = util::safe_ptr<AVCodecContext, free_ctx>;
 using frame_t     = util::safe_ptr<AVFrame, free_frame>;
 using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
@@ -303,7 +289,7 @@ static encoder_t nvenc {
 
 static encoder_t amdvce {
   "amdvce"sv,
-  { (int)amd::profile_h264_e::high, (int)amd::profile_hevc_e::main },
+  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN },
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
