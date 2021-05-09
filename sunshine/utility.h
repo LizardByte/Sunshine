@@ -76,37 +76,6 @@ struct __either<false, X, Y> {
 template<bool V, class X, class Y>
 using either_t = typename __either<V, X, Y>::type;
 
-template<class T, class V = void>
-struct __false_v;
-
-template<class T>
-struct __false_v<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
-  static constexpr std::nullopt_t value = std::nullopt;
-};
-
-template<class T>
-struct __false_v<T, std::enable_if_t<
-  (std::is_pointer_v<T> || instantiation_of_v<std::unique_ptr, T> || instantiation_of_v<std::shared_ptr, T>)
-  >> {
-  static constexpr std::nullptr_t value = nullptr;
-};
-
-template<class T>
-struct __false_v<T, std::enable_if_t<std::is_same_v<T, bool>>> {
-  static constexpr bool value = false;
-};
-
-template<class T>
-static constexpr auto false_v = __false_v<T>::value;
-
-template<class T>
-using optional_t = either_t<
-  (std::is_same_v<T, bool> ||
-   instantiation_of_v<std::unique_ptr, T> ||
-   instantiation_of_v<std::shared_ptr, T> ||
-   std::is_pointer_v<T>),
-  T, std::optional<T>>;
-
 template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
@@ -362,35 +331,6 @@ auto enm(T& val) -> std::underlying_type_t<T>& {
   return *reinterpret_cast<std::underlying_type_t<T>*>(&val);
 }
 
-template<class ReturnType, class ...Args>
-struct Function {
-  typedef ReturnType (*type)(Args...);
-};
-
-template<class T, class ReturnType, typename Function<ReturnType, T>::type function>
-struct Destroy {
-  typedef T pointer;
-  
-  void operator()(pointer p) {
-    function(p);
-  }
-};
-
-template<class T, typename Function<void, T*>::type function>
-using safe_ptr = std::unique_ptr<T, Destroy<T*, void, function>>;
-
-// You cannot specialize an alias
-template<class T, class ReturnType, typename Function<ReturnType, T*>::type function>
-using safe_ptr_v2 = std::unique_ptr<T, Destroy<T*, ReturnType, function>>;
-
-template<class T>
-void c_free(T *p) {
-  free(p);
-}
-
-template<class T>
-using c_ptr = safe_ptr<T, c_free<T>>;
-
 inline std::int64_t from_chars(const char *begin, const char *end) {
   std::int64_t res {};
   std::int64_t mul = 1;
@@ -436,6 +376,163 @@ public:
   }
 };
 
+// Compared to std::unique_ptr, it adds the ability to get the address of the pointer itself
+template <typename T, typename D = std::default_delete<T>>
+class uniq_ptr {
+public:
+  using element_type = T;
+  using pointer = element_type*;
+  using deleter_type = D;
+
+  constexpr uniq_ptr() noexcept : _p { nullptr } {}
+  constexpr uniq_ptr(std::nullptr_t) noexcept : _p { nullptr } {}
+
+  uniq_ptr(const uniq_ptr &other) noexcept = delete;
+  uniq_ptr &operator=(const uniq_ptr &other) noexcept = delete;
+
+  template<class V>
+  uniq_ptr(V *p) noexcept : _p { p } {
+    static_assert(std::is_same_v<element_type, void> || std::is_same_v<element_type, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
+  }
+
+  template<class V>
+  uniq_ptr(std::unique_ptr<V, deleter_type> &&uniq) noexcept : _p { uniq.release() } {
+    static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
+  }
+
+  template<class V>
+  uniq_ptr(uniq_ptr<V, deleter_type> &&other) noexcept : _p { other.release() } {
+    static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
+  }
+
+  template<class V>
+  uniq_ptr &operator=(uniq_ptr<V, deleter_type> &&other) noexcept {
+    static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
+    reset(other.release());
+
+    return *this;
+  }
+
+  template<class V>
+  uniq_ptr &operator=(std::unique_ptr<V, deleter_type> &&uniq) noexcept {
+    static_assert(std::is_same_v<element_type, void> || std::is_same_v<T, V> || std::is_base_of_v<element_type, V>, "element_type must be base class of V");
+
+    reset(uniq.release());
+
+    return *this;
+  }
+
+  ~uniq_ptr() {
+    reset();
+  }
+
+  void reset(pointer p = pointer()) {
+    if(_p) {
+      _deleter(_p);
+    }
+
+    _p = p;
+  }
+
+  pointer release() {
+    auto tmp = _p;
+    _p = nullptr;
+    return tmp;
+  }
+
+  pointer get() {
+    return _p;
+  }
+
+  const pointer get() const {
+    return _p;
+  }
+
+  const std::add_lvalue_reference_t<element_type> operator*() const {
+    return *_p;
+  }
+  std::add_lvalue_reference_t<element_type> operator*() {
+    return *_p;
+  }
+  const pointer operator->() const {
+    return _p;
+  }
+  pointer operator->() {
+    return _p;
+  }
+  pointer *operator&() const {
+    return &_p;
+  }
+
+  pointer *operator&() {
+    return &_p;
+  }
+
+  deleter_type& get_deleter() {
+    return _deleter;
+  }
+
+  const deleter_type& get_deleter() const {
+    return _deleter;
+  }
+
+  explicit operator bool() const {
+    return _p != nullptr;
+  }
+protected:
+  pointer _p;
+  deleter_type _deleter;
+};
+
+template<class T1, class D1, class T2, class D2>
+bool operator==(const uniq_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+  return x.get() == y.get();
+}
+
+template<class T1, class D1, class T2, class D2>
+bool operator!=(const uniq_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+  return x.get() != y.get();
+}
+
+template<class T1, class D1, class T2, class D2>
+bool operator==(const std::unique_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+  return x.get() == y.get();
+}
+
+template<class T1, class D1, class T2, class D2>
+bool operator!=(const std::unique_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+  return x.get() != y.get();
+}
+
+template<class T1, class D1, class T2, class D2>
+bool operator==(const uniq_ptr<T1, D1>& x, const std::unique_ptr<T1, D1>& y) {
+  return x.get() == y.get();
+}
+
+template<class T1, class D1, class T2, class D2>
+bool operator!=(const uniq_ptr<T1, D1>& x, const std::unique_ptr<T1, D1>& y) {
+  return x.get() != y.get();
+}
+
+template<class T, class D>
+bool operator==(const uniq_ptr<T, D>& x, std::nullptr_t) {
+  return !(bool)x;
+}
+
+template<class T, class D>
+bool operator!=(const uniq_ptr<T, D>& x, std::nullptr_t) {
+  return (bool)x;
+}
+
+template<class T, class D>
+bool operator==(std::nullptr_t, const uniq_ptr<T, D>& y) {
+  return !(bool)y;
+}
+
+template<class T, class D>
+bool operator!=(std::nullptr_t, const uniq_ptr<T, D>& y) {
+  return (bool)y;
+}
 
 template<class T>
 class wrap_ptr {
@@ -510,6 +607,43 @@ private:
   pointer _p;
 };
 
+template<class T, class V = void>
+struct __false_v;
+
+template<class T>
+struct __false_v<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
+  static constexpr std::nullopt_t value = std::nullopt;
+};
+
+template<class T>
+struct __false_v<T, std::enable_if_t<
+  (
+    std::is_pointer_v<T> ||
+    instantiation_of_v<std::unique_ptr, T> ||
+    instantiation_of_v<std::shared_ptr, T> ||
+    instantiation_of_v<uniq_ptr, T>
+  )
+  >> {
+  static constexpr std::nullptr_t value = nullptr;
+};
+
+template<class T>
+struct __false_v<T, std::enable_if_t<std::is_same_v<T, bool>>> {
+  static constexpr bool value = false;
+};
+
+template<class T>
+static constexpr auto false_v = __false_v<T>::value;
+
+template<class T>
+using optional_t = either_t<
+  (std::is_same_v<T, bool> ||
+   instantiation_of_v<std::unique_ptr, T> ||
+   instantiation_of_v<std::shared_ptr, T> ||
+   instantiation_of_v<uniq_ptr, T> ||
+   std::is_pointer_v<T>),
+  T, std::optional<T>>;
+
 template<class T>
 class buffer_t {
 public:
@@ -568,6 +702,35 @@ T either(std::optional<T> &&l, T &&r) {
 
   return std::forward<T>(r);
 }
+
+template<class ReturnType, class ...Args>
+struct Function {
+  typedef ReturnType (*type)(Args...);
+};
+
+template<class T, class ReturnType, typename Function<ReturnType, T>::type function>
+struct Destroy {
+  typedef T pointer;
+  
+  void operator()(pointer p) {
+    function(p);
+  }
+};
+
+template<class T, typename Function<void, T*>::type function>
+using safe_ptr = uniq_ptr<T, Destroy<T*, void, function>>;
+
+// You cannot specialize an alias
+template<class T, class ReturnType, typename Function<ReturnType, T*>::type function>
+using safe_ptr_v2 = uniq_ptr<T, Destroy<T*, ReturnType, function>>;
+
+template<class T>
+void c_free(T *p) {
+  free(p);
+}
+
+template<class T>
+using c_ptr = safe_ptr<T, c_free<T>>;
 
 namespace endian {
 template<class T = void>
