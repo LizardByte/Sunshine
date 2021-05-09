@@ -2,8 +2,7 @@
 Description=Sunshine Gamestream Server for Moonlight
 
 [Service]
-ExecStartPre=/bin/sh -c "test -d %E/sunshine || cp -r '@SUNSHINE_ASSETS_DIR@' '%E/sunshine'"
-ExecStart=@SUNSHINE_EXECUTABLE_PATH@ %E/sunshine/sunshine.conf
+ExecStart=@SUNSHINE_EXECUTABLE_PATH@
 
 [Install]
 WantedBy=graphical-session.target
