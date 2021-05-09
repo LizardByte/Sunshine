@@ -58,20 +58,6 @@ enum class profile_hevc_e : int {
 };
 }
 
-namespace amd {
-
-enum class profile_h264_e : int {
-  main,
-  high,
-  constrained_baseline,
-  constrained_high,
-};
-
-enum class profile_hevc_e : int {
-  main,
-};
-}
-
 using ctx_t       = util::safe_ptr<AVCodecContext, free_ctx>;
 using frame_t     = util::safe_ptr<AVFrame, free_frame>;
 using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
@@ -82,10 +68,10 @@ platf::dev_type_e map_dev_type(AVHWDeviceType type);
 platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
 void sw_img_to_frame(const platf::img_t &img, frame_t &frame);
-void nv_d3d_img_to_frame(const platf::img_t &img, frame_t &frame);
-util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
-void amd_d3d_img_to_frame(const platf::img_t &img, frame_t &frame);
-util::Either<buffer_t, int> amd_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
+void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame);
+util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
+void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame);
+util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
 util::Either<buffer_t, int> make_hwdevice_ctx(AVHWDeviceType type, void *hwdevice_ctx);
 int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
@@ -297,16 +283,16 @@ static encoder_t nvenc {
   false,
   true,
 
-  nv_d3d_img_to_frame,
-  nv_d3d_make_hwdevice_ctx
+  dxgi_img_to_frame,
+  dxgi_make_hwdevice_ctx
 };
 
 static encoder_t amdvce {
   "amdvce"sv,
-  { (int)amd::profile_h264_e::high, (int)amd::profile_hevc_e::main },
+  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN },
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
-  AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
       { "header_insertion_mode"s, "idr"s },
@@ -331,8 +317,8 @@ static encoder_t amdvce {
   false,
   true,
 
-  amd_d3d_img_to_frame,
-  amd_d3d_make_hwdevice_ctx
+  dxgi_img_to_frame,
+  dxgi_make_hwdevice_ctx
 };
 #endif
 
@@ -373,11 +359,9 @@ static encoder_t software {
 static std::vector<encoder_t> encoders {
 #ifdef _WIN32
   nvenc,
-#endif
-  software,
-#ifdef _WIN32
   amdvce,
 #endif
+  software
 };
 
 void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type) {
@@ -622,6 +606,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     case 0:
     default:
       // Rec. 601
+      BOOST_LOG(info) << "Color coding [Rec. 601]"sv;
       ctx->color_primaries = AVCOL_PRI_SMPTE170M;
       ctx->color_trc = AVCOL_TRC_SMPTE170M;
       ctx->colorspace = AVCOL_SPC_SMPTE170M;
@@ -630,6 +615,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
     case 1:
       // Rec. 709
+      BOOST_LOG(info) << "Color coding [Rec. 709]"sv;
       ctx->color_primaries = AVCOL_PRI_BT709;
       ctx->color_trc = AVCOL_TRC_BT709;
       ctx->colorspace = AVCOL_SPC_BT709;
@@ -638,12 +624,14 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
     case 2:
       // Rec. 2020
+      BOOST_LOG(info) << "Color coding [Rec. 2020]"sv;
       ctx->color_primaries = AVCOL_PRI_BT2020;
       ctx->color_trc = AVCOL_TRC_BT2020_10;
       ctx->colorspace = AVCOL_SPC_BT2020_NCL;
       sws_color_space = SWS_CS_BT2020;
       break;
   }
+  BOOST_LOG(info) << "Color range: ["sv << ((config.encoderCscMode & 0x1) ? "JPEG"sv : "MPEG"sv) << ']';
 
   AVPixelFormat sw_fmt;
   if(config.dynamicRange == 0) {
@@ -1196,7 +1184,7 @@ bool validate_encoder(encoder_t &encoder) {
   encoder.hevc[encoder_t::PASSED] = test_hevc;
 
   std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
-    { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 1, 1, 1 } }
+    { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } }
   };
   for(auto &[flag, config] : configs) {
     auto h264 = config;
@@ -1300,7 +1288,16 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
 void sw_img_to_frame(const platf::img_t &img, frame_t &frame) {}
 
 #ifdef _WIN32
-void nv_d3d_img_to_frame(const platf::img_t &img, frame_t &frame) {
+}
+
+// Ugly, but need to declare for wio
+namespace platf::dxgi {
+void lock(void *hwdevice);
+void unlock(void *hwdevice);
+}
+void do_nothing(void*) {}
+namespace video {
+void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame) {
   if(img.data == frame->data[0]) {
     return;
   }
@@ -1323,65 +1320,25 @@ void nv_d3d_img_to_frame(const platf::img_t &img, frame_t &frame) {
   frame->width = img.width;
 }
 
-void amd_d3d_img_to_frame(const platf::img_t &img, frame_t &frame) {
-  if(img.data == frame->data[0]) {
-    return;
-  }
-  
-  // Need to have something refcounted
-  if(!frame->buf[0]) {
-    frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
-  }
-
-  auto desc = (AVD3D11FrameDescriptor*)frame->buf[0]->data;
-  desc->texture = (ID3D11Texture2D*)img.data;
-  desc->index = 0;
-
-  frame->data[0] = img.data;
-  frame->data[1] = 0;
-
-  frame->linesize[0] = img.row_pitch;
-
-  frame->height = img.height;
-  frame->width = img.width;
-}
-
-
-util::Either<buffer_t, int> nv_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
+util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
   buffer_t ctx_buf { av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA) };
   auto ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)ctx_buf->data)->hwctx;
   
   std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
 
   auto device = (ID3D11Device*)hwdevice_ctx->data;
+
   device->AddRef();
   ctx->device = device;
+
+  ctx->lock_ctx = (void*)1;
+  ctx->lock = do_nothing;
+  ctx->unlock = do_nothing;
 
   auto err = av_hwdevice_ctx_init(ctx_buf.get());
   if(err) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-    BOOST_LOG(error) << "Failed to create FFMpeg nvenc: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
-
-    return err;
-  }
-
-  return ctx_buf;
-}
-
-util::Either<buffer_t, int> amd_d3d_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
-  buffer_t ctx_buf { av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA) };
-  auto ctx = (AVD3D11VADeviceContext*)((AVHWDeviceContext*)ctx_buf->data)->hwctx;
-  
-  std::fill_n((std::uint8_t*)ctx, sizeof(AVD3D11VADeviceContext), 0);
-
-  auto device = (ID3D11Device*)hwdevice_ctx->data;
-  device->AddRef();
-  ctx->device = device;
-
-  auto err = av_hwdevice_ctx_init(ctx_buf.get());
-  if(err) {
-    char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
-    BOOST_LOG(error) << "Failed to create FFMpeg amddech: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+    BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
     return err;
   }

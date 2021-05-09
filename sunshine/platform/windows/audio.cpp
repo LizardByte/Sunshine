@@ -81,50 +81,43 @@ public:
 
     HRESULT status;
 
-    device_enum_t::pointer device_enum_p{};
     status = CoCreateInstance(
       CLSID_MMDeviceEnumerator,
       nullptr,
       CLSCTX_ALL,
       IID_IMMDeviceEnumerator,
-      (void **) &device_enum_p);
-    device_enum.reset(device_enum_p);
+      (void **) &device_enum);
 
-    if (FAILED(status)) {
+    if(FAILED(status)) {
       BOOST_LOG(error) << "Couldn't create Device Enumerator [0x"sv << util::hex(status).to_string_view() << ']';
 
       return -1;
     }
 
-    device_t::pointer device_p{};
-
     if(config::audio.sink.empty()) {
       status = device_enum->GetDefaultAudioEndpoint(
         eRender,
         eConsole,
-        &device_p);
+        &device);
     }
     else {
       std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
       auto wstring_device_id = converter.from_bytes(config::audio.sink);
 
-      status = device_enum->GetDevice(wstring_device_id.c_str(), &device_p);
+      status = device_enum->GetDevice(wstring_device_id.c_str(), &device);
     }
-    device.reset(device_p);
 
-    if (FAILED(status)) {
+    if(FAILED(status)) {
       BOOST_LOG(error) << "Couldn't create audio Device [0x"sv << util::hex(status).to_string_view() << ']';
 
       return -1;
     }
 
-    audio_client_t::pointer audio_client_p{};
     status = device->Activate(
       IID_IAudioClient,
       CLSCTX_ALL,
       nullptr,
-      (void **) &audio_client_p);
-    audio_client.reset(audio_client_p);
+      (void **) &audio_client);
 
     if (FAILED(status)) {
       BOOST_LOG(error) << "Couldn't activate audio Device [0x"sv << util::hex(status).to_string_view() << ']';
@@ -132,11 +125,8 @@ public:
       return -1;
     }
 
-    wave_format_t::pointer wave_format_p{};
-    status = audio_client->GetMixFormat(&wave_format_p);
-    wave_format.reset(wave_format_p);
-
-    if (FAILED(status)) {
+    status = audio_client->GetMixFormat(&wave_format);
+    if(FAILED(status)) {
       BOOST_LOG(error) << "Couldn't acquire Wave Format [0x"sv << util::hex(status).to_string_view() << ']';
 
       return -1;
@@ -198,9 +188,7 @@ public:
     sample_buf = util::buffer_t<std::int16_t> { frames };
     sample_buf_pos = std::begin(sample_buf);
 
-    audio_capture_t::pointer audio_capture_p {};
-    status = audio_client->GetService(IID_IAudioCaptureClient, (void**)&audio_capture_p);
-    audio_capture.reset(audio_capture_p);
+    status = audio_client->GetService(IID_IAudioCaptureClient, (void**)&audio_capture);
     if (FAILED(status)) {
       BOOST_LOG(error) << "Couldn't initialize audio capture client [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -319,6 +307,12 @@ public:
 }
 
 namespace platf {
+
+// It's not big enough to justify it's own source file :/
+namespace dxgi {
+int init();
+}
+
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
   auto mic = std::make_unique<audio::mic_wasapi_t>();
 
@@ -330,6 +324,9 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
 }
 
 std::unique_ptr<deinit_t> init() {
+  if(dxgi::init()) {
+    return nullptr;
+  }
   return std::make_unique<platf::audio::co_init_t>();
 }
 }

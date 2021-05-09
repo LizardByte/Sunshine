@@ -4,39 +4,6 @@ project(Sunshine)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
-# On MSYS2, building a stand-alone binary that links with ffmpeg is not possible,
-# Therefore, ffmpeg, libx264 and libx265 must be build from source
-if(WIN32)
-	file(
-		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-		TIMEOUT 60
-		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
-
-	file(ARCHIVE_EXTRACT
-		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
-	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
-	
-	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
-	endif()
-
-	set(FFMPEG_INCLUDE_DIRS
-		${SUNSHINE_PREPARED_BINARIES}/include)
-	set(FFMPEG_LIBRARIES
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
-		z lzma bcrypt libiconv.a)
-endif()
 add_subdirectory(Simple-Web-Server)
 add_subdirectory(moonlight-common-c/enet)
 
@@ -108,7 +75,7 @@ if(WIN32)
 		wsock32
 		ws2_32
 		iphlpapi
-		d3d11 dxgi
+		d3d11 dxgi D3DCompiler
 		setupapi
 		)
 

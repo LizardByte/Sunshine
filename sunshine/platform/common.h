@@ -43,6 +43,21 @@ enum class pix_fmt_e {
   unknown
 };
 
+inline std::string_view from_pix_fmt(pix_fmt_e pix_fmt) {
+using namespace std::literals;
+#define _CONVERT(x) case pix_fmt_e:: x : return  #x ## sv
+  switch(pix_fmt) {
+    _CONVERT(yuv420p);
+    _CONVERT(yuv420p10);
+    _CONVERT(nv12);
+    _CONVERT(p010);
+    _CONVERT(unknown);
+  }
+#undef _CONVERT
+
+  return "unknown"sv;
+}
+
 struct gamepad_state_t {
   std::uint16_t buttonFlags;
   std::uint8_t lt;

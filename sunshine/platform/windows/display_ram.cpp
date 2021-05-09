@@ -203,9 +203,8 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
   // If frame has been updated
   if (frame_info.LastPresentTime.QuadPart != 0) {
     {
-      texture2d_t::pointer src_p {};
-      status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src_p);
-      texture2d_t src{src_p};
+      texture2d_t src {};
+      status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
 
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
@@ -279,10 +278,7 @@ int display_ram_t::init() {
   t.Format = format;
   t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-  dxgi::texture2d_t::pointer tex_p {};
-  auto status = device->CreateTexture2D(&t, nullptr, &tex_p);
-
-  texture.reset(tex_p);
+  auto status = device->CreateTexture2D(&t, nullptr, &texture);
 
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';

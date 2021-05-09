@@ -187,10 +187,10 @@ x509_t x509(const std::string_view &x) {
 
   BIO_write(io.get(), x.data(), x.size());
 
-  X509 *p = nullptr;
+  x509_t p;
   PEM_read_bio_X509(io.get(), &p, nullptr, nullptr);
 
-  return x509_t { p };
+  return p;
 }
 
 pkey_t pkey(const std::string_view &k) {
@@ -198,10 +198,10 @@ pkey_t pkey(const std::string_view &k) {
 
   BIO_write(io.get(), k.data(), k.size());
 
-  EVP_PKEY *p = nullptr;
+  pkey_t p = nullptr;
   PEM_read_bio_PrivateKey(io.get(), &p, nullptr, nullptr);
 
-  return pkey_t { p };
+  return p;
 }
 
 std::string pem(x509_t &x509) {

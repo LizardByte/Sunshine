@@ -94,12 +94,10 @@ enum quality_e : int {
 };
 
 enum rc_e : int {
-  constqp   = 0x0,       /**< Constant QP mode */
-  vbr       = 0x1,       /**< Variable bitrate mode */
-  cbr       = 0x2,       /**< Constant bitrate mode */
-  cbr_ld_hq = 0x8,       /**< low-delay CBR, high quality */
-  cbr_hq    = 0x10,      /**< CBR, high quality (slower) */
-  vbr_hq    = 0x20       /**< VBR, high quality (slower) */
+  constqp,     /**< Constant QP mode */
+  vbr_latency, /**< Latency Constrained Variable Bitrate */
+  vbr_peak,    /**< Peak Contrained Variable Bitrate */
+  cbr,         /**< Constant bitrate mode */
 };
 
 enum coder_e : int {
@@ -121,11 +119,9 @@ std::optional<quality_e> quality_from_view(const std::string_view &quality) {
 std::optional<rc_e> rc_from_view(const std::string_view &rc) {
 #define _CONVERT_(x) if(rc == #x##sv) return x
   _CONVERT_(constqp);
-  _CONVERT_(vbr);
+  _CONVERT_(vbr_latency);
+  _CONVERT_(vbr_peak);
   _CONVERT_(cbr);
-  _CONVERT_(cbr_hq);
-  _CONVERT_(vbr_hq);
-  _CONVERT_(cbr_ld_hq);
 #undef _CONVERT_
   return std::nullopt;
 }

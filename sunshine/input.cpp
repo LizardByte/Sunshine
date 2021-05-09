@@ -402,11 +402,18 @@ void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&in
   task_pool.push(passthrough_helper, input, util::cmove(input_data));
 }
 
-void reset(){
-    for(auto& kp : key_press){
+void reset() {
+  if(task_id) {
+    task_pool.cancel(task_id);
+  }
+
+  // Ensure input is synchronous
+  task_pool.push([]() {
+    for(auto& kp : key_press) {
       platf::keyboard(platf_input, kp.first & 0x00FF, true);
       key_press[kp.first] = false;
     }
+  });
 }
 
 void init() {
