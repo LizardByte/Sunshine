@@ -1,0 +1,22 @@
+<div id="content" class="container">
+    <form action="" class="form" id="form">
+        <input type="number" placeholder="PIN" id="pin-input">
+        <button class="btn btn-primary">Send</button>
+        <div id="status"></div>
+    </form>
+</div>
+
+<script>
+    document.querySelector("#form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        let pin = document.querySelector("#pin-input").value;
+        document.querySelector("#status").innerHTML = "";
+        fetch("/pin/" + pin).then((response)=>{
+            if(response.status == 200){
+                document.querySelector("#status").innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
+            } else if(response.status == 418){
+                document.querySelector("#status").innerHTML = `<div class="alert alert-danger" role="alert">PIN does not match, please check if it's typed correctly</div>`;
+            }
+        })
+    })
+</script>

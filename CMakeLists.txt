@@ -167,6 +167,8 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/crypto.h
 	sunshine/nvhttp.cpp
 	sunshine/nvhttp.h
+	sunshine/confighttp.cpp
+	sunshine/confighttp.h
 	sunshine/rtsp.cpp
 	sunshine/rtsp.h
 	sunshine/stream.cpp
