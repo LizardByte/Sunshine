@@ -36,13 +36,12 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	- Save the file and exit
 		1. `CTRL+X` to start exit
 		2. `Y` to save modifications
-- `assets/sunshine.conf` is an example configuration file. Modify it as you see fit then use it by running: 
+- `assets/sunshine.conf` is an example configuration file. Modify it as you see fit, then use it by running: 
 	`sunshine path/to/sunshine.conf`
 - Configure autostart service
-	`path/to/build/dir/sunshine.service` is used to start sunshine in the background. To add it, do the following:
-	1. Modify `sunshine.conf` to point to the sunshine executable if nessecary
-	2. Copy it to the users systemd, `cp sunshine.service ~/.config/systemd/user/`
-	3. Starting
+	`path/to/build/dir/sunshine.service` is used to start sunshine in the background. To use it, do the following:
+	1. Copy it to the users systemd, `cp sunshine.service ~/.config/systemd/user/`
+	2. Starting
 		- Onetime: 
 			`systemctl --user start sunshine`
 		- Always on boot:
@@ -118,8 +117,8 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	"cmd":"command to open app",
 	"prep-cmd":[
 			{
-			"do":"somecommand",
-			"undo":"undothatcommand"
+				"do":"somecommand",
+				"undo":"undothatcommand"
 			}
 		]
 	}
