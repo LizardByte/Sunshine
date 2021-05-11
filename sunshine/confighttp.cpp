@@ -264,7 +264,7 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event)
         return;
       }
 
-      BOOST_LOG(fatal) << "Couldn't start Configuration HTTP server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTP << "]: "sv << err.what();
+      BOOST_LOG(fatal) << "Couldn't start Configuration HTTP server to ports ["sv << PORT_HTTP << ", "sv << PORT_HTTP << "]: "sv << err.what();
       shutdown_event->raise(true);
       return;
     }

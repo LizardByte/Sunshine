@@ -17,6 +17,7 @@
 #include "video.h"
 #include "input.h"
 #include "nvhttp.h"
+#include "httpcommon.h"
 #include "confighttp.h"
 #include "rtsp.h"
 #include "config.h"
@@ -137,13 +138,12 @@ int main(int argc, char *argv[]) {
   if(video::init()) {
     return 2;
   }
-
+  http::init(shutdown_event);
   task_pool.start(1);
 
   std::thread httpThread { nvhttp::start, shutdown_event };
   std::thread configThread { confighttp::start, shutdown_event };
   stream::rtpThread(shutdown_event);
-
   httpThread.join();
   task_pool.stop();
   task_pool.join();

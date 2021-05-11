@@ -134,6 +134,8 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/crypto.h
 	sunshine/nvhttp.cpp
 	sunshine/nvhttp.h
+	sunshine/httpcommon.cpp
+	sunshine/httpcommon.h
 	sunshine/confighttp.cpp
 	sunshine/confighttp.h
 	sunshine/rtsp.cpp
