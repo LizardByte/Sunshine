@@ -902,7 +902,7 @@ void join(session_t &session) {
   session.controlEnd.view();
   //Reset input on session stop to avoid stuck repeated keys
   BOOST_LOG(debug) << "Resetting Input..."sv;
-  input::reset();
+  input::reset(session.input);
   BOOST_LOG(debug) << "Session ended"sv;
 }
 

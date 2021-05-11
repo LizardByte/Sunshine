@@ -165,6 +165,7 @@ input_t input() {
   return result;
 }
 
+void abs_mouse(input_t &input, int x, int y) {}
 void move_mouse(input_t &input, int deltaX, int deltaY) {
   INPUT i {};
 

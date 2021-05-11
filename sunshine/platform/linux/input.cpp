@@ -31,6 +31,15 @@ using keyboard_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
 
 struct input_raw_t {
 public:
+  void clear_touchscreen() {
+    std::filesystem::path touch_path { "sunshine_touchscreen"sv };
+
+    if(std::filesystem::is_symlink(touch_path)) {
+      std::filesystem::remove(touch_path);
+    }
+
+    touch_input.reset();
+  }
   void clear_mouse() {
     std::filesystem::path mouse_path { "sunshine_mouse"sv };
 
@@ -55,9 +64,7 @@ public:
   }
 
   int create_mouse() {
-    libevdev_uinput *buf {};
-    int err = libevdev_uinput_create_from_device(mouse_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
-    mouse_input.reset(buf);
+    int err = libevdev_uinput_create_from_device(mouse_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &mouse_input);
 
     if(err) {
       BOOST_LOG(error) << "Could not create Sunshine Mouse: "sv << strerror(-err);
@@ -69,13 +76,24 @@ public:
     return 0;
   }
 
+  int create_touchscreen() {
+    int err = libevdev_uinput_create_from_device(touch_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &touch_input);
+
+    if(err) {
+      BOOST_LOG(error) << "Could not create Sunshine Touchscreen: "sv << strerror(-err);
+      return -1;
+    }
+
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(touch_input.get()), "sunshine_touchscreen"sv);
+
+    return 0;
+  }
+
   int alloc_gamepad(int nr) {
     TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
 
-    libevdev_uinput *buf;
-    int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &buf);
+    int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &input);
 
-    input.reset(buf);
     gamepad_state = gamepad_state_t {};
 
     if(err) {
@@ -96,6 +114,7 @@ public:
   }
 
   void clear() {
+    clear_touchscreen();
     clear_mouse();
     for(int x = 0; x < gamepads.size(); ++x) {
       clear_gamepad(x);
@@ -106,15 +125,27 @@ public:
     clear();
   }
 
-  evdev_t gamepad_dev;
-
   std::vector<std::pair<uinput_t, gamepad_state_t>> gamepads;
-
-  evdev_t mouse_dev;
   uinput_t mouse_input;
+  uinput_t touch_input;
+
+  evdev_t gamepad_dev;
+  evdev_t touch_dev;
+  evdev_t mouse_dev;
 
   keyboard_t keyboard;
 };
+
+void abs_mouse(input_t &input, int x, int y) {
+  auto touchscreen = ((input_raw_t*)input.get())->touch_input.get();
+
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, x);
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, y);
+  libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 1);
+  libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 0);
+
+  libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
+}
 
 void move_mouse(input_t &input, int deltaX, int deltaY) {
   auto mouse = ((input_raw_t*)input.get())->mouse_input.get();
@@ -409,6 +440,48 @@ evdev_t mouse() {
   return dev;
 }
 
+evdev_t touchscreen() {
+  evdev_t dev { libevdev_new() };
+
+  libevdev_set_uniq(dev.get(), "Sunshine Touch");
+  libevdev_set_id_product(dev.get(), 0xDEAD);
+  libevdev_set_id_vendor(dev.get(), 0xBEEF);
+  libevdev_set_id_bustype(dev.get(), 0x3);
+  libevdev_set_id_version(dev.get(), 0x111);
+  libevdev_set_name(dev.get(), "Touchscreen passthrough");
+
+  libevdev_enable_property(dev.get(), INPUT_PROP_DIRECT);
+
+
+  libevdev_enable_event_type(dev.get(), EV_KEY);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOUCH, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_PEN, nullptr); // Needed to be enabled for BTN_TOOL_FINGER to work.
+  libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_FINGER, nullptr);
+
+  input_absinfo absx {
+    0,
+    0,
+    1919,
+    1,
+    0,
+    28
+  };
+
+  input_absinfo absy {
+    0,
+    0,
+    1199,
+    1,
+    0,
+    28
+  };
+  libevdev_enable_event_type(dev.get(), EV_ABS);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_X, &absx);
+  libevdev_enable_event_code(dev.get(), EV_ABS, ABS_Y, &absy);
+
+  return dev;
+}
+
 evdev_t x360() {
   evdev_t dev { libevdev_new() };
 
@@ -486,10 +559,11 @@ input_t input() {
 
   // Ensure starting from clean slate
   gp.clear();
+  gp.touch_dev = touchscreen();
   gp.mouse_dev = mouse();
   gp.gamepad_dev = x360();
 
-  if(gp.create_mouse()) {
+  if(gp.create_mouse() || gp.create_touchscreen()) {
     log_flush();
     std::abort();
   }

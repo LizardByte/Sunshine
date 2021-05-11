@@ -146,6 +146,7 @@ std::shared_ptr<display_t> display(dev_type_e hwdevice_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
+void abs_mouse(input_t &input, int x, int y);
 void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
