@@ -13,8 +13,9 @@ extern "C" {
 #include "main.h"
 #include "config.h"
 #include "utility.h"
-#include "platform/common.h"
 #include "thread_pool.h"
+#include "input.h"
+#include "platform/common.h"
 
 namespace input {
 
@@ -44,6 +45,11 @@ template<std::size_t N>
 void free_id(std::bitset<N> &gamepad_mask, int id) {
   gamepad_mask[id] = false;
 }
+
+touch_port_event_t touch_port_event;
+platf::touch_port_t touch_port {
+  0, 0, 0, 0
+};
 
 static util::TaskPool::task_id_t task_id {};
 static std::unordered_map<short, bool> key_press {};
@@ -196,7 +202,20 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
     input->mouse_left_button_timeout = ENABLE_LEFT_BUTTON_DELAY;
   }
 
-  platf::abs_mouse(platf_input, util::endian::big(packet->x), util::endian::big(packet->y));
+  if(touch_port_event->peek()) {
+    touch_port = *touch_port_event->pop();
+  }
+
+  float x = util::endian::big(packet->x);
+  float y = util::endian::big(packet->y);
+
+  float width  = util::endian::big(packet->width);
+  float height = util::endian::big(packet->height);
+
+  auto scale_x = (float)touch_port.width / width;
+  auto scale_y = (float)touch_port.height / height;
+
+  platf::abs_mouse(platf_input, touch_port, x * scale_x, y * scale_y);
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
@@ -481,6 +500,7 @@ void reset(std::shared_ptr<input_t> &input) {
 }
 
 void init() {
+  touch_port_event = std::make_unique<touch_port_event_t::element_type>();
   platf_input = platf::input();
 }
 

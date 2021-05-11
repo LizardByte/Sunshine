@@ -58,6 +58,18 @@ using namespace std::literals;
   return "unknown"sv;
 }
 
+// Dimensions for touchscreen input
+struct touch_port_t {
+  std::uint32_t offset_x, offset_y;
+  std::uint32_t width, height;
+
+  constexpr touch_port_t(
+    std::uint32_t offset_x, std::uint32_t offset_y,
+    std::uint32_t width, std::uint32_t height) noexcept :
+    offset_x { offset_x }, offset_y { offset_y },
+    width { width }, height { height } {};
+};
+
 struct gamepad_state_t {
   std::uint16_t buttonFlags;
   std::uint8_t lt;
@@ -146,7 +158,7 @@ std::shared_ptr<display_t> display(dev_type_e hwdevice_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
-void abs_mouse(input_t &input, int x, int y);
+void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);
 void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);

@@ -6,6 +6,7 @@
 #define SUNSHINE_VIDEO_H
 
 #include "thread_safe.h"
+#include "input.h"
 #include "platform/common.h"
 
 extern "C" {
@@ -14,16 +15,27 @@ extern "C" {
 
 struct AVPacket;
 namespace video {
-void free_packet(AVPacket *packet);
 
 struct packet_raw_t : public AVPacket {
-  template<class P>
-  explicit packet_raw_t(P *user_data) : channel_data { user_data } {
-    av_init_packet(this);
+  void init_packet() {
+    pts                  = AV_NOPTS_VALUE;
+    dts                  = AV_NOPTS_VALUE;
+    pos                  = -1;
+    duration             = 0;
+    flags                = 0;
+    stream_index         = 0;
+    buf                  = nullptr;
+    side_data            = nullptr;
+    side_data_elems      = 0;
   }
 
-  explicit packet_raw_t(std::nullptr_t null) : channel_data { nullptr } {
-    av_init_packet(this);
+  template<class P>
+  explicit packet_raw_t(P *user_data) : channel_data { user_data } {
+    init_packet();
+  }
+
+  explicit packet_raw_t(std::nullptr_t) : channel_data { nullptr } {
+    init_packet();
   }
 
   ~packet_raw_t() {

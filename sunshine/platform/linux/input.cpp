@@ -6,6 +6,7 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/XTest.h>
 
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 
@@ -28,6 +29,11 @@ using evdev_t = util::safe_ptr<libevdev, libevdev_free>;
 using uinput_t = util::safe_ptr<libevdev_uinput, libevdev_uinput_destroy>;
 
 using keyboard_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
+
+constexpr touch_port_t target_touch_port {
+  0, 0,
+  19200, 12000
+};
 
 struct input_raw_t {
 public:
@@ -136,11 +142,14 @@ public:
   keyboard_t keyboard;
 };
 
-void abs_mouse(input_t &input, int x, int y) {
+void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   auto touchscreen = ((input_raw_t*)input.get())->touch_input.get();
 
-  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, x);
-  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, y);
+  auto scaled_x = (int)std::lround(x * ((float)target_touch_port.width / (float)touch_port.width));
+  auto scaled_y = (int)std::lround(y * ((float)target_touch_port.height / (float)touch_port.height));
+
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, scaled_x + touch_port.offset_x);
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, scaled_y + touch_port.offset_y);
   libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 1);
   libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 0);
 
@@ -461,7 +470,7 @@ evdev_t touchscreen() {
   input_absinfo absx {
     0,
     0,
-    1919,
+    target_touch_port.width,
     1,
     0,
     28
@@ -470,7 +479,7 @@ evdev_t touchscreen() {
   input_absinfo absy {
     0,
     0,
-    1199,
+    target_touch_port.height,
     1,
     0,
     28
