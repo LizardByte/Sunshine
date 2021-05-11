@@ -37,11 +37,14 @@ void freeX(XFixesCursorImage*);
 using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 using xcb_connect_t = util::safe_ptr<xcb_connection_t, xcb_disconnect>;
 using xcb_img_t = util::c_ptr<xcb_shm_get_image_reply_t>;
-using xcb_cursor_img = util::c_ptr<xcb_xfixes_get_cursor_image_reply_t>;
 
 using xdisplay_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
 using ximg_t = util::safe_ptr<XImage, freeImage>;
 using xcursor_t = util::safe_ptr<XFixesCursorImage, freeX>;
+
+using crtc_info_t = util::safe_ptr<_XRRCrtcInfo, XRRFreeCrtcInfo>;
+using output_info_t = util::safe_ptr<_XRROutputInfo, XRRFreeOutputInfo>;
+using screen_res_t = util::safe_ptr<_XRRScreenResources, XRRFreeScreenResources>;
 
 class shm_id_t {
 public:
@@ -62,24 +65,16 @@ public:
 
 class shm_data_t {
 public:
-  shm_data_t() : data { (void*) -1 }
-  {
-  }
-  shm_data_t(void *data) : data { data }
-  {
+  shm_data_t() : data { (void*) -1 } {}
+  shm_data_t(void *data) : data { data } {}
+
+  shm_data_t(shm_data_t &&other) noexcept : data(other.data) {
+    other.data = (void*)-1;
   }
 
-  shm_data_t(shm_data_t &&other) noexcept : data(other.data)
-  {
-    other.data = (void*) -1;
-  }
-
-  ~shm_data_t()
-  {
-    if ((std::uintptr_t) data != -1)
-    {
+  ~shm_data_t() {
+    if((std::uintptr_t) data != -1) {
       shmdt(data);
-      data = (void*) -1;
     }
   }
 
@@ -91,8 +86,7 @@ struct x11_img_t: public img_t {
 };
 
 struct shm_img_t: public img_t {
-  ~shm_img_t() override
-  {
+  ~shm_img_t() override {
     delete[] data;
     data = nullptr;
   }
@@ -102,8 +96,7 @@ void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
   xcursor_t overlay { XFixesGetCursorImage(display) };
 
   if (!overlay) {
-    BOOST_LOG(error)
-    << "Couldn't get cursor from XFixesGetCursorImage"sv;
+    BOOST_LOG(error) << "Couldn't get cursor from XFixesGetCursorImage"sv;
     return;
   }
 
@@ -113,10 +106,10 @@ void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
   overlay->x -= offsetX;
   overlay->y -= offsetY;
 
-  overlay->x = std::max((short) 0, overlay->x);
-  overlay->y = std::max((short) 0, overlay->y);
+  overlay->x = std::max((short)0, overlay->x);
+  overlay->y = std::max((short)0, overlay->y);
 
-  auto pixels = (int*) img.data;
+  auto pixels = (int*)img.data;
 
   auto screen_height = img.height;
   auto screen_width = img.width;
@@ -154,25 +147,25 @@ struct x11_attr_t: public display_t
   Window xwindow;
   XWindowAttributes xattr;
 
-  Display* displayDisplay;
-
   /*
-   * Remember last X (NOT the streamed monitor!) size. This way we can trigger reinitialization if the dimensions changed while streaming
+   * Last X (NOT the streamed monitor!) size.
+   * This way we can trigger reinitialization if the dimensions changed while streaming
    */
-  int lastWidth,lastHeight;
+  int lastWidth, lastHeight;
 
   /*
    * Offsets for when streaming a specific monitor. By default, they are 0.
    */
-  int displayOffsetX,displayOffsetY;
+  int displayOffsetX, displayOffsetY;
 
-  x11_attr_t() : xdisplay { displayDisplay = XOpenDisplay(nullptr) }, xwindow { }, xattr { }
-  {
+  x11_attr_t() : xdisplay { XOpenDisplay(nullptr) }, xwindow { }, xattr { }, displayOffsetX { 0 }, displayOffsetY { 0 } {
     XInitThreads();
-    if (!xdisplay) {
-      BOOST_LOG(fatal) << "Could not open x11 display"sv;
-      log_flush();
-      std::abort();
+  }
+
+  int init() {
+    if(!xdisplay) {
+      BOOST_LOG(error) << "Could not open X11 display"sv;
+      return -1;
     }
 
     xwindow = DefaultRootWindow(xdisplay.get());
@@ -184,38 +177,30 @@ struct x11_attr_t: public display_t
       streamedMonitor = (int)util::from_view(config::video.output_name);
     }
 
-    //If the value has been set at all
-    if (streamedMonitor != -1) {
-
-      BOOST_LOG(info) << "Configuring selected monitor ("<< streamedMonitor<<") to stream. If it fails here, you may need Xrandr >= 1.5"sv;
-      XRRScreenResources *screenr = XRRGetScreenResources(displayDisplay, xwindow);
-      // This is the key right here. Use XRRScreenResources::noutput
+    if(streamedMonitor != -1) {
+      BOOST_LOG(info) << "Configuring selected monitor ("sv << streamedMonitor << ") to stream"sv;
+      screen_res_t screenr { XRRGetScreenResources(xdisplay.get(), xwindow) };
       int output = screenr->noutput;
 
-      if (streamedMonitor >= output) {
-        BOOST_LOG(error)<< "Could not stream selected display number because there aren't so many."sv;
+      if(streamedMonitor >= output) {
+        BOOST_LOG(error) << "Could not stream display number ["sv << streamedMonitor << "], there are only ["sv << output << "] displays."sv;
+        return -1;
       }
-      else {
-        XRROutputInfo* out_info = XRRGetOutputInfo(displayDisplay, screenr, screenr->outputs[streamedMonitor]);
-        if (NULL == out_info || out_info->connection != RR_Connected)
-        {
-          BOOST_LOG(error)<< "Could not stream selected display because it doesn't seem to be connected"sv;
-        }
-        else
-        {
-          XRRCrtcInfo* crt_info = XRRGetCrtcInfo(displayDisplay, screenr, out_info->crtc);
-          BOOST_LOG(info)<<"Streaming display: "<<out_info->name<<" with res "<<crt_info->width<<" x "<<crt_info->height<<+" offset by "<<crt_info->x<<" x "<<crt_info->y<<"."sv;
 
-          width = crt_info -> width;
-          height = crt_info -> height;
-          displayOffsetX = crt_info -> x;
-          displayOffsetY = crt_info -> y;
-
-          XRRFreeCrtcInfo(crt_info);
-        }
-        XRRFreeOutputInfo(out_info);
+      output_info_t out_info { XRRGetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[streamedMonitor]) };
+      if(!out_info || out_info->connection != RR_Connected) {
+        BOOST_LOG(error) << "Could not stream selected display because it doesn't seem to be connected"sv;
+        return -1;
       }
-      XRRFreeScreenResources(screenr);
+
+      crtc_info_t crt_info { XRRGetCrtcInfo(xdisplay.get(), screenr.get(), out_info->crtc) };
+      BOOST_LOG(info)
+        << "Streaming display: "sv << out_info->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
+
+      width = crt_info->width;
+      height = crt_info->height;
+      displayOffsetX = crt_info->x;
+      displayOffsetY = crt_info->y;
     }
     else {
       width = xattr.width;
@@ -224,13 +209,14 @@ struct x11_attr_t: public display_t
 
     lastWidth = xattr.width;
     lastHeight = xattr.height;
+
+    return 0;
   }
 
   /**
    * Called when the display attributes should change.
    */
-  void refresh()
-  {
+  void refresh() {
     XGetWindowAttributes(xdisplay.get(), xwindow, &xattr); //Update xattr's
   }
 
@@ -242,7 +228,7 @@ struct x11_attr_t: public display_t
       BOOST_LOG(warning)<< "X dimensions changed in non-SHM mode, request reinit"sv;
       return capture_e::reinit;
     }
-    XImage *img { XGetImage(xdisplay.get(), xwindow, displayOffsetX, displayOffsetY, width,height, AllPlanes, ZPixmap) };
+    XImage *img { XGetImage(xdisplay.get(), xwindow, displayOffsetX, displayOffsetY, width, height, AllPlanes, ZPixmap) };
 
     auto img_out = (x11_img_t*) img_out_base;
     img_out->width = img->width;
@@ -253,7 +239,7 @@ struct x11_attr_t: public display_t
     img_out->img.reset(img);
 
     if (cursor) {
-      blend_cursor(xdisplay.get(), *img_out_base,displayOffsetX,displayOffsetY);
+      blend_cursor(xdisplay.get(), *img_out_base, displayOffsetX, displayOffsetY);
     }
 
     return capture_e::ok;
@@ -288,21 +274,21 @@ struct shm_attr_t: public x11_attr_t {
   }
 
   shm_attr_t() : x11_attr_t(), shm_xdisplay { XOpenDisplay(nullptr) } {
-    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh,2s, this).task_id;
+    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
   ~shm_attr_t() override {
-    while (!task_pool.cancel(refresh_task_id));
+    while(!task_pool.cancel(refresh_task_id));
   }
 
   capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) override {
     //The whole X server changed, so we gotta reinit everything
-    if (xattr.width != lastWidth || xattr.height  != lastHeight) {
+    if(xattr.width != lastWidth || xattr.height  != lastHeight) {
       BOOST_LOG(warning)<< "X dimensions changed in SHM mode, request reinit"sv;
       return capture_e::reinit;
     }
     else {
-      auto img_cookie = xcb_shm_get_image_unchecked(xcb.get(), display->root,displayOffsetX, displayOffsetY, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
+      auto img_cookie = xcb_shm_get_image_unchecked(xcb.get(), display->root, displayOffsetX, displayOffsetY, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
 
       xcb_img_t img_reply { xcb_shm_get_image_reply(xcb.get(), img_cookie,nullptr) };
       if (!img_reply) {
@@ -314,7 +300,7 @@ struct shm_attr_t: public x11_attr_t {
       std::copy_n((std::uint8_t*) data.data, frame_size(), img->data);
 
       if (cursor) {
-        blend_cursor(shm_xdisplay.get(), *img,displayOffsetX,displayOffsetY);
+        blend_cursor(shm_xdisplay.get(), *img, displayOffsetX, displayOffsetY);
       }
 
       return capture_e::ok;
@@ -337,17 +323,18 @@ struct shm_attr_t: public x11_attr_t {
   }
 
   int init() {
+    if(x11_attr_t::init()) {
+      return 1;
+    }
+
     shm_xdisplay.reset(XOpenDisplay(nullptr));
     xcb.reset(xcb_connect(nullptr, nullptr));
-    if (xcb_connection_has_error(xcb.get()))
-    {
+    if(xcb_connection_has_error(xcb.get())) {
       return -1;
     }
 
-    if (!xcb_get_extension_data(xcb.get(), &xcb_shm_id)->present)
-    {
-      BOOST_LOG(error)
-      << "Missing SHM extension"sv;
+    if(!xcb_get_extension_data(xcb.get(), &xcb_shm_id)->present) {
+      BOOST_LOG(error) << "Missing SHM extension"sv;
 
       return -1;
     }
@@ -357,29 +344,19 @@ struct shm_attr_t: public x11_attr_t {
     seg = xcb_generate_id(xcb.get());
 
     shm_id.id = shmget(IPC_PRIVATE, frame_size(), IPC_CREAT | 0777);
-    if (shm_id.id == -1)
-    {
-      BOOST_LOG(error)
-      << "shmget failed"sv;
+    if(shm_id.id == -1) {
+      BOOST_LOG(error) << "shmget failed"sv;
       return -1;
     }
 
     xcb_shm_attach(xcb.get(), seg, shm_id.id, false);
     data.data = shmat(shm_id.id, nullptr, 0);
 
-    if ((uintptr_t) data.data == -1)
-    {
-      BOOST_LOG(error)
-      << "shmat failed"sv;
+    if((uintptr_t)data.data == -1) {
+      BOOST_LOG(error) << "shmat failed"sv;
 
       return -1;
     }
-
-    /*
-     * Commented out resetting of the sizes when intializing X in SHM mode. It might be wrong. Expect issues. This is the default mode, so poisoning those variables is not desired
-     */
-//    width = display->width_in_pixels;
-//    height = display->height_in_pixels;
 
     return 0;
   }
@@ -401,10 +378,8 @@ struct mic_attr_t: public mic_t {
 
     auto buf = sample_buf.data();
     int status;
-    if (pa_simple_read(mic.get(), buf, sample_size * 2, &status))
-    {
-      BOOST_LOG(error)
-      << "pa_simple_read() failed: "sv << pa_strerror(status);
+    if(pa_simple_read(mic.get(), buf, sample_size *2, &status)) {
+      BOOST_LOG(error) << "pa_simple_read() failed: "sv << pa_strerror(status);
 
       return capture_e::error;
     }
@@ -413,29 +388,32 @@ struct mic_attr_t: public mic_t {
   }
 };
 
-std::shared_ptr<display_t> shm_display() {
-  auto shm = std::make_shared<shm_attr_t>();
-
-  if (shm->init()) {
-    return nullptr;
-  }
-
-  return shm;
-}
-
 std::shared_ptr<display_t> display(platf::dev_type_e hwdevice_type) {
-  if (hwdevice_type != platf::dev_type_e::none) {
+  if(hwdevice_type != platf::dev_type_e::none) {
     BOOST_LOG(error)<< "Could not initialize display with the given hw device type."sv;
     return nullptr;
   }
 
-  auto shm_disp = shm_display(); //Attempt to use shared memory X11 to avoid copying the frame
+  // Attempt to use shared memory X11 to avoid copying the frame
+  auto shm_disp = std::make_shared<shm_attr_t>();
 
-  if (!shm_disp) {
-    return std::make_shared<x11_attr_t>(); //Fallback to standard way if else
+  auto status = shm_disp->init();
+  if(status > 0) {
+    // x11_attr_t::init() failed, don't bother trying again.
+    return nullptr;
   }
 
-  return shm_disp;
+  if(status == 0) {
+    return shm_disp;
+  }
+
+  // Fallback
+  auto x11_disp = std::make_shared<x11_attr_t>();
+  if(x11_disp->init()) {
+    return nullptr;
+  }
+
+  return x11_disp;
 }
 
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
@@ -494,20 +472,19 @@ std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_
 
   auto family = ip_addr->sa_family;
   std::uint16_t port;
-  if (family == AF_INET6) {
-    inet_ntop(AF_INET6, &((sockaddr_in6*) ip_addr)->sin6_addr, data,
+  if(family == AF_INET6) {
+    inet_ntop(AF_INET6, &((sockaddr_in6*)ip_addr)->sin6_addr, data,
     INET6_ADDRSTRLEN);
     port = ((sockaddr_in6*) ip_addr)->sin6_port;
   }
 
-  if (family == AF_INET) {
-    inet_ntop(AF_INET, &((sockaddr_in*) ip_addr)->sin_addr, data,
+  if(family == AF_INET) {
+    inet_ntop(AF_INET, &((sockaddr_in*)ip_addr)->sin_addr, data,
     INET_ADDRSTRLEN);
     port = ((sockaddr_in*) ip_addr)->sin_port;
   }
 
-  return
-  { port, std::string {data}};
+  return { port, std::string {data} };
 }
 
 std::string get_mac_address(const std::string_view &address) {
@@ -522,8 +499,8 @@ std::string get_mac_address(const std::string_view &address) {
       }
     }
   }
-  BOOST_LOG(warning)
-  << "Unable to find MAC address for "sv << address;
+
+  BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
   return "00:00:00:00:00:00"s;
 }
 
