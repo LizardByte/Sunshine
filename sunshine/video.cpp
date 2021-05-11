@@ -856,7 +856,9 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
     return encode_e::error;
   }
 
-  input::touch_port_event->raise(0, 0, img->width, img->height);
+  // absolute mouse coordinates require that the dimensions of the screen are known
+  input::touch_port_event->raise(disp->offset_x, disp->offset_y, disp->width, disp->height);
+
   std::vector<sync_session_t> synced_sessions;
   for(auto &ctx : synced_session_ctxs) {
     auto synced_session = make_synced_session(disp.get(), encoder, *img, *ctx);
@@ -1064,8 +1066,11 @@ void capture_async(
     if(display->dummy_img(dummy_img.get())) {
       return;
     }
-    input::touch_port_event->raise(0, 0, dummy_img->width, dummy_img->height);
+
     images->raise(std::move(dummy_img));
+
+    // absolute mouse coordinates require that the dimensions of the screen are known
+    input::touch_port_event->raise(display->offset_x, display->offset_y, display->width, display->height);
 
     encode_run(
       frame_nr, key_frame_nr,

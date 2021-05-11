@@ -153,12 +153,7 @@ struct x11_attr_t: public display_t
    */
   int lastWidth, lastHeight;
 
-  /*
-   * Offsets for when streaming a specific monitor. By default, they are 0.
-   */
-  int displayOffsetX, displayOffsetY;
-
-  x11_attr_t() : xdisplay { XOpenDisplay(nullptr) }, xwindow { }, xattr { }, displayOffsetX { 0 }, displayOffsetY { 0 } {
+  x11_attr_t() : xdisplay { XOpenDisplay(nullptr) }, xwindow { }, xattr { } {
     XInitThreads();
   }
 
@@ -199,8 +194,8 @@ struct x11_attr_t: public display_t
 
       width = crt_info->width;
       height = crt_info->height;
-      displayOffsetX = crt_info->x;
-      displayOffsetY = crt_info->y;
+      offset_x = crt_info->x;
+      offset_y = crt_info->y;
     }
     else {
       width = xattr.width;
@@ -228,7 +223,7 @@ struct x11_attr_t: public display_t
       BOOST_LOG(warning)<< "X dimensions changed in non-SHM mode, request reinit"sv;
       return capture_e::reinit;
     }
-    XImage *img { XGetImage(xdisplay.get(), xwindow, displayOffsetX, displayOffsetY, width, height, AllPlanes, ZPixmap) };
+    XImage *img { XGetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
 
     auto img_out = (x11_img_t*) img_out_base;
     img_out->width = img->width;
@@ -239,7 +234,7 @@ struct x11_attr_t: public display_t
     img_out->img.reset(img);
 
     if (cursor) {
-      blend_cursor(xdisplay.get(), *img_out_base, displayOffsetX, displayOffsetY);
+      blend_cursor(xdisplay.get(), *img_out_base, offset_x, offset_y);
     }
 
     return capture_e::ok;
@@ -288,19 +283,18 @@ struct shm_attr_t: public x11_attr_t {
       return capture_e::reinit;
     }
     else {
-      auto img_cookie = xcb_shm_get_image_unchecked(xcb.get(), display->root, displayOffsetX, displayOffsetY, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
+      auto img_cookie = xcb_shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
 
       xcb_img_t img_reply { xcb_shm_get_image_reply(xcb.get(), img_cookie,nullptr) };
-      if (!img_reply) {
-        BOOST_LOG(error)
-        << "Could not get image reply"sv;
+      if(!img_reply) {
+        BOOST_LOG(error) << "Could not get image reply"sv;
         return capture_e::reinit;
       }
 
-      std::copy_n((std::uint8_t*) data.data, frame_size(), img->data);
+      std::copy_n((std::uint8_t*)data.data, frame_size(), img->data);
 
-      if (cursor) {
-        blend_cursor(shm_xdisplay.get(), *img, displayOffsetX, displayOffsetY);
+      if(cursor) {
+        blend_cursor(shm_xdisplay.get(), *img, offset_x, offset_y);
       }
 
       return capture_e::ok;

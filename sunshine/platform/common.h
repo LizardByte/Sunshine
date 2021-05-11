@@ -122,6 +122,7 @@ enum class capture_e : int {
 
 class display_t {
 public:
+  display_t() noexcept : offset_x { 0 }, offset_y { 0 } {}
   virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) = 0;
   virtual std::shared_ptr<img_t> alloc_img() = 0;
 
@@ -132,6 +133,9 @@ public:
   }
 
   virtual ~display_t() = default;
+
+  // Offsets for when streaming a specific monitor. By default, they are 0.
+  int offset_x, offset_y;
 
   int width, height;
 };

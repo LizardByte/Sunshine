@@ -165,7 +165,7 @@ input_t input() {
   return result;
 }
 
-void abs_mouse(input_t &input, int x, int y) {}
+void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {}
 void move_mouse(input_t &input, int deltaX, int deltaY) {
   INPUT i {};
 

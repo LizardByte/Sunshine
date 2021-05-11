@@ -145,11 +145,11 @@ public:
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   auto touchscreen = ((input_raw_t*)input.get())->touch_input.get();
 
-  auto scaled_x = (int)std::lround(x * ((float)target_touch_port.width / (float)touch_port.width));
-  auto scaled_y = (int)std::lround(y * ((float)target_touch_port.height / (float)touch_port.height));
+  auto scaled_x = (int)std::lround((x + touch_port.offset_x) * ((float)target_touch_port.width / (float)touch_port.width));
+  auto scaled_y = (int)std::lround((y + touch_port.offset_y) * ((float)target_touch_port.height / (float)touch_port.height));
 
-  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, scaled_x + touch_port.offset_x);
-  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, scaled_y + touch_port.offset_y);
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, scaled_x);
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, scaled_y);
   libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 1);
   libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 0);
 
