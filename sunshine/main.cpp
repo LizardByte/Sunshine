@@ -15,7 +15,6 @@
 #include <boost/log/attributes/clock.hpp>
 
 #include "video.h"
-#include "input.h"
 #include "nvhttp.h"
 #include "rtsp.h"
 #include "config.h"
@@ -142,7 +141,6 @@ int main(int argc, char *argv[]) {
     return 4;
   }
 
-  input::init();
   reed_solomon_init();
   if(video::init()) {
     return 2;

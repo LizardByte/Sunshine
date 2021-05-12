@@ -1146,6 +1146,11 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
 bool validate_encoder(encoder_t &encoder) {
   std::shared_ptr<platf::display_t> disp;
 
+  BOOST_LOG(info) << "Trying encoder ["sv << encoder.name << ']';
+  auto fg = util::fail_guard([&]() {
+    BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] failed"sv;
+  });
+
   auto force_hevc = config::video.hevc_mode >= 2;
   auto test_hevc = force_hevc || (config::video.hevc_mode == 0 && encoder.hevc_mode);
 
@@ -1200,10 +1205,21 @@ bool validate_encoder(encoder_t &encoder) {
     }
   }
 
+  fg.disable();
   return true;
 }
 
 int init() {
+  // video depends on input for input::touch_port_event
+  input::init();
+
+  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////////"sv;
+  BOOST_LOG(info) << "//                                                              //"sv;
+  BOOST_LOG(info) << "//   Testing for available encoders, this may generate errors.  //"sv;
+  BOOST_LOG(info) << "//   You can safely ignore those errors.                        //"sv;
+  BOOST_LOG(info) << "//                                                              //"sv;
+  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////////"sv;
+
   KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
     if(
       (!config::video.encoder.empty() && pos->name != config::video.encoder)  ||
@@ -1228,6 +1244,14 @@ int init() {
 
     return -1;
   }
+
+  BOOST_LOG(info);
+  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////"sv;
+  BOOST_LOG(info) << "//                                                          //"sv;
+  BOOST_LOG(info) << "// Ignore any errors mentioned above, they are not relevant //"sv;
+  BOOST_LOG(info) << "//                                                          //"sv;
+  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////"sv;
+  BOOST_LOG(info);
 
   auto &encoder = encoders.front();
   if(encoder.hevc[encoder_t::PASSED]) {
