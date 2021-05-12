@@ -129,8 +129,10 @@ int display_base_t::init() {
       if(desc.AttachedToDesktop) {
         output = std::move(output_tmp);
 
-        width  = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
-        height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
+        offset_x = desc.DesktopCoordinates.left;
+        offset_y = desc.DesktopCoordinates.top;
+        width  = desc.DesktopCoordinates.right - offset_x;
+        height = desc.DesktopCoordinates.bottom - offset_y;
       }
     }
 

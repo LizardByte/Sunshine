@@ -1,5 +1,6 @@
 #include <sstream>
 #include <iomanip>
+#include <cmath>
 
 #include <ws2tcpip.h>
 #include <winsock2.h>
@@ -17,7 +18,12 @@ using namespace std::literals;
 
 using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
-volatile HDESK _lastKnownInputDesktop = NULL; 
+volatile HDESK _lastKnownInputDesktop = NULL;
+constexpr touch_port_t target_touch_port {
+  0, 0,
+  65535, 65535
+};
+
 HDESK pairInputDesktop();
 
 class vigem_t {
@@ -165,7 +171,40 @@ input_t input() {
   return result;
 }
 
-void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {}
+void send_input(INPUT &i) {
+retry:
+  auto send = SendInput(1, &i, sizeof(INPUT));
+  if(send != 1) {
+    auto hDesk = pairInputDesktop();
+    if (_lastKnownInputDesktop != hDesk) {
+      _lastKnownInputDesktop = hDesk;
+      goto retry;
+    }
+    BOOST_LOG(warning) << "Couldn't send input"sv;
+  }
+}
+void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+  INPUT i {};
+
+  i.type = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  mi.dwFlags =
+    MOUSEEVENTF_MOVE |
+    MOUSEEVENTF_ABSOLUTE |
+
+    // MOUSEEVENTF_VIRTUALDESK maps to the entirety of the desktop rather than the primary desktop
+    MOUSEEVENTF_VIRTUALDESK;
+
+  auto scaled_x = std::lround((x + touch_port.offset_x) * ((float)target_touch_port.width / (float)touch_port.width));
+  auto scaled_y = std::lround((y + touch_port.offset_y) * ((float)target_touch_port.height / (float)touch_port.height));
+
+  mi.dx = scaled_x;
+  mi.dy = scaled_y;
+
+  send_input(i);
+}
+
 void move_mouse(input_t &input, int deltaX, int deltaY) {
   INPUT i {};
 
@@ -176,16 +215,7 @@ void move_mouse(input_t &input, int deltaX, int deltaY) {
   mi.dx = deltaX;
   mi.dy = deltaY;
   
-retry:
-  auto send = SendInput(1, &i, sizeof(INPUT));
-  if(send != 1) {
-    auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
-      _lastKnownInputDesktop = hDesk;
-      goto retry;
-    }
-    BOOST_LOG(warning) << "Couldn't send mouse movement input"sv;
-  }
+  send_input(i);
 }
 
 void button_mouse(input_t &input, int button, bool release) {
@@ -228,16 +258,7 @@ void button_mouse(input_t &input, int button, bool release) {
     return;
   }
 
-retry:
-  auto send = SendInput(1, &i, sizeof(INPUT));
-  if(send != 1) {
-    auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
-      _lastKnownInputDesktop = hDesk;
-      goto retry;
-    }
-    BOOST_LOG(warning) << "Couldn't send mouse button input"sv;
-  }
+  send_input(i);
 }
 
 void scroll(input_t &input, int distance) {
@@ -249,16 +270,7 @@ void scroll(input_t &input, int distance) {
   mi.dwFlags = MOUSEEVENTF_WHEEL;
   mi.mouseData = distance;
 
-retry:
-  auto send = SendInput(1, &i, sizeof(INPUT));
-  if(send != 1) {
-    auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
-      _lastKnownInputDesktop = hDesk;
-      goto retry;
-    }
-    BOOST_LOG(warning) << "Couldn't send mouse scroll input"sv;
-  }
+  send_input(i);
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
@@ -304,16 +316,7 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
     ki.dwFlags |= KEYEVENTF_KEYUP;
   }
 
-retry:
-  auto send = SendInput(1, &i, sizeof(INPUT));
-  if(send != 1) {
-    auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
-      _lastKnownInputDesktop = hDesk;
-      goto retry;
-    }
-    BOOST_LOG(warning) << "Couldn't send keyboard input"sv;
-  }
+  send_input(i);
 }
 
 int alloc_gamepad(input_t &input, int nr) {

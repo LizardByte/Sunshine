@@ -209,6 +209,14 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
   float x = util::endian::big(packet->x);
   float y = util::endian::big(packet->y);
 
+  // Prevent divide by zero
+  // Don't expect it to happen, but just in case
+  if(!packet->width || !packet->height) {
+    BOOST_LOG(warning) << "Moonlight passed invalid dimensions"sv;
+
+    return;
+  }
+
   float width  = util::endian::big(packet->width);
   float height = util::endian::big(packet->height);
 
@@ -220,7 +228,9 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x09;
-  auto constexpr BUTTON_LEFT = 0x01;
+
+  auto constexpr BUTTON_LEFT  = 0x01;
+  auto constexpr BUTTON_RIGHT = 0x03;
 
   display_cursor = true;
 
@@ -228,9 +238,14 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
 
   auto button = util::endian::big(packet->button);
   if(button > 0 && button < mouse_press.size()) {
+    if(mouse_press[button] != release) {
+      // button state is already what we want
+      return;
+    }
+
     mouse_press[button] = !release;
   }
-
+///////////////////////////////////
    /*/
     * When Moonlight sends mouse input through absolute coordinates,
     * it's possible that BUTTON_RIGHT is pressed down immediately after releasing BUTTON_LEFT.
@@ -247,13 +262,30 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
    /*/
   if(button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
     input->mouse_left_button_timeout = task_pool.pushDelayed([=]() {
-      platf::button_mouse(platf_input, button, release);
+      auto left_released = mouse_press[BUTTON_LEFT];
+      if(left_released) {
+        // Already released left button
+        return;
+      }
+      platf::button_mouse(platf_input, BUTTON_LEFT, release);
 
       input->mouse_left_button_timeout = nullptr;
     }, 10ms).task_id;
 
     return;
   }
+  if(
+    button == BUTTON_RIGHT && !release &&
+    input->mouse_left_button_timeout > DISABLE_LEFT_BUTTON_DELAY
+  ) {
+    platf::button_mouse(platf_input, BUTTON_RIGHT, false);
+    platf::button_mouse(platf_input, BUTTON_RIGHT, true);
+
+    mouse_press[BUTTON_RIGHT] = false;
+
+    return;
+  }
+///////////////////////////////////
 
   platf::button_mouse(platf_input, button, release);
 }
