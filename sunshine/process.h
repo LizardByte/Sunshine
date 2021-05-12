@@ -30,6 +30,7 @@ struct cmd_t {
 };
 /*
  * pre_cmds -- guaranteed to be executed unless any of the commands fail.
+ * detached -- commands detached from Sunshine
  * cmd -- Runs indefinitely until:
  *    No session is running and a different set of commands it to be executed
  *    Command exits
@@ -40,6 +41,14 @@ struct cmd_t {
  */
 struct ctx_t {
   std::vector<cmd_t> prep_cmds;
+
+  /**
+   * Some applications, such as Steam,
+   * either exit quickly, or keep running indefinitely.
+   * Steam.exe is one such application.
+   * That is why some applications need be run and forgotten about
+   */
+  std::vector<std::string> detached;
 
   std::string name;
   std::string cmd;

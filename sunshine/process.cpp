@@ -80,17 +80,31 @@ int proc_t::execute(int app_id) {
     auto ret = exe(cmd, _env, _pipe, ec);
 
     if(ec) {
-      BOOST_LOG(error) << "System: "sv << ec.message();
+      BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
       return -1;
     }
 
     if(ret != 0) {
-      BOOST_LOG(error) << "Return code ["sv << ret << ']';
+      BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
       return -1;
     }
   }
 
-  BOOST_LOG(debug) << "Starting ["sv << proc.cmd << ']';
+  for(auto &cmd : proc.detached) {
+    BOOST_LOG(info) << "Spawning ["sv << cmd << ']';
+    if(proc.output.empty()) {
+      bp::spawn(cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
+    }
+    else {
+      bp::spawn(cmd, _env, bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
+    }
+
+    if(ec) {
+      BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
+    }
+  }
+
+  BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
   if(proc.cmd.empty()) {
     placebo = true;
   }
@@ -102,7 +116,7 @@ int proc_t::execute(int app_id) {
   }
 
   if(ec) {
-    BOOST_LOG(info) << "System: "sv << ec.message();
+    BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
     return -1;
   }
 
@@ -251,12 +265,12 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
       proc::ctx_t ctx;
 
       auto prep_nodes_opt = app_node.get_child_optional("prep-cmd"s);
+      auto detached_nodes_opt = app_node.get_child_optional("detached"s);
       auto output = app_node.get_optional<std::string>("output"s);
       auto name = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd = app_node.get_optional<std::string>("cmd"s);
 
       std::vector<proc::cmd_t> prep_cmds;
-
       if(prep_nodes_opt) {
         auto &prep_nodes = *prep_nodes_opt;
 
@@ -274,6 +288,16 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
         }
       }
 
+      std::vector<std::string> detached;
+      if(detached_nodes_opt) {
+        auto &detached_nodes = *detached_nodes_opt;
+
+        detached.reserve(detached_nodes.size());
+        for(auto &[_, detached_val] : detached_nodes) {
+          detached.emplace_back(parse_env_val(this_env, detached_val.get_value<std::string>()));
+        }
+      }
+
       if(output) {
         ctx.output = parse_env_val(this_env, *output);
       }
@@ -284,6 +308,7 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
 
       ctx.name = std::move(name);
       ctx.prep_cmds = std::move(prep_cmds);
+      ctx.detached = std::move(detached);
 
       apps.emplace_back(std::move(ctx));
     }

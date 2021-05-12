@@ -117,15 +117,20 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	"cmd":"command to open app",
 	"prep-cmd":[
 			{
-				"do":"somecommand",
-				"undo":"undothatcommand"
+				"do":"some-command",
+				"undo":"undo-that-command"
 			}
+		],
+	"detached":[
+		"some-command",
+		"another-command"
 		]
 	}
 	```
 	- name: Self explanatory
 	- output <optional>: The file where the output of the command is stored
 		- If it is not specified, the output is ignored
+	- detached: A list of commands to be run and forgotten about
 	- prep-cmd: A list of commands to be run before/after the application
 		- If any of the prep-commands fail, starting the application is aborted
 		- do: Run before the application

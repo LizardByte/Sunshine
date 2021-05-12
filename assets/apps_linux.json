@@ -13,7 +13,7 @@
 		"name":"Steam BigPicture",
 
 		"output":"steam.txt",
-		"cmd":"steam -bigpicture"
+		"detached":["setsid steam steam://open/bigpicture"]
 	}
 	]
 }
