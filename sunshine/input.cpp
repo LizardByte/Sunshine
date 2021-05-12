@@ -269,6 +269,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
       }
       platf::button_mouse(platf_input, BUTTON_LEFT, release);
 
+      mouse_press[BUTTON_LEFT] = false;
       input->mouse_left_button_timeout = nullptr;
     }, 10ms).task_id;
 
@@ -521,7 +522,10 @@ void reset(std::shared_ptr<input_t> &input) {
   // Ensure input is synchronous, by using the task_pool
   task_pool.push([]() {
     for(int x = 0; x < mouse_press.size(); ++x) {
-      platf::button_mouse(platf_input, x, true);
+      if(mouse_press[x]) {
+        platf::button_mouse(platf_input, x, true);
+        mouse_press[x] = false;
+      }
     }
 
     for(auto& kp : key_press) {
