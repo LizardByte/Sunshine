@@ -26,7 +26,9 @@ const IID IID_IMMDeviceEnumerator    = __uuidof(IMMDeviceEnumerator);
 const IID IID_IAudioClient           = __uuidof(IAudioClient);
 const IID IID_IAudioCaptureClient    = __uuidof(IAudioCaptureClient);
 
+constexpr auto SAMPLE_RATE = 48000;
 int device_state_filter = DEVICE_STATE_ACTIVE;
+
 namespace audio {
 template<class T>
 void Release(T *p) {
@@ -66,19 +68,114 @@ public:
 const wchar_t *no_null(const wchar_t *str) {
   return str ? str : L"Unknown";
 }
-void print_device(device_t &device) {
-  HRESULT status;
 
-  audio::wstring_t::pointer wstring_p {};
+struct format_t {
+  std::string_view name;
+  int channels;
+  int channel_mask;
+} formats [] {
+  {
+    "Mono"sv,
+    1,
+    SPEAKER_FRONT_CENTER
+  },
+  {
+    "Stereo"sv,
+    2,
+    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT
+  },
+  {
+    "Surround 5.1"sv,
+    6,
+    SPEAKER_FRONT_LEFT    |
+    SPEAKER_FRONT_RIGHT   |
+    SPEAKER_FRONT_CENTER  |
+    SPEAKER_LOW_FREQUENCY |
+    SPEAKER_BACK_LEFT     |
+    SPEAKER_BACK_RIGHT
+  }
+};
+
+void set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
+  wave_format->nChannels = format.channels;
+  wave_format->nBlockAlign = wave_format->nChannels * wave_format->wBitsPerSample / 8;
+  wave_format->nAvgBytesPerSec = wave_format->nSamplesPerSec * wave_format->nBlockAlign;
+
+  if(wave_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+    ((PWAVEFORMATEXTENSIBLE)wave_format.get())->dwChannelMask = format.channel_mask;
+  }
+}
+
+audio_client_t make_audio_client(device_t &device, const format_t &format) {
+  audio_client_t audio_client;
+  auto status = device->Activate(
+    IID_IAudioClient,
+    CLSCTX_ALL,
+    nullptr,
+    (void **) &audio_client);
+
+  if(FAILED(status)) {
+    std::cout << "Couldn't activate Device: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+
+    return nullptr;
+  }
+
+  wave_format_t wave_format;
+  status = audio_client->GetMixFormat(&wave_format);
+
+  if (FAILED(status)) {
+    std::cout << "Couldn't acquire Wave Format [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+
+    return nullptr;
+  }
+
+  wave_format->wBitsPerSample = 16;
+  wave_format->nSamplesPerSec = SAMPLE_RATE;
+  switch(wave_format->wFormatTag) {
+    case WAVE_FORMAT_PCM:
+      break;
+    case WAVE_FORMAT_IEEE_FLOAT:
+      break;
+    case WAVE_FORMAT_EXTENSIBLE: {
+      auto wave_ex = (PWAVEFORMATEXTENSIBLE) wave_format.get();
+      if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, wave_ex->SubFormat)) {
+        wave_ex->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+        wave_ex->Samples.wValidBitsPerSample = 16;
+        break;
+      }
+
+      std::cout << "Unsupported Sub Format for WAVE_FORMAT_EXTENSIBLE: [0x"sv << util::hex(wave_ex->SubFormat).to_string_view() << ']' << std::endl;
+    }
+    default:
+      std::cout << "Unsupported Wave Format: [0x"sv << util::hex(wave_format->wFormatTag).to_string_view() << ']' << std::endl;
+      return nullptr;
+  };
+
+  set_wave_format(wave_format, format);
+
+  status = audio_client->Initialize(
+    AUDCLNT_SHAREMODE_SHARED,
+    AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+    0, 0,
+    wave_format.get(),
+    nullptr);
+
+  if(status) {
+    return nullptr;
+  }
+
+  return audio_client;
+}
+
+void print_device(device_t &device) {
+  audio::wstring_t wstring;
   DWORD device_state;
 
   device->GetState(&device_state);
-  device->GetId(&wstring_p);
-  audio::wstring_t wstring { wstring_p };
+  device->GetId(&wstring);
 
-  audio::prop_t::pointer prop_p {};
-  device->OpenPropertyStore(STGM_READ, &prop_p);
-  audio::prop_t prop { prop_p };
+  audio::prop_t prop;
+  device->OpenPropertyStore(STGM_READ, &prop);
 
   prop_var_t adapter_friendly_name;
   prop_var_t device_friendly_name;
@@ -120,47 +217,12 @@ void print_device(device_t &device) {
     return;
   }
 
-  // Ensure WaveFromat is compatible
-  audio_client_t::pointer audio_client_p{};
-  status = device->Activate(
-    IID_IAudioClient,
-    CLSCTX_ALL,
-    nullptr,
-    (void **) &audio_client_p);
-  audio_client_t audio_client { audio_client_p };
+  for(const auto &format : formats) {
+    // Ensure WaveFromat is compatible
+    auto audio_client = make_audio_client(device, format);
 
-  if (FAILED(status)) {
-    std::cout << "Couldn't activate Device: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-
-    return;
+    std::cout << format.name << ": "sv << (!audio_client ? "unsupported"sv : "supported"sv) << std::endl;
   }
-
-  wave_format_t::pointer wave_format_p{};
-  status = audio_client->GetMixFormat(&wave_format_p);
-  wave_format_t wave_format { wave_format_p };
-
-  if (FAILED(status)) {
-    std::cout << "Couldn't acquire Wave Format [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-
-    return;
-  }
-
-  switch(wave_format->wFormatTag) {
-    case WAVE_FORMAT_PCM:
-      break;
-    case WAVE_FORMAT_IEEE_FLOAT:
-      break;
-    case WAVE_FORMAT_EXTENSIBLE: {
-      auto wave_ex = (PWAVEFORMATEXTENSIBLE) wave_format.get();
-      if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, wave_ex->SubFormat)) {
-        break;
-      }
-
-      std::cout << "Unsupported Sub Format for WAVE_FORMAT_EXTENSIBLE: [0x"sv << util::hex(wave_ex->SubFormat).to_string_view() << ']' << std::endl;
-    }
-    default:
-      std::cout << "Unsupported Wave Format: [0x"sv << util::hex(wave_format->wFormatTag).to_string_view() << ']' << std::endl;
-  };
 }
 }
 
@@ -213,14 +275,13 @@ int main(int argc, char *argv[]) {
 
   HRESULT status;
 
-  audio::device_enum_t::pointer device_enum_p{};
+  audio::device_enum_t device_enum;
   status = CoCreateInstance(
     CLSID_MMDeviceEnumerator,
     nullptr,
     CLSCTX_ALL,
     IID_IMMDeviceEnumerator,
-    (void **) &device_enum_p);
-  audio::device_enum_t device_enum { device_enum_p };
+    (void **) &device_enum);
 
   if (FAILED(status)) {
     std::cout << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
@@ -228,9 +289,8 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  audio::collection_t::pointer collection_p {};
-  status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATEMASK_ALL, &collection_p);
-  audio::collection_t collection { collection_p };
+  audio::collection_t collection;
+  status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATEMASK_ALL, &collection);
 
   if (FAILED(status)) {
     std::cout << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
@@ -243,9 +303,8 @@ int main(int argc, char *argv[]) {
 
   std::cout << "====== Found "sv << count << " potential audio devices ======"sv << std::endl;
   for(auto x = 0; x < count; ++x) {
-    audio::device_t::pointer device_p {};
-    collection->Item(x, &device_p);
-    audio::device_t device { device_p };
+    audio::device_t device;
+    collection->Item(x, &device);
 
     audio::print_device(device);
   }

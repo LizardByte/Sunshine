@@ -94,15 +94,15 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
   //FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stereo;
 
-  auto mic = platf::microphone(stream->sampleRate);
+  auto frame_size = config.packetDuration * stream->sampleRate / 1000;
+  int samples_per_frame = frame_size * stream->channelCount;
+
+  auto mic = platf::microphone(stream->sampleRate, frame_size);
   if(!mic) {
     BOOST_LOG(error) << "Couldn't create audio input"sv ;
 
     return;
   }
-
-  auto frame_size = config.packetDuration * stream->sampleRate / 1000;
-  int samples_per_frame = frame_size * stream->channelCount;
 
   while(!shutdown_event->peek()) {
     std::vector<std::int16_t> sample_buffer;
@@ -116,7 +116,7 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
         continue;
       case platf::capture_e::reinit:
         mic.reset();
-        mic = platf::microphone(stream->sampleRate);
+        mic = platf::microphone(stream->sampleRate, frame_size);
         if(!mic) {
           BOOST_LOG(error) << "Couldn't re-initialize audio input"sv ;
 

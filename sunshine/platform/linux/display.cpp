@@ -410,7 +410,7 @@ std::shared_ptr<display_t> display(platf::dev_type_e hwdevice_type) {
   return x11_disp;
 }
 
-std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate) {
+std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate, std::uint32_t) {
   auto mic = std::make_unique<mic_attr_t>(PA_SAMPLE_S16LE, sample_rate, 2);
 
   int status;

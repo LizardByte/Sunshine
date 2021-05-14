@@ -157,7 +157,7 @@ std::string get_mac_address(const std::string_view &address);
 std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
-std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate);
+std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate, std::uint32_t frame_size);
 std::shared_ptr<display_t> display(dev_type_e hwdevice_type);
 
 input_t input();
