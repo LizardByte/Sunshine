@@ -213,11 +213,9 @@ public:
       std::copy_n(std::begin(sample_buf), sample_size, std::begin(sample_in));
       break;
     case 6:
-      if(format->name == "Surround 5.1"sv) {
-        surround51_to_stereo(sample_in, sample_buf);
-        break;
-      }
-
+      surround51_to_stereo(sample_in, sample_buf);
+      break;
+    default:
       BOOST_LOG(error) << '[' << format->name << "] not yet supported"sv;
       return capture_e::error;
     }
