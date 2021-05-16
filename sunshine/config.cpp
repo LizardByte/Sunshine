@@ -1,7 +1,6 @@
 #include <fstream>
 #include <iostream>
 #include <functional>
-#include <unordered_map>
 
 #include <boost/asio.hpp>
 

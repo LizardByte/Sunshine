@@ -1,4 +1,410 @@
-<div id="content" class="container">
-    <h1>Hello, Sunshine!</h1>
-    <p>Placeholer for config page</p>
+<div id="app" class="container">
+    <h1>Configuration</h1>
+    <div class="form" v-if="config">
+        <!--Header-->
+        <ul class="nav nav-tabs">
+            <li class="nav-item" v-for="tab in tabs" :key="tab.id">
+                <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+                    @click="currentTab = tab.id">{{tab.name}}</a>
+            </li>
+        </ul>
+        <!--General Tab-->
+        <div v-if="currentTab === 'general'" class="config-page">
+            <!--Sunshine Name-->
+            <div class="mb-3">
+                <label for="sunshine_name" class="form-label">Sunshine Name</label>
+                <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine" v-model="config.sunshine_name">
+                <div class="form-text">The name displayed by Moonlight. If not specified, the PC's hostname is used
+                </div>
+            </div>
+            <!--Log Level-->
+            <div class="mb-3">
+                <label for="min_log_level" class="form-label">Log Level</label>
+                <select id="min_log_level" class="form-control"  v-model="config.min_log_level">
+                    <option :value="0">Verbose</option>
+                    <option :value="1">Debug</option>
+                    <option :value="2">Info</option>
+                    <option :value="3">Warning</option>
+                    <option :value="4">Error</option>
+                    <option :value="5">Fatal</option>
+                    <option :value="6">None</option>
+                </select>
+                <div class="form-text">The minimum log level printed to standard out</div>
+            </div>
+            <!--Origin PIN Allowed-->
+            <div class="mb-3">
+                <label for="origin_pin_allowed" class="form-label">Origin PIN Allowed</label>
+                <select id="origin_pin_allowed" class="form-control" v-model="config.origin_pin_allowed">
+                    <option value="pc">Only localhost may access /pin</option>
+                    <option value="lan">Only those in LAN may access /pin</option>
+                    <option value="wan">Anyone may access /pin</option>
+                </select>
+                <div class="form-text">The origin of the remote endpoint address that is not denied for HTTP method /pin
+                </div>
+            </div>
+            <!--External IP-->
+            <div class="mb-3">
+                <label for="external_ip" class="form-label">External IP</label>
+                <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12" v-model="config.external_ip">
+                <div class="form-text">If no external IP address is given, the local IP address is used</div>
+            </div>
+            <!--Ping Timeout-->
+            <div class="mb-3">
+                <label for="ping_timeout" class="form-label">Ping Timeout</label>
+                <input type="text" class="form-control" id="ping_timeout" placeholder="2000" v-model="config.ping_timeout">
+                <div class="form-text">How long to wait in milliseconds for data from moonlight before shutting down the
+                    stream</div>
+            </div>
+        </div>
+        <!--Files Tab-->
+        <div v-if="currentTab === 'files'" class="config-page">
+            <!--Private Key-->
+            <div class="mb-3">
+                <label for="pkey" class="form-label">Private Key</label>
+                <input type="text" class="form-control" id="pkey" placeholder="/dir/pkey.pem" v-model="config.pkey">
+                <div class="form-text">The private key must be 2048 bits</div>
+            </div>
+            <!--Cert-->
+            <div class="mb-3">
+                <label for="cert" class="form-label">Cert</label>
+                <input type="text" class="form-control" id="cert" placeholder="/dir/cert.pem" v-model="config.cert">
+                <div class="form-text">The certificate must be signed with a 2048 bit key</div>
+            </div>
+
+            <!--State File-->
+            <div class="mb-3">
+                <label for="file_state" class="form-label">State File</label>
+                <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json" v-model="config.file_state">
+                <div class="form-text">The file where current state of Sunshine is stored</div>
+            </div>
+            <!--Apps File-->
+            <div class="mb-3">
+                <label for="file_apps" class="form-label">Apps File</label>
+                <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps">
+                <div class="form-text">The file where current apps of Sunshine are stored</div>
+            </div>
+        </div>
+        <div v-if="currentTab === 'input'" class="config-page">
+            <!--Back Button Timeout-->
+            <div class="mb-3">
+                <label for="back_button_timeout" class="form-label">Back Button Timeout</label>
+                <input type="text" class="form-control" id="back_button_timeout" placeholder="2000" v-model="config.back_button_timeout">
+                <div class="form-text">
+                    The back/select button on the controller.<br>
+                    On the Shield, the home and powerbutton are not passed to Moonlight.<br>
+                    If, after the timeout, the back button is still pressed down, Home/Guide button press is
+                    emulated.<br>
+                    If back_button_timeout &lt; 0, then the Home/Guide button will not be emulated<br>
+                </div>
+            </div>
+            <!-- Key Repeat Delay-->
+            <div class="mb-3" v-if="config.platform === 'windows'">
+                <label for="key_repeat_delay" class="form-label">Key Repeat Delay</label>
+                <input type="text" class="form-control" id="key_repeat_delay" placeholder="500" v-model="config.key_repeat_delay">
+                <div class="form-text">
+                    Control how fast keys will repeat themselves<br>
+                    The initial delay in milliseconds before repeating keys
+                </div>
+            </div>
+            <!-- Key Repeat Frequency-->
+            <div class="mb-3" v-if="config.platform === 'windows'">
+                <label for="key_repeat_frequency" class="form-label">Key Repeat Frequency</label>
+                <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9" v-model="config.key_repeat_frequency">
+                <div class="form-text">
+                    How often keys repeat every second<br>
+                    This configurable option supports decimals
+                </div>
+            </div>
+        </div>
+        <!--Files Tab-->
+        <div v-if="currentTab === 'av'" class="config-page">
+            <!--Audio Sink-->
+            <div class="mb-3">
+                <label for="audio_sink" class="form-label">Audio Sink</label>
+                <input type="text" class="form-control" id="audio_sink" placeholder="" v-model="config.audio_sink">
+                <div class="form-text" v-if="config.platform === 'windows'">
+                    The name of the audio sink used for Audio Loopback<br>
+                    You can find the name of the audio sink using the following command:<br>
+                    tools\audio-info.exe
+                </div>
+                <div class="form-text" v-if="config.platform === 'linux'">
+                    The name of the audio sink used for Audio Loopback<br>
+                    If you do not specify this variable, pulseaudio will select the default monitor device.<br>
+                    <br>
+                    You can find the name of the audio sink using the following command:<br>
+                    pacmd list-sources | grep "name:"<br>
+                </div>
+            </div>
+            <!--Adapter Name -->
+            <div class="mb-3" v-if="config.platform === 'windows'">
+                <label for="adapter_name" class="form-label">Adapter Name</label>
+                <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series" v-model="config.adapter_name">
+                <div class="form-text">
+                    You can select the video card you want to stream:<br>
+                    The appropriate values can be found using the following command:<br>
+                    tools\dxgi-info.exe
+                </div>
+            </div>
+            <!--Output Name -->
+            <div class="mb-3" class="config-page">
+                <label for="output_name" class="form-label">Output Name</label>
+                <input type="text" class="form-control" id="output_name" placeholder="\\.\DISPLAY1" v-model="config.output_name">
+                <div class="form-text">
+                    You can select the video card you want to stream:<br>
+                    The appropriate values can be found using the following command:<br>
+                    tools\dxgi-info.exe<br>
+                    !! Linux only !!<br>
+                    Set the display number to stream. I have no idea how they are numbered. They start from 1,
+                    usually.<br>
+                    output_name = 1<br>
+                </div>
+            </div>
+        </div>
+        <div v-if="currentTab === 'advanced'" class="config-page">
+            <!--Constant Rate Factor-->
+            <div class="mb-3">
+                <label for="crf" class="form-label">Constant Rate Factor</label>
+                <input type="number" min="0" max="52" class="form-control" id="crf" placeholder="0" v-model="config.crf">
+                <div class="form-text">
+                    Constant Rate Factor. Between 1 and 52. It allows QP to go up during motion and down with still
+                    image,
+                    resulting in constant perceived quality<br>
+                    Higher value means more compression, but less quality<br>
+                    If crf == 0, then use QP directly instead
+                </div>
+            </div>
+            <!-- Quantization Parameter -->
+            <div class="mb-3">
+                <label for="qp" class="form-label">Quantitization Parameter</label>
+                <input type="number" class="form-control" id="qp" placeholder="28" v-model="config.qp">
+                <div class="form-text">
+                    Quantitization Parameter<br>
+                    Higher value means more compression, but less quality<br>
+                    If crf != 0, then this parameter is ignored
+                </div>
+            </div>
+            <!-- Min Threads -->
+            <div class="mb-3">
+                <label for="min_threads" class="form-label">Minimum number of threads used by ffmpeg to encode the
+                    video.</label>
+                <input type="number" min="1" class="form-control" id="min_threads" placeholder="1" v-model="config.min_threads">
+                <div class="form-text">
+                    Minimum number of threads used by ffmpeg to encode the video.<br>
+                    Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br>
+                    worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br>
+                    value that can reliably encode at your desired streaming settings on your hardware.
+                </div>
+            </div>
+            <!--HEVC Suppport -->
+            <div class="mb-3">
+                <label for="hevc_mode" class="form-label">HEVC Support</label>
+                <select id="hevc_mode" class="form-control" v-model="config.hevc_mode">
+                    <option value="0">Sunshine will specify support for HEVC based on encoder</option>
+                    <option value="1">Sunshine will not advertise support for HEVC</option>
+                    <option value="2">Sunshine will advertise support for HEVC Main profile</option>
+                    <option value="3">Sunshine will advertise support for HEVC Main and Main10 (HDR) profiles</option>
+                </select>
+                <div class="form-text">
+                    Allows the client to request HEVC Main or HEVC Main10 video streams.<br>
+                    HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software
+                    encoding.
+                </div>
+            </div>
+            <!--Encoder -->
+            <div class="mb-3">
+                <label for="encoder" class="form-label">Force a Specific Encoder</label>
+                <select id="encoder" class="form-control" v-model="config.encoder">
+                    <option value="null">Autodetect</option>
+                    <option value="nvenc">nVidia NVENC</option>
+                    <option value="amdvce">AMD AMF/VCE</option>
+                    <option value="software">Software</option>
+                </select>
+                <div class="form-text">
+                    Force a specific encoder, otherwise Sunshine will use the first encoder that is available
+                </div>
+            </div>
+            <!--FEC Percentage-->
+            <div class="mb-3">
+                <label for="fec_percentage" class="form-label">FEC Percentage</label>
+                <input type="text" class="form-control" id="fec_percentage" placeholder="10"  v-model="config.fec_percentage">
+                <div class="form-text">
+                    How much error correcting packets must be send for every video.<br>
+                    This is just some random number, don't know the optimal value.<br>
+                    The higher fec_percentage, the lower space for the actual data to send per frame there is
+                </div>
+            </div>
+            <!--Channels-->
+            <div class="mb-3">
+                <label for="channels" class="form-label">Channels</label>
+                <input type="text" class="form-control" id="channels" placeholder="1"  v-model="config.channels">
+                <div class="form-text">
+                    When multicasting, it could be useful to have different configurations for each connected Client.
+                    For example:
+                    <ul>
+                        <li>Clients connected through WAN and LAN have different bitrate contstraints.</li>
+                        <li>Decoders may require different settings for color</li>
+                    </ul>
+                    Unlike simply broadcasting to multiple Client, this will generate distinct video streams.<br>
+                    Note, CPU usage increases for each distinct video stream generated
+                </div>
+            </div>
+        </div>
+        <!--Software Settings-->
+        <div v-if="currentTab === 'sw'" class="config-page">
+            <div class="mb-3">
+                <label for="sw_preset" class="form-label" v-model="config.sw_preset">SW Presets</label>
+                <input class="form-control" id="sw_preset" placeholder="superfast">
+            </div>
+            <div class="mb-3">
+                <label for="sw_tune" class="form-label" v-model="config.sw_tune">SW Tune</label>
+                <input class="form-control" id="sw_tune" placeholder="zerolatency">
+            </div>
+        </div>
+        <!--Nvidia Encoder Settings-->
+        <div v-if="currentTab === 'nv'" class="config-page">
+            <!--NVENC SETTINGS-->
+            <div class="mb-3">
+                <label for="nv_preset" class="form-label">NVEnc Preset</label>
+                <select id="nv_preset" class="form-control" v-model="config.nv_preset">
+                    <option value="default">Default</option>
+                    <option value="hp">High Performance</option>
+                    <option value="hq">High Quality</option>
+                    <option value="slow">Slow - hq 2 passes</option>
+                    <option value="medium">medium -- hq 1 pass</option>
+                    <option value="fast">fast -- hp 1 pass</option>
+                    <option value="bd">bd</option>
+                    <option value="ll">ll -- low latency</option>
+                    <option value="llhq">llhq</option>
+                    <option value="llhp">llhp</option>
+                    <option value="lossless">lossless</option>
+                    <option value="losslesshp">losslesshp</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="nv_rc" class="form-label">NVEnc Rate Control</label>
+                <select id="nv_rc" class="form-control" v-model="config.nv_rc">
+                    <option value="auto">auto -- let ffmpeg decide rate control</option>
+                    <option value="constqp">constqp -- constant QP mode</option>
+                    <option value="vbr">vbr -- variable bitrate</option>
+                    <option value="cbr">cbr -- constant bitrate</option>
+                    <option value="cbr_hq">cbr_hq -- cbr high quality</option>
+                    <option value="cbr_ld_hq">cbr_ld_hq -- cbr low delay high quality</option>
+                    <option value="vbr_hq">vbr_hq -- vbr high quality</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="nv_coder" class="form-label">NVEnc Rate Control</label>
+                <select id="nv_coder" class="form-control" v-model="config.nv_coder">
+                    <option value="auto">auto</option>
+                    <option value="cabac">cabac</option>
+                    <option value="cavlc">cavlc</option>
+                </select>
+            </div>
+        </div>
+        <!--AMD Encoder Settings-->
+        <div v-if="currentTab === 'amd'" class="config-page">
+            <!--Presets-->
+            <div class="mb-3">
+                <label for="amd_quality" class="form-label">AMD AMF Quality</label>
+                <select id="amd_quality" class="form-control" v-model="config.amd_quality">
+                    <option value="default">Default</option>
+                    <option value="speed">Speed</option>
+                    <option value="balanced">Balanced</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="amd_rc" class="form-label">AMD AMF Rate Control</label>
+                <select id="amd_rc" class="form-control">
+                    <option value="auto">auto -- let ffmpeg decide rate control</option>
+                    <option value="constqp">constqp -- constant QP mode</option>
+                    <option value="vbr_latency">vbr_latency -- Latency Constrained Variable Bitrate</option>
+                    <option value="vbr_peak">vbr_peak -- Peak Contrained Variable Bitrate</option>
+                    <option value="cbr">cbr -- constant bitrate</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="amd_coder" class="form-label">AMD AMF Rate Control</label>
+                <select id="amd_coder" class="form-control" v-model="config.amd_coder">
+                    <option value="auto">auto</option>
+                    <option value="cabac">cabac</option>
+                    <option value="cavlc">cavlc</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <div class="mb-3 buttons">
+        <button class="btn btn-primary" @click="save">Save</button>
+    </div>
 </div>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                config: null,
+                currentTab: 'general',
+                tabs: [{
+                        id: 'general',
+                        name: "General"
+                    },
+                    {
+                        id: 'files',
+                        name: "Files"
+                    },
+                    {
+                        id: 'input',
+                        name: "Input"
+                    },
+                    {
+                        id: 'av',
+                        name: "Audio/Video"
+                    },
+                    {
+                        id: 'advanced',
+                        name: "Advanced"
+                    },
+                    {
+                        id: "sw",
+                        name: "Software Encoder"
+                    },
+                    {
+                        id: "nv",
+                        name: "NVENC Encoder"
+                    },
+                    {
+                        id: "amd",
+                        name: "AMF Encoder"
+                    }
+                ]
+            }
+        },
+        created() {
+            fetch("/api/config").then(r => r.json()).then((r) => {
+                this.config = r;
+            })
+        },
+        methods: {
+            save() {
+                fetch("/api/config", {
+                    method: "POST",
+                    body: JSON.stringify(this.config)
+                }).then((r) => {
+                    if (r.status == 200) document.location.reload();
+                });
+            }
+        }
+    })
+</script>
+
+<style>
+    .config-page {
+        padding: 1em;
+        border: 1px solid #dee2e6;
+        border-top: none;
+    }
+
+    .buttons {
+        padding: 1em 0;
+    }
+</style>

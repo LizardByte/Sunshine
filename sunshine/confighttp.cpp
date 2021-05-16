@@ -21,6 +21,7 @@
 #include "crypto.h"
 #include "confighttp.h"
 #include "platform/common.h"
+#include "httpcommon.h"
 #include "network.h"
 #include "nvhttp.h"
 #include "uuid.h"
@@ -219,6 +220,82 @@ void deleteApp(resp_https_t response, req_https_t request)
   }
 }
 
+void getConfig(resp_https_t response, req_https_t request)
+{
+  pt::ptree outputTree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+  try
+  {
+    outputTree.put("status","true");
+    #ifdef _WIN32
+      outputTree.put("platform","windows");
+    #elif
+      outputTree.put("platform","linux");
+    #endif
+    const char *config_file = SUNSHINE_ASSETS_DIR "/sunshine.conf";
+    std::ifstream in { config_file };
+
+    if(!in.is_open()) {
+      std::cout << "Error: Couldn't open "sv << config_file << std::endl;
+    }
+
+    auto vars = config::parse_config(std::string {
+      // Quick and dirty
+      std::istreambuf_iterator<char>(in),
+      std::istreambuf_iterator<char>()
+    });
+
+    for(auto &[name,value] : vars) {
+      outputTree.put(std::move(name), std::move(value));
+    }
+  }
+  catch (std::exception &e)
+  {
+    BOOST_LOG(warning) << e.what();
+    outputTree.put("status", "false");
+    outputTree.put("error", "Invalid File JSON");
+    return;
+  }
+}
+
+void saveConfig(resp_https_t response, req_https_t request){
+  std::stringstream ss;
+  std::stringstream configStream;
+  ss << request->content.rdbuf();
+  pt::ptree outputTree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+  pt::ptree inputTree;
+  try
+  {
+    //TODO: Input Validation
+    pt::read_json(ss, inputTree);
+    for (const auto &kv : inputTree)
+    {
+      std::string value = inputTree.get<std::string>(kv.first);
+      if(value.length() == 0 || value.compare("null") == 0)continue;
+      configStream << kv.first << " = " << value << std::endl;
+    }
+    http::write_file(SUNSHINE_ASSETS_DIR "/sunshine.conf",configStream.str());
+  }
+  catch (std::exception &e)
+  {
+    BOOST_LOG(warning) << e.what();
+    outputTree.put("status", "false");
+    outputTree.put("error", e.what());
+    return;
+  }
+}
+
 void start(std::shared_ptr<safe::signal_t> shutdown_event)
 {
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
@@ -231,6 +308,8 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event)
   http_server.resource["^/apps$"]["GET"] = getAppsPage<SimpleWeb::HTTPS>;
   http_server.resource["^/api/apps$"]["GET"] = getApps;
   http_server.resource["^/api/apps$"]["POST"] = saveApp;
+  http_server.resource["^/api/config$"]["GET"] = getConfig;
+  http_server.resource["^/api/config$"]["POST"] = saveConfig;
   http_server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
   http_server.resource["^/clients$"]["GET"] = getClientsPage<SimpleWeb::HTTPS>;
   http_server.resource["^/config$"]["GET"] = getConfigPage<SimpleWeb::HTTPS>;
