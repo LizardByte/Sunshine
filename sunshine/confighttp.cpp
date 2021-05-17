@@ -181,7 +181,7 @@ void deleteApp(resp_https_t response, req_https_t request)
   pt::ptree fileTree;
   try
   {
-    pt::read_json(SUNSHINE_ASSETS_DIR "/" APPS_JSON, fileTree);
+    pt::read_json(config::stream.file_apps, fileTree);
     auto &apps_node = fileTree.get_child("apps"s);
     int index = stoi(request->path_match[1]);
     BOOST_LOG(info) << index;
@@ -193,7 +193,7 @@ void deleteApp(resp_https_t response, req_https_t request)
     }
     else
     {
-      //Unfortuantely Boost PT does not allow to directly edit the array, copt should do the trick
+      //Unfortuantely Boost PT does not allow to directly edit the array, copy should do the trick
       pt::ptree newApps;
       int i = 0;
       for (const auto &kv : apps_node)
@@ -232,11 +232,7 @@ void getConfig(resp_https_t response, req_https_t request)
   try
   {
     outputTree.put("status","true");
-    #ifdef _WIN32
-      outputTree.put("platform","windows");
-    #elif
-      outputTree.put("platform","linux");
-    #endif
+    outputTree.put("platform",SUNSHINE_PLATFORM);
     const char *config_file = SUNSHINE_ASSETS_DIR "/sunshine.conf";
     std::ifstream in { config_file };
 
@@ -263,7 +259,8 @@ void getConfig(resp_https_t response, req_https_t request)
   }
 }
 
-void saveConfig(resp_https_t response, req_https_t request){
+void saveConfig(resp_https_t response, req_https_t request)
+{
   std::stringstream ss;
   std::stringstream configStream;
   ss << request->content.rdbuf();
