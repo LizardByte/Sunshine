@@ -49,6 +49,18 @@ enum class op_e
   REMOVE
 };
 
+bool authenticate(resp_https_t response, req_https_t request)
+{
+auto address = request->remote_endpoint_address();
+  auto ip_type = net::from_address(address);
+  if(ip_type > http::origin_pin_allowed) {
+    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
+    response->write(SimpleWeb::StatusCode::client_error_forbidden);
+    return false;
+  }
+  return true;
+}
+
 template <class T>
 void not_found(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request)
 {
@@ -66,6 +78,7 @@ void not_found(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> resp
 
 void getIndexPage(resp_https_t response, req_https_t request)
 {
+  if(!authenticate(response,request))return;
   std::string header = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "index.html");
   response->write(header + content);
@@ -74,6 +87,7 @@ void getIndexPage(resp_https_t response, req_https_t request)
 template <class T>
 void getPinPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request)
 {
+  if(!authenticate(response,request))return;
   std::string header = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "pin.html");
   response->write(header + content);
@@ -82,6 +96,7 @@ void getPinPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 template <class T>
 void getAppsPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request)
 {
+  if(!authenticate(response,request))return;
   std::string header = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "apps.html");
   response->write(header + content);
@@ -90,6 +105,7 @@ void getAppsPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> re
 template <class T>
 void getClientsPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request)
 {
+  if(!authenticate(response,request))return;
   std::string header = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "clients.html");
   response->write(header + content);
@@ -98,6 +114,7 @@ void getClientsPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response>
 template <class T>
 void getConfigPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request)
 {
+  if(!authenticate(response,request))return;
   std::string header = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "config.html");
   response->write(header + content);
@@ -105,12 +122,14 @@ void getConfigPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> 
 
 void getApps(resp_https_t response, req_https_t request)
 {
+  if(!authenticate(response,request))return;
   std::string content = read_file(SUNSHINE_ASSETS_DIR "/" APPS_JSON);
   response->write(content);
 }
 
 void saveApp(resp_https_t response, req_https_t request)
 {
+  if(!authenticate(response,request))return;
   std::stringstream ss;
   ss << request->content.rdbuf();
   pt::ptree outputTree;
@@ -171,6 +190,7 @@ void saveApp(resp_https_t response, req_https_t request)
 
 void deleteApp(resp_https_t response, req_https_t request)
 {
+  if(!authenticate(response,request))return;
   pt::ptree outputTree;
   auto g = util::fail_guard([&]() {
     std::ostringstream data;
@@ -222,6 +242,7 @@ void deleteApp(resp_https_t response, req_https_t request)
 
 void getConfig(resp_https_t response, req_https_t request)
 {
+  if(!authenticate(response,request))return;
   pt::ptree outputTree;
   auto g = util::fail_guard([&]() {
     std::ostringstream data;
@@ -261,6 +282,7 @@ void getConfig(resp_https_t response, req_https_t request)
 
 void saveConfig(resp_https_t response, req_https_t request)
 {
+  if(!authenticate(response,request))return;
   std::stringstream ss;
   std::stringstream configStream;
   ss << request->content.rdbuf();

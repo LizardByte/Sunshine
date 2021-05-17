@@ -32,10 +32,12 @@ namespace http
   std::string read_file(const char *path);
   int write_file(const char *path, const std::string_view &contents);
   std::string unique_id;
+  net::net_e origin_pin_allowed;
   
   void init(std::shared_ptr<safe::signal_t> shutdown_event)
   {
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
+    origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
     if (clean_slate)
     {
       unique_id = util::uuid_t::generate().string();

@@ -35,9 +35,9 @@
             <div class="mb-3">
                 <label for="origin_pin_allowed" class="form-label">Origin PIN Allowed</label>
                 <select id="origin_pin_allowed" class="form-control" v-model="config.origin_pin_allowed">
-                    <option value="pc">Only localhost may access /pin</option>
-                    <option value="lan">Only those in LAN may access /pin</option>
-                    <option value="wan">Anyone may access /pin</option>
+                    <option value="pc">Only localhost may access /pin and Web UI</option>
+                    <option value="lan">Only those in LAN may access /pin and Web UI</option>
+                    <option value="wan">Anyone may access /pin and Web UI</option>
                 </select>
                 <div class="form-text">The origin of the remote endpoint address that is not denied for HTTP method /pin
                 </div>

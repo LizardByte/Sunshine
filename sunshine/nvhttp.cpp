@@ -76,7 +76,6 @@ struct pair_session_t {
 // uniqueID, session
 std::unordered_map<std::string, pair_session_t> map_id_sess;
 std::unordered_map<std::string, client_t> map_id_client;
-net::net_e origin_pin_allowed;
 
 using args_t = SimpleWeb::CaseInsensitiveMultimap;
 using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
@@ -405,7 +404,7 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
 
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
-  if(ip_type > origin_pin_allowed) {
+  if(ip_type > http::origin_pin_allowed) {
     BOOST_LOG(info) << '[' << address << "] -- denied"sv;
 
     response->write(SimpleWeb::StatusCode::client_error_forbidden);
@@ -677,7 +676,6 @@ void appasset(resp_https_t response, req_https_t request) {
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   
   bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
-  origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
 
   if(!clean_slate) {
     load_state();
