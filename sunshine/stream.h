@@ -7,9 +7,9 @@
 
 #include <boost/asio.hpp>
 
-#include "video.h"
 #include "audio.h"
 #include "crypto.h"
+#include "video.h"
 
 namespace stream {
 struct session_t;
@@ -35,9 +35,9 @@ int start(session_t &session, const std::string &addr_string);
 void stop(session_t &session);
 void join(session_t &session);
 state_e state(session_t &session);
-}
+} // namespace session
 
 extern safe::signal_t broadcast_shutdown_event;
-}
+} // namespace stream
 
 #endif //SUNSHINE_STREAM_H

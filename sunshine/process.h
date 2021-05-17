@@ -9,8 +9,8 @@
 #define __kernel_entry
 #endif
 
-#include <unordered_map>
 #include <optional>
+#include <unordered_map>
 
 #include <boost/process.hpp>
 
@@ -61,10 +61,9 @@ public:
 
   proc_t(
     boost::process::environment &&env,
-    std::vector<ctx_t> &&apps) :
-    _app_id(-1),
-    _env(std::move(env)),
-    _apps(std::move(apps)) {}
+    std::vector<ctx_t> &&apps) : _app_id(-1),
+                                 _env(std::move(env)),
+                                 _apps(std::move(apps)) {}
 
   int execute(int app_id);
 
@@ -77,7 +76,7 @@ public:
 
   const std::vector<ctx_t> &get_apps() const;
   std::vector<ctx_t> &get_apps();
-  
+
   void terminate();
 
 private:
@@ -98,8 +97,8 @@ private:
 };
 
 void refresh(const std::string &file_name);
-std::optional<proc::proc_t> parse(const std::string& file_name);
+std::optional<proc::proc_t> parse(const std::string &file_name);
 
 extern proc_t proc;
-}
+} // namespace proc
 #endif //SUNSHINE_PROCESS_H

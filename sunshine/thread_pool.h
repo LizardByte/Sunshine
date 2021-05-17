@@ -1,8 +1,8 @@
 #ifndef KITTY_THREAD_POOL_H
 #define KITTY_THREAD_POOL_H
 
-#include <thread>
 #include "task_pool.h"
+#include <thread>
 
 namespace util {
 /*
@@ -12,32 +12,33 @@ namespace util {
 class ThreadPool : public TaskPool {
 public:
   typedef TaskPool::__task __task;
-  
+
 private:
   std::vector<std::thread> _thread;
 
   std::condition_variable _cv;
   std::mutex _lock;
-  
+
   bool _continue;
+
 public:
   ThreadPool() : _continue { false } {}
 
   explicit ThreadPool(int threads) : _thread(threads), _continue { true } {
-    for (auto &t : _thread) {
+    for(auto &t : _thread) {
       t = std::thread(&ThreadPool::_main, this);
     }
   }
 
   ~ThreadPool() noexcept {
-    if (!_continue) return;
+    if(!_continue) return;
 
     stop();
     join();
   }
 
   template<class Function, class... Args>
-  auto push(Function && newTask, Args &&... args) {
+  auto push(Function &&newTask, Args &&...args) {
     std::lock_guard lg(_lock);
     auto future = TaskPool::push(std::forward<Function>(newTask), std::forward<Args>(args)...);
 
@@ -52,7 +53,7 @@ public:
   }
 
   template<class Function, class X, class Y, class... Args>
-  auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&... args) {
+  auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
     std::lock_guard lg(_lock);
     auto future = TaskPool::pushDelayed(std::forward<Function>(newTask), duration, std::forward<Args>(args)...);
 
@@ -79,15 +80,14 @@ public:
   }
 
   void join() {
-    for (auto & t : _thread) {
+    for(auto &t : _thread) {
       t.join();
     }
   }
 
 public:
-
   void _main() {
-    while (_continue) {
+    while(_continue) {
       if(auto task = this->pop()) {
         (*task)->run();
       }
@@ -117,5 +117,5 @@ public:
     }
   }
 };
-}
+} // namespace util
 #endif

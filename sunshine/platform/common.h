@@ -5,9 +5,9 @@
 #ifndef SUNSHINE_COMMON_H
 #define SUNSHINE_COMMON_H
 
-#include <string>
-#include <mutex>
 #include "sunshine/utility.h"
+#include <mutex>
+#include <string>
 
 struct sockaddr;
 namespace platf {
@@ -44,8 +44,10 @@ enum class pix_fmt_e {
 };
 
 inline std::string_view from_pix_fmt(pix_fmt_e pix_fmt) {
-using namespace std::literals;
-#define _CONVERT(x) case pix_fmt_e:: x : return  #x ## sv
+  using namespace std::literals;
+#define _CONVERT(x)  \
+  case pix_fmt_e::x: \
+    return #x##sv
   switch(pix_fmt) {
     _CONVERT(yuv420p);
     _CONVERT(yuv420p10);
@@ -65,9 +67,8 @@ struct touch_port_t {
 
   constexpr touch_port_t(
     std::uint32_t offset_x, std::uint32_t offset_y,
-    std::uint32_t width, std::uint32_t height) noexcept :
-    offset_x { offset_x }, offset_y { offset_y },
-    width { width }, height { height } {};
+    std::uint32_t width, std::uint32_t height) noexcept : offset_x { offset_x }, offset_y { offset_y },
+                                                          width { width }, height { height } {};
 };
 
 struct gamepad_state_t {
@@ -87,15 +88,15 @@ public:
 
 struct img_t {
 public:
-  std::uint8_t *data  {};
-  std::int32_t width  {};
+  std::uint8_t *data {};
+  std::int32_t width {};
   std::int32_t height {};
   std::int32_t pixel_pitch {};
   std::int32_t row_pitch {};
 
-  img_t() = default;
-  img_t(const img_t&) = delete;
-  img_t(img_t&&) = delete;
+  img_t()              = default;
+  img_t(const img_t &) = delete;
+  img_t(img_t &&)      = delete;
 
   virtual ~img_t() = default;
 };
@@ -124,7 +125,7 @@ class display_t {
 public:
   display_t() noexcept : offset_x { 0 }, offset_y { 0 } {}
   virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) = 0;
-  virtual std::shared_ptr<img_t> alloc_img() = 0;
+  virtual std::shared_ptr<img_t> alloc_img()                                             = 0;
 
   virtual int dummy_img(img_t *img) = 0;
 
@@ -148,7 +149,7 @@ public:
 };
 
 
-void freeInput(void*);
+void freeInput(void *);
 
 using input_t = util::safe_ptr<void, freeInput>;
 
@@ -172,6 +173,6 @@ int alloc_gamepad(input_t &input, int nr);
 void free_gamepad(input_t &input, int nr);
 
 [[nodiscard]] std::unique_ptr<deinit_t> init();
-}
+} // namespace platf
 
 #endif //SUNSHINE_COMMON_H

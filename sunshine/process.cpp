@@ -4,14 +4,14 @@
 
 #include "process.h"
 
-#include <vector>
 #include <string>
+#include <vector>
 
-#include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
-#include "utility.h"
 #include "main.h"
+#include "utility.h"
 
 namespace proc {
 using namespace std::literals;
@@ -57,11 +57,11 @@ int proc_t::execute(int app_id) {
   // Ensure starting from a clean slate
   terminate();
 
-  _app_id = app_id;
+  _app_id    = app_id;
   auto &proc = _apps[app_id];
 
   _undo_begin = std::begin(proc.prep_cmds);
-  _undo_it = _undo_begin;
+  _undo_it    = _undo_begin;
 
   if(!proc.output.empty() && proc.output != "null"sv) {
     _pipe.reset(fopen(proc.output.c_str(), "a"));
@@ -147,7 +147,7 @@ void proc_t::terminate() {
     std::abort();
   }
 
-  for(;_undo_it != _undo_begin; --_undo_it) {
+  for(; _undo_it != _undo_begin; --_undo_it) {
     auto &cmd = (_undo_it - 1)->undo_cmd;
 
     if(cmd.empty()) {
@@ -192,9 +192,11 @@ std::string_view::iterator find_match(std::string_view::iterator begin, std::str
   do {
     ++begin;
     switch(*begin) {
-      case '(': ++stack;
+    case '(':
+      ++stack;
       break;
-      case ')': --stack;
+    case ')':
+      --stack;
     }
   } while(begin != end && stack != 0);
 
@@ -205,7 +207,7 @@ std::string_view::iterator find_match(std::string_view::iterator begin, std::str
 }
 
 std::string parse_env_val(bp::native_environment &env, const std::string_view &val_raw) {
-  auto pos = std::begin(val_raw);
+  auto pos    = std::begin(val_raw);
   auto dollar = std::find(pos, std::end(val_raw), '$');
 
   std::stringstream ss;
@@ -214,23 +216,23 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
     auto next = dollar + 1;
     if(next != std::end(val_raw)) {
       switch(*next) {
-        case '(': {
-          ss.write(pos, (dollar - pos));
-          auto var_begin = next + 1;
-          auto var_end   = find_match(next, std::end(val_raw));
+      case '(': {
+        ss.write(pos, (dollar - pos));
+        auto var_begin = next + 1;
+        auto var_end   = find_match(next, std::end(val_raw));
 
-          ss << env[std::string { var_begin, var_end }].to_string();
+        ss << env[std::string { var_begin, var_end }].to_string();
 
-          pos = var_end + 1;
-          next = var_end;
+        pos  = var_end + 1;
+        next = var_end;
 
-          break;
-        }
-        case '$':
-          ss.write(pos, (next - pos));
-          pos = next + 1;
-          ++next;
-          break;
+        break;
+      }
+      case '$':
+        ss.write(pos, (next - pos));
+        pos = next + 1;
+        ++next;
+        break;
       }
 
       dollar = std::find(next, std::end(val_raw), '$');
@@ -245,7 +247,7 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
   return ss.str();
 }
 
-std::optional<proc::proc_t> parse(const std::string& file_name) {
+std::optional<proc::proc_t> parse(const std::string &file_name) {
   pt::ptree tree;
 
   try {
@@ -256,19 +258,19 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
 
     auto this_env = boost::this_process::environment();
 
-    for(auto &[name,val] : env_vars) {
+    for(auto &[name, val] : env_vars) {
       this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
     }
 
     std::vector<proc::ctx_t> apps;
-    for(auto &[_,app_node] : apps_node) {
+    for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
 
-      auto prep_nodes_opt = app_node.get_child_optional("prep-cmd"s);
+      auto prep_nodes_opt     = app_node.get_child_optional("prep-cmd"s);
       auto detached_nodes_opt = app_node.get_child_optional("detached"s);
-      auto output = app_node.get_optional<std::string>("output"s);
-      auto name = parse_env_val(this_env, app_node.get<std::string>("name"s));
-      auto cmd = app_node.get_optional<std::string>("cmd"s);
+      auto output             = app_node.get_optional<std::string>("output"s);
+      auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
+      auto cmd                = app_node.get_optional<std::string>("cmd"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       if(prep_nodes_opt) {
@@ -276,7 +278,7 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
 
         prep_cmds.reserve(prep_nodes.size());
         for(auto &[_, prep_node] : prep_nodes) {
-          auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
+          auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
           auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
 
           if(undo_cmd) {
@@ -306,9 +308,9 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
         ctx.cmd = parse_env_val(this_env, *cmd);
       }
 
-      ctx.name = std::move(name);
+      ctx.name      = std::move(name);
       ctx.prep_cmds = std::move(prep_cmds);
-      ctx.detached = std::move(detached);
+      ctx.detached  = std::move(detached);
 
       apps.emplace_back(std::move(ctx));
     }
@@ -316,7 +318,8 @@ std::optional<proc::proc_t> parse(const std::string& file_name) {
     return proc::proc_t {
       std::move(this_env), std::move(apps)
     };
-  } catch (std::exception &e) {
+  }
+  catch(std::exception &e) {
     BOOST_LOG(error) << e.what();
   }
 
@@ -330,4 +333,4 @@ void refresh(const std::string &file_name) {
     proc = std::move(*proc_opt);
   }
 }
-}
+} // namespace proc

@@ -1,63 +1,67 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
+#include <algorithm>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string_view>
+#include <type_traits>
 #include <variant>
 #include <vector>
-#include <memory>
-#include <type_traits>
-#include <algorithm>
-#include <optional>
-#include <mutex>
-#include <condition_variable>
-#include <string_view>
 
-#define KITTY_WHILE_LOOP(x, y, z) { x;while(y) z }
-#define KITTY_DECL_CONSTR(x)\
-  x(x&&) noexcept = default;\
-  x&operator=(x&&) noexcept = default;\
+#define KITTY_WHILE_LOOP(x, y, z) \
+  {                               \
+    x;                            \
+    while(y) z                    \
+  }
+#define KITTY_DECL_CONSTR(x)             \
+  x(x &&) noexcept = default;            \
+  x &operator=(x &&) noexcept = default; \
   x();
 
-#define KITTY_DEFAULT_CONSTR(x)\
-  x(x&&) noexcept = default;\
-  x&operator=(x&&) noexcept = default;\
-  x() = default;
+#define KITTY_DEFAULT_CONSTR(x)          \
+  x(x &&) noexcept = default;            \
+  x &operator=(x &&) noexcept = default; \
+  x()                         = default;
 
-#define KITTY_DEFAULT_CONSTR_THROW(x)\
-  x(x&&) = default;\
-  x&operator=(x&&) = default;\
-  x() = default;
+#define KITTY_DEFAULT_CONSTR_THROW(x) \
+  x(x &&)    = default;               \
+  x &operator=(x &&) = default;       \
+  x()                = default;
 
-#define TUPLE_2D(a,b, expr)\
-  decltype(expr) a##_##b = expr;\
-  auto &a = std::get<0>(a##_##b);\
-  auto &b = std::get<1>(a##_##b)
+#define TUPLE_2D(a, b, expr)                     \
+  decltype(expr) a##_##b = expr;                 \
+  auto &a                = std::get<0>(a##_##b); \
+  auto &b                = std::get<1>(a##_##b)
 
-#define TUPLE_2D_REF(a,b, expr)\
-  auto &a##_##b = expr;\
-  auto &a = std::get<0>(a##_##b);\
-  auto &b = std::get<1>(a##_##b)
+#define TUPLE_2D_REF(a, b, expr)        \
+  auto &a##_##b = expr;                 \
+  auto &a       = std::get<0>(a##_##b); \
+  auto &b       = std::get<1>(a##_##b)
 
-#define TUPLE_3D(a,b,c, expr)\
-  decltype(expr) a##_##b##_##c = expr;\
-  auto &a = std::get<0>(a##_##b##_##c);\
-  auto &b = std::get<1>(a##_##b##_##c);\
-  auto &c = std::get<2>(a##_##b##_##c)
+#define TUPLE_3D(a, b, c, expr)                              \
+  decltype(expr) a##_##b##_##c = expr;                       \
+  auto &a                      = std::get<0>(a##_##b##_##c); \
+  auto &b                      = std::get<1>(a##_##b##_##c); \
+  auto &c                      = std::get<2>(a##_##b##_##c)
 
-#define TUPLE_3D_REF(a,b,c, expr)\
-  auto &a##_##b##_##c = expr;\
-  auto &a = std::get<0>(a##_##b##_##c);\
-  auto &b = std::get<1>(a##_##b##_##c);\
-  auto &c = std::get<2>(a##_##b##_##c)
+#define TUPLE_3D_REF(a, b, c, expr)                 \
+  auto &a##_##b##_##c = expr;                       \
+  auto &a             = std::get<0>(a##_##b##_##c); \
+  auto &b             = std::get<1>(a##_##b##_##c); \
+  auto &c             = std::get<2>(a##_##b##_##c)
 
 namespace util {
 
-template<template<typename...> class X, class...Y>
+template<template<typename...> class X, class... Y>
 struct __instantiation_of : public std::false_type {};
 
 template<template<typename...> class X, class... Y>
 struct __instantiation_of<X, X<Y...>> : public std::true_type {};
 
-template<template<typename...> class X, class T, class...Y>
+template<template<typename...> class X, class T, class... Y>
 static constexpr auto instantiation_of_v = __instantiation_of<X, T, Y...>::value;
 
 template<bool V, class X, class Y>
@@ -76,14 +80,16 @@ struct __either<false, X, Y> {
 template<bool V, class X, class Y>
 using either_t = typename __either<V, X, Y>::type;
 
-template<class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template<class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 template<class T>
 class FailGuard {
 public:
   FailGuard() = delete;
-  FailGuard(T && f) noexcept : _func { std::forward<T>(f) } {}
+  FailGuard(T &&f) noexcept : _func { std::forward<T>(f) } {}
   FailGuard(FailGuard &&other) noexcept : _func { std::move(other._func) } {
     this->failure = other.failure;
 
@@ -103,12 +109,13 @@ public:
 
   void disable() { failure = false; }
   bool failure { true };
+
 private:
   T _func;
 };
 
 template<class T>
-[[nodiscard]] auto fail_guard(T && f) {
+[[nodiscard]] auto fail_guard(T &&f) {
   return FailGuard<T> { std::forward<T>(f) };
 }
 
@@ -118,9 +125,9 @@ void append_struct(std::vector<uint8_t> &buf, const T &_struct) {
 
   buf.reserve(data_len);
 
-  auto *data = (uint8_t *) & _struct;
+  auto *data = (uint8_t *)&_struct;
 
-  for (size_t x = 0; x < data_len; ++x) {
+  for(size_t x = 0; x < data_len; ++x) {
     buf.push_back(data[x]);
   }
 }
@@ -129,24 +136,26 @@ template<class T>
 class Hex {
 public:
   typedef T elem_type;
+
 private:
   const char _bits[16] {
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
   };
 
   char _hex[sizeof(elem_type) * 2];
+
 public:
   Hex(const elem_type &elem, bool rev) {
     if(!rev) {
       const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem) + sizeof(elem_type) - 1;
-      for (auto it = begin(); it < cend();) {
+      for(auto it = begin(); it < cend();) {
         *it++ = _bits[*data / 16];
         *it++ = _bits[*data-- % 16];
       }
     }
     else {
       const uint8_t *data = reinterpret_cast<const uint8_t *>(&elem);
-      for (auto it = begin(); it < cend();) {
+      for(auto it = begin(); it < cend();) {
         *it++ = _bits[*data / 16];
         *it++ = _bits[*data++ % 16];
       }
@@ -178,7 +187,7 @@ Hex<T> hex(const T &elem, bool rev = false) {
 
 template<class It>
 std::string hex_vec(It begin, It end, bool rev = false) {
-  auto str_size = 2*std::distance(begin, end);
+  auto str_size = 2 * std::distance(begin, end);
 
 
   std::string hex;
@@ -189,14 +198,14 @@ std::string hex_vec(It begin, It end, bool rev = false) {
   };
 
   if(rev) {
-    for (auto it = std::begin(hex); it < std::end(hex);) {
+    for(auto it = std::begin(hex); it < std::end(hex);) {
       *it++ = _bits[((uint8_t)*begin) / 16];
       *it++ = _bits[((uint8_t)*begin++) % 16];
     }
   }
   else {
     --end;
-    for (auto it = std::begin(hex); it < std::end(hex);) {
+    for(auto it = std::begin(hex); it < std::end(hex);) {
       *it++ = _bits[((uint8_t)*end) / 16];
       *it++ = _bits[((uint8_t)*end--) % 16];
     }
@@ -207,7 +216,7 @@ std::string hex_vec(It begin, It end, bool rev = false) {
 }
 
 template<class C>
-std::string hex_vec(C&& c, bool rev = false) {
+std::string hex_vec(C &&c, bool rev = false) {
   return hex_vec(std::begin(c), std::end(c), rev);
 }
 
@@ -216,7 +225,7 @@ std::optional<T> from_hex(const std::string_view &hex, bool rev = false) {
   std::uint8_t buf[sizeof(T)];
 
   static char constexpr shift_bit = 'a' - 'A';
-  auto is_convertable = [] (char ch) -> bool {
+  auto is_convertable             = [](char ch) -> bool {
     if(isdigit(ch)) {
       return true;
     }
@@ -235,9 +244,9 @@ std::optional<T> from_hex(const std::string_view &hex, bool rev = false) {
     return std::nullopt;
   }
 
-  const char *data = hex.data() + hex.size() -1;
+  const char *data = hex.data() + hex.size() - 1;
 
-  auto convert = [] (char ch) -> std::uint8_t {
+  auto convert = [](char ch) -> std::uint8_t {
     if(ch >= '0' && ch <= '9') {
       return (std::uint8_t)ch - '0';
     }
@@ -266,7 +275,7 @@ inline std::string from_hex_vec(const std::string &hex, bool rev = false) {
   std::string buf;
 
   static char constexpr shift_bit = 'a' - 'A';
-  auto is_convertable = [] (char ch) -> bool {
+  auto is_convertable             = [](char ch) -> bool {
     if(isdigit(ch)) {
       return true;
     }
@@ -283,9 +292,9 @@ inline std::string from_hex_vec(const std::string &hex, bool rev = false) {
   auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
   buf.resize(buf_size);
 
-  const char *data = hex.data() + hex.size() -1;
+  const char *data = hex.data() + hex.size() - 1;
 
-  auto convert = [] (char ch) -> std::uint8_t {
+  auto convert = [](char ch) -> std::uint8_t {
     if(ch >= '0' && ch <= '9') {
       return (std::uint8_t)ch - '0';
     }
@@ -317,18 +326,18 @@ public:
   std::size_t operator()(const value_type &value) const {
     const auto *p = reinterpret_cast<const char *>(&value);
 
-    return std::hash<std::string_view>{}(std::string_view { p, sizeof(value_type) });
+    return std::hash<std::string_view> {}(std::string_view { p, sizeof(value_type) });
   }
 };
 
 template<class T>
-auto enm(const T& val) -> const std::underlying_type_t<T>& {
-  return *reinterpret_cast<const std::underlying_type_t<T>*>(&val);
+auto enm(const T &val) -> const std::underlying_type_t<T> & {
+  return *reinterpret_cast<const std::underlying_type_t<T> *>(&val);
 }
 
 template<class T>
-auto enm(T& val) -> std::underlying_type_t<T>& {
-  return *reinterpret_cast<std::underlying_type_t<T>*>(&val);
+auto enm(T &val) -> std::underlying_type_t<T> & {
+  return *reinterpret_cast<std::underlying_type_t<T> *>(&val);
 }
 
 inline std::int64_t from_chars(const char *begin, const char *end) {
@@ -377,11 +386,11 @@ public:
 };
 
 // Compared to std::unique_ptr, it adds the ability to get the address of the pointer itself
-template <typename T, typename D = std::default_delete<T>>
+template<typename T, typename D = std::default_delete<T>>
 class uniq_ptr {
 public:
   using element_type = T;
-  using pointer = element_type*;
+  using pointer      = element_type *;
   using deleter_type = D;
 
   constexpr uniq_ptr() noexcept : _p { nullptr } {}
@@ -436,7 +445,7 @@ public:
 
   pointer release() {
     auto tmp = _p;
-    _p = nullptr;
+    _p       = nullptr;
     return tmp;
   }
 
@@ -468,69 +477,70 @@ public:
     return &_p;
   }
 
-  deleter_type& get_deleter() {
+  deleter_type &get_deleter() {
     return _deleter;
   }
 
-  const deleter_type& get_deleter() const {
+  const deleter_type &get_deleter() const {
     return _deleter;
   }
 
   explicit operator bool() const {
     return _p != nullptr;
   }
+
 protected:
   pointer _p;
   deleter_type _deleter;
 };
 
 template<class T1, class D1, class T2, class D2>
-bool operator==(const uniq_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+bool operator==(const uniq_ptr<T1, D1> &x, const uniq_ptr<T2, D2> &y) {
   return x.get() == y.get();
 }
 
 template<class T1, class D1, class T2, class D2>
-bool operator!=(const uniq_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+bool operator!=(const uniq_ptr<T1, D1> &x, const uniq_ptr<T2, D2> &y) {
   return x.get() != y.get();
 }
 
 template<class T1, class D1, class T2, class D2>
-bool operator==(const std::unique_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+bool operator==(const std::unique_ptr<T1, D1> &x, const uniq_ptr<T2, D2> &y) {
   return x.get() == y.get();
 }
 
 template<class T1, class D1, class T2, class D2>
-bool operator!=(const std::unique_ptr<T1, D1>& x, const uniq_ptr<T2, D2>& y) {
+bool operator!=(const std::unique_ptr<T1, D1> &x, const uniq_ptr<T2, D2> &y) {
   return x.get() != y.get();
 }
 
 template<class T1, class D1, class T2, class D2>
-bool operator==(const uniq_ptr<T1, D1>& x, const std::unique_ptr<T1, D1>& y) {
+bool operator==(const uniq_ptr<T1, D1> &x, const std::unique_ptr<T1, D1> &y) {
   return x.get() == y.get();
 }
 
 template<class T1, class D1, class T2, class D2>
-bool operator!=(const uniq_ptr<T1, D1>& x, const std::unique_ptr<T1, D1>& y) {
+bool operator!=(const uniq_ptr<T1, D1> &x, const std::unique_ptr<T1, D1> &y) {
   return x.get() != y.get();
 }
 
 template<class T, class D>
-bool operator==(const uniq_ptr<T, D>& x, std::nullptr_t) {
+bool operator==(const uniq_ptr<T, D> &x, std::nullptr_t) {
   return !(bool)x;
 }
 
 template<class T, class D>
-bool operator!=(const uniq_ptr<T, D>& x, std::nullptr_t) {
+bool operator!=(const uniq_ptr<T, D> &x, std::nullptr_t) {
   return (bool)x;
 }
 
 template<class T, class D>
-bool operator==(std::nullptr_t, const uniq_ptr<T, D>& y) {
+bool operator==(std::nullptr_t, const uniq_ptr<T, D> &y) {
   return !(bool)y;
 }
 
 template<class T, class D>
-bool operator!=(std::nullptr_t, const uniq_ptr<T, D>& y) {
+bool operator!=(std::nullptr_t, const uniq_ptr<T, D> &y) {
   return (bool)y;
 }
 
@@ -538,8 +548,8 @@ template<class T>
 class wrap_ptr {
 public:
   using element_type = T;
-  using pointer = element_type*;
-  using reference = element_type&;
+  using pointer      = element_type *;
+  using reference    = element_type &;
 
   wrap_ptr() : _own_ptr { false }, _p { nullptr } {}
   wrap_ptr(pointer p) : _own_ptr { false }, _p { p } {}
@@ -555,7 +565,7 @@ public:
 
     _p = other._p;
 
-    _own_ptr = other._own_ptr;
+    _own_ptr       = other._own_ptr;
     other._own_ptr = false;
 
     return *this;
@@ -565,7 +575,7 @@ public:
   wrap_ptr &operator=(std::unique_ptr<V> &&uniq_ptr) {
     static_assert(std::is_base_of_v<element_type, V>, "element_type must be base class of V");
     _own_ptr = true;
-    _p = uniq_ptr.release();
+    _p       = uniq_ptr.release();
 
     return *this;
   }
@@ -575,7 +585,7 @@ public:
       delete _p;
     }
 
-    _p = p;
+    _p       = p;
     _own_ptr = false;
 
     return *this;
@@ -617,13 +627,11 @@ struct __false_v<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
 
 template<class T>
 struct __false_v<T, std::enable_if_t<
-  (
-    std::is_pointer_v<T> ||
-    instantiation_of_v<std::unique_ptr, T> ||
-    instantiation_of_v<std::shared_ptr, T> ||
-    instantiation_of_v<uniq_ptr, T>
-  )
-  >> {
+                      (
+                        std::is_pointer_v<T> ||
+                        instantiation_of_v<std::unique_ptr, T> ||
+                        instantiation_of_v<std::shared_ptr, T> ||
+                        instantiation_of_v<uniq_ptr, T>)>> {
   static constexpr std::nullptr_t value = nullptr;
 };
 
@@ -638,18 +646,18 @@ static constexpr auto false_v = __false_v<T>::value;
 template<class T>
 using optional_t = either_t<
   (std::is_same_v<T, bool> ||
-   instantiation_of_v<std::unique_ptr, T> ||
-   instantiation_of_v<std::shared_ptr, T> ||
-   instantiation_of_v<uniq_ptr, T> ||
-   std::is_pointer_v<T>),
+    instantiation_of_v<std::unique_ptr, T> ||
+    instantiation_of_v<std::shared_ptr, T> ||
+    instantiation_of_v<uniq_ptr, T> ||
+    std::is_pointer_v<T>),
   T, std::optional<T>>;
 
 template<class T>
 class buffer_t {
 public:
   buffer_t() : _els { 0 } {};
-  buffer_t(buffer_t&&) noexcept = default;
-  buffer_t &operator=(buffer_t&& other) noexcept = default;
+  buffer_t(buffer_t &&) noexcept = default;
+  buffer_t &operator=(buffer_t &&other) noexcept = default;
 
   explicit buffer_t(size_t elements) : _els { elements }, _buf { std::make_unique<T[]>(elements) } {}
   explicit buffer_t(size_t elements, const T &t) : _els { elements }, _buf { std::make_unique<T[]>(elements) } {
@@ -703,7 +711,7 @@ T either(std::optional<T> &&l, T &&r) {
   return std::forward<T>(r);
 }
 
-template<class ReturnType, class ...Args>
+template<class ReturnType, class... Args>
 struct Function {
   typedef ReturnType (*type)(Args...);
 };
@@ -711,18 +719,18 @@ struct Function {
 template<class T, class ReturnType, typename Function<ReturnType, T>::type function>
 struct Destroy {
   typedef T pointer;
-  
+
   void operator()(pointer p) {
     function(p);
   }
 };
 
-template<class T, typename Function<void, T*>::type function>
-using safe_ptr = uniq_ptr<T, Destroy<T*, void, function>>;
+template<class T, typename Function<void, T *>::type function>
+using safe_ptr = uniq_ptr<T, Destroy<T *, void, function>>;
 
 // You cannot specialize an alias
-template<class T, class ReturnType, typename Function<ReturnType, T*>::type function>
-using safe_ptr_v2 = uniq_ptr<T, Destroy<T*, ReturnType, function>>;
+template<class T, class ReturnType, typename Function<ReturnType, T *>::type function>
+using safe_ptr_v2 = uniq_ptr<T, Destroy<T *, ReturnType, function>>;
 
 template<class T>
 void c_free(T *p) {
@@ -737,22 +745,22 @@ template<class T = void>
 struct endianness {
   enum : bool {
 #if defined(__BYTE_ORDER) && __BYTE_ORDER == __BIG_ENDIAN || \
-    defined(__BIG_ENDIAN__) || \
-    defined(__ARMEB__) || \
-    defined(__THUMBEB__) || \
-    defined(__AARCH64EB__) || \
-    defined(_MIBSEB) || defined(__MIBSEB) || defined(__MIBSEB__)
+  defined(__BIG_ENDIAN__) ||                                 \
+  defined(__ARMEB__) ||                                      \
+  defined(__THUMBEB__) ||                                    \
+  defined(__AARCH64EB__) ||                                  \
+  defined(_MIBSEB) || defined(__MIBSEB) || defined(__MIBSEB__)
     // It's a big-endian target architecture
     little = false,
 #elif defined(__BYTE_ORDER) && __BYTE_ORDER == __LITTLE_ENDIAN || \
-    defined(__LITTLE_ENDIAN__) || \
-    defined(__ARMEL__) || \
-    defined(__THUMBEL__) || \
-    defined(__AARCH64EL__) || \
-    defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__) || \
-    defined(_WIN32)
+  defined(__LITTLE_ENDIAN__) ||                                   \
+  defined(__ARMEL__) ||                                           \
+  defined(__THUMBEL__) ||                                         \
+  defined(__AARCH64EL__) ||                                       \
+  defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__) || \
+  defined(_WIN32)
     // It's a little-endian target architecture
-      little = true,
+    little = true,
 #else
 #error "Unknown Endianness"
 #endif
@@ -761,15 +769,14 @@ struct endianness {
 };
 
 template<class T, class S = void>
-struct endian_helper { };
+struct endian_helper {};
 
 template<class T>
 struct endian_helper<T, std::enable_if_t<
-  !(instantiation_of_v<std::optional, T>)
->> {
+                          !(instantiation_of_v<std::optional, T>)>> {
   static inline T big(T x) {
-    if constexpr (endianness<T>::little) {
-      uint8_t *data = reinterpret_cast<uint8_t*>(&x);
+    if constexpr(endianness<T>::little) {
+      uint8_t *data = reinterpret_cast<uint8_t *>(&x);
 
       std::reverse(data, data + sizeof(x));
     }
@@ -778,8 +785,8 @@ struct endian_helper<T, std::enable_if_t<
   }
 
   static inline T little(T x) {
-    if constexpr (endianness<T>::big) {
-      uint8_t *data = reinterpret_cast<uint8_t*>(&x);
+    if constexpr(endianness<T>::big) {
+      uint8_t *data = reinterpret_cast<uint8_t *>(&x);
 
       std::reverse(data, data + sizeof(x));
     }
@@ -790,32 +797,31 @@ struct endian_helper<T, std::enable_if_t<
 
 template<class T>
 struct endian_helper<T, std::enable_if_t<
-  instantiation_of_v<std::optional, T>
->> {
-static inline T little(T x) {
-  if(!x) return x;
+                          instantiation_of_v<std::optional, T>>> {
+  static inline T little(T x) {
+    if(!x) return x;
 
-  if constexpr (endianness<T>::big) {
-    auto *data = reinterpret_cast<uint8_t*>(&*x);
+    if constexpr(endianness<T>::big) {
+      auto *data = reinterpret_cast<uint8_t *>(&*x);
 
-    std::reverse(data, data + sizeof(*x));
+      std::reverse(data, data + sizeof(*x));
+    }
+
+    return x;
   }
 
-  return x;
-}
 
+  static inline T big(T x) {
+    if(!x) return x;
 
-static inline T big(T x) {
-  if(!x) return x;
+    if constexpr(endianness<T>::big) {
+      auto *data = reinterpret_cast<uint8_t *>(&*x);
 
-  if constexpr (endianness<T>::big) {
-    auto *data = reinterpret_cast<uint8_t*>(&*x);
+      std::reverse(data, data + sizeof(*x));
+    }
 
-    std::reverse(data, data + sizeof(*x));
+    return x;
   }
-
-  return x;
-}
 };
 
 template<class T>
@@ -823,7 +829,7 @@ inline auto little(T x) { return endian_helper<T>::little(x); }
 
 template<class T>
 inline auto big(T x) { return endian_helper<T>::big(x); }
-} /* endian */
+} // namespace endian
 
-} /* util */
+} // namespace util
 #endif

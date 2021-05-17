@@ -1,12 +1,12 @@
-#include "sunshine/main.h"
 #include "display.h"
+#include "sunshine/main.h"
 
 namespace platf {
 using namespace std::literals;
 }
 
 namespace platf::dxgi {
-struct img_t : public ::platf::img_t  {
+struct img_t : public ::platf::img_t {
   ~img_t() override {
     delete[] data;
     data = nullptr;
@@ -22,29 +22,29 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
   auto cursor_skip_y = -std::min(0, cursor.y);
   auto cursor_skip_x = -std::min(0, cursor.x);
 
-  // img cursor.{x,y} > img.{x,y}, truncate parts of the cursor.img_data 
+  // img cursor.{x,y} > img.{x,y}, truncate parts of the cursor.img_data
   auto cursor_truncate_y = std::max(0, cursor.y - img.height);
   auto cursor_truncate_x = std::max(0, cursor.x - img.width);
 
-  auto cursor_width = width - cursor_skip_x - cursor_truncate_x;
+  auto cursor_width  = width - cursor_skip_x - cursor_truncate_x;
   auto cursor_height = height - cursor_skip_y - cursor_truncate_y;
 
   if(cursor_height > height || cursor_width > width) {
     return;
   }
 
-  auto img_skip_y    = std::max(0, cursor.y);
-  auto img_skip_x    = std::max(0, cursor.x);
+  auto img_skip_y = std::max(0, cursor.y);
+  auto img_skip_x = std::max(0, cursor.x);
 
   auto cursor_img_data = cursor.img_data.data() + cursor_skip_y * pitch;
 
   int delta_height = std::min(cursor_height - cursor_truncate_y, std::max(0, img.height - img_skip_y));
-  int delta_width = std::min(cursor_width - cursor_truncate_x, std::max(0, img.width - img_skip_x));
+  int delta_width  = std::min(cursor_width - cursor_truncate_x, std::max(0, img.width - img_skip_x));
 
   auto pixels_per_byte = width / pitch;
-  auto bytes_per_row = delta_width / pixels_per_byte;
+  auto bytes_per_row   = delta_width / pixels_per_byte;
 
-  auto img_data = (int*)img.data;
+  auto img_data = (int *)img.data;
   for(int i = 0; i < delta_height; ++i) {
     auto and_mask = &cursor_img_data[i * pitch];
     auto xor_mask = &cursor_img_data[(i + height) * pitch];
@@ -76,8 +76,8 @@ void blend_cursor_monochrome(const cursor_t &cursor, img_t &img) {
 }
 
 void apply_color_alpha(int *img_pixel_p, int cursor_pixel) {
-  auto colors_out = (std::uint8_t*)&cursor_pixel;
-  auto colors_in  = (std::uint8_t*)img_pixel_p;
+  auto colors_out = (std::uint8_t *)&cursor_pixel;
+  auto colors_in  = (std::uint8_t *)img_pixel_p;
 
   //TODO: When use of IDXGIOutput5 is implemented, support different color formats
   auto alpha = colors_out[3];
@@ -85,15 +85,15 @@ void apply_color_alpha(int *img_pixel_p, int cursor_pixel) {
     *img_pixel_p = cursor_pixel;
   }
   else {
-    colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255/2) / 255;
-    colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255/2) / 255;
-    colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255/2) / 255;
+    colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255 / 2) / 255;
+    colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255 / 2) / 255;
+    colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255 / 2) / 255;
   }
 }
 
 void apply_color_masked(int *img_pixel_p, int cursor_pixel) {
   //TODO: When use of IDXGIOutput5 is implemented, support different color formats
-  auto alpha = ((std::uint8_t*)&cursor_pixel)[3];
+  auto alpha = ((std::uint8_t *)&cursor_pixel)[3];
   if(alpha == 0xFF) {
     *img_pixel_p ^= cursor_pixel;
   }
@@ -111,30 +111,30 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img, const bool masked) {
   auto cursor_skip_y = -std::min(0, cursor.y);
   auto cursor_skip_x = -std::min(0, cursor.x);
 
-  // img cursor.{x,y} > img.{x,y}, truncate parts of the cursor.img_data 
+  // img cursor.{x,y} > img.{x,y}, truncate parts of the cursor.img_data
   auto cursor_truncate_y = std::max(0, cursor.y - img.height);
   auto cursor_truncate_x = std::max(0, cursor.x - img.width);
 
-  auto img_skip_y    = std::max(0, cursor.y);
-  auto img_skip_x    = std::max(0, cursor.x);
+  auto img_skip_y = std::max(0, cursor.y);
+  auto img_skip_x = std::max(0, cursor.x);
 
-  auto cursor_width = width - cursor_skip_x - cursor_truncate_x;
+  auto cursor_width  = width - cursor_skip_x - cursor_truncate_x;
   auto cursor_height = height - cursor_skip_y - cursor_truncate_y;
 
   if(cursor_height > height || cursor_width > width) {
     return;
   }
 
-  auto cursor_img_data = (int*)&cursor.img_data[cursor_skip_y * pitch];
+  auto cursor_img_data = (int *)&cursor.img_data[cursor_skip_y * pitch];
 
   int delta_height = std::min(cursor_height - cursor_truncate_y, std::max(0, img.height - img_skip_y));
-  int delta_width = std::min(cursor_width - cursor_truncate_x, std::max(0, img.width - img_skip_x));
+  int delta_width  = std::min(cursor_width - cursor_truncate_x, std::max(0, img.width - img_skip_x));
 
-  auto img_data = (int*)img.data;
+  auto img_data = (int *)img.data;
 
   for(int i = 0; i < delta_height; ++i) {
     auto cursor_begin = &cursor_img_data[i * cursor.shape_info.Width + cursor_skip_x];
-    auto cursor_end = &cursor_begin[delta_width];
+    auto cursor_end   = &cursor_begin[delta_width];
 
     auto img_pixel_p = &img_data[(i + img_skip_y) * (img.row_pitch / img.pixel_pitch) + img_skip_x];
     std::for_each(cursor_begin, cursor_end, [&](int cursor_pixel) {
@@ -151,22 +151,22 @@ void blend_cursor_color(const cursor_t &cursor, img_t &img, const bool masked) {
 
 void blend_cursor(const cursor_t &cursor, img_t &img) {
   switch(cursor.shape_info.Type) {
-    case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
-      blend_cursor_color(cursor, img, false);
-      break;
-    case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
-      blend_cursor_monochrome(cursor, img);
-      break;
-    case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
-      blend_cursor_color(cursor, img, true);
-      break;
-    default:
-      BOOST_LOG(warning) << "Unsupported cursor format ["sv << cursor.shape_info.Type << ']';
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
+    blend_cursor_color(cursor, img, false);
+    break;
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
+    blend_cursor_monochrome(cursor, img);
+    break;
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
+    blend_cursor_color(cursor, img, true);
+    break;
+  default:
+    BOOST_LOG(warning) << "Unsupported cursor format ["sv << cursor.shape_info.Type << ']';
   }
 }
 
 capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) {
-  auto img = (img_t*)img_base;
+  auto img = (img_t *)img_base;
 
   HRESULT status;
 
@@ -174,9 +174,9 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
 
   resource_t::pointer res_p {};
   auto capture_status = dup.next_frame(frame_info, timeout, &res_p);
-  resource_t res{res_p};
+  resource_t res { res_p };
 
-  if (capture_status != capture_e::ok) {
+  if(capture_status != capture_e::ok) {
     return capture_status;
   }
 
@@ -187,7 +187,7 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
 
     UINT dummy;
     status = dup.dup->GetFramePointerShape(img_data.size(), img_data.data(), &dummy, &cursor.shape_info);
-    if (FAILED(status)) {
+    if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to get new pointer shape [0x"sv << util::hex(status).to_string_view() << ']';
 
       return capture_e::error;
@@ -195,18 +195,18 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
   }
 
   if(frame_info.LastMouseUpdateTime.QuadPart) {
-    cursor.x = frame_info.PointerPosition.Position.x;
-    cursor.y = frame_info.PointerPosition.Position.y;
+    cursor.x       = frame_info.PointerPosition.Position.x;
+    cursor.y       = frame_info.PointerPosition.Position.y;
     cursor.visible = frame_info.PointerPosition.Visible;
   }
 
   // If frame has been updated
-  if (frame_info.LastPresentTime.QuadPart != 0) {
+  if(frame_info.LastPresentTime.QuadPart != 0) {
     {
       texture2d_t src {};
       status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
 
-      if (FAILED(status)) {
+      if(FAILED(status)) {
         BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
         return capture_e::error;
       }
@@ -221,14 +221,14 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     }
 
     status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
-    if (FAILED(status)) {
+    if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
       return capture_e::error;
     }
   }
 
-  const bool mouse_update = 
+  const bool mouse_update =
     (frame_info.LastMouseUpdateTime.QuadPart || frame_info.PointerShapeBufferSize > 0) &&
     (cursor_visible && cursor.visible);
 
@@ -238,7 +238,7 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     return capture_e::timeout;
   }
 
-  std::copy_n((std::uint8_t*)img_info.pData, height * img_info.RowPitch, (std::uint8_t*)img->data);
+  std::copy_n((std::uint8_t *)img_info.pData, height * img_info.RowPitch, (std::uint8_t *)img->data);
 
   if(cursor_visible && cursor.visible) {
     blend_cursor(cursor, *img);
@@ -250,11 +250,11 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
 std::shared_ptr<platf::img_t> display_ram_t::alloc_img() {
   auto img = std::make_shared<img_t>();
 
-  img->pixel_pitch  = 4;
-  img->row_pitch    = img_info.RowPitch;
-  img->width        = width;
-  img->height       = height;
-  img->data         = new std::uint8_t[img->row_pitch * height];
+  img->pixel_pitch = 4;
+  img->row_pitch   = img_info.RowPitch;
+  img->width       = width;
+  img->height      = height;
+  img->data        = new std::uint8_t[img->row_pitch * height];
 
   return img;
 }
@@ -269,14 +269,14 @@ int display_ram_t::init() {
   }
 
   D3D11_TEXTURE2D_DESC t {};
-  t.Width  = width;
-  t.Height = height;
-  t.MipLevels = 1;
-  t.ArraySize = 1;
+  t.Width            = width;
+  t.Height           = height;
+  t.MipLevels        = 1;
+  t.ArraySize        = 1;
   t.SampleDesc.Count = 1;
-  t.Usage = D3D11_USAGE_STAGING;
-  t.Format = format;
-  t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+  t.Usage            = D3D11_USAGE_STAGING;
+  t.Format           = format;
+  t.CPUAccessFlags   = D3D11_CPU_ACCESS_READ;
 
   auto status = device->CreateTexture2D(&t, nullptr, &texture);
 
@@ -294,4 +294,4 @@ int display_ram_t::init() {
 
   return 0;
 }
-}
+} // namespace platf::dxgi

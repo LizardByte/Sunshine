@@ -1,16 +1,16 @@
 #ifndef SUNSHINE_CONFIG_H
 #define SUNSHINE_CONFIG_H
 
-#include <chrono>
-#include <string>
 #include <bitset>
+#include <chrono>
 #include <optional>
+#include <string>
 
 namespace config {
 struct video_t {
   // ffmpeg params
   int crf; // higher == more compression and less quality
-  int qp; // higher == more compression and less quality, ignored if crf != 0
+  int qp;  // higher == more compression and less quality, ignored if crf != 0
 
   int hevc_mode;
 
@@ -76,9 +76,9 @@ struct input_t {
 namespace flag {
 enum flag_e : std::size_t {
   PIN_STDIN = 0, // Read PIN from stdin instead of http
-  FRESH_STATE, // Do not load or save state
+  FRESH_STATE,   // Do not load or save state
   FLAG_SIZE,
-  CONST_PIN= 4 // Use "universal" pin
+  CONST_PIN = 4 // Use "universal" pin
 };
 }
 
@@ -96,6 +96,6 @@ extern input_t input;
 extern sunshine_t sunshine;
 
 int parse(int argc, char *argv[]);
-}
+} // namespace config
 
 #endif

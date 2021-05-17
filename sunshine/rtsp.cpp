@@ -7,10 +7,10 @@ extern "C" {
 }
 
 #include "config.h"
+#include "input.h"
 #include "main.h"
 #include "network.h"
 #include "rtsp.h"
-#include "input.h"
 #include "stream.h"
 #include "sync.h"
 
@@ -25,7 +25,7 @@ namespace stream {
 
 //FIXME: Quick and dirty workaround for bug in MinGW 9.3 causing a linker error when using std::to_string
 template<class T>
-std::string to_string(T && t)	{
+std::string to_string(T &&t) {
   std::stringstream ss;
   ss << std::forward<T>(t);
   return ss.str();
@@ -41,11 +41,11 @@ void free_msg(PRTSP_MESSAGE msg) {
 
 class rtsp_server_t;
 
-using msg_t = util::safe_ptr<RTSP_MESSAGE, free_msg>;
-using cmd_func_t = std::function<void(rtsp_server_t*, net::peer_t, msg_t&&)>;
+using msg_t      = util::safe_ptr<RTSP_MESSAGE, free_msg>;
+using cmd_func_t = std::function<void(rtsp_server_t *, net::peer_t, msg_t &&)>;
 
 void print_msg(PRTSP_MESSAGE msg);
-void cmd_not_found(net::host_t::pointer host, net::peer_t peer, msg_t&& req);
+void cmd_not_found(net::host_t::pointer host, net::peer_t peer, msg_t &&req);
 
 class rtsp_server_t {
 public:
@@ -82,61 +82,61 @@ public:
     ENetEvent event;
     auto res = enet_host_service(_host.get(), &event, std::chrono::floor<std::chrono::milliseconds>(timeout).count());
 
-    if (res > 0) {
-      switch (event.type) {
-        case ENET_EVENT_TYPE_RECEIVE: {
-          net::packet_t packet{event.packet};
-          net::peer_t peer{event.peer};
+    if(res > 0) {
+      switch(event.type) {
+      case ENET_EVENT_TYPE_RECEIVE: {
+        net::packet_t packet { event.packet };
+        net::peer_t peer { event.peer };
 
-          msg_t req { new msg_t::element_type };
+        msg_t req { new msg_t::element_type };
 
-          //TODO: compare addresses of the peers
-          if (_queue_packet.second == nullptr) {
-            parseRtspMessage(req.get(), (char *) packet->data, packet->dataLength);
-            for (auto option = req->options; option != nullptr; option = option->next) {
-              if ("Content-length"sv == option->option) {
-                _queue_packet = std::make_pair(peer, std::move(packet));
-                return;
-              }
+        //TODO: compare addresses of the peers
+        if(_queue_packet.second == nullptr) {
+          parseRtspMessage(req.get(), (char *)packet->data, packet->dataLength);
+          for(auto option = req->options; option != nullptr; option = option->next) {
+            if("Content-length"sv == option->option) {
+              _queue_packet = std::make_pair(peer, std::move(packet));
+              return;
             }
           }
-          else {
-            std::vector<char> full_payload;
-
-            auto old_msg = std::move(_queue_packet);
-            auto &old_packet = old_msg.second;
-
-            std::string_view new_payload{(char *) packet->data, packet->dataLength};
-            std::string_view old_payload{(char *) old_packet->data, old_packet->dataLength};
-            full_payload.resize(new_payload.size() + old_payload.size());
-
-            std::copy(std::begin(old_payload), std::end(old_payload), std::begin(full_payload));
-            std::copy(std::begin(new_payload), std::end(new_payload), std::begin(full_payload) + old_payload.size());
-
-            parseRtspMessage(req.get(), full_payload.data(), full_payload.size());
-          }
-
-          print_msg(req.get());
-
-          msg_t resp;
-          auto func = _map_cmd_cb.find(req->message.request.command);
-          if (func != std::end(_map_cmd_cb)) {
-            func->second(this, peer, std::move(req));
-          }
-          else {
-            cmd_not_found(host(), peer, std::move(req));
-          }
-
-          return;
         }
-        case ENET_EVENT_TYPE_CONNECT:
-          BOOST_LOG(info) << "CLIENT CONNECTED TO RTSP"sv;
-          break;
-        case ENET_EVENT_TYPE_DISCONNECT:
-          BOOST_LOG(info) << "CLIENT DISCONNECTED FROM RTSP"sv;
-          break;
-        case ENET_EVENT_TYPE_NONE:
-          break;
+        else {
+          std::vector<char> full_payload;
+
+          auto old_msg     = std::move(_queue_packet);
+          auto &old_packet = old_msg.second;
+
+          std::string_view new_payload { (char *)packet->data, packet->dataLength };
+          std::string_view old_payload { (char *)old_packet->data, old_packet->dataLength };
+          full_payload.resize(new_payload.size() + old_payload.size());
+
+          std::copy(std::begin(old_payload), std::end(old_payload), std::begin(full_payload));
+          std::copy(std::begin(new_payload), std::end(new_payload), std::begin(full_payload) + old_payload.size());
+
+          parseRtspMessage(req.get(), full_payload.data(), full_payload.size());
+        }
+
+        print_msg(req.get());
+
+        msg_t resp;
+        auto func = _map_cmd_cb.find(req->message.request.command);
+        if(func != std::end(_map_cmd_cb)) {
+          func->second(this, peer, std::move(req));
+        }
+        else {
+          cmd_not_found(host(), peer, std::move(req));
+        }
+
+        return;
+      }
+      case ENET_EVENT_TYPE_CONNECT:
+        BOOST_LOG(info) << "CLIENT CONNECTED TO RTSP"sv;
+        break;
+      case ENET_EVENT_TYPE_DISCONNECT:
+        BOOST_LOG(info) << "CLIENT DISCONNECTED FROM RTSP"sv;
+        break;
+      case ENET_EVENT_TYPE_NONE:
+        break;
       }
     }
   }
@@ -149,7 +149,7 @@ public:
     auto lg = _session_slots.lock();
 
     for(auto &slot : *_session_slots) {
-      if (slot && (all || session::state(*slot) == session::state_e::STOPPING)) {
+      if(slot && (all || session::state(*slot) == session::state_e::STOPPING)) {
         session::stop(*slot);
         session::join(*slot);
 
@@ -194,7 +194,6 @@ public:
   safe::event_t<launch_session_t> launch_event;
 
 private:
-
   // named _queue_packet because I want to make it an actual queue
   // It's like this for convenience sake
   std::pair<net::peer_t, net::packet_t> _queue_packet;
@@ -225,11 +224,11 @@ void respond(net::host_t::pointer host, net::peer_t peer, msg_t &resp) {
   auto payload = std::make_pair(resp->payload, resp->payloadLength);
 
   auto lg = util::fail_guard([&]() {
-    resp->payload = payload.first;
+    resp->payload       = payload.first;
     resp->payloadLength = payload.second;
   });
 
-  resp->payload = nullptr;
+  resp->payload       = nullptr;
   resp->payloadLength = 0;
 
   int serialized_len;
@@ -264,35 +263,35 @@ void respond(net::host_t::pointer host, net::peer_t peer, msg_t &resp) {
 
 void respond(net::host_t::pointer host, net::peer_t peer, POPTION_ITEM options, int statuscode, const char *status_msg, int seqn, const std::string_view &payload) {
   msg_t resp { new msg_t::element_type };
-  createRtspResponse(resp.get(), nullptr, 0, const_cast<char*>("RTSP/1.0"), statuscode, const_cast<char*>(status_msg), seqn, options, const_cast<char*>(payload.data()), (int)payload.size());
+  createRtspResponse(resp.get(), nullptr, 0, const_cast<char *>("RTSP/1.0"), statuscode, const_cast<char *>(status_msg), seqn, options, const_cast<char *>(payload.data()), (int)payload.size());
 
   respond(host, peer, resp);
 }
 
-void cmd_not_found(net::host_t::pointer host, net::peer_t peer, msg_t&& req) {
+void cmd_not_found(net::host_t::pointer host, net::peer_t peer, msg_t &&req) {
   respond(host, peer, nullptr, 404, "NOT FOUND", req->sequenceNumber, {});
 }
 
-void cmd_option(rtsp_server_t *server, net::peer_t peer, msg_t&& req) {
+void cmd_option(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified
-  option.option = const_cast<char*>("CSeq");
+  option.option = const_cast<char *>("CSeq");
 
-  auto seqn_str = to_string(req->sequenceNumber);
-  option.content = const_cast<char*>(seqn_str.c_str());
+  auto seqn_str  = to_string(req->sequenceNumber);
+  option.content = const_cast<char *>(seqn_str.c_str());
 
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 
-void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t&& req) {
+void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified
-  option.option = const_cast<char*>("CSeq");
+  option.option = const_cast<char *>("CSeq");
 
-  auto seqn_str = to_string(req->sequenceNumber);
-  option.content = const_cast<char*>(seqn_str.c_str());
+  auto seqn_str  = to_string(req->sequenceNumber);
+  option.content = const_cast<char *>(seqn_str.c_str());
 
   std::string_view payload;
   if(config::video.hevc_mode == 1) {
@@ -311,10 +310,10 @@ void cmd_setup(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   auto &seqn           = options[0];
   auto &session_option = options[1];
 
-  seqn.option = const_cast<char*>("CSeq");
+  seqn.option = const_cast<char *>("CSeq");
 
   auto seqn_str = to_string(req->sequenceNumber);
-  seqn.content = const_cast<char*>(seqn_str.c_str());
+  seqn.content  = const_cast<char *>(seqn_str.c_str());
 
   std::string_view target { req->message.request.target };
   auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
@@ -324,8 +323,8 @@ void cmd_setup(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   if(type == "audio"sv) {
     seqn.next = &session_option;
 
-    session_option.option  = const_cast<char*>("Session");
-    session_option.content = const_cast<char*>("DEADBEEFCAFE;timeout = 90");
+    session_option.option  = const_cast<char *>("Session");
+    session_option.content = const_cast<char *>("DEADBEEFCAFE;timeout = 90");
   }
   else if(type != "video"sv && type != "control"sv) {
     cmd_not_found(server->host(), peer, std::move(req));
@@ -340,10 +339,10 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified
-  option.option = const_cast<char*>("CSeq");
+  option.option = const_cast<char *>("CSeq");
 
-  auto seqn_str = to_string(req->sequenceNumber);
-  option.content = const_cast<char*>(seqn_str.c_str());
+  auto seqn_str  = to_string(req->sequenceNumber);
+  option.content = const_cast<char *>(seqn_str.c_str());
 
   if(!server->launch_event.peek()) {
     // /launch has not been used
@@ -362,10 +361,10 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   };
 
   {
-    auto pos = std::begin(payload);
+    auto pos   = std::begin(payload);
     auto begin = pos;
-    while (pos != std::end(payload)) {
-      if (whitespace(*pos++)) {
+    while(pos != std::end(payload)) {
+      if(whitespace(*pos++)) {
         lines.emplace_back(begin, pos - begin - 1);
 
         while(pos != std::end(payload) && whitespace(*pos)) { ++pos; }
@@ -386,10 +385,10 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
       auto pos = line.find(':');
 
       auto name = line.substr(2, pos - 2);
-      auto val = line.substr(pos + 1);
+      auto val  = line.substr(pos + 1);
 
-      if(val[val.size() -1] == ' ') {
-        val = val.substr(0, val.size() -1);
+      if(val[val.size() - 1] == ' ') {
+        val = val.substr(0, val.size() - 1);
       }
       args.emplace(name, val);
     }
@@ -418,8 +417,8 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     config.monitor.encoderCscMode = util::from_view(args.at("x-nv-video[0].encoderCscMode"sv));
     config.monitor.videoFormat    = util::from_view(args.at("x-nv-vqos[0].bitStreamFormat"sv));
     config.monitor.dynamicRange   = util::from_view(args.at("x-nv-video[0].dynamicRangeMode"sv));
-
-  } catch(std::out_of_range &) {
+  }
+  catch(std::out_of_range &) {
 
     respond(server->host(), peer, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
     return;
@@ -442,7 +441,7 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     return;
   }
 
-  if(session::start(*session, platf::from_sockaddr((sockaddr*)&peer->address.address))) {
+  if(session::start(*session, platf::from_sockaddr((sockaddr *)&peer->address.address))) {
     BOOST_LOG(error) << "Failed to start a streaming session"sv;
 
     server->clear(slot);
@@ -457,10 +456,10 @@ void cmd_play(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   OPTION_ITEM option {};
 
   // I know these string literals will not be modified
-  option.option = const_cast<char*>("CSeq");
+  option.option = const_cast<char *>("CSeq");
 
-  auto seqn_str = to_string(req->sequenceNumber);
-  option.content = const_cast<char*>(seqn_str.c_str());
+  auto seqn_str  = to_string(req->sequenceNumber);
+  option.content = const_cast<char *>(seqn_str.c_str());
 
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
@@ -518,7 +517,7 @@ void print_msg(PRTSP_MESSAGE msg) {
     BOOST_LOG(debug) << "status :: "sv << status;
   }
   else {
-    auto& req = msg->message.request;
+    auto &req = msg->message.request;
 
     std::string_view command { req.command };
     std::string_view target { req.target };
@@ -534,6 +533,8 @@ void print_msg(PRTSP_MESSAGE msg) {
     BOOST_LOG(debug) << name << " :: "sv << content;
   }
 
-  BOOST_LOG(debug) << "---Begin MessageBuffer---"sv << std::endl << messageBuffer << std::endl << "---End MessageBuffer---"sv << std::endl;
+  BOOST_LOG(debug) << "---Begin MessageBuffer---"sv << std::endl
+                   << messageBuffer << std::endl
+                   << "---End MessageBuffer---"sv << std::endl;
 }
-}
+} // namespace stream

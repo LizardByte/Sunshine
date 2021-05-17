@@ -4,8 +4,8 @@
 
 #include "sunshine/platform/common.h"
 
-#include <fstream>
 #include <bitset>
+#include <fstream>
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -15,36 +15,35 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/Xfixes.h>
 #include <X11/extensions/Xrandr.h>
-#include <xcb/shm.h>
-#include <xcb/xfixes.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <xcb/shm.h>
+#include <xcb/xfixes.h>
 
-#include <pulse/simple.h>
 #include <pulse/error.h>
+#include <pulse/simple.h>
 
-#include "sunshine/task_pool.h"
 #include "sunshine/config.h"
 #include "sunshine/main.h"
+#include "sunshine/task_pool.h"
 
-namespace platf
-{
+namespace platf {
 using namespace std::literals;
 
-void freeImage(XImage*);
-void freeX(XFixesCursorImage*);
+void freeImage(XImage *);
+void freeX(XFixesCursorImage *);
 
-using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
+using ifaddr_t      = util::safe_ptr<ifaddrs, freeifaddrs>;
 using xcb_connect_t = util::safe_ptr<xcb_connection_t, xcb_disconnect>;
-using xcb_img_t = util::c_ptr<xcb_shm_get_image_reply_t>;
+using xcb_img_t     = util::c_ptr<xcb_shm_get_image_reply_t>;
 
 using xdisplay_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
-using ximg_t = util::safe_ptr<XImage, freeImage>;
-using xcursor_t = util::safe_ptr<XFixesCursorImage, freeX>;
+using ximg_t     = util::safe_ptr<XImage, freeImage>;
+using xcursor_t  = util::safe_ptr<XFixesCursorImage, freeX>;
 
-using crtc_info_t = util::safe_ptr<_XRRCrtcInfo, XRRFreeCrtcInfo>;
+using crtc_info_t   = util::safe_ptr<_XRRCrtcInfo, XRRFreeCrtcInfo>;
 using output_info_t = util::safe_ptr<_XRROutputInfo, XRRFreeOutputInfo>;
-using screen_res_t = util::safe_ptr<_XRRScreenResources, XRRFreeScreenResources>;
+using screen_res_t  = util::safe_ptr<_XRRScreenResources, XRRFreeScreenResources>;
 
 class shm_id_t {
 public:
@@ -55,7 +54,7 @@ public:
   }
 
   ~shm_id_t() {
-    if (id != -1) {
+    if(id != -1) {
       shmctl(id, IPC_RMID, nullptr);
       id = -1;
     }
@@ -65,15 +64,15 @@ public:
 
 class shm_data_t {
 public:
-  shm_data_t() : data { (void*) -1 } {}
+  shm_data_t() : data { (void *)-1 } {}
   shm_data_t(void *data) : data { data } {}
 
   shm_data_t(shm_data_t &&other) noexcept : data(other.data) {
-    other.data = (void*)-1;
+    other.data = (void *)-1;
   }
 
   ~shm_data_t() {
-    if((std::uintptr_t) data != -1) {
+    if((std::uintptr_t)data != -1) {
       shmdt(data);
     }
   }
@@ -81,11 +80,11 @@ public:
   void *data;
 };
 
-struct x11_img_t: public img_t {
+struct x11_img_t : public img_t {
   ximg_t img;
 };
 
-struct shm_img_t: public img_t {
+struct shm_img_t : public img_t {
   ~shm_img_t() override {
     delete[] data;
     data = nullptr;
@@ -95,7 +94,7 @@ struct shm_img_t: public img_t {
 void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
   xcursor_t overlay { XFixesGetCursorImage(display) };
 
-  if (!overlay) {
+  if(!overlay) {
     BOOST_LOG(error) << "Couldn't get cursor from XFixesGetCursorImage"sv;
     return;
   }
@@ -109,40 +108,39 @@ void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
   overlay->x = std::max((short)0, overlay->x);
   overlay->y = std::max((short)0, overlay->y);
 
-  auto pixels = (int*)img.data;
+  auto pixels = (int *)img.data;
 
   auto screen_height = img.height;
-  auto screen_width = img.width;
+  auto screen_width  = img.width;
 
-  auto delta_height = std::min<uint16_t>(overlay->height,std::max(0, screen_height - overlay->y));
-  auto delta_width = std::min<uint16_t>(overlay->width,std::max(0, screen_width - overlay->x));
-  for (auto y = 0; y < delta_height; ++y) {
+  auto delta_height = std::min<uint16_t>(overlay->height, std::max(0, screen_height - overlay->y));
+  auto delta_width  = std::min<uint16_t>(overlay->width, std::max(0, screen_width - overlay->x));
+  for(auto y = 0; y < delta_height; ++y) {
     auto overlay_begin = &overlay->pixels[y * overlay->width];
-    auto overlay_end = &overlay->pixels[y * overlay->width + delta_width];
+    auto overlay_end   = &overlay->pixels[y * overlay->width + delta_width];
 
-    auto pixels_begin = &pixels[(y + overlay->y)* (img.row_pitch / img.pixel_pitch) + overlay->x];
+    auto pixels_begin = &pixels[(y + overlay->y) * (img.row_pitch / img.pixel_pitch) + overlay->x];
 
-    std::for_each(overlay_begin, overlay_end,[&](long pixel) {
-      int *pixel_p = (int*) &pixel;
+    std::for_each(overlay_begin, overlay_end, [&](long pixel) {
+      int *pixel_p = (int *)&pixel;
 
-      auto colors_in = (uint8_t*) pixels_begin;
+      auto colors_in = (uint8_t *)pixels_begin;
 
-      auto alpha = (*(uint*) pixel_p) >> 24u;
-      if (alpha == 255) {
+      auto alpha = (*(uint *)pixel_p) >> 24u;
+      if(alpha == 255) {
         *pixels_begin = *pixel_p;
       }
       else {
-        auto colors_out = (uint8_t*) pixel_p;
-        colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) +255 /2) / 255;
-        colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255 / 2) / 255;
-        colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255 / 2) / 255;
+        auto colors_out = (uint8_t *)pixel_p;
+        colors_in[0]    = colors_out[0] + (colors_in[0] * (255 - alpha) + 255 / 2) / 255;
+        colors_in[1]    = colors_out[1] + (colors_in[1] * (255 - alpha) + 255 / 2) / 255;
+        colors_in[2]    = colors_out[2] + (colors_in[2] * (255 - alpha) + 255 / 2) / 255;
       }
       ++pixels_begin;
     });
   }
 }
-struct x11_attr_t: public display_t
-{
+struct x11_attr_t : public display_t {
   xdisplay_t xdisplay;
   Window xwindow;
   XWindowAttributes xattr;
@@ -153,7 +151,7 @@ struct x11_attr_t: public display_t
    */
   int lastWidth, lastHeight;
 
-  x11_attr_t() : xdisplay { XOpenDisplay(nullptr) }, xwindow { }, xattr { } {
+  x11_attr_t() : xdisplay { XOpenDisplay(nullptr) }, xwindow {}, xattr {} {
     XInitThreads();
   }
 
@@ -192,17 +190,17 @@ struct x11_attr_t: public display_t
       BOOST_LOG(info)
         << "Streaming display: "sv << out_info->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
 
-      width = crt_info->width;
-      height = crt_info->height;
+      width    = crt_info->width;
+      height   = crt_info->height;
       offset_x = crt_info->x;
       offset_y = crt_info->y;
     }
     else {
-      width = xattr.width;
+      width  = xattr.width;
       height = xattr.height;
     }
 
-    lastWidth = xattr.width;
+    lastWidth  = xattr.width;
     lastHeight = xattr.height;
 
     return 0;
@@ -219,21 +217,21 @@ struct x11_attr_t: public display_t
     refresh();
 
     //The whole X server changed, so we gotta reinit everything
-    if (xattr.width != lastWidth || xattr.height  != lastHeight) {
-      BOOST_LOG(warning)<< "X dimensions changed in non-SHM mode, request reinit"sv;
+    if(xattr.width != lastWidth || xattr.height != lastHeight) {
+      BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
       return capture_e::reinit;
     }
     XImage *img { XGetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
 
-    auto img_out = (x11_img_t*) img_out_base;
-    img_out->width = img->width;
-    img_out->height = img->height;
-    img_out->data = (uint8_t*) img->data;
-    img_out->row_pitch = img->bytes_per_line;
+    auto img_out         = (x11_img_t *)img_out_base;
+    img_out->width       = img->width;
+    img_out->height      = img->height;
+    img_out->data        = (uint8_t *)img->data;
+    img_out->row_pitch   = img->bytes_per_line;
     img_out->pixel_pitch = img->bits_per_pixel / 8;
     img_out->img.reset(img);
 
-    if (cursor) {
+    if(cursor) {
       blend_cursor(xdisplay.get(), *img_out_base, offset_x, offset_y);
     }
 
@@ -250,7 +248,7 @@ struct x11_attr_t: public display_t
   }
 };
 
-struct shm_attr_t: public x11_attr_t {
+struct shm_attr_t : public x11_attr_t {
   xdisplay_t shm_xdisplay; // Prevent race condition with x11_attr_t::xdisplay
   xcb_connect_t xcb;
   xcb_screen_t *display;
@@ -265,7 +263,7 @@ struct shm_attr_t: public x11_attr_t {
   void delayed_refresh() {
     refresh();
 
-    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh,2s, this).task_id;
+    refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
   shm_attr_t() : x11_attr_t(), shm_xdisplay { XOpenDisplay(nullptr) } {
@@ -273,25 +271,26 @@ struct shm_attr_t: public x11_attr_t {
   }
 
   ~shm_attr_t() override {
-    while(!task_pool.cancel(refresh_task_id));
+    while(!task_pool.cancel(refresh_task_id))
+      ;
   }
 
   capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) override {
     //The whole X server changed, so we gotta reinit everything
-    if(xattr.width != lastWidth || xattr.height  != lastHeight) {
-      BOOST_LOG(warning)<< "X dimensions changed in SHM mode, request reinit"sv;
+    if(xattr.width != lastWidth || xattr.height != lastHeight) {
+      BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
       return capture_e::reinit;
     }
     else {
       auto img_cookie = xcb_shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
 
-      xcb_img_t img_reply { xcb_shm_get_image_reply(xcb.get(), img_cookie,nullptr) };
+      xcb_img_t img_reply { xcb_shm_get_image_reply(xcb.get(), img_cookie, nullptr) };
       if(!img_reply) {
         BOOST_LOG(error) << "Could not get image reply"sv;
         return capture_e::reinit;
       }
 
-      std::copy_n((std::uint8_t*)data.data, frame_size(), img->data);
+      std::copy_n((std::uint8_t *)data.data, frame_size(), img->data);
 
       if(cursor) {
         blend_cursor(shm_xdisplay.get(), *img, offset_x, offset_y);
@@ -302,12 +301,12 @@ struct shm_attr_t: public x11_attr_t {
   }
 
   std::shared_ptr<img_t> alloc_img() override {
-    auto img = std::make_shared<shm_img_t>();
-    img->width = width;
-    img->height = height;
+    auto img         = std::make_shared<shm_img_t>();
+    img->width       = width;
+    img->height      = height;
     img->pixel_pitch = 4;
-    img->row_pitch = img->pixel_pitch * width;
-    img->data = new std::uint8_t[height * img->row_pitch];
+    img->row_pitch   = img->pixel_pitch * width;
+    img->data        = new std::uint8_t[height * img->row_pitch];
 
     return img;
   }
@@ -334,8 +333,8 @@ struct shm_attr_t: public x11_attr_t {
     }
 
     auto iter = xcb_setup_roots_iterator(xcb_get_setup(xcb.get()));
-    display = iter.data;
-    seg = xcb_generate_id(xcb.get());
+    display   = iter.data;
+    seg       = xcb_generate_id(xcb.get());
 
     shm_id.id = shmget(IPC_PRIVATE, frame_size(), IPC_CREAT | 0777);
     if(shm_id.id == -1) {
@@ -360,19 +359,19 @@ struct shm_attr_t: public x11_attr_t {
   }
 };
 
-struct mic_attr_t: public mic_t {
+struct mic_attr_t : public mic_t {
   pa_sample_spec ss;
   util::safe_ptr<pa_simple, pa_simple_free> mic;
 
   explicit mic_attr_t(pa_sample_format format, std::uint32_t sample_rate,
-      std::uint8_t channels) : ss { format, sample_rate, channels }, mic { } { }
+    std::uint8_t channels) : ss { format, sample_rate, channels }, mic {} {}
 
   capture_e sample(std::vector<std::int16_t> &sample_buf) override {
     auto sample_size = sample_buf.size();
 
     auto buf = sample_buf.data();
     int status;
-    if(pa_simple_read(mic.get(), buf, sample_size *2, &status)) {
+    if(pa_simple_read(mic.get(), buf, sample_size * 2, &status)) {
       BOOST_LOG(error) << "pa_simple_read() failed: "sv << pa_strerror(status);
 
       return capture_e::error;
@@ -384,7 +383,7 @@ struct mic_attr_t: public mic_t {
 
 std::shared_ptr<display_t> display(platf::dev_type_e hwdevice_type) {
   if(hwdevice_type != platf::dev_type_e::none) {
-    BOOST_LOG(error)<< "Could not initialize display with the given hw device type."sv;
+    BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
   }
 
@@ -416,16 +415,16 @@ std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate, std::uint32_t) {
   int status;
 
   const char *audio_sink = "@DEFAULT_MONITOR@";
-  if (!config::audio.sink.empty()) {
+  if(!config::audio.sink.empty()) {
     audio_sink = config::audio.sink.c_str();
   }
 
   mic->mic.reset(
     pa_simple_new(nullptr, "sunshine",
-   pa_stream_direction_t::PA_STREAM_RECORD, audio_sink,
+      pa_stream_direction_t::PA_STREAM_RECORD, audio_sink,
       "sunshine-record", &mic->ss, nullptr, nullptr, &status));
 
-  if (!mic->mic) {
+  if(!mic->mic) {
     auto err_str = pa_strerror(status);
     BOOST_LOG(error) << "pa_simple_new() failed: "sv << err_str;
 
@@ -448,14 +447,14 @@ std::string from_sockaddr(const sockaddr *const ip_addr) {
   char data[INET6_ADDRSTRLEN];
 
   auto family = ip_addr->sa_family;
-  if (family == AF_INET6) {
-    inet_ntop(AF_INET6, &((sockaddr_in6*) ip_addr)->sin6_addr, data,
-    INET6_ADDRSTRLEN);
+  if(family == AF_INET6) {
+    inet_ntop(AF_INET6, &((sockaddr_in6 *)ip_addr)->sin6_addr, data,
+      INET6_ADDRSTRLEN);
   }
 
-  if (family == AF_INET) {
-    inet_ntop(AF_INET, &((sockaddr_in*) ip_addr)->sin_addr, data,
-    INET_ADDRSTRLEN);
+  if(family == AF_INET) {
+    inet_ntop(AF_INET, &((sockaddr_in *)ip_addr)->sin_addr, data,
+      INET_ADDRSTRLEN);
   }
 
   return std::string { data };
@@ -467,26 +466,26 @@ std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_
   auto family = ip_addr->sa_family;
   std::uint16_t port;
   if(family == AF_INET6) {
-    inet_ntop(AF_INET6, &((sockaddr_in6*)ip_addr)->sin6_addr, data,
-    INET6_ADDRSTRLEN);
-    port = ((sockaddr_in6*) ip_addr)->sin6_port;
+    inet_ntop(AF_INET6, &((sockaddr_in6 *)ip_addr)->sin6_addr, data,
+      INET6_ADDRSTRLEN);
+    port = ((sockaddr_in6 *)ip_addr)->sin6_port;
   }
 
   if(family == AF_INET) {
-    inet_ntop(AF_INET, &((sockaddr_in*)ip_addr)->sin_addr, data,
-    INET_ADDRSTRLEN);
-    port = ((sockaddr_in*) ip_addr)->sin_port;
+    inet_ntop(AF_INET, &((sockaddr_in *)ip_addr)->sin_addr, data,
+      INET_ADDRSTRLEN);
+    port = ((sockaddr_in *)ip_addr)->sin_port;
   }
 
-  return { port, std::string {data} };
+  return { port, std::string { data } };
 }
 
 std::string get_mac_address(const std::string_view &address) {
   auto ifaddrs = get_ifaddrs();
-  for (auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
-    if (pos->ifa_addr && address == from_sockaddr(pos->ifa_addr)) {
+  for(auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
+    if(pos->ifa_addr && address == from_sockaddr(pos->ifa_addr)) {
       std::ifstream mac_file("/sys/class/net/"s + pos->ifa_name + "/address");
-      if (mac_file.good()) {
+      if(mac_file.good()) {
         std::string mac_address;
         std::getline(mac_file, mac_address);
         return mac_address;
@@ -504,4 +503,4 @@ void freeImage(XImage *p) {
 void freeX(XFixesCursorImage *p) {
   XFree(p);
 }
-}
+} // namespace platf

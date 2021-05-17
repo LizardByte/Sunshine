@@ -5,11 +5,11 @@
 #ifndef SUNSHINE_THREAD_SAFE_H
 #define SUNSHINE_THREAD_SAFE_H
 
-#include <vector>
-#include <mutex>
-#include <condition_variable>
 #include <atomic>
+#include <condition_variable>
 #include <functional>
+#include <mutex>
+#include <vector>
 
 #include "utility.h"
 
@@ -19,14 +19,14 @@ class event_t {
   using status_t = util::optional_t<T>;
 
 public:
-  template<class...Args>
+  template<class... Args>
   void raise(Args &&...args) {
     std::lock_guard lg { _lock };
     if(!_continue) {
       return;
     }
 
-    if constexpr (std::is_same_v<std::optional<T>, status_t>) {
+    if constexpr(std::is_same_v<std::optional<T>, status_t>) {
       _status = std::make_optional<T>(std::forward<Args>(args)...);
     }
     else {
@@ -38,42 +38,42 @@ public:
 
   // pop and view shoud not be used interchangebly
   status_t pop() {
-    std::unique_lock ul{ _lock };
+    std::unique_lock ul { _lock };
 
-    if (!_continue) {
+    if(!_continue) {
       return util::false_v<status_t>;
     }
 
-    while (!_status) {
+    while(!_status) {
       _cv.wait(ul);
 
-      if (!_continue) {
+      if(!_continue) {
         return util::false_v<status_t>;
       }
     }
 
     auto val = std::move(_status);
-    _status = util::false_v<status_t>;
+    _status  = util::false_v<status_t>;
     return val;
   }
 
   // pop and view shoud not be used interchangebly
   template<class Rep, class Period>
   status_t pop(std::chrono::duration<Rep, Period> delay) {
-    std::unique_lock ul{ _lock };
+    std::unique_lock ul { _lock };
 
-    if (!_continue) {
+    if(!_continue) {
       return util::false_v<status_t>;
     }
 
-    while (!_status) {
-      if (!_continue || _cv.wait_for(ul, delay) == std::cv_status::timeout) {
+    while(!_status) {
+      if(!_continue || _cv.wait_for(ul, delay) == std::cv_status::timeout) {
         return util::false_v<status_t>;
       }
     }
 
     auto val = std::move(_status);
-    _status = util::false_v<status_t>;
+    _status  = util::false_v<status_t>;
     return val;
   }
 
@@ -81,14 +81,14 @@ public:
   const status_t &view() {
     std::unique_lock ul { _lock };
 
-    if (!_continue) {
+    if(!_continue) {
       return util::false_v<status_t>;
     }
 
-    while (!_status) {
+    while(!_status) {
       _cv.wait(ul);
 
-      if (!_continue) {
+      if(!_continue) {
         return util::false_v<status_t>;
       }
     }
@@ -103,7 +103,7 @@ public:
   }
 
   void stop() {
-    std::lock_guard lg{ _lock };
+    std::lock_guard lg { _lock };
 
     _continue = false;
 
@@ -111,7 +111,7 @@ public:
   }
 
   void reset() {
-    std::lock_guard lg{ _lock };
+    std::lock_guard lg { _lock };
 
     _continue = true;
 
@@ -121,8 +121,8 @@ public:
   [[nodiscard]] bool running() const {
     return _continue;
   }
-private:
 
+private:
   bool _continue { true };
   status_t _status { util::false_v<status_t> };
 
@@ -137,8 +137,8 @@ class queue_t {
 public:
   queue_t(std::uint32_t max_elements) : _max_elements { max_elements } {}
 
-  template<class ...Args>
-  void raise(Args &&... args) {
+  template<class... Args>
+  void raise(Args &&...args) {
     std::lock_guard ul { _lock };
 
     if(!_continue) {
@@ -164,12 +164,12 @@ public:
   status_t pop(std::chrono::duration<Rep, Period> delay) {
     std::unique_lock ul { _lock };
 
-    if (!_continue) {
+    if(!_continue) {
       return util::false_v<status_t>;
     }
 
-    while (_queue.empty()) {
-      if (!_continue || _cv.wait_for(ul, delay) == std::cv_status::timeout) {
+    while(_queue.empty()) {
+      if(!_continue || _cv.wait_for(ul, delay) == std::cv_status::timeout) {
         return util::false_v<status_t>;
       }
     }
@@ -183,14 +183,14 @@ public:
   status_t pop() {
     std::unique_lock ul { _lock };
 
-    if (!_continue) {
+    if(!_continue) {
       return util::false_v<status_t>;
     }
 
-    while (_queue.empty()) {
+    while(_queue.empty()) {
       _cv.wait(ul);
 
-      if (!_continue) {
+      if(!_continue) {
         return util::false_v<status_t>;
       }
     }
@@ -219,7 +219,6 @@ public:
   }
 
 private:
-
   bool _continue { true };
   std::uint32_t _max_elements;
 
@@ -235,7 +234,7 @@ public:
   using element_type = T;
 
   using construct_f = std::function<int(element_type &)>;
-  using destruct_f = std::function<void(element_type &)>;
+  using destruct_f  = std::function<void(element_type &)>;
 
   struct ptr_t {
     shared_t *owner;
@@ -252,7 +251,7 @@ public:
         return;
       }
 
-      auto tmp = ptr.owner->ref();
+      auto tmp  = ptr.owner->ref();
       tmp.owner = nullptr;
     }
 
@@ -282,7 +281,7 @@ public:
       }
     }
 
-    operator bool () const {
+    operator bool() const {
       return owner != nullptr;
     }
 
@@ -298,22 +297,22 @@ public:
     }
 
     element_type *get() const {
-      return reinterpret_cast<element_type*>(owner->_object_buf.data());
+      return reinterpret_cast<element_type *>(owner->_object_buf.data());
     }
 
     element_type *operator->() {
-      return reinterpret_cast<element_type*>(owner->_object_buf.data());
+      return reinterpret_cast<element_type *>(owner->_object_buf.data());
     }
   };
 
   template<class FC, class FD>
-  shared_t(FC && fc, FD &&fd) : _construct { std::forward<FC>(fc) }, _destruct { std::forward<FD>(fd) } {}
+  shared_t(FC &&fc, FD &&fd) : _construct { std::forward<FC>(fc) }, _destruct { std::forward<FD>(fd) } {}
   [[nodiscard]] ptr_t ref() {
     std::lock_guard lg { _lock };
 
     if(!_count) {
       new(_object_buf.data()) element_type;
-      if(_construct(*reinterpret_cast<element_type*>(_object_buf.data()))) {
+      if(_construct(*reinterpret_cast<element_type *>(_object_buf.data()))) {
         return ptr_t { nullptr };
       }
     }
@@ -322,6 +321,7 @@ public:
 
     return ptr_t { this };
   }
+
 private:
   construct_f _construct;
   destruct_f _destruct;
@@ -340,6 +340,6 @@ auto make_shared(F_Construct &&fc, F_Destruct &&fd) {
 }
 
 using signal_t = event_t<bool>;
-}
+} // namespace safe
 
 #endif //SUNSHINE_THREAD_SAFE_H

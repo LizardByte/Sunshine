@@ -2,9 +2,9 @@
 // Created by loki on 12/27/19.
 //
 
-#include <algorithm>
 #include "network.h"
 #include "utility.h"
+#include <algorithm>
 
 namespace net {
 using namespace std::literals;
@@ -21,17 +21,17 @@ std::vector<std::tuple<std::uint32_t, std::uint32_t>> lan_ips {
 };
 
 std::uint32_t ip(const std::string_view &ip_str) {
-  auto begin = std::begin(ip_str);
-  auto end = std::end(ip_str);
+  auto begin    = std::begin(ip_str);
+  auto end      = std::end(ip_str);
   auto temp_end = std::find(begin, end, '.');
 
   std::uint32_t ip = 0;
-  auto shift = 24;
+  auto shift       = 24;
   while(temp_end != end) {
     ip += (util::from_chars(begin, temp_end) << shift);
     shift -= 8;
 
-    begin = temp_end + 1;
+    begin    = temp_end + 1;
     temp_end = std::find(begin, end, '.');
   }
 
@@ -43,7 +43,7 @@ std::uint32_t ip(const std::string_view &ip_str) {
 // In the format "xxx.xxx.xxx.xxx/x"
 std::pair<std::uint32_t, std::uint32_t> ip_block(const std::string_view &ip_str) {
   auto begin = std::begin(ip_str);
-  auto end = std::find(begin, std::end(ip_str), '/');
+  auto end   = std::find(begin, std::end(ip_str), '/');
 
   auto addr = ip({ begin, (std::size_t)(end - begin) });
 
@@ -82,12 +82,12 @@ net_e from_address(const std::string_view &view) {
 
 std::string_view to_enum_string(net_e net) {
   switch(net) {
-    case PC:
-      return "pc"sv;
-    case LAN:
-      return "lan"sv;
-    case WAN:
-      return "wan"sv;
+  case PC:
+    return "pc"sv;
+  case LAN:
+    return "lan"sv;
+  case WAN:
+    return "wan"sv;
   }
 
   // avoid warning
@@ -112,4 +112,4 @@ void free_host(ENetHost *host) {
 
   enet_host_destroy(host);
 }
-}
+} // namespace net

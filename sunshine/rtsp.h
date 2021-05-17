@@ -21,6 +21,6 @@ int session_count();
 
 void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event);
 
-}
+} // namespace stream
 
 #endif //SUNSHINE_RTSP_H

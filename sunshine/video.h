@@ -5,9 +5,9 @@
 #ifndef SUNSHINE_VIDEO_H
 #define SUNSHINE_VIDEO_H
 
-#include "thread_safe.h"
 #include "input.h"
 #include "platform/common.h"
+#include "thread_safe.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -18,15 +18,15 @@ namespace video {
 
 struct packet_raw_t : public AVPacket {
   void init_packet() {
-    pts                  = AV_NOPTS_VALUE;
-    dts                  = AV_NOPTS_VALUE;
-    pos                  = -1;
-    duration             = 0;
-    flags                = 0;
-    stream_index         = 0;
-    buf                  = nullptr;
-    side_data            = nullptr;
-    side_data_elems      = 0;
+    pts             = AV_NOPTS_VALUE;
+    dts             = AV_NOPTS_VALUE;
+    pos             = -1;
+    duration        = 0;
+    flags           = 0;
+    stream_index    = 0;
+    buf             = nullptr;
+    side_data       = nullptr;
+    side_data_elems = 0;
   }
 
   template<class P>
@@ -70,6 +70,6 @@ void capture(
   void *channel_data);
 
 int init();
-}
+} // namespace video
 
 #endif //SUNSHINE_VIDEO_H
