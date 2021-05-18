@@ -97,6 +97,7 @@ else()
 	find_package(FFmpeg REQUIRED)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux/display.cpp
+		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp)
 	
 	set(PLATFORM_LIBRARIES

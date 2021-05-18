@@ -25,7 +25,9 @@ struct opus_stream_config_t {
 constexpr std::uint8_t map_stereo[] { 0, 1 };
 constexpr std::uint8_t map_surround51[] { 0, 4, 1, 5, 2, 3 };
 constexpr std::uint8_t map_high_surround51[] { 0, 1, 2, 3, 4, 5 };
-constexpr auto SAMPLE_RATE         = 48000;
+
+constexpr auto SAMPLE_RATE = 48000;
+
 static opus_stream_config_t stereo = {
   SAMPLE_RATE,
   2,
@@ -79,7 +81,78 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
   }
 }
 
+const platf::card_t *active_card(const std::vector<platf::card_t> &cards) {
+  for(auto &card : cards) {
+    if(card.active_profile) {
+      return &card;
+    }
+  }
+
+  return nullptr;
+}
+
 void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t config, void *channel_data) {
+  //FIXME: Pick correct opus_stream_config_t based on config.channels
+  auto stream = &stereo;
+
+  auto control = platf::audio_control();
+  if(!control) {
+    BOOST_LOG(error) << "Couldn't create audio control"sv;
+
+    return;
+  }
+
+  auto cards = control->card_info();
+  if(cards.empty()) {
+    return;
+  }
+
+  auto card = active_card(cards);
+  if(!card || (card->stereo.empty() && card->surround51.empty() && card->surround71.empty())) {
+    return;
+  }
+
+  const platf::profile_t *profile;
+  switch(config.channels) {
+  case 2:
+    if(!card->stereo.empty()) {
+      profile = &card->stereo[0];
+    }
+    else if(!card->surround51.empty()) {
+      profile = &card->surround51[0];
+    }
+    else if(!card->surround71.empty()) {
+      profile = &card->surround71[0];
+    }
+    break;
+  case 6:
+    if(!card->surround51.empty()) {
+      profile = &card->surround51[0];
+    }
+    else if(!card->surround71.empty()) {
+      profile = &card->surround71[0];
+    }
+    else {
+      profile = &card->stereo[0];
+    }
+    break;
+  case 8:
+    if(!card->surround71.empty()) {
+      profile = &card->surround71[0];
+    }
+    else if(!card->surround51.empty()) {
+      profile = &card->surround51[0];
+    }
+    else {
+      profile = &card->stereo[0];
+    }
+    break;
+  }
+
+  if(control->set_output(*card, *profile)) {
+    return;
+  }
+
   auto samples = std::make_shared<sample_queue_t::element_type>(30);
   std::thread thread { encodeThread, packets, samples, config, channel_data };
 
@@ -90,13 +163,10 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
     shutdown_event->view();
   });
 
-  //FIXME: Pick correct opus_stream_config_t based on config.channels
-  auto stream = &stereo;
-
   auto frame_size       = config.packetDuration * stream->sampleRate / 1000;
   int samples_per_frame = frame_size * stream->channelCount;
 
-  auto mic = platf::microphone(stream->sampleRate, frame_size);
+  auto mic = control->create_mic(stream->sampleRate, frame_size);
   if(!mic) {
     BOOST_LOG(error) << "Couldn't create audio input"sv;
 
@@ -115,7 +185,7 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
       continue;
     case platf::capture_e::reinit:
       mic.reset();
-      mic = platf::microphone(stream->sampleRate, frame_size);
+      mic = control->create_mic(stream->sampleRate, frame_size);
       if(!mic) {
         BOOST_LOG(error) << "Couldn't re-initialize audio input"sv;
 

@@ -6,6 +6,7 @@
 #define SUNSHINE_COMMON_H
 
 #include "sunshine/utility.h"
+#include <bitset>
 #include <mutex>
 #include <string>
 
@@ -101,6 +102,23 @@ public:
   virtual ~img_t() = default;
 };
 
+struct profile_t {
+  std::string name;
+  std::string description;
+
+  bool available;
+};
+
+struct card_t {
+  std::string name;
+  std::string description;
+
+  std::optional<profile_t> active_profile;
+  std::vector<profile_t> stereo;
+  std::vector<profile_t> surround51;
+  std::vector<profile_t> surround71;
+};
+
 struct hwdevice_t {
   void *data {};
   platf::img_t *img {};
@@ -148,6 +166,16 @@ public:
   virtual ~mic_t() = default;
 };
 
+class audio_control_t {
+public:
+  virtual int set_output(const card_t &card, const profile_t &) = 0;
+
+  virtual std::unique_ptr<mic_t> create_mic(std::uint32_t sample_rate, std::uint32_t frame_size) = 0;
+
+  virtual std::vector<card_t> card_info() = 0;
+
+  virtual ~audio_control_t() = default;
+};
 
 void freeInput(void *);
 
@@ -158,6 +186,7 @@ std::string get_mac_address(const std::string_view &address);
 std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
+std::unique_ptr<audio_control_t> audio_control();
 std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate, std::uint32_t frame_size);
 std::shared_ptr<display_t> display(dev_type_e hwdevice_type);
 

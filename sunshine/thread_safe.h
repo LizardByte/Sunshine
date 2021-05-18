@@ -16,9 +16,9 @@
 namespace safe {
 template<class T>
 class event_t {
+public:
   using status_t = util::optional_t<T>;
 
-public:
   template<class... Args>
   void raise(Args &&...args) {
     std::lock_guard lg { _lock };
@@ -131,10 +131,97 @@ private:
 };
 
 template<class T>
-class queue_t {
+class alarm_raw_t {
+public:
   using status_t = util::optional_t<T>;
 
+  alarm_raw_t() : _status { util::false_v<status_t> } {}
+
+  void ring(const status_t &status) {
+    std::lock_guard lg(_lock);
+
+    _status = status;
+    _cv.notify_one();
+  }
+
+  void ring(status_t &&status) {
+    std::lock_guard lg(_lock);
+
+    _status = std::move(status);
+    _cv.notify_one();
+  }
+
+  template<class Rep, class Period>
+  auto wait_for(const std::chrono::duration<Rep, Period> &rel_time) {
+    std::unique_lock ul(_lock);
+
+    return _cv.wait_for(ul, rel_time, [this]() { return (bool)status(); });
+  }
+
+  template<class Rep, class Period, class Pred>
+  auto wait_for(const std::chrono::duration<Rep, Period> &rel_time, Pred &&pred) {
+    std::unique_lock ul(_lock);
+
+    return _cv.wait_for(ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
+  }
+
+  template<class Rep, class Period>
+  auto wait_until(const std::chrono::duration<Rep, Period> &rel_time) {
+    std::unique_lock ul(_lock);
+
+    return _cv.wait_until(ul, rel_time, [this]() { return (bool)status(); });
+  }
+
+  template<class Rep, class Period, class Pred>
+  auto wait_until(const std::chrono::duration<Rep, Period> &rel_time, Pred &&pred) {
+    std::unique_lock ul(_lock);
+
+    return _cv.wait_until(ul, rel_time, [this, &pred]() { return (bool)status() || pred(); });
+  }
+
+  auto wait() {
+    std::unique_lock ul(_lock);
+    _cv.wait(ul, [this]() { return (bool)status(); });
+  }
+
+  template<class Pred>
+  auto wait(Pred &&pred) {
+    std::unique_lock ul(_lock);
+    _cv.wait(ul, [this, &pred]() { return (bool)status() || pred(); });
+  }
+
+  const status_t &status() const {
+    return _status;
+  }
+
+  status_t &status() {
+    return _status;
+  }
+
+  void reset() {
+    _status = status_t {};
+  }
+
+private:
+  std::mutex _lock;
+  std::condition_variable _cv;
+
+  status_t _status;
+};
+
+template<class T>
+using alarm_t = std::shared_ptr<alarm_raw_t<T>>;
+
+template<class T>
+alarm_t<T> make_alarm() {
+  return std::make_shared<alarm_raw_t<T>>();
+}
+
+template<class T>
+class queue_t {
 public:
+  using status_t = util::optional_t<T>;
+
   queue_t(std::uint32_t max_elements) : _max_elements { max_elements } {}
 
   template<class... Args>
@@ -202,7 +289,6 @@ public:
   }
 
   std::vector<T> &unsafe() {
-    std::lock_guard { _lock };
     return _queue;
   }
 

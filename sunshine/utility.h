@@ -53,6 +53,10 @@
   auto &b             = std::get<1>(a##_##b##_##c); \
   auto &c             = std::get<2>(a##_##b##_##c)
 
+#define TUPLE_EL(a, b, expr)  \
+  decltype(expr) a##_ = expr; \
+  auto &a             = std::get<b>(a##_)
+
 namespace util {
 
 template<template<typename...> class X, class... Y>
@@ -830,6 +834,5 @@ inline auto little(T x) { return endian_helper<T>::little(x); }
 template<class T>
 inline auto big(T x) { return endian_helper<T>::big(x); }
 } // namespace endian
-
 } // namespace util
 #endif

@@ -4,7 +4,6 @@
 
 #include "sunshine/platform/common.h"
 
-#include <bitset>
 #include <fstream>
 
 #include <arpa/inet.h>
@@ -19,9 +18,6 @@
 #include <sys/shm.h>
 #include <xcb/shm.h>
 #include <xcb/xfixes.h>
-
-#include <pulse/error.h>
-#include <pulse/simple.h>
 
 #include "sunshine/config.h"
 #include "sunshine/main.h"
@@ -359,28 +355,6 @@ struct shm_attr_t : public x11_attr_t {
   }
 };
 
-struct mic_attr_t : public mic_t {
-  pa_sample_spec ss;
-  util::safe_ptr<pa_simple, pa_simple_free> mic;
-
-  explicit mic_attr_t(pa_sample_format format, std::uint32_t sample_rate,
-    std::uint8_t channels) : ss { format, sample_rate, channels }, mic {} {}
-
-  capture_e sample(std::vector<std::int16_t> &sample_buf) override {
-    auto sample_size = sample_buf.size();
-
-    auto buf = sample_buf.data();
-    int status;
-    if(pa_simple_read(mic.get(), buf, sample_size * 2, &status)) {
-      BOOST_LOG(error) << "pa_simple_read() failed: "sv << pa_strerror(status);
-
-      return capture_e::error;
-    }
-
-    return capture_e::ok;
-  }
-};
-
 std::shared_ptr<display_t> display(platf::dev_type_e hwdevice_type) {
   if(hwdevice_type != platf::dev_type_e::none) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
@@ -407,32 +381,6 @@ std::shared_ptr<display_t> display(platf::dev_type_e hwdevice_type) {
   }
 
   return x11_disp;
-}
-
-std::unique_ptr<mic_t> microphone(std::uint32_t sample_rate, std::uint32_t) {
-  auto mic = std::make_unique<mic_attr_t>(PA_SAMPLE_S16LE, sample_rate, 2);
-
-  int status;
-
-  const char *audio_sink = "@DEFAULT_MONITOR@";
-  if(!config::audio.sink.empty()) {
-    audio_sink = config::audio.sink.c_str();
-  }
-
-  mic->mic.reset(
-    pa_simple_new(nullptr, "sunshine",
-      pa_stream_direction_t::PA_STREAM_RECORD, audio_sink,
-      "sunshine-record", &mic->ss, nullptr, nullptr, &status));
-
-  if(!mic->mic) {
-    auto err_str = pa_strerror(status);
-    BOOST_LOG(error) << "pa_simple_new() failed: "sv << err_str;
-
-    log_flush();
-    std::abort();
-  }
-
-  return mic;
 }
 
 ifaddr_t get_ifaddrs() {
