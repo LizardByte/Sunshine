@@ -30,6 +30,36 @@ constexpr std::uint16_t B            = 0x2000;
 constexpr std::uint16_t X            = 0x4000;
 constexpr std::uint16_t Y            = 0x8000;
 
+namespace speaker {
+enum speaker_e {
+  FRONT_LEFT,
+  FRONT_RIGHT,
+  FRONT_CENTER,
+  LOW_FREQUENCY,
+  BACK_LEFT,
+  BACK_RIGHT,
+  SIDE_LEFT,
+  SIDE_RIGHT,
+};
+
+constexpr std::uint8_t map_stereo[] {
+  FRONT_LEFT, FRONT_RIGHT
+};
+constexpr std::uint8_t map_surround51[] {
+  FRONT_LEFT, BACK_LEFT, FRONT_RIGHT, BACK_RIGHT, FRONT_CENTER, LOW_FREQUENCY
+};
+constexpr std::uint8_t map_surround71[] {
+  FRONT_LEFT,
+  BACK_LEFT,
+  FRONT_RIGHT,
+  BACK_RIGHT,
+  SIDE_LEFT,
+  SIDE_RIGHT,
+  FRONT_CENTER,
+  LOW_FREQUENCY,
+};
+} // namespace speaker
+
 enum class dev_type_e {
   none,
   dxgi,
@@ -102,21 +132,18 @@ public:
   virtual ~img_t() = default;
 };
 
-struct profile_t {
-  std::string name;
-  std::string description;
+struct sink_t {
+  // Play on host PC
+  std::string host;
 
-  bool available;
-};
-
-struct card_t {
-  std::string name;
-  std::string description;
-
-  std::optional<profile_t> active_profile;
-  std::vector<profile_t> stereo;
-  std::vector<profile_t> surround51;
-  std::vector<profile_t> surround71;
+  // On Windows, it is not possible to create a virtual sink
+  // Therefore, it is optional
+  struct null_t {
+    std::string stereo;
+    std::string surround51;
+    std::string surround71;
+  };
+  std::optional<null_t> null;
 };
 
 struct hwdevice_t {
@@ -168,11 +195,11 @@ public:
 
 class audio_control_t {
 public:
-  virtual int set_output(const card_t &card, const profile_t &) = 0;
+  virtual int set_sink(const std::string &sink) = 0;
 
-  virtual std::unique_ptr<mic_t> create_mic(std::uint32_t sample_rate, std::uint32_t frame_size) = 0;
+  virtual std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) = 0;
 
-  virtual std::vector<card_t> card_info() = 0;
+  virtual std::optional<sink_t> sink_info() = 0;
 
   virtual ~audio_control_t() = default;
 };

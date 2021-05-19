@@ -117,9 +117,7 @@ void save_state() {
 }
 
 void load_state() {
-  auto file_state = fs::current_path() / config::nvhttp.file_state;
-
-  if(!fs::exists(file_state)) {
+  if(!fs::exists(config::nvhttp.file_state)) {
     unique_id = util::uuid_t::generate().string();
     return;
   }

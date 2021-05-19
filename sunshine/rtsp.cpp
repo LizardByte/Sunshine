@@ -293,15 +293,22 @@ void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   auto seqn_str  = to_string(req->sequenceNumber);
   option.content = const_cast<char *>(seqn_str.c_str());
 
-  std::string_view payload;
-  if(config::video.hevc_mode == 1) {
-    payload = "surround-params=NONE"sv;
-  }
-  else {
-    payload = "sprop-parameter-sets=AAAAAU;surround-params=NONE"sv;
+  std::stringstream ss;
+  if(config::video.hevc_mode != 1) {
+    ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
   }
 
-  respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, payload);
+  for(auto &stream_config : audio::stream_configs) {
+    ss << "a=fmtp:97 surround-params="sv << stream_config.channelCount << stream_config.streams << stream_config.coupledStreams;
+
+    std::for_each_n(stream_config.mapping, stream_config.channelCount, [&ss](std::uint8_t digit) {
+      ss << (char)(digit + '0');
+    });
+
+    ss << std::endl;
+  }
+
+  respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, ss.str());
 }
 
 void cmd_setup(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
@@ -404,6 +411,7 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   try {
     config.audio.channels       = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
     config.audio.mask           = util::from_view(args.at("x-nv-audio.surround.channelMask"sv));
+    config.audio.high_quality   = util::from_view(args.at("x-nv-audio.surround.AudioQuality"sv));
     config.audio.packetDuration = util::from_view(args.at("x-nv-aqos.packetDuration"sv));
 
     config.packetsize = util::from_view(args.at("x-nv-video[0].packetSize"sv));

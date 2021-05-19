@@ -5,6 +5,7 @@
 #include "platform/common.h"
 
 #include "audio.h"
+#include "config.h"
 #include "main.h"
 #include "thread_safe.h"
 #include "utility.h"
@@ -14,47 +15,65 @@ using namespace std::literals;
 using opus_t         = util::safe_ptr<OpusMSEncoder, opus_multistream_encoder_destroy>;
 using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<std::int16_t>>>;
 
-struct opus_stream_config_t {
-  std::int32_t sampleRate;
-  int channelCount;
-  int streams;
-  int coupledStreams;
-  const std::uint8_t *mapping;
+struct audio_ctx_t {
+  // We want to change the sink for the first stream only
+  std::unique_ptr<std::atomic_bool> sink_flag;
+  std::unique_ptr<platf::audio_control_t> control;
+
+  platf::sink_t sink;
 };
 
-constexpr std::uint8_t map_stereo[] { 0, 1 };
-constexpr std::uint8_t map_surround51[] { 0, 4, 1, 5, 2, 3 };
-constexpr std::uint8_t map_high_surround51[] { 0, 1, 2, 3, 4, 5 };
+static int start_audio_control(audio_ctx_t &ctx);
+static void stop_audio_control(audio_ctx_t &);
+
+int map_stream(int channels, bool quality);
 
 constexpr auto SAMPLE_RATE = 48000;
 
-static opus_stream_config_t stereo = {
-  SAMPLE_RATE,
-  2,
-  1,
-  1,
-  map_stereo
+opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
+  {
+    SAMPLE_RATE,
+    2,
+    1,
+    1,
+    platf::speaker::map_stereo,
+  },
+  {
+    SAMPLE_RATE,
+    6,
+    4,
+    2,
+    platf::speaker::map_surround51,
+  },
+  {
+    SAMPLE_RATE,
+    6,
+    6,
+    0,
+    platf::speaker::map_surround51,
+  },
+  {
+    SAMPLE_RATE,
+    8,
+    5,
+    3,
+    platf::speaker::map_surround71,
+  },
+  {
+    SAMPLE_RATE,
+    8,
+    8,
+    0,
+    platf::speaker::map_surround71,
+  },
 };
 
-static opus_stream_config_t Surround51 = {
-  SAMPLE_RATE,
-  6,
-  4,
-  2,
-  map_surround51
-};
-
-static opus_stream_config_t HighSurround51 = {
-  SAMPLE_RATE,
-  6,
-  6,
-  0,
-  map_high_surround51
-};
+auto control_shared = safe::make_shared<audio_ctx_t>(start_audio_control, stop_audio_control);
 
 void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t config, void *channel_data) {
   //FIXME: Pick correct opus_stream_config_t based on config.channels
-  auto stream = &stereo;
+  auto stream = &stream_configs[map_stream(config.channels, config.high_quality)];
+
   opus_t opus { opus_multistream_encoder_create(
     stream->sampleRate,
     stream->channelCount,
@@ -81,75 +100,43 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
   }
 }
 
-const platf::card_t *active_card(const std::vector<platf::card_t> &cards) {
-  for(auto &card : cards) {
-    if(card.active_profile) {
-      return &card;
-    }
-  }
-
-  return nullptr;
-}
-
 void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t config, void *channel_data) {
   //FIXME: Pick correct opus_stream_config_t based on config.channels
-  auto stream = &stereo;
+  auto stream = &stream_configs[map_stream(config.channels, config.high_quality)];
 
-  auto control = platf::audio_control();
+  auto ref = control_shared.ref();
+  if(!ref) {
+    return;
+  }
+
+  auto &control = ref->control;
   if(!control) {
     BOOST_LOG(error) << "Couldn't create audio control"sv;
 
     return;
   }
 
-  auto cards = control->card_info();
-  if(cards.empty()) {
-    return;
+  std::string *sink = &ref->sink.host;
+  if(ref->sink.null) {
+    auto &null = *ref->sink.null;
+    switch(stream->channelCount) {
+    case 2:
+      sink = &null.stereo;
+      break;
+    case 6:
+      sink = &null.surround51;
+      break;
+    case 8:
+      sink = &null.surround71;
+      break;
+    }
   }
 
-  auto card = active_card(cards);
-  if(!card || (card->stereo.empty() && card->surround51.empty() && card->surround71.empty())) {
-    return;
-  }
+  // Only the first may change the default sink
+  if(
+    !ref->sink_flag->exchange(true, std::memory_order_acquire) &&
+    control->set_sink(*sink)) {
 
-  const platf::profile_t *profile;
-  switch(config.channels) {
-  case 2:
-    if(!card->stereo.empty()) {
-      profile = &card->stereo[0];
-    }
-    else if(!card->surround51.empty()) {
-      profile = &card->surround51[0];
-    }
-    else if(!card->surround71.empty()) {
-      profile = &card->surround71[0];
-    }
-    break;
-  case 6:
-    if(!card->surround51.empty()) {
-      profile = &card->surround51[0];
-    }
-    else if(!card->surround71.empty()) {
-      profile = &card->surround71[0];
-    }
-    else {
-      profile = &card->stereo[0];
-    }
-    break;
-  case 8:
-    if(!card->surround71.empty()) {
-      profile = &card->surround71[0];
-    }
-    else if(!card->surround51.empty()) {
-      profile = &card->surround51[0];
-    }
-    else {
-      profile = &card->stereo[0];
-    }
-    break;
-  }
-
-  if(control->set_output(*card, *profile)) {
     return;
   }
 
@@ -166,7 +153,7 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
   auto frame_size       = config.packetDuration * stream->sampleRate / 1000;
   int samples_per_frame = frame_size * stream->channelCount;
 
-  auto mic = control->create_mic(stream->sampleRate, frame_size);
+  auto mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
   if(!mic) {
     BOOST_LOG(error) << "Couldn't create audio input"sv;
 
@@ -185,7 +172,7 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
       continue;
     case platf::capture_e::reinit:
       mic.reset();
-      mic = control->create_mic(stream->sampleRate, frame_size);
+      mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
       if(!mic) {
         BOOST_LOG(error) << "Couldn't re-initialize audio input"sv;
 
@@ -197,6 +184,43 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
     }
 
     samples->raise(std::move(sample_buffer));
+  }
+}
+
+int map_stream(int channels, bool quality) {
+  int shift = quality ? 1 : 0;
+  switch(channels) {
+  case 2:
+    return STEREO;
+  case 6:
+    return SURROUND51 + shift;
+  case 8:
+    return SURROUND71 + shift;
+  }
+  return STEREO;
+}
+
+int start_audio_control(audio_ctx_t &ctx) {
+  ctx.sink_flag = std::make_unique<std::atomic_bool>(false);
+
+  if(!(ctx.control = platf::audio_control())) {
+    return -1;
+  }
+
+  auto sink = ctx.control->sink_info();
+  if(!sink) {
+    return -1;
+  }
+
+  ctx.sink = std::move(*sink);
+  return 0;
+}
+void stop_audio_control(audio_ctx_t &ctx) {
+  // restore audio-sink if applicable
+  const std::string &sink = config::audio.sink.empty() ? ctx.sink.host : config::audio.sink;
+  if(!sink.empty()) {
+    // Best effort, it's allowed to fail
+    ctx.control->set_sink(sink);
   }
 }
 } // namespace audio
