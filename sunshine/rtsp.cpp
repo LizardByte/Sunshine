@@ -69,6 +69,7 @@ public:
   }
 
   void session_raise(launch_session_t launch_session) {
+    //FIXME: If client abandons us at this stage, _slot_count won't be raised again.
     --_slot_count;
     launch_event.raise(launch_session);
   }
@@ -408,11 +409,15 @@ void cmd_announce(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   args.try_emplace("x-nv-aqos.packetDuration"sv, "5"sv);
 
   config_t config;
+
+  config.audio.flags[audio::config_t::HOST_AUDIO] = launch_session->host_audio;
   try {
     config.audio.channels       = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
     config.audio.mask           = util::from_view(args.at("x-nv-audio.surround.channelMask"sv));
-    config.audio.high_quality   = util::from_view(args.at("x-nv-audio.surround.AudioQuality"sv));
     config.audio.packetDuration = util::from_view(args.at("x-nv-aqos.packetDuration"sv));
+
+    config.audio.flags[audio::config_t::HIGH_QUALITY] =
+      util::from_view(args.at("x-nv-audio.surround.AudioQuality"sv));
 
     config.packetsize = util::from_view(args.at("x-nv-video[0].packetSize"sv));
 

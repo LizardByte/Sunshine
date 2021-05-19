@@ -18,7 +18,6 @@ struct config_t {
   video::config_t monitor;
   int packetsize;
 
-  bool sops;
   std::optional<int> gcmap;
 };
 

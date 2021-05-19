@@ -164,6 +164,20 @@ void update_id_client(const std::string &uniqueID, std::string &&cert, op_e op) 
   }
 }
 
+stream::launch_session_t make_launch_session(bool host_audio, const args_t &args) {
+  stream::launch_session_t launch_session;
+
+  launch_session.host_audio = host_audio;
+  launch_session.gcm_key    = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
+  uint32_t prepend_iv       = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
+  auto prepend_iv_p         = (uint8_t *)&prepend_iv;
+
+  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
+  std::fill(next, std::end(launch_session.iv), 0);
+
+  return launch_session;
+}
+
 void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin) {
   if(sess.async_insert_pin.salt.size() < 32) {
     tree.put("root.paired", 0);
@@ -343,7 +357,6 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
 
   auto args = request->parse_query_string();
   if(args.find("uniqueid"s) == std::end(args)) {
-    tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 400);
 
     return;
@@ -523,7 +536,6 @@ void applist(resp_https_t response, req_https_t request) {
 
   auto args = request->parse_query_string();
   if(args.find("uniqueid"s) == std::end(args)) {
-    tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 400);
 
     return;
@@ -554,7 +566,7 @@ void applist(resp_https_t response, req_https_t request) {
   }
 }
 
-void launch(resp_https_t response, req_https_t request) {
+void launch(bool &host_audio, resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
   pt::ptree tree;
@@ -574,9 +586,9 @@ void launch(resp_https_t response, req_https_t request) {
 
   auto args = request->parse_query_string();
   if(
-    args.find("uniqueid"s) == std::end(args) ||
     args.find("rikey"s) == std::end(args) ||
-    args.find("rikey"s) == std::end(args) ||
+    args.find("rikeyid"s) == std::end(args) ||
+    args.find("localAudioPlayMode"s) == std::end(args) ||
     args.find("appid"s) == std::end(args)) {
 
     tree.put("root.resume", 0);
@@ -605,23 +617,14 @@ void launch(resp_https_t response, req_https_t request) {
     }
   }
 
-  stream::launch_session_t launch_session;
-
-  auto clientID          = args.at("uniqueid"s);
-  launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
-  uint32_t prepend_iv    = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
-  auto prepend_iv_p      = (uint8_t *)&prepend_iv;
-
-  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
-  std::fill(next, std::end(launch_session.iv), 0);
-
-  stream::launch_session_raise(launch_session);
+  host_audio = util::from_view(args.at("localAudioPlayMode"));
+  stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.gamesession", 1);
 }
 
-void resume(resp_https_t response, req_https_t request) {
+void resume(bool &host_audio, resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
   pt::ptree tree;
@@ -649,11 +652,8 @@ void resume(resp_https_t response, req_https_t request) {
     return;
   }
 
-  stream::launch_session_t launch_session;
-
   auto args = request->parse_query_string();
   if(
-    args.find("uniqueid"s) == std::end(args) ||
     args.find("rikey"s) == std::end(args) ||
     args.find("rikeyid"s) == std::end(args)) {
 
@@ -663,15 +663,7 @@ void resume(resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto clientID          = args.at("uniqueid"s);
-  launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
-  uint32_t prepend_iv    = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
-  auto prepend_iv_p      = (uint8_t *)&prepend_iv;
-
-  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
-  std::fill(next, std::end(launch_session.iv), 0);
-
-  stream::launch_session_raise(launch_session);
+  stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.resume", 1);
@@ -844,6 +836,9 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
     return 1;
   });
 
+  // /resume doesn't get the parameter "localAudioPlayMode"
+  // /launch will store it in host_audio
+  bool host_audio {};
 
   https_server_t https_server { ctx, boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once };
   http_server_t http_server;
@@ -853,9 +848,9 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   https_server.resource["^/pair$"]["GET"]         = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTPS>(add_cert, resp, req); };
   https_server.resource["^/applist$"]["GET"]      = applist;
   https_server.resource["^/appasset$"]["GET"]     = appasset;
-  https_server.resource["^/launch$"]["GET"]       = launch;
+  https_server.resource["^/launch$"]["GET"]       = [&host_audio](auto resp, auto req) { launch(host_audio, resp, req); };
   https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
-  https_server.resource["^/resume$"]["GET"]       = resume;
+  https_server.resource["^/resume$"]["GET"]       = [&host_audio](auto resp, auto req) { resume(host_audio, resp, req); };
   https_server.resource["^/cancel$"]["GET"]       = cancel;
 
   https_server.config.reuse_address = true;

@@ -24,11 +24,17 @@ struct opus_stream_config_t {
 extern opus_stream_config_t stream_configs[MAX_STREAM_CONFIG];
 
 struct config_t {
+  enum flags_e : int {
+    HIGH_QUALITY,
+    HOST_AUDIO,
+    MAX_FLAGS
+  };
+
   int packetDuration;
   int channels;
   int mask;
 
-  bool high_quality;
+  std::bitset<MAX_FLAGS> flags;
 };
 
 using packet_t       = util::buffer_t<std::uint8_t>;

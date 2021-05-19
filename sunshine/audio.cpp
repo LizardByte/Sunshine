@@ -18,8 +18,10 @@ using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<std::int16_t>>>
 struct audio_ctx_t {
   // We want to change the sink for the first stream only
   std::unique_ptr<std::atomic_bool> sink_flag;
+
   std::unique_ptr<platf::audio_control_t> control;
 
+  bool restore_sink;
   platf::sink_t sink;
 };
 
@@ -72,7 +74,7 @@ auto control_shared = safe::make_shared<audio_ctx_t>(start_audio_control, stop_a
 
 void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t config, void *channel_data) {
   //FIXME: Pick correct opus_stream_config_t based on config.channels
-  auto stream = &stream_configs[map_stream(config.channels, config.high_quality)];
+  auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
   opus_t opus { opus_multistream_encoder_create(
     stream->sampleRate,
@@ -102,7 +104,7 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
 
 void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t config, void *channel_data) {
   //FIXME: Pick correct opus_stream_config_t based on config.channels
-  auto stream = &stream_configs[map_stream(config.channels, config.high_quality)];
+  auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
   auto ref = control_shared.ref();
   if(!ref) {
@@ -116,7 +118,8 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
     return;
   }
 
-  std::string *sink = &ref->sink.host;
+  std::string *sink =
+    config::audio.sink.empty() ? &ref->sink.host : &config::audio.sink;
   if(ref->sink.null) {
     auto &null = *ref->sink.null;
     switch(stream->channelCount) {
@@ -132,12 +135,14 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
     }
   }
 
-  // Only the first may change the default sink
-  if(
-    !ref->sink_flag->exchange(true, std::memory_order_acquire) &&
-    control->set_sink(*sink)) {
+  // Only the first to start a session may change the default sink
+  if(!ref->sink_flag->exchange(true, std::memory_order_acquire)) {
+    ref->restore_sink = !config.flags[config_t::HOST_AUDIO];
 
-    return;
+    // If the client requests audio on the host, don't change the default sink
+    if(!config.flags[config_t::HOST_AUDIO] && control->set_sink(*sink)) {
+      return;
+    }
   }
 
   auto samples = std::make_shared<sample_queue_t::element_type>(30);
@@ -212,11 +217,18 @@ int start_audio_control(audio_ctx_t &ctx) {
     return -1;
   }
 
+  // The default sink has not been replaced yet.
+  ctx.restore_sink = false;
+
   ctx.sink = std::move(*sink);
   return 0;
 }
 void stop_audio_control(audio_ctx_t &ctx) {
   // restore audio-sink if applicable
+  if(!ctx.restore_sink) {
+    return;
+  }
+
   const std::string &sink = config::audio.sink.empty() ? ctx.sink.host : config::audio.sink;
   if(!sink.empty()) {
     // Best effort, it's allowed to fail
