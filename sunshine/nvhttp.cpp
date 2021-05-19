@@ -339,11 +339,18 @@ template<class T>
 void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
+  pt::ptree tree;
+
   auto args = request->parse_query_string();
+  if(args.find("uniqueid"s) == std::end(args)) {
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 400);
+
+    return;
+  }
+
   auto uniqID { std::move(args.at("uniqueid"s)) };
   auto sess_it = map_id_sess.find(uniqID);
-
-  pt::ptree tree;
 
   args_t::const_iterator it;
   if(it = args.find("phrase"); it != std::end(args)) {
@@ -505,9 +512,6 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 void applist(resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
-  auto args     = request->parse_query_string();
-  auto clientID = args.at("uniqueid"s);
-
   pt::ptree tree;
 
   auto g = util::fail_guard([&]() {
@@ -516,6 +520,16 @@ void applist(resp_https_t response, req_https_t request) {
     pt::write_xml(data, tree);
     response->write(data.str());
   });
+
+  auto args = request->parse_query_string();
+  if(args.find("uniqueid"s) == std::end(args)) {
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 400);
+
+    return;
+  }
+
+  auto clientID = args.at("uniqueid"s);
 
   auto client = map_id_client.find(clientID);
   if(client == std::end(map_id_client)) {
@@ -558,7 +572,19 @@ void launch(resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto args  = request->parse_query_string();
+  auto args = request->parse_query_string();
+  if(
+    args.find("uniqueid"s) == std::end(args) ||
+    args.find("rikey"s) == std::end(args) ||
+    args.find("rikey"s) == std::end(args) ||
+    args.find("appid"s) == std::end(args)) {
+
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 400);
+
+    return;
+  }
+
   auto appid = util::from_view(args.at("appid")) - 1;
 
   auto current_appid = proc::proc.running();
@@ -625,7 +651,18 @@ void resume(resp_https_t response, req_https_t request) {
 
   stream::launch_session_t launch_session;
 
-  auto args              = request->parse_query_string();
+  auto args = request->parse_query_string();
+  if(
+    args.find("uniqueid"s) == std::end(args) ||
+    args.find("rikey"s) == std::end(args) ||
+    args.find("rikeyid"s) == std::end(args)) {
+
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 400);
+
+    return;
+  }
+
   auto clientID          = args.at("uniqueid"s);
   launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
   uint32_t prepend_iv    = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
