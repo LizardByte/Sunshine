@@ -2,11 +2,14 @@
 #include <iomanip>
 #include <sstream>
 
+// prevent clang format from "optimizing" the header include order
+// clang-format off
+#include <winsock2.h>
 #include <iphlpapi.h>
 #include <windows.h>
-#include <winsock2.h>
 #include <winuser.h>
 #include <ws2tcpip.h>
+// clang-format on
 
 #include <ViGEm/Client.h>
 

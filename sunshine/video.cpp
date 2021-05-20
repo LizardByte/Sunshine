@@ -315,6 +315,7 @@ static encoder_t software {
     // It also looks like gop_size isn't passed on to x265, so we have to set
     // 'keyint=-1' in the parameters ourselves.
     {
+      { "forced-idr"s, 1 },
       { "x265-params"s, "info=0:keyint=-1"s },
       { "preset"s, &config::video.sw.preset },
       { "tune"s, &config::video.sw.tune } },
