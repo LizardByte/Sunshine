@@ -87,7 +87,17 @@ struct format_t {
       SPEAKER_FRONT_CENTER |
       SPEAKER_LOW_FREQUENCY |
       SPEAKER_BACK_LEFT |
-      SPEAKER_BACK_RIGHT }
+      SPEAKER_BACK_RIGHT },
+  { "Surround 7.1"sv,
+    8,
+    SPEAKER_FRONT_LEFT |
+      SPEAKER_FRONT_RIGHT |
+      SPEAKER_FRONT_CENTER |
+      SPEAKER_LOW_FREQUENCY |
+      SPEAKER_BACK_LEFT |
+      SPEAKER_BACK_RIGHT |
+      SPEAKER_SIDE_LEFT |
+      SPEAKER_SIDE_RIGHT }
 };
 
 void set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
@@ -285,7 +295,7 @@ int main(int argc, char *argv[]) {
   }
 
   audio::collection_t collection;
-  status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATEMASK_ALL, &collection);
+  status = device_enum->EnumAudioEndpoints(eRender, device_state_filter, &collection);
 
   if(FAILED(status)) {
     std::cout << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
@@ -296,7 +306,7 @@ int main(int argc, char *argv[]) {
   UINT count;
   collection->GetCount(&count);
 
-  std::cout << "====== Found "sv << count << " potential audio devices ======"sv << std::endl;
+  std::cout << "====== Found "sv << count << " audio devices ======"sv << std::endl;
   for(auto x = 0; x < count; ++x) {
     audio::device_t device;
     collection->Item(x, &device);
