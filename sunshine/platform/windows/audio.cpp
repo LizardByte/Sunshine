@@ -259,10 +259,10 @@ const wchar_t *no_null(const wchar_t *str) {
   return str ? str : L"Unknown";
 }
 
-format_t::type_e validate_device(device_t &device) {
+format_t::type_e validate_device(device_t &device, int sample_rate) {
   for(const auto &format : formats) {
     // Ensure WaveFromat is compatible
-    auto audio_client = make_audio_client(device, format, SAMPLE_RATE);
+    auto audio_client = make_audio_client(device, format, sample_rate);
 
     BOOST_LOG(debug) << format.name << ": "sv << !audio_client ? "unsupported"sv : "supported"sv;
 
@@ -550,13 +550,13 @@ public:
     UINT count;
     collection->GetCount(&count);
 
-    std::string virtual_device_id;
+    std::string virtual_device_id = config::audio.virtual_sink;
     BOOST_LOG(debug) << "====== Found "sv << count << " potential audio devices ======"sv;
     for(auto x = 0; x < count; ++x) {
       audio::device_t device;
       collection->Item(x, &device);
 
-      auto type = validate_device(device);
+      auto type = validate_device(device, SAMPLE_RATE);
       if(type == format_t::none) {
         continue;
       }

@@ -39,6 +39,7 @@ struct video_t {
 
 struct audio_t {
   std::string sink;
+  std::string virtual_sink;
 };
 
 struct stream_t {
