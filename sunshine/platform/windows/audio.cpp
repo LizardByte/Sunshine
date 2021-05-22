@@ -81,6 +81,257 @@ public:
   PROPVARIANT prop;
 };
 
+class audio_pipe_t {
+public:
+  static constexpr auto stereo     = 2;
+  static constexpr auto channels51 = 6;
+  static constexpr auto channels71 = 8;
+
+  using samples_t = std::vector<std::int16_t>;
+  using buf_t     = util::buffer_t<std::int16_t>;
+
+  virtual void to_stereo(samples_t &out, const buf_t &in) = 0;
+  virtual void to_51(samples_t &out, const buf_t &in)     = 0;
+  virtual void to_71(samples_t &out, const buf_t &in)     = 0;
+};
+
+class mono_t : public audio_pipe_t {
+public:
+  void to_stereo(samples_t &out, const buf_t &in) override {
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end;) {
+      *sample_out_p++ = *sample_in_pos * 7 / 10;
+      *sample_out_p++ = *sample_in_pos++ * 7 / 10;
+    }
+  }
+
+  void to_51(samples_t &out, const buf_t &in) override {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += channels51) {
+      int left = *sample_in_pos++;
+
+      auto fl = (left * 7 / 10);
+
+      sample_out_p[FRONT_LEFT]    = fl;
+      sample_out_p[FRONT_RIGHT]   = fl;
+      sample_out_p[FRONT_CENTER]  = fl * 6;
+      sample_out_p[LOW_FREQUENCY] = fl / 10;
+      sample_out_p[BACK_LEFT]     = left * 4 / 10;
+      sample_out_p[BACK_RIGHT]    = left * 4 / 10;
+    }
+  }
+
+  void to_71(samples_t &out, const buf_t &in) override {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += channels71) {
+      int left = *sample_in_pos++;
+
+      auto fl = (left * 7 / 10);
+
+      sample_out_p[FRONT_LEFT]    = fl;
+      sample_out_p[FRONT_RIGHT]   = fl;
+      sample_out_p[FRONT_CENTER]  = fl * 6;
+      sample_out_p[LOW_FREQUENCY] = fl / 10;
+      sample_out_p[BACK_LEFT]     = left * 4 / 10;
+      sample_out_p[BACK_RIGHT]    = left * 4 / 10;
+      sample_out_p[SIDE_LEFT]     = left * 5 / 10;
+      sample_out_p[SIDE_RIGHT]    = left * 5 / 10;
+    }
+  }
+};
+
+class stereo_t : public audio_pipe_t {
+public:
+  void to_stereo(samples_t &out, const buf_t &in) override {
+    std::copy_n(std::begin(in), out.size(), std::begin(out));
+  }
+
+  void to_51(samples_t &out, const buf_t &in) override {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += channels51) {
+      int left  = sample_in_pos[speaker::FRONT_LEFT];
+      int right = sample_in_pos[speaker::FRONT_RIGHT];
+
+      sample_in_pos += 2;
+
+      auto fl = (left * 7 / 10);
+      auto fr = (right * 7 / 10);
+
+      auto mix = (fl + fr) / 2;
+
+      sample_out_p[FRONT_LEFT]    = fl;
+      sample_out_p[FRONT_RIGHT]   = fr;
+      sample_out_p[FRONT_CENTER]  = mix;
+      sample_out_p[LOW_FREQUENCY] = mix / 2;
+      sample_out_p[BACK_LEFT]     = left * 4 / 10;
+      sample_out_p[BACK_RIGHT]    = right * 4 / 10;
+    }
+  }
+
+  void to_71(samples_t &out, const buf_t &in) override {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += channels71) {
+      int left  = sample_in_pos[speaker::FRONT_LEFT];
+      int right = sample_in_pos[speaker::FRONT_RIGHT];
+
+      sample_in_pos += 2;
+
+      auto fl = (left * 7 / 10);
+      auto fr = (right * 7 / 10);
+
+      auto mix = (fl + fr) / 2;
+
+      sample_out_p[FRONT_LEFT]    = fl;
+      sample_out_p[FRONT_RIGHT]   = fr;
+      sample_out_p[FRONT_CENTER]  = mix;
+      sample_out_p[LOW_FREQUENCY] = mix / 2;
+      sample_out_p[BACK_LEFT]     = left * 4 / 10;
+      sample_out_p[BACK_RIGHT]    = right * 4 / 10;
+      sample_out_p[SIDE_LEFT]     = left * 5 / 10;
+      sample_out_p[SIDE_RIGHT]    = right * 5 / 10;
+    }
+  }
+};
+
+class surr51_t : public audio_pipe_t {
+public:
+  void to_stereo(samples_t &out, const buf_t &in) {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += stereo) {
+      int left {}, right {};
+
+      left += sample_in_pos[FRONT_LEFT];
+      left += sample_in_pos[FRONT_CENTER] * 9 / 10;
+      left += sample_in_pos[LOW_FREQUENCY] * 3 / 10;
+      left += sample_in_pos[BACK_LEFT] * 7 / 10;
+      left += sample_in_pos[BACK_RIGHT] * 3 / 10;
+
+      right += sample_in_pos[FRONT_RIGHT];
+      right += sample_in_pos[FRONT_CENTER] * 9 / 10;
+      right += sample_in_pos[LOW_FREQUENCY] * 3 / 10;
+      right += sample_in_pos[BACK_LEFT] * 3 / 10;
+      right += sample_in_pos[BACK_RIGHT] * 7 / 10;
+
+      sample_out_p[0] = left;
+      sample_out_p[1] = right;
+
+      sample_in_pos += channels51;
+    }
+  }
+
+  void to_51(samples_t &out, const buf_t &in) override {
+    std::copy_n(std::begin(in), out.size(), std::begin(out));
+  }
+
+  void to_71(samples_t &out, const buf_t &in) override {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += channels71) {
+      int fl = sample_in_pos[FRONT_LEFT];
+      int fr = sample_in_pos[FRONT_RIGHT];
+      int bl = sample_in_pos[BACK_LEFT];
+      int br = sample_in_pos[BACK_RIGHT];
+
+      auto mix_l = (fl + bl) / 2;
+      auto mix_r = (bl + br) / 2;
+
+      sample_out_p[FRONT_LEFT]    = fl;
+      sample_out_p[FRONT_RIGHT]   = fr;
+      sample_out_p[FRONT_CENTER]  = sample_in_pos[FRONT_CENTER];
+      sample_out_p[LOW_FREQUENCY] = sample_in_pos[LOW_FREQUENCY];
+      sample_out_p[BACK_LEFT]     = bl;
+      sample_out_p[BACK_RIGHT]    = br;
+      sample_out_p[SIDE_LEFT]     = mix_l;
+      sample_out_p[SIDE_RIGHT]    = mix_r;
+
+      sample_in_pos += channels51;
+    }
+  }
+};
+
+class surr71_t : public audio_pipe_t {
+public:
+  void to_stereo(samples_t &out, const buf_t &in) {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += stereo) {
+      int left {}, right {};
+
+      left += sample_in_pos[FRONT_LEFT];
+      left += sample_in_pos[FRONT_CENTER] * 9 / 10;
+      left += sample_in_pos[LOW_FREQUENCY] * 3 / 10;
+      left += sample_in_pos[BACK_LEFT] * 7 / 10;
+      left += sample_in_pos[BACK_RIGHT] * 3 / 10;
+      left += sample_in_pos[SIDE_LEFT];
+
+      right += sample_in_pos[FRONT_RIGHT];
+      right += sample_in_pos[FRONT_CENTER] * 9 / 10;
+      right += sample_in_pos[LOW_FREQUENCY] * 3 / 10;
+      right += sample_in_pos[BACK_LEFT] * 3 / 10;
+      right += sample_in_pos[BACK_RIGHT] * 7 / 10;
+      right += sample_in_pos[SIDE_RIGHT];
+
+      sample_out_p[0] = left;
+      sample_out_p[1] = right;
+
+      sample_in_pos += channels71;
+    }
+  }
+
+  void to_51(samples_t &out, const buf_t &in) override {
+    using namespace speaker;
+
+    auto sample_in_pos = std::begin(in);
+    auto sample_end    = std::begin(out) + out.size();
+
+    for(auto sample_out_p = std::begin(out); sample_out_p != sample_end; sample_out_p += channels51) {
+      auto sl = (int)sample_out_p[SIDE_LEFT] * 3 / 10;
+      auto sr = (int)sample_out_p[SIDE_RIGHT] * 3 / 10;
+
+      sample_out_p[FRONT_LEFT]    = sample_in_pos[FRONT_LEFT] + sl;
+      sample_out_p[FRONT_RIGHT]   = sample_in_pos[FRONT_RIGHT] + sr;
+      sample_out_p[FRONT_CENTER]  = sample_in_pos[FRONT_CENTER];
+      sample_out_p[LOW_FREQUENCY] = sample_in_pos[LOW_FREQUENCY];
+      sample_out_p[BACK_LEFT]     = sample_in_pos[BACK_LEFT] + sl;
+      sample_out_p[BACK_RIGHT]    = sample_in_pos[BACK_RIGHT] + sr;
+
+      sample_in_pos += channels71;
+    }
+  }
+
+  void to_71(samples_t &out, const buf_t &in) override {
+    std::copy_n(std::begin(in), out.size(), std::begin(out));
+  }
+};
+
 static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 struct format_t {
   enum type_e : int {
@@ -133,6 +384,18 @@ struct format_t {
   },
 };
 
+static format_t surround_51_side_speakers {
+  format_t::surr51,
+  "Surround 5.1"sv,
+  6,
+  SPEAKER_FRONT_LEFT |
+    SPEAKER_FRONT_RIGHT |
+    SPEAKER_FRONT_CENTER |
+    SPEAKER_LOW_FREQUENCY |
+    SPEAKER_SIDE_LEFT |
+    SPEAKER_SIDE_RIGHT,
+};
+
 void set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
   wave_format->nChannels       = format.channels;
   wave_format->nBlockAlign     = wave_format->nChannels * wave_format->wBitsPerSample / 8;
@@ -167,50 +430,6 @@ int init_wave_format(audio::wave_format_t &wave_format, DWORD sample_rate) {
   };
 
   return 0;
-}
-
-void surround51_to_stereo(std::vector<std::int16_t> &sample_in, const util::buffer_t<std::int16_t> &sample_out) {
-  enum surround51_e : int {
-    front_left,
-    front_right,
-    front_center,
-    low_frequency, // subwoofer
-    back_left,
-    back_right,
-    channels51 // number of channels in surround sound
-  };
-
-  auto sample_in_pos = std::begin(sample_in);
-  auto sample_end    = std::begin(sample_out) + sample_in.size() / 2 * channels51;
-
-  for(auto sample_out_p = std::begin(sample_out); sample_out_p != sample_end; sample_out_p += channels51) {
-    std::uint32_t left {}, right {};
-
-    left += sample_out_p[front_left];
-    left += sample_out_p[front_center] * 90 / 100;
-    left += sample_out_p[low_frequency] * 30 / 100;
-    left += sample_out_p[back_left] * 70 / 100;
-    left += sample_out_p[back_right] * 30 / 100;
-
-    right += sample_out_p[front_right];
-    right += sample_out_p[front_center] * 90 / 100;
-    right += sample_out_p[low_frequency] * 30 / 100;
-    right += sample_out_p[back_left] * 30 / 100;
-    right += sample_out_p[back_right] * 70 / 100;
-
-    *sample_in_pos++ = (std::uint16_t)left;
-    *sample_in_pos++ = (std::uint16_t)right;
-  }
-}
-
-void mono_to_stereo(std::vector<std::int16_t> &sample_in, const util::buffer_t<std::int16_t> &sample_out) {
-  auto sample_in_pos = std::begin(sample_in);
-  auto sample_end    = std::begin(sample_out) + sample_in.size() / 2;
-
-  for(auto sample_out_p = std::begin(sample_out); sample_out_p != sample_end; ++sample_out_p) {
-    *sample_in_pos++ = *sample_out_p;
-    *sample_in_pos++ = *sample_out_p;
-  }
 }
 
 audio_client_t make_audio_client(device_t &device, const format_t &format, int sample_rate) {
@@ -264,7 +483,7 @@ format_t::type_e validate_device(device_t &device, int sample_rate) {
     // Ensure WaveFromat is compatible
     auto audio_client = make_audio_client(device, format, sample_rate);
 
-    BOOST_LOG(debug) << format.name << ": "sv << !audio_client ? "unsupported"sv : "supported"sv;
+    BOOST_LOG(debug) << format.name << ": "sv << (!audio_client ? "unsupported"sv : "supported"sv);
 
     if(audio_client) {
       return format.type;
@@ -294,8 +513,8 @@ device_t default_device(device_enum_t &device_enum) {
 
 class mic_wasapi_t : public mic_t {
 public:
-  capture_e sample(std::vector<std::int16_t> &sample_in) override {
-    auto sample_size = sample_in.size() / 2 * format->channels;
+  capture_e sample(std::vector<std::int16_t> &sample_out) override {
+    auto sample_size = sample_out.size() / channels_out * channels_in;
     while(sample_buf_pos - std::begin(sample_buf) < sample_size) {
       //FIXME: Use IAudioClient3 instead of IAudioClient, that would allows for adjusting the latency of the audio samples
       auto capture_result = _fill_buffer();
@@ -305,18 +524,18 @@ public:
       }
     }
 
-    switch(format->channels) {
-    case 1:
-      mono_to_stereo(sample_in, sample_buf);
-      break;
+    switch(channels_out) {
     case 2:
-      std::copy_n(std::begin(sample_buf), sample_size, std::begin(sample_in));
+      pipe->to_stereo(sample_out, sample_buf);
       break;
     case 6:
-      surround51_to_stereo(sample_in, sample_buf);
+      pipe->to_51(sample_out, sample_buf);
+      break;
+    case 8:
+      pipe->to_71(sample_out, sample_buf);
       break;
     default:
-      BOOST_LOG(error) << '[' << format->name << "] not yet supported"sv;
+      BOOST_LOG(error) << "converting to ["sv << channels_out << "] channels is not supported"sv;
       return capture_e::error;
     }
 
@@ -328,7 +547,7 @@ public:
   }
 
 
-  int init(std::uint32_t sample_rate, std::uint32_t frame_size) {
+  int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out) {
     audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
     if(!audio_event) {
       BOOST_LOG(error) << "Couldn't create Event handle"sv;
@@ -362,7 +581,26 @@ public:
 
       if(audio_client) {
         BOOST_LOG(debug) << "Found audio format ["sv << format.name << ']';
-        this->format = &format;
+        channels_in        = format.channels;
+        this->channels_out = channels_out;
+
+        switch(channels_in) {
+        case 1:
+          pipe = std::make_unique<mono_t>();
+          break;
+        case 2:
+          pipe = std::make_unique<stereo_t>();
+          break;
+        case 6:
+          pipe = std::make_unique<surr51_t>();
+          break;
+        case 8:
+          pipe = std::make_unique<surr71_t>();
+          break;
+        default:
+          BOOST_LOG(error) << "converting from ["sv << channels_in << "] channels is not supported"sv;
+          return -1;
+        }
         break;
       }
     }
@@ -385,7 +623,7 @@ public:
     }
 
     // *2 --> needs to fit double
-    sample_buf     = util::buffer_t<std::int16_t> { std::max(frames * 2, frame_size * format->channels * 2) };
+    sample_buf     = util::buffer_t<std::int16_t> { std::max(frames, frame_size) * 2 * channels_in };
     sample_buf_pos = std::begin(sample_buf);
 
     status = audio_client->GetService(IID_IAudioCaptureClient, (void **)&audio_capture);
@@ -467,7 +705,7 @@ private:
       }
 
       sample_aligned.uninitialized = std::end(sample_buf) - sample_buf_pos;
-      auto n                       = std::min(sample_aligned.uninitialized, block_aligned.audio_sample_size * format->channels);
+      auto n                       = std::min(sample_aligned.uninitialized, block_aligned.audio_sample_size * channels_in);
 
       if(buffer_flags & AUDCLNT_BUFFERFLAGS_SILENT) {
         std::fill_n(sample_buf_pos, n, 0);
@@ -505,7 +743,12 @@ public:
   util::buffer_t<std::int16_t> sample_buf;
   std::int16_t *sample_buf_pos;
 
-  format_t *format;
+  // out --> our audio output
+  int channels_out;
+  // in --> our wasapi input
+  int channels_in;
+
+  std::unique_ptr<audio_pipe_t> pipe;
 };
 
 class audio_control_t : public ::platf::audio_control_t {
@@ -551,7 +794,6 @@ public:
     collection->GetCount(&count);
 
     std::string virtual_device_id = config::audio.virtual_sink;
-    BOOST_LOG(debug) << "====== Found "sv << count << " potential audio devices ======"sv;
     for(auto x = 0; x < count; ++x) {
       audio::device_t device;
       collection->Item(x, &device);
@@ -576,7 +818,7 @@ public:
       prop->GetValue(PKEY_Device_DeviceDesc, &device_desc.prop);
 
       auto adapter_name = no_null((LPWSTR)adapter_friendly_name.prop.pszVal);
-      BOOST_LOG(debug)
+      BOOST_LOG(verbose)
         << L"===== Device ====="sv << std::endl
         << L"Device ID          : "sv << wstring.get() << std::endl
         << L"Device name        : "sv << no_null((LPWSTR)device_friendly_name.prop.pszVal) << std::endl
@@ -603,7 +845,7 @@ public:
   std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
     auto mic = std::make_unique<mic_wasapi_t>();
 
-    if(mic->init(sample_rate, frame_size)) {
+    if(mic->init(sample_rate, frame_size, channels)) {
       return nullptr;
     }
 
@@ -660,8 +902,15 @@ public:
     }
     set_wave_format(wave_format, formats[(int)type - 1]);
 
-    WAVEFORMATEX p { *wave_format.get() };
-    status = policy->SetDeviceFormat(wstring_device_id.c_str(), wave_format.get(), &p);
+    WAVEFORMATEXTENSIBLE p {};
+    status = policy->SetDeviceFormat(wstring_device_id.c_str(), wave_format.get(), (WAVEFORMATEX *)&p);
+
+    // Surround 5.1 might contain side-{left, right} instead of speaker in the back
+    // Try again with different speaker mask.
+    if(status == 0x88890008 && type == format_t::surr51) {
+      set_wave_format(wave_format, surround_51_side_speakers);
+      status = policy->SetDeviceFormat(wstring_device_id.c_str(), wave_format.get(), (WAVEFORMATEX *)&p);
+    }
     if(FAILED(status)) {
       BOOST_LOG(error) << "Couldn't set Wave Format [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -723,7 +972,7 @@ int init();
 std::unique_ptr<audio_control_t> audio_control() {
   auto control = std::make_unique<audio::audio_control_t>();
 
-  if(control->init() || control->set_sink("virtual-Stereo{0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}"s)) {
+  if(control->init()) {
     return nullptr;
   }
 

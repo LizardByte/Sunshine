@@ -434,6 +434,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "external_ip", nvhttp.external_ip);
 
   string_f(vars, "audio_sink", audio.sink);
+  string_f(vars, "virtual_sink", audio.virtual_sink);
 
   string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, { "pc"sv, "lan"sv, "wan"sv });
 

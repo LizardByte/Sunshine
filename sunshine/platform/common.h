@@ -46,17 +46,23 @@ constexpr std::uint8_t map_stereo[] {
   FRONT_LEFT, FRONT_RIGHT
 };
 constexpr std::uint8_t map_surround51[] {
-  FRONT_LEFT, BACK_LEFT, FRONT_RIGHT, BACK_RIGHT, FRONT_CENTER, LOW_FREQUENCY
+  FRONT_LEFT,
+  FRONT_RIGHT,
+  FRONT_CENTER,
+  LOW_FREQUENCY,
+  BACK_LEFT,
+  BACK_RIGHT,
 };
 constexpr std::uint8_t map_surround71[] {
   FRONT_LEFT,
-  BACK_LEFT,
   FRONT_RIGHT,
+  FRONT_CENTER,
+  LOW_FREQUENCY,
+  LOW_FREQUENCY,
+  BACK_LEFT,
   BACK_RIGHT,
   SIDE_LEFT,
   SIDE_RIGHT,
-  FRONT_CENTER,
-  LOW_FREQUENCY,
 };
 } // namespace speaker
 
