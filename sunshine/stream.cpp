@@ -314,7 +314,7 @@ struct fec_t {
   }
 };
 
-fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage) {
+static fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage) {
   auto payload_size = payload.size();
 
   auto pad = payload_size % blocksize != 0;
@@ -324,11 +324,13 @@ fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercen
   auto nr_shards     = data_shards + parity_shards;
 
   if(nr_shards > DATA_SHARDS_MAX) {
-    BOOST_LOG(error)
+    BOOST_LOG(warning)
       << "Number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl
-      << nr_shards << " > "sv << DATA_SHARDS_MAX;
+      << nr_shards << " > "sv << DATA_SHARDS_MAX
+      << ", skipping error correction"sv;
 
-    return { 0 };
+    nr_shards     = data_shards;
+    fecpercentage = 0;
   }
 
   util::buffer_t<char> shards { nr_shards * blocksize };
@@ -342,10 +344,12 @@ fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercen
     shards_p[x] = (uint8_t *)&shards[x * blocksize];
   }
 
-  // packets = parity_shards + data_shards
-  rs_t rs { reed_solomon_new(data_shards, parity_shards) };
+  if(data_shards + parity_shards <= DATA_SHARDS_MAX) {
+    // packets = parity_shards + data_shards
+    rs_t rs { reed_solomon_new(data_shards, parity_shards) };
 
-  reed_solomon_encode(rs.get(), shards_p.begin(), nr_shards, blocksize);
+    reed_solomon_encode(rs.get(), shards_p.begin(), nr_shards, blocksize);
+  }
 
   return {
     data_shards,
@@ -670,7 +674,7 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
       inspect->packet.frameIndex = packet->pts;
       inspect->packet.fecInfo    = (x << 12 |
                                  shards.data_shards << 22 |
-                                 fecPercentage << 4);
+                                 shards.percentage << 4);
 
       inspect->rtp.header         = FLAG_EXTENSION;
       inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
