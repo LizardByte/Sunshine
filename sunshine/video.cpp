@@ -81,9 +81,16 @@ public:
       img.row_pitch, 0
     };
 
-    int ret = sws_scale(sws.get(), (std::uint8_t *const *)&img.data, linesizes, 0, img.height, frame->data, frame->linesize);
+    std::uint8_t *const data[] {
+      frame->data[0] + offset,
+      frame->data[1] + offset / 2,
+      frame->data[2] + offset / 2,
+      0
+    };
+
+    int ret = sws_scale(sws.get(), (std::uint8_t *const *)&img.data, linesizes, 0, img.height, data, frame->linesize);
     if(ret <= 0) {
-      BOOST_LOG(fatal) << "Couldn't convert image to required format and/or size"sv;
+      BOOST_LOG(error) << "Couldn't convert image to required format and/or size"sv;
 
       return -1;
     }
@@ -98,7 +105,63 @@ public:
       0, 1 << 16, 1 << 16);
   }
 
-  int init(int in_width, int in_height, int out_width, int out_height, AVFrame *frame, AVPixelFormat format) {
+  /**
+   * When preserving aspect ratio, ensure that padding is black
+   */
+  int prefill(AVFrame *frame, AVPixelFormat format) {
+    auto width  = frame->width;
+    auto height = frame->height;
+
+    sws_t sws {
+      sws_getContext(
+        width, height, AV_PIX_FMT_BGR0,
+        width, height, format,
+        SWS_LANCZOS | SWS_ACCURATE_RND,
+        nullptr, nullptr, nullptr)
+    };
+
+    if(!sws) {
+      return -1;
+    }
+
+    util::buffer_t<std::uint32_t> img { (std::size_t)(width * height) };
+    std::fill(std::begin(img), std::end(img), 0);
+
+    const int linesizes[2] {
+      width, 0
+    };
+
+    av_frame_make_writable(frame);
+
+    auto data = img.begin();
+    int ret   = sws_scale(sws.get(), (std::uint8_t *const *)&data, linesizes, 0, height, frame->data, frame->linesize);
+    if(ret <= 0) {
+      BOOST_LOG(error) << "Couldn't convert image to required format and/or size"sv;
+
+      return -1;
+    }
+
+    return 0;
+  }
+
+  int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format) {
+    if(prefill(frame, format)) {
+      return -1;
+    }
+
+    auto out_width  = frame->width;
+    auto out_height = frame->height;
+
+    // Ensure aspect ratio is maintained
+    auto scalar = std::fminf((float)out_width / in_width, (float)out_height / in_height);
+    out_width   = in_width * scalar;
+    out_height  = in_height * scalar;
+
+    // result is always positive
+    auto offsetX = (frame->width - out_width) / 2;
+    auto offsetY = (frame->height - out_height) / 2;
+    offset       = offsetX + offsetY * frame->width;
+
     sws.reset(sws_getContext(
       in_width, in_height, AV_PIX_FMT_BGR0,
       out_width, out_height, format,
@@ -112,6 +175,9 @@ public:
   ~swdevice_t() override {}
 
   sws_t sws;
+
+  // offset of input image to output frame in pixels
+  int offset;
 };
 
 struct encoder_t {
@@ -698,7 +764,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   if(!hwdevice->data) {
     auto device_tmp = std::make_unique<swdevice_t>();
 
-    if(device_tmp->init(width, height, config.width, config.height, frame.get(), sw_fmt)) {
+    if(device_tmp->init(width, height, frame.get(), sw_fmt)) {
       return std::nullopt;
     }
 
