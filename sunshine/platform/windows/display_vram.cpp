@@ -1,3 +1,5 @@
+#include <cmath>
+
 #include <codecvt>
 
 #include <d3dcompiler.h>
@@ -12,8 +14,6 @@ using namespace std::literals;
 }
 
 namespace platf::dxgi {
-constexpr float aquamarine[] { 0.498039246f, 1.000000000f, 0.831372619f, 1.000000000f };
-
 using input_layout_t        = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
 using render_target_t       = util::safe_ptr<ID3D11RenderTargetView, Release<ID3D11RenderTargetView>>;
 using shader_res_t          = util::safe_ptr<ID3D11ShaderResourceView, Release<ID3D11ShaderResourceView>>;
@@ -329,19 +329,32 @@ public:
       input_res_p = scene_sr.get();
     }
 
-    _init_view_port(out_width, out_height);
+    _init_view_port(this->img.width, this->img.height);
     device_ctx_p->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
     device_ctx_p->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx_p->PSSetShader(convert_Y_ps.get(), nullptr, 0);
+    device_ctx_p->PSSetShaderResources(0, 1, &back_img.input_res);
+    device_ctx_p->Draw(3, 0);
+
+    device_ctx_p->RSSetViewports(1, &outY_view);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
     device_ctx_p->Draw(3, 0);
 
-    _init_view_port(out_width / 2, out_height / 2);
+    // Artifacts start appearing on the rendered image if Sunshine doesn't flush
+    // before rendering on the UV part of the image.
+    device_ctx_p->Flush();
+
+    _init_view_port(this->img.width / 2, this->img.height / 2);
     device_ctx_p->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
     device_ctx_p->VSSetShader(convert_UV_vs.get(), nullptr, 0);
     device_ctx_p->PSSetShader(convert_UV_ps.get(), nullptr, 0);
+    device_ctx_p->PSSetShaderResources(0, 1, &back_img.input_res);
+    device_ctx_p->Draw(3, 0);
+
+    device_ctx_p->RSSetViewports(1, &outUV_view);
     device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
     device_ctx_p->Draw(3, 0);
+    device_ctx_p->Flush();
 
     return 0;
   }
@@ -377,7 +390,7 @@ public:
 
   int init(
     std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p,
-    int in_width, int in_height, int out_width, int out_height,
+    int out_width, int out_height,
     pix_fmt_e pix_fmt) {
     HRESULT status;
 
@@ -392,8 +405,20 @@ public:
 
     platf::hwdevice_t::img = &img;
 
-    this->out_width  = out_width;
-    this->out_height = out_height;
+    float in_width  = display->width;
+    float in_height = display->height;
+
+    // // Ensure aspect ratio is maintained
+    auto scalar       = std::fminf(out_width / in_width, out_height / in_height);
+    auto out_width_f  = in_width * scalar;
+    auto out_height_f = in_height * scalar;
+
+    // result is always positive
+    auto offsetX = (out_width - out_width_f) / 2;
+    auto offsetY = (out_height - out_height_f) / 2;
+
+    outY_view  = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
+    outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
     status = device_p->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
     if(status) {
@@ -514,6 +539,25 @@ public:
       return -1;
     }
 
+    // Color the background black, so that the padding for keeping the aspect ratio
+    // is black
+    if(img.display->dummy_img(&back_img)) {
+      BOOST_LOG(warning) << "Couldn't create an image to set background color to black"sv;
+      return -1;
+    }
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC desc {
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_SRV_DIMENSION_TEXTURE2D
+    };
+    desc.Texture2D.MipLevels = 1;
+
+    status = device_p->CreateShaderResourceView(back_img.texture.get(), &desc, &back_img.input_res);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create input shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
     device_ctx_p->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
     device_ctx_p->PSSetSamplers(0, 1, &sampler_linear);
     device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix);
@@ -619,16 +663,20 @@ public:
 
   img_d3d_t img;
 
+  // Clear nv12 render target to black
+  img_d3d_t back_img;
+
   vs_t convert_UV_vs;
   ps_t convert_UV_ps;
   ps_t convert_Y_ps;
   ps_t scene_ps;
   vs_t scene_vs;
 
+  D3D11_VIEWPORT outY_view;
+  D3D11_VIEWPORT outUV_view;
+
   D3D11_VIEWPORT cursor_view;
   bool cursor_visible;
-
-  float out_width, out_height;
 
   device_ctx_t::pointer device_ctx_p;
 
@@ -768,6 +816,7 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
     dummy_data.get(),
     (UINT)img->row_pitch
   };
+  std::fill_n(dummy_data.get(), width * height, 0);
 
   D3D11_TEXTURE2D_DESC t {};
   t.Width            = width;
@@ -808,7 +857,6 @@ std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(int width, int 
     shared_from_this(),
     device.get(),
     device_ctx.get(),
-    this->width, this->height,
     width, height,
     pix_fmt);
 
