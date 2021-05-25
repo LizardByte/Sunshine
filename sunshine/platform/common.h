@@ -40,6 +40,7 @@ enum speaker_e {
   BACK_RIGHT,
   SIDE_LEFT,
   SIDE_RIGHT,
+  MAX_SPEAKERS,
 };
 
 constexpr std::uint8_t map_stereo[] {

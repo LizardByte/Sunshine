@@ -299,10 +299,27 @@ void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
     ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
   }
 
-  for(auto &stream_config : audio::stream_configs) {
+  for(int x = 0; x < audio::MAX_STREAM_CONFIG; ++x) {
+    auto &stream_config = audio::stream_configs[x];
+    std::uint8_t mapping[platf::speaker::MAX_SPEAKERS];
+
+    auto mapping_p = stream_config.mapping;
+
+    /**
+     * GFE advertises incorrect mapping for normal quality configurations,
+     * as a result, Moonlight rotates all channels from index '3' to the right
+     * To work around this, rotate channels to the left from index '3'
+     */
+    if(x == audio::SURROUND51 || x == audio::SURROUND71) {
+      std::copy_n(mapping_p, stream_config.channelCount, mapping);
+      std::rotate(mapping + 3, mapping + 4, mapping + audio::MAX_STREAM_CONFIG);
+
+      mapping_p = mapping;
+    }
+
     ss << "a=fmtp:97 surround-params="sv << stream_config.channelCount << stream_config.streams << stream_config.coupledStreams;
 
-    std::for_each_n(stream_config.mapping, stream_config.channelCount, [&ss](std::uint8_t digit) {
+    std::for_each_n(mapping_p, stream_config.channelCount, [&ss](std::uint8_t digit) {
       ss << (char)(digit + '0');
     });
 
