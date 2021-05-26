@@ -1,6 +1,9 @@
 # Introduction
 Sunshine is a Gamestream host for Moonlight
 
+[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/cgrtw2g3fq9b0b70/branch/master?svg=true)](https://ci.appveyor.com/project/loki-47-6F-64/sunshine/branch/master)
+[![Downloads](https://img.shields.io/github/downloads/Loki-47-6F-64/sunshine/total)](https://github.com/Loki-47-6F-64/sunshine/releases)
+
 - [Building](README.md#building)
 - [Credits](README.md#credits)
 
