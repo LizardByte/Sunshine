@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -183,7 +184,22 @@ nvhttp_t nvhttp {
   CERTIFICATE_FILE,
 
   boost::asio::ip::host_name(), // sunshine_name,
-  "sunshine_state.json"s        // file_state
+  "sunshine_state.json"s,       // file_state
+  {},                           // external_ip
+  {
+    "352x240"s,
+    "480x360"s,
+    "858x480"s,
+    "1280x720"s,
+    "1920x1080"s,
+    "2560x1080"s,
+    "3440x1440"s
+    "1920x1200"s,
+    "3860x2160"s,
+    "3840x1600"s,
+  }, // supported resolutions
+
+  { 10, 30, 60, 90, 120 }, // supported fps
 };
 
 input_t input {
@@ -197,28 +213,84 @@ sunshine_t sunshine {
   0  // flags
 };
 
-bool whitespace(char ch) {
+bool endline(char ch) {
+  return ch == '\r' || ch == '\n';
+}
+
+bool space_tab(char ch) {
   return ch == ' ' || ch == '\t';
 }
 
-std::string to_string(const char *begin, const char *end) {
-  return { begin, (std::size_t)(end - begin) };
+bool whitespace(char ch) {
+  return space_tab(ch) || endline(ch);
 }
 
-std::optional<std::pair<std::string, std::string>> parse_line(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
-  begin = std::find_if(begin, end, std::not_fn(whitespace));
-  end   = std::find(begin, end, '#');
-  end   = std::find_if(std::make_reverse_iterator(end), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
+std::string to_string(const char *begin, const char *end) {
+  std::string result;
 
-  auto eq = std::find(begin, end, '=');
-  if(eq == end || eq == begin) {
-    return std::nullopt;
+  KITTY_WHILE_LOOP(auto pos = begin, pos != end, {
+    auto comment = std::find(pos, end, '#');
+    auto endl    = std::find_if(comment, end, endline);
+
+    result.append(pos, comment);
+
+    pos = endl;
+  })
+
+  return result;
+}
+
+template<class It>
+It skip_list(It skipper, It end) {
+  int stack = 1;
+  while(skipper != end && stack) {
+    if(*skipper == '[') {
+      ++stack;
+    }
+    if(*skipper == ']') {
+      --stack;
+    }
+
+    ++skipper;
   }
 
-  auto end_name  = std::find_if(std::make_reverse_iterator(eq), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
-  auto begin_val = std::find_if(eq + 1, end, std::not_fn(whitespace));
+  return skipper;
+}
 
-  return std::pair { to_string(begin, end_name), to_string(begin_val, end) };
+std::pair<
+  std::string_view::const_iterator,
+  std::optional<std::pair<std::string, std::string>>>
+parse_option(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
+  begin     = std::find_if_not(begin, end, whitespace);
+  auto endl = std::find_if(begin, end, endline);
+  auto endc = std::find(begin, endl, '#');
+  endc      = std::find_if(std::make_reverse_iterator(endc), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
+
+  auto eq = std::find(begin, endc, '=');
+  if(eq == endc || eq == begin) {
+    return std::make_pair(endl, std::nullopt);
+  }
+
+  auto end_name  = std::find_if_not(std::make_reverse_iterator(eq), std::make_reverse_iterator(begin), space_tab).base();
+  auto begin_val = std::find_if_not(eq + 1, endc, space_tab);
+
+  if(begin_val == endl) {
+    return std::make_pair(endl, std::nullopt);
+  }
+
+  // Lists might contain newlines
+  if(*begin_val == '[') {
+    endl = skip_list(begin_val + 1, end);
+    if(endl == end) {
+      std::cout << "Warning: Config option ["sv << to_string(begin, end_name) << "] Missing ']'"sv;
+
+      return std::make_pair(endl, std::nullopt);
+    }
+  }
+
+  return std::make_pair(
+    endl,
+    std::make_pair(to_string(begin, end_name), to_string(begin_val, endl)));
 }
 
 std::unordered_map<std::string, std::string> parse_config(std::string_view file_content) {
@@ -228,10 +300,14 @@ std::unordered_map<std::string, std::string> parse_config(std::string_view file_
   auto end = std::end(file_content);
 
   while(pos < end) {
-    auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
-    auto var     = parse_line(pos, newline);
+    // auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
+    TUPLE_2D(endl, var, parse_option(pos, end));
 
-    pos = (*newline == '\r') ? newline + 2 : newline + 1;
+    pos = endl;
+    if(pos != end) {
+      pos += (*pos == '\r') ? 2 : 1;
+    }
+
     if(!var) {
       continue;
     }
@@ -368,16 +444,68 @@ void double_between_f(std::unordered_map<std::string, std::string> &vars, const 
   }
 }
 
+void list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
+  std::string string;
+  string_f(vars, name, string);
+
+  if(string.empty()) {
+    return;
+  }
+
+  input.clear();
+
+  auto begin = std::cbegin(string);
+  if(*begin == '[') {
+    ++begin;
+  }
+
+  begin = std::find_if_not(begin, std::cend(string), whitespace);
+  if(begin == std::cend(string)) {
+    return;
+  }
+
+  auto pos = begin;
+  while(pos < std::cend(string)) {
+    if(*pos == '[') {
+      pos = skip_list(pos + 1, std::cend(string)) + 1;
+    }
+    else if(*pos == ']') {
+      break;
+    }
+    else if(*pos == ',') {
+      input.emplace_back(begin, pos);
+      pos = begin = std::find_if_not(pos + 1, std::cend(string), whitespace);
+    }
+    else {
+      ++pos;
+    }
+  }
+
+  if(pos != begin) {
+    input.emplace_back(begin, pos);
+  }
+}
+
+void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
+  std::vector<std::string> list;
+  list_string_f(vars, name, list);
+
+  for(auto &el : list) {
+    input.emplace_back(util::from_view(el));
+  }
+}
+
 void print_help(const char *name) {
-  std::cout << "Usage: "sv << name << " [options] [/path/to/configuration_file]"sv << std::endl
-            << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
-            << std::endl
-            << "    --help | print help"sv << std::endl
-            << std::endl
-            << "    flags"sv << std::endl
-            << "        -0 | Read PIN from stdin"sv << std::endl
-            << "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl
-            << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv;
+  std::cout
+    << "Usage: "sv << name << " [options] [/path/to/configuration_file]"sv << std::endl
+    << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
+    << std::endl
+    << "    --help | print help"sv << std::endl
+    << std::endl
+    << "    flags"sv << std::endl
+    << "        -0 | Read PIN from stdin"sv << std::endl
+    << "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl
+    << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv;
 }
 
 int apply_flags(const char *line) {
@@ -432,6 +560,8 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "sunshine_name", nvhttp.sunshine_name);
   string_f(vars, "file_state", nvhttp.file_state);
   string_f(vars, "external_ip", nvhttp.external_ip);
+  list_string_f(vars, "resolutions"s, nvhttp.resolutions);
+  list_int_f(vars, "fps"s, nvhttp.fps);
 
   string_f(vars, "audio_sink", audio.sink);
   string_f(vars, "virtual_sink", audio.virtual_sink);
@@ -536,7 +666,7 @@ int parse(int argc, char *argv[]) {
         config_file = line;
       }
       else {
-        auto var = parse_line(line, line_end);
+        TUPLE_EL(var, 1, parse_option(line, line_end));
         if(!var) {
           print_help(*argv);
           return -1;

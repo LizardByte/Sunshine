@@ -5,6 +5,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace config {
 struct video_t {
@@ -66,6 +67,8 @@ struct nvhttp_t {
   std::string file_state;
 
   std::string external_ip;
+  std::vector<std::string> resolutions;
+  std::vector<int> fps;
 };
 
 struct input_t {
