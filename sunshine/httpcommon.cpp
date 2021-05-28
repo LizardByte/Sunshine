@@ -27,8 +27,11 @@ namespace http
 {
   using namespace std::literals;
   namespace fs = std::filesystem;
+  namespace pt = boost::property_tree;
 
   int create_creds(const std::string &pkey, const std::string &cert);
+  int generate_user_creds(const std::string &file);
+  int reload_user_creds(const std::string &file);
   std::string read_file(const char *path);
   int write_file(const char *path, const std::string_view &contents);
   std::string unique_id;
@@ -54,8 +57,54 @@ namespace http
         return;
       }
     }
+    if(!fs::exists(config::sunshine.credentials_file)){
+      if(generate_user_creds(config::sunshine.credentials_file)){
+        shutdown_event->raise(true);
+        return;
+      }
+    }
+    if(reload_user_creds(config::sunshine.credentials_file)){
+      shutdown_event->raise(true);
+      return;
+    }
   }
 
+  int generate_user_creds(const std::string &file)
+  {
+    pt::ptree outputTree;
+    try {
+      std::string username = "sunshine";
+      std::string plainPassword = crypto::rand_string(16);
+      std::string salt = crypto::rand_string(16);
+      outputTree.put("username","sunshine");
+      outputTree.put("salt",salt);
+      outputTree.put("password",crypto::hash_hexstr(plainPassword + salt));
+      BOOST_LOG(info) << "New credentials has been created";
+      BOOST_LOG(info) << "Username: " << username;
+      BOOST_LOG(info) << "Password: " << plainPassword;
+      pt::write_json(file,outputTree);
+    } catch (std::exception &e){
+      BOOST_LOG(fatal) << e.what();
+      return 1;
+    }
+    return 0;
+  }
+
+  int reload_user_creds(const std::string &file)
+  {
+    pt::ptree inputTree;
+    try {
+      pt::read_json(file, inputTree);
+      config::sunshine.username = inputTree.get<std::string>("username");
+      config::sunshine.password = inputTree.get<std::string>("password");
+      config::sunshine.salt = inputTree.get<std::string>("salt");
+    } catch(std::exception &e){
+      BOOST_LOG(fatal) << e.what();
+      return 1;
+    }
+    return 0;
+  }
+  
   int create_creds(const std::string &pkey, const std::string &cert)
   {
     fs::path pkey_path = pkey;

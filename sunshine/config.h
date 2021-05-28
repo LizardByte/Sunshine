@@ -85,8 +85,11 @@ enum flag_e : std::size_t {
 
 struct sunshine_t {
   int min_log_level;
-
   std::bitset<flag::FLAG_SIZE> flags;
+  std::string credentials_file;
+  std::string username;
+  std::string password;
+  std::string salt;
 };
 
 extern video_t video;

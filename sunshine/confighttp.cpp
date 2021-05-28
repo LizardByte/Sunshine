@@ -13,6 +13,7 @@
 #include <boost/asio/ssl/context.hpp>
 
 #include <Simple-Web-Server/server_http.hpp>
+#include <Simple-Web-Server/crypto.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
 #include "config.h"
@@ -49,16 +50,40 @@ enum class op_e
   REMOVE
 };
 
+void send_unauthorized(resp_https_t response, req_https_t request)
+{
+  auto address = request->remote_endpoint_address();
+  BOOST_LOG(info) << '[' << address << "] -- denied"sv;
+  const SimpleWeb::CaseInsensitiveMultimap headers {
+    {"WWW-Authenticate",R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"}
+  };
+  response->write(SimpleWeb::StatusCode::client_error_unauthorized,headers);
+}
+
 bool authenticate(resp_https_t response, req_https_t request)
 {
-auto address = request->remote_endpoint_address();
+  auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
   if(ip_type > http::origin_pin_allowed) {
     BOOST_LOG(info) << '[' << address << "] -- denied"sv;
     response->write(SimpleWeb::StatusCode::client_error_forbidden);
     return false;
   }
-  return true;
+  auto auth = request->header.find("authorization");
+  if(auth == request->header.end() ){
+    send_unauthorized(response,request);
+    return false;
+  }
+  std::string rawAuth = auth->second;
+  std::string authData = rawAuth.substr("Basic "sv.length());
+  authData = SimpleWeb::Crypto::Base64::decode(authData);
+  int index = authData.find(':');
+  std::string username = authData.substr(0,index);
+  std::string password = authData.substr(index + 1);
+  std::string hash = crypto::hash_hexstr(password + config::sunshine.salt);
+  if(username == config::sunshine.username && hash == config::sunshine.password) return true;
+  send_unauthorized(response,request);
+  return false;
 }
 
 template <class T>

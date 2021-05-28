@@ -191,7 +191,11 @@ input_t input {
 
 sunshine_t sunshine {
   2, // min_log_level
-  0 // flags
+  0, // flags
+  "user_credentials.json"s,//User file
+  ""s,//Username
+  ""s,//Password
+  ""s//Password Salt
 };
 
 bool whitespace(char ch) {
