@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "crypto.h"
+#include "httpcommon.h"
 #include "main.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -27,9 +28,6 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
-#include "main.h"
-#include "httpcommon.h"
-
 
 
 namespace nvhttp {
@@ -133,7 +131,7 @@ void load_state() {
     return;
   }
 
-  http::unique_id = root.get<std::string>("root.uniqueid");
+  http::unique_id   = root.get<std::string>("root.uniqueid");
   auto device_nodes = root.get_child("root.devices");
 
   for(auto &[_, device_node] : device_nodes) {
@@ -731,14 +729,14 @@ void appasset(resp_https_t response, req_https_t request) {
 }
 
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
-  
+
   bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
 
   if(!clean_slate) {
     load_state();
   }
 
-  conf_intern.pkey = http::read_file(config::nvhttp.pkey.c_str());
+  conf_intern.pkey       = http::read_file(config::nvhttp.pkey.c_str());
   conf_intern.servercert = http::read_file(config::nvhttp.cert.c_str());
 
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
@@ -858,4 +856,4 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   ssl.join();
   tcp.join();
 }
-}
+} // namespace nvhttp

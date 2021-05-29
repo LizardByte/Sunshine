@@ -15,9 +15,9 @@
 #include <boost/log/sources/severity_logger.hpp>
 
 #include "config.h"
-#include "nvhttp.h"
-#include "httpcommon.h"
 #include "confighttp.h"
+#include "httpcommon.h"
+#include "nvhttp.h"
 #include "rtsp.h"
 #include "thread_pool.h"
 #include "video.h"
@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
   });
 
   proc::refresh(config::stream.file_apps);
-  
+
   auto deinit_guard = platf::init();
   if(!deinit_guard) {
     return 4;

@@ -7,12 +7,11 @@
 
 #include <array>
 #include <cassert>
+#include <iomanip>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
 #include <openssl/x509.h>
-#include <openssl/rand.h>
-#include <iomanip>
 
 #include "utility.h"
 

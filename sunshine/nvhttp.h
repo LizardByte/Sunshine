@@ -5,11 +5,11 @@
 #ifndef SUNSHINE_NVHTTP_H
 #define SUNSHINE_NVHTTP_H
 
-#include <functional>
-#include <string>
+#include "thread_safe.h"
 #include <Simple-Web-Server/server_http.hpp>
 #include <Simple-Web-Server/server_https.hpp>
-#include "thread_safe.h"
+#include <functional>
+#include <string>
 
 #define CA_DIR SUNSHINE_ASSETS_DIR "/demoCA"
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
@@ -17,7 +17,8 @@
 
 namespace nvhttp {
 void start(std::shared_ptr<safe::signal_t> shutdown_event);
-template<class T> void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request);
-}
+template<class T>
+void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request);
+} // namespace nvhttp
 
 #endif //SUNSHINE_NVHTTP_H

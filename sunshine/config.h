@@ -4,8 +4,8 @@
 #include <bitset>
 #include <chrono>
 #include <optional>
-#include <unordered_map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace config {
@@ -105,5 +105,5 @@ extern sunshine_t sunshine;
 
 int parse(int argc, char *argv[]);
 std::unordered_map<std::string, std::string> parse_config(std::string_view file_content);
-}
+} // namespace config
 #endif
