@@ -1,6 +1,9 @@
 # Introduction
 Sunshine is a Gamestream host for Moonlight
 
+[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/cgrtw2g3fq9b0b70/branch/master?svg=true)](https://ci.appveyor.com/project/loki-47-6F-64/sunshine/branch/master)
+[![Downloads](https://img.shields.io/github/downloads/Loki-47-6F-64/sunshine/total)](https://github.com/Loki-47-6F-64/sunshine/releases)
+
 - [Building](README.md#building)
 - [Credits](README.md#credits)
 
@@ -12,39 +15,51 @@ Sunshine is a Gamestream host for Moonlight
 
 ### Requirements:
 Ubuntu 20.04:
-
-	sudo apt install cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
+Install the following
+```
+sudo apt install cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
+```
 
 ### Compilation:
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
 - `cd sunshine && mkdir build && cd build`
 - `cmake ..`
-- `make`: It is suggested to use the `-j C#` flags with this command, `C#` being the number of cores your PC has
+- `make -j ${nproc}`
 
 
 ### Setup:
 sunshine needs access to uinput to create mouse and gamepad events:
-- Add user to group 'input': "usermod -a -G input username
-- Create a file: "/etc/udev/rules.d/85-sunshine-input.rules"
-- The contents of the file is as follows:
-	KERNEL=="uinput", GROUP="input", mode="0660"
-- assets/sunshine.conf is an example configuration file. Modify it as you see fit and use it by running: "sunshine path/to/sunshine.conf"
-- path/to/build/dir/sunshine.service is used to start sunshine in the background:
-	- `cp sunshine.service $HOME/.config/systemd/user/`
-	- Modify $HOME/.config/systemd/user/sunshine.conf to point to the sunshine executable
-	- `systemctl --user start sunshine`
+- Add user to group 'input':
+	`usermod -a -G input $USER`
+- Create udev rules:
+	- Run the following command: 
+	`nano /etc/udev/rules.d/85-sunshine-input.rules`
+	- Input the following contents:
+	`KERNEL=="uinput", GROUP="input", mode="0660"`
+	- Save the file and exit
+		1. `CTRL+X` to start exit
+		2. `Y` to save modifications
+- `assets/sunshine.conf` is an example configuration file. Modify it as you see fit, then use it by running: 
+	`sunshine path/to/sunshine.conf`
+- Configure autostart service
+	`path/to/build/dir/sunshine.service` is used to start sunshine in the background. To use it, do the following:
+	1. Copy it to the users systemd, `cp sunshine.service ~/.config/systemd/user/`
+	2. Starting
+		- Onetime: 
+			`systemctl --user start sunshine`
+		- Always on boot:
+			`systemctl --user enable sunshine`
 
-- assets/apps.json is an [example](README.md#application-list) of a list of applications that are started just before running a stream
+- `assets/apps.json` is an [example](README.md#application-list) of a list of applications that are started just before running a stream
 
 ### Trouleshooting:
-	* If you get "Could not create Sunshine Gamepad: Permission Denied", ensure you are part of the group "input":
-		* groups
-	* If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
-		* pacmd list-sources | grep "name:"
-		* Copy the name to the configuration option "audio_sink"
-		* restart sunshine
-
-
+- If you get "Could not create Sunshine Gamepad: Permission Denied", ensure you are part of the group "input":
+	- `groups $USER`
+	
+- If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
+ 	1. pacmd list-sources | grep "name:"
+	2. Copy the name to the configuration option "audio_sink"
+	3. restart sunshine
 
 ## Windows 10
 
@@ -90,6 +105,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - [Simple-Web-Server](https://gitlab.com/eidheim/Simple-Web-Server)
 - [Moonlight](https://github.com/moonlight-stream)
 - [Looking-Glass](https://github.com/gnif/LookingGlass) (For showing me how to properly capture frames on Windows, saving me a lot of time :)
+- [Eretik](http://eretik.omegahg.com/) (For creating PolicyConfig.h, allowing me to change the default audio device on Windows programmatically)
 
 ## Application List:
 - You can use Environment variables in place of values
@@ -105,15 +121,20 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	"cmd":"command to open app",
 	"prep-cmd":[
 			{
-			"do":"somecommand",
-			"undo":"undothatcommand"
+				"do":"some-command",
+				"undo":"undo-that-command"
 			}
+		],
+	"detached":[
+		"some-command",
+		"another-command"
 		]
 	}
 	```
 	- name: Self explanatory
 	- output <optional>: The file where the output of the command is stored
 		- If it is not specified, the output is ignored
+	- detached: A list of commands to be run and forgotten about
 	- prep-cmd: A list of commands to be run before/after the application
 		- If any of the prep-commands fail, starting the application is aborted
 		- do: Run before the application

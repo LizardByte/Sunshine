@@ -1,11 +1,15 @@
-#include <sstream>
+#include <cmath>
 #include <iomanip>
+#include <sstream>
 
-#include <ws2tcpip.h>
+// prevent clang format from "optimizing" the header include order
+// clang-format off
 #include <winsock2.h>
+#include <iphlpapi.h>
 #include <windows.h>
 #include <winuser.h>
-#include <iphlpapi.h>
+#include <ws2tcpip.h>
+// clang-format on
 
 #include <ViGEm/Client.h>
 
@@ -17,7 +21,12 @@ using namespace std::literals;
 
 using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
-volatile HDESK _lastKnownInputDesktop = NULL; 
+volatile HDESK _lastKnownInputDesktop = NULL;
+constexpr touch_port_t target_touch_port {
+  0, 0,
+  65535, 65535
+};
+
 HDESK pairInputDesktop();
 
 class vigem_t {
@@ -94,11 +103,11 @@ std::string from_sockaddr(const sockaddr *const socket_address) {
 
   auto family = socket_address->sa_family;
   if(family == AF_INET6) {
-    inet_ntop(AF_INET6, &((sockaddr_in6*)socket_address)->sin6_addr, data, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &((sockaddr_in6 *)socket_address)->sin6_addr, data, INET6_ADDRSTRLEN);
   }
 
   if(family == AF_INET) {
-    inet_ntop(AF_INET, &((sockaddr_in*)socket_address)->sin_addr, data, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &((sockaddr_in *)socket_address)->sin_addr, data, INET_ADDRSTRLEN);
   }
 
   return std::string { data };
@@ -110,13 +119,13 @@ std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_
   auto family = ip_addr->sa_family;
   std::uint16_t port;
   if(family == AF_INET6) {
-    inet_ntop(AF_INET6, &((sockaddr_in6*)ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
-    port = ((sockaddr_in6*)ip_addr)->sin6_port;
+    inet_ntop(AF_INET6, &((sockaddr_in6 *)ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
+    port = ((sockaddr_in6 *)ip_addr)->sin6_port;
   }
 
   if(family == AF_INET) {
-    inet_ntop(AF_INET, &((sockaddr_in*)ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
-    port = ((sockaddr_in*)ip_addr)->sin_port;
+    inet_ntop(AF_INET, &((sockaddr_in *)ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
+    port = ((sockaddr_in *)ip_addr)->sin_port;
   }
 
   return { port, std::string { data } };
@@ -157,7 +166,7 @@ std::string get_mac_address(const std::string_view &address) {
 input_t input() {
   input_t result { new vigem_t {} };
 
-  auto vigem = (vigem_t*)result.get();
+  auto vigem = (vigem_t *)result.get();
   if(vigem->init()) {
     return nullptr;
   }
@@ -165,26 +174,51 @@ input_t input() {
   return result;
 }
 
-void move_mouse(input_t &input, int deltaX, int deltaY) {
-  INPUT i {};
-
-  i.type = INPUT_MOUSE;
-  auto &mi = i.mi;
-
-  mi.dwFlags = MOUSEEVENTF_MOVE;
-  mi.dx = deltaX;
-  mi.dy = deltaY;
-  
+void send_input(INPUT &i) {
 retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
     auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
+    if(_lastKnownInputDesktop != hDesk) {
       _lastKnownInputDesktop = hDesk;
       goto retry;
     }
-    BOOST_LOG(warning) << "Couldn't send mouse movement input"sv;
+    BOOST_LOG(warning) << "Couldn't send input"sv;
   }
+}
+void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+  INPUT i {};
+
+  i.type   = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  mi.dwFlags =
+    MOUSEEVENTF_MOVE |
+    MOUSEEVENTF_ABSOLUTE |
+
+    // MOUSEEVENTF_VIRTUALDESK maps to the entirety of the desktop rather than the primary desktop
+    MOUSEEVENTF_VIRTUALDESK;
+
+  auto scaled_x = std::lround((x + touch_port.offset_x) * ((float)target_touch_port.width / (float)touch_port.width));
+  auto scaled_y = std::lround((y + touch_port.offset_y) * ((float)target_touch_port.height / (float)touch_port.height));
+
+  mi.dx = scaled_x;
+  mi.dy = scaled_y;
+
+  send_input(i);
+}
+
+void move_mouse(input_t &input, int deltaX, int deltaY) {
+  INPUT i {};
+
+  i.type   = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  mi.dwFlags = MOUSEEVENTF_MOVE;
+  mi.dx      = deltaX;
+  mi.dy      = deltaY;
+
+  send_input(i);
 }
 
 void button_mouse(input_t &input, int button, bool release) {
@@ -192,34 +226,34 @@ void button_mouse(input_t &input, int button, bool release) {
 
   INPUT i {};
 
-  i.type = INPUT_MOUSE;
+  i.type   = INPUT_MOUSE;
   auto &mi = i.mi;
 
   int mouse_button;
   if(button == 1) {
-    mi.dwFlags = release ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
+    mi.dwFlags   = release ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
     mouse_button = VK_LBUTTON;
   }
   else if(button == 2) {
-    mi.dwFlags = release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
+    mi.dwFlags   = release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
     mouse_button = VK_MBUTTON;
   }
   else if(button == 3) {
-    mi.dwFlags = release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
+    mi.dwFlags   = release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
     mouse_button = VK_RBUTTON;
   }
   else if(button == 4) {
-    mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
+    mi.dwFlags   = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
     mi.mouseData = XBUTTON1;
     mouse_button = VK_XBUTTON1;
   }
   else {
-    mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
+    mi.dwFlags   = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
     mi.mouseData = XBUTTON2;
     mouse_button = VK_XBUTTON2;
   }
 
-  auto key_state = GetAsyncKeyState(mouse_button);
+  auto key_state      = GetAsyncKeyState(mouse_button);
   bool key_state_down = (key_state & KEY_STATE_DOWN) != 0;
   if(key_state_down != release) {
     BOOST_LOG(warning) << "Button state of mouse_button ["sv << button << "] does not match the desired state"sv;
@@ -227,37 +261,19 @@ void button_mouse(input_t &input, int button, bool release) {
     return;
   }
 
-retry:
-  auto send = SendInput(1, &i, sizeof(INPUT));
-  if(send != 1) {
-    auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
-      _lastKnownInputDesktop = hDesk;
-      goto retry;
-    }
-    BOOST_LOG(warning) << "Couldn't send mouse button input"sv;
-  }
+  send_input(i);
 }
 
 void scroll(input_t &input, int distance) {
   INPUT i {};
 
-  i.type = INPUT_MOUSE;
+  i.type   = INPUT_MOUSE;
   auto &mi = i.mi;
 
-  mi.dwFlags = MOUSEEVENTF_WHEEL;
+  mi.dwFlags   = MOUSEEVENTF_WHEEL;
   mi.mouseData = distance;
 
-retry:
-  auto send = SendInput(1, &i, sizeof(INPUT));
-  if(send != 1) {
-    auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
-      _lastKnownInputDesktop = hDesk;
-      goto retry;
-    }
-    BOOST_LOG(warning) << "Couldn't send mouse scroll input"sv;
-  }
+  send_input(i);
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
@@ -266,12 +282,12 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   }
 
   INPUT i {};
-  i.type = INPUT_KEYBOARD;
+  i.type   = INPUT_KEYBOARD;
   auto &ki = i.ki;
 
   // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
   if(modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE) {
-    ki.wScan = MapVirtualKey(modcode, MAPVK_VK_TO_VSC);
+    ki.wScan   = MapVirtualKey(modcode, MAPVK_VK_TO_VSC);
     ki.dwFlags = KEYEVENTF_SCANCODE;
   }
   else {
@@ -280,39 +296,30 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
 
   // https://docs.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#keystroke-message-flags
   switch(modcode) {
-    case VK_RMENU:
-    case VK_RCONTROL:
-    case VK_INSERT:
-    case VK_DELETE:
-    case VK_HOME:
-    case VK_END:
-    case VK_PRIOR:
-    case VK_NEXT:
-    case VK_UP:
-    case VK_DOWN:
-    case VK_LEFT:
-    case VK_RIGHT:
-    case VK_DIVIDE:
-      ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
-      break;
-    default:
-      break;
+  case VK_RMENU:
+  case VK_RCONTROL:
+  case VK_INSERT:
+  case VK_DELETE:
+  case VK_HOME:
+  case VK_END:
+  case VK_PRIOR:
+  case VK_NEXT:
+  case VK_UP:
+  case VK_DOWN:
+  case VK_LEFT:
+  case VK_RIGHT:
+  case VK_DIVIDE:
+    ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+    break;
+  default:
+    break;
   }
 
   if(release) {
     ki.dwFlags |= KEYEVENTF_KEYUP;
   }
 
-retry:
-  auto send = SendInput(1, &i, sizeof(INPUT));
-  if(send != 1) {
-    auto hDesk = pairInputDesktop();
-    if (_lastKnownInputDesktop != hDesk) {
-      _lastKnownInputDesktop = hDesk;
-      goto retry;
-    }
-    BOOST_LOG(warning) << "Couldn't send keyboard input"sv;
-  }
+  send_input(i);
 }
 
 int alloc_gamepad(input_t &input, int nr) {
@@ -320,7 +327,7 @@ int alloc_gamepad(input_t &input, int nr) {
     return 0;
   }
 
-  return ((vigem_t*)input.get())->alloc_x360(nr);
+  return ((vigem_t *)input.get())->alloc_x360(nr);
 }
 
 void free_gamepad(input_t &input, int nr) {
@@ -328,7 +335,7 @@ void free_gamepad(input_t &input, int nr) {
     return;
   }
 
-  ((vigem_t*)input.get())->free_target(nr);
+  ((vigem_t *)input.get())->free_target(nr);
 }
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   // If there is no gamepad support
@@ -336,7 +343,7 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     return;
   }
 
-  auto vigem = (vigem_t*)input.get();
+  auto vigem = (vigem_t *)input.get();
 
   auto &xusb = *(PXUSB_REPORT)&gamepad_state;
   auto &x360 = vigem->x360s[nr];
@@ -350,19 +357,20 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   }
 }
 
-int thread_priority()  {
+int thread_priority() {
   return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) ? 0 : 1;
 }
 
 HDESK pairInputDesktop() {
   auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
-  if (NULL == hDesk) {
+  if(NULL == hDesk) {
     auto err = GetLastError();
     BOOST_LOG(error) << "Failed to OpenInputDesktop [0x"sv << util::hex(err).to_string_view() << ']';
   }
   else {
-    BOOST_LOG(info) << std::endl << "Opened desktop [0x"sv << util::hex(hDesk).to_string_view() << ']';
-    if (!SetThreadDesktop(hDesk) ) {
+    BOOST_LOG(info) << std::endl
+                    << "Opened desktop [0x"sv << util::hex(hDesk).to_string_view() << ']';
+    if(!SetThreadDesktop(hDesk)) {
       auto err = GetLastError();
       BOOST_LOG(error) << "Failed to SetThreadDesktop [0x"sv << util::hex(err).to_string_view() << ']';
     }
@@ -373,8 +381,8 @@ HDESK pairInputDesktop() {
 }
 
 void freeInput(void *p) {
-  auto vigem = (vigem_t*)p;
+  auto vigem = (vigem_t *)p;
 
   delete vigem;
 }
-}
+} // namespace platf

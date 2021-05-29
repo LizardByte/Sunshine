@@ -5,6 +5,14 @@ project(Sunshine)
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(Simple-Web-Server)
+
+if(WIN32)
+	# Ugly hack to compile with #include <qos2.h>
+	add_compile_definitions(
+		QOS_FLOWID=UINT32
+		PQOS_FLOWID=UINT32*
+		QOS_NON_ADAPTIVE_FLOW=2)
+endif()
 add_subdirectory(moonlight-common-c/enet)
 
 find_package(Threads REQUIRED)
@@ -71,6 +79,7 @@ if(WIN32)
 		libstdc++.a
 		libwinpthread.a
 		libssp.a
+		Qwave
 		winmm
 		ksuser
 		wsock32
@@ -90,6 +99,7 @@ else()
 	find_package(FFmpeg REQUIRED)
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux/display.cpp
+		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp)
 	
 	set(PLATFORM_LIBRARIES

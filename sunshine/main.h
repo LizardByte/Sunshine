@@ -5,8 +5,8 @@
 #ifndef SUNSHINE_MAIN_H
 #define SUNSHINE_MAIN_H
 
-#include <boost/log/common.hpp>
 #include "thread_pool.h"
+#include <boost/log/common.hpp>
 
 extern util::ThreadPool task_pool;
 extern bool display_cursor;

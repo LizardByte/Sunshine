@@ -10,12 +10,12 @@ public:
   typedef T iterator;
   typedef typename std::iterator<std::random_access_iterator_tag, V>::value_type class_t;
 
-  typedef class_t& reference;
-  typedef class_t* pointer;
+  typedef class_t &reference;
+  typedef class_t *pointer;
 
   typedef std::ptrdiff_t diff_t;
 
-  iterator operator += (diff_t step) {
+  iterator operator+=(diff_t step) {
     while(step-- > 0) {
       ++_this();
     }
@@ -23,7 +23,7 @@ public:
     return _this();
   }
 
-  iterator operator -= (diff_t step) {
+  iterator operator-=(diff_t step) {
     while(step-- > 0) {
       --_this();
     }
@@ -31,19 +31,19 @@ public:
     return _this();
   }
 
-  iterator operator +(diff_t step) {
+  iterator operator+(diff_t step) {
     iterator new_ = _this();
 
     return new_ += step;
   }
 
-  iterator operator -(diff_t step) {
+  iterator operator-(diff_t step) {
     iterator new_ = _this();
 
     return new_ -= step;
   }
 
-  diff_t operator -(iterator first) {
+  diff_t operator-(iterator first) {
     diff_t step = 0;
     while(first != _this()) {
       ++step;
@@ -53,8 +53,14 @@ public:
     return step;
   }
 
-  iterator operator++() { _this().inc(); return _this(); }
-  iterator operator--() { _this().dec(); return _this(); }
+  iterator operator++() {
+    _this().inc();
+    return _this();
+  }
+  iterator operator--() {
+    _this().dec();
+    return _this();
+  }
 
   iterator operator++(int) {
     iterator new_ = _this();
@@ -78,35 +84,35 @@ public:
   pointer operator->() { return &*_this(); }
   const pointer operator->() const { return &*_this(); }
 
-  bool operator != (const iterator &other) const {
+  bool operator!=(const iterator &other) const {
     return !(_this() == other);
   }
 
-  bool operator < (const iterator &other) const {
+  bool operator<(const iterator &other) const {
     return !(_this() >= other);
   }
 
-  bool operator >= (const iterator &other) const {
+  bool operator>=(const iterator &other) const {
     return _this() == other || _this() > other;
   }
 
-  bool operator <= (const iterator &other) const {
+  bool operator<=(const iterator &other) const {
     return _this() == other || _this() < other;
   }
 
-  bool operator == (const iterator &other) const { return _this().eq(other); };
-  bool operator > (const iterator &other) const { return _this().gt(other); }
-private:
+  bool operator==(const iterator &other) const { return _this().eq(other); };
+  bool operator>(const iterator &other) const { return _this().gt(other); }
 
-  iterator &_this() { return *static_cast<iterator*>(this); }
-  const iterator &_this() const { return *static_cast<const iterator*>(this); }
+private:
+  iterator &_this() { return *static_cast<iterator *>(this); }
+  const iterator &_this() const { return *static_cast<const iterator *>(this); }
 };
 
 template<class V, class It>
 class round_robin_t : public it_wrap_t<V, round_robin_t<V, It>> {
 public:
   using iterator = It;
-  using pointer = V*;
+  using pointer  = V *;
 
   round_robin_t(iterator begin, iterator end) : _begin(begin), _end(end), _pos(begin) {}
 
@@ -119,10 +125,10 @@ public:
   }
 
   void dec() {
-    if(_pos == _begin)  {
+    if(_pos == _begin) {
       _pos = _end;
     }
-    
+
     --_pos;
   }
 
@@ -133,6 +139,7 @@ public:
   pointer get() const {
     return &*_pos;
   }
+
 private:
   It _begin;
   It _end;
@@ -144,6 +151,6 @@ template<class V, class It>
 round_robin_t<V, It> make_round_robin(It begin, It end) {
   return round_robin_t<V, It>(begin, end);
 }
-}
+} // namespace util
 
 #endif

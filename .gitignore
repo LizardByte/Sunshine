@@ -6,4 +6,5 @@ cmake-build*
 *.swp
 *.kdev4
 
+.cache
 .idea

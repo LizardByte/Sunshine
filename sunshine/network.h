@@ -14,8 +14,8 @@
 namespace net {
 void free_host(ENetHost *host);
 
-using host_t = util::safe_ptr<ENetHost, free_host>;
-using peer_t = ENetPeer*;
+using host_t   = util::safe_ptr<ENetHost, free_host>;
+using peer_t   = ENetPeer *;
 using packet_t = util::safe_ptr<ENetPacket, enet_packet_destroy>;
 
 enum net_e : int {
@@ -30,6 +30,6 @@ std::string_view to_enum_string(net_e net);
 net_e from_address(const std::string_view &view);
 
 host_t host_create(ENetAddress &addr, std::size_t peers, std::uint16_t port);
-}
+} // namespace net
 
 #endif //SUNSHINE_NETWORK_H

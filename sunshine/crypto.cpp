@@ -2,14 +2,14 @@
 // Created by loki on 5/31/19.
 //
 
-#include <openssl/pem.h>
 #include "crypto.h"
+#include <openssl/pem.h>
 namespace crypto {
-using big_num_t = util::safe_ptr<BIGNUM, BN_free>;
+using big_num_t     = util::safe_ptr<BIGNUM, BN_free>;
 //using rsa_t = util::safe_ptr<RSA, RSA_free>;
 using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
 
-cert_chain_t::cert_chain_t() : _certs {}, _cert_ctx {X509_STORE_CTX_new() } {}
+cert_chain_t::cert_chain_t() : _certs {}, _cert_ctx { X509_STORE_CTX_new() } {}
 void cert_chain_t::add(x509_t &&cert) {
   x509_store_t x509_store { X509_STORE_new() };
 
@@ -26,7 +26,7 @@ void cert_chain_t::add(x509_t &&cert) {
  */
 const char *cert_chain_t::verify(x509_t::element_type *cert) {
   int err_code = 0;
-  for(auto &[_,x509_store] : _certs) {
+  for(auto &[_, x509_store] : _certs) {
     auto fg = util::fail_guard([this]() {
       X509_STORE_CTX_cleanup(_cert_ctx.get());
     });
@@ -36,7 +36,7 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
 
     auto err = X509_verify_cert(_cert_ctx.get());
 
-    if (err == 1) {
+    if(err == 1) {
       return nullptr;
     }
 
@@ -46,7 +46,7 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
     if(err_code == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
       return nullptr;
     }
-    if (err_code != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT && err_code != X509_V_ERR_INVALID_CA) {
+    if(err_code != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT && err_code != X509_V_ERR_INVALID_CA) {
       return X509_verify_cert_error_string(err_code);
     }
   }
@@ -63,7 +63,7 @@ int cipher_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> 
   });
 
   // Gen 7 servers use 128-bit AES ECB
-  if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
+  if(EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
     return -1;
   }
 
@@ -72,11 +72,11 @@ int cipher_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> 
   plaintext.resize((cipher.size() + 15) / 16 * 16);
   auto size = (int)plaintext.size();
   // Encrypt into the caller's buffer, leaving room for the auth tag to be prepended
-  if (EVP_DecryptUpdate(ctx.get(), plaintext.data(), &size, (const std::uint8_t*)cipher.data(), cipher.size()) != 1) {
+  if(EVP_DecryptUpdate(ctx.get(), plaintext.data(), &size, (const std::uint8_t *)cipher.data(), cipher.size()) != 1) {
     return -1;
   }
 
-  if (EVP_DecryptFinal_ex(ctx.get(), plaintext.data(), &len) != 1) {
+  if(EVP_DecryptFinal_ex(ctx.get(), plaintext.data(), &len) != 1) {
     return -1;
   }
 
@@ -85,7 +85,7 @@ int cipher_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> 
 }
 
 int cipher_t::decrypt_gcm(aes_t &iv, const std::string_view &tagged_cipher,
-                          std::vector<std::uint8_t> &plaintext) {
+  std::vector<std::uint8_t> &plaintext) {
   auto cipher = tagged_cipher.substr(16);
   auto tag    = tagged_cipher.substr(0, 16);
 
@@ -93,15 +93,15 @@ int cipher_t::decrypt_gcm(aes_t &iv, const std::string_view &tagged_cipher,
     EVP_CIPHER_CTX_reset(ctx.get());
   });
 
-  if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_gcm(), nullptr, nullptr, nullptr) != 1) {
+  if(EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_gcm(), nullptr, nullptr, nullptr) != 1) {
     return -1;
   }
 
-  if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr) != 1) {
+  if(EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr) != 1) {
     return -1;
   }
 
-  if (EVP_DecryptInit_ex(ctx.get(), nullptr, nullptr, key.data(), iv.data()) != 1) {
+  if(EVP_DecryptInit_ex(ctx.get(), nullptr, nullptr, key.data(), iv.data()) != 1) {
     return -1;
   }
 
@@ -109,16 +109,16 @@ int cipher_t::decrypt_gcm(aes_t &iv, const std::string_view &tagged_cipher,
   plaintext.resize((cipher.size() + 15) / 16 * 16);
 
   int size;
-  if (EVP_DecryptUpdate(ctx.get(), plaintext.data(), &size, (const std::uint8_t*)cipher.data(), cipher.size()) != 1) {
+  if(EVP_DecryptUpdate(ctx.get(), plaintext.data(), &size, (const std::uint8_t *)cipher.data(), cipher.size()) != 1) {
     return -1;
   }
 
-  if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, tag.size(), const_cast<char*>(tag.data())) != 1) {
+  if(EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, tag.size(), const_cast<char *>(tag.data())) != 1) {
     return -1;
   }
 
   int len = size;
-  if (EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + size, &len) != 1) {
+  if(EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + size, &len) != 1) {
     return -1;
   }
 
@@ -134,7 +134,7 @@ int cipher_t::encrypt(const std::string_view &plaintext, std::vector<std::uint8_
   });
 
   // Gen 7 servers use 128-bit AES ECB
-  if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
+  if(EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
     return -1;
   }
 
@@ -143,11 +143,11 @@ int cipher_t::encrypt(const std::string_view &plaintext, std::vector<std::uint8_
   cipher.resize((plaintext.size() + 15) / 16 * 16);
   auto size = (int)cipher.size();
   // Encrypt into the caller's buffer
-  if (EVP_EncryptUpdate(ctx.get(), cipher.data(), &size, (const std::uint8_t*)plaintext.data(), plaintext.size()) != 1) {
+  if(EVP_EncryptUpdate(ctx.get(), cipher.data(), &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
     return -1;
   }
 
-  if (EVP_EncryptFinal_ex(ctx.get(), cipher.data() + size, &len) != 1) {
+  if(EVP_EncryptFinal_ex(ctx.get(), cipher.data() + size, &len) != 1) {
     return -1;
   }
 
@@ -230,14 +230,14 @@ std::string_view signature(const x509_t &x) {
   const ASN1_BIT_STRING *asn1 = nullptr;
   X509_get0_signature(&asn1, nullptr, x.get());
 
-  return { (const char*)asn1->data, (std::size_t)asn1->length };
+  return { (const char *)asn1->data, (std::size_t)asn1->length };
 }
 
 std::string rand(std::size_t bytes) {
   std::string r;
   r.resize(bytes);
 
-  RAND_bytes((uint8_t*)r.data(), r.size());
+  RAND_bytes((uint8_t *)r.data(), r.size());
 
   return r;
 }
@@ -297,8 +297,8 @@ creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits) {
   X509_set_pubkey(x509.get(), pkey.get());
 
   auto name = X509_get_subject_name(x509.get());
-  X509_NAME_add_entry_by_txt(name,"CN", MBSTRING_ASC,
-    (const std::uint8_t*)cn.data(), cn.size(),
+  X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
+    (const std::uint8_t *)cn.data(), cn.size(),
     -1, 0);
 
   X509_set_issuer_name(x509.get(), name);
@@ -324,7 +324,7 @@ bool verify(const x509_t &x509, const std::string_view &data, const std::string_
     return false;
   }
 
-  if(EVP_DigestVerifyFinal(ctx.get(), (const uint8_t*)signature.data(), signature.size()) != 1) {
+  if(EVP_DigestVerifyFinal(ctx.get(), (const uint8_t *)signature.data(), signature.size()) != 1) {
     return false;
   }
 
@@ -338,4 +338,4 @@ bool verify256(const x509_t &x509, const std::string_view &data, const std::stri
 void md_ctx_destroy(EVP_MD_CTX *ctx) {
   EVP_MD_CTX_destroy(ctx);
 }
-}
+} // namespace crypto
