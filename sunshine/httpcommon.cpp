@@ -2,9 +2,9 @@
 
 #include <filesystem>
 
-#include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <boost/asio/ssl/context.hpp>
 
@@ -13,15 +13,15 @@
 #include <boost/asio/ssl/context_base.hpp>
 
 #include "config.h"
+#include "utility.h"
+#include "rtsp.h"
 #include "crypto.h"
-#include "httpcommon.h"
-#include "main.h"
-#include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
-#include "rtsp.h"
-#include "utility.h"
+#include "network.h"
 #include "uuid.h"
+#include "main.h"
+#include "httpcommon.h"
 
 namespace http {
 using namespace std::literals;

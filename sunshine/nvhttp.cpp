@@ -18,9 +18,9 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
+
 #include "config.h"
 #include "crypto.h"
-#include "httpcommon.h"
 #include "main.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -28,7 +28,8 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
-
+#include "main.h"
+#include "httpcommon.h" 
 
 namespace nvhttp {
 using namespace std::literals;
