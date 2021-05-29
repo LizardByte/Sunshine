@@ -858,3 +858,4 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   ssl.join();
   tcp.join();
 }
+}
