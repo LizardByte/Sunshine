@@ -67,8 +67,8 @@ constexpr std::uint8_t map_surround71[] {
 };
 } // namespace speaker
 
-enum class dev_type_e {
-  none,
+enum class mem_type_e {
+  system,
   dxgi,
   unknown
 };
@@ -155,7 +155,7 @@ struct sink_t {
 
 struct hwdevice_t {
   void *data {};
-  platf::img_t *img {};
+  void *img {};
 
   virtual int convert(platf::img_t &img) {
     return -1;
@@ -221,7 +221,7 @@ std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
 std::unique_ptr<audio_control_t> audio_control();
-std::shared_ptr<display_t> display(dev_type_e hwdevice_type);
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

@@ -619,6 +619,7 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
 
     // make sure moonlight recognizes the nalu code for IDR frames
     if(packet->flags & AV_PKT_FLAG_KEY) {
+      BOOST_LOG(debug) << "Sending IDR frame"sv;
       // TODO: Not all encoders encode their IDR frames with the 4 byte NALU prefix
       std::string_view frame_old = "\000\000\001e"sv;
       std::string_view frame_new = "\000\000\000\001e"sv;

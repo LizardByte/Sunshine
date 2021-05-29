@@ -417,15 +417,15 @@ const char *format_str[] = {
 } // namespace platf::dxgi
 
 namespace platf {
-std::shared_ptr<display_t> display(dev_type_e hwdevice_type) {
-  if(hwdevice_type == dev_type_e::dxgi) {
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type) {
+  if(hwdevice_type == mem_type_e::dxgi) {
     auto disp = std::make_shared<dxgi::display_vram_t>();
 
     if(!disp->init()) {
       return disp;
     }
   }
-  else if(hwdevice_type == dev_type_e::none) {
+  else if(hwdevice_type == mem_type_e::system) {
     auto disp = std::make_shared<dxgi::display_ram_t>();
 
     if(!disp->init()) {

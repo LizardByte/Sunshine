@@ -60,20 +60,21 @@ using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
 using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
-platf::dev_type_e map_dev_type(AVHWDeviceType type);
+platf::mem_type_e map_dev_type(AVHWDeviceType type);
 platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
-void sw_img_to_frame(const platf::img_t &img, frame_t &frame);
-void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame);
+int sw_img_to_frame(const void *img, frame_t &frame);
+int vaapi_img_to_frame(const void *img, frame_t &frame);
+int dxgi_img_to_frame(const void *img, frame_t &frame);
 util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
+util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
-util::Either<buffer_t, int> make_hwdevice_ctx(AVHWDeviceType type, void *hwdevice_ctx);
 int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
 
 class swdevice_t : public platf::hwdevice_t {
 public:
   int convert(platf::img_t &img) override {
-    auto frame = (AVFrame *)data;
+    auto frame = (AVFrame *)this->img;
 
     av_frame_make_writable(frame);
 
@@ -81,12 +82,19 @@ public:
       img.row_pitch, 0
     };
 
-    std::uint8_t *const data[] {
-      frame->data[0] + offset,
-      frame->data[1] + offset / 2,
-      frame->data[2] + offset / 2,
-      0
-    };
+
+    std::uint8_t *data[4];
+
+    data[0] = frame->data[0] + offset;
+    if(frame->format == AV_PIX_FMT_NV12) {
+      data[1] = frame->data[1] + offset;
+      data[2] = nullptr;
+    }
+    else {
+      data[1] = frame->data[1] + offset / 2;
+      data[2] = frame->data[2] + offset / 2;
+      data[3] = nullptr;
+    }
 
     int ret = sws_scale(sws.get(), (std::uint8_t *const *)&img.data, linesizes, 0, img.height, data, frame->linesize);
     if(ret <= 0) {
@@ -108,14 +116,16 @@ public:
   /**
    * When preserving aspect ratio, ensure that padding is black
    */
-  int prefill(AVFrame *frame, AVPixelFormat format) {
+  int prefill() {
+    auto frame = (frame_t::pointer)img;
+
     auto width  = frame->width;
     auto height = frame->height;
 
     sws_t sws {
       sws_getContext(
         width, height, AV_PIX_FMT_BGR0,
-        width, height, format,
+        width, height, (AVPixelFormat)frame->format,
         SWS_LANCZOS | SWS_ACCURATE_RND,
         nullptr, nullptr, nullptr)
     };
@@ -145,7 +155,27 @@ public:
   }
 
   int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format) {
-    if(prefill(frame, format)) {
+    // If the device used is hardware, yet the image resides on main memory
+    if(frame->hw_frames_ctx) {
+      if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
+        return -1;
+      }
+
+      img = av_frame_alloc();
+
+      auto sw_frame = (frame_t::pointer)img;
+
+      sw_frame->width  = frame->width;
+      sw_frame->height = frame->height;
+      sw_frame->format = format;
+    }
+    else {
+      img = frame;
+    }
+
+    av_frame_get_buffer((frame_t::pointer)img, 0);
+
+    if(prefill()) {
       return -1;
     }
 
@@ -167,17 +197,27 @@ public:
       out_width, out_height, format,
       SWS_LANCZOS | SWS_ACCURATE_RND,
       nullptr, nullptr, nullptr));
-    data = frame;
 
     return sws ? 0 : -1;
   }
 
-  ~swdevice_t() override {}
+  ~swdevice_t() override {
+    if(img) {
+      av_frame_unref((frame_t::pointer)img);
+    }
+  }
 
   sws_t sws;
 
   // offset of input image to output frame in pixels
   int offset;
+};
+
+enum flag_e {
+  DEFAULT          = 0x00,
+  SYSTEM_MEMORY    = 0x01,
+  H264_ONLY        = 0x02,
+  LIMITED_GOP_SIZE = 0x04,
 };
 
 struct encoder_t {
@@ -186,6 +226,7 @@ struct encoder_t {
     PASSED,                // Is supported
     REF_FRAMES_RESTRICT,   // Set maximum reference frames
     REF_FRAMES_AUTOSELECT, // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
+    SLICE,                 // Allow frame to be partitioned into multiple slices
     DYNAMIC_RANGE,
     MAX_FLAGS
   };
@@ -228,10 +269,9 @@ struct encoder_t {
     }
   } hevc, h264;
 
-  bool system_memory;
-  bool hevc_mode;
+  int flags;
 
-  std::function<void(const platf::img_t &, frame_t &)> img_to_frame;
+  std::function<int(const void *, frame_t &)> img_to_frame;
   std::function<util::Either<buffer_t, int>(platf::hwdevice_t *hwdevice)> make_hwdevice_ctx;
 };
 
@@ -316,23 +356,29 @@ static encoder_t nvenc {
   AV_PIX_FMT_D3D11,
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
-    { { "forced-idr"s, 1 },
+    {
+      { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
       { "preset"s, &config::video.nv.preset },
-      { "rc"s, &config::video.nv.rc } },
+      { "rc"s, &config::video.nv.rc },
+    },
     std::nullopt,
     std::nullopt,
     "hevc_nvenc"s,
   },
-  { { { "forced-idr"s, 1 },
+  {
+    {
+      { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
       { "preset"s, &config::video.nv.preset },
       { "rc"s, &config::video.nv.rc },
-      { "coder"s, &config::video.nv.coder } },
-    std::nullopt, std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
-    "h264_nvenc"s },
-  false,
-  true,
+      { "coder"s, &config::video.nv.coder },
+    },
+    std::nullopt,
+    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    "h264_nvenc"s,
+  },
+  DEFAULT,
 
   dxgi_img_to_frame,
   dxgi_make_hwdevice_ctx
@@ -345,27 +391,31 @@ static encoder_t amdvce {
   AV_PIX_FMT_D3D11,
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
-    { { "header_insertion_mode"s, "idr"s },
+    {
+      { "header_insertion_mode"s, "idr"s },
       { "gops_per_idr"s, 30 },
       { "usage"s, "ultralowlatency"s },
       { "quality"s, &config::video.amd.quality },
-      { "rc"s, &config::video.amd.rc } },
+      { "rc"s, &config::video.amd.rc },
+    },
     std::nullopt,
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "hevc_amf"s,
   },
-  { {
+  {
+    {
       { "usage"s, "ultralowlatency"s },
       { "quality"s, &config::video.amd.quality },
       { "rc"s, &config::video.amd.rc },
       { "log_to_dbg"s, "1"s },
     },
-    std::nullopt, std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
-    "h264_amf"s },
-  false,
-  true,
+    std::nullopt,
+    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    "h264_amf"s,
+  },
+  DEFAULT
 
-  dxgi_img_to_frame,
+    dxgi_img_to_frame,
   dxgi_make_hwdevice_ctx
 };
 #endif
@@ -376,7 +426,8 @@ static encoder_t software {
   AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_NONE,
   AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
-  { // x265's Info SEI is so long that it causes the IDR picture data to be
+  {
+    // x265's Info SEI is so long that it causes the IDR picture data to be
     // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
     // It also looks like gop_size isn't passed on to x265, so we have to set
     // 'keyint=-1' in the parameters ourselves.
@@ -384,24 +435,68 @@ static encoder_t software {
       { "forced-idr"s, 1 },
       { "x265-params"s, "info=0:keyint=-1"s },
       { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune } },
-    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf), std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
-    "libx265"s },
-  { { { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune } },
-    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf), std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
-    "libx264"s },
-  true,
-  false,
+      { "tune"s, &config::video.sw.tune },
+    },
+    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf),
+    std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+    "libx265"s,
+  },
+  {
+    {
+      { "preset"s, &config::video.sw.preset },
+      { "tune"s, &config::video.sw.tune },
+    },
+    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf),
+    std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+    "libx264"s,
+  },
+  H264_ONLY | SYSTEM_MEMORY,
 
   sw_img_to_frame,
   nullptr
 };
 
+#ifdef __linux__
+static encoder_t vaapi {
+  "vaapi"sv,
+  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
+  AV_HWDEVICE_TYPE_VAAPI,
+  AV_PIX_FMT_VAAPI,
+  AV_PIX_FMT_NV12,
+  AV_PIX_FMT_YUV420P10,
+  {
+    {
+      { "sei"s, 0 },
+      { "idr_interval"s, std::numeric_limits<int>::max() },
+    },
+    std::nullopt,
+    std::nullopt,
+    "hevc_vaapi"s,
+  },
+  {
+    {
+      { "sei"s, 0 },
+      { "idr_interval"s, std::numeric_limits<int>::max() },
+      // { "quality"s, 10 },
+    },
+    std::nullopt,
+    std::nullopt,
+    "h264_vaapi"s,
+  },
+  LIMITED_GOP_SIZE | SYSTEM_MEMORY,
+
+  vaapi_img_to_frame,
+  vaapi_make_hwdevice_ctx
+};
+#endif
+
 static std::vector<encoder_t> encoders {
 #ifdef _WIN32
   nvenc,
   amdvce,
+#endif
+#ifdef __linux__
+  vaapi,
 #endif
   software
 };
@@ -626,8 +721,11 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   ctx->max_b_frames = 0;
 
   // Use an infinite GOP length since I-frames are generated on demand
-  ctx->gop_size   = std::numeric_limits<int>::max();
-  ctx->keyint_min = ctx->gop_size;
+  ctx->gop_size = encoder.flags & LIMITED_GOP_SIZE ?
+                    std::numeric_limits<std::int16_t>::max() :
+                    std::numeric_limits<int>::max();
+
+  ctx->keyint_min = std::numeric_limits<int>::max();
 
   if(config.numRefFrames == 0) {
     ctx->refs = video_format[encoder_t::REF_FRAMES_AUTOSELECT] ? 0 : 16;
@@ -707,6 +805,10 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     ctx->slices = std::max(config.slicesPerFrame, config::video.min_threads);
   }
 
+  if(!video_format[encoder_t::SLICE]) {
+    ctx->slices = 1;
+  }
+
   ctx->thread_type  = FF_THREAD_SLICE;
   ctx->thread_count = ctx->slices;
 
@@ -744,7 +846,15 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     return std::nullopt;
   }
 
-  avcodec_open2(ctx.get(), codec, &options);
+  if(auto status = avcodec_open2(ctx.get(), codec, &options)) {
+    char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+    BOOST_LOG(error)
+      << "Could not open codec ["sv
+      << video_format.name << "]: "sv
+      << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+
+    return std::nullopt;
+  }
 
   frame_t frame { av_frame_alloc() };
   frame->format = ctx->pix_fmt;
@@ -754,9 +864,6 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
   if(hardware) {
     frame->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
-  }
-  else /* software */ {
-    av_frame_get_buffer(frame.get(), 0);
   }
 
   util::wrap_ptr<platf::hwdevice_t> device;
@@ -778,7 +885,8 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   return std::make_optional(session_t {
     std::move(ctx),
     std::move(frame),
-    std::move(device) });
+    std::move(device),
+  });
 }
 
 void encode_run(
@@ -832,7 +940,9 @@ void encode_run(
       if(auto img = images->pop(delay)) {
         session->device->convert(*img);
 
-        encoder.img_to_frame(*session->device->img, session->frame);
+        if(encoder.img_to_frame(session->device->img, session->frame)) {
+          return;
+        }
       }
       else if(images->running()) {
         continue;
@@ -1011,7 +1121,9 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
         }
         pos->img_tmp = nullptr;
 
-        encoder.img_to_frame(*pos->hwdevice->img, pos->session.frame);
+        if(encoder.img_to_frame(pos->hwdevice->img, pos->session.frame)) {
+          return encode_e::error;
+        }
       }
 
       if(encode(ctx->frame_nr++, pos->session.ctx, pos->session.frame, ctx->packets, ctx->channel_data)) {
@@ -1053,8 +1165,7 @@ void captureThreadSync() {
     }
   });
 
-  while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit)
-    ;
+  while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
 
 void capture_async(
@@ -1138,7 +1249,7 @@ void capture(
   void *channel_data) {
 
   idr_events->raise(std::make_pair(0, 1));
-  if(encoders.front().system_memory) {
+  if(encoders.front().flags & SYSTEM_MEMORY) {
     capture_async(shutdown_event, packets, idr_events, config, channel_data);
   }
   else {
@@ -1177,7 +1288,9 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
     return false;
   }
 
-  encoder.img_to_frame(*hwdevice->img, session->frame);
+  if(encoder.img_to_frame(session->device->img, session->frame)) {
+    return false;
+  }
 
   session->frame->pict_type = AV_PICTURE_TYPE_I;
 
@@ -1198,10 +1311,12 @@ bool validate_encoder(encoder_t &encoder) {
   });
 
   auto force_hevc = config::video.hevc_mode >= 2;
-  auto test_hevc  = force_hevc || (config::video.hevc_mode == 0 && encoder.hevc_mode);
+  auto test_hevc  = force_hevc || (config::video.hevc_mode == 0 && !(encoder.flags & H264_ONLY));
 
   encoder.h264.capabilities.set();
   encoder.hevc.capabilities.set();
+
+  encoder.hevc[encoder_t::PASSED] = test_hevc;
 
   // First, test encoder viability
   config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
@@ -1218,6 +1333,7 @@ bool validate_encoder(encoder_t &encoder) {
   encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264;
   encoder.h264[encoder_t::PASSED]                = true;
 
+  encoder.h264[encoder_t::SLICE] = validate_config(disp, encoder, config_max_ref_frames);
   if(test_hevc) {
     config_max_ref_frames.videoFormat = 1;
     config_autoselect.videoFormat     = 1;
@@ -1232,11 +1348,13 @@ bool validate_encoder(encoder_t &encoder) {
 
     encoder.hevc[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_hevc;
     encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc;
+
+    encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc || autoselect_hevc;
   }
-  encoder.hevc[encoder_t::PASSED] = test_hevc;
 
   std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
-    { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } }
+    { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } },
+    { encoder_t::SLICE, { 1920, 1080, 60, 1000, 2, 1, 1, 0, 0 } },
   };
   for(auto &[flag, config] : configs) {
     auto h264 = config;
@@ -1246,7 +1364,7 @@ bool validate_encoder(encoder_t &encoder) {
     hevc.videoFormat = 1;
 
     encoder.h264[flag] = validate_config(disp, encoder, h264);
-    if(test_hevc && encoder.hevc[encoder_t::PASSED]) {
+    if(encoder.hevc[encoder_t::PASSED]) {
       encoder.hevc[flag] = validate_config(disp, encoder, hevc);
     }
   }
@@ -1313,29 +1431,6 @@ int init() {
   return 0;
 }
 
-util::Either<buffer_t, int> make_hwdevice_ctx(AVHWDeviceType type, void *hwdevice) {
-  buffer_t ctx;
-
-  int err;
-  if(hwdevice) {
-    ctx.reset(av_hwdevice_ctx_alloc(type));
-    ((AVHWDeviceContext *)ctx.get())->hwctx = hwdevice;
-
-    err = av_hwdevice_ctx_init(ctx.get());
-  }
-  else {
-    AVBufferRef *ref {};
-    err = av_hwdevice_ctx_create(&ref, type, nullptr, nullptr, 0);
-    ctx.reset(ref);
-  }
-
-  if(err < 0) {
-    return err;
-  }
-
-  return ctx;
-}
-
 int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice.get()) };
 
@@ -1344,7 +1439,7 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   frame_ctx->sw_format         = format;
   frame_ctx->height            = ctx->height;
   frame_ctx->width             = ctx->width;
-  frame_ctx->initial_pool_size = 0;
+  frame_ctx->initial_pool_size = 20;
 
   if(auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
     return err;
@@ -1355,7 +1450,32 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   return 0;
 }
 
-void sw_img_to_frame(const platf::img_t &img, frame_t &frame) {}
+int sw_img_to_frame(const void *img, frame_t &frame) {
+  return 0;
+}
+
+int vaapi_img_to_frame(const void *img, frame_t &frame) {
+  auto status = av_hwframe_transfer_data(frame.get(), (frame_t::pointer)img, 0);
+  if(status < 0) {
+    char string[AV_ERROR_MAX_STRING_SIZE];
+    BOOST_LOG(error) << "Failed to transfer image data to hardware frame: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+    return -1;
+  }
+
+  return 0;
+}
+
+util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *) {
+  buffer_t hw_device_buf;
+  auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, "/dev/dri/renderD129", nullptr, 0);
+  if(status < 0) {
+    char string[AV_ERROR_MAX_STRING_SIZE];
+    BOOST_LOG(error) << "Failed to create a VAAPI device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+    return -1;
+  }
+
+  return hw_device_buf;
+}
 
 #ifdef _WIN32
 }
@@ -1445,17 +1565,18 @@ int start_capture_sync(capture_thread_sync_ctx_t &ctx) {
 }
 void end_capture_sync(capture_thread_sync_ctx_t &ctx) {}
 
-platf::dev_type_e map_dev_type(AVHWDeviceType type) {
+platf::mem_type_e map_dev_type(AVHWDeviceType type) {
   switch(type) {
   case AV_HWDEVICE_TYPE_D3D11VA:
-    return platf::dev_type_e::dxgi;
+    return platf::mem_type_e::dxgi;
   case AV_PICTURE_TYPE_NONE:
-    return platf::dev_type_e::none;
+  case AV_HWDEVICE_TYPE_VAAPI:
+    return platf::mem_type_e::system;
   default:
-    return platf::dev_type_e::unknown;
+    return platf::mem_type_e::unknown;
   }
 
-  return platf::dev_type_e::unknown;
+  return platf::mem_type_e::unknown;
 }
 
 platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt) {
