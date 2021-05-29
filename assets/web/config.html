@@ -1,5 +1,5 @@
 <div id="app" class="container">
-    <h1>Configuration</h1>
+    <h1 class="my-4">Configuration</h1>
     <div class="form" v-if="config">
         <!--Header-->
         <ul class="nav nav-tabs">
@@ -20,7 +20,7 @@
             <!--Log Level-->
             <div class="mb-3">
                 <label for="min_log_level" class="form-label">Log Level</label>
-                <select id="min_log_level" class="form-control"  v-model="config.min_log_level">
+                <select id="min_log_level" class="form-select"  v-model="config.min_log_level">
                     <option :value="0">Verbose</option>
                     <option :value="1">Debug</option>
                     <option :value="2">Info</option>
@@ -34,7 +34,7 @@
             <!--Origin PIN Allowed-->
             <div class="mb-3">
                 <label for="origin_pin_allowed" class="form-label">Origin PIN Allowed</label>
-                <select id="origin_pin_allowed" class="form-control" v-model="config.origin_pin_allowed">
+                <select id="origin_pin_allowed" class="form-select" v-model="config.origin_pin_allowed">
                     <option value="pc">Only localhost may access /pin and Web UI</option>
                     <option value="lan">Only those in LAN may access /pin and Web UI</option>
                     <option value="wan">Anyone may access /pin and Web UI</option>
@@ -198,7 +198,7 @@
             <!--HEVC Suppport -->
             <div class="mb-3">
                 <label for="hevc_mode" class="form-label">HEVC Support</label>
-                <select id="hevc_mode" class="form-control" v-model="config.hevc_mode">
+                <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
                     <option value="0">Sunshine will specify support for HEVC based on encoder</option>
                     <option value="1">Sunshine will not advertise support for HEVC</option>
                     <option value="2">Sunshine will advertise support for HEVC Main profile</option>
@@ -213,7 +213,7 @@
             <!--Encoder -->
             <div class="mb-3">
                 <label for="encoder" class="form-label">Force a Specific Encoder</label>
-                <select id="encoder" class="form-control" v-model="config.encoder">
+                <select id="encoder" class="form-select" v-model="config.encoder">
                     <option value="null">Autodetect</option>
                     <option value="nvenc">nVidia NVENC</option>
                     <option value="amdvce">AMD AMF/VCE</option>
@@ -265,7 +265,7 @@
             <!--NVENC SETTINGS-->
             <div class="mb-3">
                 <label for="nv_preset" class="form-label">NVEnc Preset</label>
-                <select id="nv_preset" class="form-control" v-model="config.nv_preset">
+                <select id="nv_preset" class="form-select" v-model="config.nv_preset">
                     <option value="default">Default</option>
                     <option value="hp">High Performance</option>
                     <option value="hq">High Quality</option>
@@ -282,7 +282,7 @@
             </div>
             <div class="mb-3">
                 <label for="nv_rc" class="form-label">NVEnc Rate Control</label>
-                <select id="nv_rc" class="form-control" v-model="config.nv_rc">
+                <select id="nv_rc" class="form-select" v-model="config.nv_rc">
                     <option value="auto">auto -- let ffmpeg decide rate control</option>
                     <option value="constqp">constqp -- constant QP mode</option>
                     <option value="vbr">vbr -- variable bitrate</option>
@@ -294,7 +294,7 @@
             </div>
             <div class="mb-3">
                 <label for="nv_coder" class="form-label">NVEnc Rate Control</label>
-                <select id="nv_coder" class="form-control" v-model="config.nv_coder">
+                <select id="nv_coder" class="form-select" v-model="config.nv_coder">
                     <option value="auto">auto</option>
                     <option value="cabac">cabac</option>
                     <option value="cavlc">cavlc</option>
@@ -306,7 +306,7 @@
             <!--Presets-->
             <div class="mb-3">
                 <label for="amd_quality" class="form-label">AMD AMF Quality</label>
-                <select id="amd_quality" class="form-control" v-model="config.amd_quality">
+                <select id="amd_quality" class="form-select" v-model="config.amd_quality">
                     <option value="default">Default</option>
                     <option value="speed">Speed</option>
                     <option value="balanced">Balanced</option>
@@ -314,7 +314,7 @@
             </div>
             <div class="mb-3">
                 <label for="amd_rc" class="form-label">AMD AMF Rate Control</label>
-                <select id="amd_rc" class="form-control">
+                <select id="amd_rc" class="form-select">
                     <option value="auto">auto -- let ffmpeg decide rate control</option>
                     <option value="constqp">constqp -- constant QP mode</option>
                     <option value="vbr_latency">vbr_latency -- Latency Constrained Variable Bitrate</option>
@@ -324,7 +324,7 @@
             </div>
             <div class="mb-3">
                 <label for="amd_coder" class="form-label">AMD AMF Rate Control</label>
-                <select id="amd_coder" class="form-control" v-model="config.amd_coder">
+                <select id="amd_coder" class="form-select" v-model="config.amd_coder">
                     <option value="auto">auto</option>
                     <option value="cabac">cabac</option>
                     <option value="cavlc">cavlc</option>

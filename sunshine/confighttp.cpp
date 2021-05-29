@@ -135,6 +135,14 @@ void getConfigPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> 
   response->write(header + content);
 }
 
+template<class T>
+void getPasswordPage(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+  if(!authenticate(response, request)) return;
+  std::string header  = read_file(WEB_DIR "header.html");
+  std::string content = read_file(WEB_DIR "password.html");
+  response->write(header + content);
+}
+
 void getApps(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
   std::string content = read_file(SUNSHINE_ASSETS_DIR "/" APPS_JSON);
@@ -306,6 +314,54 @@ void saveConfig(resp_https_t response, req_https_t request) {
   }
 }
 
+void savePassword(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+  std::stringstream ss;
+  std::stringstream configStream;
+  ss << request->content.rdbuf();
+  
+  pt::ptree inputTree,outputTree,fileTree;
+  
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+  
+  try {
+    //TODO: Input Validation
+    pt::read_json(ss, inputTree);
+    std::string username        = inputTree.get<std::string>("currentUsername");
+    std::string newUsername     = inputTree.get<std::string>("newUsername");
+    std::string password        = inputTree.get<std::string>("currentPassword");
+    std::string newPassword     = inputTree.get<std::string>("newPassword");
+    std::string confirmPassword = inputTree.get<std::string>("confirmNewPassword");
+    if(newUsername.length() == 0)  newUsername = username;
+    std::string hash = crypto::hash_hexstr(password + config::sunshine.salt);
+    if(username == config::sunshine.username && hash == config::sunshine.password){
+      if(newPassword != confirmPassword){
+        outputTree.put("status",false);
+        outputTree.put("error","Password Mismatch");
+      }
+      fileTree.put("username",newUsername);
+      fileTree.put("password",crypto::hash_hexstr(newPassword + config::sunshine.salt));
+      fileTree.put("salt",config::sunshine.salt);
+      pt::write_json(config::sunshine.credentials_file,fileTree);
+      http::reload_user_creds(config::sunshine.credentials_file);
+      outputTree.put("status",true);
+    } else {
+      outputTree.put("status",false);
+      outputTree.put("error","Invalid Current Credentials");
+    }
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << e.what();
+    outputTree.put("status", false);
+    outputTree.put("error", e.what());
+    return;
+  }
+}
+
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
   ctx->use_certificate_chain_file(config::nvhttp.cert);
@@ -315,14 +371,16 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   http_server.resource["^/$"]["GET"]                     = getIndexPage;
   http_server.resource["^/pin$"]["GET"]                  = getPinPage<SimpleWeb::HTTPS>;
   http_server.resource["^/apps$"]["GET"]                 = getAppsPage<SimpleWeb::HTTPS>;
+  http_server.resource["^/clients$"]["GET"]              = getClientsPage<SimpleWeb::HTTPS>;
+  http_server.resource["^/config$"]["GET"]               = getConfigPage<SimpleWeb::HTTPS>;
+  http_server.resource["^/password$"]["GET"]             = getPasswordPage<SimpleWeb::HTTPS>;
+  http_server.resource["^/pin/([0-9]+)$"]["GET"]         = nvhttp::pin<SimpleWeb::HTTPS>;
   http_server.resource["^/api/apps$"]["GET"]             = getApps;
   http_server.resource["^/api/apps$"]["POST"]            = saveApp;
   http_server.resource["^/api/config$"]["GET"]           = getConfig;
   http_server.resource["^/api/config$"]["POST"]          = saveConfig;
+  http_server.resource["^/api/password$"]["POST"]        = savePassword;
   http_server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
-  http_server.resource["^/clients$"]["GET"]              = getClientsPage<SimpleWeb::HTTPS>;
-  http_server.resource["^/config$"]["GET"]               = getConfigPage<SimpleWeb::HTTPS>;
-  http_server.resource["^/pin/([0-9]+)$"]["GET"]         = nvhttp::pin<SimpleWeb::HTTPS>;
   http_server.config.reuse_address                       = true;
   http_server.config.address                             = "0.0.0.0"s;
   http_server.config.port                                = PORT_HTTP;
