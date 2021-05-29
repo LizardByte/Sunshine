@@ -5,9 +5,10 @@
 #ifndef SUNSHINE_CRYPTO_H
 #define SUNSHINE_CRYPTO_H
 
-#include <cassert>
 #include <array>
+#include <cassert>
 #include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <openssl/sha.h>
 #include <openssl/x509.h>
 #include <openssl/rand.h>
@@ -26,14 +27,14 @@ void md_ctx_destroy(EVP_MD_CTX *);
 
 using sha256_t = std::array<std::uint8_t, SHA256_DIGEST_LENGTH>;
 
-using aes_t = std::array<std::uint8_t, 16>;
-using x509_t = util::safe_ptr<X509, X509_free>;
-using x509_store_t = util::safe_ptr<X509_STORE, X509_STORE_free>;
+using aes_t            = std::array<std::uint8_t, 16>;
+using x509_t           = util::safe_ptr<X509, X509_free>;
+using x509_store_t     = util::safe_ptr<X509_STORE, X509_STORE_free>;
 using x509_store_ctx_t = util::safe_ptr<X509_STORE_CTX, X509_STORE_CTX_free>;
-using cipher_ctx_t = util::safe_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free>;
-using md_ctx_t = util::safe_ptr<EVP_MD_CTX, md_ctx_destroy>;
-using bio_t = util::safe_ptr<BIO, BIO_free_all>;
-using pkey_t = util::safe_ptr<EVP_PKEY, EVP_PKEY_free>;
+using cipher_ctx_t     = util::safe_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free>;
+using md_ctx_t         = util::safe_ptr<EVP_MD_CTX, md_ctx_destroy>;
+using bio_t            = util::safe_ptr<BIO, BIO_free_all>;
+using pkey_t           = util::safe_ptr<EVP_PKEY, EVP_PKEY_free>;
 
 sha256_t hash(const std::string_view &plaintext);
 std::string hash_hexstr(const std::string_view &plaintext);
@@ -61,6 +62,7 @@ public:
   void add(x509_t &&cert);
 
   const char *verify(x509_t::element_type *cert);
+
 private:
   std::vector<std::pair<x509_t, x509_store_t>> _certs;
   x509_store_ctx_t _cert_ctx;
@@ -69,13 +71,14 @@ private:
 class cipher_t {
 public:
   cipher_t(const aes_t &key);
-  cipher_t(cipher_t&&) noexcept = default;
-  cipher_t &operator=(cipher_t&&) noexcept = default;
+  cipher_t(cipher_t &&) noexcept = default;
+  cipher_t &operator=(cipher_t &&) noexcept = default;
 
   int encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher);
 
   int decrypt_gcm(aes_t &iv, const std::string_view &cipher, std::vector<std::uint8_t> &plaintext);
   int decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext);
+
 private:
   cipher_ctx_t ctx;
   aes_t key;
@@ -83,6 +86,6 @@ private:
 public:
   bool padding;
 };
-}
+} // namespace crypto
 
 #endif //SUNSHINE_CRYPTO_H

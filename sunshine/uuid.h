@@ -18,12 +18,12 @@ union uuid_t {
     std::uniform_int_distribution<std::uint8_t> dist(0, std::numeric_limits<std::uint8_t>::max());
 
     uuid_t buf;
-    for (auto &el : buf.b8) {
+    for(auto &el : buf.b8) {
       el = dist(engine);
     }
 
-    buf.b8[7] &= (std::uint8_t) 0b00101111;
-    buf.b8[9] &= (std::uint8_t) 0b10011111;
+    buf.b8[7] &= (std::uint8_t)0b00101111;
+    buf.b8[9] &= (std::uint8_t)0b10011111;
 
     return buf;
   }
@@ -31,7 +31,7 @@ union uuid_t {
   static uuid_t generate() {
     std::random_device r;
 
-    std::default_random_engine engine{r()};
+    std::default_random_engine engine { r() };
 
     return generate(engine);
   }
@@ -41,7 +41,7 @@ union uuid_t {
 
     result.reserve(sizeof(uuid_t) * 2 + 4);
 
-    auto hex = util::hex(*this, true);
+    auto hex      = util::hex(*this, true);
     auto hex_view = hex.to_string_view();
 
     std::string_view slices[] = {
@@ -75,5 +75,5 @@ union uuid_t {
     return (b64[0] > other.b64[0] || (b64[0] == other.b64[0] && b64[1] > other.b64[1]));
   }
 };
-}
+} // namespace util
 #endif //T_MAN_UUID_H

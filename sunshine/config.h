@@ -1,17 +1,18 @@
 #ifndef SUNSHINE_CONFIG_H
 #define SUNSHINE_CONFIG_H
 
-#include <chrono>
-#include <string>
 #include <bitset>
+#include <chrono>
 #include <optional>
 #include <unordered_map>
+#include <string>
+#include <vector>
 
 namespace config {
 struct video_t {
   // ffmpeg params
   int crf; // higher == more compression and less quality
-  int qp; // higher == more compression and less quality, ignored if crf != 0
+  int qp;  // higher == more compression and less quality, ignored if crf != 0
 
   int hevc_mode;
 
@@ -40,6 +41,7 @@ struct video_t {
 
 struct audio_t {
   std::string sink;
+  std::string virtual_sink;
 };
 
 struct stream_t {
@@ -66,6 +68,8 @@ struct nvhttp_t {
   std::string file_state;
 
   std::string external_ip;
+  std::vector<std::string> resolutions;
+  std::vector<int> fps;
 };
 
 struct input_t {
@@ -77,9 +81,9 @@ struct input_t {
 namespace flag {
 enum flag_e : std::size_t {
   PIN_STDIN = 0, // Read PIN from stdin instead of http
-  FRESH_STATE, // Do not load or save state
-  FLAG_SIZE,
-  CONST_PIN= 4 // Use "universal" pin
+  FRESH_STATE,   // Do not load or save state
+  CONST_PIN = 4, // Use "universal" pin
+  FLAG_SIZE
 };
 }
 
@@ -101,6 +105,4 @@ extern sunshine_t sunshine;
 
 int parse(int argc, char *argv[]);
 std::unordered_map<std::string, std::string> parse_config(std::string_view file_content);
-}
-
 #endif

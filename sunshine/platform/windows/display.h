@@ -5,14 +5,14 @@
 #ifndef SUNSHINE_DISPLAY_H
 #define SUNSHINE_DISPLAY_H
 
-#include <dxgi.h>
 #include <d3d11.h>
 #include <d3d11_4.h>
 #include <d3dcommon.h>
+#include <dxgi.h>
 #include <dxgi1_2.h>
 
-#include "sunshine/utility.h"
 #include "sunshine/platform/common.h"
+#include "sunshine/utility.h"
 
 namespace platf::dxgi {
 extern const char *format_str[];
@@ -43,7 +43,7 @@ using processor_t      = util::safe_ptr<ID3D11VideoProcessor, Release<ID3D11Vide
 using processor_out_t  = util::safe_ptr<ID3D11VideoProcessorOutputView, Release<ID3D11VideoProcessorOutputView>>;
 using processor_in_t   = util::safe_ptr<ID3D11VideoProcessorInputView, Release<ID3D11VideoProcessorInputView>>;
 using processor_enum_t = util::safe_ptr<ID3D11VideoProcessorEnumerator, Release<ID3D11VideoProcessorEnumerator>>;
-}
+} // namespace video
 
 class hwdevice_t;
 struct cursor_t {
@@ -86,16 +86,14 @@ public:
   DXGI_FORMAT format;
   D3D_FEATURE_LEVEL feature_level;
 
-  typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS
-  {
+  typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
     D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,
     D3DKMT_SCHEDULINGPRIORITYCLASS_BELOW_NORMAL,
     D3DKMT_SCHEDULINGPRIORITYCLASS_NORMAL,
     D3DKMT_SCHEDULINGPRIORITYCLASS_ABOVE_NORMAL,
     D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH,
     D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME
-  }
-  D3DKMT_SCHEDULINGPRIORITYCLASS;
+  } D3DKMT_SCHEDULINGPRIORITYCLASS;
 
   typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
 };
@@ -123,8 +121,8 @@ public:
   std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) override;
 
   gpu_cursor_t cursor;
-  std::vector<hwdevice_t*> hwdevices;
+  std::vector<hwdevice_t *> hwdevices;
 };
-}
+} // namespace platf::dxgi
 
 #endif

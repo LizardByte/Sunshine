@@ -5,9 +5,9 @@
 #ifndef SUNSHINE_SYNC_H
 #define SUNSHINE_SYNC_H
 
-#include <utility>
-#include <mutex>
 #include <array>
+#include <mutex>
+#include <utility>
 
 namespace util {
 
@@ -21,8 +21,8 @@ public:
     return std::lock_guard { _lock };
   }
 
-  template<class ...Args>
-  sync_t(Args&&... args) : raw {std::forward<Args>(args)... } {}
+  template<class... Args>
+  sync_t(Args &&...args) : raw { std::forward<Args>(args)... } {}
 
   sync_t &operator=(sync_t &&other) noexcept {
     std::lock(_lock, other._lock);
@@ -84,11 +84,12 @@ public:
   }
 
   value_t raw;
+
 private:
   mutex_t _lock;
 };
 
-}
+} // namespace util
 
 
 #endif //T_MAN_SYNC_H

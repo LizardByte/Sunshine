@@ -1,18 +1,18 @@
 #ifndef KITTY_TASK_POOL_H
 #define KITTY_TASK_POOL_H
 
-#include <deque>
-#include <vector>
-#include <future>
 #include <chrono>
-#include <utility>
+#include <deque>
 #include <functional>
+#include <future>
 #include <mutex>
-#include <type_traits>
 #include <optional>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
-#include "utility.h"
 #include "move_by_copy.h"
+#include "utility.h"
 namespace util {
 
 class _ImplBase {
@@ -29,8 +29,7 @@ class _Impl : public _ImplBase {
   Function _func;
 
 public:
-
-  _Impl(Function&& f) : _func(std::forward<Function>(f)) { }
+  _Impl(Function &&f) : _func(std::forward<Function>(f)) {}
 
   void run() override {
     _func();
@@ -40,7 +39,7 @@ public:
 class TaskPool {
 public:
   typedef std::unique_ptr<_ImplBase> __task;
-  typedef _ImplBase* task_id_t;
+  typedef _ImplBase *task_id_t;
 
 
   typedef std::chrono::steady_clock::time_point __time_point;
@@ -53,9 +52,10 @@ public:
 
     timer_task_t(task_id_t task_id, std::future<R> &future) : task_id { task_id }, future { std::move(future) } {}
   };
+
 protected:
   std::deque<__task> _tasks;
-  std::vector<std::pair<__time_point, __task>> _timer_tasks; 
+  std::vector<std::pair<__time_point, __task>> _timer_tasks;
   std::mutex _task_mutex;
 
 public:
@@ -70,8 +70,8 @@ public:
   }
 
   template<class Function, class... Args>
-  auto push(Function && newTask, Args &&... args) {
-    static_assert(std::is_invocable_v<Function, Args&&...>, "arguments don't match the function");
+  auto push(Function &&newTask, Args &&...args) {
+    static_assert(std::is_invocable_v<Function, Args &&...>, "arguments don't match the function");
 
     using __return = std::invoke_result_t<Function, Args &&...>;
     using task_t   = std::packaged_task<__return()>;
@@ -81,12 +81,12 @@ public:
     };
 
     task_t task(std::move(bind));
-    
+
     auto future = task.get_future();
-    
+
     std::lock_guard<std::mutex> lg(_task_mutex);
     _tasks.emplace_back(toRunnable(std::move(task)));
-    
+
     return future;
   }
 
@@ -107,14 +107,14 @@ public:
    * @return an id to potentially delay the task
    */
   template<class Function, class X, class Y, class... Args>
-  auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&... args) {
-    static_assert(std::is_invocable_v<Function, Args&&...>, "arguments don't match the function");
+  auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
+    static_assert(std::is_invocable_v<Function, Args &&...>, "arguments don't match the function");
 
     using __return = std::invoke_result_t<Function, Args &&...>;
     using task_t   = std::packaged_task<__return()>;
 
     __time_point time_point;
-    if constexpr (std::is_floating_point_v<X>) {
+    if constexpr(std::is_floating_point_v<X>) {
       time_point = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
     }
     else {
@@ -127,7 +127,7 @@ public:
 
     task_t task(std::move(bind));
 
-    auto future = task.get_future();
+    auto future   = task.get_future();
     auto runnable = toRunnable(std::move(task));
 
     task_id_t task_id = &*runnable;
@@ -160,13 +160,14 @@ public:
     }
 
     // smaller time goes to the back
-    auto prev = it -1;
+    auto prev = it - 1;
     while(it > _timer_tasks.cbegin()) {
       if(std::get<0>(*it) > std::get<0>(*prev)) {
         std::swap(*it, *prev);
       }
 
-      --prev; --it;
+      --prev;
+      --it;
     }
   }
 
@@ -201,20 +202,20 @@ public:
 
   std::optional<__task> pop() {
     std::lock_guard lg(_task_mutex);
-    
+
     if(!_tasks.empty()) {
       __task task = std::move(_tasks.front());
       _tasks.pop_front();
       return std::move(task);
     }
-    
+
     if(!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now()) {
       __task task = std::move(std::get<1>(_timer_tasks.back()));
       _timer_tasks.pop_back();
-      
+
       return std::move(task);
     }
-    
+
     return std::nullopt;
   }
 
@@ -233,12 +234,12 @@ public:
 
     return std::get<0>(_timer_tasks.back());
   }
-private:
 
+private:
   template<class Function>
   std::unique_ptr<_ImplBase> toRunnable(Function &&f) {
-    return std::make_unique<_Impl<Function>>(std::forward<Function&&>(f));
+    return std::make_unique<_Impl<Function>>(std::forward<Function &&>(f));
   }
 };
-}
+} // namespace util
 #endif

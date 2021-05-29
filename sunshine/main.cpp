@@ -4,29 +4,28 @@
 
 #include "process.h"
 
-#include <thread>
-#include <iostream>
 #include <csignal>
+#include <iostream>
+#include <thread>
 
-#include <boost/log/common.hpp>
-#include <boost/log/sinks.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/attributes/clock.hpp>
+#include <boost/log/common.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/sinks.hpp>
+#include <boost/log/sources/severity_logger.hpp>
 
-#include "video.h"
-#include "input.h"
+#include "config.h"
 #include "nvhttp.h"
 #include "httpcommon.h"
 #include "confighttp.h"
 #include "rtsp.h"
-#include "config.h"
 #include "thread_pool.h"
+#include "video.h"
 
 #include "platform/common.h"
 extern "C" {
-#include <rs.h>
 #include <libavutil/log.h>
+#include <rs.h>
 }
 
 using namespace std::literals;
@@ -82,31 +81,31 @@ int main(int argc, char *argv[]) {
   sink->locked_backend()->add_stream(stream);
   sink->set_filter(severity >= config::sunshine.min_log_level);
 
-  sink->set_formatter([message="Message"s, severity="Severity"s](const bl::record_view &view, bl::formatting_ostream &os) {
-    constexpr int DATE_BUFFER_SIZE = 21 +2 +1; // Full string plus ": \0"
+  sink->set_formatter([message = "Message"s, severity = "Severity"s](const bl::record_view &view, bl::formatting_ostream &os) {
+    constexpr int DATE_BUFFER_SIZE = 21 + 2 + 1; // Full string plus ": \0"
 
     auto log_level = view.attribute_values()[severity].extract<int>().get();
 
     std::string_view log_type;
     switch(log_level) {
-      case 0:
-        log_type = "Verbose: "sv;
-        break;
-      case 1:
-        log_type = "Debug: "sv;
-        break;
-      case 2:
-        log_type = "Info: "sv;
-        break;
-      case 3:
-        log_type = "Warning: "sv;
-        break;
-      case 4:
-        log_type = "Error: "sv;
-        break;
-      case 5:
-        log_type = "Fatal: "sv;
-        break;
+    case 0:
+      log_type = "Verbose: "sv;
+      break;
+    case 1:
+      log_type = "Debug: "sv;
+      break;
+    case 2:
+      log_type = "Info: "sv;
+      break;
+    case 3:
+      log_type = "Warning: "sv;
+      break;
+    case 4:
+      log_type = "Error: "sv;
+      break;
+    case 5:
+      log_type = "Fatal: "sv;
+      break;
     };
 
     char _date[DATE_BUFFER_SIZE];
@@ -133,7 +132,6 @@ int main(int argc, char *argv[]) {
     return 4;
   }
 
-  input::init();
   reed_solomon_init();
   if(video::init()) {
     return 2;
