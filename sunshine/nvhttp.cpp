@@ -420,6 +420,36 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
   response->write(data.str());
 }
 
+bool pin(std::string pin){
+  pt::ptree tree;
+  if(map_id_sess.empty()) {
+    return false;
+  }
+
+  auto &sess = std::begin(map_id_sess)->second;
+  getservercert(sess, tree, pin);
+
+  // response to the request for pin
+  std::ostringstream data;
+  pt::write_xml(data, tree);
+
+  auto &async_response = sess.async_insert_pin.response;
+  if(async_response.has_left() && async_response.left()) {
+    async_response.left()->write(data.str());
+  }
+  else if(async_response.has_right() && async_response.right()) {
+    async_response.right()->write(data.str());
+  }
+  else {
+    return false;
+  }
+
+  // reset async_response
+  async_response = std::decay_t<decltype(async_response.left())>();
+  // response to the current request
+  return true;
+}
+
 template<class T>
 void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
@@ -434,38 +464,12 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
     return;
   }
 
-  pt::ptree tree;
-
-  if(map_id_sess.empty()) {
+  bool pinResponse = pin(request->path_match[1]);
+  if(pinResponse){
+    response->write(SimpleWeb::StatusCode::success_ok);
+  } else {
     response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
-
-    return;
   }
-
-  auto &sess = std::begin(map_id_sess)->second;
-  getservercert(sess, tree, request->path_match[1]);
-
-  // response to the request for pin
-  std::ostringstream data;
-  pt::write_xml(data, tree);
-
-  auto &async_response = sess.async_insert_pin.response;
-  if(async_response.has_left() && async_response.left()) {
-    async_response.left()->write(data.str());
-  }
-  else if(async_response.has_right() && async_response.right()) {
-    async_response.right()->write(data.str());
-  }
-  else {
-    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
-
-    return;
-  }
-
-  // reset async_response
-  async_response = std::decay_t<decltype(async_response.left())>();
-  // response to the current request
-  response->write(SimpleWeb::StatusCode::success_ok);
 }
 
 template<class T>

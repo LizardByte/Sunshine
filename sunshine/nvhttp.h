@@ -17,8 +17,7 @@
 
 namespace nvhttp {
 void start(std::shared_ptr<safe::signal_t> shutdown_event);
-template<class T>
-void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request);
+bool pin(std::string pin);
 } // namespace nvhttp
 
 #endif //SUNSHINE_NVHTTP_H

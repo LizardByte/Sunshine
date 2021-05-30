@@ -19,10 +19,11 @@
         e.preventDefault();
         let pin = document.querySelector("#pin-input").value;
         document.querySelector("#status").innerHTML = "";
-        fetch("/pin/" + pin).then((response)=>{
-            if(response.status == 200){
+        let b = JSON.stringify({pin: pin});
+        fetch("/api/pin",{method: "POST",body: b}).then((response) => response.json()).then((response)=>{
+            if(response.status){
                 document.querySelector("#status").innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
-            } else if(response.status == 418){
+            } else {
                 document.querySelector("#status").innerHTML = `<div class="alert alert-danger" role="alert">PIN does not match, please check if it's typed correctly</div>`;
             }
         })

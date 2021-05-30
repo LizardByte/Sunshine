@@ -170,9 +170,11 @@ void saveApp(resp_https_t response, req_https_t request) {
     pt::read_json(SUNSHINE_ASSETS_DIR "/" APPS_JSON, fileTree);
     auto &apps_node = fileTree.get_child("apps"s);
     int index       = inputTree.get<int>("index");
-    BOOST_LOG(info) << inputTree.get_child("prep-cmd").empty();
     if(inputTree.get_child("prep-cmd").empty())
       inputTree.erase("prep-cmd");
+    
+    if(inputTree.get_child("detached").empty())
+      inputTree.erase("detached");
     
     inputTree.erase("index");
     if(index == -1) {
@@ -372,6 +374,34 @@ void savePassword(resp_https_t response, req_https_t request) {
   }
 }
 
+void savePin(resp_https_t response, req_https_t request){
+  if(!authenticate(response, request)) return;
+  
+  std::stringstream ss;
+  ss << request->content.rdbuf();
+  
+  pt::ptree inputTree,outputTree;
+  
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+  
+  try {
+    //TODO: Input Validation
+    pt::read_json(ss, inputTree);
+    std::string pin = inputTree.get<std::string>("pin");
+    outputTree.put("status",nvhttp::pin(pin));
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << e.what();
+    outputTree.put("status", false);
+    outputTree.put("error", e.what());
+    return;
+  }
+}
+
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
   ctx->use_certificate_chain_file(config::nvhttp.cert);
@@ -384,7 +414,7 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   server.resource["^/clients$"]["GET"]              = getClientsPage;
   server.resource["^/config$"]["GET"]               = getConfigPage;
   server.resource["^/password$"]["GET"]             = getPasswordPage;
-  server.resource["^/pin/([0-9]+)$"]["GET"]         = nvhttp::pin<SimpleWeb::HTTPS>;
+  server.resource["^/api/pin"]["POST"]              = savePin;
   server.resource["^/api/apps$"]["GET"]             = getApps;
   server.resource["^/api/apps$"]["POST"]            = saveApp;
   server.resource["^/api/config$"]["GET"]           = getConfig;
