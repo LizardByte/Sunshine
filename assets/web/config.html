@@ -55,6 +55,43 @@
                 <div class="form-text">How long to wait in milliseconds for data from moonlight before shutting down the
                     stream</div>
             </div>
+            <!--Advertised FPS and Resolutions-->
+            <div class="mb-3">
+                <label for="ping_timeout" class="form-label">Advertised Resolutions and FPS</label>
+                <div class="resolutions-container">
+                    <label>Resolutions</label>
+                    <div class="resolutions d-flex flex-wrap">
+                        <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
+                            <span class="px-2">{{r}}</span>
+                            <span style="cursor: pointer;" @click="resolutions.splice(i,1)">&times;</span>
+                        </div>
+                        <form @submit.prevent="resolutions.push(resIn);resIn = '';" class="d-flex align-items-center">
+                            <input type="text" v-model="resIn" required pattern="[0-9]+x[0-9]+" style="border-top-right-radius: 0;border-bottom-right-radius: 0;" class="form-control">
+                            <button style="border-top-left-radius: 0;border-bottom-left-radius: 0;" class="btn btn-success">+</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="fps-container">
+                    <label>FPS</label>
+                    <div class="fps d-flex flex-wrap">
+                        <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
+                            <span class="px-2">{{f}}</span>
+                            <span style="cursor: pointer;" @click="fps.splice(i,1)">&times;</span>
+                        </div>
+                        <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
+                            <input type="text" v-model="fpsIn" required pattern="[0-9]+" 
+                            style="width: 6ch;border-top-right-radius: 0;border-bottom-right-radius: 0;" class="form-control">
+                            <button style="border-top-left-radius: 0;border-bottom-left-radius: 0;" class="btn btn-success">+</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="form-text">
+                    The display modes advertised by Sunshine<br>
+                    Some versions of Moonlight, such as Moonlight-nx (Switch),
+                    rely on this list to ensure that the requested resolutions and fps
+                    are supported.
+                </div>
+            </div>
         </div>
         <!--Files Tab-->
         <div v-if="currentTab === 'files'" class="config-page">
@@ -98,7 +135,7 @@
                 </div>
             </div>
             <!-- Key Repeat Delay-->
-            <div class="mb-3" v-if="config.platform === 'windows'">
+            <div class="mb-3" v-if="platform === 'windows'">
                 <label for="key_repeat_delay" class="form-label">Key Repeat Delay</label>
                 <input type="text" class="form-control" id="key_repeat_delay" placeholder="500" v-model="config.key_repeat_delay">
                 <div class="form-text">
@@ -107,7 +144,7 @@
                 </div>
             </div>
             <!-- Key Repeat Frequency-->
-            <div class="mb-3" v-if="config.platform === 'windows'">
+            <div class="mb-3" v-if="platform === 'windows'">
                 <label for="key_repeat_frequency" class="form-label">Key Repeat Frequency</label>
                 <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9" v-model="config.key_repeat_frequency">
                 <div class="form-text">
@@ -122,27 +159,36 @@
             <div class="mb-3">
                 <label for="audio_sink" class="form-label">Audio Sink</label>
                 <input type="text" class="form-control" id="audio_sink" placeholder="" v-model="config.audio_sink">
-                <div class="form-text" v-if="config.platform === 'windows'">
+                <div class="form-text" v-if="platform === 'windows'">
                     The name of the audio sink used for Audio Loopback<br>
                     You can find the name of the audio sink using the following command:<br>
-                    tools\audio-info.exe
+                    <pre>tools\audio-info.exe</pre>
                 </div>
-                <div class="form-text" v-if="config.platform === 'linux'">
+                <div class="form-text" v-if="platform === 'linux'">
                     The name of the audio sink used for Audio Loopback<br>
                     If you do not specify this variable, pulseaudio will select the default monitor device.<br>
                     <br>
                     You can find the name of the audio sink using the following command:<br>
-                    pacmd list-sources | grep "name:"<br>
+                    <pre>pacmd list-sinks | grep "name:"</pre><br>
+                </div>
+            </div>
+            <!--Virtual Sink-->
+            <div class="mb-3" v-if="platform === 'windows'">
+                <label for="virtual_sink" class="form-label">Virtual Sink</label>
+                <input type="text" class="form-control" id="virtual_sink" placeholder="{0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}" v-model="config.virtual_sink">
+                <div class="form-text">
+                    The virtual sink, is the audio device that's virtual (Like Steam Streaming Speakers), it allows Sunshine
+                    to stream audio, while muting the speakers.
                 </div>
             </div>
             <!--Adapter Name -->
-            <div class="mb-3" v-if="config.platform === 'windows'">
+            <div class="mb-3" v-if="platform === 'windows'">
                 <label for="adapter_name" class="form-label">Adapter Name</label>
                 <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series" v-model="config.adapter_name">
                 <div class="form-text">
                     You can select the video card you want to stream:<br>
                     The appropriate values can be found using the following command:<br>
-                    tools\dxgi-info.exe
+                    <pre>tools\dxgi-info.exe</pre>
                 </div>
             </div>
             <!--Output Name -->
@@ -154,9 +200,7 @@
                     The appropriate values can be found using the following command:<br>
                     tools\dxgi-info.exe<br>
                     !! Linux only !!<br>
-                    Set the display number to stream. I have no idea how they are numbered. They start from 1,
-                    usually.<br>
-                    output_name = 1<br>
+                    Set the display number to stream. I have no idea how they are numbered. They start from 0, usually.<br>
                 </div>
             </div>
         </div>
@@ -214,7 +258,7 @@
             <div class="mb-3">
                 <label for="encoder" class="form-label">Force a Specific Encoder</label>
                 <select id="encoder" class="form-select" v-model="config.encoder">
-                    <option value="null">Autodetect</option>
+                    <option :value="''">Autodetect</option>
                     <option value="nvenc">nVidia NVENC</option>
                     <option value="amdvce">AMD AMF/VCE</option>
                     <option value="software">Software</option>
@@ -252,12 +296,12 @@
         <!--Software Settings-->
         <div v-if="currentTab === 'sw'" class="config-page">
             <div class="mb-3">
-                <label for="sw_preset" class="form-label" v-model="config.sw_preset">SW Presets</label>
-                <input class="form-control" id="sw_preset" placeholder="superfast">
+                <label for="sw_preset" class="form-label" >SW Presets</label>
+                <input class="form-control" id="sw_preset" placeholder="superfast" v-model="config.sw_preset">
             </div>
             <div class="mb-3">
-                <label for="sw_tune" class="form-label" v-model="config.sw_tune">SW Tune</label>
-                <input class="form-control" id="sw_tune" placeholder="zerolatency">
+                <label for="sw_tune" class="form-label">SW Tune</label>
+                <input class="form-control" id="sw_tune" placeholder="zerolatency" v-model="config.sw_tune">
             </div>
         </div>
         <!--Nvidia Encoder Settings-->
@@ -293,7 +337,7 @@
                 </select>
             </div>
             <div class="mb-3">
-                <label for="nv_coder" class="form-label">NVEnc Rate Control</label>
+                <label for="nv_coder" class="form-label">NVEnc Coder</label>
                 <select id="nv_coder" class="form-select" v-model="config.nv_coder">
                     <option value="auto">auto</option>
                     <option value="cabac">cabac</option>
@@ -332,6 +376,7 @@
             </div>
         </div>
     </div>
+    <div class="alert alert-success my-4" v-if="success"><b>Success!</b> Restart Sunshine to apply changes</div>
     <div class="mb-3 buttons">
         <button class="btn btn-primary" @click="save">Save</button>
     </div>
@@ -342,8 +387,14 @@
         el: '#app',
         data() {
             return {
+                platform: '',
+                success: false,
                 config: null,
+                fps: [],
+                resolutions: [],
                 currentTab: 'general',
+                resIn: '',
+                fpsIn: '',
                 tabs: [{
                         id: 'general',
                         name: "General"
@@ -381,16 +432,41 @@
         },
         created() {
             fetch("/api/config").then(r => r.json()).then((r) => {
-                this.config = r;
+                this.config                     = r;
+                this.platform = this.config.platform;
+                delete this.config.status;
+                delete this.config.platform;
+                //Populate default values if not present in config
+                this.config.min_log_level       = this.config.min_log_level || 2;
+                this.config.origin_pin_allowed  = this.config.origin_pin_allowed || "lan";
+                this.config.hevc_mode           = this.config.hevc_mode || 0;
+                this.config.encoder             = this.config.encoder || '';
+                this.config.nv_preset           = this.config.nv_preset || 'default';
+                this.config.nv_rc               = this.config.nv_rc || 'auto';
+                this.config.nv_coder            = this.config.nv_coder || 'auto';
+                this.config.amd_quality         = this.config.amd_quality || 'default';
+                this.config.amd_rc              = this.config.amd_rc || 'auto';
+                this.config.fps                 = this.config.fps || '[10, 30, 60, 90, 120]';
+                this.config.resolutions         = this.config.resolutions || '[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]';
+                this.fps = JSON.parse(this.config.fps);
+                //Resolutions should be fixed because are not valid JSON
+                let res = this.config.resolutions.substring(1,this.config.resolutions.length-1);
+                let resolutions = [];
+                res.split(",").forEach(r => resolutions.push(r.trim()));
+                this.resolutions = resolutions;
             })
         },
         methods: {
             save() {
+                this.success = false;
+                let nl = this.config === 'windows' ? "\r\n" : "\n";
+                this.config.resolutions = "[" + nl + "    " + this.resolutions.join("," + nl + "    ") + nl + "]";
+                this.config.fps = JSON.stringify(this.fps);
                 fetch("/api/config", {
                     method: "POST",
                     body: JSON.stringify(this.config)
                 }).then((r) => {
-                    if (r.status == 200) document.location.reload();
+                    if (r.status == 200)this.success = true;
                 });
             }
         }
@@ -406,5 +482,11 @@
 
     .buttons {
         padding: 1em 0;
+    }
+
+    .ms-item {
+        background-color: #CCC;
+        font-size: 12px;
+        font-weight: bold;
     }
 </style>

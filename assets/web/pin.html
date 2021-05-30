@@ -1,7 +1,15 @@
+
 <div id="content" class="container">
-    <form action="" class="form" id="form">
-        <input type="number" placeholder="PIN" id="pin-input">
-        <button class="btn btn-primary">Send</button>
+    <h1 class="my-4">PIN Pairing</h1>
+    <form action="" class="form d-flex flex-column align-items-center" id="form">
+        <div class="card flex-column d-flex p-4 mb-4">
+            <input type="number" placeholder="PIN" id="pin-input" class="form-control my-4">
+            <button class="btn btn-primary">Send</button>
+        </div>
+        <div class="alert alert-warning">
+            <b>Warning!</b> Make sure you have access to the client you are pairing with.<br>
+            This software can give total control to your computer, so be careful!
+        </div>
         <div id="status"></div>
     </form>
 </div>
