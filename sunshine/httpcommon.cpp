@@ -72,7 +72,7 @@ int generate_user_creds(const std::string &file) {
     std::string salt          = crypto::rand_string(16);
     outputTree.put("username", "sunshine");
     outputTree.put("salt", salt);
-    outputTree.put("password", crypto::hash_hexstr(plainPassword + salt));
+    outputTree.put("password", util::hex(crypto::hash(plainPassword + salt)).to_string());
     BOOST_LOG(info) << "New credentials has been created";
     BOOST_LOG(info) << "Username: " << username;
     BOOST_LOG(info) << "Password: " << plainPassword;
