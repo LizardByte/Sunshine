@@ -332,6 +332,11 @@ void refresh(const std::string &file_name) {
   auto proc_opt = proc::parse(file_name);
 
   if(proc_opt) {
+    {
+      proc::ctx_t ctx;
+      ctx.name = "Desktop"s;
+      proc_opt->get_apps().emplace(std::begin(proc_opt->get_apps()), std::move(ctx));
+    }
     proc = std::move(*proc_opt);
   }
 }

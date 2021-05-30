@@ -16,6 +16,8 @@
 
 #include "config.h"
 #include "nvhttp.h"
+#include "httpcommon.h"
+#include "confighttp.h"
 #include "rtsp.h"
 #include "thread_pool.h"
 #include "video.h"
@@ -123,18 +125,7 @@ int main(int argc, char *argv[]) {
     shutdown_event->raise(true);
   });
 
-  auto proc_opt = proc::parse(config::stream.file_apps);
-  if(!proc_opt) {
-    return 7;
-  }
-
-  {
-    proc::ctx_t ctx;
-    ctx.name = "Desktop"s;
-    proc_opt->get_apps().emplace(std::begin(proc_opt->get_apps()), std::move(ctx));
-  }
-
-  proc::proc = std::move(*proc_opt);
+  proc::refresh(config::stream.file_apps);
 
   auto deinit_guard = platf::init();
   if(!deinit_guard) {
@@ -145,12 +136,12 @@ int main(int argc, char *argv[]) {
   if(video::init()) {
     return 2;
   }
-
+  http::init(shutdown_event);
   task_pool.start(1);
 
   std::thread httpThread { nvhttp::start, shutdown_event };
+  std::thread configThread { confighttp::start, shutdown_event };
   stream::rtpThread(shutdown_event);
-
   httpThread.join();
   task_pool.stop();
   task_pool.join();

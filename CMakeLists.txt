@@ -35,6 +35,7 @@ if(WIN32)
 		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
 	endif()
 
+	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
 
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_windows.json")
@@ -91,6 +92,7 @@ if(WIN32)
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
 	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 else()
+	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	find_package(X11 REQUIRED)
@@ -144,6 +146,10 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/crypto.h
 	sunshine/nvhttp.cpp
 	sunshine/nvhttp.h
+	sunshine/httpcommon.cpp
+	sunshine/httpcommon.h
+	sunshine/confighttp.cpp
+	sunshine/confighttp.h
 	sunshine/rtsp.cpp
 	sunshine/rtsp.h
 	sunshine/stream.cpp

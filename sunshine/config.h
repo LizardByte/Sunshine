@@ -5,6 +5,7 @@
 #include <chrono>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace config {
@@ -88,8 +89,11 @@ enum flag_e : std::size_t {
 
 struct sunshine_t {
   int min_log_level;
-
   std::bitset<flag::FLAG_SIZE> flags;
+  std::string credentials_file;
+  std::string username;
+  std::string password;
+  std::string salt;
 };
 
 extern video_t video;
@@ -100,6 +104,6 @@ extern input_t input;
 extern sunshine_t sunshine;
 
 int parse(int argc, char *argv[]);
+std::unordered_map<std::string, std::string> parse_config(std::string_view file_content);
 } // namespace config
-
 #endif
