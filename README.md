@@ -57,7 +57,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	- `groups $USER`
 	
 - If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
- 	1. pacmd list-sources | grep "name:"
+ 	1. `$ pacmd list-sources | grep "name:"` or `$ pactl info | grep Source` if running pipewire.
 	2. Copy the name to the configuration option "audio_sink"
 	3. restart sunshine
 
