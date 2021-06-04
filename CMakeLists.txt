@@ -111,7 +111,6 @@ else()
 	set(GRAPHICS_LIBRARIES
 		gbm
 		dl
-		EGL
 		va
 		va-drm)
 		

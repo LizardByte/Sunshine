@@ -99,8 +99,14 @@ public:
     this->frame = frame;
 
     // If it's a hwframe, allocate buffers for hardware
-    if(frame->hw_frames_ctx && av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
-      return -1;
+    if(frame->hw_frames_ctx) {
+      hw_frame.reset(frame);
+
+      if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) return -1;
+    }
+
+    if(!frame->hw_frames_ctx) {
+      sw_frame.reset(frame);
     }
 
     return 0;
@@ -117,13 +123,15 @@ public:
    * When preserving aspect ratio, ensure that padding is black
    */
   int prefill() {
-    auto width  = sw_frame->width;
-    auto height = sw_frame->height;
+    auto frame  = sw_frame ? sw_frame.get() : this->frame;
+    auto width  = frame->width;
+    auto height = frame->height;
 
+    av_frame_get_buffer(frame, 0);
     sws_t sws {
       sws_getContext(
         width, height, AV_PIX_FMT_BGR0,
-        width, height, (AVPixelFormat)sw_frame->format,
+        width, height, (AVPixelFormat)frame->format,
         SWS_LANCZOS | SWS_ACCURATE_RND,
         nullptr, nullptr, nullptr)
     };
@@ -139,10 +147,10 @@ public:
       width, 0
     };
 
-    av_frame_make_writable(sw_frame.get());
+    av_frame_make_writable(frame);
 
     auto data = img.begin();
-    int ret   = sws_scale(sws.get(), (std::uint8_t *const *)&data, linesizes, 0, height, sw_frame->data, sw_frame->linesize);
+    int ret   = sws_scale(sws.get(), (std::uint8_t *const *)&data, linesizes, 0, height, frame->data, frame->linesize);
     if(ret <= 0) {
       BOOST_LOG(error) << "Couldn't convert image to required format and/or size"sv;
 
@@ -153,20 +161,16 @@ public:
   }
 
   int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format) {
-    sw_frame.reset(av_frame_alloc());
-
     // If the device used is hardware, yet the image resides on main memory
     if(frame->hw_frames_ctx) {
+      sw_frame.reset(av_frame_alloc());
+
       sw_frame->width  = frame->width;
       sw_frame->height = frame->height;
       sw_frame->format = format;
-
-      av_frame_get_buffer(sw_frame.get(), 0);
     }
     else {
-      av_frame_get_buffer(frame, 0);
-
-      av_frame_ref(sw_frame.get(), frame);
+      this->frame = frame;
     }
 
     if(prefill()) {
@@ -195,11 +199,10 @@ public:
     return sws ? 0 : -1;
   }
 
-  ~swdevice_t() override {
-    if(frame) {
-      av_frame_unref(frame);
-    }
-  }
+  ~swdevice_t() override {}
+
+  // Store ownsership when frame is hw_frame
+  frame_t hw_frame;
 
   frame_t sw_frame;
   sws_t sws;
