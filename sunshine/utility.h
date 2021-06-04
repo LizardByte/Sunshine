@@ -16,6 +16,41 @@
     x;                            \
     while(y) z                    \
   }
+
+template<typename T>
+struct argument_type;
+
+template<typename T, typename U>
+struct argument_type<T(U)> { typedef U type; };
+
+#define KITTY_USING_MOVE_T(move_t, t, init_val, z)                 \
+  class move_t {                                                   \
+  public:                                                          \
+    using element_type = typename argument_type<void(t)>::type;    \
+                                                                   \
+    move_t() : el { init_val } {}                                  \
+    template<class... Args>                                        \
+    move_t(Args &&...args) : el { std::forward<Args>(args)... } {} \
+    move_t(const move_t &) = delete;                               \
+                                                                   \
+    explicit move_t(move_t &&other) : el { std::move(other.el) } { \
+      other.el = element_type { init_val };                        \
+    }                                                              \
+                                                                   \
+    move_t &operator=(const move_t &) = delete;                    \
+                                                                   \
+    move_t &operator=(move_t &&other) {                            \
+      std::swap(el, other.el);                                     \
+      return *this;                                                \
+    }                                                              \
+    element_type *operator->() { return &el; }                     \
+    const element_type *operator->() const { return &el; }         \
+                                                                   \
+    ~move_t() z                                                    \
+                                                                   \
+      element_type el;                                             \
+  }
+
 #define KITTY_DECL_CONSTR(x)             \
   x(x &&) noexcept = default;            \
   x &operator=(x &&) noexcept = default; \
@@ -56,6 +91,9 @@
 #define TUPLE_EL(a, b, expr)  \
   decltype(expr) a##_ = expr; \
   auto &a             = std::get<b>(a##_)
+
+#define TUPLE_EL_REF(a, b, expr) \
+  auto &a = std::get<b>(expr)
 
 namespace util {
 
@@ -621,6 +659,13 @@ private:
   pointer _p;
 };
 
+template<class T>
+constexpr bool is_pointer_v =
+  instantiation_of_v<std::unique_ptr, T> ||
+  instantiation_of_v<std::shared_ptr, T> ||
+  instantiation_of_v<uniq_ptr, T> ||
+  std::is_pointer_v<T>;
+
 template<class T, class V = void>
 struct __false_v;
 
@@ -630,12 +675,7 @@ struct __false_v<T, std::enable_if_t<instantiation_of_v<std::optional, T>>> {
 };
 
 template<class T>
-struct __false_v<T, std::enable_if_t<
-                      (
-                        std::is_pointer_v<T> ||
-                        instantiation_of_v<std::unique_ptr, T> ||
-                        instantiation_of_v<std::shared_ptr, T> ||
-                        instantiation_of_v<uniq_ptr, T>)>> {
+struct __false_v<T, std::enable_if_t<is_pointer_v<T>>> {
   static constexpr std::nullptr_t value = nullptr;
 };
 
@@ -649,11 +689,7 @@ static constexpr auto false_v = __false_v<T>::value;
 
 template<class T>
 using optional_t = either_t<
-  (std::is_same_v<T, bool> ||
-    instantiation_of_v<std::unique_ptr, T> ||
-    instantiation_of_v<std::shared_ptr, T> ||
-    instantiation_of_v<uniq_ptr, T> ||
-    std::is_pointer_v<T>),
+  (std::is_same_v<T, bool> || is_pointer_v<T>),
   T, std::optional<T>>;
 
 template<class T>
@@ -705,7 +741,6 @@ private:
   std::unique_ptr<T[]> _buf;
 };
 
-
 template<class T>
 T either(std::optional<T> &&l, T &&r) {
   if(l) {
@@ -741,8 +776,29 @@ void c_free(T *p) {
   free(p);
 }
 
+template<class T, class ReturnType, ReturnType (**function)(T *)>
+void dynamic(T *p) {
+  (*function)(p);
+}
+
+template<class T, void (**function)(T *)>
+using dyn_safe_ptr = safe_ptr<T, dynamic<T, void, function>>;
+
+template<class T, class ReturnType, ReturnType (**function)(T *)>
+using dyn_safe_ptr_v2 = safe_ptr<T, dynamic<T, ReturnType, function>>;
+
 template<class T>
 using c_ptr = safe_ptr<T, c_free<T>>;
+
+template<class It>
+std::string_view view(It begin, It end) {
+  return std::string_view { (const char *)begin, (std::size_t)(end - begin) };
+}
+
+template<class T>
+std::string_view view(const T &data) {
+  return std::string_view((const char *)&data, sizeof(T));
+}
 
 namespace endian {
 template<class T = void>

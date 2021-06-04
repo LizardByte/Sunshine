@@ -62,6 +62,20 @@ struct config_t {
   int dynamicRange;
 };
 
+using float4 = float[4];
+using float3 = float[3];
+using float2 = float[2];
+
+struct __attribute__((__aligned__(16))) color_t {
+  float4 color_vec_y;
+  float4 color_vec_u;
+  float4 color_vec_v;
+  float2 range_y;
+  float2 range_uv;
+};
+
+extern color_t colors[4];
+
 void capture(
   safe::signal_t *shutdown_event,
   packet_queue_t packets,

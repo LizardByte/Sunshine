@@ -40,9 +40,6 @@ constexpr auto GFE_VERSION = "3.12.0.1";
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
-std::string read_file(const char *path);
-int write_file(const char *path, const std::string_view &contents);
-
 using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 using http_server_t  = SimpleWeb::Server<SimpleWeb::HTTP>;
 
@@ -930,32 +927,5 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
 
   ssl.join();
   tcp.join();
-}
-
-int write_file(const char *path, const std::string_view &contents) {
-  std::ofstream out(path);
-
-  if(!out.is_open()) {
-    return -1;
-  }
-
-  out << contents;
-
-  return 0;
-}
-
-std::string read_file(const char *path) {
-  std::ifstream in(path);
-
-  std::string input;
-  std::string base64_cert;
-
-  //FIXME:  Being unable to read file could result in infinite loop
-  while(!in.eof()) {
-    std::getline(in, input);
-    base64_cert += input + '\n';
-  }
-
-  return base64_cert;
 }
 } // namespace nvhttp

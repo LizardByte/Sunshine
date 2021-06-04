@@ -11,6 +11,8 @@
 #include <string>
 
 struct sockaddr;
+struct AVFrame;
+
 namespace platf {
 constexpr auto MAX_GAMEPADS = 32;
 
@@ -69,6 +71,7 @@ constexpr std::uint8_t map_surround71[] {
 
 enum class mem_type_e {
   system,
+  vaapi,
   dxgi,
   unknown
 };
@@ -155,11 +158,19 @@ struct sink_t {
 
 struct hwdevice_t {
   void *data {};
-  void *img {};
+  AVFrame *frame {};
 
   virtual int convert(platf::img_t &img) {
     return -1;
   }
+
+  /**
+   * implementations must take ownership of 'frame'
+   */
+  virtual int set_frame(AVFrame *frame) {
+    std::abort(); // ^ This function must never be called
+    return -1;
+  };
 
   virtual void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
 

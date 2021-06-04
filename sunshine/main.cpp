@@ -5,6 +5,7 @@
 #include "process.h"
 
 #include <csignal>
+#include <filesystem>
 #include <iostream>
 #include <thread>
 
@@ -71,6 +72,9 @@ int main(int argc, char *argv[]) {
 
   if(config::sunshine.min_log_level >= 2) {
     av_log_set_level(AV_LOG_QUIET);
+  }
+  else {
+    av_log_set_level(AV_LOG_DEBUG);
   }
 
   sink = boost::make_shared<text_sink>();
@@ -154,6 +158,36 @@ int main(int argc, char *argv[]) {
   httpThread.join();
   task_pool.stop();
   task_pool.join();
+
+  return 0;
+}
+
+std::string read_file(const char *path) {
+  if(!std::filesystem::exists(path)) {
+    return {};
+  }
+
+  std::ifstream in(path);
+
+  std::string input;
+  std::string base64_cert;
+
+  while(!in.eof()) {
+    std::getline(in, input);
+    base64_cert += input + '\n';
+  }
+
+  return base64_cert;
+}
+
+int write_file(const char *path, const std::string_view &contents) {
+  std::ofstream out(path);
+
+  if(!out.is_open()) {
+    return -1;
+  }
+
+  out << contents;
 
   return 0;
 }

@@ -7,8 +7,10 @@
 
 #include "display.h"
 #include "sunshine/main.h"
+#include "sunshine/video.h"
 
-#define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders"
+
+#define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"
 namespace platf {
 using namespace std::literals;
 }
@@ -26,44 +28,6 @@ using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11Pi
 using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
 using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
 using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
-
-using float4 = DirectX::XMFLOAT4;
-using float3 = DirectX::XMFLOAT3;
-using float2 = DirectX::XMFLOAT2;
-struct __attribute__((__aligned__(16))) color_t {
-  float4 color_vec_y;
-  float4 color_vec_u;
-  float4 color_vec_v;
-  float2 range_y;
-  float2 range_uv;
-};
-
-color_t make_color_matrix(float Cr, float Cb, float U_max, float V_max, float add_Y, float add_UV, float2 range_Y, float2 range_UV) {
-  float Cg = 1.0f - Cr - Cb;
-
-  float Cr_i = 1.0f - Cr;
-  float Cb_i = 1.0f - Cb;
-
-  float shift_y  = range_Y.x / 256.0f;
-  float shift_uv = range_UV.x / 256.0f;
-
-  float scale_y  = (range_Y.y - range_Y.x) / 256.0f;
-  float scale_uv = (range_UV.y - range_UV.x) / 256.0f;
-  return {
-    { Cr, Cg, Cb, add_Y },
-    { -(Cr * U_max / Cb_i), -(Cg * U_max / Cb_i), U_max, add_UV },
-    { V_max, -(Cg * V_max / Cr_i), -(Cb * V_max / Cr_i), add_UV },
-    { scale_y, shift_y },
-    { scale_uv, shift_uv },
-  };
-}
-
-color_t colors[] {
-  make_color_matrix(0.299f, 0.114f, 0.436f, 0.615f, 0.0625, 0.5f, { 16.0f, 235.0f }, { 16.0f, 240.0f }),   // BT601 MPEG
-  make_color_matrix(0.299f, 0.114f, 0.5f, 0.5f, 0.0f, 0.5f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),           // BT601 JPEG
-  make_color_matrix(0.2126f, 0.0722f, 0.436f, 0.615f, 0.0625, 0.5f, { 16.0f, 235.0f }, { 16.0f, 240.0f }), //BT701 MPEG
-  make_color_matrix(0.2126f, 0.0722f, 0.5f, 0.5f, 0.0f, 0.5f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),         //BT701 JPEG
-};
 
 template<class T>
 buf_t make_buffer(device_t::pointer device, const T &t) {
@@ -362,15 +326,15 @@ public:
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
     switch(colorspace) {
     case 5: // SWS_CS_SMPTE170M
-      color_p = &colors[0];
+      color_p = &video::colors[0];
       break;
     case 1: // SWS_CS_ITU709
-      color_p = &colors[2];
+      color_p = &video::colors[2];
       break;
     case 9: // SWS_CS_BT2020
     default:
       BOOST_LOG(warning) << "Colorspace: ["sv << colorspace << "] not yet supported: switching to default"sv;
-      color_p = &colors[0];
+      color_p = &video::colors[0];
     };
 
     if(color_range > 1) {
@@ -461,7 +425,7 @@ public:
       return -1;
     }
 
-    color_matrix = make_buffer(device_p, colors[0]);
+    color_matrix = make_buffer(device_p, video::colors[0]);
     if(!color_matrix) {
       BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
       return -1;

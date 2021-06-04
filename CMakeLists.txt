@@ -96,10 +96,25 @@ else()
 	find_package(X11 REQUIRED)
 	find_package(FFmpeg REQUIRED)
 	set(PLATFORM_TARGET_FILES
+		sunshine/platform/linux/vaapi.h
+		sunshine/platform/linux/vaapi.cpp
 		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/audio.cpp
-		sunshine/platform/linux/input.cpp)
+		sunshine/platform/linux/input.cpp
+		glad/src/egl.c
+		glad/src/gl.c
+		glad/include/EGL/eglplatform.h
+		glad/include/KHR/khrplatform.h
+		glad/include/glad/gl.h
+		glad/include/glad/egl.h)
 	
+	set(GRAPHICS_LIBRARIES
+		gbm
+		dl
+		EGL
+		va
+		va-drm)
+		
 	set(PLATFORM_LIBRARIES
 		Xfixes
 		Xtst
@@ -108,6 +123,7 @@ else()
 		xcb-xfixes
 		Xrandr
 		${X11_LIBRARIES}
+		${GRAPHICS_LIBRARIES}
 		evdev
 		pulse
 		pulse-simple
@@ -115,7 +131,8 @@ else()
 	
 	set(PLATFORM_INCLUDE_DIRS
 		${X11_INCLUDE_DIR}
-		/usr/include/libevdev-1.0)
+		/usr/include/libevdev-1.0
+		glad/include)
 
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
 		set(SUNSHINE_EXECUTABLE_PATH "${CMAKE_CURRENT_BINARY_DIR}/sunshine")

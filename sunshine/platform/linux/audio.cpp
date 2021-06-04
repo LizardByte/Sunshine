@@ -283,7 +283,7 @@ public:
     sink_t sink;
 
     // If hardware sink with more channels found, set that as host
-    int channels  = 0;
+    int channels = 0;
     // Count of all virtual sinks that are created by us
     int nullcount = 0;
 
@@ -433,9 +433,5 @@ std::unique_ptr<audio_control_t> audio_control() {
   }
 
   return audio;
-}
-
-std::unique_ptr<deinit_t> init() {
-  return std::make_unique<deinit_t>();
 }
 } // namespace platf

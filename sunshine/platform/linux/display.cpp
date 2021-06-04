@@ -23,6 +23,8 @@
 #include "sunshine/main.h"
 #include "sunshine/task_pool.h"
 
+#include "vaapi.h"
+
 namespace platf {
 using namespace std::literals;
 
@@ -136,10 +138,13 @@ void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
     });
   }
 }
+
 struct x11_attr_t : public display_t {
   xdisplay_t xdisplay;
   Window xwindow;
   XWindowAttributes xattr;
+
+  mem_type_e mem_type;
 
   /*
    * Last X (NOT the streamed monitor!) size.
@@ -147,7 +152,7 @@ struct x11_attr_t : public display_t {
    */
   int lastWidth, lastHeight;
 
-  x11_attr_t() : xdisplay { XOpenDisplay(nullptr) }, xwindow {}, xattr {} {
+  x11_attr_t(mem_type_e mem_type) : xdisplay { XOpenDisplay(nullptr) }, xwindow {}, xattr {}, mem_type { mem_type } {
     XInitThreads();
   }
 
@@ -238,6 +243,14 @@ struct x11_attr_t : public display_t {
     return std::make_shared<x11_img_t>();
   }
 
+  std::shared_ptr<hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) override {
+    if(mem_type == mem_type_e::vaapi) {
+      return egl::make_hwdevice();
+    }
+
+    return std::make_shared<hwdevice_t>();
+  }
+
   int dummy_img(img_t *img) override {
     snapshot(img, 0s, true);
     return 0;
@@ -262,7 +275,7 @@ struct shm_attr_t : public x11_attr_t {
     refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
-  shm_attr_t() : x11_attr_t(), shm_xdisplay { XOpenDisplay(nullptr) } {
+  shm_attr_t(mem_type_e mem_type) : x11_attr_t(mem_type), shm_xdisplay { XOpenDisplay(nullptr) } {
     refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
@@ -356,13 +369,13 @@ struct shm_attr_t : public x11_attr_t {
 };
 
 std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type) {
-  if(hwdevice_type != platf::mem_type_e::system) {
+  if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
   }
 
   // Attempt to use shared memory X11 to avoid copying the frame
-  auto shm_disp = std::make_shared<shm_attr_t>();
+  auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
 
   auto status = shm_disp->init();
   if(status > 0) {
@@ -375,7 +388,7 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type) {
   }
 
   // Fallback
-  auto x11_disp = std::make_shared<x11_attr_t>();
+  auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
   if(x11_disp->init()) {
     return nullptr;
   }
