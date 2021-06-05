@@ -243,9 +243,9 @@ struct x11_attr_t : public display_t {
     return std::make_shared<x11_img_t>();
   }
 
-  std::shared_ptr<hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) override {
+  std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
     if(mem_type == mem_type_e::vaapi) {
-      return egl::make_hwdevice();
+      return egl::make_hwdevice(width, height);
     }
 
     return std::make_shared<hwdevice_t>();

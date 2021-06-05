@@ -192,7 +192,7 @@ public:
 
   virtual int dummy_img(img_t *img) = 0;
 
-  virtual std::shared_ptr<hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) {
+  virtual std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) {
     return std::make_shared<hwdevice_t>();
   }
 

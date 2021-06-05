@@ -494,7 +494,7 @@ public:
     color_matrix.update(members, sizeof(members) / sizeof(decltype(members[0])));
   }
 
-  int init(const char *render_device) {
+  int init(int in_width, int in_height, const char *render_device) {
     file.el = open(render_device, O_RDWR);
 
     if(file.el < 0) {
@@ -661,6 +661,9 @@ public:
 
     tex_in = gl::tex_t::make(1);
 
+    this->in_width  = in_width;
+    this->in_height = in_height;
+
     data = (void *)vaapi_make_hwdevice_ctx;
     gl_drain_errors;
     return 0;
@@ -671,7 +674,7 @@ public:
 
     gl::ctx.ActiveTexture(GL_TEXTURE0);
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
-    gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, out_width, out_height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+    gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, in_width, in_height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
 
     GLenum attachments[] {
       GL_COLOR_ATTACHMENT0,
@@ -693,7 +696,7 @@ public:
       gl::ctx.UseProgram(program[x].handle());
       program[x].bind(color_matrix);
 
-      gl::ctx.Viewport(0, 0, out_width / (x + 1), out_height / (x + 1));
+      gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), out_width / (x + 1), out_height / (x + 1));
       gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
     }
 
@@ -718,15 +721,25 @@ public:
 
     nv12 = std::move(*nv12_opt);
 
-    out_width  = frame->width;
-    out_height = frame->height;
+    // // Ensure aspect ratio is maintained
+    auto scalar       = std::fminf(frame->width / (float)in_width, frame->height / (float)in_height);
+    auto out_width_f  = in_width * scalar;
+    auto out_height_f = in_height * scalar;
+
+    // result is always positive
+    auto offsetX_f = (frame->width - out_width_f) / 2;
+    auto offsetY_f = (frame->height - out_height_f) / 2;
+
+    out_width  = out_width_f;
+    out_height = out_height_f;
+
+    offsetX = offsetX_f;
+    offsetY = offsetY_f;
 
     auto tex = tex_in[0];
 
-    // gl::ctx.ActiveTexture(GL_TEXTURE0);
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
-    // gl::ctx.TexImage2D(GL_TEXTURE_2D, 0, 4, out_width, out_height, 0, GL_BGRA, GL_UNSIGNED_BYTE, (void *)dummy_img.begin());
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, out_width, out_height);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, in_width, in_height);
 
     auto loc_width_i = gl::ctx.GetUniformLocation(program[1].handle(), "width_i");
     if(loc_width_i < 0) {
@@ -748,7 +761,9 @@ public:
     }
   }
 
-  std::uint32_t out_width, out_height;
+  int in_width, in_height;
+  int out_width, out_height;
+  int offsetX, offsetY;
 
   va::display_t::pointer va_display;
 
@@ -831,11 +846,11 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
   return 0;
 }
 
-std::shared_ptr<platf::hwdevice_t> make_hwdevice() {
+std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height) {
   auto egl = std::make_shared<egl_t>();
 
   auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
-  if(egl->init(render_device)) {
+  if(egl->init(width, height, render_device)) {
     return nullptr;
   }
 

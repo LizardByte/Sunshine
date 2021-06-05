@@ -982,7 +982,7 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   encode_session.delay = std::chrono::nanoseconds { 1s } / ctx.config.framerate;
 
   auto pix_fmt  = ctx.config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
-  auto hwdevice = disp->make_hwdevice(ctx.config.width, ctx.config.height, pix_fmt);
+  auto hwdevice = disp->make_hwdevice(pix_fmt);
   if(!hwdevice) {
     return std::nullopt;
   }
@@ -1223,7 +1223,7 @@ void capture_async(
     }
 
     auto pix_fmt  = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
-    auto hwdevice = display->make_hwdevice(config.width, config.height, pix_fmt);
+    auto hwdevice = display->make_hwdevice(pix_fmt);
     if(!hwdevice) {
       return;
     }
@@ -1278,7 +1278,7 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
   }
 
   auto pix_fmt  = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
-  auto hwdevice = disp->make_hwdevice(config.width, config.height, pix_fmt);
+  auto hwdevice = disp->make_hwdevice(pix_fmt);
   if(!hwdevice) {
     return false;
   }
