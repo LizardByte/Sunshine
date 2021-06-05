@@ -1486,7 +1486,9 @@ util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *base) {
     return hw_device_buf;
   }
 
-  auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, "/dev/dri/renderD129", nullptr, 0);
+  auto render_device = config::video.adapter_name.empty() ? nullptr : config::video.adapter_name.c_str();
+
+  auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, render_device, nullptr, 0);
   if(status < 0) {
     char string[AV_ERROR_MAX_STRING_SIZE];
     BOOST_LOG(error) << "Failed to create a VAAPI device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);

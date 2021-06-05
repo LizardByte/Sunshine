@@ -15,6 +15,7 @@ extern "C" {
 #include <libavutil/hwcontext_vaapi.h>
 }
 
+#include "sunshine/config.h"
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
 #include "sunshine/utility.h"
@@ -347,7 +348,6 @@ private:
 
 namespace platf {
 namespace egl {
-auto constexpr render_device = "/dev/dri/renderD129";
 
 constexpr auto EGL_LINUX_DMA_BUF_EXT         = 0x3270;
 constexpr auto EGL_LINUX_DRM_FOURCC_EXT      = 0x3271;
@@ -794,7 +794,9 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
 
   va::display_t display { vaGetDisplayDRM(egl->file.el) };
   if(!display) {
-    BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << platf::egl::render_device;
+    auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
+
+    BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
     return -1;
   }
 
@@ -832,6 +834,7 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
 std::shared_ptr<platf::hwdevice_t> make_hwdevice() {
   auto egl = std::make_shared<egl_t>();
 
+  auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
   if(egl->init(render_device)) {
     return nullptr;
   }
