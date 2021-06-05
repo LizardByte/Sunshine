@@ -797,17 +797,19 @@ static void __log(void *level, const char *msg) {
 }
 
 int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf) {
-  auto *priv   = (VAAPIDevicePriv *)av_mallocz(sizeof(VAAPIDevicePriv));
-  priv->drm_fd = -1;
-  priv->drm.fd = -1;
+  auto egl = (platf::egl::egl_t *)base;
+  auto fd  = dup(egl->file.el);
 
-  auto fg = util::fail_guard([priv]() {
+  auto *priv   = (VAAPIDevicePriv *)av_mallocz(sizeof(VAAPIDevicePriv));
+  priv->drm_fd = fd;
+  priv->drm.fd = fd;
+
+  auto fg = util::fail_guard([fd, priv]() {
+    close(fd);
     av_free(priv);
   });
 
-  auto egl = (platf::egl::egl_t *)base;
-
-  va::display_t display { vaGetDisplayDRM(egl->file.el) };
+  va::display_t display { vaGetDisplayDRM(fd) };
   if(!display) {
     auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
