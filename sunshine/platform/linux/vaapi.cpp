@@ -1,10 +1,11 @@
+#include <sstream>
 #include <string>
 
 #include <glad/egl.h>
 #include <glad/gl.h>
 
+#include <dlfcn.h>
 #include <fcntl.h>
-#include <gbm.h>
 
 #include <va/va.h>
 #include <va/va_drm.h>
@@ -39,9 +40,88 @@ extern "C" {
 
 using namespace std::literals;
 
+namespace dyn {
+void *handle(const std::vector<const char *> &libs) {
+  void *handle;
+
+  for(auto lib : libs) {
+    handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
+    if(handle) {
+      return handle;
+    }
+  }
+
+  std::stringstream ss;
+  ss << "Couldn't find any of the following libraries: ["sv << libs.front();
+  std::for_each(std::begin(libs) + 1, std::end(libs), [&](auto lib) {
+    ss << ", "sv << lib;
+  });
+
+  ss << ']';
+
+  BOOST_LOG(error) << ss.str();
+
+  return nullptr;
+}
+
+int load(void *handle, std::vector<std::tuple<GLADapiproc *, const char *>> &funcs, bool strict = true) {
+  for(auto &func : funcs) {
+    TUPLE_2D_REF(fn, name, func);
+
+    *fn = GLAD_GNUC_EXTENSION(GLADapiproc) dlsym(handle, name);
+
+    if(!fn && strict) {
+      BOOST_LOG(error) << "Couldn't find function: "sv << name;
+
+      return -1;
+    }
+  }
+
+  return 0;
+}
+} // namespace dyn
+
+
 namespace va {
 using display_t = util::safe_ptr_v2<void, VAStatus, vaTerminate>;
 }
+
+namespace gbm {
+struct device;
+typedef void (*device_destroy_fn)(device *gbm);
+typedef device *(*create_device_fn)(int fd);
+
+device_destroy_fn device_destroy;
+create_device_fn create_device;
+
+
+int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libgbm.so.1", "libgbm.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<GLADapiproc *, const char *>> funcs {
+    { (GLADapiproc *)&device_destroy, "gbm_device_destroy" },
+    { (GLADapiproc *)&create_device, "gbm_create_device" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+
+} // namespace gbm
 
 namespace gl {
 static GladGLContext ctx;
@@ -79,7 +159,6 @@ public:
       gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // y
       gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
       gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      gl::ctx.TexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
       gl::ctx.TexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, color);
     }
 
@@ -356,7 +435,7 @@ constexpr auto EGL_DMA_BUF_PLANE0_OFFSET_EXT = 0x3273;
 constexpr auto EGL_DMA_BUF_PLANE0_PITCH_EXT  = 0x3274;
 
 using display_t = util::dyn_safe_ptr_v2<void, EGLBoolean, &eglTerminate>;
-using gbm_t     = util::safe_ptr<gbm_device, gbm_device_destroy>;
+using gbm_t     = util::dyn_safe_ptr<gbm::device, &gbm::device_destroy>;
 
 int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf);
 
@@ -413,7 +492,7 @@ public:
       &prime);
     if(status) {
 
-      BOOST_LOG(error) << "Couldn't export va surface handle: "sv << vaErrorStr(status);
+      BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int)surface << "]: "sv << vaErrorStr(status);
 
       return std::nullopt;
     }
@@ -495,6 +574,10 @@ public:
   }
 
   int init(int in_width, int in_height, const char *render_device) {
+    if(gbm::init()) {
+      return -1;
+    }
+
     file.el = open(render_device, O_RDWR);
 
     if(file.el < 0) {
@@ -503,7 +586,7 @@ public:
       return -1;
     }
 
-    gbm.reset(gbm_create_device(file.el));
+    gbm.reset(gbm::create_device(file.el));
     if(!gbm) {
       BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
       return -1;
@@ -672,7 +755,6 @@ public:
   int convert(platf::img_t &img) override {
     auto tex = tex_in[0];
 
-    gl::ctx.ActiveTexture(GL_TEXTURE0);
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
     gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, in_width, in_height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
 

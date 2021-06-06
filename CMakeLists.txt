@@ -109,7 +109,6 @@ else()
 		glad/include/glad/egl.h)
 	
 	set(GRAPHICS_LIBRARIES
-		gbm
 		dl
 		va
 		va-drm)
