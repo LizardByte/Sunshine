@@ -7,13 +7,8 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 
-#include <va/va.h>
-#include <va/va_drm.h>
-#include <va/va_drmcommon.h>
-
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavutil/hwcontext_vaapi.h>
 }
 
 #include "sunshine/config.h"
@@ -70,7 +65,7 @@ int load(void *handle, std::vector<std::tuple<GLADapiproc *, const char *>> &fun
 
     *fn = GLAD_GNUC_EXTENSION(GLADapiproc) dlsym(handle, name);
 
-    if(!fn && strict) {
+    if(!*fn && strict) {
       BOOST_LOG(error) << "Couldn't find function: "sv << name;
 
       return -1;
@@ -83,8 +78,143 @@ int load(void *handle, std::vector<std::tuple<GLADapiproc *, const char *>> &fun
 
 
 namespace va {
-using display_t = util::safe_ptr_v2<void, VAStatus, vaTerminate>;
+constexpr auto SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2 = 0x40000000;
+constexpr auto EXPORT_SURFACE_WRITE_ONLY           = 0x0002;
+constexpr auto EXPORT_SURFACE_COMPOSED_LAYERS      = 0x0008;
+
+using VADisplay   = void *;
+using VAStatus    = int;
+using VAGenericID = unsigned int;
+using VASurfaceID = VAGenericID;
+
+struct DRMPRIMESurfaceDescriptor {
+  // VA Pixel format fourcc of the whole surface (VA_FOURCC_*).
+  uint32_t fourcc;
+
+  uint32_t width;
+  uint32_t height;
+
+  // Number of distinct DRM objects making up the surface.
+  uint32_t num_objects;
+
+  struct {
+    // DRM PRIME file descriptor for this object.
+    // Needs to be closed manually
+    int fd;
+
+    /*
+     *  Total size of this object (may include regions which are
+     *  not part of the surface).
+     */
+    uint32_t size;
+    // Format modifier applied to this object, not sure what that means
+    uint64_t drm_format_modifier;
+  } objects[4];
+
+  // Number of layers making up the surface.
+  uint32_t num_layers;
+  struct {
+    // DRM format fourcc of this layer (DRM_FOURCC_*).
+    uint32_t drm_format;
+
+    // Number of planes in this layer.
+    uint32_t num_planes;
+
+    // references objects --> DRMPRIMESurfaceDescriptor.objects[object_index[0]]
+    uint32_t object_index[4];
+
+    // Offset within the object of each plane.
+    uint32_t offset[4];
+
+    // Pitch of each plane.
+    uint32_t pitch[4];
+  } layers[4];
+};
+
+typedef VADisplay (*getDisplayDRM_fn)(int fd);
+typedef VAStatus (*terminate_fn)(VADisplay dpy);
+typedef VAStatus (*initialize_fn)(VADisplay dpy, int *major_version, int *minor_version);
+typedef const char *(*errorStr_fn)(VAStatus error_status);
+typedef void (*VAMessageCallback)(void *user_context, const char *message);
+typedef VAMessageCallback (*setErrorCallback_fn)(VADisplay dpy, VAMessageCallback callback, void *user_context);
+typedef VAMessageCallback (*setInfoCallback_fn)(VADisplay dpy, VAMessageCallback callback, void *user_context);
+typedef const char *(*queryVendorString_fn)(VADisplay dpy);
+typedef VAStatus (*exportSurfaceHandle_fn)(
+  VADisplay dpy, VASurfaceID surface_id,
+  uint32_t mem_type, uint32_t flags,
+  void *descriptor);
+
+getDisplayDRM_fn getDisplayDRM;
+terminate_fn terminate;
+initialize_fn initialize;
+errorStr_fn errorStr;
+setErrorCallback_fn setErrorCallback;
+setInfoCallback_fn setInfoCallback;
+queryVendorString_fn queryVendorString;
+exportSurfaceHandle_fn exportSurfaceHandle;
+
+using display_t = util::dyn_safe_ptr_v2<void, VAStatus, &terminate>;
+
+int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libva.so.2", "libva.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<GLADapiproc *, const char *>> funcs {
+    { (GLADapiproc *)&terminate, "vaTerminate" },
+    { (GLADapiproc *)&initialize, "vaInitialize" },
+    { (GLADapiproc *)&errorStr, "vaErrorStr" },
+    { (GLADapiproc *)&setErrorCallback, "vaSetErrorCallback" },
+    { (GLADapiproc *)&setInfoCallback, "vaSetInfoCallback" },
+    { (GLADapiproc *)&queryVendorString, "vaQueryVendorString" },
+    { (GLADapiproc *)&exportSurfaceHandle, "vaExportSurfaceHandle" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
 }
+
+int init_drm() {
+  if(init()) {
+    return -1;
+  }
+
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libva-drm.so.2", "libva-drm.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<GLADapiproc *, const char *>> funcs {
+    { (GLADapiproc *)&getDisplayDRM, "vaGetDisplayDRM" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+} // namespace va
 
 namespace gbm {
 struct device;
@@ -93,7 +223,6 @@ typedef device *(*create_device_fn)(int fd);
 
 device_destroy_fn device_destroy;
 create_device_fn create_device;
-
 
 int init() {
   static void *handle { nullptr };
@@ -480,19 +609,19 @@ bool fail() {
 
 class egl_t : public platf::hwdevice_t {
 public:
-  std::optional<nv12_t> import(VASurfaceID surface) {
+  std::optional<nv12_t> import(va::VASurfaceID surface) {
     // No deallocation necessary
-    VADRMPRIMESurfaceDescriptor prime;
+    va::DRMPRIMESurfaceDescriptor prime;
 
-    auto status = vaExportSurfaceHandle(
+    auto status = va::exportSurfaceHandle(
       va_display,
       surface,
-      VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2,
-      VA_EXPORT_SURFACE_WRITE_ONLY | VA_EXPORT_SURFACE_COMPOSED_LAYERS,
+      va::SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2,
+      va::EXPORT_SURFACE_WRITE_ONLY | va::EXPORT_SURFACE_COMPOSED_LAYERS,
       &prime);
     if(status) {
 
-      BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int)surface << "]: "sv << vaErrorStr(status);
+      BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int)surface << "]: "sv << va::errorStr(status);
 
       return std::nullopt;
     }
@@ -574,7 +703,9 @@ public:
   }
 
   int init(int in_width, int in_height, const char *render_device) {
-    if(gbm::init()) {
+    if(!va::initialize || !gbm::create_device) {
+      if(!va::initialize) BOOST_LOG(warning) << "libva not initialized"sv;
+      if(!gbm::create_device) BOOST_LOG(warning) << "libgbm not initialized"sv;
       return -1;
     }
 
@@ -794,7 +925,7 @@ public:
       return -1;
     }
 
-    VASurfaceID surface = (std::uintptr_t)frame->data[3];
+    va::VASurfaceID surface = (std::uintptr_t)frame->data[3];
 
     auto nv12_opt = import(surface);
     if(!nv12_opt) {
@@ -874,11 +1005,41 @@ typedef struct VAAPIDevicePriv {
   int drm_fd;
 } VAAPIDevicePriv;
 
+/**
+ * VAAPI connection details.
+ *
+ * Allocated as AVHWDeviceContext.hwctx
+ */
+typedef struct AVVAAPIDeviceContext {
+  /**
+   * The VADisplay handle, to be filled by the user.
+   */
+  va::VADisplay display;
+  /**
+   * Driver quirks to apply - this is filled by av_hwdevice_ctx_init(),
+   * with reference to a table of known drivers, unless the
+   * AV_VAAPI_DRIVER_QUIRK_USER_SET bit is already present.  The user
+   * may need to refer to this field when performing any later
+   * operations using VAAPI with the same VADisplay.
+   */
+  unsigned int driver_quirks;
+} AVVAAPIDeviceContext;
+
 static void __log(void *level, const char *msg) {
   BOOST_LOG(*(boost::log::sources::severity_logger<int> *)level) << msg;
 }
 
 int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf) {
+  if(!va::initialize) {
+    BOOST_LOG(warning) << "libva not loaded"sv;
+    return -1;
+  }
+
+  if(!va::getDisplayDRM) {
+    BOOST_LOG(warning) << "libva-drm not loaded"sv;
+    return -1;
+  }
+
   auto egl = (platf::egl::egl_t *)base;
   auto fd  = dup(egl->file.el);
 
@@ -891,7 +1052,7 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
     av_free(priv);
   });
 
-  va::display_t display { vaGetDisplayDRM(fd) };
+  va::display_t display { va::getDisplayDRM(fd) };
   if(!display) {
     auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
@@ -901,17 +1062,17 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
 
   egl->va_display = display.get();
 
-  vaSetErrorCallback(display.get(), __log, &error);
-  vaSetErrorCallback(display.get(), __log, &info);
+  va::setErrorCallback(display.get(), __log, &error);
+  va::setErrorCallback(display.get(), __log, &info);
 
   int major, minor;
-  auto status = vaInitialize(display.get(), &major, &minor);
+  auto status = va::initialize(display.get(), &major, &minor);
   if(status) {
-    BOOST_LOG(error) << "Couldn't initialize va display: "sv << vaErrorStr(status);
+    BOOST_LOG(error) << "Couldn't initialize va display: "sv << va::errorStr(status);
     return -1;
   }
 
-  BOOST_LOG(debug) << "vaapi vendor: "sv << vaQueryVendorString(display.get());
+  BOOST_LOG(debug) << "vaapi vendor: "sv << va::queryVendorString(display.get());
 
   *hw_device_buf = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
   auto ctx       = (AVVAAPIDeviceContext *)((AVHWDeviceContext *)(*hw_device_buf)->data)->hwctx;
@@ -943,9 +1104,11 @@ std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height) {
 } // namespace egl
 
 std::unique_ptr<deinit_t> init() {
+  gbm::init();
+  va::init_drm();
+
   if(!gladLoaderLoadEGL(EGL_NO_DISPLAY) || !eglGetPlatformDisplay) {
-    BOOST_LOG(error) << "Couldn't load EGL library"sv;
-    return nullptr;
+    BOOST_LOG(warning) << "Couldn't load EGL library"sv;
   }
 
   return std::make_unique<deinit_t>();

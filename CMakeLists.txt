@@ -107,11 +107,6 @@ else()
 		glad/include/KHR/khrplatform.h
 		glad/include/glad/gl.h
 		glad/include/glad/egl.h)
-	
-	set(GRAPHICS_LIBRARIES
-		dl
-		va
-		va-drm)
 		
 	set(PLATFORM_LIBRARIES
 		Xfixes
@@ -121,7 +116,7 @@ else()
 		xcb-xfixes
 		Xrandr
 		${X11_LIBRARIES}
-		${GRAPHICS_LIBRARIES}
+		dl
 		evdev
 		pulse
 		pulse-simple
