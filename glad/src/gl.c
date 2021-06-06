@@ -1270,6 +1270,10 @@ static int glad_gl_find_core_gl(GladGLContext *context) {
 
     GLAD_IMPL_UTIL_SSCANF(version, "%d.%d", &major, &minor);
 
+    // attempt to grab whatever we can
+    int temp = major;
+    major = 5;
+
     context->VERSION_1_0 = (major == 1 && minor >= 0) || major > 1;
     context->VERSION_1_1 = (major == 1 && minor >= 1) || major > 1;
     context->VERSION_1_2 = (major == 1 && minor >= 2) || major > 1;
@@ -1290,6 +1294,7 @@ static int glad_gl_find_core_gl(GladGLContext *context) {
     context->VERSION_4_5 = (major == 4 && minor >= 5) || major > 4;
     context->VERSION_4_6 = (major == 4 && minor >= 6) || major > 4;
 
+    major = temp;
     return GLAD_MAKE_VERSION(major, minor);
 }
 
