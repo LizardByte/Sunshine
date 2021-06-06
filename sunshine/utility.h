@@ -33,7 +33,7 @@ struct argument_type<T(U)> { typedef U type; };
     move_t(Args &&...args) : el { std::forward<Args>(args)... } {} \
     move_t(const move_t &) = delete;                               \
                                                                    \
-    explicit move_t(move_t &&other) : el { std::move(other.el) } { \
+    move_t(move_t &&other) noexcept : el { std::move(other.el) } { \
       other.el = element_type { init_val };                        \
     }                                                              \
                                                                    \

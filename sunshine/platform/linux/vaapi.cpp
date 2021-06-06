@@ -581,6 +581,11 @@ struct nv12_img_t {
 
   gl::tex_t tex;
   gl::frame_buf_t buf;
+
+  static constexpr std::size_t num_fds =
+    sizeof(va::DRMPRIMESurfaceDescriptor::objects) / sizeof(va::DRMPRIMESurfaceDescriptor::objects[0]);
+
+  std::array<file_t, num_fds> fds;
 };
 
 KITTY_USING_MOVE_T(nv12_t, nv12_img_t, , {
@@ -626,6 +631,12 @@ public:
       return std::nullopt;
     }
 
+    // Keep track of file descriptors
+    std::array<file_t, nv12_img_t::num_fds> fds;
+    for(int x = 0; x < prime.num_objects; ++x) {
+      fds[x] = prime.objects[x].fd;
+    }
+
     int img_attr_planes[2][13] {
       { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_R8,
         EGL_WIDTH, (int)prime.width,
@@ -649,7 +660,8 @@ public:
       eglCreateImageKHR(display.get(), EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[0]),
       eglCreateImageKHR(display.get(), EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[1]),
       gl::tex_t::make(2),
-      gl::frame_buf_t::make(2)
+      gl::frame_buf_t::make(2),
+      std::move(fds)
     };
 
     if(!nv12->r8 || !nv12->bg88) {
