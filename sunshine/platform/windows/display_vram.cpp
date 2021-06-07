@@ -435,10 +435,6 @@ public:
       return -1;
     }
 
-    if(img.data == frame->data[0]) {
-      return 0;
-    }
-
     // Need to have something refcounted
     if(!frame->buf[0]) {
       frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
