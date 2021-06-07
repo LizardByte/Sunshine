@@ -984,6 +984,9 @@ public:
     if(gl::ctx.GetError) {
       gl_drain_errors;
     }
+    if(frame) {
+      av_frame_free(frame);
+    }
   }
 
   int in_width, in_height;

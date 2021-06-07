@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <iostream>
 #include <thread>
+#include <fstream>
 
 #include <boost/log/attributes/clock.hpp>
 #include <boost/log/common.hpp>

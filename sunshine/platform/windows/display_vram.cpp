@@ -5,6 +5,11 @@
 #include <d3dcompiler.h>
 #include <directxmath.h>
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavutil/hwcontext_d3d11va.h>
+}
+
 #include "display.h"
 #include "sunshine/main.h"
 #include "sunshine/video.h"
@@ -14,6 +19,12 @@
 namespace platf {
 using namespace std::literals;
 }
+
+static void free_frame(AVFrame *frame) {
+  av_frame_free(&frame);
+}
+
+using frame_t = util::safe_ptr<AVFrame, free_frame>;
 
 namespace platf::dxgi {
 using input_layout_t        = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
@@ -326,15 +337,15 @@ public:
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
     switch(colorspace) {
     case 5: // SWS_CS_SMPTE170M
-      color_p = &video::colors[0];
+      color_p = &::video::colors[0];
       break;
     case 1: // SWS_CS_ITU709
-      color_p = &video::colors[2];
+      color_p = &::video::colors[2];
       break;
     case 9: // SWS_CS_BT2020
     default:
       BOOST_LOG(warning) << "Colorspace: ["sv << colorspace << "] not yet supported: switching to default"sv;
-      color_p = &video::colors[0];
+      color_p = &::video::colors[0];
     };
 
     if(color_range > 1) {
@@ -352,25 +363,17 @@ public:
     this->color_matrix = std::move(color_matrix);
   }
 
-  int init(
-    std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p,
-    int out_width, int out_height,
-    pix_fmt_e pix_fmt) {
-    HRESULT status;
+  int set_frame(AVFrame *frame) {
+    this->hwframe.reset(frame);
+    this->frame = frame;
 
-    device_p->AddRef();
-    data = device_p;
+    auto device_p = (device_t::pointer)data;
 
-    this->device_ctx_p = device_ctx_p;
+    auto out_width  = frame->width;
+    auto out_height = frame->height;
 
-    cursor_visible       = false;
-    cursor_view.MinDepth = 0.0f;
-    cursor_view.MaxDepth = 1.0f;
-
-    platf::hwdevice_t::img = &img;
-
-    float in_width  = display->width;
-    float in_height = display->height;
+    float in_width  = img.display->width;
+    float in_height = img.display->height;
 
     // // Ensure aspect ratio is maintained
     auto scalar       = std::fminf(out_width / in_width, out_height / in_height);
@@ -384,6 +387,94 @@ public:
     outY_view  = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
     outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
+    D3D11_TEXTURE2D_DESC t {};
+    t.Width            = out_width;
+    t.Height           = out_height;
+    t.MipLevels        = 1;
+    t.ArraySize        = 1;
+    t.SampleDesc.Count = 1;
+    t.Usage            = D3D11_USAGE_DEFAULT;
+    t.Format           = format;
+    t.BindFlags        = D3D11_BIND_RENDER_TARGET;
+
+    auto status = device_p->CreateTexture2D(&t, nullptr, &img.texture);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create render target texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    img.width       = out_width;
+    img.height      = out_height;
+    img.data        = (std::uint8_t *)img.texture.get();
+    img.row_pitch   = out_width;
+    img.pixel_pitch = 1;
+
+    float info_in[16 / sizeof(float)] { 1.0f / (float)out_width }; //aligned to 16-byte
+    info_scene = make_buffer(device_p, info_in);
+
+    if(!info_in) {
+      BOOST_LOG(error) << "Failed to create info scene buffer"sv;
+      return -1;
+    }
+
+    D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
+      DXGI_FORMAT_R8_UNORM,
+      D3D11_RTV_DIMENSION_TEXTURE2D
+    };
+
+    status = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_Y_rt);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    nv12_rt_desc.Format = DXGI_FORMAT_R8G8_UNORM;
+    status              = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_UV_rt);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    if(img.data == frame->data[0]) {
+      return 0;
+    }
+
+    // Need to have something refcounted
+    if(!frame->buf[0]) {
+      frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
+    }
+
+    auto desc     = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
+    desc->texture = (ID3D11Texture2D *)img.data;
+    desc->index   = 0;
+
+    frame->data[0] = img.data;
+    frame->data[1] = 0;
+
+    frame->linesize[0] = img.row_pitch;
+
+    frame->height = img.height;
+    frame->width  = img.width;
+
+    return 0;
+  }
+
+  int init(
+    std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p,
+    pix_fmt_e pix_fmt) {
+
+    HRESULT status;
+
+    device_p->AddRef();
+    data = device_p;
+
+    this->device_ctx_p = device_ctx_p;
+
+    cursor_visible       = false;
+    cursor_view.MinDepth = 0.0f;
+    cursor_view.MaxDepth = 1.0f;
+
+    format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
     status = device_p->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
     if(status) {
       BOOST_LOG(error) << "Failed to create scene vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
@@ -421,20 +512,13 @@ public:
       return -1;
     }
 
-    if(_init_rt(scene_sr, scene_rt, in_width, in_height, DXGI_FORMAT_B8G8R8A8_UNORM)) {
+    if(_init_rt(scene_sr, scene_rt, display->width, display->height, DXGI_FORMAT_B8G8R8A8_UNORM)) {
       return -1;
     }
 
-    color_matrix = make_buffer(device_p, video::colors[0]);
+    color_matrix = make_buffer(device_p, ::video::colors[0]);
     if(!color_matrix) {
       BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
-      return -1;
-    }
-
-    float info_in[16 / sizeof(float)] { 1.0f / (float)out_width }; //aligned to 16-byte
-    info_scene = make_buffer(device_p, info_in);
-    if(!info_in) {
-      BOOST_LOG(error) << "Failed to create info scene buffer"sv;
       return -1;
     }
 
@@ -447,46 +531,7 @@ public:
       convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(),
       &input_layout);
 
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width            = out_width;
-    t.Height           = out_height;
-    t.MipLevels        = 1;
-    t.ArraySize        = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage            = D3D11_USAGE_DEFAULT;
-    t.Format           = pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010;
-    t.BindFlags        = D3D11_BIND_RENDER_TARGET;
-
-    status = device_p->CreateTexture2D(&t, nullptr, &img.texture);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create render target texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    img.display     = std::move(display);
-    img.width       = out_width;
-    img.height      = out_height;
-    img.data        = (std::uint8_t *)img.texture.get();
-    img.row_pitch   = out_width;
-    img.pixel_pitch = 1;
-
-    D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
-      DXGI_FORMAT_R8_UNORM,
-      D3D11_RTV_DIMENSION_TEXTURE2D
-    };
-
-    status = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_Y_rt);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    nv12_rt_desc.Format = DXGI_FORMAT_R8G8_UNORM;
-    status              = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_UV_rt);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
+    img.display = std::move(display);
 
     D3D11_SAMPLER_DESC sampler_desc {};
     sampler_desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -607,7 +652,9 @@ private:
   }
 
 public:
-  color_t *color_p;
+  frame_t hwframe;
+
+  ::video::color_t *color_p;
 
   blend_t blend_enable;
   blend_t blend_disable;
@@ -641,6 +688,8 @@ public:
 
   D3D11_VIEWPORT cursor_view;
   bool cursor_visible;
+
+  DXGI_FORMAT format;
 
   device_ctx_t::pointer device_ctx_p;
 
@@ -808,7 +857,7 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
   return 0;
 }
 
-std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(int width, int height, pix_fmt_e pix_fmt) {
+std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_fmt) {
   if(pix_fmt != platf::pix_fmt_e::nv12) {
     BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
 
@@ -821,7 +870,6 @@ std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(int width, int 
     shared_from_this(),
     device.get(),
     device_ctx.get(),
-    width, height,
     pix_fmt);
 
   if(ret) {
@@ -838,15 +886,6 @@ std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(int width, int 
 }
 
 int init() {
-  for(auto &color : colors) {
-    BOOST_LOG(debug) << "Color Matrix"sv;
-    BOOST_LOG(debug) << "Y ["sv << color.color_vec_y.x << ", "sv << color.color_vec_y.y << ", "sv << color.color_vec_y.z << ", "sv << color.color_vec_y.w << ']';
-    BOOST_LOG(debug) << "U ["sv << color.color_vec_u.x << ", "sv << color.color_vec_u.y << ", "sv << color.color_vec_u.z << ", "sv << color.color_vec_u.w << ']';
-    BOOST_LOG(debug) << "V ["sv << color.color_vec_v.x << ", "sv << color.color_vec_v.y << ", "sv << color.color_vec_v.z << ", "sv << color.color_vec_v.w << ']';
-    BOOST_LOG(debug) << "range Y  ["sv << color.range_y.x << ", "sv << color.range_y.y << ']';
-    BOOST_LOG(debug) << "range UV ["sv << color.range_uv.x << ", "sv << color.range_uv.y << ']';
-  }
-
   BOOST_LOG(info) << "Compiling shaders..."sv;
   scene_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/SceneVS.hlsl");
   if(!scene_vs_hlsl) {

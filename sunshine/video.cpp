@@ -44,6 +44,23 @@ using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
 using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
+namespace nv {
+
+enum class profile_h264_e : int {
+  baseline,
+  main,
+  high,
+  high_444p,
+};
+
+enum class profile_hevc_e : int {
+  main,
+  main_10,
+  rext,
+};
+} // namespace nv
+
+
 platf::mem_type_e map_dev_type(AVHWDeviceType type);
 platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
@@ -391,8 +408,6 @@ static encoder_t nvenc {
     "h264_nvenc"s,
   },
   DEFAULT,
-
-  dxgi_img_to_frame,
   dxgi_make_hwdevice_ctx
 };
 
@@ -426,7 +441,6 @@ static encoder_t amdvce {
     "h264_amf"s,
   },
   DEFAULT,
-
   dxgi_make_hwdevice_ctx
 };
 #endif
@@ -1501,36 +1515,9 @@ util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *base) {
 #ifdef _WIN32
 }
 
-// Ugly, but need to declare for wio
-namespace platf::dxgi {
-void lock(void *hwdevice);
-void unlock(void *hwdevice);
-} // namespace platf::dxgi
 void do_nothing(void *) {}
+
 namespace video {
-void dxgi_img_to_frame(const platf::img_t &img, frame_t &frame) {
-  if(img.data == frame->data[0]) {
-    return;
-  }
-
-  // Need to have something refcounted
-  if(!frame->buf[0]) {
-    frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
-  }
-
-  auto desc     = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
-  desc->texture = (ID3D11Texture2D *)img.data;
-  desc->index   = 0;
-
-  frame->data[0] = img.data;
-  frame->data[1] = 0;
-
-  frame->linesize[0] = img.row_pitch;
-
-  frame->height = img.height;
-  frame->width  = img.width;
-}
-
 util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
   buffer_t ctx_buf { av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA) };
   auto ctx = (AVD3D11VADeviceContext *)((AVHWDeviceContext *)ctx_buf->data)->hwctx;

@@ -118,7 +118,7 @@ public:
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;
 
-  std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height, pix_fmt_e pix_fmt) override;
+  std::shared_ptr<platf::hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override;
 
   gpu_cursor_t cursor;
   std::vector<hwdevice_t *> hwdevices;
