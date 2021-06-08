@@ -2,9 +2,9 @@
 
 #include <filesystem>
 
+#include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
-#include <boost/property_tree/json_parser.hpp>
 
 #include <boost/asio/ssl/context.hpp>
 
@@ -13,15 +13,15 @@
 #include <boost/asio/ssl/context_base.hpp>
 
 #include "config.h"
-#include "utility.h"
-#include "rtsp.h"
 #include "crypto.h"
+#include "httpcommon.h"
+#include "main.h"
+#include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
-#include "network.h"
+#include "rtsp.h"
+#include "utility.h"
 #include "uuid.h"
-#include "main.h"
-#include "httpcommon.h"
 
 namespace http {
 using namespace std::literals;
@@ -73,7 +73,7 @@ int generate_user_creds(const std::string &file) {
     outputTree.put("username", "sunshine");
     outputTree.put("salt", salt);
     outputTree.put("password", util::hex(crypto::hash(plainPassword + salt)).to_string());
-    BOOST_LOG(info) << "New credentials has been created";
+    BOOST_LOG(info) << "New credentials have been created";
     BOOST_LOG(info) << "Username: " << username;
     BOOST_LOG(info) << "Password: " << plainPassword;
     pt::write_json(file, outputTree);

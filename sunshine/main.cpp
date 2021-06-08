@@ -15,9 +15,9 @@
 #include <boost/log/sources/severity_logger.hpp>
 
 #include "config.h"
-#include "nvhttp.h"
-#include "httpcommon.h"
 #include "confighttp.h"
+#include "httpcommon.h"
+#include "nvhttp.h"
 #include "rtsp.h"
 #include "thread_pool.h"
 #include "video.h"
@@ -142,7 +142,10 @@ int main(int argc, char *argv[]) {
   std::thread httpThread { nvhttp::start, shutdown_event };
   std::thread configThread { confighttp::start, shutdown_event };
   stream::rtpThread(shutdown_event);
+
   httpThread.join();
+  configThread.join();
+
   task_pool.stop();
   task_pool.join();
 
