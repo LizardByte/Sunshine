@@ -2,6 +2,8 @@
 // Created by TheElixZammuto on 2021-05-09.
 // TODO: Authentication, better handling of routes common to nvhttp, cleanup
 
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include "process.h"
 
 #include <filesystem>
@@ -32,7 +34,7 @@ std::string read_file(std::string path);
 
 namespace confighttp {
 using namespace std::literals;
-constexpr auto PORT_HTTP = 47990;
+constexpr auto PORT_HTTPS = 47990;
 
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
@@ -424,14 +426,14 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
   server.config.reuse_address                       = true;
   server.config.address                             = "0.0.0.0"s;
-  server.config.port                                = PORT_HTTP;
+  server.config.port                                = PORT_HTTPS;
 
   try {
     server.bind();
-    BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << PORT_HTTP << "]";
+    BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << PORT_HTTPS << "]";
   }
   catch(boost::system::system_error &err) {
-    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << PORT_HTTP << "]: "sv << err.what();
+    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << PORT_HTTPS << "]: "sv << err.what();
 
     shutdown_event->raise(true);
     return;
@@ -446,7 +448,7 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
         return;
       }
 
-      BOOST_LOG(fatal) << "Couldn't start Configuration HTTP server to ports ["sv << PORT_HTTP << ", "sv << PORT_HTTP << "]: "sv << err.what();
+      BOOST_LOG(fatal) << "Couldn't start Configuration HTTP server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTPS << "]: "sv << err.what();
       shutdown_event->raise(true);
       return;
     }

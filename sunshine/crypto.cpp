@@ -3,7 +3,6 @@
 //
 
 #include "crypto.h"
-#include <iostream>
 #include <openssl/pem.h>
 namespace crypto {
 using big_num_t = util::safe_ptr<BIGNUM, BN_free>;

@@ -1,3 +1,5 @@
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include "process.h"
 
 #include <filesystem>

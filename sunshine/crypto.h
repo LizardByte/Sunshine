@@ -6,8 +6,6 @@
 #define SUNSHINE_CRYPTO_H
 
 #include <array>
-#include <cassert>
-#include <iomanip>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
