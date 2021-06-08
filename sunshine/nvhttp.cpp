@@ -18,8 +18,10 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
+
 #include "config.h"
 #include "crypto.h"
+#include "httpcommon.h"
 #include "main.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -27,7 +29,6 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
-
 
 namespace nvhttp {
 using namespace std::literals;
@@ -77,8 +78,6 @@ struct pair_session_t {
 // uniqueID, session
 std::unordered_map<std::string, pair_session_t> map_id_sess;
 std::unordered_map<std::string, client_t> map_id_client;
-std::string unique_id;
-net::net_e origin_pin_allowed;
 
 using args_t       = SimpleWeb::CaseInsensitiveMultimap;
 using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
@@ -94,7 +93,7 @@ enum class op_e {
 void save_state() {
   pt::ptree root;
 
-  root.put("root.uniqueid", unique_id);
+  root.put("root.uniqueid", http::unique_id);
   auto &nodes = root.add_child("root.devices", pt::ptree {});
   for(auto &[_, client] : map_id_client) {
     pt::ptree node;
@@ -116,8 +115,9 @@ void save_state() {
 }
 
 void load_state() {
-  if(!fs::exists(config::nvhttp.file_state)) {
-    unique_id = util::uuid_t::generate().string();
+  auto file_state = fs::current_path() / config::nvhttp.file_state;
+  if(!fs::exists(file_state)) {
+    http::unique_id = util::uuid_t::generate().string();
     return;
   }
 
@@ -131,7 +131,7 @@ void load_state() {
     return;
   }
 
-  unique_id         = root.get<std::string>("root.uniqueid");
+  http::unique_id   = root.get<std::string>("root.uniqueid");
   auto device_nodes = root.get_child("root.devices");
 
   for(auto &[_, device_node] : device_nodes) {
@@ -419,30 +419,14 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
   response->write(data.str());
 }
 
-template<class T>
-void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-  print_req<T>(request);
-
-  auto address = request->remote_endpoint_address();
-  auto ip_type = net::from_address(address);
-  if(ip_type > origin_pin_allowed) {
-    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
-
-    response->write(SimpleWeb::StatusCode::client_error_forbidden);
-
-    return;
-  }
-
+bool pin(std::string pin) {
   pt::ptree tree;
-
   if(map_id_sess.empty()) {
-    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
-
-    return;
+    return false;
   }
 
   auto &sess = std::begin(map_id_sess)->second;
-  getservercert(sess, tree, request->path_match[1]);
+  getservercert(sess, tree, pin);
 
   // response to the request for pin
   std::ostringstream data;
@@ -456,15 +440,36 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
     async_response.right()->write(data.str());
   }
   else {
-    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
-
-    return;
+    return false;
   }
 
   // reset async_response
   async_response = std::decay_t<decltype(async_response.left())>();
   // response to the current request
-  response->write(SimpleWeb::StatusCode::success_ok);
+  return true;
+}
+
+template<class T>
+void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+  print_req<T>(request);
+
+  auto address = request->remote_endpoint_address();
+  auto ip_type = net::from_address(address);
+  if(ip_type > http::origin_pin_allowed) {
+    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
+
+    response->write(SimpleWeb::StatusCode::client_error_forbidden);
+
+    return;
+  }
+
+  bool pinResponse = pin(request->path_match[1]);
+  if(pinResponse) {
+    response->write(SimpleWeb::StatusCode::success_ok);
+  }
+  else {
+    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
+  }
 }
 
 template<class T>
@@ -491,7 +496,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 
   tree.put("root.appversion", VERSION);
   tree.put("root.GfeVersion", GFE_VERSION);
-  tree.put("root.uniqueid", unique_id);
+  tree.put("root.uniqueid", http::unique_id);
   tree.put("root.mac", platf::get_mac_address(request->local_endpoint_address()));
   tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 1 ? "1869449984" : "0");
   tree.put("root.LocalIP", request->local_endpoint_address());
@@ -728,88 +733,16 @@ void appasset(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in);
 }
 
-int create_creds(const std::string &pkey, const std::string &cert) {
-  fs::path pkey_path = pkey;
-  fs::path cert_path = cert;
-
-  auto creds = crypto::gen_creds("Sunshine Gamestream Host"sv, 2048);
-
-  auto pkey_dir = pkey_path;
-  auto cert_dir = cert_path;
-  pkey_dir.remove_filename();
-  cert_dir.remove_filename();
-
-  std::error_code err_code {};
-  fs::create_directories(pkey_dir, err_code);
-  if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  fs::create_directories(cert_dir, err_code);
-  if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  if(write_file(pkey.c_str(), creds.pkey)) {
-    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
-    return -1;
-  }
-
-  if(write_file(cert.c_str(), creds.x509)) {
-    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.cert << ']';
-    return -1;
-  }
-
-  fs::permissions(pkey_path,
-    fs::perms::owner_read | fs::perms::owner_write,
-    fs::perm_options::replace, err_code);
-
-  if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  fs::permissions(cert_path,
-    fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write,
-    fs::perm_options::replace, err_code);
-
-  if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  return 0;
-}
-
 void start(std::shared_ptr<safe::signal_t> shutdown_event) {
+
   bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
-  if(clean_slate) {
-    unique_id = util::uuid_t::generate().string();
-
-    auto dir = std::filesystem::temp_directory_path() / "Sushine"sv;
-
-    config::nvhttp.cert = (dir / ("cert-"s + unique_id)).string();
-    config::nvhttp.pkey = (dir / ("pkey-"s + unique_id)).string();
-  }
-
-
-  if(!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) {
-    if(create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
-      shutdown_event->raise(true);
-      return;
-    }
-  }
-
-  origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
 
   if(!clean_slate) {
     load_state();
   }
 
-  conf_intern.pkey       = read_file(config::nvhttp.pkey.c_str());
-  conf_intern.servercert = read_file(config::nvhttp.cert.c_str());
+  conf_intern.pkey       = http::read_file(config::nvhttp.pkey.c_str());
+  conf_intern.servercert = http::read_file(config::nvhttp.cert.c_str());
 
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
   ctx->use_certificate_chain_file(config::nvhttp.cert);

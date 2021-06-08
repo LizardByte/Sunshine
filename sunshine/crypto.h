@@ -7,6 +7,7 @@
 
 #include <array>
 #include <cassert>
+#include <iomanip>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
@@ -35,6 +36,7 @@ using bio_t            = util::safe_ptr<BIO, BIO_free_all>;
 using pkey_t           = util::safe_ptr<EVP_PKEY, EVP_PKEY_free>;
 
 sha256_t hash(const std::string_view &plaintext);
+
 aes_t gen_aes_key(const std::array<uint8_t, 16> &salt, const std::string_view &pin);
 
 x509_t x509(const std::string_view &x);
@@ -50,6 +52,8 @@ creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits);
 std::string_view signature(const x509_t &x);
 
 std::string rand(std::size_t bytes);
+std::string rand_alphabet(std::size_t bytes,
+  const std::string_view &alphabet = std::string_view { "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!%&()=-" });
 
 class cert_chain_t {
 public:

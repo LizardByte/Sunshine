@@ -3,9 +3,10 @@
 //
 
 #include "crypto.h"
+#include <iostream>
 #include <openssl/pem.h>
 namespace crypto {
-using big_num_t     = util::safe_ptr<BIGNUM, BN_free>;
+using big_num_t = util::safe_ptr<BIGNUM, BN_free>;
 //using rsa_t = util::safe_ptr<RSA, RSA_free>;
 using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
 
@@ -338,4 +339,14 @@ bool verify256(const x509_t &x509, const std::string_view &data, const std::stri
 void md_ctx_destroy(EVP_MD_CTX *ctx) {
   EVP_MD_CTX_destroy(ctx);
 }
+
+std::string rand_alphabet(std::size_t bytes, const std::string_view &alphabet) {
+  auto value = rand(bytes);
+
+  for(std::size_t i = 0; i != value.size(); ++i) {
+    value[i] = alphabet[value[i] % alphabet.length()];
+  }
+  return value;
+}
+
 } // namespace crypto
