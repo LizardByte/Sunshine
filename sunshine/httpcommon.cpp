@@ -68,8 +68,8 @@ int generate_user_creds(const std::string &file) {
   pt::ptree outputTree;
   try {
     std::string username      = "sunshine";
-    std::string plainPassword = crypto::rand_string(16);
-    std::string salt          = crypto::rand_string(16);
+    std::string plainPassword = crypto::rand_alphabet(16);
+    std::string salt          = crypto::rand_alphabet(16);
     outputTree.put("username", "sunshine");
     outputTree.put("salt", salt);
     outputTree.put("password", util::hex(crypto::hash(plainPassword + salt)).to_string());

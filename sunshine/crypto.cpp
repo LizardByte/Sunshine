@@ -340,21 +340,13 @@ void md_ctx_destroy(EVP_MD_CTX *ctx) {
   EVP_MD_CTX_destroy(ctx);
 }
 
-std::string rand_string(std::size_t bytes) {
-  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!%&()=-";
-  std::string value    = rand(bytes);
+std::string rand_alphabet(std::size_t bytes, const std::string_view &alphabet) {
+  auto value = rand(bytes);
+
   for(std::size_t i = 0; i != value.size(); ++i) {
     value[i] = alphabet[value[i] % alphabet.length()];
   }
   return value;
 }
 
-std::string hash_hexstr(const std::string_view &plaintext) {
-  sha256_t hashBytes = crypto::hash(plaintext);
-  std::ostringstream hashStream;
-  hashStream << std::hex << std::setfill('0');
-  std::for_each(hashBytes.cbegin(), hashBytes.cend(), [&](int c) { hashStream << std::setw(2) << c; });
-  std::string hashString = hashStream.str();
-  return hashString;
-}
 } // namespace crypto
