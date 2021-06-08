@@ -516,10 +516,10 @@ static std::vector<encoder_t> encoders {
   nvenc,
   amdvce,
 #endif
+  software,
 #ifdef __linux__
-  vaapi,
+  vaapi
 #endif
-  software
 };
 
 void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type) {
