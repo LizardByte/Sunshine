@@ -35,6 +35,12 @@ extern "C" {
 
 using namespace std::literals;
 
+static void free_frame(AVFrame *frame) {
+  av_frame_free(&frame);
+}
+
+using frame_t = util::safe_ptr<AVFrame, free_frame>;
+
 namespace dyn {
 void *handle(const std::vector<const char *> &libs) {
   void *handle;
@@ -929,6 +935,7 @@ public:
   }
 
   int set_frame(AVFrame *frame) {
+    this->hwframe.reset(frame);
     this->frame = frame;
 
     if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
@@ -984,14 +991,13 @@ public:
     if(gl::ctx.GetError) {
       gl_drain_errors;
     }
-    if(frame) {
-      av_frame_free(frame);
-    }
   }
 
   int in_width, in_height;
   int out_width, out_height;
   int offsetX, offsetY;
+
+  frame_t hwframe;
 
   va::display_t::pointer va_display;
 
