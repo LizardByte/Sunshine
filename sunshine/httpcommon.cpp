@@ -33,8 +33,6 @@ namespace pt = boost::property_tree;
 int create_creds(const std::string &pkey, const std::string &cert);
 int generate_user_creds(const std::string &file);
 int reload_user_creds(const std::string &file);
-std::string read_file(const char *path);
-int write_file(const char *path, const std::string_view &contents);
 std::string unique_id;
 net::net_e origin_pin_allowed;
 
@@ -155,31 +153,5 @@ int create_creds(const std::string &pkey, const std::string &cert) {
   }
 
   return 0;
-}
-int write_file(const char *path, const std::string_view &contents) {
-  std::ofstream out(path);
-
-  if(!out.is_open()) {
-    return -1;
-  }
-
-  out << contents;
-
-  return 0;
-}
-
-std::string read_file(const char *path) {
-  std::ifstream in(path);
-
-  std::string input;
-  std::string base64_cert;
-
-  //FIXME:  Being unable to read file could result in infinite loop
-  while(!in.eof()) {
-    std::getline(in, input);
-    base64_cert += input + '\n';
-  }
-
-  return base64_cert;
 }
 } // namespace http

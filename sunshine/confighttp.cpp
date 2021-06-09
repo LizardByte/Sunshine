@@ -316,7 +316,7 @@ void saveConfig(resp_https_t response, req_https_t request) {
 
       configStream << kv.first << " = " << value << std::endl;
     }
-    http::write_file(SUNSHINE_ASSETS_DIR "/sunshine.conf", configStream.str());
+    write_file(SUNSHINE_ASSETS_DIR "/sunshine.conf", configStream.str());
   }
   catch(std::exception &e) {
     BOOST_LOG(warning) << e.what();

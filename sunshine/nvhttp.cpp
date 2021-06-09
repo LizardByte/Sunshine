@@ -741,8 +741,8 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
     load_state();
   }
 
-  conf_intern.pkey       = http::read_file(config::nvhttp.pkey.c_str());
-  conf_intern.servercert = http::read_file(config::nvhttp.cert.c_str());
+  conf_intern.pkey       = read_file(config::nvhttp.pkey.c_str());
+  conf_intern.servercert = read_file(config::nvhttp.cert.c_str());
 
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
   ctx->use_certificate_chain_file(config::nvhttp.cert);
