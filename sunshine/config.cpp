@@ -210,12 +210,14 @@ input_t input {
 };
 
 sunshine_t sunshine {
-  2,  // min_log_level
-  0,  // flags
-  {}, //User file
-  {}, //Username
-  {}, //Password
-  {}  //Password Salt
+  2,                                    // min_log_level
+  0,                                    // flags
+  {},                                   // User file
+  {},                                   // Username
+  {},                                   // Password
+  {},                                   // Password Salt
+  SUNSHINE_ASSETS_DIR "/sunshine.conf", // config file
+  {}                                    // cmd args
 };
 
 bool endline(char ch) {
@@ -500,19 +502,6 @@ void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::s
   }
 }
 
-void print_help(const char *name) {
-  std::cout
-    << "Usage: "sv << name << " [options] [/path/to/configuration_file]"sv << std::endl
-    << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
-    << std::endl
-    << "    --help | print help"sv << std::endl
-    << std::endl
-    << "    flags"sv << std::endl
-    << "        -0 | Read PIN from stdin"sv << std::endl
-    << "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl
-    << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv;
-}
-
 int apply_flags(const char *line) {
   int ret = 0;
   while(*line != '\0') {
@@ -651,11 +640,9 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 }
 
 int parse(int argc, char *argv[]) {
-  const char *config_file = SUNSHINE_ASSETS_DIR "/sunshine.conf";
-
   std::unordered_map<std::string, std::string> cmd_vars;
 
-  for(auto x = argc - 1; x > 0; --x) {
+  for(auto x = 1; x < argc; ++x) {
     auto line = argv[x];
 
     if(line == "--help"sv) {
@@ -663,6 +650,13 @@ int parse(int argc, char *argv[]) {
       return 1;
     }
     else if(*line == '-') {
+      if(*(line + 1) == '-') {
+        sunshine.cmd.name = line + 2;
+        sunshine.cmd.argc = argc - x - 1;
+        sunshine.cmd.argv = argv + x + 1;
+
+        break;
+      }
       if(apply_flags(line + 1)) {
         print_help(*argv);
         return -1;
@@ -673,7 +667,7 @@ int parse(int argc, char *argv[]) {
 
       auto pos = std::find(line, line_end, '=');
       if(pos == line_end) {
-        config_file = line;
+        sunshine.config_file = line;
       }
       else {
         TUPLE_EL(var, 1, parse_option(line, line_end));
@@ -687,9 +681,7 @@ int parse(int argc, char *argv[]) {
     }
   }
 
-  sunshine.config_file = config_file;
-
-  auto vars = parse_config(read_file(config_file));
+  auto vars = parse_config(read_file(sunshine.config_file.c_str()));
 
   for(auto &[name, value] : cmd_vars) {
     vars.insert_or_assign(std::move(name), std::move(value));

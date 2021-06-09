@@ -405,7 +405,7 @@ void savePassword(resp_https_t response, req_https_t request) {
         outputTree.put("error", "Password Mismatch");
       }
 
-      http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword, crypto::rand_alphabet(16));
+      http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
       http::reload_user_creds(config::sunshine.credentials_file);
       outputTree.put("status", true);
     }

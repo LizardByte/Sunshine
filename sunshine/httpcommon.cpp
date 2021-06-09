@@ -53,7 +53,7 @@ void init(std::shared_ptr<safe::signal_t> shutdown_event) {
     }
   }
   if(!user_creds_exist(config::sunshine.credentials_file)) {
-    if(save_user_creds(config::sunshine.credentials_file, "sunshine"s, crypto::rand_alphabet(16), crypto::rand_alphabet(16))) {
+    if(save_user_creds(config::sunshine.credentials_file, "sunshine"s, crypto::rand_alphabet(16), true)) {
       shutdown_event->raise(true);
       return;
     }
@@ -64,7 +64,7 @@ void init(std::shared_ptr<safe::signal_t> shutdown_event) {
   }
 }
 
-int save_user_creds(const std::string &file, const std::string &username, const std::string &password, const std::string &salt) {
+int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
   pt::ptree outputTree;
 
   if(fs::exists(file)) {
@@ -77,7 +77,8 @@ int save_user_creds(const std::string &file, const std::string &username, const 
     }
   }
 
-  outputTree.put("username", "sunshine");
+  auto salt = crypto::rand_alphabet(16);
+  outputTree.put("username", username);
   outputTree.put("salt", salt);
   outputTree.put("password", util::hex(crypto::hash(password + salt)).to_string());
   try {
@@ -89,8 +90,11 @@ int save_user_creds(const std::string &file, const std::string &username, const 
   }
 
   BOOST_LOG(info) << "New credentials have been created"sv;
-  BOOST_LOG(info) << "Username: "sv << username;
-  BOOST_LOG(info) << "Password: "sv << password;
+
+  if(run_our_mouth) {
+    BOOST_LOG(info) << "Username: "sv << username;
+    BOOST_LOG(info) << "Password: "sv << password;
+  }
 
   return 0;
 }

@@ -96,6 +96,12 @@ struct sunshine_t {
   std::string salt;
 
   std::string config_file;
+
+  struct cmd_t {
+    std::string name;
+    int argc;
+    char **argv;
+  } cmd;
 };
 
 extern video_t video;

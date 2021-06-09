@@ -6,9 +6,9 @@
 
 #include <csignal>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <thread>
-#include <fstream>
 
 #include <boost/log/attributes/clock.hpp>
 #include <boost/log/common.hpp>
@@ -52,6 +52,27 @@ struct NoDelete {
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
+void print_help(const char *name) {
+  std::cout
+    << "Usage: "sv << name << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
+    << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
+    << std::endl
+    << "    --help | print help"sv << std::endl
+    << "    --creds username password | set user credentials for the Web manager" << std::endl
+    << std::endl
+    << "    flags"sv << std::endl
+    << "        -0 | Read PIN from stdin"sv << std::endl
+    << "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl
+    << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv << std::endl;
+}
+
+namespace help {
+int entry(const char *name, int argc, char *argv[]) {
+  print_help(name);
+  return 0;
+}
+} // namespace help
+
 void log_flush() {
   sink->flush();
 }
@@ -67,6 +88,24 @@ void on_signal(int sig, FN &&fn) {
 
   std::signal(sig, on_signal_forwarder);
 }
+
+namespace gen_creds {
+int entry(const char *name, int argc, char *argv[]) {
+  if(argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
+    print_help(name);
+    return 0;
+  }
+
+  http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
+
+  return 0;
+}
+} // namespace gen_creds
+
+std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
+  { "creds"sv, gen_creds::entry },
+  { "help"sv, help::entry }
+};
 
 int main(int argc, char *argv[]) {
   if(config::parse(argc, argv)) {
@@ -122,6 +161,22 @@ int main(int argc, char *argv[]) {
 
   bl::core::get()->add_sink(sink);
   auto fg = util::fail_guard(log_flush);
+
+  if(!config::sunshine.cmd.name.empty()) {
+    auto fn = cmd_to_func.find(config::sunshine.cmd.name);
+    if(fn == std::end(cmd_to_func)) {
+      BOOST_LOG(fatal) << "Unknown command: "sv << config::sunshine.cmd.name;
+
+      BOOST_LOG(info) << "Possible commands:"sv;
+      for(auto &[key, _] : cmd_to_func) {
+        BOOST_LOG(info) << '\t' << key;
+      }
+
+      return 7;
+    }
+
+    return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
+  }
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = std::make_shared<safe::event_t<bool>>();
