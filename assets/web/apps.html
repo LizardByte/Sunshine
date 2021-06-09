@@ -15,7 +15,8 @@
         <tr v-for="(app,i) in apps" :key="i">
           <td>{{app.name}}</td>
           <td><button class="btn btn-primary" @click="editApp(i)">Edit</button>
-            <button class="btn btn-danger" @click="showDeleteForm(i)">Delete</button></td>
+            <button class="btn btn-danger" @click="showDeleteForm(i)">Delete</button>
+          </td>
         </tr>
       </tbody>
     </table>
@@ -41,7 +42,7 @@
         <label for="appName" class="form-label">Command Preparations</label>
         <div class="form-text">A list of commands to be run before/after the application. <br> If any of the
           prep-commands fail, starting the application is aborted</div>
-        <table  v-if="editForm['prep-cmd'].length > 0">
+        <table v-if="editForm['prep-cmd'].length > 0">
           <thead>
             <th class="precmd-head">Do</th>
             <th class="precmd-head">Undo</th>
@@ -73,7 +74,8 @@
       <!--command-->
       <div class="mb-3">
         <label for="appCmd" class="form-label">Command</label>
-        <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp" v-model="editForm.cmd">
+        <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
+          v-model="editForm.cmd">
         <div id="appCmdHelp" class="form-text">The main application, if it is not specified, a processs is started that
           sleeps indefinitely</div>
       </div>
@@ -84,7 +86,7 @@
       </div>
     </div>
   </div>
-  <div class="mt-2" v-else >
+  <div class="mt-2" v-else>
     <button class="btn btn-primary" @click="newApp">+ Add New</button>
   </div>
 </div>
@@ -113,7 +115,8 @@
           output: '',
           cmd: [],
           index: -1,
-          "prep-cmd": []
+          "prep-cmd": [],
+          "detached": []
         };
         this.editForm.index = -1;
         this.showEditForm = true;
@@ -156,5 +159,4 @@
   .monospace {
     font-family: monospace;
   }
-
 </style>

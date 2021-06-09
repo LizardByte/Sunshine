@@ -93,6 +93,18 @@ enum class op_e {
 void save_state() {
   pt::ptree root;
 
+  if(fs::exists(config::nvhttp.file_state)) {
+    try {
+      pt::read_json(config::nvhttp.file_state, root);
+    }
+    catch(std::exception &e) {
+      BOOST_LOG(error) << e.what();
+      return;
+    }
+  }
+
+  root.erase("root"s);
+
   root.put("root.uniqueid", http::unique_id);
   auto &nodes = root.add_child("root.devices", pt::ptree {});
   for(auto &[_, client] : map_id_client) {
@@ -111,7 +123,13 @@ void save_state() {
     nodes.push_back(std::make_pair(""s, node));
   }
 
-  pt::write_json(config::nvhttp.file_state, root);
+  try {
+    pt::write_json(config::nvhttp.file_state, root);
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(error) << e.what();
+    return;
+  }
 }
 
 void load_state() {
@@ -131,7 +149,16 @@ void load_state() {
     return;
   }
 
-  http::unique_id   = root.get<std::string>("root.uniqueid");
+  auto unique_id_p = root.find("root.uniqueid"s);
+  if(unique_id_p == root.not_found()) {
+    // This file doesn't contain moonlight credentials
+    http::unique_id = util::uuid_t::generate().string();
+    return;
+  }
+  else {
+    http::unique_id = root.get<std::string>("root.uniqueid");
+  }
+
   auto device_nodes = root.get_child("root.devices");
 
   for(auto &[_, device_node] : device_nodes) {

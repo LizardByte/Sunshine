@@ -82,7 +82,7 @@ namespace flag {
 enum flag_e : std::size_t {
   PIN_STDIN = 0, // Read PIN from stdin instead of http
   FRESH_STATE,   // Do not load or save state
-  CONST_PIN = 4, // Use "universal" pin
+  CONST_PIN,     // Use "universal" pin
   FLAG_SIZE
 };
 }
@@ -94,6 +94,8 @@ struct sunshine_t {
   std::string username;
   std::string password;
   std::string salt;
+
+  std::string config_file;
 };
 
 extern video_t video;
@@ -104,6 +106,6 @@ extern input_t input;
 extern sunshine_t sunshine;
 
 int parse(int argc, char *argv[]);
-std::unordered_map<std::string, std::string> parse_config(std::string_view file_content);
+std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
 } // namespace config
 #endif

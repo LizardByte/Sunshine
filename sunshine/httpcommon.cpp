@@ -30,9 +30,9 @@ using namespace std::literals;
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
-int create_creds(const std::string &pkey, const std::string &cert);
-int generate_user_creds(const std::string &file);
 int reload_user_creds(const std::string &file);
+bool user_creds_exist(const std::string &file);
+
 std::string unique_id;
 net::net_e origin_pin_allowed;
 
@@ -52,8 +52,8 @@ void init(std::shared_ptr<safe::signal_t> shutdown_event) {
       return;
     }
   }
-  if(!fs::exists(config::sunshine.credentials_file)) {
-    if(generate_user_creds(config::sunshine.credentials_file)) {
+  if(!user_creds_exist(config::sunshine.credentials_file)) {
+    if(save_user_creds(config::sunshine.credentials_file, "sunshine"s, crypto::rand_alphabet(16), crypto::rand_alphabet(16))) {
       shutdown_event->raise(true);
       return;
     }
@@ -64,25 +64,54 @@ void init(std::shared_ptr<safe::signal_t> shutdown_event) {
   }
 }
 
-int generate_user_creds(const std::string &file) {
+int save_user_creds(const std::string &file, const std::string &username, const std::string &password, const std::string &salt) {
   pt::ptree outputTree;
+
+  if(fs::exists(file)) {
+    try {
+      pt::read_json(file, outputTree);
+    }
+    catch(std::exception &e) {
+      BOOST_LOG(error) << "Couldn't read user credentials: "sv << e.what();
+      return -1;
+    }
+  }
+
+  outputTree.put("username", "sunshine");
+  outputTree.put("salt", salt);
+  outputTree.put("password", util::hex(crypto::hash(password + salt)).to_string());
   try {
-    std::string username      = "sunshine";
-    std::string plainPassword = crypto::rand_alphabet(16);
-    std::string salt          = crypto::rand_alphabet(16);
-    outputTree.put("username", "sunshine");
-    outputTree.put("salt", salt);
-    outputTree.put("password", util::hex(crypto::hash(plainPassword + salt)).to_string());
-    BOOST_LOG(info) << "New credentials have been created";
-    BOOST_LOG(info) << "Username: " << username;
-    BOOST_LOG(info) << "Password: " << plainPassword;
     pt::write_json(file, outputTree);
   }
   catch(std::exception &e) {
-    BOOST_LOG(fatal) << e.what();
-    return 1;
+    BOOST_LOG(error) << "generating user credentials: "sv << e.what();
+    return -1;
   }
+
+  BOOST_LOG(info) << "New credentials have been created"sv;
+  BOOST_LOG(info) << "Username: "sv << username;
+  BOOST_LOG(info) << "Password: "sv << password;
+
   return 0;
+}
+
+bool user_creds_exist(const std::string &file) {
+  if(!fs::exists(file)) {
+    return false;
+  }
+
+  pt::ptree inputTree;
+  try {
+    pt::read_json(file, inputTree);
+    return inputTree.find("username") != inputTree.not_found() &&
+           inputTree.find("password") != inputTree.not_found() &&
+           inputTree.find("salt") != inputTree.not_found();
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(error) << "validating user credentials: "sv << e.what();
+  }
+
+  return false;
 }
 
 int reload_user_creds(const std::string &file) {
@@ -94,8 +123,8 @@ int reload_user_creds(const std::string &file) {
     config::sunshine.salt     = inputTree.get<std::string>("salt");
   }
   catch(std::exception &e) {
-    BOOST_LOG(fatal) << e.what();
-    return 1;
+    BOOST_LOG(error) << "loading user credentials: "sv << e.what();
+    return -1;
   }
   return 0;
 }
@@ -114,23 +143,23 @@ int create_creds(const std::string &pkey, const std::string &cert) {
   std::error_code err_code {};
   fs::create_directories(pkey_dir, err_code);
   if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
+    BOOST_LOG(error) << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
     return -1;
   }
 
   fs::create_directories(cert_dir, err_code);
   if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
+    BOOST_LOG(error) << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
     return -1;
   }
 
   if(write_file(pkey.c_str(), creds.pkey)) {
-    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
+    BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
     return -1;
   }
 
   if(write_file(cert.c_str(), creds.x509)) {
-    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.cert << ']';
+    BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.cert << ']';
     return -1;
   }
 
@@ -139,7 +168,7 @@ int create_creds(const std::string &pkey, const std::string &cert) {
     fs::perm_options::replace, err_code);
 
   if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
+    BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
     return -1;
   }
 
@@ -148,7 +177,7 @@ int create_creds(const std::string &pkey, const std::string &cert) {
     fs::perm_options::replace, err_code);
 
   if(err_code) {
-    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
+    BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
     return -1;
   }
 

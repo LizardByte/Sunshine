@@ -30,8 +30,6 @@
 #include "utility.h"
 #include "uuid.h"
 
-std::string read_file(std::string path);
-
 namespace confighttp {
 using namespace std::literals;
 constexpr auto PORT_HTTPS = 47990;
@@ -50,6 +48,23 @@ enum class op_e {
   REMOVE
 };
 
+void print_req(const req_https_t &request) {
+  BOOST_LOG(debug) << "METHOD :: "sv << request->method;
+  BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
+
+  for(auto &[name, val] : request->header) {
+    BOOST_LOG(debug) << name << " -- " << val;
+  }
+
+  BOOST_LOG(debug) << " [--] "sv;
+
+  for(auto &[name, val] : request->parse_query_string()) {
+    BOOST_LOG(debug) << name << " -- " << val;
+  }
+
+  BOOST_LOG(debug) << " [--] "sv;
+}
+
 void send_unauthorized(resp_https_t response, req_https_t request) {
   auto address = request->remote_endpoint_address();
   BOOST_LOG(info) << '[' << address << "] -- denied"sv;
@@ -62,27 +77,40 @@ void send_unauthorized(resp_https_t response, req_https_t request) {
 bool authenticate(resp_https_t response, req_https_t request) {
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
+
   if(ip_type > http::origin_pin_allowed) {
     BOOST_LOG(info) << '[' << address << "] -- denied"sv;
     response->write(SimpleWeb::StatusCode::client_error_forbidden);
     return false;
   }
+
+  auto fg = util::fail_guard([&]() {
+    send_unauthorized(response, request);
+  });
+
   auto auth = request->header.find("authorization");
   if(auth == request->header.end()) {
-    send_unauthorized(response, request);
     return false;
   }
-  std::string rawAuth  = auth->second;
-  std::string authData = rawAuth.substr("Basic "sv.length());
-  authData             = SimpleWeb::Crypto::Base64::decode(authData);
-  int index            = authData.find(':');
-  std::string username = authData.substr(0, index);
-  std::string password = authData.substr(index + 1);
-  std::string hash     = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-  if(username == config::sunshine.username && hash == config::sunshine.password) return true;
 
-  send_unauthorized(response, request);
-  return false;
+  auto &rawAuth = auth->second;
+  auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
+
+  int index = authData.find(':');
+  if(index >= authData.size() - 1) {
+    return false;
+  }
+
+  auto username = authData.substr(0, index);
+  auto password = authData.substr(index + 1);
+  auto hash     = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+
+  if(username != config::sunshine.username || hash != config::sunshine.password) {
+    return false;
+  }
+
+  fg.disable();
+  return true;
 }
 
 void not_found(resp_https_t response, req_https_t request) {
@@ -101,6 +129,8 @@ void not_found(resp_https_t response, req_https_t request) {
 void getIndexPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
+  print_req(request);
+
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "index.html");
   response->write(header + content);
@@ -108,6 +138,8 @@ void getIndexPage(resp_https_t response, req_https_t request) {
 
 void getPinPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
+
+  print_req(request);
 
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "pin.html");
@@ -117,6 +149,8 @@ void getPinPage(resp_https_t response, req_https_t request) {
 void getAppsPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
+  print_req(request);
+
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "apps.html");
   response->write(header + content);
@@ -124,6 +158,8 @@ void getAppsPage(resp_https_t response, req_https_t request) {
 
 void getClientsPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
+
+  print_req(request);
 
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "clients.html");
@@ -133,6 +169,8 @@ void getClientsPage(resp_https_t response, req_https_t request) {
 void getConfigPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
+  print_req(request);
+
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "config.html");
   response->write(header + content);
@@ -140,6 +178,8 @@ void getConfigPage(resp_https_t response, req_https_t request) {
 
 void getPasswordPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
+
+  print_req(request);
 
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "password.html");
@@ -149,15 +189,20 @@ void getPasswordPage(resp_https_t response, req_https_t request) {
 void getApps(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
-  std::string content = read_file(SUNSHINE_ASSETS_DIR "/" APPS_JSON);
+  print_req(request);
+
+  std::string content = read_file(config::stream.file_apps.c_str());
   response->write(content);
 }
 
 void saveApp(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
+  print_req(request);
+
   std::stringstream ss;
   ss << request->content.rdbuf();
+
   pt::ptree outputTree;
   auto g = util::fail_guard([&]() {
     std::ostringstream data;
@@ -165,20 +210,28 @@ void saveApp(resp_https_t response, req_https_t request) {
     pt::write_json(data, outputTree);
     response->write(data.str());
   });
+
   pt::ptree inputTree, fileTree;
+
+  BOOST_LOG(fatal) << config::stream.file_apps;
   try {
     //TODO: Input Validation
     pt::read_json(ss, inputTree);
-    pt::read_json(SUNSHINE_ASSETS_DIR "/" APPS_JSON, fileTree);
+    pt::read_json(config::stream.file_apps, fileTree);
+
+    if(inputTree.get_child("prep-cmd").empty()) {
+      inputTree.erase("prep-cmd");
+    }
+
+    if(inputTree.get_child("detached").empty()) {
+      inputTree.erase("detached");
+    }
+
     auto &apps_node = fileTree.get_child("apps"s);
     int index       = inputTree.get<int>("index");
-    if(inputTree.get_child("prep-cmd").empty())
-      inputTree.erase("prep-cmd");
-
-    if(inputTree.get_child("detached").empty())
-      inputTree.erase("detached");
 
     inputTree.erase("index");
+
     if(index == -1) {
       apps_node.push_back(std::make_pair("", inputTree));
     }
@@ -198,20 +251,24 @@ void saveApp(resp_https_t response, req_https_t request) {
       fileTree.erase("apps");
       fileTree.push_back(std::make_pair("apps", newApps));
     }
-    pt::write_json(SUNSHINE_ASSETS_DIR "/" APPS_JSON, fileTree);
-    outputTree.put("status", "true");
-    proc::refresh(SUNSHINE_ASSETS_DIR "/" APPS_JSON);
+    pt::write_json(config::stream.file_apps, fileTree);
   }
   catch(std::exception &e) {
-    BOOST_LOG(warning) << e.what();
+    BOOST_LOG(warning) << "SaveApp: "sv << e.what();
+
     outputTree.put("status", "false");
     outputTree.put("error", "Invalid Input JSON");
     return;
   }
+
+  outputTree.put("status", "true");
+  proc::refresh(config::stream.file_apps);
 }
 
 void deleteApp(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
+
+  print_req(request);
 
   pt::ptree outputTree;
   auto g = util::fail_guard([&]() {
@@ -225,8 +282,8 @@ void deleteApp(resp_https_t response, req_https_t request) {
     pt::read_json(config::stream.file_apps, fileTree);
     auto &apps_node = fileTree.get_child("apps"s);
     int index       = stoi(request->path_match[1]);
-    BOOST_LOG(info) << index;
-    if(index <= 0) {
+
+    if(index < 0) {
       outputTree.put("status", "false");
       outputTree.put("error", "Invalid Index");
       return;
@@ -236,28 +293,30 @@ void deleteApp(resp_https_t response, req_https_t request) {
       pt::ptree newApps;
       int i = 0;
       for(const auto &kv : apps_node) {
-        if(i != index) {
+        if(i++ != index) {
           newApps.push_back(std::make_pair("", kv.second));
         }
-        i++;
       }
       fileTree.erase("apps");
       fileTree.push_back(std::make_pair("apps", newApps));
     }
-    pt::write_json(SUNSHINE_ASSETS_DIR "/" APPS_JSON, fileTree);
-    outputTree.put("status", "true");
-    proc::refresh(SUNSHINE_ASSETS_DIR "/" APPS_JSON);
+    pt::write_json(config::stream.file_apps, fileTree);
   }
   catch(std::exception &e) {
-    BOOST_LOG(warning) << e.what();
+    BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
     outputTree.put("status", "false");
     outputTree.put("error", "Invalid File JSON");
     return;
   }
+
+  outputTree.put("status", "true");
+  proc::refresh(config::stream.file_apps);
 }
 
 void getConfig(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
+
+  print_req(request);
 
   pt::ptree outputTree;
   auto g = util::fail_guard([&]() {
@@ -266,35 +325,21 @@ void getConfig(resp_https_t response, req_https_t request) {
     pt::write_json(data, outputTree);
     response->write(data.str());
   });
-  try {
-    outputTree.put("status", "true");
-    outputTree.put("platform", SUNSHINE_PLATFORM);
-    const char *config_file = SUNSHINE_ASSETS_DIR "/sunshine.conf";
-    std::ifstream in { config_file };
 
-    if(!in.is_open()) {
-      std::cout << "Error: Couldn't open "sv << config_file << std::endl;
-    }
+  outputTree.put("status", "true");
+  outputTree.put("platform", SUNSHINE_PLATFORM);
 
-    auto vars = config::parse_config(std::string {
-      // Quick and dirty
-      std::istreambuf_iterator<char>(in),
-      std::istreambuf_iterator<char>() });
+  auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
-    for(auto &[name, value] : vars) {
-      outputTree.put(std::move(name), std::move(value));
-    }
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << e.what();
-    outputTree.put("status", "false");
-    outputTree.put("error", "Invalid File JSON");
-    return;
+  for(auto &[name, value] : vars) {
+    outputTree.put(std::move(name), std::move(value));
   }
 }
 
 void saveConfig(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
+
+  print_req(request);
 
   std::stringstream ss;
   std::stringstream configStream;
@@ -316,10 +361,10 @@ void saveConfig(resp_https_t response, req_https_t request) {
 
       configStream << kv.first << " = " << value << std::endl;
     }
-    write_file(SUNSHINE_ASSETS_DIR "/sunshine.conf", configStream.str());
+    write_file(config::sunshine.config_file.c_str(), configStream.str());
   }
   catch(std::exception &e) {
-    BOOST_LOG(warning) << e.what();
+    BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
     outputTree.put("status", "false");
     outputTree.put("error", e.what());
     return;
@@ -329,11 +374,13 @@ void saveConfig(resp_https_t response, req_https_t request) {
 void savePassword(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
+  print_req(request);
+
   std::stringstream ss;
   std::stringstream configStream;
   ss << request->content.rdbuf();
 
-  pt::ptree inputTree, outputTree, fileTree;
+  pt::ptree inputTree, outputTree;
 
   auto g = util::fail_guard([&]() {
     std::ostringstream data;
@@ -344,23 +391,21 @@ void savePassword(resp_https_t response, req_https_t request) {
   try {
     //TODO: Input Validation
     pt::read_json(ss, inputTree);
-    std::string username        = inputTree.get<std::string>("currentUsername");
-    std::string newUsername     = inputTree.get<std::string>("newUsername");
-    std::string password        = inputTree.get<std::string>("currentPassword");
-    std::string newPassword     = inputTree.get<std::string>("newPassword");
-    std::string confirmPassword = inputTree.get<std::string>("confirmNewPassword");
+    auto username        = inputTree.get<std::string>("currentUsername");
+    auto newUsername     = inputTree.get<std::string>("newUsername");
+    auto password        = inputTree.get<std::string>("currentPassword");
+    auto newPassword     = inputTree.get<std::string>("newPassword");
+    auto confirmPassword = inputTree.get<std::string>("confirmNewPassword");
     if(newUsername.length() == 0) newUsername = username;
 
-    std::string hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
     if(username == config::sunshine.username && hash == config::sunshine.password) {
       if(newPassword != confirmPassword) {
         outputTree.put("status", false);
         outputTree.put("error", "Password Mismatch");
       }
-      fileTree.put("username", newUsername);
-      fileTree.put("password", util::hex(crypto::hash(newPassword + config::sunshine.salt)).to_string());
-      fileTree.put("salt", config::sunshine.salt);
-      pt::write_json(config::sunshine.credentials_file, fileTree);
+
+      http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword, crypto::rand_alphabet(16));
       http::reload_user_creds(config::sunshine.credentials_file);
       outputTree.put("status", true);
     }
@@ -370,7 +415,7 @@ void savePassword(resp_https_t response, req_https_t request) {
     }
   }
   catch(std::exception &e) {
-    BOOST_LOG(warning) << e.what();
+    BOOST_LOG(warning) << "SavePassword: "sv << e.what();
     outputTree.put("status", false);
     outputTree.put("error", e.what());
     return;
@@ -379,6 +424,8 @@ void savePassword(resp_https_t response, req_https_t request) {
 
 void savePin(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
+
+  print_req(request);
 
   std::stringstream ss;
   ss << request->content.rdbuf();
@@ -398,7 +445,7 @@ void savePin(resp_https_t response, req_https_t request) {
     outputTree.put("status", nvhttp::pin(pin));
   }
   catch(std::exception &e) {
-    BOOST_LOG(warning) << e.what();
+    BOOST_LOG(warning) << "SavePin: "sv << e.what();
     outputTree.put("status", false);
     outputTree.put("error", e.what());
     return;
@@ -463,18 +510,3 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   tcp.join();
 }
 } // namespace confighttp
-
-std::string read_file(std::string path) {
-  std::ifstream in(path);
-
-  std::string input;
-  std::string base64_cert;
-
-  //FIXME:  Being unable to read file could result in infinite loop
-  while(!in.eof()) {
-    std::getline(in, input);
-    base64_cert += input + '\n';
-  }
-
-  return base64_cert;
-}

@@ -7,6 +7,7 @@
 #include <boost/asio.hpp>
 
 #include "config.h"
+#include "main.h"
 #include "utility.h"
 
 #define CA_DIR "credentials"
@@ -209,12 +210,12 @@ input_t input {
 };
 
 sunshine_t sunshine {
-  2,                        // min_log_level
-  0,                        // flags
-  "user_credentials.json"s, //User file
-  ""s,                      //Username
-  ""s,                      //Password
-  ""s                       //Password Salt
+  2,  // min_log_level
+  0,  // flags
+  {}, //User file
+  {}, //Username
+  {}, //Password
+  {}  //Password Salt
 };
 
 bool endline(char ch) {
@@ -297,7 +298,7 @@ parse_option(std::string_view::const_iterator begin, std::string_view::const_ite
     std::make_pair(to_string(begin, end_name), to_string(begin_val, endl)));
 }
 
-std::unordered_map<std::string, std::string> parse_config(std::string_view file_content) {
+std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content) {
   std::unordered_map<std::string, std::string> vars;
 
   auto pos = std::begin(file_content);
@@ -567,6 +568,11 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   list_string_f(vars, "resolutions"s, nvhttp.resolutions);
   list_int_f(vars, "fps"s, nvhttp.fps);
 
+  string_f(vars, "credentials_file", config::sunshine.credentials_file);
+  if(config::sunshine.credentials_file.empty()) {
+    config::sunshine.credentials_file = config::nvhttp.file_state;
+  }
+
   string_f(vars, "audio_sink", audio.sink);
   string_f(vars, "virtual_sink", audio.virtual_sink);
 
@@ -681,18 +687,9 @@ int parse(int argc, char *argv[]) {
     }
   }
 
-  std::ifstream in { config_file };
+  sunshine.config_file = config_file;
 
-  if(!in.is_open()) {
-    std::cout << "Error: Couldn't open "sv << config_file << std::endl;
-
-    return -1;
-  }
-
-  auto vars = parse_config(std::string {
-    // Quick and dirty
-    std::istreambuf_iterator<char>(in),
-    std::istreambuf_iterator<char>() });
+  auto vars = parse_config(read_file(config_file));
 
   for(auto &[name, value] : cmd_vars) {
     vars.insert_or_assign(std::move(name), std::move(value));
