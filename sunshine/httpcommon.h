@@ -3,7 +3,7 @@
 
 namespace http {
 
-void init(std::shared_ptr<safe::signal_t> shutdown_event);
+int init();
 int create_creds(const std::string &pkey, const std::string &cert);
 int save_user_creds(
   const std::string &file,

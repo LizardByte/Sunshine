@@ -196,7 +196,10 @@ int main(int argc, char *argv[]) {
   if(video::init()) {
     return 2;
   }
-  http::init(shutdown_event);
+  if(http::init()) {
+    return 3;
+  }
+
   task_pool.start(1);
 
   std::thread httpThread { nvhttp::start, shutdown_event };

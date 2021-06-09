@@ -36,7 +36,7 @@ bool user_creds_exist(const std::string &file);
 std::string unique_id;
 net::net_e origin_pin_allowed;
 
-void init(std::shared_ptr<safe::signal_t> shutdown_event) {
+int init() {
   bool clean_slate   = config::sunshine.flags[config::flag::FRESH_STATE];
   origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
   if(clean_slate) {
@@ -48,20 +48,19 @@ void init(std::shared_ptr<safe::signal_t> shutdown_event) {
 
   if(!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) {
     if(create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
-      shutdown_event->raise(true);
-      return;
+      return -1;
     }
   }
   if(!user_creds_exist(config::sunshine.credentials_file)) {
     if(save_user_creds(config::sunshine.credentials_file, "sunshine"s, crypto::rand_alphabet(16), true)) {
-      shutdown_event->raise(true);
-      return;
+      return -1;
     }
   }
   if(reload_user_creds(config::sunshine.credentials_file)) {
-    shutdown_event->raise(true);
-    return;
+    return -1;
   }
+
+  return 0;
 }
 
 int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
