@@ -176,20 +176,26 @@ struct x11_attr_t : public display_t {
       screen_res_t screenr { XRRGetScreenResources(xdisplay.get(), xwindow) };
       int output = screenr->noutput;
 
-      if(streamedMonitor >= output) {
-        BOOST_LOG(error) << "Could not stream display number ["sv << streamedMonitor << "], there are only ["sv << output << "] displays."sv;
+      output_info_t result;
+      int monitor = 0;
+      for(int x = 0; x < output; ++x) {
+        output_info_t out_info { XRRGetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
+        if(out_info && out_info->connection == RR_Connected) {
+          if(monitor++ == streamedMonitor) {
+            result = std::move(out_info);
+            break;
+          }
+        }
+      }
+
+      if(!result) {
+        BOOST_LOG(error) << "Could not stream display number ["sv << streamedMonitor << "], there are only ["sv << monitor << "] displays."sv;
         return -1;
       }
 
-      output_info_t out_info { XRRGetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[streamedMonitor]) };
-      if(!out_info || out_info->connection != RR_Connected) {
-        BOOST_LOG(error) << "Could not stream selected display because it doesn't seem to be connected"sv;
-        return -1;
-      }
-
-      crtc_info_t crt_info { XRRGetCrtcInfo(xdisplay.get(), screenr.get(), out_info->crtc) };
+      crtc_info_t crt_info { XRRGetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc) };
       BOOST_LOG(info)
-        << "Streaming display: "sv << out_info->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
+        << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
 
       width    = crt_info->width;
       height   = crt_info->height;
