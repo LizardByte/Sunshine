@@ -87,11 +87,11 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
 
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   while(auto sample = samples->pop()) {
-    packet_t packet { 16 * 1024 }; // 16KB
+    packet_t packet { 1024 }; // 1KB
 
     int bytes = opus_multistream_encode(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
     if(bytes < 0) {
-      BOOST_LOG(error) << opus_strerror(bytes);
+      BOOST_LOG(error) << "Couldn't encode audio: "sv << opus_strerror(bytes);
       packets->stop();
 
       return;

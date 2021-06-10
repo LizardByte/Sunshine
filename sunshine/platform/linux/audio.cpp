@@ -299,9 +299,7 @@ public:
         return;
       }
 
-      if(sink_info->flags & PA_SINK_HARDWARE &&
-         sink_info->channel_map.channels > channels) {
-
+      if(sink_info->active_port != nullptr) {
         sink.host = sink_info->name;
         channels  = sink_info->channel_map.channels;
       }
@@ -339,7 +337,7 @@ public:
     }
 
     if(!channels) {
-      BOOST_LOG(warning) << "Couldn't find hardware sink"sv;
+      BOOST_LOG(warning) << "Couldn't find an active sink"sv;
     }
 
     if(index.stereo == PA_INVALID_INDEX) {
