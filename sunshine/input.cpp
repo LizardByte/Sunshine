@@ -303,6 +303,20 @@ void repeat_key(short key_code) {
   task_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
 }
 
+short map_keycode(short keycode) {
+  keycode &= 0x00FF;
+
+  switch(keycode) {
+  case 0x10:
+    return 0xA0;
+  case 0x11:
+    return 0xA2;
+  case 0x12:
+    return 0xA4;
+  }
+
+  return keycode;
+}
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x04;
 
@@ -330,7 +344,8 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
   }
 
   pressed = !release;
-  platf::keyboard(platf_input, packet->keyCode & 0x00FF, release);
+
+  platf::keyboard(platf_input, map_keycode(packet->keyCode), release);
 }
 
 void passthrough(PNV_SCROLL_PACKET packet) {
