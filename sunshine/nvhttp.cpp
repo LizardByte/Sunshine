@@ -98,7 +98,7 @@ void save_state() {
       pt::read_json(config::nvhttp.file_state, root);
     }
     catch(std::exception &e) {
-      BOOST_LOG(error) << e.what();
+      BOOST_LOG(error) << "Couldn't read "sv << config::nvhttp.file_state << ": "sv << e.what();
       return;
     }
   }
@@ -127,14 +127,14 @@ void save_state() {
     pt::write_json(config::nvhttp.file_state, root);
   }
   catch(std::exception &e) {
-    BOOST_LOG(error) << e.what();
+    BOOST_LOG(error) << "Couldn't write "sv << config::nvhttp.file_state << ": "sv << e.what();
     return;
   }
 }
 
 void load_state() {
-  auto file_state = fs::current_path() / config::nvhttp.file_state;
-  if(!fs::exists(file_state)) {
+  if(!fs::exists(config::nvhttp.file_state)) {
+    BOOST_LOG(info) << "DOENST EXIST"sv;
     http::unique_id = util::uuid_t::generate().string();
     return;
   }
@@ -144,20 +144,18 @@ void load_state() {
     pt::read_json(config::nvhttp.file_state, root);
   }
   catch(std::exception &e) {
-    BOOST_LOG(warning) << e.what();
+    BOOST_LOG(error) << "Couldn't read "sv << config::nvhttp.file_state << ": "sv << e.what();
 
     return;
   }
 
-  auto unique_id_p = root.find("root.uniqueid"s);
-  if(unique_id_p == root.not_found()) {
+  auto unique_id_p = root.get_optional<std::string>("root.uniqueid");
+  if(!unique_id_p) {
     // This file doesn't contain moonlight credentials
     http::unique_id = util::uuid_t::generate().string();
     return;
   }
-  else {
-    http::unique_id = root.get<std::string>("root.uniqueid");
-  }
+  http::unique_id = std::move(*unique_id_p);
 
   auto device_nodes = root.get_child("root.devices");
 
