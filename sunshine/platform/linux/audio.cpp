@@ -2,6 +2,8 @@
 // Created by loki on 5/16/21.
 //
 #include <bitset>
+#include <sstream>
+
 #include <boost/regex.hpp>
 
 #include <pulse/error.h>
