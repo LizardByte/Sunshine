@@ -4,7 +4,7 @@ project(Sunshine)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_subdirectory(Simple-Web-Server)
+add_subdirectory(third-party/Simple-Web-Server)
 
 if(WIN32)
 	# Ugly hack to compile with #include <qos2.h>
@@ -13,7 +13,7 @@ if(WIN32)
 		PQOS_FLOWID=UINT32*
 		QOS_NON_ADAPTIVE_FLOW=2)
 endif()
-add_subdirectory(moonlight-common-c/enet)
+add_subdirectory(third-party/moonlight-common-c/enet)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -49,11 +49,11 @@ if(WIN32)
 		sunshine/platform/windows/display_vram.cpp
 		sunshine/platform/windows/display_ram.cpp
 		sunshine/platform/windows/audio.cpp
-		ViGEmClient/src/ViGEmClient.cpp
-		ViGEmClient/include/ViGEm/Client.h
-		ViGEmClient/include/ViGEm/Common.h
-		ViGEmClient/include/ViGEm/Util.h
-		ViGEmClient/include/ViGEm/km/BusShared.h)
+		third-party/ViGEmClient/src/ViGEmClient.cpp
+		third-party/ViGEmClient/include/ViGEm/Client.h
+		third-party/ViGEmClient/include/ViGEm/Common.h
+		third-party/ViGEmClient/include/ViGEm/Util.h
+		third-party/ViGEmClient/include/ViGEm/km/BusShared.h)
 
 	set(OPENSSL_LIBRARIES
 		libssl.a
@@ -103,12 +103,12 @@ else()
 		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp
-		glad/src/egl.c
-		glad/src/gl.c
-		glad/include/EGL/eglplatform.h
-		glad/include/KHR/khrplatform.h
-		glad/include/glad/gl.h
-		glad/include/glad/egl.h)
+		third-party/glad/src/egl.c
+		third-party/glad/src/gl.c
+		third-party/glad/include/EGL/eglplatform.h
+		third-party/glad/include/KHR/khrplatform.h
+		third-party/glad/include/glad/gl.h
+		third-party/glad/include/glad/egl.h)
 		
 	set(PLATFORM_LIBRARIES
 		Xfixes
@@ -127,7 +127,7 @@ else()
 	set(PLATFORM_INCLUDE_DIRS
 		${X11_INCLUDE_DIR}
 		/usr/include/libevdev-1.0
-		glad/include)
+		third-party/glad/include)
 
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
 		set(SUNSHINE_EXECUTABLE_PATH "${CMAKE_CURRENT_BINARY_DIR}/sunshine")
@@ -140,12 +140,12 @@ set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 set(SUNSHINE_TARGET_FILES
-	moonlight-common-c/reedsolomon/rs.c
-	moonlight-common-c/reedsolomon/rs.h
-	moonlight-common-c/src/Input.h
-	moonlight-common-c/src/Rtsp.h
-	moonlight-common-c/src/RtspParser.c
-	moonlight-common-c/src/Video.h
+	third-party/moonlight-common-c/reedsolomon/rs.c
+	third-party/moonlight-common-c/reedsolomon/rs.h
+	third-party/moonlight-common-c/src/Input.h
+	third-party/moonlight-common-c/src/Rtsp.h
+	third-party/moonlight-common-c/src/RtspParser.c
+	third-party/moonlight-common-c/src/Video.h
 	sunshine/utility.h
 	sunshine/uuid.h
 	sunshine/config.h
@@ -185,9 +185,9 @@ set(SUNSHINE_TARGET_FILES
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/Simple-Web-Server
-  ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/enet/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/reedsolomon
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/reedsolomon
   ${FFMPEG_INCLUDE_DIRS}
   ${PLATFORM_INCLUDE_DIRS}
 )
