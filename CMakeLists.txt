@@ -40,7 +40,7 @@ if(WIN32)
 
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_windows.json")
 
-	include_directories(ViGEmClient/include)
+	include_directories(third-party/ViGEmClient/include)
 
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/windows/input.cpp
@@ -89,8 +89,8 @@ if(WIN32)
 		setupapi
 		)
 
-	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
-	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
+	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
+	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
