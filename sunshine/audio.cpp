@@ -85,6 +85,8 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
     OPUS_APPLICATION_AUDIO,
     nullptr) };
 
+  opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
+
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   while(auto sample = samples->pop()) {
     packet_t packet { 1024 }; // 1KB
