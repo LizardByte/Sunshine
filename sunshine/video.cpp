@@ -7,6 +7,8 @@
 #include <thread>
 
 extern "C" {
+#include <cbs/cbs_h264.h>
+#include <cbs/cbs_h265.h>
 #include <libswscale/swscale.h>
 }
 
@@ -44,6 +46,43 @@ using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
 using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
+namespace cbs {
+void close(CodedBitstreamContext *c) {
+  ff_cbs_close(&c);
+}
+
+using ctx_t = util::safe_ptr<CodedBitstreamContext, close>;
+
+class frag_t : public CodedBitstreamFragment {
+public:
+  frag_t(frag_t &&o) {
+    std::copy((std::uint8_t *)&o, (std::uint8_t *)(&o + 1), (std::uint8_t *)this);
+
+    o.data  = nullptr;
+    o.units = nullptr;
+  };
+
+  frag_t() {
+    std::fill_n((std::uint8_t *)this, sizeof(*this), 0);
+  }
+
+  frag_t &operator=(frag_t &&o) {
+    std::copy((std::uint8_t *)&o, (std::uint8_t *)(&o + 1), (std::uint8_t *)this);
+
+    o.data  = nullptr;
+    o.units = nullptr;
+
+    return *this;
+  };
+
+
+  ~frag_t() {
+    if(data || units) {
+      ff_cbs_fragment_free(this);
+    }
+  }
+};
+} // namespace cbs
 namespace nv {
 
 enum class profile_h264_e : int {
@@ -243,6 +282,7 @@ struct encoder_t {
     REF_FRAMES_AUTOSELECT, // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
     SLICE,                 // Allow frame to be partitioned into multiple slices
     DYNAMIC_RANGE,         // hdr
+    VUI_PARAMETERS,
     MAX_FLAGS
   };
 
@@ -256,6 +296,7 @@ struct encoder_t {
       _CONVERT(REF_FRAMES_AUTOSELECT);
       _CONVERT(SLICE);
       _CONVERT(DYNAMIC_RANGE);
+      _CONVERT(VUI_PARAMETERS);
       _CONVERT(MAX_FLAGS);
     }
 #undef _CONVERT
@@ -1285,7 +1326,7 @@ void capture(
   }
 }
 
-bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
+bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config, int validate_sps = -1) {
   reset_display(disp, encoder.dev_type);
   if(!disp) {
     return false;
@@ -1315,11 +1356,52 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
   frame->pict_type = AV_PICTURE_TYPE_I;
 
   auto packets = std::make_shared<packet_queue_t::element_type>(30);
-  if(encode(1, session->ctx, frame, packets, nullptr)) {
+  while(!packets->peek()) {
+    if(encode(1, session->ctx, frame, packets, nullptr)) {
+      return false;
+    }
+  }
+
+  auto packet = packets->pop();
+  if(!(packet->flags & AV_PKT_FLAG_KEY)) {
+    BOOST_LOG(error) << "First packet type is not an IDR frame"sv;
+
     return false;
   }
 
-  return true;
+  if(validate_sps < 0) {
+    return true;
+  }
+
+  auto codec_id = (validate_sps == 0 ? AV_CODEC_ID_H264 : AV_CODEC_ID_H265);
+
+  // validate sps
+  cbs::ctx_t ctx;
+  if(ff_cbs_init(&ctx, codec_id, nullptr)) {
+    return false;
+  }
+
+  cbs::frag_t frag;
+
+  int err = ff_cbs_read_packet(ctx.get(), &frag, &*packet);
+  if(err < 0) {
+    char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+    BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+
+    return false;
+  }
+
+  if(validate_sps == 0) {
+    auto h264 = (CodedBitstreamH264Context *)ctx->priv_data;
+
+    if(!h264->active_sps->vui_parameters_present_flag) {
+      return false;
+    }
+
+    return true;
+  }
+
+  return ((CodedBitstreamH265Context *)ctx->priv_data)->active_sps->vui_parameters_present_flag;
 }
 
 bool validate_encoder(encoder_t &encoder) {
@@ -1388,6 +1470,24 @@ bool validate_encoder(encoder_t &encoder) {
       encoder.hevc[flag] = validate_config(disp, encoder, hevc);
     }
   }
+
+  // test for presence of vui-parameters in the sps header
+  config_autoselect.videoFormat           = 0;
+  encoder.h264[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, 0);
+
+
+  if(encoder.hevc[encoder_t::PASSED]) {
+    config_autoselect.videoFormat           = 1;
+    encoder.hevc[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, 1);
+  }
+
+  if(!encoder.h264[encoder_t::VUI_PARAMETERS]) {
+    BOOST_LOG(warning) << encoder.name << ": h264 missing sps->vui parameters"sv;
+  }
+  if(encoder.hevc[encoder_t::PASSED] && !encoder.hevc[encoder_t::VUI_PARAMETERS]) {
+    BOOST_LOG(warning) << encoder.name << ": hevc missing sps->vui parameters"sv;
+  }
+
 
   fg.disable();
   return true;

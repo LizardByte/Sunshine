@@ -14,6 +14,7 @@ if(WIN32)
 		QOS_NON_ADAPTIVE_FLOW=2)
 endif()
 add_subdirectory(third-party/moonlight-common-c/enet)
+add_subdirectory(third-party/cbs)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -186,6 +187,7 @@ set(SUNSHINE_TARGET_FILES
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cbs/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/reedsolomon
   ${FFMPEG_INCLUDE_DIRS}
@@ -207,7 +209,11 @@ if(NOT SUNSHINE_ASSETS_DIR)
 	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 endif()
 
+list(APPEND CBS_EXTERNAL_LIBRARIES
+	cbs)
+
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
+		${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 		stdc++fs
 		enet
