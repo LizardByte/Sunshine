@@ -24,6 +24,7 @@ include/cbs/h2645_parse.h
 include/cbs/h264.h
 include/cbs/hevc.h
 include/cbs/sei.h
+include/cbs/h264_levels.h
 
 cbs.c
 cbs_h2645.c
@@ -33,6 +34,7 @@ cbs_mpeg2.c
 cbs_jpeg.c
 cbs_sei.c
 h2645_parse.c
+h264_levels.c
 
 attributes.h
 bytestream.h

@@ -147,6 +147,7 @@ set(SUNSHINE_TARGET_FILES
 	third-party/moonlight-common-c/src/Rtsp.h
 	third-party/moonlight-common-c/src/RtspParser.c
 	third-party/moonlight-common-c/src/Video.h
+	sunshine/cbs.cpp
 	sunshine/utility.h
 	sunshine/uuid.h
 	sunshine/config.h

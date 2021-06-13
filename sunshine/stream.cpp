@@ -632,6 +632,15 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
       payload     = { (char *)payload_new.data(), payload_new.size() };
     }
 
+    if(packet->flags & AV_PKT_FLAG_KEY && packet->sps.old.size()) {
+      BOOST_LOG(debug) << "Replacing SPS header"sv;
+      std::string_view frame_old = packet->sps.old;
+      std::string_view frame_new = packet->sps.replacement;
+
+      payload_new = replace(payload, frame_old, frame_new);
+      payload     = { (char *)payload_new.data(), payload_new.size() };
+    }
+
     // insert packet headers
     auto blocksize         = session->config.packetsize + MAX_RTP_HEADER_SIZE;
     auto payload_blocksize = blocksize - sizeof(video_packet_raw_t);

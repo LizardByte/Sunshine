@@ -696,8 +696,15 @@ template<class T>
 class buffer_t {
 public:
   buffer_t() : _els { 0 } {};
-  buffer_t(buffer_t &&) noexcept = default;
-  buffer_t &operator=(buffer_t &&other) noexcept = default;
+  buffer_t(buffer_t &&o) noexcept : _els { o._els }, _buf { std::move(o._buf) } {
+    o._els = 0;
+  }
+  buffer_t &operator=(buffer_t &&o) noexcept {
+    std::swap(_els, o._els);
+    std::swap(_buf, o._buf);
+
+    return *this;
+  };
 
   explicit buffer_t(size_t elements) : _els { elements }, _buf { std::make_unique<T[]>(elements) } {}
   explicit buffer_t(size_t elements, const T &t) : _els { elements }, _buf { std::make_unique<T[]>(elements) } {

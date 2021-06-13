@@ -7,11 +7,10 @@
 #include <thread>
 
 extern "C" {
-#include <cbs/cbs_h264.h>
-#include <cbs/cbs_h265.h>
 #include <libswscale/swscale.h>
 }
 
+#include "cbs.h"
 #include "config.h"
 #include "main.h"
 #include "platform/common.h"
@@ -46,43 +45,6 @@ using buffer_t    = util::safe_ptr<AVBufferRef, free_buffer>;
 using sws_t       = util::safe_ptr<SwsContext, sws_freeContext>;
 using img_event_t = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
 
-namespace cbs {
-void close(CodedBitstreamContext *c) {
-  ff_cbs_close(&c);
-}
-
-using ctx_t = util::safe_ptr<CodedBitstreamContext, close>;
-
-class frag_t : public CodedBitstreamFragment {
-public:
-  frag_t(frag_t &&o) {
-    std::copy((std::uint8_t *)&o, (std::uint8_t *)(&o + 1), (std::uint8_t *)this);
-
-    o.data  = nullptr;
-    o.units = nullptr;
-  };
-
-  frag_t() {
-    std::fill_n((std::uint8_t *)this, sizeof(*this), 0);
-  }
-
-  frag_t &operator=(frag_t &&o) {
-    std::copy((std::uint8_t *)&o, (std::uint8_t *)(&o + 1), (std::uint8_t *)this);
-
-    o.data  = nullptr;
-    o.units = nullptr;
-
-    return *this;
-  };
-
-
-  ~frag_t() {
-    if(data || units) {
-      ff_cbs_fragment_free(this);
-    }
-  }
-};
-} // namespace cbs
 namespace nv {
 
 enum class profile_h264_e : int {
@@ -282,7 +244,7 @@ struct encoder_t {
     REF_FRAMES_AUTOSELECT, // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
     SLICE,                 // Allow frame to be partitioned into multiple slices
     DYNAMIC_RANGE,         // hdr
-    VUI_PARAMETERS,
+    VUI_PARAMETERS,        // AMD encoder with VAAPI doesn't add VUI parameters to SPS
     MAX_FLAGS
   };
 
@@ -350,20 +312,25 @@ struct encoder_t {
 class session_t {
 public:
   session_t() = default;
-  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device) : ctx { std::move(ctx) }, device { std::move(device) } {}
+  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device, util::buffer_t<std::uint8_t> &&sps) : ctx { std::move(ctx) }, device { std::move(device) }, sps { std::move(sps) } {}
 
-  session_t(session_t &&other) noexcept : ctx { std::move(other.ctx) }, device { std::move(other.device) } {}
+  session_t(session_t &&other) noexcept : ctx { std::move(other.ctx) }, device { std::move(other.device) }, sps { std::move(sps) }, sps_old { std::move(sps_old) } {}
 
   // Ensure objects are destroyed in the correct order
   session_t &operator=(session_t &&other) {
-    device = std::move(other.device);
-    ctx    = std::move(other.ctx);
+    device  = std::move(other.device);
+    ctx     = std::move(other.ctx);
+    sps     = std::move(other.sps);
+    sps_old = std::move(other.sps_old);
 
     return *this;
   }
 
   ctx_t ctx;
   util::wrap_ptr<platf::hwdevice_t> device;
+
+  util::buffer_t<std::uint8_t> sps;
+  util::buffer_t<std::uint8_t> sps_old;
 };
 
 struct sync_session_ctx_t {
@@ -712,8 +679,13 @@ void captureThread(
   }
 }
 
-int encode(int64_t frame_nr, ctx_t &ctx, frame_t::pointer frame, packet_queue_t &packets, void *channel_data) {
+int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, packet_queue_t &packets, void *channel_data) {
   frame->pts = frame_nr;
+
+  auto &ctx = session.ctx;
+
+  auto &sps     = session.sps;
+  auto &sps_old = session.sps_old;
 
   /* send the frame to the encoder */
   auto ret = avcodec_send_frame(ctx.get(), frame);
@@ -735,7 +707,12 @@ int encode(int64_t frame_nr, ctx_t &ctx, frame_t::pointer frame, packet_queue_t 
       return ret;
     }
 
-    packet->channel_data = channel_data;
+    if(sps.size() && !sps_old.size()) {
+      sps_old = cbs::read_sps(packet.get(), AV_CODEC_ID_H264);
+    }
+    packet->sps.old         = std::string_view((char *)std::begin(sps_old), sps_old.size());
+    packet->sps.replacement = std::string_view((char *)std::begin(sps), sps.size());
+    packet->channel_data    = channel_data;
     packets->raise(std::move(packet));
   }
 
@@ -948,10 +925,19 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   }
 
   device->set_colorspace(sws_color_space, ctx->color_range);
-  return std::make_optional(session_t {
+
+  if(video_format[encoder_t::VUI_PARAMETERS]) {
+    return std::make_optional(session_t {
+      std::move(ctx),
+      std::move(device),
+      {},
+    });
+  }
+
+  return std::make_optional<session_t>(
     std::move(ctx),
     std::move(device),
-  });
+    cbs::make_sps_h264(ctx.get()));
 }
 
 void encode_run(
@@ -1018,7 +1004,7 @@ void encode_run(
       }
     }
 
-    if(encode(frame_nr++, session->ctx, frame, packets, channel_data)) {
+    if(encode(frame_nr++, *session, frame, packets, channel_data)) {
       BOOST_LOG(error) << "Could not encode video packet"sv;
       return;
     }
@@ -1189,7 +1175,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
         pos->img_tmp = nullptr;
       }
 
-      if(encode(ctx->frame_nr++, pos->session.ctx, frame, ctx->packets, ctx->channel_data)) {
+      if(encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         ctx->shutdown_event->raise(true);
 
@@ -1357,7 +1343,7 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
 
   auto packets = std::make_shared<packet_queue_t::element_type>(30);
   while(!packets->peek()) {
-    if(encode(1, session->ctx, frame, packets, nullptr)) {
+    if(encode(1, *session, frame, packets, nullptr)) {
       return false;
     }
   }
@@ -1373,35 +1359,7 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
     return true;
   }
 
-  auto codec_id = (validate_sps == 0 ? AV_CODEC_ID_H264 : AV_CODEC_ID_H265);
-
-  // validate sps
-  cbs::ctx_t ctx;
-  if(ff_cbs_init(&ctx, codec_id, nullptr)) {
-    return false;
-  }
-
-  cbs::frag_t frag;
-
-  int err = ff_cbs_read_packet(ctx.get(), &frag, &*packet);
-  if(err < 0) {
-    char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-    BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
-
-    return false;
-  }
-
-  if(validate_sps == 0) {
-    auto h264 = (CodedBitstreamH264Context *)ctx->priv_data;
-
-    if(!h264->active_sps->vui_parameters_present_flag) {
-      return false;
-    }
-
-    return true;
-  }
-
-  return ((CodedBitstreamH265Context *)ctx->priv_data)->active_sps->vui_parameters_present_flag;
+  return cbs::validate_sps(&*packet, validate_sps);
 }
 
 bool validate_encoder(encoder_t &encoder) {
@@ -1473,12 +1431,12 @@ bool validate_encoder(encoder_t &encoder) {
 
   // test for presence of vui-parameters in the sps header
   config_autoselect.videoFormat           = 0;
-  encoder.h264[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, 0);
+  encoder.h264[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, AV_CODEC_ID_H264);
 
 
   if(encoder.hevc[encoder_t::PASSED]) {
     config_autoselect.videoFormat           = 1;
-    encoder.hevc[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, 1);
+    encoder.hevc[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, AV_CODEC_ID_H265);
   }
 
   if(!encoder.h264[encoder_t::VUI_PARAMETERS]) {

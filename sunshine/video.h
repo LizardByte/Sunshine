@@ -42,6 +42,11 @@ struct packet_raw_t : public AVPacket {
     av_packet_unref(this);
   }
 
+  struct {
+    std::string_view old;
+    std::string_view replacement;
+  } sps;
+
   void *channel_data;
 };
 
