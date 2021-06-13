@@ -29,7 +29,8 @@
 
 #include <stdint.h>
 
-#include <libavutil/avassert.h>
+#include "avassert.h"
+
 #include <libavutil/common.h>
 #include <libavutil/intreadwrite.h>
 #include <libavutil/log.h>

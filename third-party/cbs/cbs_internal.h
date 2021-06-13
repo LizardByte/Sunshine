@@ -25,7 +25,6 @@
 #include <libavutil/log.h>
 
 #include "cbs/cbs.h"
-#include "codec_id.h"
 #include "get_bits.h"
 #include "put_bits.h"
 

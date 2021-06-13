@@ -29,8 +29,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <libavutil/avassert.h>
 #include <libavutil/intreadwrite.h>
+
+#include "avassert.h"
 
 #if ARCH_X86_64
 // TODO: Benchmark and optionally enable on other 64-bit architectures.

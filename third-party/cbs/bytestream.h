@@ -26,9 +26,9 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "libavutil/avassert.h"
-#include "libavutil/common.h"
-#include "libavutil/intreadwrite.h"
+#include "avassert.h"
+#include <libavutil/common.h>
+#include <libavutil/intreadwrite.h>
 
 typedef struct GetByteContext {
   const uint8_t *buffer, *buffer_end, *buffer_start;

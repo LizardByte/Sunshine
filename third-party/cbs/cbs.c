@@ -18,12 +18,13 @@
 
 #include <string.h>
 
-#include <libavutil/avassert.h>
 #include <libavutil/buffer.h>
 #include <libavutil/common.h>
 #include <libavutil/opt.h>
 
 #include <libavcodec/avcodec.h>
+
+#include "avassert.h"
 
 #include "cbs/cbs.h"
 #include "cbs_internal.h"
