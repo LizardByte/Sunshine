@@ -1312,29 +1312,29 @@ void capture(
   }
 }
 
-bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config, int validate_sps = -1) {
+int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
   reset_display(disp, encoder.dev_type);
   if(!disp) {
-    return false;
+    return 0;
   }
 
   auto pix_fmt  = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
   auto hwdevice = disp->make_hwdevice(pix_fmt);
   if(!hwdevice) {
-    return false;
+    return 0;
   }
 
   auto session = make_session(encoder, config, disp->width, disp->height, hwdevice.get());
   if(!session) {
-    return false;
+    return 0;
   }
 
   auto img = disp->alloc_img();
   if(disp->dummy_img(img.get())) {
-    return false;
+    return 0;
   }
   if(session->device->convert(*img)) {
-    return false;
+    return 0;
   }
 
   auto frame = session->device->frame;
@@ -1352,14 +1352,14 @@ bool validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &e
   if(!(packet->flags & AV_PKT_FLAG_KEY)) {
     BOOST_LOG(error) << "First packet type is not an IDR frame"sv;
 
-    return false;
+    return 0;
   }
 
-  if(validate_sps < 0) {
-    return true;
+  if(cbs::validate_sps(&*packet, config.videoFormat ? AV_CODEC_ID_H264 : AV_CODEC_ID_H265)) {
+    return -1;
   }
 
-  return cbs::validate_sps(&*packet, validate_sps);
+  return 1;
 }
 
 bool validate_encoder(encoder_t &encoder) {
@@ -1389,6 +1389,10 @@ bool validate_encoder(encoder_t &encoder) {
     return false;
   }
 
+  if(max_ref_frames_h264 < 0 || autoselect_h264 < 0) {
+    encoder.h264[encoder_t::VUI_PARAMETERS] = false;
+  }
+
   encoder.h264[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_h264;
   encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264;
   encoder.h264[encoder_t::PASSED]                = true;
@@ -1404,6 +1408,10 @@ bool validate_encoder(encoder_t &encoder) {
     // If HEVC must be supported, but it is not supported
     if(force_hevc && !max_ref_frames_hevc && !autoselect_hevc) {
       return false;
+    }
+
+    if(max_ref_frames_h264 < 0 || autoselect_h264 < 0) {
+      encoder.h264[encoder_t::VUI_PARAMETERS] = false;
     }
 
     encoder.hevc[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_hevc;
@@ -1429,23 +1437,12 @@ bool validate_encoder(encoder_t &encoder) {
     }
   }
 
-  // test for presence of vui-parameters in the sps header
-  config_autoselect.videoFormat           = 0;
-  encoder.h264[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, AV_CODEC_ID_H264);
-
-
-  if(encoder.hevc[encoder_t::PASSED]) {
-    config_autoselect.videoFormat           = 1;
-    encoder.hevc[encoder_t::VUI_PARAMETERS] = validate_config(disp, encoder, config_autoselect, AV_CODEC_ID_H265);
-  }
-
   if(!encoder.h264[encoder_t::VUI_PARAMETERS]) {
     BOOST_LOG(warning) << encoder.name << ": h264 missing sps->vui parameters"sv;
   }
   if(encoder.hevc[encoder_t::PASSED] && !encoder.hevc[encoder_t::VUI_PARAMETERS]) {
     BOOST_LOG(warning) << encoder.name << ": hevc missing sps->vui parameters"sv;
   }
-
 
   fg.disable();
   return true;
