@@ -937,7 +937,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   return std::make_optional<session_t>(
     std::move(ctx),
     std::move(device),
-    cbs::make_sps_h264(ctx.get()));
+    cbs::make_sps(ctx.get(), config.videoFormat));
 }
 
 void encode_run(

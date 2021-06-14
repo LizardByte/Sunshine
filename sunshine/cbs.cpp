@@ -189,6 +189,17 @@ util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id) {
   return write(*p, (AVCodecID)codec_id);
 }
 
+util::buffer_t<std::uint8_t> make_sps(const AVCodecContext *ctx, int format) {
+  switch(format) {
+  case 0:
+    return make_sps_h264(ctx);
+  }
+
+  BOOST_LOG(warning) << "make_sps: video format ["sv << format << "] not supported"sv;
+
+  return {};
+}
+
 bool validate_sps(const AVPacket *packet, int codec_id) {
   cbs::ctx_t ctx;
   if(ff_cbs_init(&ctx, (AVCodecID)codec_id, nullptr)) {

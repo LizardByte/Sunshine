@@ -8,8 +8,7 @@ struct AVCodecContext;
 namespace cbs {
 
 util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id);
-util::buffer_t<std::uint8_t> make_sps_h264(const AVCodecContext *ctx);
-util::buffer_t<std::uint8_t> make_sps_hevc(const AVCodecContext *ctx);
+util::buffer_t<std::uint8_t> make_sps(const AVCodecContext *ctx, int video_format);
 
 /**
  * Check if SPS->VUI is present
