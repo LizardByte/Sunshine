@@ -46,9 +46,9 @@ public:
   }
 };
 
-util::buffer_t<std::uint8_t> write(const H264RawNALUnitHeader &uh, AVCodecID codec_id) {
+util::buffer_t<std::uint8_t> write(std::uint8_t nal, void *uh, AVCodecID codec_id) {
   cbs::frag_t frag;
-  auto err = ff_cbs_insert_unit_content(&frag, -1, uh.nal_unit_type, (void *)&uh, nullptr);
+  auto err = ff_cbs_insert_unit_content(&frag, -1, nal, uh, nullptr);
   if(err < 0) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
     BOOST_LOG(error) << "Could not NAL unit SPS: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
@@ -159,7 +159,7 @@ util::buffer_t<std::uint8_t> make_sps_h264(const AVCodecContext *ctx) {
   vui.max_num_reorder_frames                  = max_b_depth;
   vui.max_dec_frame_buffering                 = max_b_depth + 1;
 
-  return write(sps.nal_unit_header, AV_CODEC_ID_H264);
+  return write(sps.nal_unit_header.nal_unit_type, (void *)&sps.nal_unit_header, AV_CODEC_ID_H264);
 }
 
 util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id) {
@@ -178,15 +178,13 @@ util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id) {
     return {};
   }
 
-  H264RawNALUnitHeader *p;
   if(codec_id == AV_CODEC_ID_H264) {
-    p = (H264RawNALUnitHeader *)((CodedBitstreamH264Context *)ctx->priv_data)->active_sps;
-  }
-  else {
-    p = (H264RawNALUnitHeader *)((CodedBitstreamH265Context *)ctx->priv_data)->active_sps;
+    auto h264 = (H264RawNALUnitHeader *)((CodedBitstreamH264Context *)ctx->priv_data)->active_sps;
+    return write(h264->nal_unit_type, (void *)h264, AV_CODEC_ID_H264);
   }
 
-  return write(*p, (AVCodecID)codec_id);
+  auto hevc = (H264RawNALUnitHeader *)((CodedBitstreamH265Context *)ctx->priv_data)->active_sps;
+  return write(hevc->nal_unit_type, (void *)hevc, AV_CODEC_ID_H265);
 }
 
 util::buffer_t<std::uint8_t> make_sps(const AVCodecContext *ctx, int format) {

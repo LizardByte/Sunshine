@@ -1411,7 +1411,7 @@ bool validate_encoder(encoder_t &encoder) {
     }
 
     if(max_ref_frames_h264 < 0 || autoselect_h264 < 0) {
-      encoder.h264[encoder_t::VUI_PARAMETERS] = false;
+      encoder.hevc[encoder_t::VUI_PARAMETERS] = false;
     }
 
     encoder.hevc[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_hevc;
