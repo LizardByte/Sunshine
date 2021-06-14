@@ -14,7 +14,6 @@ if(WIN32)
 		QOS_NON_ADAPTIVE_FLOW=2)
 endif()
 add_subdirectory(third-party/moonlight-common-c/enet)
-add_subdirectory(third-party/cbs)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -136,6 +135,8 @@ else()
 	configure_file(gen-deb.in gen-deb @ONLY)
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
+
+add_subdirectory(third-party/cbs)
 
 set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost COMPONENTS log filesystem REQUIRED)

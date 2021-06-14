@@ -55,6 +55,10 @@ ${ARCH_SOURCE_FILES}
 
 include_directories(include)
 
+if(DEFINED SUNSHINE_PREPARED_BINARIES)
+include_directories(${SUNSHINE_PREPARED_BINARIES}/include)
+endif()
+
 add_compile_definitions(
     ARCH_X86=1
     ARCH_X86_64=1
@@ -79,4 +83,4 @@ add_compile_definitions(
 
 
 add_library(cbs ${CBS_SOURCE_FILES})
-target_compile_options(cbs PRIVATE -Wall -Wno-incompatible-pointer-types)
+target_compile_options(cbs PRIVATE -Wall -Wno-incompatible-pointer-types -Wno-maybe-uninitialized -Wno-format -Wno-format-extra-args)
