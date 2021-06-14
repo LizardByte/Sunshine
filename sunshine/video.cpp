@@ -524,10 +524,10 @@ static std::vector<encoder_t> encoders {
   nvenc,
   amdvce,
 #endif
-  software,
 #ifdef __linux__
-  vaapi
+  vaapi,
 #endif
+  software
 };
 
 void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type) {
@@ -1355,11 +1355,11 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
     return 0;
   }
 
-  if(cbs::validate_sps(&*packet, config.videoFormat ? AV_CODEC_ID_H264 : AV_CODEC_ID_H265)) {
-    return -1;
+  if(cbs::validate_sps(&*packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
+    return 1;
   }
 
-  return 1;
+  return -1;
 }
 
 bool validate_encoder(encoder_t &encoder) {
