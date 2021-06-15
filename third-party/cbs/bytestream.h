@@ -23,10 +23,12 @@
 #ifndef AVCODEC_BYTESTREAM_H
 #define AVCODEC_BYTESTREAM_H
 
+#include "config.h"
+
 #include <stdint.h>
 #include <string.h>
 
-#include "avassert.h"
+#include <libavutil/avassert.h>
 #include <libavutil/common.h>
 #include <libavutil/intreadwrite.h>
 

@@ -26,15 +26,15 @@
 #ifndef AVCODEC_PUT_BITS_H
 #define AVCODEC_PUT_BITS_H
 
+#include "config.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
+#include <libavutil/avassert.h>
 #include <libavutil/intreadwrite.h>
 
-#include "avassert.h"
-
-#if ARCH_X86_64
-// TODO: Benchmark and optionally enable on other 64-bit architectures.
+#if HAVE_FAST_64BIT
 typedef uint64_t BitBuf;
 #define AV_WBBUF AV_WB64
 #define AV_WLBUF AV_WL64

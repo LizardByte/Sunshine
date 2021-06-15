@@ -16,9 +16,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "attributes.h"
-
-#include "avassert.h"
+#include <libavutil/attributes.h>
+#include <libavutil/avassert.h>
 
 #include "cbs/cbs.h"
 #include "cbs/cbs_h264.h"

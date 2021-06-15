@@ -2,12 +2,6 @@ cmake_minimum_required(VERSION 3.0)
 
 project(CBS)
 
-SET(ARCH_SOURCE_FILES
-x86/intmath.h
-x86/asm.h
-x86/mathops.h
-)
-
 SET(CBS_SOURCE_FILES
 include/cbs/av1.h
 include/cbs/cbs_av1.h
@@ -36,10 +30,8 @@ cbs_sei.c
 h2645_parse.c
 h264_levels.c
 
-attributes.h
 bytestream.h
 cbs_internal.h
-avassert.h
 defs.h
 get_bits.h
 h264_ps.h
@@ -49,8 +41,7 @@ intmath.h
 mathops.h
 put_bits.h
 vlc.h
-
-${ARCH_SOURCE_FILES}
+config.h
 )
 
 include_directories(include)
@@ -60,16 +51,8 @@ include_directories(${SUNSHINE_PREPARED_BINARIES}/include)
 endif()
 
 add_compile_definitions(
-    ARCH_X86=1
-    ARCH_X86_64=1
-    HAVE_XMM_CLOBBERS=1
-    HAVE_INLINE_ASM=1
-    HAVE_INLINE_ASM_DIRECT_SYMBOL_REFS=1
     HAVE_THREADS=1
     HAVE_FAST_UNALIGNED
-    HAVE_FAST_CLZ=1
-
-    HAVE_FAST_64BIT
 
     PIC=1
 

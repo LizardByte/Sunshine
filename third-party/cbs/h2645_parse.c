@@ -28,6 +28,7 @@
 #include "cbs/hevc.h"
 
 #include "bytestream.h"
+#include "config.h"
 #include "get_bits.h"
 #include "intmath.h"
 
