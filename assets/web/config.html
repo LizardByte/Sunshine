@@ -330,6 +330,15 @@
                     Note, CPU usage increases for each distinct video stream generated
                 </div>
             </div>
+            <!--Credentials File-->
+            <div class="mb-3">
+                <label for="credentials_file" class="form-label">Web Manager Credentials File</label>
+                <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json"
+                    v-model="config.credentials_file">
+                <div class="form-text">
+                    Store Username/Password seperately from Sunshine's state file.
+                </div>
+            </div>
         </div>
         <!--Software Settings-->
         <div v-if="currentTab === 'sw'" class="config-page">
