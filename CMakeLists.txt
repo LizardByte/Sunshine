@@ -43,6 +43,7 @@ if(WIN32)
 	include_directories(third-party/ViGEmClient/include)
 
 	set(PLATFORM_TARGET_FILES
+		sunshine/platform/windows/misc.cpp
 		sunshine/platform/windows/input.cpp
 		sunshine/platform/windows/display.h
 		sunshine/platform/windows/display_base.cpp

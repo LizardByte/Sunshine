@@ -377,6 +377,14 @@ void path_f(std::unordered_map<std::string, std::string> &vars, const std::strin
   }
 }
 
+void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+  fs::path temp = input;
+
+  path_f(vars, name, temp);
+
+  input = temp.string();
+}
+
 void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
   auto it = vars.find(name);
 
