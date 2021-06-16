@@ -46,8 +46,8 @@ config.h
 
 include_directories(include)
 
-if(DEFINED SUNSHINE_PREPARED_BINARIES)
-include_directories(${SUNSHINE_PREPARED_BINARIES}/include)
+if(DEFINED FFMPEG_INCLUDE_DIRS)
+include_directories(${FFMPEG_INCLUDE_DIRS})
 endif()
 
 add_compile_definitions(
