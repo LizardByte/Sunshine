@@ -100,6 +100,7 @@ else()
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
+		sunshine/platform/linux/misc.cpp
 		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp

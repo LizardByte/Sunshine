@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -10,13 +11,17 @@
 #include "main.h"
 #include "utility.h"
 
+#include "platform/common.h"
+
+namespace fs = std::filesystem;
+using namespace std::literals;
+
 #define CA_DIR "credentials"
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
 #define CERTIFICATE_FILE CA_DIR "/cacert.pem"
 
 #define APPS_JSON_PATH SUNSHINE_ASSETS_DIR "/" APPS_JSON
 namespace config {
-using namespace std::literals;
 
 namespace nv {
 enum preset_e : int {
@@ -348,6 +353,30 @@ void string_restricted_f(std::unordered_map<std::string, std::string> &vars, con
   }
 }
 
+void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
+  // appdata needs to be retrieved once only
+  static auto appdata = platf::appdata();
+
+  std::string temp;
+  string_f(vars, name, temp);
+
+  if(!temp.empty()) {
+    input = temp;
+  }
+
+  if(input.is_relative()) {
+    input = appdata / input;
+  }
+
+  auto dir = input;
+  dir.remove_filename();
+
+  // Ensure the directories exists
+  if(!fs::exists(dir)) {
+    fs::create_directories(dir);
+  }
+}
+
 void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
   auto it = vars.find(name);
 
@@ -549,18 +578,19 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
 
-  string_f(vars, "pkey", nvhttp.pkey);
-  string_f(vars, "cert", nvhttp.cert);
+  path_f(vars, "pkey", nvhttp.pkey);
+  path_f(vars, "cert", nvhttp.cert);
   string_f(vars, "sunshine_name", nvhttp.sunshine_name);
-  string_f(vars, "file_state", nvhttp.file_state);
+
+  path_f(vars, "file_state", nvhttp.file_state);
+
+  // Must be run after "file_state"
+  config::sunshine.credentials_file = config::nvhttp.file_state;
+  path_f(vars, "credentials_file", config::sunshine.credentials_file);
+
   string_f(vars, "external_ip", nvhttp.external_ip);
   list_string_f(vars, "resolutions"s, nvhttp.resolutions);
   list_int_f(vars, "fps"s, nvhttp.fps);
-
-  string_f(vars, "credentials_file", config::sunshine.credentials_file);
-  if(config::sunshine.credentials_file.empty()) {
-    config::sunshine.credentials_file = config::nvhttp.file_state;
-  }
 
   string_f(vars, "audio_sink", audio.sink);
   string_f(vars, "virtual_sink", audio.virtual_sink);
@@ -575,7 +605,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 
   int_between_f(vars, "channels", stream.channels, { 1, std::numeric_limits<int>::max() });
 
-  string_f(vars, "file_apps", stream.file_apps);
+  path_f(vars, "file_apps", stream.file_apps);
   int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 100 });
 
   to = std::numeric_limits<int>::min();

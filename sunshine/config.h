@@ -3,6 +3,7 @@
 
 #include <bitset>
 #include <chrono>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -47,7 +48,7 @@ struct audio_t {
 struct stream_t {
   std::chrono::milliseconds ping_timeout;
 
-  std::string file_apps;
+  std::filesystem::path file_apps;
 
   int fec_percentage;
 
@@ -60,12 +61,12 @@ struct nvhttp_t {
   // pc|lan|wan
   std::string origin_pin_allowed;
 
-  std::string pkey; // must be 2048 bits
-  std::string cert; // must be signed with a key of 2048 bits
+  std::filesystem::path pkey; // must be 2048 bits
+  std::filesystem::path cert; // must be signed with a key of 2048 bits
 
   std::string sunshine_name;
 
-  std::string file_state;
+  std::filesystem::path file_state;
 
   std::string external_ip;
   std::vector<std::string> resolutions;
@@ -90,12 +91,13 @@ enum flag_e : std::size_t {
 struct sunshine_t {
   int min_log_level;
   std::bitset<flag::FLAG_SIZE> flags;
-  std::string credentials_file;
+  std::filesystem::path credentials_file;
+
   std::string username;
   std::string password;
   std::string salt;
 
-  std::string config_file;
+  std::filesystem::path config_file;
 
   struct cmd_t {
     std::string name;

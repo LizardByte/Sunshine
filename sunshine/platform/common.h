@@ -5,10 +5,12 @@
 #ifndef SUNSHINE_COMMON_H
 #define SUNSHINE_COMMON_H
 
-#include "sunshine/utility.h"
 #include <bitset>
+#include <filesystem>
 #include <mutex>
 #include <string>
+
+#include "sunshine/utility.h"
 
 struct sockaddr;
 struct AVFrame;
@@ -225,6 +227,8 @@ public:
 void freeInput(void *);
 
 using input_t = util::safe_ptr<void, freeInput>;
+
+std::filesystem::path appdata();
 
 std::string get_mac_address(const std::string_view &address);
 
