@@ -653,6 +653,13 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     else if(log_level_string == "none"sv) {
       sunshine.min_log_level = 6;
     }
+    else {
+      // accept digit directly
+      auto val = log_level_string[0];
+      if(val >= '0' && val < '7') {
+        sunshine.min_log_level = val - '0';
+      }
+    }
   }
 
   auto it = vars.find("flags"s);
