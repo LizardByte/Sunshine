@@ -82,11 +82,14 @@ sunshine needs access to uinput to create mouse and gamepad events:
 
 ## Usage:
 - run "sunshine path/to/sunshine.conf"
+- If running for the first time, make sure to note the username and password Sunshine showed to you, since you **cannot get back later**!
 - In Moonlight: Add PC manually
-- When Moonlight request you insert the correct pin on sunshine, either:
-	- Type in the URL bar of your browser: `xxx.xxx.xxx.xxx:47989/pin/####`
-	- `wget xxx.xxx.xxx.xxx:47989/pin/####` 
-	  - The x's are the IP of your instance, `####` is the pin
+- When Moonlight request you insert the correct pin on sunshine:
+	- Type in the URL bar of your browser: `https://xxx.xxx.xxx.xxx:47990` where `xxx.xxx.xxx.xxx` is the IP address of your computer
+	- Ignore any warning given by your browser about "insecure website"
+	- Type in the username and password shown the first time you run Sunshine
+	- Go to "PIN" in the Header
+	- Type in your PIN and press Enter, you should get a Success Message
 - Click on one of the Applications listed
 - Have fun :)
 
@@ -108,6 +111,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - [Eretik](http://eretik.omegahg.com/) (For creating PolicyConfig.h, allowing me to change the default audio device on Windows programmatically)
 
 ## Application List:
+**Note:** You can change the Application List in the "Apps" section of the User Interface `https://xxx.xxx.xxx.xxx:47990/`
 - You can use Environment variables in place of values
 	- $(HOME) will be replaced by the value of $HOME
 	- $$ will be replaced by $ --> $$(HOME) will be replaced by $(HOME)
