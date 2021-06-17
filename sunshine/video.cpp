@@ -927,11 +927,10 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   device->set_colorspace(sws_color_space, ctx->color_range);
 
   if(video_format[encoder_t::VUI_PARAMETERS]) {
-    return std::make_optional(session_t {
+    return std::make_optional<session_t>(
       std::move(ctx),
       std::move(device),
-      {},
-    });
+      util::buffer_t<std::uint8_t> {});
   }
 
   return std::make_optional<session_t>(

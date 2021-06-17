@@ -934,7 +934,7 @@ public:
     return 0;
   }
 
-  int set_frame(AVFrame *frame) {
+  int set_frame(AVFrame *frame) override {
     this->hwframe.reset(frame);
     this->frame = frame;
 
