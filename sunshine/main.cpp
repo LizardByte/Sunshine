@@ -200,6 +200,11 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
+  //FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
+  if(shutdown_event->peek()) {
+    return 0;
+  }
+
   task_pool.start(1);
 
   std::thread httpThread { nvhttp::start, shutdown_event };
