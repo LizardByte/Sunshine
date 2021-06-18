@@ -405,7 +405,7 @@
             </div>
             <div class="mb-3">
                 <label for="amd_rc" class="form-label">AMD AMF Rate Control</label>
-                <select id="amd_rc" class="form-select">
+                <select id="amd_rc" class="form-select" v-model="config.amd_rc">
                     <option value="auto">auto -- let ffmpeg decide rate control</option>
                     <option value="constqp">constqp -- constant QP mode</option>
                     <option value="vbr_latency">vbr_latency -- Latency Constrained Variable Bitrate</option>
