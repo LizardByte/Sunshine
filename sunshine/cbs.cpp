@@ -162,9 +162,9 @@ util::buffer_t<std::uint8_t> make_sps_h264(const AVCodecContext *ctx) {
   return write(sps.nal_unit_header.nal_unit_type, (void *)&sps.nal_unit_header, AV_CODEC_ID_H264);
 }
 
-util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id) {
+util::buffer_t<std::uint8_t> read_sps_h264(const AVPacket *packet) {
   cbs::ctx_t ctx;
-  if(ff_cbs_init(&ctx, (AVCodecID)codec_id, nullptr)) {
+  if(ff_cbs_init(&ctx, AV_CODEC_ID_H264, nullptr)) {
     return {};
   }
 
@@ -178,13 +178,8 @@ util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id) {
     return {};
   }
 
-  if(codec_id == AV_CODEC_ID_H264) {
-    auto h264 = (H264RawNALUnitHeader *)((CodedBitstreamH264Context *)ctx->priv_data)->active_sps;
-    return write(h264->nal_unit_type, (void *)h264, AV_CODEC_ID_H264);
-  }
-
-  auto hevc = (H264RawNALUnitHeader *)((CodedBitstreamH265Context *)ctx->priv_data)->active_sps;
-  return write(hevc->nal_unit_type, (void *)hevc, AV_CODEC_ID_H265);
+  auto h264 = (H264RawNALUnitHeader *)((CodedBitstreamH264Context *)ctx->priv_data)->active_sps;
+  return write(h264->nal_unit_type, (void *)h264, AV_CODEC_ID_H264);
 }
 
 util::buffer_t<std::uint8_t> make_sps(const AVCodecContext *ctx, int format) {

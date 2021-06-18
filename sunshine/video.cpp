@@ -24,8 +24,11 @@ extern "C" {
 }
 #endif
 
-namespace video {
 using namespace std::literals;
+namespace video {
+
+constexpr auto hevc_nalu = "\000\000\000\001("sv;
+constexpr auto h264_nalu = "\000\000\000\001e"sv;
 
 void free_ctx(AVCodecContext *ctx) {
   avcodec_free_context(&ctx);
@@ -245,6 +248,7 @@ struct encoder_t {
     SLICE,                 // Allow frame to be partitioned into multiple slices
     DYNAMIC_RANGE,         // hdr
     VUI_PARAMETERS,        // AMD encoder with VAAPI doesn't add VUI parameters to SPS
+    NALU_PREFIX_5b,        // libx264/libx265 have a 3-byte nalu prefix instead of 4-byte nalu prefix
     MAX_FLAGS
   };
 
@@ -259,6 +263,7 @@ struct encoder_t {
       _CONVERT(SLICE);
       _CONVERT(DYNAMIC_RANGE);
       _CONVERT(VUI_PARAMETERS);
+      _CONVERT(NALU_PREFIX_5b);
       _CONVERT(MAX_FLAGS);
     }
 #undef _CONVERT
@@ -312,16 +317,15 @@ struct encoder_t {
 class session_t {
 public:
   session_t() = default;
-  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device, util::buffer_t<std::uint8_t> &&sps) : ctx { std::move(ctx) }, device { std::move(device) }, sps { std::move(sps) } {}
+  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device) : ctx { std::move(ctx) }, device { std::move(device) } {}
 
-  session_t(session_t &&other) noexcept : ctx { std::move(other.ctx) }, device { std::move(other.device) }, sps { std::move(sps) }, sps_old { std::move(sps_old) } {}
+  session_t(session_t &&other) noexcept : ctx { std::move(other.ctx) }, device { std::move(other.device) }, replacements { std::move(other.replacements) } {}
 
   // Ensure objects are destroyed in the correct order
   session_t &operator=(session_t &&other) {
-    device  = std::move(other.device);
-    ctx     = std::move(other.ctx);
-    sps     = std::move(other.sps);
-    sps_old = std::move(other.sps_old);
+    device       = std::move(other.device);
+    ctx          = std::move(other.ctx);
+    replacements = std::move(other.replacements);
 
     return *this;
   }
@@ -329,8 +333,15 @@ public:
   ctx_t ctx;
   util::wrap_ptr<platf::hwdevice_t> device;
 
-  util::buffer_t<std::uint8_t> sps;
-  util::buffer_t<std::uint8_t> sps_old;
+  std::vector<packet_raw_t::replace_t> replacements;
+
+  struct nal_t {
+    util::buffer_t<std::uint8_t> old;
+    util::buffer_t<std::uint8_t> _new;
+  };
+
+  nal_t sps;
+  nal_t vps;
 };
 
 struct sync_session_ctx_t {
@@ -684,8 +695,7 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, packet_
 
   auto &ctx = session.ctx;
 
-  auto &sps     = session.sps;
-  auto &sps_old = session.sps_old;
+  auto &sps = session.sps;
 
   /* send the frame to the encoder */
   auto ret = avcodec_send_frame(ctx.get(), frame);
@@ -707,12 +717,16 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, packet_
       return ret;
     }
 
-    if(sps.size() && !sps_old.size()) {
-      sps_old = cbs::read_sps(packet.get(), AV_CODEC_ID_H264);
+    if(sps._new.size() && !sps.old.size()) {
+      sps.old = cbs::read_sps_h264(packet.get());
+
+      session.replacements.emplace_back(
+        std::string_view((char *)std::begin(sps.old), sps.old.size()),
+        std::string_view((char *)std::begin(sps._new), sps._new.size()));
     }
-    packet->sps.old         = std::string_view((char *)std::begin(sps_old), sps_old.size());
-    packet->sps.replacement = std::string_view((char *)std::begin(sps), sps.size());
-    packet->channel_data    = channel_data;
+
+    packet->replacements = &session.replacements;
+    packet->channel_data = channel_data;
     packets->raise(std::move(packet));
   }
 
@@ -926,17 +940,24 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
   device->set_colorspace(sws_color_space, ctx->color_range);
 
-  if(video_format[encoder_t::VUI_PARAMETERS]) {
-    return std::make_optional<session_t>(
-      std::move(ctx),
-      std::move(device),
-      util::buffer_t<std::uint8_t> {});
-  }
-
-  return std::make_optional<session_t>(
+  session_t session {
     std::move(ctx),
     std::move(device),
-    cbs::make_sps(ctx.get(), config.videoFormat));
+  };
+
+  if(!video_format[encoder_t::VUI_PARAMETERS]) {
+    if(config.videoFormat == 0) {
+      session.sps._new = cbs::make_sps_h264(session.ctx.get());
+    }
+  }
+
+  if(!video_format[encoder_t::NALU_PREFIX_5b]) {
+    auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
+
+    session.replacements.emplace_back(nalu_prefix.substr(1), nalu_prefix);
+  }
+
+  return std::make_optional(std::move(session));
 }
 
 void encode_run(
@@ -1311,29 +1332,34 @@ void capture(
   }
 }
 
+enum validate_flag_e {
+  VUI_PARAMS     = 0x01,
+  NALU_PREFIX_5b = 0x02,
+};
+
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
   reset_display(disp, encoder.dev_type);
   if(!disp) {
-    return 0;
+    return -1;
   }
 
   auto pix_fmt  = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
   auto hwdevice = disp->make_hwdevice(pix_fmt);
   if(!hwdevice) {
-    return 0;
+    return -1;
   }
 
   auto session = make_session(encoder, config, disp->width, disp->height, hwdevice.get());
   if(!session) {
-    return 0;
+    return -1;
   }
 
   auto img = disp->alloc_img();
   if(disp->dummy_img(img.get())) {
-    return 0;
+    return -1;
   }
   if(session->device->convert(*img)) {
-    return 0;
+    return -1;
   }
 
   auto frame = session->device->frame;
@@ -1343,7 +1369,7 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
   auto packets = std::make_shared<packet_queue_t::element_type>(30);
   while(!packets->peek()) {
     if(encode(1, *session, frame, packets, nullptr)) {
-      return false;
+      return -1;
     }
   }
 
@@ -1351,14 +1377,21 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
   if(!(packet->flags & AV_PKT_FLAG_KEY)) {
     BOOST_LOG(error) << "First packet type is not an IDR frame"sv;
 
-    return 0;
+    return -1;
   }
 
+  int flag = 0;
   if(cbs::validate_sps(&*packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
-    return 1;
+    flag |= VUI_PARAMS;
   }
 
-  return -1;
+  auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
+  std::string_view payload { (char *)packet->data, (std::size_t)packet->size };
+  if(std::search(std::begin(payload), std::end(payload), std::begin(nalu_prefix), std::end(nalu_prefix)) != std::end(payload)) {
+    flag |= NALU_PREFIX_5b;
+  }
+
+  return flag;
 }
 
 bool validate_encoder(encoder_t &encoder) {
@@ -1384,16 +1417,21 @@ bool validate_encoder(encoder_t &encoder) {
   auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
   auto autoselect_h264     = validate_config(disp, encoder, config_autoselect);
 
-  if(!max_ref_frames_h264 && !autoselect_h264) {
+  if(max_ref_frames_h264 < 0 && autoselect_h264 < 0) {
     return false;
   }
 
-  if(max_ref_frames_h264 < 0 || autoselect_h264 < 0) {
-    encoder.h264[encoder_t::VUI_PARAMETERS] = false;
+  std::vector<std::pair<validate_flag_e, encoder_t::flag_e>> packet_deficiencies {
+    { VUI_PARAMS, encoder_t::VUI_PARAMETERS },
+    { NALU_PREFIX_5b, encoder_t::NALU_PREFIX_5b },
+  };
+
+  for(auto [validate_flag, encoder_flag] : packet_deficiencies) {
+    encoder.h264[encoder_flag] = (max_ref_frames_h264 & validate_flag && autoselect_h264 & validate_flag);
   }
 
-  encoder.h264[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_h264;
-  encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264;
+  encoder.h264[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_h264 >= 0;
+  encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264 >= 0;
   encoder.h264[encoder_t::PASSED]                = true;
 
   encoder.h264[encoder_t::SLICE] = validate_config(disp, encoder, config_max_ref_frames);
@@ -1405,18 +1443,18 @@ bool validate_encoder(encoder_t &encoder) {
     auto autoselect_hevc     = validate_config(disp, encoder, config_autoselect);
 
     // If HEVC must be supported, but it is not supported
-    if(force_hevc && !max_ref_frames_hevc && !autoselect_hevc) {
+    if(force_hevc && max_ref_frames_hevc < 0 && autoselect_hevc < 0) {
       return false;
     }
 
-    if(max_ref_frames_h264 < 0 || autoselect_h264 < 0) {
-      encoder.hevc[encoder_t::VUI_PARAMETERS] = false;
+    for(auto [validate_flag, encoder_flag] : packet_deficiencies) {
+      encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
     }
 
-    encoder.hevc[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_hevc;
-    encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc;
+    encoder.hevc[encoder_t::REF_FRAMES_RESTRICT]   = max_ref_frames_hevc >= 0;
+    encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc >= 0;
 
-    encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc || autoselect_hevc;
+    encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
   }
 
   std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
@@ -1430,9 +1468,9 @@ bool validate_encoder(encoder_t &encoder) {
     h264.videoFormat = 0;
     hevc.videoFormat = 1;
 
-    encoder.h264[flag] = validate_config(disp, encoder, h264);
+    encoder.h264[flag] = validate_config(disp, encoder, h264) >= 0;
     if(encoder.hevc[encoder_t::PASSED]) {
-      encoder.hevc[flag] = validate_config(disp, encoder, hevc);
+      encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
     }
   }
 
@@ -1441,6 +1479,13 @@ bool validate_encoder(encoder_t &encoder) {
   }
   if(encoder.hevc[encoder_t::PASSED] && !encoder.hevc[encoder_t::VUI_PARAMETERS]) {
     BOOST_LOG(warning) << encoder.name << ": hevc missing sps->vui parameters"sv;
+  }
+
+  if(!encoder.h264[encoder_t::NALU_PREFIX_5b]) {
+    BOOST_LOG(warning) << encoder.name << ": h264: replacing nalu prefix data"sv;
+  }
+  if(encoder.hevc[encoder_t::PASSED] && !encoder.hevc[encoder_t::NALU_PREFIX_5b]) {
+    BOOST_LOG(warning) << encoder.name << ": hevc: replacing nalu prefix data"sv;
   }
 
   fg.disable();
