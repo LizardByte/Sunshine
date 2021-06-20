@@ -35,7 +35,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 	- Run the following command: 
 	`nano /etc/udev/rules.d/85-sunshine-input.rules`
 	- Input the following contents:
-	`KERNEL=="uinput", GROUP="input", mode="0660"`
+	`KERNEL=="uinput", GROUP="input", MODE="0660"`
 	- Save the file and exit
 		1. `CTRL+X` to start exit
 		2. `Y` to save modifications
