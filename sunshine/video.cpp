@@ -86,12 +86,12 @@ public:
 
     data[0] = sw_frame->data[0] + offset;
     if(sw_frame->format == AV_PIX_FMT_NV12) {
-      data[1] = sw_frame->data[1] + offset;
+      data[1] = sw_frame->data[1] + offset / 2;
       data[2] = nullptr;
     }
     else {
-      data[1] = sw_frame->data[1] + offset / 2;
-      data[2] = sw_frame->data[2] + offset / 2;
+      data[1] = sw_frame->data[1] + offset / 4;
+      data[2] = sw_frame->data[2] + offset / 4;
       data[3] = nullptr;
     }
 
@@ -701,7 +701,6 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, packet_
 
   auto &sps = session.sps;
   auto &vps = session.vps;
-  auto &pps = session.pps;
 
   /* send the frame to the encoder */
   auto ret = avcodec_send_frame(ctx.get(), frame);

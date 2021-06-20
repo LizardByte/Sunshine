@@ -724,7 +724,7 @@ int parse(int argc, char *argv[]) {
           return -1;
         }
 
-        TUPLE_2D_REF(name, val, *var);
+        TUPLE_EL_REF(name, 0, *var);
 
         auto it = cmd_vars.find(name);
         if(it != std::end(cmd_vars)) {
