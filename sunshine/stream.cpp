@@ -617,28 +617,14 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
 
     payload = { (char *)payload_new.data(), payload_new.size() };
 
-    // make sure moonlight recognizes the nalu code for IDR frames
     if(packet->flags & AV_PKT_FLAG_KEY) {
-      BOOST_LOG(debug) << "Sending IDR frame"sv;
-      // TODO: Not all encoders encode their IDR frames with the 4 byte NALU prefix
-      std::string_view frame_old = "\000\000\001e"sv;
-      std::string_view frame_new = "\000\000\000\001e"sv;
-      if(session->config.monitor.videoFormat != 0) {
-        frame_old = "\000\000\001("sv;
-        frame_new = "\000\000\000\001("sv;
+      for(auto &replacement : *packet->replacements) {
+        auto frame_old = replacement.old;
+        auto frame_new = replacement._new;
+
+        payload_new = replace(payload, frame_old, frame_new);
+        payload     = { (char *)payload_new.data(), payload_new.size() };
       }
-
-      payload_new = replace(payload, frame_old, frame_new);
-      payload     = { (char *)payload_new.data(), payload_new.size() };
-    }
-
-    if(packet->flags & AV_PKT_FLAG_KEY && packet->sps.old.size()) {
-      BOOST_LOG(debug) << "Replacing SPS header"sv;
-      std::string_view frame_old = packet->sps.old;
-      std::string_view frame_new = packet->sps.replacement;
-
-      payload_new = replace(payload, frame_old, frame_new);
-      payload     = { (char *)payload_new.data(), payload_new.size() };
     }
 
     // insert packet headers

@@ -42,10 +42,16 @@ struct packet_raw_t : public AVPacket {
     av_packet_unref(this);
   }
 
-  struct {
+  struct replace_t {
     std::string_view old;
-    std::string_view replacement;
-  } sps;
+    std::string_view _new;
+
+    KITTY_DEFAULT_CONSTR(replace_t)
+
+    replace_t(std::string_view old, std::string_view _new) noexcept : old { std::move(old) }, _new { std::move(_new) } {}
+  };
+
+  std::vector<replace_t> *replacements;
 
   void *channel_data;
 };

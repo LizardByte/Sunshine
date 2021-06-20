@@ -549,6 +549,9 @@ int apply_flags(const char *line) {
     case '1':
       config::sunshine.flags[config::flag::FRESH_STATE].flip();
       break;
+    case '2':
+      config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE].flip();
+      break;
     case 'p':
       config::sunshine.flags[config::flag::CONST_PIN].flip();
       break;
@@ -719,6 +722,13 @@ int parse(int argc, char *argv[]) {
         if(!var) {
           print_help(*argv);
           return -1;
+        }
+
+        TUPLE_2D_REF(name, val, *var);
+
+        auto it = cmd_vars.find(name);
+        if(it != std::end(cmd_vars)) {
+          cmd_vars.erase(it);
         }
 
         cmd_vars.emplace(std::move(*var));

@@ -1,10 +1,12 @@
 extern "C" {
 #include <cbs/cbs_h264.h>
 #include <cbs/cbs_h265.h>
-#include <cbs/h264_levels.h>
+#include <cbs/video_levels.h>
 #include <libavcodec/avcodec.h>
+#include <libavutil/pixdesc.h>
 }
 
+#include "cbs.h"
 #include "main.h"
 #include "utility.h"
 
@@ -46,18 +48,15 @@ public:
   }
 };
 
-util::buffer_t<std::uint8_t> write(std::uint8_t nal, void *uh, AVCodecID codec_id) {
+util::buffer_t<std::uint8_t> write(const cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
   cbs::frag_t frag;
   auto err = ff_cbs_insert_unit_content(&frag, -1, nal, uh, nullptr);
   if(err < 0) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-    BOOST_LOG(error) << "Could not NAL unit SPS: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+    BOOST_LOG(error) << "Could not insert NAL unit SPS: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
     return {};
   }
-
-  cbs::ctx_t cbs_ctx;
-  ff_cbs_init(&cbs_ctx, codec_id, nullptr);
 
   err = ff_cbs_write_fragment_data(cbs_ctx.get(), &frag);
   if(err < 0) {
@@ -72,6 +71,13 @@ util::buffer_t<std::uint8_t> write(std::uint8_t nal, void *uh, AVCodecID codec_i
   std::copy_n(frag.data, frag.data_size, std::begin(data));
 
   return data;
+}
+
+util::buffer_t<std::uint8_t> write(std::uint8_t nal, void *uh, AVCodecID codec_id) {
+  cbs::ctx_t cbs_ctx;
+  ff_cbs_init(&cbs_ctx, codec_id, nullptr);
+
+  return write(cbs_ctx, nal, uh, codec_id);
 }
 
 util::buffer_t<std::uint8_t> make_sps_h264(const AVCodecContext *ctx) {
@@ -162,9 +168,83 @@ util::buffer_t<std::uint8_t> make_sps_h264(const AVCodecContext *ctx) {
   return write(sps.nal_unit_header.nal_unit_type, (void *)&sps.nal_unit_header, AV_CODEC_ID_H264);
 }
 
-util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id) {
+hevc_t make_sps_hevc(const AVCodecContext *avctx, const AVPacket *packet) {
   cbs::ctx_t ctx;
-  if(ff_cbs_init(&ctx, (AVCodecID)codec_id, nullptr)) {
+  if(ff_cbs_init(&ctx, AV_CODEC_ID_H265, nullptr)) {
+    return {};
+  }
+
+  cbs::frag_t frag;
+
+  int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
+  if(err < 0) {
+    char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+    BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+
+    return {};
+  }
+
+
+  auto vps_p = ((CodedBitstreamH265Context *)ctx->priv_data)->active_vps;
+  auto sps_p = ((CodedBitstreamH265Context *)ctx->priv_data)->active_sps;
+
+  H265RawSPS sps { *sps_p };
+  H265RawVPS vps { *vps_p };
+
+  vps.profile_tier_level.general_profile_compatibility_flag[4] = 1;
+  sps.profile_tier_level.general_profile_compatibility_flag[4] = 1;
+
+  auto &vui = sps.vui;
+  std::memset(&vui, 0, sizeof(vui));
+
+  sps.vui_parameters_present_flag = 1;
+
+  // skip sample aspect ratio
+
+  vui.video_format                    = 5;
+  vui.colour_description_present_flag = 1;
+  vui.video_signal_type_present_flag  = 1;
+  vui.video_full_range_flag           = avctx->color_range == AVCOL_RANGE_JPEG;
+  vui.colour_primaries                = avctx->color_primaries;
+  vui.transfer_characteristics        = avctx->color_trc;
+  vui.matrix_coefficients             = avctx->colorspace;
+
+
+  vui.vui_timing_info_present_flag        = vps.vps_timing_info_present_flag;
+  vui.vui_num_units_in_tick               = vps.vps_num_units_in_tick;
+  vui.vui_time_scale                      = vps.vps_time_scale;
+  vui.vui_poc_proportional_to_timing_flag = vps.vps_poc_proportional_to_timing_flag;
+  vui.vui_num_ticks_poc_diff_one_minus1   = vps.vps_num_ticks_poc_diff_one_minus1;
+  vui.vui_hrd_parameters_present_flag     = 0;
+
+  vui.bitstream_restriction_flag              = 1;
+  vui.motion_vectors_over_pic_boundaries_flag = 1;
+  vui.restricted_ref_pic_lists_flag           = 1;
+  vui.max_bytes_per_pic_denom                 = 0;
+  vui.max_bits_per_min_cu_denom               = 0;
+  vui.log2_max_mv_length_horizontal           = 15;
+  vui.log2_max_mv_length_vertical             = 15;
+
+  cbs::ctx_t write_ctx;
+  ff_cbs_init(&write_ctx, AV_CODEC_ID_H265, nullptr);
+
+
+  return hevc_t {
+    nal_t {
+      write(write_ctx, vps.nal_unit_header.nal_unit_type, (void *)&vps.nal_unit_header, AV_CODEC_ID_H265),
+      write(ctx, vps_p->nal_unit_header.nal_unit_type, (void *)&vps_p->nal_unit_header, AV_CODEC_ID_H265),
+    },
+
+    nal_t {
+      write(write_ctx, sps.nal_unit_header.nal_unit_type, (void *)&sps.nal_unit_header, AV_CODEC_ID_H265),
+      write(ctx, sps_p->nal_unit_header.nal_unit_type, (void *)&sps_p->nal_unit_header, AV_CODEC_ID_H265),
+    },
+  };
+}
+
+util::buffer_t<std::uint8_t> read_sps_h264(const AVPacket *packet) {
+  cbs::ctx_t ctx;
+  if(ff_cbs_init(&ctx, AV_CODEC_ID_H264, nullptr)) {
     return {};
   }
 
@@ -178,24 +258,15 @@ util::buffer_t<std::uint8_t> read_sps(const AVPacket *packet, int codec_id) {
     return {};
   }
 
-  if(codec_id == AV_CODEC_ID_H264) {
-    auto h264 = (H264RawNALUnitHeader *)((CodedBitstreamH264Context *)ctx->priv_data)->active_sps;
-    return write(h264->nal_unit_type, (void *)h264, AV_CODEC_ID_H264);
-  }
-
-  auto hevc = (H264RawNALUnitHeader *)((CodedBitstreamH265Context *)ctx->priv_data)->active_sps;
-  return write(hevc->nal_unit_type, (void *)hevc, AV_CODEC_ID_H265);
+  auto h264 = (H264RawNALUnitHeader *)((CodedBitstreamH264Context *)ctx->priv_data)->active_sps;
+  return write(h264->nal_unit_type, (void *)h264, AV_CODEC_ID_H264);
 }
 
-util::buffer_t<std::uint8_t> make_sps(const AVCodecContext *ctx, int format) {
-  switch(format) {
-  case 0:
-    return make_sps_h264(ctx);
-  }
-
-  BOOST_LOG(warning) << "make_sps: video format ["sv << format << "] not supported"sv;
-
-  return {};
+h264_t make_sps_h264(const AVCodecContext *ctx, const AVPacket *packet) {
+  return h264_t {
+    make_sps_h264(ctx),
+    read_sps_h264(packet),
+  };
 }
 
 bool validate_sps(const AVPacket *packet, int codec_id) {
@@ -206,7 +277,7 @@ bool validate_sps(const AVPacket *packet, int codec_id) {
 
   cbs::frag_t frag;
 
-  int err = ff_cbs_read_packet(ctx.get(), &frag, &*packet);
+  int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
   if(err < 0) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
     BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);

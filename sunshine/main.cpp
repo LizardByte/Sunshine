@@ -63,7 +63,8 @@ void print_help(const char *name) {
     << "    flags"sv << std::endl
     << "        -0 | Read PIN from stdin"sv << std::endl
     << "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl
-    << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv << std::endl;
+    << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv << std::endl
+    << "        -2 | Force replacement of headers in video stream" << std::endl;
 }
 
 namespace help {
@@ -198,6 +199,11 @@ int main(int argc, char *argv[]) {
   }
   if(http::init()) {
     return 3;
+  }
+
+  //FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
+  if(shutdown_event->peek()) {
+    return 0;
   }
 
   task_pool.start(1);
