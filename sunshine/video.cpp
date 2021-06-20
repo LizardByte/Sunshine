@@ -317,15 +317,20 @@ struct encoder_t {
 class session_t {
 public:
   session_t() = default;
-  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device) : ctx { std::move(ctx) }, device { std::move(device) } {}
+  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device, int inject) : ctx { std::move(ctx) }, device { std::move(device) }, inject { inject } {}
 
-  session_t(session_t &&other) noexcept : ctx { std::move(other.ctx) }, device { std::move(other.device) }, replacements { std::move(other.replacements) } {}
+  session_t(session_t &&other) noexcept = default;
 
   // Ensure objects are destroyed in the correct order
   session_t &operator=(session_t &&other) {
     device       = std::move(other.device);
     ctx          = std::move(other.ctx);
     replacements = std::move(other.replacements);
+    sps          = std::move(other.sps);
+    vps          = std::move(other.vps);
+    pps          = std::move(other.pps);
+
+    inject = other.inject;
 
     return *this;
   }
@@ -335,13 +340,12 @@ public:
 
   std::vector<packet_raw_t::replace_t> replacements;
 
-  struct nal_t {
-    util::buffer_t<std::uint8_t> old;
-    util::buffer_t<std::uint8_t> _new;
-  };
+  cbs::nal_t sps;
+  cbs::nal_t vps;
+  cbs::nal_t pps;
 
-  nal_t sps;
-  nal_t vps;
+  // inject sps/vps data into idr pictures
+  int inject;
 };
 
 struct sync_session_ctx_t {
@@ -696,6 +700,8 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, packet_
   auto &ctx = session.ctx;
 
   auto &sps = session.sps;
+  auto &vps = session.vps;
+  auto &pps = session.pps;
 
   /* send the frame to the encoder */
   auto ret = avcodec_send_frame(ctx.get(), frame);
@@ -717,8 +723,25 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, packet_
       return ret;
     }
 
-    if(sps._new.size() && !sps.old.size()) {
-      sps.old = cbs::read_sps_h264(packet.get());
+    if(session.inject) {
+      if(session.inject == 1) {
+        auto h264 = cbs::make_sps_h264(ctx.get(), packet.get());
+
+        sps = std::move(h264.sps);
+      }
+      else {
+        auto hevc = cbs::make_sps_hevc(ctx.get(), packet.get());
+
+        sps = std::move(hevc.sps);
+        vps = std::move(hevc.vps);
+
+        session.replacements.emplace_back(
+          std::string_view((char *)std::begin(vps.old), vps.old.size()),
+          std::string_view((char *)std::begin(vps._new), vps._new.size()));
+      }
+
+      session.inject = 0;
+
 
       session.replacements.emplace_back(
         std::string_view((char *)std::begin(sps.old), sps.old.size()),
@@ -833,6 +856,9 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     sw_fmt = encoder.dynamic_pix_fmt;
   }
 
+  // Used by cbs::make_sps_hevc
+  ctx->sw_pix_fmt = sw_fmt;
+
   buffer_t hwdevice_ctx;
   if(hardware) {
     ctx->pix_fmt = encoder.dev_pix_fmt;
@@ -943,13 +969,10 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   session_t session {
     std::move(ctx),
     std::move(device),
-  };
 
-  if(!video_format[encoder_t::VUI_PARAMETERS]) {
-    if(config.videoFormat == 0) {
-      session.sps._new = cbs::make_sps_h264(session.ctx.get());
-    }
-  }
+    // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
+    (1 - (int)video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat),
+  };
 
   if(!video_format[encoder_t::NALU_PREFIX_5b]) {
     auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
@@ -1012,7 +1035,7 @@ void encode_run(
     next_frame += delay;
 
     // When Moonlight request an IDR frame, send frames even if there is no new captured frame
-    if(frame_nr > (key_frame_nr + config.framerate) || images->peek()) {
+    if(frame_nr > key_frame_nr || images->peek()) {
       if(auto img = images->pop(delay)) {
         session->device->convert(*img);
       }
@@ -1473,6 +1496,9 @@ bool validate_encoder(encoder_t &encoder) {
       encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
     }
   }
+
+  encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
+  encoder.hevc[encoder_t::VUI_PARAMETERS] = encoder.hevc[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
 
   if(!encoder.h264[encoder_t::VUI_PARAMETERS]) {
     BOOST_LOG(warning) << encoder.name << ": h264 missing sps->vui parameters"sv;

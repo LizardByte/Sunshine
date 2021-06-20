@@ -5,18 +5,25 @@
 
 struct AVPacket;
 struct AVCodecContext;
+
 namespace cbs {
 
-struct sps_hevc_t {
-  util::buffer_t<std::uint8_t> vps;
-  util::buffer_t<std::uint8_t> sps;
+struct nal_t {
+  util::buffer_t<std::uint8_t> _new;
+  util::buffer_t<std::uint8_t> old;
 };
 
-util::buffer_t<std::uint8_t> read_sps_h264(const AVPacket *packet);
-sps_hevc_t read_sps_hevc(const AVPacket *packet);
+struct hevc_t {
+  nal_t vps;
+  nal_t sps;
+};
 
-util::buffer_t<std::uint8_t> make_sps_h264(const AVCodecContext *ctx);
-sps_hevc_t make_sps_hevc(const AVCodecContext *ctx);
+struct h264_t {
+  nal_t sps;
+};
+
+hevc_t make_sps_hevc(const AVCodecContext *ctx, const AVPacket *packet);
+h264_t make_sps_h264(const AVCodecContext *ctx, const AVPacket *packet);
 
 /**
  * Check if SPS->VUI is present
