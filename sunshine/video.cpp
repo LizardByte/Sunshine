@@ -84,14 +84,14 @@ public:
 
     std::uint8_t *data[4];
 
-    data[0] = sw_frame->data[0] + offset;
+    data[0] = sw_frame->data[0] + offsetY;
     if(sw_frame->format == AV_PIX_FMT_NV12) {
-      data[1] = sw_frame->data[1] + offset / 2;
+      data[1] = sw_frame->data[1] + offsetUV;
       data[2] = nullptr;
     }
     else {
-      data[1] = sw_frame->data[1] + offset / 4;
-      data[2] = sw_frame->data[2] + offset / 4;
+      data[1] = sw_frame->data[1] + offsetUV;
+      data[2] = sw_frame->data[2] + offsetUV;
       data[3] = nullptr;
     }
 
@@ -207,9 +207,10 @@ public:
     out_height  = in_height * scalar;
 
     // result is always positive
-    auto offsetX = (frame->width - out_width) / 2;
-    auto offsetY = (frame->height - out_height) / 2;
-    offset       = offsetX + offsetY * frame->width;
+    auto offsetW = (frame->width - out_width) / 2;
+    auto offsetH = (frame->height - out_height) / 2;
+    offsetUV     = (offsetW + offsetH * frame->width / 2) / 2;
+    offsetY      = offsetW + offsetH * frame->width;
 
     sws.reset(sws_getContext(
       in_width, in_height, AV_PIX_FMT_BGR0,
@@ -229,7 +230,8 @@ public:
   sws_t sws;
 
   // offset of input image to output frame in pixels
-  int offset;
+  int offsetUV;
+  int offsetY;
 };
 
 enum flag_e {
