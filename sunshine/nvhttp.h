@@ -12,7 +12,7 @@
 #include <string>
 
 namespace nvhttp {
-void start(std::shared_ptr<safe::signal_t> shutdown_event);
+void start();
 bool pin(std::string pin);
 } // namespace nvhttp
 

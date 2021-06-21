@@ -21,7 +21,7 @@ struct launch_session_t {
 void launch_session_raise(launch_session_t launch_session);
 int session_count();
 
-void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event);
+void rtpThread();
 
 } // namespace stream
 

@@ -19,6 +19,7 @@
 #include "config.h"
 #include "confighttp.h"
 #include "httpcommon.h"
+#include "main.h"
 #include "nvhttp.h"
 #include "rtsp.h"
 #include "thread_pool.h"
@@ -29,6 +30,8 @@ extern "C" {
 #include <libavutil/log.h>
 #include <rs.h>
 }
+
+safe::mail_t mail::man;
 
 using namespace std::literals;
 namespace bl = boost::log;
@@ -109,6 +112,8 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
 };
 
 int main(int argc, char *argv[]) {
+  mail::man = std::make_shared<safe::mail_raw_t>();
+
   if(config::parse(argc, argv)) {
     return 0;
   }
@@ -180,9 +185,10 @@ int main(int argc, char *argv[]) {
   }
 
   // Create signal handler after logging has been initialized
-  auto shutdown_event = std::make_shared<safe::event_t<bool>>();
+  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
+
     shutdown_event->raise(true);
   });
 
@@ -208,9 +214,9 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-  std::thread httpThread { nvhttp::start, shutdown_event };
-  std::thread configThread { confighttp::start, shutdown_event };
-  stream::rtpThread(shutdown_event);
+  std::thread httpThread { nvhttp::start };
+  std::thread configThread { confighttp::start };
+  stream::rtpThread();
 
   httpThread.join();
   configThread.join();

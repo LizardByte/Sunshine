@@ -5,7 +5,11 @@
 #ifndef SUNSHINE_MAIN_H
 #define SUNSHINE_MAIN_H
 
+#include <string_view>
+
 #include "thread_pool.h"
+#include "thread_safe.h"
+
 #include <boost/log/common.hpp>
 
 extern util::ThreadPool task_pool;
@@ -24,4 +28,19 @@ void print_help(const char *name);
 
 std::string read_file(const char *path);
 int write_file(const char *path, const std::string_view &contents);
+
+namespace mail {
+#define MAIL(x) \
+  constexpr auto x = std::string_view { #x }
+
+extern safe::mail_t man;
+
+MAIL(shutdown);
+MAIL(broadcast_shutdown);
+
+
+#undef MAIL
+} // namespace mail
+
+
 #endif //SUNSHINE_MAIN_H

@@ -14,7 +14,7 @@
 
 
 namespace confighttp {
-void start(std::shared_ptr<safe::signal_t> shutdown_event);
+void start();
 }
 
 #endif //SUNSHINE_CONFIGHTTP_H

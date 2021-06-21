@@ -452,7 +452,9 @@ void savePin(resp_https_t response, req_https_t request) {
   }
 }
 
-void start(std::shared_ptr<safe::signal_t> shutdown_event) {
+void start() {
+  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
   ctx->use_certificate_chain_file(config::nvhttp.cert);
   ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);

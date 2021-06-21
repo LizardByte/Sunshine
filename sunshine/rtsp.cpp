@@ -494,7 +494,10 @@ void cmd_play(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   respond(server->host(), peer, &option, 200, "OK", req->sequenceNumber, {});
 }
 
-void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
+void rtpThread() {
+  auto shutdown_event           = mail::man->event<bool>(mail::shutdown);
+  auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+
   server.map("OPTIONS"sv, &cmd_option);
   server.map("DESCRIBE"sv, &cmd_describe);
   server.map("SETUP"sv, &cmd_setup);
@@ -512,7 +515,7 @@ void rtpThread(std::shared_ptr<safe::signal_t> shutdown_event) {
   while(!shutdown_event->peek()) {
     server.iterate(std::min(500ms, config::stream.ping_timeout));
 
-    if(broadcast_shutdown_event.peek()) {
+    if(broadcast_shutdown_event->peek()) {
       server.clear();
     }
     else {

@@ -758,7 +758,8 @@ void appasset(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in);
 }
 
-void start(std::shared_ptr<safe::signal_t> shutdown_event) {
+void start() {
+  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
   bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
 

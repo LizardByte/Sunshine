@@ -8,6 +8,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <vector>
 
@@ -426,6 +427,83 @@ auto make_shared(F_Construct &&fc, F_Destruct &&fd) {
 }
 
 using signal_t = event_t<bool>;
+
+class mail_raw_t;
+using mail_t = std::shared_ptr<mail_raw_t>;
+
+void cleanup(mail_raw_t *);
+template<class T>
+class post_t : public T {
+public:
+  template<class... Args>
+  post_t(mail_t mail, Args &&...args) : T(std::forward<Args>(args)...), mail { std::move(mail) } {}
+
+  mail_t mail;
+
+  ~post_t() {
+    cleanup(mail.get());
+  }
+};
+
+template<class T>
+inline auto lock(const std::weak_ptr<void> &wp) {
+  return std::reinterpret_pointer_cast<post_t<T>>(wp.lock());
+}
+
+class mail_raw_t : public std::enable_shared_from_this<mail_raw_t> {
+public:
+  template<class T>
+  std::shared_ptr<post_t<event_t<T>>> event(const std::string_view &id) {
+    std::lock_guard lg { mutex };
+
+    auto it = id_to_post.find(id);
+    if(it != std::end(id_to_post)) {
+      return lock<event_t<T>>(it->second);
+    }
+
+    auto post = std::make_shared<post_t<event_t<T>>>(shared_from_this());
+    id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> { std::string { id }, post });
+
+    return post;
+  }
+
+  template<class T>
+  std::shared_ptr<post_t<queue_t<T>>> queue(const std::string_view &id) {
+    std::lock_guard lg { mutex };
+
+    auto it = id_to_post.find(id);
+    if(it != std::end(id_to_post)) {
+      return lock<queue_t<T>>(it->second);
+    }
+
+    auto post = std::make_shared<post_t<queue_t<T>>>(shared_from_this(), 32);
+    id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> { std::string { id }, post });
+
+    return post;
+  }
+
+  void cleanup() {
+    std::lock_guard lg { mutex };
+
+    for(auto it = std::begin(id_to_post); it != std::end(id_to_post); ++it) {
+      auto &weak = it->second;
+
+      if(weak.expired()) {
+        id_to_post.erase(it);
+
+        return;
+      }
+    }
+  }
+
+  std::mutex mutex;
+
+  std::map<std::string, std::weak_ptr<void>, std::less<>> id_to_post;
+};
+
+inline void cleanup(mail_raw_t *mail) {
+  mail->cleanup();
+}
 } // namespace safe
 
 #endif //SUNSHINE_THREAD_SAFE_H

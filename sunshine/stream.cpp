@@ -153,6 +153,7 @@ struct broadcast_ctx_t {
   video::packet_queue_t video_packets;
   audio::packet_queue_t audio_packets;
 
+  std::shared_ptr<safe::post_t<safe::signal_t>> broadcast_shutdown_event;
   message_queue_queue_t message_queue_queue;
 
   std::thread recv_thread;
@@ -207,7 +208,6 @@ void end_broadcast(broadcast_ctx_t &ctx);
 
 
 static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
-safe::signal_t broadcast_shutdown_event;
 
 session_t *control_server_t::get_session(const net::peer_t peer) {
   TUPLE_2D(port, addr_string, platf::from_sockaddr_ex((sockaddr *)&peer->address.address));
@@ -594,7 +594,7 @@ void recvThread(broadcast_ctx_t &ctx) {
   video_sock.async_receive_from(asio::buffer(buf[0]), peer, 0, recv_func[0]);
   audio_sock.async_receive_from(asio::buffer(buf[1]), peer, 0, recv_func[1]);
 
-  while(!broadcast_shutdown_event.peek()) {
+  while(!ctx.broadcast_shutdown_event->peek()) {
     io.run();
   }
 }
@@ -722,6 +722,8 @@ void audioBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, aud
 }
 
 int start_broadcast(broadcast_ctx_t &ctx) {
+  ctx.broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+
   if(ctx.control_server.bind(CONTROL_PORT)) {
     BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << CONTROL_PORT << "], likely another process already bound to the port"sv;
 
@@ -761,9 +763,9 @@ int start_broadcast(broadcast_ctx_t &ctx) {
   ctx.audio_packets       = std::make_shared<audio::packet_queue_t::element_type>(30);
   ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
-  ctx.video_thread   = std::thread { videoBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.video_sock), ctx.video_packets };
-  ctx.audio_thread   = std::thread { audioBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.audio_sock), ctx.audio_packets };
-  ctx.control_thread = std::thread { controlBroadcastThread, &broadcast_shutdown_event, &ctx.control_server };
+  ctx.video_thread   = std::thread { videoBroadcastThread, ctx.broadcast_shutdown_event.get(), std::ref(ctx.video_sock), ctx.video_packets };
+  ctx.audio_thread   = std::thread { audioBroadcastThread, ctx.broadcast_shutdown_event.get(), std::ref(ctx.audio_sock), ctx.audio_packets };
+  ctx.control_thread = std::thread { controlBroadcastThread, ctx.broadcast_shutdown_event.get(), &ctx.control_server };
 
   ctx.recv_thread = std::thread { recvThread, std::ref(ctx) };
 
@@ -771,7 +773,7 @@ int start_broadcast(broadcast_ctx_t &ctx) {
 }
 
 void end_broadcast(broadcast_ctx_t &ctx) {
-  broadcast_shutdown_event.raise(true);
+  ctx.broadcast_shutdown_event->raise(true);
 
   // Minimize delay stopping video/audio threads
   ctx.video_packets->stop();
@@ -796,7 +798,7 @@ void end_broadcast(broadcast_ctx_t &ctx) {
   ctx.control_thread.join();
   BOOST_LOG(debug) << "All broadcasting threads ended"sv;
 
-  broadcast_shutdown_event.reset();
+  ctx.broadcast_shutdown_event->reset();
 }
 
 int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &addr, std::chrono::milliseconds timeout) {
