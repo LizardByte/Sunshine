@@ -72,7 +72,9 @@ opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
 
 auto control_shared = safe::make_shared<audio_ctx_t>(start_audio_control, stop_audio_control);
 
-void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t config, void *channel_data) {
+void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
+  auto packets = mail::man->queue<packet_t>(mail::audio_packets);
+
   //FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
@@ -89,7 +91,7 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
 
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   while(auto sample = samples->pop()) {
-    packet_t packet { 1024 }; // 1KB
+    buffer_t packet { 1024 }; // 1KB
 
     int bytes = opus_multistream_encode(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
     if(bytes < 0) {
@@ -104,7 +106,9 @@ void encodeThread(packet_queue_t packets, sample_queue_t samples, config_t confi
   }
 }
 
-void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t config, void *channel_data) {
+void capture(safe::mail_t mail, config_t config, void *channel_data) {
+  auto shutdown_event = mail->event<bool>(mail::shutdown);
+
   //FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
@@ -148,7 +152,7 @@ void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t co
   }
 
   auto samples = std::make_shared<sample_queue_t::element_type>(30);
-  std::thread thread { encodeThread, packets, samples, config, channel_data };
+  std::thread thread { encodeThread, samples, config, channel_data };
 
   auto fg = util::fail_guard([&]() {
     samples->stop();
@@ -225,6 +229,7 @@ int start_audio_control(audio_ctx_t &ctx) {
   ctx.sink = std::move(*sink);
   return 0;
 }
+
 void stop_audio_control(audio_ctx_t &ctx) {
   // restore audio-sink if applicable
   if(!ctx.restore_sink) {

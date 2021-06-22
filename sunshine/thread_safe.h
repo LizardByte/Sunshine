@@ -98,8 +98,6 @@ public:
   }
 
   bool peek() {
-    std::lock_guard lg { _lock };
-
     return _continue && (bool)_status;
   }
 
@@ -243,8 +241,6 @@ public:
   }
 
   bool peek() {
-    std::lock_guard lg { _lock };
-
     return _continue && !_queue.empty();
   }
 
@@ -447,13 +443,19 @@ public:
 
 template<class T>
 inline auto lock(const std::weak_ptr<void> &wp) {
-  return std::reinterpret_pointer_cast<post_t<T>>(wp.lock());
+  return std::reinterpret_pointer_cast<typename T::element_type>(wp.lock());
 }
 
 class mail_raw_t : public std::enable_shared_from_this<mail_raw_t> {
 public:
   template<class T>
-  std::shared_ptr<post_t<event_t<T>>> event(const std::string_view &id) {
+  using event_t = std::shared_ptr<post_t<event_t<T>>>;
+
+  template<class T>
+  using queue_t = std::shared_ptr<post_t<queue_t<T>>>;
+
+  template<class T>
+  event_t<T> event(const std::string_view &id) {
     std::lock_guard lg { mutex };
 
     auto it = id_to_post.find(id);
@@ -461,14 +463,14 @@ public:
       return lock<event_t<T>>(it->second);
     }
 
-    auto post = std::make_shared<post_t<event_t<T>>>(shared_from_this());
+    auto post = std::make_shared<typename event_t<T>::element_type>(shared_from_this());
     id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> { std::string { id }, post });
 
     return post;
   }
 
   template<class T>
-  std::shared_ptr<post_t<queue_t<T>>> queue(const std::string_view &id) {
+  queue_t<T> queue(const std::string_view &id) {
     std::lock_guard lg { mutex };
 
     auto it = id_to_post.find(id);
@@ -476,7 +478,7 @@ public:
       return lock<queue_t<T>>(it->second);
     }
 
-    auto post = std::make_shared<post_t<queue_t<T>>>(shared_from_this(), 32);
+    auto post = std::make_shared<typename queue_t<T>::element_type>(shared_from_this(), 32);
     id_to_post.emplace(std::pair<std::string, std::weak_ptr<void>> { std::string { id }, post });
 
     return post;

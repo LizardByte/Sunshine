@@ -56,10 +56,8 @@ struct packet_raw_t : public AVPacket {
   void *channel_data;
 };
 
-using packet_t       = std::unique_ptr<packet_raw_t>;
-using packet_queue_t = std::shared_ptr<safe::queue_t<packet_t>>;
-using idr_event_t    = std::shared_ptr<safe::event_t<std::pair<int64_t, int64_t>>>;
-using img_event_t    = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
+using packet_t = std::unique_ptr<packet_raw_t>;
+using idr_t    = std::pair<int64_t, int64_t>;
 
 struct config_t {
   int width;
@@ -88,9 +86,7 @@ struct __attribute__((__aligned__(16))) color_t {
 extern color_t colors[4];
 
 void capture(
-  safe::signal_t *shutdown_event,
-  packet_queue_t packets,
-  idr_event_t idr_events,
+  safe::mail_t mail,
   config_t config,
   void *channel_data);
 

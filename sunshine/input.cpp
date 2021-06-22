@@ -46,7 +46,6 @@ void free_id(std::bitset<N> &gamepad_mask, int id) {
   gamepad_mask[id] = false;
 }
 
-touch_port_event_t touch_port_event;
 platf::touch_port_t touch_port {
   0, 0, 0, 0
 };
@@ -89,10 +88,13 @@ struct gamepad_t {
 };
 
 struct input_t {
-  input_t() : active_gamepad_state {}, gamepads(MAX_GAMEPADS), mouse_left_button_timeout {} {}
+  input_t(safe::mail_raw_t::event_t<platf::touch_port_t> touch_port_event)
+      : active_gamepad_state {}, gamepads(MAX_GAMEPADS), touch_port_event { std::move(touch_port_event) }, mouse_left_button_timeout {} {}
 
   std::uint16_t active_gamepad_state;
   std::vector<gamepad_t> gamepads;
+
+  safe::mail_raw_t::event_t<platf::touch_port_t> touch_port_event;
 
   util::ThreadPool::task_id_t mouse_left_button_timeout;
 };
@@ -201,6 +203,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
     input->mouse_left_button_timeout = ENABLE_LEFT_BUTTON_DELAY;
   }
 
+  auto &touch_port_event = input->touch_port_event;
   if(touch_port_event->peek()) {
     touch_port = *touch_port_event->pop();
   }
@@ -552,12 +555,11 @@ void reset(std::shared_ptr<input_t> &input) {
 }
 
 void init() {
-  touch_port_event = std::make_unique<touch_port_event_t::element_type>();
-  platf_input      = platf::input();
+  platf_input = platf::input();
 }
 
-std::shared_ptr<input_t> alloc() {
-  auto input = std::make_shared<input_t>();
+std::shared_ptr<input_t> alloc(safe::mail_t mail) {
+  auto input = std::make_shared<input_t>(mail->event<platf::touch_port_t>(mail::touch_port));
 
   // Workaround to ensure new frames will be captured when a client connects
   task_pool.pushDelayed([]() {

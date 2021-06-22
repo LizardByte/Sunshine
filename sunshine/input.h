@@ -18,10 +18,7 @@ void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&in
 
 void init();
 
-std::shared_ptr<input_t> alloc();
-
-using touch_port_event_t = std::unique_ptr<safe::event_t<platf::touch_port_t>>;
-extern touch_port_event_t touch_port_event;
+std::shared_ptr<input_t> alloc(safe::mail_t mail);
 } // namespace input
 
 #endif //SUNSHINE_INPUT_H

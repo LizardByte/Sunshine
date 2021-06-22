@@ -330,7 +330,6 @@ public:
     replacements = std::move(other.replacements);
     sps          = std::move(other.sps);
     vps          = std::move(other.vps);
-    pps          = std::move(other.pps);
 
     inject = other.inject;
 
@@ -344,17 +343,18 @@ public:
 
   cbs::nal_t sps;
   cbs::nal_t vps;
-  cbs::nal_t pps;
 
   // inject sps/vps data into idr pictures
   int inject;
 };
 
 struct sync_session_ctx_t {
-  safe::signal_t *shutdown_event;
   safe::signal_t *join_event;
-  packet_queue_t packets;
-  idr_event_t idr_events;
+  safe::mail_raw_t::event_t<bool> shutdown_event;
+  safe::mail_raw_t::queue_t<packet_t> packets;
+  safe::mail_raw_t::event_t<idr_t> idr_events;
+  safe::mail_raw_t::event_t<platf::touch_port_t> touch_port_events;
+
   config_t config;
   int frame_nr;
   int key_frame_nr;
@@ -696,7 +696,7 @@ void captureThread(
   }
 }
 
-int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, packet_queue_t &packets, void *channel_data) {
+int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data) {
   frame->pts = frame_nr;
 
   auto &ctx = session.ctx;
@@ -986,9 +986,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 
 void encode_run(
   int &frame_nr, int &key_frame_nr, // Store progress of the frame number
-  safe::signal_t *shutdown_event,   // Signal for shutdown event of the session
-  packet_queue_t packets,
-  idr_event_t idr_events,
+  safe::mail_t mail,
   img_event_t images,
   config_t config,
   int width, int height,
@@ -1007,6 +1005,11 @@ void encode_run(
   auto next_frame = std::chrono::steady_clock::now();
 
   auto frame = session->device->frame;
+
+  auto shutdown_event = mail->event<bool>(mail::shutdown);
+  auto packets        = mail::man->queue<packet_t>(mail::video_packets);
+  auto idr_events     = mail->queue<idr_t>(mail::idr);
+
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
       break;
@@ -1108,9 +1111,6 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
   if(disp->dummy_img(img_tmp)) {
     return encode_e::error;
   }
-
-  // absolute mouse coordinates require that the dimensions of the screen are known
-  input::touch_port_event->raise(disp->offset_x, disp->offset_y, disp->width, disp->height);
 
   std::vector<sync_session_t> synced_sessions;
   for(auto &ctx : synced_session_ctxs) {
@@ -1262,11 +1262,11 @@ void captureThreadSync() {
 }
 
 void capture_async(
-  safe::signal_t *shutdown_event,
-  packet_queue_t &packets,
-  idr_event_t &idr_events,
+  safe::mail_t mail,
   config_t &config,
   void *channel_data) {
+
+  auto shutdown_event = mail->event<bool>(mail::shutdown);
 
   auto images = std::make_shared<img_event_t::element_type>();
   auto lg     = util::fail_guard([&]() {
@@ -1289,6 +1289,8 @@ void capture_async(
 
   int frame_nr     = 1;
   int key_frame_nr = 1;
+
+  auto touch_port_event = mail->event<platf::touch_port_t>(mail::touch_port);
 
   while(!shutdown_event->peek() && images->running()) {
     // Wait for the main capture event when the display is being reinitialized
@@ -1321,12 +1323,11 @@ void capture_async(
     images->raise(std::move(dummy_img));
 
     // absolute mouse coordinates require that the dimensions of the screen are known
-    input::touch_port_event->raise(display->offset_x, display->offset_y, display->width, display->height);
+    touch_port_event->raise(display->offset_x, display->offset_y, display->width, display->height);
 
     encode_run(
       frame_nr, key_frame_nr,
-      shutdown_event,
-      packets, idr_events, images,
+      mail, images,
       config, display->width, display->height,
       hwdevice.get(),
       ref->reinit_event, *ref->encoder_p,
@@ -1335,21 +1336,30 @@ void capture_async(
 }
 
 void capture(
-  safe::signal_t *shutdown_event,
-  packet_queue_t packets,
-  idr_event_t idr_events,
+  safe::mail_t mail,
   config_t config,
   void *channel_data) {
 
+  auto idr_events = mail->event<idr_t>(mail::idr);
+
   idr_events->raise(std::make_pair(0, 1));
   if(encoders.front().flags & SYSTEM_MEMORY) {
-    capture_async(shutdown_event, packets, idr_events, config, channel_data);
+    capture_async(std::move(mail), config, channel_data);
   }
   else {
     safe::signal_t join_event;
     auto ref = capture_thread_sync.ref();
     ref->encode_session_ctx_queue.raise(sync_session_ctx_t {
-      shutdown_event, &join_event, packets, idr_events, config, 1, 1, channel_data });
+      &join_event,
+      mail->event<bool>(mail::shutdown),
+      mail::man->queue<packet_t>(mail::video_packets),
+      std::move(idr_events),
+      mail->event<platf::touch_port_t>(mail::touch_port),
+      config,
+      1,
+      1,
+      channel_data,
+    });
 
     // Wait for join signal
     join_event.view();
@@ -1390,7 +1400,7 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
 
   frame->pict_type = AV_PICTURE_TYPE_I;
 
-  auto packets = std::make_shared<packet_queue_t::element_type>(30);
+  auto packets = mail::man->queue<packet_t>(mail::video_packets);
   while(!packets->peek()) {
     if(encode(1, *session, frame, packets, nullptr)) {
       return -1;
@@ -1520,9 +1530,6 @@ bool validate_encoder(encoder_t &encoder) {
 }
 
 int init() {
-  // video depends on input for input::touch_port_event
-  input::init();
-
   BOOST_LOG(info) << "//////////////////////////////////////////////////////////////////"sv;
   BOOST_LOG(info) << "//                                                              //"sv;
   BOOST_LOG(info) << "//   Testing for available encoders, this may generate errors.  //"sv;

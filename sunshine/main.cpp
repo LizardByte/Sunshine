@@ -200,6 +200,7 @@ int main(int argc, char *argv[]) {
   }
 
   reed_solomon_init();
+  input::init();
   if(video::init()) {
     return 2;
   }

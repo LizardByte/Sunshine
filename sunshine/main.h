@@ -35,10 +35,16 @@ namespace mail {
 
 extern safe::mail_t man;
 
+// Global mail
 MAIL(shutdown);
 MAIL(broadcast_shutdown);
 
+MAIL(video_packets);
+MAIL(audio_packets);
 
+// Local mail
+MAIL(touch_port);
+MAIL(idr);
 #undef MAIL
 } // namespace mail
 

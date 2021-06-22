@@ -37,9 +37,9 @@ struct config_t {
   std::bitset<MAX_FLAGS> flags;
 };
 
-using packet_t       = util::buffer_t<std::uint8_t>;
-using packet_queue_t = std::shared_ptr<safe::queue_t<std::pair<void *, packet_t>>>;
-void capture(safe::signal_t *shutdown_event, packet_queue_t packets, config_t config, void *channel_data);
+using buffer_t = util::buffer_t<std::uint8_t>;
+using packet_t = std::pair<void *, buffer_t>;
+void capture(safe::mail_t mail, config_t config, void *channel_data);
 } // namespace audio
 
 #endif
