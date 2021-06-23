@@ -1261,6 +1261,28 @@ void captureThreadSync() {
   while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
 
+platf::touch_port_t make_port(platf::display_t *display, const config_t &config) {
+  float wd = display->width;
+  float hd = display->height;
+
+  float wt = config.width;
+  float ht = config.height;
+
+  auto scalar = std::fminf(wt / wd, ht / hd);
+
+  auto w2 = scalar * wd;
+  auto h2 = scalar * hd;
+
+  return platf::touch_port_t {
+    display->offset_x,
+    display->offset_y,
+    display->env_width,
+    display->env_height,
+    (int)w2,
+    (int)h2,
+  };
+}
+
 void capture_async(
   safe::mail_t mail,
   config_t &config,
@@ -1323,7 +1345,7 @@ void capture_async(
     images->raise(std::move(dummy_img));
 
     // absolute mouse coordinates require that the dimensions of the screen are known
-    touch_port_event->raise(display->offset_x, display->offset_y, display->width, display->height);
+    touch_port_event->raise(make_port(display.get(), config));
 
     encode_run(
       frame_nr, key_frame_nr,

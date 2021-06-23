@@ -147,7 +147,7 @@ struct x11_attr_t : public display_t {
    * Last X (NOT the streamed monitor!) size.
    * This way we can trigger reinitialization if the dimensions changed while streaming
    */
-  int lastWidth, lastHeight;
+  // int env_width, env_height;
 
   x11_attr_t(mem_type_e mem_type) : xdisplay { XOpenDisplay(nullptr) }, xwindow {}, xattr {}, mem_type { mem_type } {
     XInitThreads();
@@ -204,8 +204,8 @@ struct x11_attr_t : public display_t {
       height = xattr.height;
     }
 
-    lastWidth  = xattr.width;
-    lastHeight = xattr.height;
+    env_width  = xattr.width;
+    env_height = xattr.height;
 
     return 0;
   }
@@ -221,7 +221,7 @@ struct x11_attr_t : public display_t {
     refresh();
 
     //The whole X server changed, so we gotta reinit everything
-    if(xattr.width != lastWidth || xattr.height != lastHeight) {
+    if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
       return capture_e::reinit;
     }
@@ -289,7 +289,7 @@ struct shm_attr_t : public x11_attr_t {
 
   capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) override {
     //The whole X server changed, so we gotta reinit everything
-    if(xattr.width != lastWidth || xattr.height != lastHeight) {
+    if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
       return capture_e::reinit;
     }

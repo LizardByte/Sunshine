@@ -105,13 +105,10 @@ inline std::string_view from_pix_fmt(pix_fmt_e pix_fmt) {
 
 // Dimensions for touchscreen input
 struct touch_port_t {
-  std::uint32_t offset_x, offset_y;
-  std::uint32_t width, height;
+  int offset_x, offset_y;
+  int env_width, env_height;
 
-  constexpr touch_port_t(
-    std::uint32_t offset_x, std::uint32_t offset_y,
-    std::uint32_t width, std::uint32_t height) noexcept : offset_x { offset_x }, offset_y { offset_y },
-                                                          width { width }, height { height } {};
+  int width, height;
 };
 
 struct gamepad_state_t {
@@ -202,6 +199,7 @@ public:
 
   // Offsets for when streaming a specific monitor. By default, they are 0.
   int offset_x, offset_y;
+  int env_width, env_height;
 
   int width, height;
 };
