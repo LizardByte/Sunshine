@@ -1008,7 +1008,7 @@ void encode_run(
 
   auto shutdown_event = mail->event<bool>(mail::shutdown);
   auto packets        = mail::man->queue<packet_t>(mail::video_packets);
-  auto idr_events     = mail->queue<idr_t>(mail::idr);
+  auto idr_events     = mail->event<idr_t>(mail::idr);
 
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
@@ -1061,6 +1061,28 @@ void encode_run(
   }
 }
 
+platf::touch_port_t make_port(platf::display_t *display, const config_t &config) {
+  float wd = display->width;
+  float hd = display->height;
+
+  float wt = config.width;
+  float ht = config.height;
+
+  auto scalar = std::fminf(wt / wd, ht / hd);
+
+  auto w2 = scalar * wd;
+  auto h2 = scalar * hd;
+
+  return platf::touch_port_t {
+    display->offset_x,
+    display->offset_y,
+    display->env_width,
+    display->env_height,
+    (int)w2,
+    (int)h2,
+  };
+}
+
 std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const encoder_t &encoder, platf::img_t &img, sync_session_ctx_t &ctx) {
   sync_session_t encode_session;
 
@@ -1074,6 +1096,9 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   if(!hwdevice) {
     return std::nullopt;
   }
+
+  // absolute mouse coordinates require that the dimensions of the screen are known
+  ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
   auto session = make_session(encoder, ctx.config, img.width, img.height, hwdevice.get());
   if(!session) {
@@ -1259,28 +1284,6 @@ void captureThreadSync() {
   });
 
   while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
-}
-
-platf::touch_port_t make_port(platf::display_t *display, const config_t &config) {
-  float wd = display->width;
-  float hd = display->height;
-
-  float wt = config.width;
-  float ht = config.height;
-
-  auto scalar = std::fminf(wt / wd, ht / hd);
-
-  auto w2 = scalar * wd;
-  auto h2 = scalar * hd;
-
-  return platf::touch_port_t {
-    display->offset_x,
-    display->offset_y,
-    display->env_width,
-    display->env_height,
-    (int)w2,
-    (int)h2,
-  };
 }
 
 void capture_async(

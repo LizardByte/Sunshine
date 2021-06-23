@@ -565,7 +565,7 @@ void recvThread(broadcast_ctx_t &ctx) {
       });
 
       auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
-      BOOST_LOG(debug) << "Recv: "sv << peer.address().to_string() << ":"sv << peer.port() << " :: " << type_str;
+      BOOST_LOG(verbose) << "Recv: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
 
 
       populate_peer_to_session();

@@ -91,6 +91,10 @@ int display_base_t::init() {
   });
 */
 
+  // Get rectangle of full desktop for absolute mouse coordinates
+  env_width  = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+  env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
   HRESULT status;
 
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
@@ -133,6 +137,11 @@ int display_base_t::init() {
         offset_y = desc.DesktopCoordinates.top;
         width    = desc.DesktopCoordinates.right - offset_x;
         height   = desc.DesktopCoordinates.bottom - offset_y;
+
+        // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
+        // Ensure offset starts at 0x0
+        offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
+        offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
       }
     }
 
@@ -195,7 +204,9 @@ int display_base_t::init() {
     << "Device Sys Mem     : "sv << adapter_desc.DedicatedSystemMemory / 1048576 << " MiB"sv << std::endl
     << "Share Sys Mem      : "sv << adapter_desc.SharedSystemMemory / 1048576 << " MiB"sv << std::endl
     << "Feature Level      : 0x"sv << util::hex(feature_level).to_string_view() << std::endl
-    << "Capture size       : "sv << width << 'x' << height;
+    << "Capture size       : "sv << width << 'x' << height << std::endl
+    << "Offset             : "sv << offset_x << 'x' << offset_y << std::endl
+    << "Virtual Desktop    : "sv << env_width << 'x' << env_height;
 
   // Bump up thread priority
   {
