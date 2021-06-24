@@ -123,8 +123,8 @@ void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y)
     // MOUSEEVENTF_VIRTUALDESK maps to the entirety of the desktop rather than the primary desktop
     MOUSEEVENTF_VIRTUALDESK;
 
-  auto scaled_x = std::lround((x + touch_port.offset_x) * ((float)target_touch_port.env_width / (float)touch_port.env_width));
-  auto scaled_y = std::lround((y + touch_port.offset_y) * ((float)target_touch_port.env_height / (float)touch_port.env_height));
+  auto scaled_x = std::lround((x + touch_port.offset_x) * ((float)target_touch_port.width / (float)touch_port.width));
+  auto scaled_y = std::lround((y + touch_port.offset_y) * ((float)target_touch_port.height / (float)touch_port.height));
 
   mi.dx = scaled_x;
   mi.dy = scaled_y;

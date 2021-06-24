@@ -46,10 +46,6 @@ void free_id(std::bitset<N> &gamepad_mask, int id) {
   gamepad_mask[id] = false;
 }
 
-platf::touch_port_t touch_port {
-  0, 0, 0, 0
-};
-
 static util::TaskPool::task_id_t task_id {};
 static std::unordered_map<short, bool> key_press {};
 static std::array<std::uint8_t, 5> mouse_press {};
@@ -88,15 +84,21 @@ struct gamepad_t {
 };
 
 struct input_t {
-  input_t(safe::mail_raw_t::event_t<platf::touch_port_t> touch_port_event)
-      : active_gamepad_state {}, gamepads(MAX_GAMEPADS), touch_port_event { std::move(touch_port_event) }, mouse_left_button_timeout {} {}
+  input_t(safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event)
+      : active_gamepad_state {},
+        gamepads(MAX_GAMEPADS),
+        touch_port_event { std::move(touch_port_event) },
+        mouse_left_button_timeout {},
+        touch_port { 0, 0, 0, 0, 0, 0, 1.0f } {}
 
   std::uint16_t active_gamepad_state;
   std::vector<gamepad_t> gamepads;
 
-  safe::mail_raw_t::event_t<platf::touch_port_t> touch_port_event;
+  safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;
 
   util::ThreadPool::task_id_t mouse_left_button_timeout;
+
+  input::touch_port_t touch_port;
 };
 
 using namespace std::literals;
@@ -204,6 +206,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
   }
 
   auto &touch_port_event = input->touch_port_event;
+  auto &touch_port       = input->touch_port;
   if(touch_port_event->peek()) {
     touch_port = *touch_port_event->pop();
   }
@@ -233,7 +236,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
     touch_port.env_width, touch_port.env_height
   };
 
-  platf::abs_mouse(platf_input, abs_port, x - offsetX, y - offsetY); //touch_port, x * scale_x + offsetX, y * scale_y + offsetY);
+  platf::abs_mouse(platf_input, abs_port, (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv);
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
@@ -567,7 +570,7 @@ void init() {
 }
 
 std::shared_ptr<input_t> alloc(safe::mail_t mail) {
-  auto input = std::make_shared<input_t>(mail->event<platf::touch_port_t>(mail::touch_port));
+  auto input = std::make_shared<input_t>(mail->event<input::touch_port_t>(mail::touch_port));
 
   // Workaround to ensure new frames will be captured when a client connects
   task_pool.pushDelayed([]() {

@@ -12,6 +12,7 @@ extern "C" {
 
 #include "cbs.h"
 #include "config.h"
+#include "input.h"
 #include "main.h"
 #include "platform/common.h"
 #include "round_robin.h"
@@ -353,7 +354,7 @@ struct sync_session_ctx_t {
   safe::mail_raw_t::event_t<bool> shutdown_event;
   safe::mail_raw_t::queue_t<packet_t> packets;
   safe::mail_raw_t::event_t<idr_t> idr_events;
-  safe::mail_raw_t::event_t<platf::touch_port_t> touch_port_events;
+  safe::mail_raw_t::event_t<input::touch_port_t> touch_port_events;
 
   config_t config;
   int frame_nr;
@@ -1061,7 +1062,7 @@ void encode_run(
   }
 }
 
-platf::touch_port_t make_port(platf::display_t *display, const config_t &config) {
+input::touch_port_t make_port(platf::display_t *display, const config_t &config) {
   float wd = display->width;
   float hd = display->height;
 
@@ -1073,13 +1074,14 @@ platf::touch_port_t make_port(platf::display_t *display, const config_t &config)
   auto w2 = scalar * wd;
   auto h2 = scalar * hd;
 
-  return platf::touch_port_t {
+  return input::touch_port_t {
     display->offset_x,
     display->offset_y,
-    display->env_width,
-    display->env_height,
     (int)w2,
     (int)h2,
+    display->env_width,
+    display->env_height,
+    1.0f / scalar,
   };
 }
 
@@ -1315,7 +1317,7 @@ void capture_async(
   int frame_nr     = 1;
   int key_frame_nr = 1;
 
-  auto touch_port_event = mail->event<platf::touch_port_t>(mail::touch_port);
+  auto touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
 
   while(!shutdown_event->peek() && images->running()) {
     // Wait for the main capture event when the display is being reinitialized
@@ -1379,7 +1381,7 @@ void capture(
       mail->event<bool>(mail::shutdown),
       mail::man->queue<packet_t>(mail::video_packets),
       std::move(idr_events),
-      mail->event<platf::touch_port_t>(mail::touch_port),
+      mail->event<input::touch_port_t>(mail::touch_port),
       config,
       1,
       1,

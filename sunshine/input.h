@@ -7,6 +7,7 @@
 
 #include "platform/common.h"
 #include "thread_safe.h"
+
 namespace input {
 
 struct input_t;
@@ -19,6 +20,13 @@ void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&in
 void init();
 
 std::shared_ptr<input_t> alloc(safe::mail_t mail);
+
+struct touch_port_t : public platf::touch_port_t {
+  int env_width, env_height;
+
+  // inverse of scalar used for aspect ratio
+  float scalar_inv;
+};
 } // namespace input
 
 #endif //SUNSHINE_INPUT_H

@@ -106,8 +106,6 @@ inline std::string_view from_pix_fmt(pix_fmt_e pix_fmt) {
 // Dimensions for touchscreen input
 struct touch_port_t {
   int offset_x, offset_y;
-  int env_width, env_height;
-
   int width, height;
 };
 
