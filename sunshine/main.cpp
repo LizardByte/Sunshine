@@ -21,7 +21,6 @@
 #include "httpcommon.h"
 #include "main.h"
 #include "nvhttp.h"
-#include "publish.h"
 #include "rtsp.h"
 #include "thread_pool.h"
 #include "video.h"
@@ -216,7 +215,7 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-  std::thread publishThread { publish::start };
+  std::thread publishThread { platf::publish::start };
   std::thread httpThread { nvhttp::start };
   std::thread configThread { confighttp::start };
   stream::rtpThread();

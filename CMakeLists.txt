@@ -101,6 +101,7 @@ else()
 	find_package(FFmpeg REQUIRED)
 
 	set(PLATFORM_TARGET_FILES
+		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
 		sunshine/platform/linux/misc.cpp
@@ -190,8 +191,6 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/thread_safe.h
 	sunshine/sync.h
 	sunshine/round_robin.h
-	sunshine/publish.h
-	sunshine/publish.cpp
 	${PLATFORM_TARGET_FILES})
 
 include_directories(

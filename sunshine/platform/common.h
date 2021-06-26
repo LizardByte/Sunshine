@@ -245,6 +245,13 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
 int alloc_gamepad(input_t &input, int nr);
 void free_gamepad(input_t &input, int nr);
 
+#define SERVICE_NAME "Sunshine"
+#define SERVICE_TYPE "_nvstream._tcp"
+
+namespace publish {
+void start();
+}
+
 [[nodiscard]] std::unique_ptr<deinit_t> init();
 } // namespace platf
 
