@@ -215,12 +215,11 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-  std::thread publishThread { platf::publish::start };
+  auto deinit = platf::publish::start();
   std::thread httpThread { nvhttp::start };
   std::thread configThread { confighttp::start };
   stream::rtpThread();
 
-  publishThread.join();
   httpThread.join();
   configThread.join();
 

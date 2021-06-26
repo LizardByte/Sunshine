@@ -249,7 +249,7 @@ void free_gamepad(input_t &input, int nr);
 #define SERVICE_TYPE "_nvstream._tcp"
 
 namespace publish {
-void start();
+[[nodiscard]] std::unique_ptr<deinit_t> start();
 }
 
 [[nodiscard]] std::unique_ptr<deinit_t> init();

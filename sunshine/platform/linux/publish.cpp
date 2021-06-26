@@ -282,6 +282,7 @@ using poll_t   = util::dyn_safe_ptr<avahi::SimplePoll, &avahi::simple_poll_free>
 avahi::EntryGroup *group = nullptr;
 
 poll_t poll;
+client_t client;
 
 ptr_t<char> name;
 
@@ -374,40 +375,46 @@ void client_callback(avahi::Client *c, avahi::ClientState state, void *) {
   }
 }
 
-void start() {
-  if(avahi::init_client()) {
-    return;
-  }
+class deinit_t : public ::platf::deinit_t {
+public:
+  std::thread poll_thread;
 
-  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+  deinit_t(std::thread poll_thread) : poll_thread { std::move(poll_thread) } {}
+
+  ~deinit_t() override {
+    if(avahi::simple_poll_quit && poll) {
+      avahi::simple_poll_quit(poll.get());
+    }
+
+    if(poll_thread.joinable()) {
+      poll_thread.join();
+    }
+  }
+};
+
+[[nodiscard]] std::unique_ptr<::platf::deinit_t> start() {
+  if(avahi::init_client()) {
+    return nullptr;
+  }
 
   int avhi_error;
 
   poll.reset(avahi::simple_poll_new());
   if(!poll) {
     BOOST_LOG(error) << "Failed to create simple poll object."sv;
-    return;
+    return nullptr;
   }
 
   name.reset(avahi::strdup(SERVICE_NAME));
 
-  client_t client {
-    avahi::client_new(avahi::simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, nullptr, &avhi_error)
-  };
+  client.reset(
+    avahi::client_new(avahi::simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, nullptr, &avhi_error));
 
   if(!client) {
     BOOST_LOG(error) << "Failed to create client: "sv << avahi::strerror(avhi_error);
-    return;
+    return nullptr;
   }
 
-  std::thread poll_thread { avahi::simple_poll_loop, poll.get() };
-
-  auto fg = util::fail_guard([&]() {
-    avahi::simple_poll_quit(poll.get());
-    poll_thread.join();
-  });
-
-  // Wait for any event
-  shutdown_event->view();
+  return std::make_unique<deinit_t>(std::thread { avahi::simple_poll_loop, poll.get() });
 }
 }; // namespace platf::publish
