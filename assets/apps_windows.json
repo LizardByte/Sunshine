@@ -7,9 +7,7 @@
 		"name":"Steam BigPicture",
 
 		"output":"steam.txt",
-		"prep-cmd":[
-			{"do":"steam \"steam://open/bigpicture\""}
-		]
+		"detached":["steam steam://open/bigpicture"]
 	}
 	]
 }

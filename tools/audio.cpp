@@ -2,9 +2,9 @@
 // Created by loki on 1/24/20.
 //
 
-#include <roapi.h>
-#include <mmdeviceapi.h>
 #include <audioclient.h>
+#include <mmdeviceapi.h>
+#include <roapi.h>
 
 #include <synchapi.h>
 
@@ -16,8 +16,8 @@
 
 #include "sunshine/utility.h"
 
-DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc,            0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);     // DEVPROP_TYPE_STRING
-DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName,          0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);    // DEVPROP_TYPE_STRING
+DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);    // DEVPROP_TYPE_STRING
+DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14); // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
 
 using namespace std::literals;
@@ -26,7 +26,9 @@ const IID IID_IMMDeviceEnumerator    = __uuidof(IMMDeviceEnumerator);
 const IID IID_IAudioClient           = __uuidof(IAudioClient);
 const IID IID_IAudioCaptureClient    = __uuidof(IAudioCaptureClient);
 
-int device_state_filter = DEVICE_STATE_ACTIVE;
+constexpr auto SAMPLE_RATE = 48000;
+int device_state_filter    = DEVICE_STATE_ACTIVE;
+
 namespace audio {
 template<class T>
 void Release(T *p) {
@@ -66,19 +68,118 @@ public:
 const wchar_t *no_null(const wchar_t *str) {
   return str ? str : L"Unknown";
 }
-void print_device(device_t &device) {
-  HRESULT status;
 
-  audio::wstring_t::pointer wstring_p {};
+struct format_t {
+  std::string_view name;
+  int channels;
+  int channel_mask;
+} formats[] {
+  { "Mono"sv,
+    1,
+    SPEAKER_FRONT_CENTER },
+  { "Stereo"sv,
+    2,
+    SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT },
+  { "Surround 5.1"sv,
+    6,
+    SPEAKER_FRONT_LEFT |
+      SPEAKER_FRONT_RIGHT |
+      SPEAKER_FRONT_CENTER |
+      SPEAKER_LOW_FREQUENCY |
+      SPEAKER_BACK_LEFT |
+      SPEAKER_BACK_RIGHT },
+  { "Surround 7.1"sv,
+    8,
+    SPEAKER_FRONT_LEFT |
+      SPEAKER_FRONT_RIGHT |
+      SPEAKER_FRONT_CENTER |
+      SPEAKER_LOW_FREQUENCY |
+      SPEAKER_BACK_LEFT |
+      SPEAKER_BACK_RIGHT |
+      SPEAKER_SIDE_LEFT |
+      SPEAKER_SIDE_RIGHT }
+};
+
+void set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
+  wave_format->nChannels       = format.channels;
+  wave_format->nBlockAlign     = wave_format->nChannels * wave_format->wBitsPerSample / 8;
+  wave_format->nAvgBytesPerSec = wave_format->nSamplesPerSec * wave_format->nBlockAlign;
+
+  if(wave_format->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+    ((PWAVEFORMATEXTENSIBLE)wave_format.get())->dwChannelMask = format.channel_mask;
+  }
+}
+
+audio_client_t make_audio_client(device_t &device, const format_t &format) {
+  audio_client_t audio_client;
+  auto status = device->Activate(
+    IID_IAudioClient,
+    CLSCTX_ALL,
+    nullptr,
+    (void **)&audio_client);
+
+  if(FAILED(status)) {
+    std::cout << "Couldn't activate Device: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+
+    return nullptr;
+  }
+
+  wave_format_t wave_format;
+  status = audio_client->GetMixFormat(&wave_format);
+
+  if(FAILED(status)) {
+    std::cout << "Couldn't acquire Wave Format [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+
+    return nullptr;
+  }
+
+  wave_format->wBitsPerSample = 16;
+  wave_format->nSamplesPerSec = SAMPLE_RATE;
+  switch(wave_format->wFormatTag) {
+  case WAVE_FORMAT_PCM:
+    break;
+  case WAVE_FORMAT_IEEE_FLOAT:
+    break;
+  case WAVE_FORMAT_EXTENSIBLE: {
+    auto wave_ex = (PWAVEFORMATEXTENSIBLE)wave_format.get();
+    if(IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, wave_ex->SubFormat)) {
+      wave_ex->SubFormat                   = KSDATAFORMAT_SUBTYPE_PCM;
+      wave_ex->Samples.wValidBitsPerSample = 16;
+      break;
+    }
+
+    std::cout << "Unsupported Sub Format for WAVE_FORMAT_EXTENSIBLE: [0x"sv << util::hex(wave_ex->SubFormat).to_string_view() << ']' << std::endl;
+  }
+  default:
+    std::cout << "Unsupported Wave Format: [0x"sv << util::hex(wave_format->wFormatTag).to_string_view() << ']' << std::endl;
+    return nullptr;
+  };
+
+  set_wave_format(wave_format, format);
+
+  status = audio_client->Initialize(
+    AUDCLNT_SHAREMODE_SHARED,
+    AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+    0, 0,
+    wave_format.get(),
+    nullptr);
+
+  if(status) {
+    return nullptr;
+  }
+
+  return audio_client;
+}
+
+void print_device(device_t &device) {
+  audio::wstring_t wstring;
   DWORD device_state;
 
   device->GetState(&device_state);
-  device->GetId(&wstring_p);
-  audio::wstring_t wstring { wstring_p };
+  device->GetId(&wstring);
 
-  audio::prop_t::pointer prop_p {};
-  device->OpenPropertyStore(STGM_READ, &prop_p);
-  audio::prop_t prop { prop_p };
+  audio::prop_t prop;
+  device->OpenPropertyStore(STGM_READ, &prop);
 
   prop_var_t adapter_friendly_name;
   prop_var_t device_friendly_name;
@@ -94,18 +195,18 @@ void print_device(device_t &device) {
 
   std::wstring device_state_string = L"Unknown"s;
   switch(device_state) {
-    case DEVICE_STATE_ACTIVE:
-      device_state_string = L"Active"s;
-      break;
-    case DEVICE_STATE_DISABLED:
-      device_state_string = L"Disabled"s;
-      break;
-    case DEVICE_STATE_UNPLUGGED:
-      device_state_string = L"Unplugged"s;
-      break;
-    case DEVICE_STATE_NOTPRESENT:
-      device_state_string = L"Not present"s;
-      break;
+  case DEVICE_STATE_ACTIVE:
+    device_state_string = L"Active"s;
+    break;
+  case DEVICE_STATE_DISABLED:
+    device_state_string = L"Disabled"s;
+    break;
+  case DEVICE_STATE_UNPLUGGED:
+    device_state_string = L"Unplugged"s;
+    break;
+  case DEVICE_STATE_NOTPRESENT:
+    device_state_string = L"Not present"s;
+    break;
   }
 
   std::wcout
@@ -114,55 +215,21 @@ void print_device(device_t &device) {
     << L"Device name        : "sv << no_null((LPWSTR)device_friendly_name.prop.pszVal) << std::endl
     << L"Adapter name       : "sv << no_null((LPWSTR)adapter_friendly_name.prop.pszVal) << std::endl
     << L"Device description : "sv << no_null((LPWSTR)device_desc.prop.pszVal) << std::endl
-    << L"Device state       : "sv << device_state_string << std::endl << std::endl;
+    << L"Device state       : "sv << device_state_string << std::endl
+    << std::endl;
 
   if(device_state != DEVICE_STATE_ACTIVE) {
     return;
   }
 
-  // Ensure WaveFromat is compatible
-  audio_client_t::pointer audio_client_p{};
-  status = device->Activate(
-    IID_IAudioClient,
-    CLSCTX_ALL,
-    nullptr,
-    (void **) &audio_client_p);
-  audio_client_t audio_client { audio_client_p };
+  for(const auto &format : formats) {
+    // Ensure WaveFromat is compatible
+    auto audio_client = make_audio_client(device, format);
 
-  if (FAILED(status)) {
-    std::cout << "Couldn't activate Device: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-
-    return;
+    std::cout << format.name << ": "sv << (!audio_client ? "unsupported"sv : "supported"sv) << std::endl;
   }
-
-  wave_format_t::pointer wave_format_p{};
-  status = audio_client->GetMixFormat(&wave_format_p);
-  wave_format_t wave_format { wave_format_p };
-
-  if (FAILED(status)) {
-    std::cout << "Couldn't acquire Wave Format [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-
-    return;
-  }
-
-  switch(wave_format->wFormatTag) {
-    case WAVE_FORMAT_PCM:
-      break;
-    case WAVE_FORMAT_IEEE_FLOAT:
-      break;
-    case WAVE_FORMAT_EXTENSIBLE: {
-      auto wave_ex = (PWAVEFORMATEXTENSIBLE) wave_format.get();
-      if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, wave_ex->SubFormat)) {
-        break;
-      }
-
-      std::cout << "Unsupported Sub Format for WAVE_FORMAT_EXTENSIBLE: [0x"sv << util::hex(wave_ex->SubFormat).to_string_view() << ']' << std::endl;
-    }
-    default:
-      std::cout << "Unsupported Wave Format: [0x"sv << util::hex(wave_format->wFormatTag).to_string_view() << ']' << std::endl;
-  };
 }
-}
+} // namespace audio
 
 void print_help() {
   std::cout
@@ -213,26 +280,24 @@ int main(int argc, char *argv[]) {
 
   HRESULT status;
 
-  audio::device_enum_t::pointer device_enum_p{};
+  audio::device_enum_t device_enum;
   status = CoCreateInstance(
     CLSID_MMDeviceEnumerator,
     nullptr,
     CLSCTX_ALL,
     IID_IMMDeviceEnumerator,
-    (void **) &device_enum_p);
-  audio::device_enum_t device_enum { device_enum_p };
+    (void **)&device_enum);
 
-  if (FAILED(status)) {
+  if(FAILED(status)) {
     std::cout << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
 
     return -1;
   }
 
-  audio::collection_t::pointer collection_p {};
-  status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATEMASK_ALL, &collection_p);
-  audio::collection_t collection { collection_p };
+  audio::collection_t collection;
+  status = device_enum->EnumAudioEndpoints(eRender, device_state_filter, &collection);
 
-  if (FAILED(status)) {
+  if(FAILED(status)) {
     std::cout << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
 
     return -1;
@@ -241,11 +306,10 @@ int main(int argc, char *argv[]) {
   UINT count;
   collection->GetCount(&count);
 
-  std::cout << "====== Found "sv << count << " potential audio devices ======"sv << std::endl;
+  std::cout << "====== Found "sv << count << " audio devices ======"sv << std::endl;
   for(auto x = 0; x < count; ++x) {
-    audio::device_t::pointer device_p {};
-    collection->Item(x, &device_p);
-    audio::device_t device { device_p };
+    audio::device_t device;
+    collection->Item(x, &device);
 
     audio::print_device(device);
   }

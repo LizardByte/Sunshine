@@ -9,20 +9,20 @@
 #include <avahi-common/malloc.h>
 #include <avahi-common/simple-watch.h>
 
-#include "publish.h"
-#include "nvhttp.h"
 #include "main.h"
+#include "nvhttp.h"
+#include "publish.h"
 
 namespace publish {
-AvahiEntryGroup *group = NULL;
+AvahiEntryGroup *group       = NULL;
 AvahiSimplePoll *simple_poll = NULL;
-char *name = NULL;
+char *name                   = NULL;
 void create_services(AvahiClient *c);
 
 void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AVAHI_GCC_UNUSED void *userdata) {
   assert(g == group || group == NULL);
   group = g;
-  switch (state) {
+  switch(state) {
   case AVAHI_ENTRY_GROUP_ESTABLISHED:
     BOOST_LOG(info) << "Avahi service " << name << " successfully established.";
     break;
@@ -39,8 +39,7 @@ void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AVAHI_
     avahi_simple_poll_quit(simple_poll);
     break;
   case AVAHI_ENTRY_GROUP_UNCOMMITED:
-  case AVAHI_ENTRY_GROUP_REGISTERING:
-    ;
+  case AVAHI_ENTRY_GROUP_REGISTERING:;
   }
 }
 
@@ -48,22 +47,22 @@ void create_services(AvahiClient *c) {
   char *n;
   int ret;
   assert(c);
-  if (!group) {
-    if (!(group = avahi_entry_group_new(c, entry_group_callback, NULL))) {
+  if(!group) {
+    if(!(group = avahi_entry_group_new(c, entry_group_callback, NULL))) {
       BOOST_LOG(error) << "avahi_entry_group_new() failed: " << avahi_strerror(avahi_client_errno(c));
       goto fail;
     }
   }
-  if (avahi_entry_group_is_empty(group)) {
+  if(avahi_entry_group_is_empty(group)) {
     BOOST_LOG(info) << "Adding avahi service " << name;
 
-    if ((ret = avahi_entry_group_add_service(group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, AvahiPublishFlags(0), name, SERVICE_TYPE, NULL, NULL, nvhttp::PORT_HTTP, NULL)) < 0) {
-      if (ret == AVAHI_ERR_COLLISION)
+    if((ret = avahi_entry_group_add_service(group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, AvahiPublishFlags(0), name, SERVICE_TYPE, NULL, NULL, nvhttp::PORT_HTTP, NULL)) < 0) {
+      if(ret == AVAHI_ERR_COLLISION)
         goto collision;
       BOOST_LOG(error) << "Failed to add " << SERVICE_TYPE << " service: " << avahi_strerror(ret);
       goto fail;
     }
-    if ((ret = avahi_entry_group_commit(group)) < 0) {
+    if((ret = avahi_entry_group_commit(group)) < 0) {
       BOOST_LOG(error) << "Failed to commit entry group: " << avahi_strerror(ret);
       goto fail;
     }
@@ -74,7 +73,7 @@ collision:
   n = avahi_alternative_service_name(name);
   avahi_free(name);
   name = n;
-  BOOST_LOG(info) <<  "Service name collision, renaming service to " << name;
+  BOOST_LOG(info) << "Service name collision, renaming service to " << name;
   avahi_entry_group_reset(group);
   create_services(c);
   return;
@@ -84,7 +83,7 @@ fail:
 
 void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UNUSED void *userdata) {
   assert(c);
-  switch (state) {
+  switch(state) {
   case AVAHI_CLIENT_S_RUNNING:
     create_services(c);
     break;
@@ -94,24 +93,25 @@ void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UNUSED vo
     break;
   case AVAHI_CLIENT_S_COLLISION:
   case AVAHI_CLIENT_S_REGISTERING:
-    if (group)
+    if(group)
       avahi_entry_group_reset(group);
     break;
-  case AVAHI_CLIENT_CONNECTING:
-    ;
+  case AVAHI_CLIENT_CONNECTING:;
   }
 }
 
-void start(std::shared_ptr<safe::signal_t> shutdown_event) {
+void start() {
+  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+
   AvahiClient *client = NULL;
   int avhi_error;
-  if (!(simple_poll = avahi_simple_poll_new())) {
+  if(!(simple_poll = avahi_simple_poll_new())) {
     BOOST_LOG(error) << "Failed to create simple poll object.";
     return;
   }
-  name = avahi_strdup(SERVICE_NAME);
+  name   = avahi_strdup(SERVICE_NAME);
   client = avahi_client_new(avahi_simple_poll_get(simple_poll), AvahiClientFlags(0), client_callback, NULL, &avhi_error);
-  if (!client) {
+  if(!client) {
     BOOST_LOG(error) << "Failed to create client: " << avahi_strerror(avhi_error);
     avahi_simple_poll_free(simple_poll);
     return;
@@ -125,7 +125,7 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   avahi_simple_poll_quit(simple_poll);
 
   poll_thread.join();
-  
+
   avahi_client_free(client);
   avahi_simple_poll_free(simple_poll);
   avahi_free(name);

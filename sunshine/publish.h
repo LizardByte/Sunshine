@@ -7,7 +7,7 @@
 #define SERVICE_TYPE "_nvstream._tcp"
 
 namespace publish {
-void start(std::shared_ptr<safe::signal_t> shutdown_event);
+void start();
 }
 
 #endif //SUNSHINE_PUBLISH_H

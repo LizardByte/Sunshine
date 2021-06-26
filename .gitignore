@@ -1,8 +1,10 @@
 build
-cmake-build-*
+cmake-build*
 .DS_Store
-
+.vscode
+.vs
 *.swp
 *.kdev4
 
+.cache
 .idea

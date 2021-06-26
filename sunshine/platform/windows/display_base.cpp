@@ -23,18 +23,18 @@ capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::ch
   auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
 
   switch(status) {
-    case S_OK:
-      has_frame = true;
-      return capture_e::ok;
-    case DXGI_ERROR_WAIT_TIMEOUT:
-      return capture_e::timeout;
-    case WAIT_ABANDONED:
-    case DXGI_ERROR_ACCESS_LOST:
-    case DXGI_ERROR_ACCESS_DENIED:
-      return capture_e::reinit;
-    default:
-      BOOST_LOG(error) << "Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view();
-      return capture_e::error;
+  case S_OK:
+    has_frame = true;
+    return capture_e::ok;
+  case DXGI_ERROR_WAIT_TIMEOUT:
+    return capture_e::timeout;
+  case WAIT_ABANDONED:
+  case DXGI_ERROR_ACCESS_LOST:
+  case DXGI_ERROR_ACCESS_DENIED:
+    return capture_e::reinit;
+  default:
+    BOOST_LOG(error) << "Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view();
+    return capture_e::error;
   }
 }
 
@@ -52,20 +52,20 @@ capture_e duplication_t::release_frame() {
   }
 
   auto status = dup->ReleaseFrame();
-  switch (status) {
-    case S_OK:
-      has_frame = false;
-      return capture_e::ok;
-    case DXGI_ERROR_WAIT_TIMEOUT:
-      return capture_e::timeout;
-    case WAIT_ABANDONED:
-    case DXGI_ERROR_ACCESS_LOST:
-    case DXGI_ERROR_ACCESS_DENIED:
-      has_frame = false;
-      return capture_e::reinit;
-    default:
-      BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
-      return capture_e::error;
+  switch(status) {
+  case S_OK:
+    has_frame = false;
+    return capture_e::ok;
+  case DXGI_ERROR_WAIT_TIMEOUT:
+    return capture_e::timeout;
+  case WAIT_ABANDONED:
+  case DXGI_ERROR_ACCESS_LOST:
+  case DXGI_ERROR_ACCESS_DENIED:
+    has_frame = false;
+    return capture_e::reinit;
+  default:
+    BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
+    return capture_e::error;
   }
 }
 
@@ -74,7 +74,7 @@ duplication_t::~duplication_t() {
 }
 
 int display_base_t::init() {
-/* Uncomment when use of IDXGIOutput5 is implemented
+  /* Uncomment when use of IDXGIOutput5 is implemented
   std::call_once(windows_cpp_once_flag, []() {
     DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
     const auto DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ((DPI_AWARENESS_CONTEXT)-4);
@@ -90,16 +90,14 @@ int display_base_t::init() {
     FreeLibrary(user32);
   });
 */
-  dxgi::factory1_t::pointer   factory_p {};
-  dxgi::adapter_t::pointer    adapter_p {};
-  dxgi::output_t::pointer     output_p {};
-  dxgi::device_t::pointer     device_p {};
-  dxgi::device_ctx_t::pointer device_ctx_p {};
+
+  // Get rectangle of full desktop for absolute mouse coordinates
+  env_width  = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+  env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
   HRESULT status;
 
-  status = CreateDXGIFactory1(IID_IDXGIFactory1, (void**)&factory_p);
-  factory.reset(factory_p);
+  status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
@@ -108,9 +106,10 @@ int display_base_t::init() {
   std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   auto adapter_name = converter.from_bytes(config::video.adapter_name);
-  auto output_name = converter.from_bytes(config::video.output_name);
+  auto output_name  = converter.from_bytes(config::video.output_name);
 
-  for(int x = 0; factory_p->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+  adapter_t::pointer adapter_p;
+  for(int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
     dxgi::adapter_t adapter_tmp { adapter_p };
 
     DXGI_ADAPTER_DESC1 adapter_desc;
@@ -120,8 +119,9 @@ int display_base_t::init() {
       continue;
     }
 
+    dxgi::output_t::pointer output_p;
     for(int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
-      dxgi::output_t output_tmp {output_p };
+      dxgi::output_t output_tmp { output_p };
 
       DXGI_OUTPUT_DESC desc;
       output_tmp->GetDesc(&desc);
@@ -133,8 +133,15 @@ int display_base_t::init() {
       if(desc.AttachedToDesktop) {
         output = std::move(output_tmp);
 
-        width  = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
-        height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
+        offset_x = desc.DesktopCoordinates.left;
+        offset_y = desc.DesktopCoordinates.top;
+        width    = desc.DesktopCoordinates.right - offset_x;
+        height   = desc.DesktopCoordinates.bottom - offset_y;
+
+        // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
+        // Ensure offset starts at 0x0
+        offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
+        offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
       }
     }
 
@@ -150,8 +157,6 @@ int display_base_t::init() {
   }
 
   D3D_FEATURE_LEVEL featureLevels[] {
-    D3D_FEATURE_LEVEL_12_1,
-    D3D_FEATURE_LEVEL_12_0,
     D3D_FEATURE_LEVEL_11_1,
     D3D_FEATURE_LEVEL_11_0,
     D3D_FEATURE_LEVEL_10_1,
@@ -161,10 +166,9 @@ int display_base_t::init() {
     D3D_FEATURE_LEVEL_9_1
   };
 
-  status = adapter->QueryInterface(IID_IDXGIAdapter, (void**)&adapter_p);
+  status = adapter->QueryInterface(IID_IDXGIAdapter, (void **)&adapter_p);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to query IDXGIAdapter interface"sv;
-
     return -1;
   }
 
@@ -175,14 +179,12 @@ int display_base_t::init() {
     D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
     featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
     D3D11_SDK_VERSION,
-    &device_p,
+    &device,
     &feature_level,
-    &device_ctx_p);
+    &device_ctx);
 
   adapter_p->Release();
 
-  device.reset(device_p);
-  device_ctx.reset(device_ctx_p);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create D3D11 device [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -202,16 +204,46 @@ int display_base_t::init() {
     << "Device Sys Mem     : "sv << adapter_desc.DedicatedSystemMemory / 1048576 << " MiB"sv << std::endl
     << "Share Sys Mem      : "sv << adapter_desc.SharedSystemMemory / 1048576 << " MiB"sv << std::endl
     << "Feature Level      : 0x"sv << util::hex(feature_level).to_string_view() << std::endl
-    << "Capture size       : "sv << width << 'x'  << height;
+    << "Capture size       : "sv << width << 'x' << height << std::endl
+    << "Offset             : "sv << offset_x << 'x' << offset_y << std::endl
+    << "Virtual Desktop    : "sv << env_width << 'x' << env_height;
 
   // Bump up thread priority
   {
-    dxgi::dxgi_t::pointer dxgi_p {};
-    status = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgi_p);
-    dxgi::dxgi_t dxgi { dxgi_p };
+    const DWORD flags = TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY;
+    TOKEN_PRIVILEGES tp;
+    HANDLE token;
+    LUID val;
 
+    if(OpenProcessToken(GetCurrentProcess(), flags, &token) &&
+       !!LookupPrivilegeValue(NULL, SE_INC_BASE_PRIORITY_NAME, &val)) {
+      tp.PrivilegeCount           = 1;
+      tp.Privileges[0].Luid       = val;
+      tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+      if(!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), NULL, NULL)) {
+        BOOST_LOG(warning) << "Could not set privilege to increase GPU priority";
+      }
+    }
+
+    CloseHandle(token);
+
+    HMODULE gdi32 = GetModuleHandleA("GDI32");
+    if(gdi32) {
+      PD3DKMTSetProcessSchedulingPriorityClass fn =
+        (PD3DKMTSetProcessSchedulingPriorityClass)GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
+      if(fn) {
+        status = fn(GetCurrentProcess(), D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME);
+        if(FAILED(status)) {
+          BOOST_LOG(warning) << "Failed to set realtime GPU priority. Please run application as administrator for optimal performance.";
+        }
+      }
+    }
+
+    dxgi::dxgi_t dxgi;
+    status = device->QueryInterface(IID_IDXGIDevice, (void **)&dxgi);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(warning) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -220,25 +252,24 @@ int display_base_t::init() {
 
   // Try to reduce latency
   {
-    dxgi::dxgi1_t::pointer dxgi_p {};
-    status = device->QueryInterface(IID_IDXGIDevice, (void**)&dxgi_p);
-    dxgi::dxgi1_t dxgi { dxgi_p };
-
+    dxgi::dxgi1_t dxgi {};
+    status = device->QueryInterface(IID_IDXGIDevice, (void **)&dxgi);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    dxgi->SetMaximumFrameLatency(1);
+    status = dxgi->SetMaximumFrameLatency(1);
+    if(FAILED(status)) {
+      BOOST_LOG(warning) << "Failed to set maximum frame latency [0x"sv << util::hex(status).to_string_view() << ']';
+    }
   }
 
   //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
   //TODO: Use IDXGIOutput5 for improved performance
   {
-    dxgi::output1_t::pointer output1_p {};
-    status = output->QueryInterface(IID_IDXGIOutput1, (void**)&output1_p);
-    dxgi::output1_t output1 {output1_p };
-
+    dxgi::output1_t output1 {};
+    status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
       return -1;
@@ -246,10 +277,8 @@ int display_base_t::init() {
 
     // We try this twice, in case we still get an error on reinitialization
     for(int x = 0; x < 2; ++x) {
-      dxgi::dup_t::pointer dup_p {};
-      status = output1->DuplicateOutput((IUnknown*)device.get(), &dup_p);
+      status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
       if(SUCCEEDED(status)) {
-        dup.reset(dup_p);
         break;
       }
       std::this_thread::sleep_for(200ms);
@@ -396,18 +425,18 @@ const char *format_str[] = {
   "DXGI_FORMAT_V408"
 };
 
-}
+} // namespace platf::dxgi
 
 namespace platf {
-std::shared_ptr<display_t> display(dev_type_e hwdevice_type) {
-  if(hwdevice_type == dev_type_e::dxgi) {
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type) {
+  if(hwdevice_type == mem_type_e::dxgi) {
     auto disp = std::make_shared<dxgi::display_vram_t>();
 
     if(!disp->init()) {
       return disp;
     }
   }
-  else if(hwdevice_type == dev_type_e::none) {
+  else if(hwdevice_type == mem_type_e::system) {
     auto disp = std::make_shared<dxgi::display_ram_t>();
 
     if(!disp->init()) {
@@ -417,4 +446,4 @@ std::shared_ptr<display_t> display(dev_type_e hwdevice_type) {
 
   return nullptr;
 }
-}
+} // namespace platf

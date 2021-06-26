@@ -1,12 +1,20 @@
+#include <algorithm>
+#include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <functional>
+#include <iostream>
 #include <unordered_map>
 
 #include <boost/asio.hpp>
 
-#include "utility.h"
 #include "config.h"
+#include "main.h"
+#include "utility.h"
+
+#include "platform/common.h"
+
+namespace fs = std::filesystem;
+using namespace std::literals;
 
 #define CA_DIR "credentials"
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
@@ -14,7 +22,6 @@
 
 #define APPS_JSON_PATH SUNSHINE_ASSETS_DIR "/" APPS_JSON
 namespace config {
-using namespace std::literals;
 
 namespace nv {
 enum preset_e : int {
@@ -33,12 +40,12 @@ enum preset_e : int {
 };
 
 enum rc_e : int {
-  constqp   = 0x0,       /**< Constant QP mode */
-  vbr       = 0x1,       /**< Variable bitrate mode */
-  cbr       = 0x2,       /**< Constant bitrate mode */
-  cbr_ld_hq = 0x8,       /**< low-delay CBR, high quality */
-  cbr_hq    = 0x10,      /**< CBR, high quality (slower) */
-  vbr_hq    = 0x20       /**< VBR, high quality (slower) */
+  constqp   = 0x0,  /**< Constant QP mode */
+  vbr       = 0x1,  /**< Variable bitrate mode */
+  cbr       = 0x2,  /**< Constant bitrate mode */
+  cbr_ld_hq = 0x8,  /**< low-delay CBR, high quality */
+  cbr_hq    = 0x10, /**< CBR, high quality (slower) */
+  vbr_hq    = 0x20  /**< VBR, high quality (slower) */
 };
 
 enum coder_e : int {
@@ -48,7 +55,8 @@ enum coder_e : int {
 };
 
 std::optional<preset_e> preset_from_view(const std::string_view &preset) {
-#define _CONVERT_(x) if(preset == #x##sv) return x
+#define _CONVERT_(x) \
+  if(preset == #x##sv) return x
   _CONVERT_(slow);
   _CONVERT_(medium);
   _CONVERT_(fast);
@@ -65,7 +73,8 @@ std::optional<preset_e> preset_from_view(const std::string_view &preset) {
 }
 
 std::optional<rc_e> rc_from_view(const std::string_view &rc) {
-#define _CONVERT_(x) if(rc == #x##sv) return x
+#define _CONVERT_(x) \
+  if(rc == #x##sv) return x
   _CONVERT_(constqp);
   _CONVERT_(vbr);
   _CONVERT_(cbr);
@@ -78,34 +87,90 @@ std::optional<rc_e> rc_from_view(const std::string_view &rc) {
 
 int coder_from_view(const std::string_view &coder) {
   if(coder == "auto"sv) return _auto;
-  if(coder == "cabac"sv  || coder == "ac"sv) return cabac;
-  if(coder == "cavlc"sv  || coder == "vlc"sv) return cavlc;
+  if(coder == "cabac"sv || coder == "ac"sv) return cabac;
+  if(coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
 
   return -1;
 }
+} // namespace nv
+
+namespace amd {
+enum quality_e : int {
+  _default = 0,
+  speed,
+  balanced,
+  //quality2,
+};
+
+enum rc_e : int {
+  constqp,     /**< Constant QP mode */
+  vbr_latency, /**< Latency Constrained Variable Bitrate */
+  vbr_peak,    /**< Peak Contrained Variable Bitrate */
+  cbr,         /**< Constant bitrate mode */
+};
+
+enum coder_e : int {
+  _auto = 0,
+  cabac,
+  cavlc
+};
+
+std::optional<quality_e> quality_from_view(const std::string_view &quality) {
+#define _CONVERT_(x) \
+  if(quality == #x##sv) return x
+  _CONVERT_(speed);
+  _CONVERT_(balanced);
+  //_CONVERT_(quality2);
+  if(quality == "default"sv) return _default;
+#undef _CONVERT_
+  return std::nullopt;
 }
 
+std::optional<rc_e> rc_from_view(const std::string_view &rc) {
+#define _CONVERT_(x) \
+  if(rc == #x##sv) return x
+  _CONVERT_(constqp);
+  _CONVERT_(vbr_latency);
+  _CONVERT_(vbr_peak);
+  _CONVERT_(cbr);
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+int coder_from_view(const std::string_view &coder) {
+  if(coder == "auto"sv) return _auto;
+  if(coder == "cabac"sv || coder == "ac"sv) return cabac;
+  if(coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
+
+  return -1;
+}
+} // namespace amd
+
 video_t video {
-  0, // crf
+  0,  // crf
   28, // qp
 
   0, // hevc_mode
 
   1, // min_threads
   {
-    "superfast"s, // preset
+    "superfast"s,   // preset
     "zerolatency"s, // tune
-  }, // software
+  },                // software
 
   {
     nv::llhq,
     std::nullopt,
-    -1
-  }, // nv
+    -1 }, // nv
+
+  {
+    amd::balanced,
+    std::nullopt,
+    -1 }, // amd
 
   {}, // encoder
   {}, // adapter_name
-  {}  // output_name
+  {}, // output_name
 };
 
 audio_t audio {};
@@ -116,7 +181,7 @@ stream_t stream {
   APPS_JSON_PATH,
 
   10, // fecPercentage
-  1 // channels
+  1   // channels
 };
 
 nvhttp_t nvhttp {
@@ -125,55 +190,136 @@ nvhttp_t nvhttp {
   CERTIFICATE_FILE,
 
   boost::asio::ip::host_name(), // sunshine_name,
-  "sunshine_state.json"s // file_state
+  "sunshine_state.json"s,       // file_state
+  {},                           // external_ip
+  {
+    "352x240"s,
+    "480x360"s,
+    "858x480"s,
+    "1280x720"s,
+    "1920x1080"s,
+    "2560x1080"s,
+    "3440x1440"s
+    "1920x1200"s,
+    "3860x2160"s,
+    "3840x1600"s,
+  }, // supported resolutions
+
+  { 10, 30, 60, 90, 120 }, // supported fps
 };
 
 input_t input {
-  2s, // back_button_timeout
-  500ms, // key_repeat_delay
-  std::chrono::duration<double> { 1 / 24.9 }  // key_repeat_period
+  2s,                                        // back_button_timeout
+  500ms,                                     // key_repeat_delay
+  std::chrono::duration<double> { 1 / 24.9 } // key_repeat_period
 };
 
 sunshine_t sunshine {
-  2, // min_log_level
-  0 // flags
+  2,                                    // min_log_level
+  0,                                    // flags
+  {},                                   // User file
+  {},                                   // Username
+  {},                                   // Password
+  {},                                   // Password Salt
+  SUNSHINE_ASSETS_DIR "/sunshine.conf", // config file
+  {}                                    // cmd args
 };
 
-bool whitespace(char ch) {
+bool endline(char ch) {
+  return ch == '\r' || ch == '\n';
+}
+
+bool space_tab(char ch) {
   return ch == ' ' || ch == '\t';
 }
 
-std::string to_string(const char *begin, const char *end) {
-  return { begin, (std::size_t)(end - begin) };
+bool whitespace(char ch) {
+  return space_tab(ch) || endline(ch);
 }
 
-std::optional<std::pair<std::string, std::string>> parse_line(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
-  begin = std::find_if(begin, end, std::not_fn(whitespace));
-  end   = std::find(begin, end, '#');
-  end   = std::find_if(std::make_reverse_iterator(end), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
+std::string to_string(const char *begin, const char *end) {
+  std::string result;
 
-  auto eq = std::find(begin, end, '=');
-  if(eq == end || eq == begin) {
-    return std::nullopt;
+  KITTY_WHILE_LOOP(auto pos = begin, pos != end, {
+    auto comment = std::find(pos, end, '#');
+    auto endl    = std::find_if(comment, end, endline);
+
+    result.append(pos, comment);
+
+    pos = endl;
+  })
+
+  return result;
+}
+
+template<class It>
+It skip_list(It skipper, It end) {
+  int stack = 1;
+  while(skipper != end && stack) {
+    if(*skipper == '[') {
+      ++stack;
+    }
+    if(*skipper == ']') {
+      --stack;
+    }
+
+    ++skipper;
   }
 
-  auto end_name = std::find_if(std::make_reverse_iterator(eq), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
-  auto begin_val = std::find_if(eq + 1, end, std::not_fn(whitespace));
-
-  return std::pair { to_string(begin, end_name), to_string(begin_val, end) };
+  return skipper;
 }
 
-std::unordered_map<std::string, std::string> parse_config(std::string_view file_content) {
+std::pair<
+  std::string_view::const_iterator,
+  std::optional<std::pair<std::string, std::string>>>
+parse_option(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
+  begin     = std::find_if_not(begin, end, whitespace);
+  auto endl = std::find_if(begin, end, endline);
+  auto endc = std::find(begin, endl, '#');
+  endc      = std::find_if(std::make_reverse_iterator(endc), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
+
+  auto eq = std::find(begin, endc, '=');
+  if(eq == endc || eq == begin) {
+    return std::make_pair(endl, std::nullopt);
+  }
+
+  auto end_name  = std::find_if_not(std::make_reverse_iterator(eq), std::make_reverse_iterator(begin), space_tab).base();
+  auto begin_val = std::find_if_not(eq + 1, endc, space_tab);
+
+  if(begin_val == endl) {
+    return std::make_pair(endl, std::nullopt);
+  }
+
+  // Lists might contain newlines
+  if(*begin_val == '[') {
+    endl = skip_list(begin_val + 1, end);
+    if(endl == end) {
+      std::cout << "Warning: Config option ["sv << to_string(begin, end_name) << "] Missing ']'"sv;
+
+      return std::make_pair(endl, std::nullopt);
+    }
+  }
+
+  return std::make_pair(
+    endl,
+    std::make_pair(to_string(begin, end_name), to_string(begin_val, endl)));
+}
+
+std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content) {
   std::unordered_map<std::string, std::string> vars;
 
   auto pos = std::begin(file_content);
   auto end = std::end(file_content);
 
   while(pos < end) {
-    auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
-    auto var = parse_line(pos, newline);
+    // auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
+    TUPLE_2D(endl, var, parse_option(pos, end));
 
-    pos = (*newline == '\r') ? newline + 2 : newline + 1;
+    pos = endl;
+    if(pos != end) {
+      pos += (*pos == '\r') ? 2 : 1;
+    }
+
     if(!var) {
       continue;
     }
@@ -207,6 +353,38 @@ void string_restricted_f(std::unordered_map<std::string, std::string> &vars, con
   }
 }
 
+void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
+  // appdata needs to be retrieved once only
+  static auto appdata = platf::appdata();
+
+  std::string temp;
+  string_f(vars, name, temp);
+
+  if(!temp.empty()) {
+    input = temp;
+  }
+
+  if(input.is_relative()) {
+    input = appdata / input;
+  }
+
+  auto dir = input;
+  dir.remove_filename();
+
+  // Ensure the directories exists
+  if(!fs::exists(dir)) {
+    fs::create_directories(dir);
+  }
+}
+
+void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+  fs::path temp = input;
+
+  path_f(vars, name, temp);
+
+  input = temp.string();
+}
+
 void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
   auto it = vars.find(name);
 
@@ -215,7 +393,7 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
   }
 
   auto &val = it->second;
-  input = util::from_chars(&val[0], &val[0] + val.size());
+  input     = util::from_chars(&val[0], &val[0] + val.size());
 
   vars.erase(it);
 }
@@ -228,7 +406,7 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
   }
 
   auto &val = it->second;
-  input = util::from_chars(&val[0], &val[0] + val.size());
+  input     = util::from_chars(&val[0], &val[0] + val.size());
 
   vars.erase(it);
 }
@@ -263,15 +441,14 @@ void int_between_f(std::unordered_map<std::string, std::string> &vars, const std
 }
 
 bool to_bool(std::string &boolean) {
-  std::for_each(std::begin(boolean), std::end(boolean), [](char ch)  { return (char)std::tolower(ch);  });
+  std::for_each(std::begin(boolean), std::end(boolean), [](char ch) { return (char)std::tolower(ch); });
 
-  return
-    boolean == "true"sv   ||
-    boolean == "yes"sv    ||
-    boolean == "enable"sv ||
-    (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
+  return boolean == "true"sv ||
+         boolean == "yes"sv ||
+         boolean == "enable"sv ||
+         (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
 }
-void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string  &name, int &input) {
+void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
   std::string tmp;
   string_f(vars, name, tmp);
 
@@ -282,7 +459,7 @@ void bool_f(std::unordered_map<std::string, std::string> &vars, const std::strin
   input = to_bool(tmp) ? 1 : 0;
 }
 
-void double_f(std::unordered_map<std::string, std::string> &vars, const std::string  &name, double &input) {
+void double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
   std::string tmp;
   string_f(vars, name, tmp);
 
@@ -311,30 +488,76 @@ void double_between_f(std::unordered_map<std::string, std::string> &vars, const 
   }
 }
 
-void print_help(const char *name) {
-  std::cout <<
-    "Usage: "sv << name << " [options] [/path/to/configuration_file]"sv << std::endl <<
-    "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl << std::endl <<
-    "    --help | print help"sv << std::endl << std::endl <<
-    "    flags"sv << std::endl <<
-    "        -0 | Read PIN from stdin"sv << std::endl <<
-    "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl <<
-    "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv;
+void list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
+  std::string string;
+  string_f(vars, name, string);
+
+  if(string.empty()) {
+    return;
+  }
+
+  input.clear();
+
+  auto begin = std::cbegin(string);
+  if(*begin == '[') {
+    ++begin;
+  }
+
+  begin = std::find_if_not(begin, std::cend(string), whitespace);
+  if(begin == std::cend(string)) {
+    return;
+  }
+
+  auto pos = begin;
+  while(pos < std::cend(string)) {
+    if(*pos == '[') {
+      pos = skip_list(pos + 1, std::cend(string)) + 1;
+    }
+    else if(*pos == ']') {
+      break;
+    }
+    else if(*pos == ',') {
+      input.emplace_back(begin, pos);
+      pos = begin = std::find_if_not(pos + 1, std::cend(string), whitespace);
+    }
+    else {
+      ++pos;
+    }
+  }
+
+  if(pos != begin) {
+    input.emplace_back(begin, pos);
+  }
+}
+
+void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
+  std::vector<std::string> list;
+  list_string_f(vars, name, list);
+
+  for(auto &el : list) {
+    input.emplace_back(util::from_view(el));
+  }
 }
 
 int apply_flags(const char *line) {
   int ret = 0;
   while(*line != '\0') {
     switch(*line) {
-      case '0':
-        config::sunshine.flags[config::flag::PIN_STDIN].flip();
-        break;
-      case '1':
-        config::sunshine.flags[config::flag::FRESH_STATE].flip();
-        break;
-      default:
-        std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;
-        ret = -1;
+    case '0':
+      config::sunshine.flags[config::flag::PIN_STDIN].flip();
+      break;
+    case '1':
+      config::sunshine.flags[config::flag::FRESH_STATE].flip();
+      break;
+    case '2':
+      config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE].flip();
+      break;
+    case 'p':
+      config::sunshine.flags[config::flag::CONST_PIN].flip();
+      break;
+    default:
+      std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;
+      ret = -1;
     }
 
     ++line;
@@ -351,46 +574,50 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "crf", video.crf);
   int_f(vars, "qp", video.qp);
   int_f(vars, "min_threads", video.min_threads);
-  int_between_f(vars, "hevc_mode", video.hevc_mode, {
-    0, 3
-  });
+  int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
   string_f(vars, "sw_preset", video.sw.preset);
   string_f(vars, "sw_tune", video.sw.tune);
   int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
-  int_f(vars, "nv_rc", video.nv.preset, nv::rc_from_view);
+  int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
   int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+
+  int_f(vars, "amd_quality", video.amd.quality, amd::quality_from_view);
+  int_f(vars, "amd_rc", video.amd.rc, amd::rc_from_view);
+  int_f(vars, "amd_coder", video.amd.coder, amd::coder_from_view);
+
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
 
-  string_f(vars, "pkey", nvhttp.pkey);
-  string_f(vars, "cert", nvhttp.cert);
+  path_f(vars, "pkey", nvhttp.pkey);
+  path_f(vars, "cert", nvhttp.cert);
   string_f(vars, "sunshine_name", nvhttp.sunshine_name);
-  string_f(vars, "file_state", nvhttp.file_state);
+
+  path_f(vars, "file_state", nvhttp.file_state);
+
+  // Must be run after "file_state"
+  config::sunshine.credentials_file = config::nvhttp.file_state;
+  path_f(vars, "credentials_file", config::sunshine.credentials_file);
+
   string_f(vars, "external_ip", nvhttp.external_ip);
+  list_string_f(vars, "resolutions"s, nvhttp.resolutions);
+  list_int_f(vars, "fps"s, nvhttp.fps);
 
   string_f(vars, "audio_sink", audio.sink);
+  string_f(vars, "virtual_sink", audio.virtual_sink);
 
-  string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, {
-    "pc"sv, "lan"sv, "wan"sv
-  });
+  string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, { "pc"sv, "lan"sv, "wan"sv });
 
   int to = -1;
-  int_between_f(vars, "ping_timeout", to, {
-    -1, std::numeric_limits<int>::max()
-  });
+  int_between_f(vars, "ping_timeout", to, { -1, std::numeric_limits<int>::max() });
   if(to != -1) {
     stream.ping_timeout = std::chrono::milliseconds(to);
   }
 
-  int_between_f(vars, "channels", stream.channels, {
-    1, std::numeric_limits<int>::max()
-  });
+  int_between_f(vars, "channels", stream.channels, { 1, std::numeric_limits<int>::max() });
 
-  string_f(vars, "file_apps", stream.file_apps);
-  int_between_f(vars, "fec_percentage", stream.fec_percentage, {
-    1, 100
-  });
+  path_f(vars, "file_apps", stream.file_apps);
+  int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 100 });
 
   to = std::numeric_limits<int>::min();
   int_f(vars, "back_button_timeout", to);
@@ -400,12 +627,10 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   double repeat_frequency { 0 };
-  double_between_f(vars, "key_repeat_frequency", repeat_frequency, {
-    0, std::numeric_limits<double>::max()
-  });
+  double_between_f(vars, "key_repeat_frequency", repeat_frequency, { 0, std::numeric_limits<double>::max() });
 
   if(repeat_frequency > 0) {
-    config::input.key_repeat_period = std::chrono::duration<double> {1 / repeat_frequency };
+    config::input.key_repeat_period = std::chrono::duration<double> { 1 / repeat_frequency };
   }
 
   to = -1;
@@ -415,9 +640,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   std::string log_level_string;
-  string_restricted_f(vars, "min_log_level", log_level_string, {
-    "verbose"sv, "debug"sv, "info"sv, "warning"sv, "error"sv, "fatal"sv, "none"sv
-  });
+  string_restricted_f(vars, "min_log_level", log_level_string, { "verbose"sv, "debug"sv, "info"sv, "warning"sv, "error"sv, "fatal"sv, "none"sv });
 
   if(!log_level_string.empty()) {
     if(log_level_string == "verbose"sv) {
@@ -441,6 +664,13 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     else if(log_level_string == "none"sv) {
       sunshine.min_log_level = 6;
     }
+    else {
+      // accept digit directly
+      auto val = log_level_string[0];
+      if(val >= '0' && val < '7') {
+        sunshine.min_log_level = val - '0';
+      }
+    }
   }
 
   auto it = vars.find("flags"s);
@@ -451,18 +681,16 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   if(sunshine.min_log_level <= 3) {
-    for(auto &[var,_] : vars) {
+    for(auto &[var, _] : vars) {
       std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
     }
   }
 }
 
 int parse(int argc, char *argv[]) {
-  const char *config_file = SUNSHINE_ASSETS_DIR "/sunshine.conf";
-
   std::unordered_map<std::string, std::string> cmd_vars;
 
-  for(auto x = argc -1; x > 0; --x) {
+  for(auto x = 1; x < argc; ++x) {
     auto line = argv[x];
 
     if(line == "--help"sv) {
@@ -470,6 +698,13 @@ int parse(int argc, char *argv[]) {
       return 1;
     }
     else if(*line == '-') {
+      if(*(line + 1) == '-') {
+        sunshine.cmd.name = line + 2;
+        sunshine.cmd.argc = argc - x - 1;
+        sunshine.cmd.argv = argv + x + 1;
+
+        break;
+      }
       if(apply_flags(line + 1)) {
         print_help(*argv);
         return -1;
@@ -480,13 +715,20 @@ int parse(int argc, char *argv[]) {
 
       auto pos = std::find(line, line_end, '=');
       if(pos == line_end) {
-        config_file = line;
+        sunshine.config_file = line;
       }
       else {
-        auto var = parse_line(line, line_end);
+        TUPLE_EL(var, 1, parse_option(line, line_end));
         if(!var) {
           print_help(*argv);
           return -1;
+        }
+
+        TUPLE_EL_REF(name, 0, *var);
+
+        auto it = cmd_vars.find(name);
+        if(it != std::end(cmd_vars)) {
+          cmd_vars.erase(it);
         }
 
         cmd_vars.emplace(std::move(*var));
@@ -494,21 +736,9 @@ int parse(int argc, char *argv[]) {
     }
   }
 
-  std::ifstream in { config_file };
+  auto vars = parse_config(read_file(sunshine.config_file.c_str()));
 
-  if(!in.is_open()) {
-    std::cout << "Error: Couldn't open "sv << config_file << std::endl;
-
-    return -1;
-  }
-
-  auto vars = parse_config(std::string {
-    // Quick and dirty
-    std::istreambuf_iterator<char>(in),
-    std::istreambuf_iterator<char>()
-  });
-
-  for(auto &[name,value] : cmd_vars) {
+  for(auto &[name, value] : cmd_vars) {
     vars.insert_or_assign(std::move(name), std::move(value));
   }
 
@@ -516,4 +746,4 @@ int parse(int argc, char *argv[]) {
 
   return 0;
 }
-}
+} // namespace config

@@ -5,19 +5,18 @@
 #ifndef SUNSHINE_NVHTTP_H
 #define SUNSHINE_NVHTTP_H
 
+#include "thread_safe.h"
+#include <Simple-Web-Server/server_http.hpp>
+#include <Simple-Web-Server/server_https.hpp>
 #include <functional>
 #include <string>
-
-#include "thread_safe.h"
-
-#define CA_DIR SUNSHINE_ASSETS_DIR "/demoCA"
-#define PRIVATE_KEY_FILE CA_DIR    "/cakey.pem"
-#define CERTIFICATE_FILE CA_DIR    "/cacert.pem"
 
 namespace nvhttp {
 constexpr auto PORT_HTTP  = 47989;
 constexpr auto PORT_HTTPS = 47984;
-void start(std::shared_ptr<safe::signal_t> shutdown_event);
-}
+
+void start();
+bool pin(std::string pin);
+} // namespace nvhttp
 
 #endif //SUNSHINE_NVHTTP_H

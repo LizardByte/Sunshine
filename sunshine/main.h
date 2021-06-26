@@ -5,8 +5,12 @@
 #ifndef SUNSHINE_MAIN_H
 #define SUNSHINE_MAIN_H
 
-#include <boost/log/common.hpp>
+#include <string_view>
+
 #include "thread_pool.h"
+#include "thread_safe.h"
+
+#include <boost/log/common.hpp>
 
 extern util::ThreadPool task_pool;
 extern bool display_cursor;
@@ -19,4 +23,30 @@ extern boost::log::sources::severity_logger<int> error;
 extern boost::log::sources::severity_logger<int> fatal;
 
 void log_flush();
+
+void print_help(const char *name);
+
+std::string read_file(const char *path);
+int write_file(const char *path, const std::string_view &contents);
+
+namespace mail {
+#define MAIL(x) \
+  constexpr auto x = std::string_view { #x }
+
+extern safe::mail_t man;
+
+// Global mail
+MAIL(shutdown);
+MAIL(broadcast_shutdown);
+
+MAIL(video_packets);
+MAIL(audio_packets);
+
+// Local mail
+MAIL(touch_port);
+MAIL(idr);
+#undef MAIL
+} // namespace mail
+
+
 #endif //SUNSHINE_MAIN_H

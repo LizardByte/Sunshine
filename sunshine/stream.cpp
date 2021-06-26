@@ -4,8 +4,8 @@
 
 #include "process.h"
 
-#include <queue>
 #include <future>
+#include <queue>
 
 #include <fstream>
 #include <openssl/err.h>
@@ -15,14 +15,14 @@ extern "C" {
 #include <rs.h>
 }
 
-#include "network.h"
 #include "config.h"
-#include "utility.h"
-#include "stream.h"
-#include "thread_safe.h"
-#include "sync.h"
 #include "input.h"
 #include "main.h"
+#include "network.h"
+#include "stream.h"
+#include "sync.h"
+#include "thread_safe.h"
+#include "utility.h"
 
 #define IDX_START_A 0
 #define IDX_REQUEST_IDR_FRAME 0
@@ -45,7 +45,7 @@ static const short packetTypes[] = {
 };
 
 constexpr auto VIDEO_STREAM_PORT = 47998;
-constexpr auto CONTROL_PORT = 47999;
+constexpr auto CONTROL_PORT      = 47999;
 constexpr auto AUDIO_STREAM_PORT = 48000;
 
 namespace asio = boost::asio;
@@ -89,7 +89,7 @@ using rh_t           = util::safe_ptr<reed_solomon, reed_solomon_release>;
 using video_packet_t = util::c_ptr<video_packet_raw_t>;
 using audio_packet_t = util::c_ptr<audio_packet_raw_t>;
 
-using message_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::uint16_t, std::string>>>;
+using message_queue_t       = std::shared_ptr<safe::queue_t<std::pair<std::uint16_t, std::string>>>;
 using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e, asio::ip::address, message_queue_t>>>;
 
 static inline void while_starting_do_nothing(std::atomic<session::state_e> &state) {
@@ -124,7 +124,7 @@ public:
   // Therefore, iterate is implemented further down the source file
   void iterate(std::chrono::milliseconds timeout);
 
-  void map(uint16_t type, std::function<void(session_t *, const std::string_view&)> cb) {
+  void map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
     _map_type_cb.emplace(type, std::move(cb));
   }
 
@@ -140,19 +140,16 @@ public:
   }
 
   // Callbacks
-  std::unordered_map<std::uint16_t, std::function<void(session_t *, const std::string_view&)>> _map_type_cb;
+  std::unordered_map<std::uint16_t, std::function<void(session_t *, const std::string_view &)>> _map_type_cb;
 
   // Mapping ip:port to session
-  util::sync_t<std::unordered_multimap<std::string, std::pair<std::uint16_t, session_t*>>> _map_addr_session;
+  util::sync_t<std::unordered_multimap<std::string, std::pair<std::uint16_t, session_t *>>> _map_addr_session;
 
   ENetAddress _addr;
   net::host_t _host;
 };
 
 struct broadcast_ctx_t {
-  video::packet_queue_t video_packets;
-  audio::packet_queue_t audio_packets;
-
   message_queue_queue_t message_queue_queue;
 
   std::thread recv_thread;
@@ -169,6 +166,9 @@ struct broadcast_ctx_t {
 
 struct session_t {
   config_t config;
+
+  safe::mail_t mail;
+
   std::shared_ptr<input::input_t> input;
 
   std::thread audioThread;
@@ -181,7 +181,7 @@ struct session_t {
   struct {
     int lowseq;
     udp::endpoint peer;
-    video::idr_event_t idr_events;
+    safe::mail_raw_t::event_t<video::idr_t> idr_events;
   } video;
 
   struct {
@@ -196,7 +196,7 @@ struct session_t {
   crypto::aes_t gcm_key;
   crypto::aes_t iv;
 
-  safe::signal_t shutdown_event;
+  safe::mail_raw_t::event_t<bool> shutdown_event;
   safe::signal_t controlEnd;
 
   std::atomic<session::state_e> state;
@@ -207,10 +207,9 @@ void end_broadcast(broadcast_ctx_t &ctx);
 
 
 static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
-safe::signal_t broadcast_shutdown_event;
 
 session_t *control_server_t::get_session(const net::peer_t peer) {
-  TUPLE_2D(port, addr_string, platf::from_sockaddr_ex((sockaddr*)&peer->address.address));
+  TUPLE_2D(port, addr_string, platf::from_sockaddr_ex((sockaddr *)&peer->address.address));
 
   auto lg = _map_addr_session.lock();
   TUPLE_2D(begin, end, _map_addr_session->equal_range(addr_string));
@@ -231,7 +230,7 @@ session_t *control_server_t::get_session(const net::peer_t peer) {
     TUPLE_2D_REF(session_port, session_p, it->second);
 
     session_p->control.peer = peer;
-    session_port = port;
+    session_port            = port;
 
     return session_p;
   }
@@ -246,7 +245,7 @@ void control_server_t::iterate(std::chrono::milliseconds timeout) {
   if(res > 0) {
     auto session = get_session(event.peer);
     if(!session) {
-      BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr*)&event.peer->address.address) << "]: it's not properly set up"sv;
+      BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *)&event.peer->address.address) << "]: it's not properly set up"sv;
       enet_peer_disconnect_now(event.peer, 0);
 
       return;
@@ -255,37 +254,37 @@ void control_server_t::iterate(std::chrono::milliseconds timeout) {
     session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
     switch(event.type) {
-      case ENET_EVENT_TYPE_RECEIVE:
-      {
-        net::packet_t packet { event.packet };
+    case ENET_EVENT_TYPE_RECEIVE: {
+      net::packet_t packet { event.packet };
 
-        auto type = (std::uint16_t *)packet->data;
-        std::string_view payload { (char*)packet->data + sizeof(*type), packet->dataLength - sizeof(*type) };
+      auto type = (std::uint16_t *)packet->data;
+      std::string_view payload { (char *)packet->data + sizeof(*type), packet->dataLength - sizeof(*type) };
 
-        auto cb = _map_type_cb.find(*type);
-        if(cb == std::end(_map_type_cb)) {
-          BOOST_LOG(warning)
-            << "type [Unknown] { "sv << util::hex(*type).to_string_view() << " }"sv << std::endl
-            << "---data---"sv << std::endl << util::hex_vec(payload) << std::endl << "---end data---"sv;
-        }
-
-        else {
-          cb->second(session, payload);
-        }
+      auto cb = _map_type_cb.find(*type);
+      if(cb == std::end(_map_type_cb)) {
+        BOOST_LOG(warning)
+          << "type [Unknown] { "sv << util::hex(*type).to_string_view() << " }"sv << std::endl
+          << "---data---"sv << std::endl
+          << util::hex_vec(payload) << std::endl
+          << "---end data---"sv;
       }
-        break;
-      case ENET_EVENT_TYPE_CONNECT:
-        BOOST_LOG(info) << "CLIENT CONNECTED"sv;
-        break;
-      case ENET_EVENT_TYPE_DISCONNECT:
-        BOOST_LOG(info) << "CLIENT DISCONNECTED"sv;
-        // No more clients to send video data to ^_^
-        if(session->state == session::state_e::RUNNING) {
-          session::stop(*session);
-        }
-        break;
-      case ENET_EVENT_TYPE_NONE:
-        break;
+
+      else {
+        cb->second(session, payload);
+      }
+    } break;
+    case ENET_EVENT_TYPE_CONNECT:
+      BOOST_LOG(info) << "CLIENT CONNECTED"sv;
+      break;
+    case ENET_EVENT_TYPE_DISCONNECT:
+      BOOST_LOG(info) << "CLIENT DISCONNECTED"sv;
+      // No more clients to send video data to ^_^
+      if(session->state == session::state_e::RUNNING) {
+        session::stop(*session);
+      }
+      break;
+    case ENET_EVENT_TYPE_NONE:
+      break;
     }
   }
 }
@@ -302,11 +301,11 @@ struct fec_t {
   util::buffer_t<char> shards;
 
   char *data(size_t el) {
-    return &shards[el*blocksize];
+    return &shards[el * blocksize];
   }
 
   std::string_view operator[](size_t el) const {
-    return { &shards[el*blocksize], blocksize };
+    return { &shards[el * blocksize], blocksize };
   }
 
   size_t size() const {
@@ -314,38 +313,42 @@ struct fec_t {
   }
 };
 
-fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage) {
+static fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage) {
   auto payload_size = payload.size();
 
   auto pad = payload_size % blocksize != 0;
 
   auto data_shards   = payload_size / blocksize + (pad ? 1 : 0);
   auto parity_shards = (data_shards * fecpercentage + 99) / 100;
-  auto nr_shards = data_shards + parity_shards;
+  auto nr_shards     = data_shards + parity_shards;
 
   if(nr_shards > DATA_SHARDS_MAX) {
-    BOOST_LOG(error)
+    BOOST_LOG(warning)
       << "Number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl
-      << nr_shards << " > "sv << DATA_SHARDS_MAX;
+      << nr_shards << " > "sv << DATA_SHARDS_MAX
+      << ", skipping error correction"sv;
 
-    return { 0 };
+    nr_shards     = data_shards;
+    fecpercentage = 0;
   }
 
   util::buffer_t<char> shards { nr_shards * blocksize };
-  util::buffer_t<uint8_t*> shards_p { nr_shards };
+  util::buffer_t<uint8_t *> shards_p { nr_shards };
 
   // copy payload + padding
   auto next = std::copy(std::begin(payload), std::end(payload), std::begin(shards));
   std::fill(next, std::end(shards), 0); // padding with zero
 
   for(auto x = 0; x < nr_shards; ++x) {
-    shards_p[x] = (uint8_t*)&shards[x * blocksize];
+    shards_p[x] = (uint8_t *)&shards[x * blocksize];
   }
 
-  // packets = parity_shards + data_shards
-  rs_t rs { reed_solomon_new(data_shards, parity_shards) };
+  if(data_shards + parity_shards <= DATA_SHARDS_MAX) {
+    // packets = parity_shards + data_shards
+    rs_t rs { reed_solomon_new(data_shards, parity_shards) };
 
-  reed_solomon_encode(rs.get(), shards_p.begin(), nr_shards, blocksize);
+    reed_solomon_encode(rs.get(), shards_p.begin(), nr_shards, blocksize);
+  }
 
   return {
     data_shards,
@@ -355,11 +358,11 @@ fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercen
     std::move(shards)
   };
 }
-}
+} // namespace fec
 
 template<class F>
 std::vector<uint8_t> insert(uint64_t insert_size, uint64_t slice_size, const std::string_view &data, F &&f) {
-  auto pad = data.size() % slice_size != 0;
+  auto pad      = data.size() % slice_size != 0;
   auto elements = data.size() / slice_size + (pad ? 1 : 0);
 
   std::vector<uint8_t> result;
@@ -367,20 +370,20 @@ std::vector<uint8_t> insert(uint64_t insert_size, uint64_t slice_size, const std
 
   auto next = std::begin(data);
   for(auto x = 0; x < elements - 1; ++x) {
-    void *p = &result[x*(insert_size + slice_size)];
+    void *p = &result[x * (insert_size + slice_size)];
 
     f(p, x, elements);
 
-    std::copy(next, next + slice_size, (char*)p + insert_size);
+    std::copy(next, next + slice_size, (char *)p + insert_size);
     next += slice_size;
   }
 
-  auto x = elements - 1;
-  void *p = &result[x*(insert_size + slice_size)];
+  auto x  = elements - 1;
+  void *p = &result[x * (insert_size + slice_size)];
 
   f(p, x, elements);
 
-  std::copy(next, std::end(data), (char*)p + insert_size);
+  std::copy(next, std::end(data), (char *)p + insert_size);
 
   return result;
 }
@@ -389,7 +392,7 @@ std::vector<uint8_t> replace(const std::string_view &original, const std::string
   std::vector<uint8_t> replaced;
 
   auto begin = std::begin(original);
-  auto next = std::search(begin, std::end(original), std::begin(old), std::end(old));
+  auto next  = std::search(begin, std::end(original), std::begin(old), std::end(old));
 
   std::copy(begin, next, std::back_inserter(replaced));
   std::copy(std::begin(_new), std::end(_new), std::back_inserter(replaced));
@@ -398,7 +401,7 @@ std::vector<uint8_t> replace(const std::string_view &original, const std::string
   return replaced;
 }
 
-void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *server) {
+void controlBroadcastThread(control_server_t *server) {
   server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
     BOOST_LOG(debug) << "type [IDX_START_A]"sv;
   });
@@ -408,8 +411,8 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
   });
 
   server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
-    int32_t *stats = (int32_t*)payload.data();
-    auto count = stats[0];
+    int32_t *stats = (int32_t *)payload.data();
+    auto count     = stats[0];
     std::chrono::milliseconds t { stats[1] };
 
     auto lastGoodFrame = stats[3];
@@ -424,9 +427,9 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
   });
 
   server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
-    auto frames = (std::int64_t *)payload.data();
+    auto frames     = (std::int64_t *)payload.data();
     auto firstFrame = frames[0];
-    auto lastFrame = frames[1];
+    auto lastFrame  = frames[1];
 
     BOOST_LOG(debug)
       << "type [IDX_INVALIDATE_REF_FRAMES]"sv << std::endl
@@ -439,7 +442,7 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
   server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
     BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
 
-    int32_t tagged_cipher_length = util::endian::big(*(int32_t*)payload.data());
+    int32_t tagged_cipher_length = util::endian::big(*(int32_t *)payload.data());
     std::string_view tagged_cipher { payload.data() + sizeof(tagged_cipher_length), (size_t)tagged_cipher_length };
 
     crypto::cipher_t cipher { session->gcm_key };
@@ -462,6 +465,7 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
     input::passthrough(session->input, std::move(plaintext));
   });
 
+  auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   while(!shutdown_event->peek()) {
     {
       auto lg = server->_map_addr_session.lock();
@@ -498,12 +502,12 @@ void controlBroadcastThread(safe::signal_t *shutdown_event, control_server_t *se
       payload[0] = packetTypes[IDX_TERMINATION];
       payload[1] = reason;
 
-      server->send(std::string_view {(char*)payload.data(), payload.size()});
+      server->send(std::string_view { (char *)payload.data(), payload.size() });
 
       auto lg = server->_map_addr_session.lock();
       for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
         auto session = pos->second.second;
-        session->shutdown_event.raise(true);
+        session->shutdown_event->raise(true);
       }
     }
 
@@ -518,7 +522,9 @@ void recvThread(broadcast_ctx_t &ctx) {
   auto &video_sock = ctx.video_sock;
   auto &audio_sock = ctx.audio_sock;
 
-  auto &message_queue_queue = ctx.message_queue_queue;
+  auto &message_queue_queue     = ctx.message_queue_queue;
+  auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+
   auto &io = ctx.io;
 
   udp::endpoint peer;
@@ -532,34 +538,34 @@ void recvThread(broadcast_ctx_t &ctx) {
       TUPLE_3D_REF(socket_type, addr, message_queue, *message_queue_opt);
 
       switch(socket_type) {
-        case socket_e::video:
-          if(message_queue) {
-            peer_to_video_session.emplace(addr, message_queue);
-          }
-          else {
-            peer_to_video_session.erase(addr);
-          }
-          break;
-        case socket_e::audio:
-          if(message_queue) {
-            peer_to_audio_session.emplace(addr, message_queue);
-          }
-          else {
-            peer_to_audio_session.erase(addr);
-          }
-          break;
+      case socket_e::video:
+        if(message_queue) {
+          peer_to_video_session.emplace(addr, message_queue);
+        }
+        else {
+          peer_to_video_session.erase(addr);
+        }
+        break;
+      case socket_e::audio:
+        if(message_queue) {
+          peer_to_audio_session.emplace(addr, message_queue);
+        }
+        else {
+          peer_to_audio_session.erase(addr);
+        }
+        break;
       }
     }
   };
 
   auto recv_func_init = [&](udp::socket &sock, int buf_elem, std::map<asio::ip::address, message_queue_t> &peer_to_session) {
-    recv_func[buf_elem] = [&,buf_elem](const boost::system::error_code &ec, size_t bytes) {
+    recv_func[buf_elem] = [&, buf_elem](const boost::system::error_code &ec, size_t bytes) {
       auto fg = util::fail_guard([&]() {
         sock.async_receive_from(asio::buffer(buf[buf_elem]), peer, 0, recv_func[buf_elem]);
       });
 
       auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
-      BOOST_LOG(debug) << "Recv: "sv << peer.address().to_string() << ":"sv << peer.port() << " :: " << type_str;
+      BOOST_LOG(verbose) << "Recv: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
 
 
       populate_peer_to_session();
@@ -590,61 +596,58 @@ void recvThread(broadcast_ctx_t &ctx) {
   video_sock.async_receive_from(asio::buffer(buf[0]), peer, 0, recv_func[0]);
   audio_sock.async_receive_from(asio::buffer(buf[1]), peer, 0, recv_func[1]);
 
-  while(!broadcast_shutdown_event.peek()) {
+  while(!broadcast_shutdown_event->peek()) {
     io.run();
   }
 }
 
-void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, video::packet_queue_t packets) {
+void videoBroadcastThread(udp::socket &sock) {
+  auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+  auto packets        = mail::man->queue<video::packet_t>(mail::video_packets);
+
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
       break;
     }
 
-    auto session = (session_t*)packet->channel_data;
-    auto lowseq = session->video.lowseq;
+    auto session = (session_t *)packet->channel_data;
+    auto lowseq  = session->video.lowseq;
 
-    std::string_view payload{(char *) packet->data, (size_t) packet->size};
+    std::string_view payload { (char *)packet->data, (size_t)packet->size };
     std::vector<uint8_t> payload_new;
 
     auto nv_packet_header = "\0017charss"sv;
     std::copy(std::begin(nv_packet_header), std::end(nv_packet_header), std::back_inserter(payload_new));
     std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
 
-    payload = {(char *) payload_new.data(), payload_new.size()};
+    payload = { (char *)payload_new.data(), payload_new.size() };
 
-    // make sure moonlight recognizes the nalu code for IDR frames
-    if (packet->flags & AV_PKT_FLAG_KEY) {
-      // TODO: Not all encoders encode their IDR frames with the 4 byte NALU prefix
-      std::string_view frame_old = "\000\000\001e"sv;
-      std::string_view frame_new = "\000\000\000\001e"sv;
-      if(session->config.monitor.videoFormat != 0) {
-        frame_old = "\000\000\001("sv;
-        frame_new = "\000\000\000\001("sv;
+    if(packet->flags & AV_PKT_FLAG_KEY) {
+      for(auto &replacement : *packet->replacements) {
+        auto frame_old = replacement.old;
+        auto frame_new = replacement._new;
+
+        payload_new = replace(payload, frame_old, frame_new);
+        payload     = { (char *)payload_new.data(), payload_new.size() };
       }
-
-      payload_new = replace(payload, frame_old, frame_new);
-      payload = {(char *) payload_new.data(), payload_new.size()};
     }
 
     // insert packet headers
-    auto blocksize = session->config.packetsize + MAX_RTP_HEADER_SIZE;
+    auto blocksize         = session->config.packetsize + MAX_RTP_HEADER_SIZE;
     auto payload_blocksize = blocksize - sizeof(video_packet_raw_t);
 
     auto fecPercentage = config::stream.fec_percentage;
 
     payload_new = insert(sizeof(video_packet_raw_t), payload_blocksize,
-                         payload, [&](void *p, int fecIndex, int end) {
+      payload, [&](void *p, int fecIndex, int end) {
         video_packet_raw_t *video_packet = (video_packet_raw_t *)p;
 
-        video_packet->packet.flags = FLAG_CONTAINS_PIC_DATA;
-        video_packet->packet.frameIndex = packet->pts;
+        video_packet->packet.flags             = FLAG_CONTAINS_PIC_DATA;
+        video_packet->packet.frameIndex        = packet->pts;
         video_packet->packet.streamPacketIndex = ((uint32_t)lowseq + fecIndex) << 8;
-        video_packet->packet.fecInfo = (
-          fecIndex << 12 |
-          end << 22 |
-          fecPercentage << 4
-        );
+        video_packet->packet.fecInfo           = (fecIndex << 12 |
+                                        end << 22 |
+                                        fecPercentage << 4);
 
         if(fecIndex == 0) {
           video_packet->packet.flags |= FLAG_SOF;
@@ -654,11 +657,11 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
           video_packet->packet.flags |= FLAG_EOF;
         }
 
-        video_packet->rtp.header = FLAG_EXTENSION;
+        video_packet->rtp.header         = FLAG_EXTENSION;
         video_packet->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + fecIndex);
       });
 
-    payload = {(char *) payload_new.data(), payload_new.size()};
+    payload = { (char *)payload_new.data(), payload_new.size() };
 
     auto shards = fec::encode(payload, blocksize, fecPercentage);
     if(shards.data_shards == 0) {
@@ -666,17 +669,15 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
       continue;
     }
 
-    for (auto x = shards.data_shards; x < shards.size(); ++x) {
+    for(auto x = shards.data_shards; x < shards.size(); ++x) {
       auto *inspect = (video_packet_raw_t *)shards.data(x);
 
       inspect->packet.frameIndex = packet->pts;
-      inspect->packet.fecInfo = (
-        x << 12 |
-        shards.data_shards << 22 |
-        fecPercentage << 4
-      );
+      inspect->packet.fecInfo    = (x << 12 |
+                                 shards.data_shards << 22 |
+                                 shards.percentage << 4);
 
-      inspect->rtp.header = FLAG_EXTENSION;
+      inspect->rtp.header         = FLAG_EXTENSION;
       inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
     }
 
@@ -697,28 +698,31 @@ void videoBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, vid
   shutdown_event->raise(true);
 }
 
-void audioBroadcastThread(safe::signal_t *shutdown_event, udp::socket &sock, audio::packet_queue_t packets) {
-  while (auto packet = packets->pop()) {
+void audioBroadcastThread(udp::socket &sock) {
+  auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+  auto packets        = mail::man->queue<audio::packet_t>(mail::audio_packets);
+
+  while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
       break;
     }
 
     TUPLE_2D_REF(channel_data, packet_data, *packet);
-    auto session = (session_t*)channel_data;
+    auto session = (session_t *)channel_data;
 
     auto frame = session->audio.frame++;
 
-    audio_packet_t audio_packet { (audio_packet_raw_t*)malloc(sizeof(audio_packet_raw_t) + packet_data.size()) };
+    audio_packet_t audio_packet { (audio_packet_raw_t *)malloc(sizeof(audio_packet_raw_t) + packet_data.size()) };
 
-    audio_packet->rtp.header = 0;
-    audio_packet->rtp.packetType = 97;
+    audio_packet->rtp.header         = 0;
+    audio_packet->rtp.packetType     = 97;
     audio_packet->rtp.sequenceNumber = util::endian::big(frame);
-    audio_packet->rtp.timestamp = 0;
-    audio_packet->rtp.ssrc = 0;
+    audio_packet->rtp.timestamp      = 0;
+    audio_packet->rtp.ssrc           = 0;
 
     std::copy(std::begin(packet_data), std::end(packet_data), audio_packet->payload());
 
-    sock.send_to(asio::buffer((char*)audio_packet.get(), sizeof(audio_packet_raw_t) + packet_data.size()), session->audio.peer);
+    sock.send_to(asio::buffer((char *)audio_packet.get(), sizeof(audio_packet_raw_t) + packet_data.size()), session->audio.peer);
     BOOST_LOG(verbose) << "Audio ["sv << frame << "] ::  send..."sv;
   }
 
@@ -761,13 +765,11 @@ int start_broadcast(broadcast_ctx_t &ctx) {
     return -1;
   }
 
-  ctx.video_packets = std::make_shared<video::packet_queue_t::element_type>(30);
-  ctx.audio_packets = std::make_shared<audio::packet_queue_t::element_type>(30);
   ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
-  ctx.video_thread = std::thread { videoBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.video_sock), ctx.video_packets };
-  ctx.audio_thread = std::thread { audioBroadcastThread, &broadcast_shutdown_event, std::ref(ctx.audio_sock), ctx.audio_packets };
-  ctx.control_thread = std::thread { controlBroadcastThread, &broadcast_shutdown_event, &ctx.control_server };
+  ctx.video_thread   = std::thread { videoBroadcastThread, std::ref(ctx.video_sock) };
+  ctx.audio_thread   = std::thread { audioBroadcastThread, std::ref(ctx.audio_sock) };
+  ctx.control_thread = std::thread { controlBroadcastThread, &ctx.control_server };
 
   ctx.recv_thread = std::thread { recvThread, std::ref(ctx) };
 
@@ -775,11 +777,16 @@ int start_broadcast(broadcast_ctx_t &ctx) {
 }
 
 void end_broadcast(broadcast_ctx_t &ctx) {
-  broadcast_shutdown_event.raise(true);
+  auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+
+  broadcast_shutdown_event->raise(true);
+
+  auto video_packets = mail::man->queue<video::packet_t>(mail::video_packets);
+  auto audio_packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
 
   // Minimize delay stopping video/audio threads
-  ctx.video_packets->stop();
-  ctx.audio_packets->stop();
+  video_packets->stop();
+  audio_packets->stop();
 
   ctx.message_queue_queue->stop();
   ctx.io.stop();
@@ -787,8 +794,8 @@ void end_broadcast(broadcast_ctx_t &ctx) {
   ctx.video_sock.close();
   ctx.audio_sock.close();
 
-  ctx.video_packets.reset();
-  ctx.audio_packets.reset();
+  video_packets.reset();
+  audio_packets.reset();
 
   BOOST_LOG(debug) << "Waiting for main listening thread to end..."sv;
   ctx.recv_thread.join();
@@ -800,7 +807,7 @@ void end_broadcast(broadcast_ctx_t &ctx) {
   ctx.control_thread.join();
   BOOST_LOG(debug) << "All broadcasting threads ended"sv;
 
-  broadcast_shutdown_event.reset();
+  broadcast_shutdown_event->reset();
 }
 
 int recv_ping(decltype(broadcast)::ptr_t ref, socket_e type, asio::ip::address &addr, std::chrono::milliseconds timeout) {
@@ -842,7 +849,7 @@ void videoThread(session_t *session, std::string addr_str) {
   while_starting_do_nothing(session->state);
 
   auto addr = asio::ip::make_address(addr_str);
-  auto ref = broadcast.ref();
+  auto ref  = broadcast.ref();
   auto port = recv_ping(ref, socket_e::video, addr, config::stream.ping_timeout);
   if(port < 0) {
     return;
@@ -852,7 +859,7 @@ void videoThread(session_t *session, std::string addr_str) {
   session->video.peer.port(port);
 
   BOOST_LOG(debug) << "Start capturing Video"sv;
-  video::capture(&session->shutdown_event, ref->video_packets, session->video.idr_events, session->config.monitor, session);
+  video::capture(session->mail, session->config.monitor, session);
 }
 
 void audioThread(session_t *session, std::string addr_str) {
@@ -864,7 +871,7 @@ void audioThread(session_t *session, std::string addr_str) {
 
   auto addr = asio::ip::make_address(addr_str);
 
-  auto ref = broadcast.ref();
+  auto ref  = broadcast.ref();
   auto port = recv_ping(ref, socket_e::audio, addr, config::stream.ping_timeout);
   if(port < 0) {
     return;
@@ -874,7 +881,7 @@ void audioThread(session_t *session, std::string addr_str) {
   session->audio.peer.port(port);
 
   BOOST_LOG(debug) << "Start capturing Audio"sv;
-  audio::capture(&session->shutdown_event, ref->audio_packets, session->config.audio, session);
+  audio::capture(session->mail, session->config.audio, session);
 }
 
 namespace session {
@@ -884,14 +891,13 @@ state_e state(session_t &session) {
 
 void stop(session_t &session) {
   while_starting_do_nothing(session.state);
-
-  auto expected = state_e::RUNNING;
+  auto expected         = state_e::RUNNING;
   auto already_stopping = !session.state.compare_exchange_strong(expected, state_e::STOPPING);
   if(already_stopping) {
     return;
   }
 
-  session.shutdown_event.raise(true);
+  session.shutdown_event->raise(true);
 }
 
 void join(session_t &session) {
@@ -901,11 +907,14 @@ void join(session_t &session) {
   session.audioThread.join();
   BOOST_LOG(debug) << "Waiting for control to end..."sv;
   session.controlEnd.view();
+  //Reset input on session stop to avoid stuck repeated keys
+  BOOST_LOG(debug) << "Resetting Input..."sv;
+  input::reset(session.input);
   BOOST_LOG(debug) << "Session ended"sv;
 }
 
 int start(session_t &session, const std::string &addr_string) {
-  session.input = input::alloc();
+  session.input = input::alloc(session.mail);
 
   session.broadcast_ref = broadcast.ref();
   if(!session.broadcast_ref) {
@@ -916,8 +925,8 @@ int start(session_t &session, const std::string &addr_string) {
 
   session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-  session.audioThread = std::thread {audioThread, &session, addr_string};
-  session.videoThread = std::thread {videoThread, &session, addr_string};
+  session.audioThread = std::thread { audioThread, &session, addr_string };
+  session.videoThread = std::thread { videoThread, &session, addr_string };
 
   session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 
@@ -927,19 +936,25 @@ int start(session_t &session, const std::string &addr_string) {
 std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv) {
   auto session = std::make_shared<session_t>();
 
-  session->config = config;
-  session->gcm_key = gcm_key;
-  session->iv = iv;
+  auto mail = std::make_shared<safe::mail_raw_t>();
 
-  session->video.idr_events = std::make_shared<video::idr_event_t::element_type>();
-  session->video.lowseq = 0;
+  session->shutdown_event = mail->event<bool>(mail::shutdown);
+
+  session->config  = config;
+  session->gcm_key = gcm_key;
+  session->iv      = iv;
+
+  session->video.idr_events = mail->event<video::idr_t>(mail::idr);
+  session->video.lowseq     = 0;
 
   session->audio.frame = 1;
 
   session->control.peer = nullptr;
   session->state.store(state_e::STOPPED, std::memory_order_relaxed);
 
+  session->mail = std::move(mail);
+
   return session;
 }
-}
-}
+} // namespace session
+} // namespace stream

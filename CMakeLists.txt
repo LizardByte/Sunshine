@@ -1,101 +1,128 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
-# On MSYS2, building a stand-alone binary that links with ffmpeg is not possible,
-# Therefore, ffmpeg, libx264 and libx265 must be build from source
+add_subdirectory(third-party/Simple-Web-Server)
+
 if(WIN32)
-	option(SUNSHINE_STANDALONE "Compile stand-alone binary of Sunshine" OFF)
-	if(SUNSHINE_STANDALONE)
-		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
-	
-		if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-			set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/pre-compiled/windows")
-		endif()
-		list(PREPEND PLATFORM_LIBRARIES
-			C:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/${CMAKE_CXX_COMPILER_VERSION}/libstdc++.a
-			C:/msys64/mingw64/x86_64-w64-mingw32/lib/libwinpthread.a
-			)
-
-		set(FFMPEG_INCLUDE_DIRS
-			${SUNSHINE_PREPARED_BINARIES}/include)
-		set(FFMPEG_LIBRARIES
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-			${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-			z lzma bcrypt C:/msys64/mingw64/lib/libiconv.a)
-	endif()
-else()
-	set(SUNSHINE_STANDALONE OFF)
+	# Ugly hack to compile with #include <qos2.h>
+	add_compile_definitions(
+		QOS_FLOWID=UINT32
+		PQOS_FLOWID=UINT32*
+		QOS_NON_ADAPTIVE_FLOW=2)
 endif()
-
-add_subdirectory(Simple-Web-Server)
-add_subdirectory(moonlight-common-c/enet)
+add_subdirectory(third-party/moonlight-common-c/enet)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
-if(NOT SUNSHINE_STANDALONE)
-	find_package(FFmpeg REQUIRED)
-endif()
-
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
 if(WIN32)
+	file(
+		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		TIMEOUT 60
+		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
+
+	file(ARCHIVE_EXTRACT
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+	
+	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
+	endif()
+
+	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
 
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_windows.json")
-	include_directories(
-		ViGEmClient/include)
+
+	include_directories(third-party/ViGEmClient/include)
+
 	set(PLATFORM_TARGET_FILES
+		sunshine/platform/windows/misc.cpp
 		sunshine/platform/windows/input.cpp
 		sunshine/platform/windows/display.h
 		sunshine/platform/windows/display_base.cpp
 		sunshine/platform/windows/display_vram.cpp
 		sunshine/platform/windows/display_ram.cpp
 		sunshine/platform/windows/audio.cpp
-		ViGEmClient/src/ViGEmClient.cpp
-		ViGEmClient/include/ViGEm/Client.h
-		ViGEmClient/include/ViGEm/Common.h
-		ViGEmClient/include/ViGEm/Util.h
-		ViGEmClient/include/ViGEm/km/BusShared.h)
+		third-party/ViGEmClient/src/ViGEmClient.cpp
+		third-party/ViGEmClient/include/ViGEm/Client.h
+		third-party/ViGEmClient/include/ViGEm/Common.h
+		third-party/ViGEmClient/include/ViGEm/Util.h
+		third-party/ViGEmClient/include/ViGEm/km/BusShared.h)
+
+	set(OPENSSL_LIBRARIES
+		libssl.a
+		libcrypto.a)
+
+	set(FFMPEG_INCLUDE_DIRS
+		${SUNSHINE_PREPARED_BINARIES}/include)
+	set(FFMPEG_LIBRARIES
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
+		z lzma bcrypt libiconv.a)
+
 	list(PREPEND PLATFORM_LIBRARIES
+		libstdc++.a
+		libwinpthread.a
+		libssp.a
+		Qwave
 		winmm
 		ksuser
 		wsock32
 		ws2_32
 		iphlpapi
-		d3d11 dxgi
+		d3d11 dxgi D3DCompiler
 		setupapi
 		)
 
-	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
-	set_source_files_properties(ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
+	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
+	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 else()
+	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	find_package(X11 REQUIRED)
 	pkg_check_modules(AVAHI REQUIRED avahi-client)
+	find_package(FFmpeg REQUIRED)
+
 	set(PLATFORM_TARGET_FILES
+		sunshine/platform/linux/vaapi.h
+		sunshine/platform/linux/vaapi.cpp
+		sunshine/platform/linux/misc.cpp
 		sunshine/platform/linux/display.cpp
-		sunshine/platform/linux/input.cpp)
-	
+		sunshine/platform/linux/audio.cpp
+		sunshine/platform/linux/input.cpp
+		third-party/glad/src/egl.c
+		third-party/glad/src/gl.c
+		third-party/glad/include/EGL/eglplatform.h
+		third-party/glad/include/KHR/khrplatform.h
+		third-party/glad/include/glad/gl.h
+		third-party/glad/include/glad/egl.h)
+		
 	set(PLATFORM_LIBRARIES
 		Xfixes
 		Xtst
 		xcb
 		xcb-shm
 		xcb-xfixes
+		Xrandr
 		${X11_LIBRARIES}
+		dl
 		evdev
 		pulse
 		pulse-simple
@@ -105,7 +132,8 @@ else()
 	set(PLATFORM_INCLUDE_DIRS
 		${X11_INCLUDE_DIR}
 		${AVAHI_INCLUDE_DIRS}
-		/usr/include/libevdev-1.0)
+		/usr/include/libevdev-1.0
+		third-party/glad/include)
 
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
 		set(SUNSHINE_EXECUTABLE_PATH "${CMAKE_CURRENT_BINARY_DIR}/sunshine")
@@ -114,16 +142,19 @@ else()
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
+add_subdirectory(third-party/cbs)
+
 set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 set(SUNSHINE_TARGET_FILES
-	moonlight-common-c/reedsolomon/rs.c
-	moonlight-common-c/reedsolomon/rs.h
-	moonlight-common-c/src/Input.h
-	moonlight-common-c/src/Rtsp.h
-	moonlight-common-c/src/RtspParser.c
-	moonlight-common-c/src/Video.h
+	third-party/moonlight-common-c/reedsolomon/rs.c
+	third-party/moonlight-common-c/reedsolomon/rs.h
+	third-party/moonlight-common-c/src/Input.h
+	third-party/moonlight-common-c/src/Rtsp.h
+	third-party/moonlight-common-c/src/RtspParser.c
+	third-party/moonlight-common-c/src/Video.h
+	sunshine/cbs.cpp
 	sunshine/utility.h
 	sunshine/uuid.h
 	sunshine/config.h
@@ -134,6 +165,10 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/crypto.h
 	sunshine/nvhttp.cpp
 	sunshine/nvhttp.h
+	sunshine/httpcommon.cpp
+	sunshine/httpcommon.h
+	sunshine/confighttp.cpp
+	sunshine/confighttp.h
 	sunshine/rtsp.cpp
 	sunshine/rtsp.h
 	sunshine/stream.cpp
@@ -161,9 +196,10 @@ set(SUNSHINE_TARGET_FILES
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/Simple-Web-Server
-  ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/enet/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/moonlight-common-c/reedsolomon
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cbs/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/reedsolomon
   ${FFMPEG_INCLUDE_DIRS}
   ${PLATFORM_INCLUDE_DIRS}
 )
@@ -183,13 +219,11 @@ if(NOT SUNSHINE_ASSETS_DIR)
 	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets")
 endif()
 
-if(SUNSHINE_STANDALONE)
-	set(OPENSSL_LIBRARIES
-		C:/msys64/mingw64/lib/libssl.a
-		C:/msys64/mingw64/lib/libcrypto.a)
-endif()
+list(APPEND CBS_EXTERNAL_LIBRARIES
+	cbs)
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
+		${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 		stdc++fs
 		enet

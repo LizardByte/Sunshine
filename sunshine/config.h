@@ -1,16 +1,18 @@
 #ifndef SUNSHINE_CONFIG_H
 #define SUNSHINE_CONFIG_H
 
-#include <chrono>
-#include <string>
 #include <bitset>
+#include <chrono>
 #include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace config {
 struct video_t {
   // ffmpeg params
   int crf; // higher == more compression and less quality
-  int qp; // higher == more compression and less quality, ignored if crf != 0
+  int qp;  // higher == more compression and less quality, ignored if crf != 0
 
   int hevc_mode;
 
@@ -26,6 +28,12 @@ struct video_t {
     int coder;
   } nv;
 
+  struct {
+    std::optional<int> quality;
+    std::optional<int> rc;
+    int coder;
+  } amd;
+
   std::string encoder;
   std::string adapter_name;
   std::string output_name;
@@ -33,6 +41,7 @@ struct video_t {
 
 struct audio_t {
   std::string sink;
+  std::string virtual_sink;
 };
 
 struct stream_t {
@@ -59,6 +68,8 @@ struct nvhttp_t {
   std::string file_state;
 
   std::string external_ip;
+  std::vector<std::string> resolutions;
+  std::vector<int> fps;
 };
 
 struct input_t {
@@ -69,16 +80,30 @@ struct input_t {
 
 namespace flag {
 enum flag_e : std::size_t {
-  PIN_STDIN = 0, // Read PIN from stdin instead of http
-  FRESH_STATE, // Do not load or save state
+  PIN_STDIN = 0,              // Read PIN from stdin instead of http
+  FRESH_STATE,                // Do not load or save state
+  FORCE_VIDEO_HEADER_REPLACE, // force replacing headers inside video data
+  CONST_PIN,                  // Use "universal" pin
   FLAG_SIZE
 };
 }
 
 struct sunshine_t {
   int min_log_level;
-
   std::bitset<flag::FLAG_SIZE> flags;
+  std::string credentials_file;
+
+  std::string username;
+  std::string password;
+  std::string salt;
+
+  std::string config_file;
+
+  struct cmd_t {
+    std::string name;
+    int argc;
+    char **argv;
+  } cmd;
 };
 
 extern video_t video;
@@ -89,6 +114,6 @@ extern input_t input;
 extern sunshine_t sunshine;
 
 int parse(int argc, char *argv[]);
-}
-
+std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+} // namespace config
 #endif

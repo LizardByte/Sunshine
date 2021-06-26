@@ -1,12 +1,9 @@
 [submodule "moonlight-common-c"]
-	path = moonlight-common-c
+	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
 [submodule "Simple-Web-Server"]
-	path = Simple-Web-Server
+	path = third-party/Simple-Web-Server
 	url = https://github.com/loki-47-6F-64/Simple-Web-Server.git
 [submodule "ViGEmClient"]
-	path = ViGEmClient
+	path = third-party/ViGEmClient
 	url = https://github.com/ViGEm/ViGEmClient
-[submodule "pre-compiled"]
-	path = pre-compiled
-	url = https://bitbucket.org/Loki-47-6F-64/pre-compiled.git

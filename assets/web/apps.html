@@ -1,0 +1,162 @@
+<div id="app" class="container">
+  <div class="my-4">
+    <h1>Applications</h1>
+    <div>Applications are refreshed only when Client is restarted</div>
+  </div>
+  <div class="card p-4">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="(app,i) in apps" :key="i">
+          <td>{{app.name}}</td>
+          <td><button class="btn btn-primary" @click="editApp(i)">Edit</button>
+            <button class="btn btn-danger" @click="showDeleteForm(i)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="edit-form card mt-2" v-if="showEditForm">
+    <div class="p-4">
+      <!--name-->
+      <div class="mb-3">
+        <label for="appName" class="form-label">Application Name</label>
+        <input type="text" class="form-control" id="appName" aria-describedby="appNameHelp" v-model="editForm.name">
+        <div id="appNameHelp" class="form-text">Application Name, as shown on Moonlight</div>
+      </div>
+      <!--output-->
+      <div class="mb-3">
+        <label for="appOutput" class="form-label">Output</label>
+        <input type="text" class="form-control  monospace" id="appOutput" aria-describedby="appOutputHelp"
+          v-model="editForm.output">
+        <div id="appOutputHelp" class="form-text">The file where the output of the command is stored, if it is not
+          specified, the output is ignored</div>
+      </div>
+      <!--prep-cmd-->
+      <div class="mb-3 d-flex flex-column">
+        <label for="appName" class="form-label">Command Preparations</label>
+        <div class="form-text">A list of commands to be run before/after the application. <br> If any of the
+          prep-commands fail, starting the application is aborted</div>
+        <table v-if="editForm['prep-cmd'].length > 0">
+          <thead>
+            <th class="precmd-head">Do</th>
+            <th class="precmd-head">Undo</th>
+            <th style="width: 48px;"></th>
+          </thead>
+          <tbody>
+            <tr v-for="(c,i) in editForm['prep-cmd']">
+              <td><input type="text" class="form-control monospace" v-model="c.do"></td>
+              <td><input type="text" class="form-control monospace" v-model="c.undo"></td>
+              <td><button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">&times;</button></td>
+            </tr>
+          </tbody>
+        </table>
+        <button class="mt-2 btn btn-success" style="margin: 0 auto;" @click="addPrepCmd">&plus; Add</button>
+      </div>
+      <!--detatched-->
+      <div class="mb-3">
+        <label for="appName" class="form-label">Detached Commands</label>
+        <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
+          <pre>{{c}}</pre>
+          <button class="btn btn-danger mx-2" @click="editForm.detached.splice(i,1)">&times;</button>
+        </div>
+        <div class="d-flex justify-content-between">
+          <input type="text" class="form-control monospace" v-model="detachedCmd">
+          <button class="btn btn-success mx-2" @click="editForm.detached.push(detachedCmd);detachedCmd = '';">+</button>
+        </div>
+        <div class="form-text">A list of commands to be run and forgotten about</div>
+      </div>
+      <!--command-->
+      <div class="mb-3">
+        <label for="appCmd" class="form-label">Command</label>
+        <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
+          v-model="editForm.cmd">
+        <div id="appCmdHelp" class="form-text">The main application, if it is not specified, a processs is started that
+          sleeps indefinitely</div>
+      </div>
+      <!--buttons-->
+      <div class="d-flex">
+        <button @click="showEditForm = false" class="btn btn-secondary m-2">Cancel</button>
+        <button class="btn btn-primary m-2" @click="save">Save</button>
+      </div>
+    </div>
+  </div>
+  <div class="mt-2" v-else>
+    <button class="btn btn-primary" @click="newApp">+ Add New</button>
+  </div>
+</div>
+
+<script>
+  new Vue({
+    el: '#app',
+    data() {
+      return {
+        apps: [],
+        showEditForm: false,
+        editForm: null,
+        detachedCmd: '',
+      }
+    },
+    created() {
+      fetch("/api/apps").then(r => r.json()).then((r) => {
+        console.log(r);
+        this.apps = r.apps;
+      })
+    },
+    methods: {
+      newApp() {
+        this.editForm = {
+          name: '',
+          output: '',
+          cmd: [],
+          index: -1,
+          "prep-cmd": [],
+          "detached": []
+        };
+        this.editForm.index = -1;
+        this.showEditForm = true;
+      },
+      editApp(id) {
+        this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
+        this.$set(this.editForm, "index", id);
+        if (this.editForm["prep-cmd"] === undefined) this.$set(this.editForm, "prep-cmd", []);
+        if (this.editForm["detached"] === undefined) this.$set(this.editForm, "detached", []);
+        this.showEditForm = true;
+      },
+      showDeleteForm(id) {
+        let resp = confirm("Are you sure to delete " + this.apps[id].name + "?");
+        if (resp) {
+          fetch("/api/apps/" + id, { method: "DELETE" }).then((r) => {
+            if (r.status == 200) document.location.reload();
+          });
+        }
+      },
+      addPrepCmd() {
+        this.editForm['prep-cmd'].push({
+          do: '',
+          undo: '',
+        });
+      },
+      save() {
+        fetch("/api/apps", { method: "POST", body: JSON.stringify(this.editForm) }).then((r) => {
+          if (r.status == 200) document.location.reload();
+        });
+      }
+    }
+  })
+</script>
+
+<style>
+  .precmd-head {
+    width: 200px;
+  }
+
+  .monospace {
+    font-family: monospace;
+  }
+</style>

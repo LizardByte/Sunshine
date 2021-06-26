@@ -1,0 +1,67 @@
+# Generated from CLion C/C++ Code Style settings
+BasedOnStyle: LLVM
+AccessModifierOffset: -2
+AlignAfterOpenBracket: DontAlign
+AlignConsecutiveAssignments: true
+AlignOperands: Align
+AllowAllArgumentsOnNextLine: false
+AllowAllConstructorInitializersOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Always
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: true
+AlwaysBreakAfterReturnType: None
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterUnion: false
+  BeforeCatch: true
+  BeforeElse: true
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: true
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: false
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+ColumnLimit: 0
+CompactNamespaces: false
+ContinuationIndentWidth: 2
+IndentCaseLabels: false
+IndentPPDirectives: None
+IndentWidth: 2
+KeepEmptyLinesAtTheStartOfBlocks: true
+MaxEmptyLinesToKeep: 2
+NamespaceIndentation: None
+ObjCSpaceAfterProperty: false
+ObjCSpaceBeforeProtocolList: true
+PointerAlignment: Right
+ReflowComments: false
+SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceAfterTemplateKeyword: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: true
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: Never
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+TabWidth: 2
+Cpp11BracedListStyle: false
+UseTab: Never

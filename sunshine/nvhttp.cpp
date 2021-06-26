@@ -2,13 +2,15 @@
 // Created by loki on 6/3/19.
 //
 
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
+
 #include "process.h"
 
 #include <filesystem>
 
+#include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
-#include <boost/property_tree/json_parser.hpp>
 
 #include <boost/asio/ssl/context.hpp>
 
@@ -16,16 +18,17 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
+
 #include "config.h"
-#include "utility.h"
-#include "rtsp.h"
 #include "crypto.h"
+#include "httpcommon.h"
+#include "main.h"
+#include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
-#include "network.h"
+#include "rtsp.h"
+#include "utility.h"
 #include "uuid.h"
-#include "main.h"
-
 
 namespace nvhttp {
 using namespace std::literals;
@@ -35,9 +38,6 @@ constexpr auto GFE_VERSION = "3.12.0.1";
 
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
-
-std::string read_file(const char *path);
-int write_file(const char *path, const std::string_view &contents);
 
 using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 using http_server_t  = SimpleWeb::Server<SimpleWeb::HTTP>;
@@ -67,8 +67,8 @@ struct pair_session_t {
   struct {
     util::Either<
       std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>,
-      std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>
-    > response;
+      std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>>
+      response;
     std::string salt;
   } async_insert_pin;
 };
@@ -76,14 +76,12 @@ struct pair_session_t {
 // uniqueID, session
 std::unordered_map<std::string, pair_session_t> map_id_sess;
 std::unordered_map<std::string, client_t> map_id_client;
-std::string unique_id;
-net::net_e origin_pin_allowed;
 
-using args_t = SimpleWeb::CaseInsensitiveMultimap;
+using args_t       = SimpleWeb::CaseInsensitiveMultimap;
 using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
-using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
-using resp_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>;
-using req_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request>;
+using req_https_t  = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+using resp_http_t  = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>;
+using req_http_t   = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request>;
 
 enum class op_e {
   ADD,
@@ -93,9 +91,21 @@ enum class op_e {
 void save_state() {
   pt::ptree root;
 
-  root.put("root.uniqueid", unique_id);
+  if(fs::exists(config::nvhttp.file_state)) {
+    try {
+      pt::read_json(config::nvhttp.file_state, root);
+    }
+    catch(std::exception &e) {
+      BOOST_LOG(error) << "Couldn't read "sv << config::nvhttp.file_state << ": "sv << e.what();
+      return;
+    }
+  }
+
+  root.erase("root"s);
+
+  root.put("root.uniqueid", http::unique_id);
   auto &nodes = root.add_child("root.devices", pt::ptree {});
-  for(auto &[_,client] : map_id_client) {
+  for(auto &[_, client] : map_id_client) {
     pt::ptree node;
 
     node.put("uniqueid"s, client.uniqueID);
@@ -111,31 +121,44 @@ void save_state() {
     nodes.push_back(std::make_pair(""s, node));
   }
 
-  pt::write_json(config::nvhttp.file_state, root);
+  try {
+    pt::write_json(config::nvhttp.file_state, root);
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(error) << "Couldn't write "sv << config::nvhttp.file_state << ": "sv << e.what();
+    return;
+  }
 }
 
 void load_state() {
-  auto file_state = fs::current_path() / config::nvhttp.file_state;
-
-  if(!fs::exists(file_state)) {
-    unique_id = util::uuid_t::generate().string();
+  if(!fs::exists(config::nvhttp.file_state)) {
+    BOOST_LOG(info) << "DOENST EXIST"sv;
+    http::unique_id = util::uuid_t::generate().string();
     return;
   }
 
   pt::ptree root;
   try {
     pt::read_json(config::nvhttp.file_state, root);
-  } catch (std::exception &e) {
-    BOOST_LOG(warning) << e.what();
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(error) << "Couldn't read "sv << config::nvhttp.file_state << ": "sv << e.what();
 
     return;
   }
 
-  unique_id = root.get<std::string>("root.uniqueid");
+  auto unique_id_p = root.get_optional<std::string>("root.uniqueid");
+  if(!unique_id_p) {
+    // This file doesn't contain moonlight credentials
+    http::unique_id = util::uuid_t::generate().string();
+    return;
+  }
+  http::unique_id = std::move(*unique_id_p);
+
   auto device_nodes = root.get_child("root.devices");
 
-  for(auto &[_,device_node] : device_nodes) {
-    auto uniqID = device_node.get<std::string>("uniqueid");
+  for(auto &[_, device_node] : device_nodes) {
+    auto uniqID  = device_node.get<std::string>("uniqueid");
     auto &client = map_id_client.emplace(uniqID, client_t {}).first->second;
 
     client.uniqueID = uniqID;
@@ -148,21 +171,33 @@ void load_state() {
 
 void update_id_client(const std::string &uniqueID, std::string &&cert, op_e op) {
   switch(op) {
-    case op_e::ADD:
-    {
-      auto &client = map_id_client[uniqueID];
-      client.certs.emplace_back(std::move(cert));
-      client.uniqueID = uniqueID;
-    }
-      break;
-    case op_e::REMOVE:
-      map_id_client.erase(uniqueID);
-      break;
+  case op_e::ADD: {
+    auto &client = map_id_client[uniqueID];
+    client.certs.emplace_back(std::move(cert));
+    client.uniqueID = uniqueID;
+  } break;
+  case op_e::REMOVE:
+    map_id_client.erase(uniqueID);
+    break;
   }
 
   if(!config::sunshine.flags[config::flag::FRESH_STATE]) {
     save_state();
   }
+}
+
+stream::launch_session_t make_launch_session(bool host_audio, const args_t &args) {
+  stream::launch_session_t launch_session;
+
+  launch_session.host_audio = host_audio;
+  launch_session.gcm_key    = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
+  uint32_t prepend_iv       = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
+  auto prepend_iv_p         = (uint8_t *)&prepend_iv;
+
+  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
+  std::fill(next, std::end(launch_session.iv), 0);
+
+  return launch_session;
 }
 
 void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin) {
@@ -173,10 +208,10 @@ void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin
   }
 
   std::string_view salt_view { sess.async_insert_pin.salt.data(), 32 };
-  
+
   auto salt = util::from_hex<std::array<uint8_t, 16>>(salt_view, true);
 
-  auto key = crypto::gen_aes_key(*salt, pin);
+  auto key        = crypto::gen_aes_key(*salt, pin);
   sess.cipher_key = std::make_unique<crypto::aes_t>(key);
 
   tree.put("root.paired", 1);
@@ -195,7 +230,7 @@ void serverchallengeresp(pair_session_t &sess, pt::ptree &tree, const args_t &ar
   sess.clienthash = std::move(decrypted);
 
   auto serversecret = sess.serversecret;
-  auto sign = crypto::sign256(crypto::pkey(conf_intern.pkey), serversecret);
+  auto sign         = crypto::sign256(crypto::pkey(conf_intern.pkey), serversecret);
 
   serversecret.insert(std::end(serversecret), std::begin(sign), std::end(sign));
 
@@ -213,14 +248,14 @@ void clientchallenge(pair_session_t &sess, pt::ptree &tree, const args_t &args) 
   std::vector<uint8_t> decrypted;
   cipher.decrypt(challenge, decrypted);
 
-  auto x509 = crypto::x509(conf_intern.servercert);
-  auto sign = crypto::signature(x509);
+  auto x509         = crypto::x509(conf_intern.servercert);
+  auto sign         = crypto::signature(x509);
   auto serversecret = crypto::rand(16);
 
   decrypted.insert(std::end(decrypted), std::begin(sign), std::end(sign));
   decrypted.insert(std::end(decrypted), std::begin(serversecret), std::end(serversecret));
 
-  auto hash = crypto::hash({ (char*)decrypted.data(), decrypted.size() });
+  auto hash            = crypto::hash({ (char *)decrypted.data(), decrypted.size() });
   auto serverchallenge = crypto::rand(16);
 
   std::string plaintext;
@@ -250,7 +285,7 @@ void clientpairingsecret(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cer
 
   assert((secret.size() + sign.size()) == pairingsecret.size());
 
-  auto x509 = crypto::x509(client.cert);
+  auto x509      = crypto::x509(client.cert);
   auto x509_sign = crypto::signature(x509);
 
   std::string data;
@@ -304,8 +339,8 @@ template<class T>
 void print_req(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   BOOST_LOG(debug) << "TUNNEL :: "sv << tunnel<T>::to_string;
 
-  BOOST_LOG(debug)  << "METHOD :: "sv << request->method;
-  BOOST_LOG(debug)  << "DESTINATION :: "sv << request->path;
+  BOOST_LOG(debug) << "METHOD :: "sv << request->method;
+  BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
 
   for(auto &[name, val] : request->header) {
     BOOST_LOG(debug) << name << " -- " << val;
@@ -332,33 +367,44 @@ void not_found(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> resp
   pt::write_xml(data, tree);
   response->write(data.str());
 
-  *response << "HTTP/1.1 404 NOT FOUND\r\n" << data.str();
+  *response << "HTTP/1.1 404 NOT FOUND\r\n"
+            << data.str();
 }
 
 template<class T>
 void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
 
+  pt::ptree tree;
+
   auto args = request->parse_query_string();
+  if(args.find("uniqueid"s) == std::end(args)) {
+    tree.put("root.<xmlattr>.status_code", 400);
+
+    return;
+  }
+
   auto uniqID { std::move(args.at("uniqueid"s)) };
   auto sess_it = map_id_sess.find(uniqID);
-
-  pt::ptree tree;
 
   args_t::const_iterator it;
   if(it = args.find("phrase"); it != std::end(args)) {
     if(it->second == "getservercert"sv) {
       pair_session_t sess;
-      
+
       sess.client.uniqueID = std::move(uniqID);
-      sess.client.cert = util::from_hex_vec(args.at("clientcert"s), true);
+      sess.client.cert     = util::from_hex_vec(args.at("clientcert"s), true);
 
       BOOST_LOG(debug) << sess.client.cert;
       auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
       ptr->second.async_insert_pin.salt = std::move(args.at("salt"s));
 
-      if(config::sunshine.flags[config::flag::PIN_STDIN]) {
+      if(config::sunshine.flags[config::flag::CONST_PIN]) {
+        std::string pin("6174");
+        getservercert(ptr->second, tree, pin);
+      }
+      else if(config::sunshine.flags[config::flag::PIN_STDIN]) {
         std::string pin;
 
         std::cout << "Please insert pin: "sv;
@@ -396,30 +442,14 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
   response->write(data.str());
 }
 
-template<class T>
-void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-  print_req<T>(request);
-
-  auto address = request->remote_endpoint_address();
-  auto ip_type = net::from_address(address);
-  if(ip_type > origin_pin_allowed) {
-    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
-
-    response->write(SimpleWeb::StatusCode::client_error_forbidden);
-
-    return;
-  }
-
+bool pin(std::string pin) {
   pt::ptree tree;
-
   if(map_id_sess.empty()) {
-    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
-
-    return;
+    return false;
   }
 
   auto &sess = std::begin(map_id_sess)->second;
-  getservercert(sess, tree, request->path_match[1]);
+  getservercert(sess, tree, pin);
 
   // response to the request for pin
   std::ostringstream data;
@@ -429,19 +459,40 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
   if(async_response.has_left() && async_response.left()) {
     async_response.left()->write(data.str());
   }
-  else if(async_response.has_right() && async_response.right()){
+  else if(async_response.has_right() && async_response.right()) {
     async_response.right()->write(data.str());
   }
   else {
-    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
-
-    return;
+    return false;
   }
 
   // reset async_response
   async_response = std::decay_t<decltype(async_response.left())>();
   // response to the current request
-  response->write(SimpleWeb::StatusCode::success_ok);
+  return true;
+}
+
+template<class T>
+void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
+  print_req<T>(request);
+
+  auto address = request->remote_endpoint_address();
+  auto ip_type = net::from_address(address);
+  if(ip_type > http::origin_pin_allowed) {
+    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
+
+    response->write(SimpleWeb::StatusCode::client_error_forbidden);
+
+    return;
+  }
+
+  bool pinResponse = pin(request->path_match[1]);
+  if(pinResponse) {
+    response->write(SimpleWeb::StatusCode::success_ok);
+  }
+  else {
+    response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
+  }
 }
 
 template<class T>
@@ -449,13 +500,13 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   print_req<T>(request);
 
   int pair_status = 0;
-  if constexpr (std::is_same_v<SimpleWeb::HTTPS, T>) {
-    auto args = request->parse_query_string();
+  if constexpr(std::is_same_v<SimpleWeb::HTTPS, T>) {
+    auto args     = request->parse_query_string();
     auto clientID = args.find("uniqueid"s);
 
 
     if(clientID != std::end(args)) {
-      if (auto it = map_id_client.find(clientID->second); it != std::end(map_id_client)) {
+      if(auto it = map_id_client.find(clientID->second); it != std::end(map_id_client)) {
         pair_status = 1;
       }
     }
@@ -468,7 +519,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 
   tree.put("root.appversion", VERSION);
   tree.put("root.GfeVersion", GFE_VERSION);
-  tree.put("root.uniqueid", unique_id);
+  tree.put("root.uniqueid", http::unique_id);
   tree.put("root.mac", platf::get_mac_address(request->local_endpoint_address()));
   tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 1 ? "1869449984" : "0");
   tree.put("root.LocalIP", request->local_endpoint_address());
@@ -487,10 +538,35 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
     tree.put("root.ExternalIP", config::nvhttp.external_ip);
   }
 
+  pt::ptree display_nodes;
+  for(auto &resolution : config::nvhttp.resolutions) {
+    auto pred = [](auto ch) { return ch == ' ' || ch == '\t' || ch == 'x'; };
+
+    auto middle = std::find_if(std::begin(resolution), std::end(resolution), pred);
+    if(middle == std::end(resolution)) {
+      BOOST_LOG(warning) << resolution << " is not in the proper format for a resolution: WIDTHxHEIGHT"sv;
+      continue;
+    }
+
+    auto width  = util::from_chars(&*std::begin(resolution), &*middle);
+    auto height = util::from_chars(&*(middle + 1), &*std::end(resolution));
+    for(auto fps : config::nvhttp.fps) {
+      pt::ptree display_node;
+      display_node.put("Width", width);
+      display_node.put("Height", height);
+      display_node.put("RefreshRate", fps);
+
+      display_nodes.add_child("DisplayMode", display_node);
+    }
+  }
+
+  if(!config::nvhttp.resolutions.empty()) {
+    tree.add_child("root.SupportedDisplayMode", display_nodes);
+  }
   auto current_appid = proc::proc.running();
   tree.put("root.PairStatus", pair_status);
   tree.put("root.currentgame", current_appid >= 0 ? current_appid + 1 : 0);
-  tree.put("root.state", current_appid >= 0 ? "_SERVER_BUSY" : "_SERVER_FREE");
+  tree.put("root.state", current_appid >= 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
 
   std::ostringstream data;
 
@@ -501,9 +577,6 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 void applist(resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
-  auto args = request->parse_query_string();
-  auto clientID = args.at("uniqueid"s);
-
   pt::ptree tree;
 
   auto g = util::fail_guard([&]() {
@@ -512,6 +585,15 @@ void applist(resp_https_t response, req_https_t request) {
     pt::write_xml(data, tree);
     response->write(data.str());
   });
+
+  auto args = request->parse_query_string();
+  if(args.find("uniqueid"s) == std::end(args)) {
+    tree.put("root.<xmlattr>.status_code", 400);
+
+    return;
+  }
+
+  auto clientID = args.at("uniqueid"s);
 
   auto client = map_id_client.find(clientID);
   if(client == std::end(map_id_client)) {
@@ -536,7 +618,7 @@ void applist(resp_https_t response, req_https_t request) {
   }
 }
 
-void launch(resp_https_t response, req_https_t request) {
+void launch(bool &host_audio, resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
   pt::ptree tree;
@@ -555,7 +637,19 @@ void launch(resp_https_t response, req_https_t request) {
   }
 
   auto args = request->parse_query_string();
-  auto appid = util::from_view(args.at("appid")) -1;
+  if(
+    args.find("rikey"s) == std::end(args) ||
+    args.find("rikeyid"s) == std::end(args) ||
+    args.find("localAudioPlayMode"s) == std::end(args) ||
+    args.find("appid"s) == std::end(args)) {
+
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 400);
+
+    return;
+  }
+
+  auto appid = util::from_view(args.at("appid")) - 1;
 
   auto current_appid = proc::proc.running();
   if(current_appid != -1) {
@@ -575,23 +669,14 @@ void launch(resp_https_t response, req_https_t request) {
     }
   }
 
-  stream::launch_session_t launch_session;
-
-  auto clientID = args.at("uniqueid"s);
-  launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
-  uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
-  auto prepend_iv_p = (uint8_t*)&prepend_iv;
-
-  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
-  std::fill(next, std::end(launch_session.iv), 0);
-
-  stream::launch_session_raise(launch_session);
+  host_audio = util::from_view(args.at("localAudioPlayMode"));
+  stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.gamesession", 1);
 }
 
-void resume(resp_https_t response, req_https_t request) {
+void resume(bool &host_audio, resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
   pt::ptree tree;
@@ -619,18 +704,18 @@ void resume(resp_https_t response, req_https_t request) {
     return;
   }
 
-  stream::launch_session_t launch_session;
-
   auto args = request->parse_query_string();
-  auto clientID = args.at("uniqueid"s);
-  launch_session.gcm_key = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
-  uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
-  auto prepend_iv_p = (uint8_t*)&prepend_iv;
+  if(
+    args.find("rikey"s) == std::end(args) ||
+    args.find("rikeyid"s) == std::end(args)) {
 
-  auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
-  std::fill(next, std::end(launch_session.iv), 0);
+    tree.put("root.resume", 0);
+    tree.put("root.<xmlattr>.status_code", 400);
 
-  stream::launch_session_raise(launch_session);
+    return;
+  }
+
+  stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.resume", 1);
@@ -671,87 +756,16 @@ void appasset(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in);
 }
 
-int create_creds(const std::string &pkey, const std::string &cert) {
-  fs::path pkey_path = pkey;
-  fs::path cert_path = cert;
+void start() {
+  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
-  auto creds = crypto::gen_creds("Sunshine Gamestream Host"sv, 2048);
-
-  auto pkey_dir = pkey_path;
-  auto cert_dir = cert_path;
-  pkey_dir.remove_filename();
-  cert_dir.remove_filename();
-
-  std::error_code err_code{};
-  fs::create_directories(pkey_dir, err_code);
-  if (err_code) {
-    BOOST_LOG(fatal) << "Couldn't create directory ["sv << pkey_dir << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  fs::create_directories(cert_dir, err_code);
-  if (err_code) {
-    BOOST_LOG(fatal) << "Couldn't create directory ["sv << cert_dir << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  if (write_file(pkey.c_str(), creds.pkey)) {
-    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
-    return -1;
-  }
-
-  if (write_file(cert.c_str(), creds.x509)) {
-    BOOST_LOG(fatal) << "Couldn't open ["sv << config::nvhttp.cert << ']';
-    return -1;
-  }
-
-  fs::permissions(pkey_path,
-    fs::perms::owner_read | fs::perms::owner_write,
-    fs::perm_options::replace, err_code);
-
-  if (err_code) {
-    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  fs::permissions(cert_path,
-    fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write,
-    fs::perm_options::replace, err_code);
-
-  if (err_code) {
-    BOOST_LOG(fatal) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
-    return -1;
-  }
-
-  return 0;
-}
-
-void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
-  if(clean_slate) {
-    unique_id = util::uuid_t::generate().string();
-
-    auto dir = std::filesystem::temp_directory_path() / "Sushine"sv;
-
-    config::nvhttp.cert = (dir / ("cert-"s + unique_id)).string();
-    config::nvhttp.pkey = (dir / ("pkey-"s + unique_id)).string();
-  }
-
-
-  if(!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) {
-    if(create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
-      shutdown_event->raise(true);
-      return;
-    }
-  }
-
-  origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
 
   if(!clean_slate) {
     load_state();
   }
 
-  conf_intern.pkey = read_file(config::nvhttp.pkey.c_str());
+  conf_intern.pkey       = read_file(config::nvhttp.pkey.c_str());
   conf_intern.servercert = read_file(config::nvhttp.cert.c_str());
 
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
@@ -759,7 +773,7 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
 
   crypto::cert_chain_t cert_chain;
-  for(auto &[_,client] : map_id_client) {
+  for(auto &[_, client] : map_id_client) {
     for(auto &cert : client.certs) {
       cert_chain.add(crypto::x509(cert));
     }
@@ -803,45 +817,64 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
     return 1;
   });
 
+  // /resume doesn't get the parameter "localAudioPlayMode"
+  // /launch will store it in host_audio
+  bool host_audio {};
 
   https_server_t https_server { ctx, boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once };
   http_server_t http_server;
 
-  https_server.default_resource = not_found<SimpleWeb::HTTPS>;
-  https_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTPS>;
-  https_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTPS>(add_cert, resp, req); };
-  https_server.resource["^/applist$"]["GET"] = applist;
-  https_server.resource["^/appasset$"]["GET"] = appasset;
-  https_server.resource["^/launch$"]["GET"] = launch;
+  https_server.default_resource                   = not_found<SimpleWeb::HTTPS>;
+  https_server.resource["^/serverinfo$"]["GET"]   = serverinfo<SimpleWeb::HTTPS>;
+  https_server.resource["^/pair$"]["GET"]         = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTPS>(add_cert, resp, req); };
+  https_server.resource["^/applist$"]["GET"]      = applist;
+  https_server.resource["^/appasset$"]["GET"]     = appasset;
+  https_server.resource["^/launch$"]["GET"]       = [&host_audio](auto resp, auto req) { launch(host_audio, resp, req); };
   https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
-  https_server.resource["^/resume$"]["GET"] = resume;
-  https_server.resource["^/cancel$"]["GET"] = cancel;
+  https_server.resource["^/resume$"]["GET"]       = [&host_audio](auto resp, auto req) { resume(host_audio, resp, req); };
+  https_server.resource["^/cancel$"]["GET"]       = cancel;
 
   https_server.config.reuse_address = true;
-  https_server.config.address = "0.0.0.0"s;
-  https_server.config.port = PORT_HTTPS;
+  https_server.config.address       = "0.0.0.0"s;
+  https_server.config.port          = PORT_HTTPS;
 
-  http_server.default_resource = not_found<SimpleWeb::HTTP>;
-  http_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTP>;
-  http_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTP>(add_cert, resp, req); };
+  http_server.default_resource                   = not_found<SimpleWeb::HTTP>;
+  http_server.resource["^/serverinfo$"]["GET"]   = serverinfo<SimpleWeb::HTTP>;
+  http_server.resource["^/pair$"]["GET"]         = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTP>(add_cert, resp, req); };
   http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
 
   http_server.config.reuse_address = true;
-  http_server.config.address = "0.0.0.0"s;
-  http_server.config.port = PORT_HTTP;
+  http_server.config.address       = "0.0.0.0"s;
+  http_server.config.port          = PORT_HTTP;
 
   try {
     https_server.bind();
     http_server.bind();
-  } catch(boost::system::system_error &err) {
+  }
+  catch(boost::system::system_error &err) {
     BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTP << "]: "sv << err.what();
 
     shutdown_event->raise(true);
     return;
   }
 
-  std::thread ssl { &https_server_t::accept_and_run, &https_server };
-  std::thread tcp { &http_server_t::accept_and_run, &http_server };
+  auto accept_and_run = [&](auto *http_server) {
+    try {
+      http_server->accept_and_run();
+    }
+    catch(boost::system::system_error &err) {
+      // It's possible the exception gets thrown after calling http_server->stop() from a different thread
+      if(shutdown_event->peek()) {
+        return;
+      }
+
+      BOOST_LOG(fatal) << "Couldn't start http server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTP << "]: "sv << err.what();
+      shutdown_event->raise(true);
+      return;
+    }
+  };
+  std::thread ssl { accept_and_run, &https_server };
+  std::thread tcp { accept_and_run, &http_server };
 
   // Wait for any event
   shutdown_event->view();
@@ -852,31 +885,4 @@ void start(std::shared_ptr<safe::signal_t> shutdown_event) {
   ssl.join();
   tcp.join();
 }
-
-int write_file(const char *path, const std::string_view &contents) {
-  std::ofstream out(path);
-
-  if(!out.is_open()) {
-    return -1;
-  }
-
-  out << contents;
-
-  return 0;
-}
-
-std::string read_file(const char *path) {
-  std::ifstream in(path);
-
-  std::string input;
-  std::string base64_cert;
-
-  //FIXME:  Being unable to read file could result in infinite loop
-  while(!in.eof()) {
-    std::getline(in, input);
-    base64_cert += input + '\n';
-  }
-
-  return base64_cert;
-}
-}
+} // namespace nvhttp

@@ -5,8 +5,9 @@
 #ifndef SUNSHINE_VIDEO_H
 #define SUNSHINE_VIDEO_H
 
-#include "thread_safe.h"
+#include "input.h"
 #include "platform/common.h"
+#include "thread_safe.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -14,29 +15,49 @@ extern "C" {
 
 struct AVPacket;
 namespace video {
-void free_packet(AVPacket *packet);
 
 struct packet_raw_t : public AVPacket {
-  template<class P>
-  explicit packet_raw_t(P *user_data) : channel_data { user_data } {
-    av_init_packet(this);
+  void init_packet() {
+    pts             = AV_NOPTS_VALUE;
+    dts             = AV_NOPTS_VALUE;
+    pos             = -1;
+    duration        = 0;
+    flags           = 0;
+    stream_index    = 0;
+    buf             = nullptr;
+    side_data       = nullptr;
+    side_data_elems = 0;
   }
 
-  explicit packet_raw_t(std::nullptr_t null) : channel_data { nullptr } {
-    av_init_packet(this);
+  template<class P>
+  explicit packet_raw_t(P *user_data) : channel_data { user_data } {
+    init_packet();
+  }
+
+  explicit packet_raw_t(std::nullptr_t) : channel_data { nullptr } {
+    init_packet();
   }
 
   ~packet_raw_t() {
     av_packet_unref(this);
   }
 
+  struct replace_t {
+    std::string_view old;
+    std::string_view _new;
+
+    KITTY_DEFAULT_CONSTR(replace_t)
+
+    replace_t(std::string_view old, std::string_view _new) noexcept : old { std::move(old) }, _new { std::move(_new) } {}
+  };
+
+  std::vector<replace_t> *replacements;
+
   void *channel_data;
 };
 
-using packet_t       = std::unique_ptr<packet_raw_t>;
-using packet_queue_t = std::shared_ptr<safe::queue_t<packet_t>>;
-using idr_event_t    = std::shared_ptr<safe::event_t<std::pair<int64_t, int64_t>>>;
-using img_event_t    = std::shared_ptr<safe::event_t<std::shared_ptr<platf::img_t>>>;
+using packet_t = std::unique_ptr<packet_raw_t>;
+using idr_t    = std::pair<int64_t, int64_t>;
 
 struct config_t {
   int width;
@@ -50,14 +71,26 @@ struct config_t {
   int dynamicRange;
 };
 
+using float4 = float[4];
+using float3 = float[3];
+using float2 = float[2];
+
+struct __attribute__((__aligned__(16))) color_t {
+  float4 color_vec_y;
+  float4 color_vec_u;
+  float4 color_vec_v;
+  float2 range_y;
+  float2 range_uv;
+};
+
+extern color_t colors[4];
+
 void capture(
-  safe::signal_t *shutdown_event,
-  packet_queue_t packets,
-  idr_event_t idr_events,
+  safe::mail_t mail,
   config_t config,
   void *channel_data);
 
 int init();
-}
+} // namespace video
 
 #endif //SUNSHINE_VIDEO_H
