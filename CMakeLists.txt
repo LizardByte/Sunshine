@@ -97,13 +97,13 @@ else()
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	find_package(X11 REQUIRED)
-	pkg_check_modules(AVAHI REQUIRED avahi-client)
 	find_package(FFmpeg REQUIRED)
 
 	set(PLATFORM_TARGET_FILES
 		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
+		sunshine/platform/linux/misc.h
 		sunshine/platform/linux/misc.cpp
 		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/audio.cpp
@@ -127,12 +127,10 @@ else()
 		evdev
 		pulse
 		pulse-simple
-		${AVAHI_LIBRARIES}
 		)
 	
 	set(PLATFORM_INCLUDE_DIRS
 		${X11_INCLUDE_DIR}
-		${AVAHI_INCLUDE_DIRS}
 		/usr/include/libevdev-1.0
 		third-party/glad/include)
 

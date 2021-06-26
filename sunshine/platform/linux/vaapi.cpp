@@ -1,16 +1,16 @@
 #include <sstream>
 #include <string>
 
+#include <fcntl.h>
+
 #include <glad/egl.h>
 #include <glad/gl.h>
-
-#include <dlfcn.h>
-#include <fcntl.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
 }
 
+#include "misc.h"
 #include "sunshine/config.h"
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
@@ -40,48 +40,6 @@ static void free_frame(AVFrame *frame) {
 }
 
 using frame_t = util::safe_ptr<AVFrame, free_frame>;
-
-namespace dyn {
-void *handle(const std::vector<const char *> &libs) {
-  void *handle;
-
-  for(auto lib : libs) {
-    handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
-    if(handle) {
-      return handle;
-    }
-  }
-
-  std::stringstream ss;
-  ss << "Couldn't find any of the following libraries: ["sv << libs.front();
-  std::for_each(std::begin(libs) + 1, std::end(libs), [&](auto lib) {
-    ss << ", "sv << lib;
-  });
-
-  ss << ']';
-
-  BOOST_LOG(error) << ss.str();
-
-  return nullptr;
-}
-
-int load(void *handle, std::vector<std::tuple<GLADapiproc *, const char *>> &funcs, bool strict = true) {
-  for(auto &func : funcs) {
-    TUPLE_2D_REF(fn, name, func);
-
-    *fn = GLAD_GNUC_EXTENSION(GLADapiproc) dlsym(handle, name);
-
-    if(!*fn && strict) {
-      BOOST_LOG(error) << "Couldn't find function: "sv << name;
-
-      return -1;
-    }
-  }
-
-  return 0;
-}
-} // namespace dyn
-
 
 namespace va {
 constexpr auto SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2 = 0x40000000;
@@ -174,14 +132,14 @@ int init() {
     }
   }
 
-  std::vector<std::tuple<GLADapiproc *, const char *>> funcs {
-    { (GLADapiproc *)&terminate, "vaTerminate" },
-    { (GLADapiproc *)&initialize, "vaInitialize" },
-    { (GLADapiproc *)&errorStr, "vaErrorStr" },
-    { (GLADapiproc *)&setErrorCallback, "vaSetErrorCallback" },
-    { (GLADapiproc *)&setInfoCallback, "vaSetInfoCallback" },
-    { (GLADapiproc *)&queryVendorString, "vaQueryVendorString" },
-    { (GLADapiproc *)&exportSurfaceHandle, "vaExportSurfaceHandle" },
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&terminate, "vaTerminate" },
+    { (dyn::apiproc *)&initialize, "vaInitialize" },
+    { (dyn::apiproc *)&errorStr, "vaErrorStr" },
+    { (dyn::apiproc *)&setErrorCallback, "vaSetErrorCallback" },
+    { (dyn::apiproc *)&setInfoCallback, "vaSetInfoCallback" },
+    { (dyn::apiproc *)&queryVendorString, "vaQueryVendorString" },
+    { (dyn::apiproc *)&exportSurfaceHandle, "vaExportSurfaceHandle" },
   };
 
   if(dyn::load(handle, funcs)) {
@@ -209,8 +167,8 @@ int init_drm() {
     }
   }
 
-  std::vector<std::tuple<GLADapiproc *, const char *>> funcs {
-    { (GLADapiproc *)&getDisplayDRM, "vaGetDisplayDRM" },
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&getDisplayDRM, "vaGetDisplayDRM" },
   };
 
   if(dyn::load(handle, funcs)) {
