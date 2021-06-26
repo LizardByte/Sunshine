@@ -65,13 +65,13 @@ sunshine needs access to uinput to create mouse and gamepad events:
 
 ### Requirements:
 
-	mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make
+	mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git mingw-w64-x86_64-make
 
 ### Compilation:
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recursive`
 - `cd sunshine && mkdir build && cd build`
 - `cmake -G"Unix Makefiles" ..`
-- `make`
+- `mingw32-make`
 
 ### Setup:
 - **OPTIONAL** Gamepad support: Download and run 'ViGEmBus_Setup_1.16.116.exe' from [https://github.com/ViGEm/ViGEmBus/releases]
