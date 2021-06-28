@@ -43,6 +43,7 @@ if(WIN32)
 	include_directories(third-party/ViGEmClient/include)
 
 	set(PLATFORM_TARGET_FILES
+		sunshine/platform/windows/publish.cpp
 		sunshine/platform/windows/misc.cpp
 		sunshine/platform/windows/input.cpp
 		sunshine/platform/windows/display.h
@@ -88,6 +89,7 @@ if(WIN32)
 		iphlpapi
 		d3d11 dxgi D3DCompiler
 		setupapi
+		dnsapi
 		)
 
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")

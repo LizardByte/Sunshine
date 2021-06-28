@@ -208,6 +208,11 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
+  std::unique_ptr<platf::deinit_t> unregister;
+  auto sync = std::async(std::launch::async, [&unregister]() {
+    unregister = platf::publish::start();
+  });
+
   //FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
   if(shutdown_event->peek()) {
     return 0;
@@ -215,9 +220,9 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-  auto deinit = platf::publish::start();
   std::thread httpThread { nvhttp::start };
   std::thread configThread { confighttp::start };
+
   stream::rtpThread();
 
   httpThread.join();
