@@ -7,3 +7,6 @@
 [submodule "ViGEmClient"]
 	path = third-party/ViGEmClient
 	url = https://github.com/ViGEm/ViGEmClient
+[submodule "third-party/miniupnp"]
+	path = third-party/miniupnp
+	url = https://github.com/miniupnp/miniupnp

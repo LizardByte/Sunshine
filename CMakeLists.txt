@@ -6,6 +6,13 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(third-party/Simple-Web-Server)
 
+set(UPNPC_BUILD_SHARED OFF CACHE BOOL "no shared libraries")
+set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
+set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "Don't build samples for miniupnpc")
+set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniupnpc")
+add_subdirectory(third-party/miniupnp/miniupnpc)
+include_directories(third-party/miniupnp)
+
 if(WIN32)
 	# Ugly hack to compile with #include <qos2.h>
 	add_compile_definitions(
@@ -155,6 +162,8 @@ set(SUNSHINE_TARGET_FILES
 	third-party/moonlight-common-c/src/Rtsp.h
 	third-party/moonlight-common-c/src/RtspParser.c
 	third-party/moonlight-common-c/src/Video.h
+	sunshine/upnp.cpp
+	sunshine/upnp.h
 	sunshine/cbs.cpp
 	sunshine/utility.h
 	sunshine/uuid.h
@@ -193,6 +202,8 @@ set(SUNSHINE_TARGET_FILES
 	sunshine/round_robin.h
 	${PLATFORM_TARGET_FILES})
 
+set_source_files_properties(sunshine/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
+
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party
@@ -222,6 +233,7 @@ list(APPEND CBS_EXTERNAL_LIBRARIES
 	cbs)
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
+		libminiupnpc-static
 		${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 		stdc++fs

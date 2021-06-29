@@ -23,6 +23,7 @@
 #include "nvhttp.h"
 #include "rtsp.h"
 #include "thread_pool.h"
+#include "upnp.h"
 #include "video.h"
 
 #include "platform/common.h"
@@ -208,9 +209,14 @@ int main(int argc, char *argv[]) {
     return 3;
   }
 
-  std::unique_ptr<platf::deinit_t> unregister;
-  auto sync = std::async(std::launch::async, [&unregister]() {
-    unregister = platf::publish::start();
+  std::unique_ptr<platf::deinit_t> mDNS;
+  auto sync_mDNS = std::async(std::launch::async, [&mDNS]() {
+    mDNS = platf::publish::start();
+  });
+
+  std::unique_ptr<platf::deinit_t> upnp_unmap;
+  auto sync_upnp = std::async(std::launch::async, [&upnp_unmap]() {
+    upnp_unmap = upnp::start();
   });
 
   //FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
