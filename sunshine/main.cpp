@@ -187,10 +187,32 @@ int main(int argc, char *argv[]) {
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
 
+  task_pool.start(1);
+
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
+
+    task_pool.pushDelayed([]() {
+      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      log_flush();
+      std::abort();
+    },
+      10s);
+
+    shutdown_event->raise(true);
+  });
+
+  on_signal(SIGTERM, [shutdown_event]() {
+    BOOST_LOG(info) << "Terminate handler called"sv;
+
+    task_pool.pushDelayed([]() {
+      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      log_flush();
+      std::abort();
+    },
+      10s);
 
     shutdown_event->raise(true);
   });
@@ -225,8 +247,6 @@ int main(int argc, char *argv[]) {
   if(shutdown_event->peek()) {
     return 0;
   }
-
-  task_pool.start(1);
 
   std::thread httpThread { nvhttp::start };
   std::thread configThread { confighttp::start };
