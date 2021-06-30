@@ -43,12 +43,14 @@
                 <div class="form-text">The origin of the remote endpoint address that is not denied for HTTP method /pin
                 </div>
             </div>
-            <!--External IP-->
+            <!--UPnP-->
             <div class="mb-3">
-                <label for="external_ip" class="form-label">External IP</label>
-                <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12"
-                    v-model="config.external_ip">
-                <div class="form-text">If no external IP address is given, the local IP address is used</div>
+                <label for="upnp" class="form-label">UPnP</label>
+                <select id="upnp" class="form-select" v-model="config.upnp">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled</option>
+                </select>
+                <div class="form-text">Automatically configure port forwarding</div>
             </div>
             <!--Ping Timeout-->
             <div class="mb-3">
@@ -339,6 +341,14 @@
                     Store Username/Password seperately from Sunshine's state file.
                 </div>
             </div>
+            <!--External IP-->
+            <div class="mb-3">
+                <label for="external_ip" class="form-label">External IP</label>
+                <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12"
+                    v-model="config.external_ip">
+                <div class="form-text">If no external IP address is given, Sunshine will automatically detect external
+                    IP</div>
+            </div>
         </div>
         <!--Software Settings-->
         <div v-if="currentTab === 'sw'" class="config-page">
@@ -505,6 +515,7 @@
                 delete this.config.status;
                 delete this.config.platform;
                 //Populate default values if not present in config
+                this.config.upnp = this.config.upnp || 'disabled';
                 this.config.min_log_level = this.config.min_log_level || 2;
                 this.config.origin_pin_allowed = this.config.origin_pin_allowed || "lan";
                 this.config.hevc_mode = this.config.hevc_mode || 0;

@@ -6,9 +6,6 @@
 #define SUNSHINE_NVHTTP_H
 
 #include "thread_safe.h"
-#include <Simple-Web-Server/server_http.hpp>
-#include <Simple-Web-Server/server_https.hpp>
-#include <functional>
 #include <string>
 
 namespace nvhttp {

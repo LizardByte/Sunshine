@@ -15,7 +15,7 @@
 #include <boost/asio/ssl/context.hpp>
 
 #include <Simple-Web-Server/crypto.hpp>
-#include <Simple-Web-Server/server_http.hpp>
+#include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
 #include "config.h"

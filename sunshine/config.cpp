@@ -446,9 +446,12 @@ bool to_bool(std::string &boolean) {
   return boolean == "true"sv ||
          boolean == "yes"sv ||
          boolean == "enable"sv ||
+         boolean == "enabled"sv ||
+         boolean == "on"sv ||
          (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
 }
-void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
+
+void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, bool &input) {
   std::string tmp;
   string_f(vars, name, tmp);
 
@@ -456,7 +459,7 @@ void bool_f(std::unordered_map<std::string, std::string> &vars, const std::strin
     return;
   }
 
-  input = to_bool(tmp) ? 1 : 0;
+  input = to_bool(tmp);
 }
 
 void double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
@@ -553,7 +556,7 @@ int apply_flags(const char *line) {
       config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE].flip();
       break;
     case 'p':
-      config::sunshine.flags[config::flag::CONST_PIN].flip();
+      config::sunshine.flags[config::flag::UPNP].flip();
       break;
     default:
       std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;
@@ -637,6 +640,13 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "key_repeat_delay", to);
   if(to >= 0) {
     input.key_repeat_delay = std::chrono::milliseconds { to };
+  }
+
+  bool upnp = false;
+  bool_f(vars, "upnp"s, upnp);
+
+  if(upnp) {
+    config::sunshine.flags[config::flag::UPNP].flip();
   }
 
   std::string log_level_string;

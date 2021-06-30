@@ -73,6 +73,7 @@ public:
       : urls { std::move(urls) }, data { data }, begin { begin }, end { end } {}
 
   ~deinit_t() {
+    BOOST_LOG(info) << "Unmapping UPNP ports..."sv;
     unmap(urls, data, begin, end);
   }
 
@@ -132,6 +133,10 @@ std::unique_ptr<platf::deinit_t> start() {
     if(config::nvhttp.external_ip.empty()) {
       config::nvhttp.external_ip = wan_addr.data();
     }
+  }
+
+  if(!config::sunshine.flags[config::flag::UPNP]) {
+    return nullptr;
   }
 
   auto it = std::begin(mappings);

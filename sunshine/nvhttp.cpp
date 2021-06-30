@@ -30,8 +30,8 @@
 #include "utility.h"
 #include "uuid.h"
 
-namespace nvhttp {
 using namespace std::literals;
+namespace nvhttp {
 
 constexpr auto VERSION     = "7.1.400.0";
 constexpr auto GFE_VERSION = "3.12.0.1";

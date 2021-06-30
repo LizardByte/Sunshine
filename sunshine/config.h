@@ -83,6 +83,7 @@ enum flag_e : std::size_t {
   PIN_STDIN = 0,              // Read PIN from stdin instead of http
   FRESH_STATE,                // Do not load or save state
   FORCE_VIDEO_HEADER_REPLACE, // force replacing headers inside video data
+  UPNP,                       // Try Universal Plug 'n Play
   CONST_PIN,                  // Use "universal" pin
   FLAG_SIZE
 };
@@ -104,6 +105,8 @@ struct sunshine_t {
     int argc;
     char **argv;
   } cmd;
+
+  std::uint16_t port;
 };
 
 extern video_t video;
