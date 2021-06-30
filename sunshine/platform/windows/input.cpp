@@ -4,19 +4,19 @@
 
 #include <ViGEm/Client.h>
 
+#include "misc.h"
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
 
 namespace platf {
 using namespace std::literals;
 
-volatile HDESK _lastKnownInputDesktop = NULL;
+thread_local HDESK _lastKnownInputDesktop = nullptr;
+
 constexpr touch_port_t target_touch_port {
   0, 0,
   65535, 65535
 };
-
-HDESK pairInputDesktop();
 
 class vigem_t {
 public:
@@ -102,12 +102,12 @@ void send_input(INPUT &i) {
 retry:
   auto send = SendInput(1, &i, sizeof(INPUT));
   if(send != 1) {
-    auto hDesk = pairInputDesktop();
+    auto hDesk = syncThreadDesktop();
     if(_lastKnownInputDesktop != hDesk) {
       _lastKnownInputDesktop = hDesk;
       goto retry;
     }
-    BOOST_LOG(warning) << "Couldn't send input"sv;
+    BOOST_LOG(error) << "Couldn't send input"sv;
   }
 }
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
@@ -279,29 +279,6 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     log_flush();
     std::abort();
   }
-}
-
-int thread_priority() {
-  return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST) ? 0 : 1;
-}
-
-HDESK pairInputDesktop() {
-  auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
-  if(NULL == hDesk) {
-    auto err = GetLastError();
-    BOOST_LOG(error) << "Failed to OpenInputDesktop [0x"sv << util::hex(err).to_string_view() << ']';
-  }
-  else {
-    BOOST_LOG(info) << std::endl
-                    << "Opened desktop [0x"sv << util::hex(hDesk).to_string_view() << ']';
-    if(!SetThreadDesktop(hDesk)) {
-      auto err = GetLastError();
-      BOOST_LOG(error) << "Failed to SetThreadDesktop [0x"sv << util::hex(err).to_string_view() << ']';
-    }
-    CloseDesktop(hDesk);
-  }
-
-  return hDesk;
 }
 
 void freeInput(void *p) {

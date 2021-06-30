@@ -4,11 +4,11 @@
 
 #include <codecvt>
 
+#include "display.h"
+#include "misc.h"
 #include "sunshine/config.h"
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
-
-#include "display.h"
 
 namespace platf {
 using namespace std::literals;
@@ -90,6 +90,9 @@ int display_base_t::init() {
     FreeLibrary(user32);
   });
 */
+
+  // Ensure we can duplicate the current display
+  syncThreadDesktop();
 
   // Get rectangle of full desktop for absolute mouse coordinates
   env_width  = GetSystemMetrics(SM_CXVIRTUALSCREEN);

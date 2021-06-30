@@ -7,13 +7,13 @@
 
 #include <boost/asio/ip/host_name.hpp>
 
+#include "misc.h"
 #include "sunshine/config.h"
 #include "sunshine/main.h"
+#include "sunshine/network.h"
 #include "sunshine/nvhttp.h"
 #include "sunshine/platform/common.h"
 #include "sunshine/thread_safe.h"
-
-#include "sunshine/network.h"
 
 
 using namespace std::literals;
@@ -95,20 +95,6 @@ PDNS_SERVICE_INSTANCE DnsServiceConstructInstance(
   _In_reads_(dwPropertiesCount) PCWSTR *keys,
   _In_reads_(dwPropertiesCount) PCWSTR *values);
 } /* extern "C" */
-
-void print_status(const std::string_view &prefix, HRESULT status) {
-  char err_string[1024];
-
-  DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-    nullptr,
-    status,
-    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-    err_string,
-    sizeof(err_string),
-    nullptr);
-
-  BOOST_LOG(error) << prefix << ": "sv << std::string_view { err_string, bytes };
-}
 
 namespace platf::publish {
 VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {

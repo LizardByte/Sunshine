@@ -87,4 +87,37 @@ std::string get_mac_address(const std::string_view &address) {
   BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
   return "00:00:00:00:00:00"s;
 }
+
+HDESK syncThreadDesktop() {
+  auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
+  if(!hDesk) {
+    auto err = GetLastError();
+    BOOST_LOG(error) << "Failed to Open Input Desktop [0x"sv << util::hex(err).to_string_view() << ']';
+
+    return nullptr;
+  }
+
+  if(!SetThreadDesktop(hDesk)) {
+    auto err = GetLastError();
+    BOOST_LOG(error) << "Failed to sync desktop to thread [0x"sv << util::hex(err).to_string_view() << ']';
+  }
+
+  CloseDesktop(hDesk);
+
+  return hDesk;
+}
+
+void print_status(const std::string_view &prefix, HRESULT status) {
+  char err_string[1024];
+
+  DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+    nullptr,
+    status,
+    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+    err_string,
+    sizeof(err_string),
+    nullptr);
+
+  BOOST_LOG(error) << prefix << ": "sv << std::string_view { err_string, bytes };
+}
 } // namespace platf
