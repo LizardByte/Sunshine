@@ -14,7 +14,8 @@
 
 
 namespace confighttp {
+constexpr auto PORT_HTTPS = 1;
 void start();
-}
+} // namespace confighttp
 
 #endif //SUNSHINE_CONFIGHTTP_H

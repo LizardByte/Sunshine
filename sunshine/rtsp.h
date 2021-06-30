@@ -11,6 +11,8 @@
 #include "thread_safe.h"
 
 namespace stream {
+constexpr auto RTSP_SETUP_PORT = 21;
+
 struct launch_session_t {
   crypto::aes_t gcm_key;
   crypto::aes_t iv;

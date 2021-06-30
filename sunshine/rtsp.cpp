@@ -31,8 +31,6 @@ std::string to_string(T &&t) {
   return ss.str();
 }
 
-constexpr auto RTSP_SETUP_PORT = 48010;
-
 void free_msg(PRTSP_MESSAGE msg) {
   freeMessage(msg);
 
@@ -505,8 +503,8 @@ void rtpThread() {
 
   server.map("PLAY"sv, &cmd_play);
 
-  if(server.bind(RTSP_SETUP_PORT)) {
-    BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << RTSP_SETUP_PORT << "], likely another process already bound to the port"sv;
+  if(server.bind(map_port(RTSP_SETUP_PORT))) {
+    BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << map_port(RTSP_SETUP_PORT) << "], likely another process already bound to the port"sv;
     shutdown_event->raise(true);
 
     return;

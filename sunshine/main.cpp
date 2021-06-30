@@ -271,3 +271,7 @@ int write_file(const char *path, const std::string_view &contents) {
 
   return 0;
 }
+
+std::uint16_t map_port(int port) {
+  return (std::uint16_t)((int)config::sunshine.port + port);
+}

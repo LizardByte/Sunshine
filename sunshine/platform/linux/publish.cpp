@@ -328,7 +328,16 @@ void create_services(avahi::Client *c) {
   if(avahi::entry_group_is_empty(group)) {
     BOOST_LOG(info) << "Adding avahi service "sv << name.get();
 
-    ret = avahi::entry_group_add_service(group, avahi::IF_UNSPEC, avahi::PROTO_UNSPEC, avahi::PublishFlags(0), name.get(), SERVICE_TYPE, nullptr, nullptr, nvhttp::PORT_HTTP, nullptr);
+    ret = avahi::entry_group_add_service(
+      group,
+      avahi::IF_UNSPEC, avahi::PROTO_UNSPEC,
+      avahi::PublishFlags(0),
+      name.get(),
+      SERVICE_TYPE,
+      nullptr, nullptr,
+      map_port(nvhttp::PORT_HTTP),
+      nullptr);
+
     if(ret < 0) {
       if(ret == avahi::ERR_COLLISION) {
         // A service name collision with a local service happened. Let's pick a new name

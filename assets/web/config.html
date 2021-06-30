@@ -32,15 +32,15 @@
                 </select>
                 <div class="form-text">The minimum log level printed to standard out</div>
             </div>
-            <!--Origin PIN Allowed-->
+            <!--Origin Web UI Allowed-->
             <div class="mb-3">
-                <label for="origin_pin_allowed" class="form-label">Origin PIN Allowed</label>
-                <select id="origin_pin_allowed" class="form-select" v-model="config.origin_pin_allowed">
-                    <option value="pc">Only localhost may access /pin and Web UI</option>
-                    <option value="lan">Only those in LAN may access /pin and Web UI</option>
-                    <option value="wan">Anyone may access /pin and Web UI</option>
+                <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
+                <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
+                    <option value="pc">Only localhost may access Web UI</option>
+                    <option value="lan">Only those in LAN may access Web UI</option>
+                    <option value="wan">Anyone may access Web UI</option>
                 </select>
-                <div class="form-text">The origin of the remote endpoint address that is not denied for HTTP method /pin
+                <div class="form-text">The origin of the remote endpoint address that is not denied access to Web UI
                 </div>
             </div>
             <!--UPnP-->
@@ -238,6 +238,15 @@
             </div>
         </div>
         <div v-if="currentTab === 'advanced'" class="config-page">
+            <!--Port familly-->
+            <div class="mb-3">
+                <label for="port" class="form-label">Port</label>
+                <input type="number" min="0" max="65529" class="form-control" id="port" placeholder="47989"
+                    v-model="config.port">
+                <div class="form-text">
+                    Set the familly of ports used by Sunshine
+                </div>
+            </div>
             <!--Constant Rate Factor-->
             <div class="mb-3">
                 <label for="crf" class="form-label">Constant Rate Factor</label>
@@ -339,6 +348,17 @@
                     v-model="config.credentials_file">
                 <div class="form-text">
                     Store Username/Password seperately from Sunshine's state file.
+                </div>
+            </div>
+            <!--Origin PIN Allowed-->
+            <div class="mb-3">
+                <label for="origin_pin_allowed" class="form-label">Origin PIN Allowed</label>
+                <select id="origin_pin_allowed" class="form-select" v-model="config.origin_pin_allowed">
+                    <option value="pc">Only localhost may access /pin</option>
+                    <option value="lan">Only those in LAN may access /pin</option>
+                    <option value="wan">Anyone may access /pin</option>
+                </select>
+                <div class="form-text">The origin of the remote endpoint address that is not denied for HTTP method /pin
                 </div>
             </div>
             <!--External IP-->
@@ -517,7 +537,8 @@
                 //Populate default values if not present in config
                 this.config.upnp = this.config.upnp || 'disabled';
                 this.config.min_log_level = this.config.min_log_level || 2;
-                this.config.origin_pin_allowed = this.config.origin_pin_allowed || "lan";
+                this.config.origin_pin_allowed = this.config.origin_pin_allowed || "pc";
+                this.config.origin_web_ui_allowed = this.config.origin_web_manager_allowed || "lan";
                 this.config.hevc_mode = this.config.hevc_mode || 0;
                 this.config.encoder = this.config.encoder || '';
                 this.config.nv_preset = this.config.nv_preset || 'default';

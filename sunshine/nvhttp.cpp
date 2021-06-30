@@ -479,7 +479,7 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
   if(ip_type > http::origin_pin_allowed) {
-    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
+    BOOST_LOG(info) << "/pin: ["sv << address << "] -- denied"sv;
 
     response->write(SimpleWeb::StatusCode::client_error_forbidden);
 
@@ -759,6 +759,9 @@ void appasset(resp_https_t response, req_https_t request) {
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
+  auto port_http  = map_port(PORT_HTTP);
+  auto port_https = map_port(PORT_HTTPS);
+
   bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
 
   if(!clean_slate) {
@@ -836,7 +839,7 @@ void start() {
 
   https_server.config.reuse_address = true;
   https_server.config.address       = "0.0.0.0"s;
-  https_server.config.port          = PORT_HTTPS;
+  https_server.config.port          = port_https;
 
   http_server.default_resource                   = not_found<SimpleWeb::HTTP>;
   http_server.resource["^/serverinfo$"]["GET"]   = serverinfo<SimpleWeb::HTTP>;
@@ -845,14 +848,14 @@ void start() {
 
   http_server.config.reuse_address = true;
   http_server.config.address       = "0.0.0.0"s;
-  http_server.config.port          = PORT_HTTP;
+  http_server.config.port          = port_http;
 
   try {
     https_server.bind();
     http_server.bind();
   }
   catch(boost::system::system_error &err) {
-    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTP << "]: "sv << err.what();
+    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << port_http << ", "sv << port_http << "]: "sv << err.what();
 
     shutdown_event->raise(true);
     return;
@@ -868,7 +871,7 @@ void start() {
         return;
       }
 
-      BOOST_LOG(fatal) << "Couldn't start http server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTP << "]: "sv << err.what();
+      BOOST_LOG(fatal) << "Couldn't start http server to ports ["sv << port_https << ", "sv << port_https << "]: "sv << err.what();
       shutdown_event->raise(true);
       return;
     }

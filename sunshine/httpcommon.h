@@ -14,5 +14,6 @@ int save_user_creds(
 int reload_user_creds(const std::string &file);
 extern std::string unique_id;
 extern net::net_e origin_pin_allowed;
+extern net::net_e origin_web_ui_allowed;
 
 } // namespace http

@@ -9,8 +9,8 @@
 #include <string>
 
 namespace nvhttp {
-constexpr auto PORT_HTTP  = 47989;
-constexpr auto PORT_HTTPS = 47984;
+constexpr auto PORT_HTTP  = 0;
+constexpr auto PORT_HTTPS = -5;
 
 void start();
 bool pin(std::string pin);

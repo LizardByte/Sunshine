@@ -44,10 +44,6 @@ static const short packetTypes[] = {
   0x0100, // Termination
 };
 
-constexpr auto VIDEO_STREAM_PORT = 47998;
-constexpr auto CONTROL_PORT      = 47999;
-constexpr auto AUDIO_STREAM_PORT = 48000;
-
 namespace asio = boost::asio;
 namespace sys  = boost::system;
 
@@ -730,8 +726,12 @@ void audioBroadcastThread(udp::socket &sock) {
 }
 
 int start_broadcast(broadcast_ctx_t &ctx) {
-  if(ctx.control_server.bind(CONTROL_PORT)) {
-    BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << CONTROL_PORT << "], likely another process already bound to the port"sv;
+  auto control_port = map_port(CONTROL_PORT);
+  auto video_port   = map_port(VIDEO_STREAM_PORT);
+  auto audio_port   = map_port(AUDIO_STREAM_PORT);
+
+  if(ctx.control_server.bind(control_port)) {
+    BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
 
     return -1;
   }
@@ -744,9 +744,9 @@ int start_broadcast(broadcast_ctx_t &ctx) {
     return -1;
   }
 
-  ctx.video_sock.bind(udp::endpoint(udp::v4(), VIDEO_STREAM_PORT), ec);
+  ctx.video_sock.bind(udp::endpoint(udp::v4(), video_port), ec);
   if(ec) {
-    BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << VIDEO_STREAM_PORT << "]: "sv << ec.message();
+    BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
 
     return -1;
   }
@@ -758,9 +758,9 @@ int start_broadcast(broadcast_ctx_t &ctx) {
     return -1;
   }
 
-  ctx.audio_sock.bind(udp::endpoint(udp::v4(), AUDIO_STREAM_PORT), ec);
+  ctx.audio_sock.bind(udp::endpoint(udp::v4(), audio_port), ec);
   if(ec) {
-    BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << AUDIO_STREAM_PORT << "]: "sv << ec.message();
+    BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
 
     return -1;
   }

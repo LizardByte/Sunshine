@@ -142,7 +142,7 @@ static int service(bool enable) {
 
   DNS_SERVICE_INSTANCE instance {};
   instance.pszInstanceName = name.data();
-  instance.wPort           = nvhttp::PORT_HTTP;
+  instance.wPort           = map_port(nvhttp::PORT_HTTP);
   instance.pszHostName     = host.data();
 
   DNS_SERVICE_REGISTER_REQUEST req {};

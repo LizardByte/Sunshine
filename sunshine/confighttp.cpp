@@ -30,10 +30,9 @@
 #include "utility.h"
 #include "uuid.h"
 
-namespace confighttp {
 using namespace std::literals;
-constexpr auto PORT_HTTPS = 47990;
 
+namespace confighttp {
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
@@ -67,7 +66,7 @@ void print_req(const req_https_t &request) {
 
 void send_unauthorized(resp_https_t response, req_https_t request) {
   auto address = request->remote_endpoint_address();
-  BOOST_LOG(info) << '[' << address << "] -- denied"sv;
+  BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
   const SimpleWeb::CaseInsensitiveMultimap headers {
     { "WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")" }
   };
@@ -78,8 +77,8 @@ bool authenticate(resp_https_t response, req_https_t request) {
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
 
-  if(ip_type > http::origin_pin_allowed) {
-    BOOST_LOG(info) << '[' << address << "] -- denied"sv;
+  if(ip_type > http::origin_web_ui_allowed) {
+    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
     response->write(SimpleWeb::StatusCode::client_error_forbidden);
     return false;
   }
@@ -455,6 +454,8 @@ void savePin(resp_https_t response, req_https_t request) {
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
+  auto port_https = map_port(PORT_HTTPS);
+
   auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
   ctx->use_certificate_chain_file(config::nvhttp.cert);
   ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
@@ -475,14 +476,14 @@ void start() {
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
   server.config.reuse_address                       = true;
   server.config.address                             = "0.0.0.0"s;
-  server.config.port                                = PORT_HTTPS;
+  server.config.port                                = port_https;
 
   try {
     server.bind();
-    BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << PORT_HTTPS << "]";
+    BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port_https << "]";
   }
   catch(boost::system::system_error &err) {
-    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << PORT_HTTPS << "]: "sv << err.what();
+    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << port_https << "]: "sv << err.what();
 
     shutdown_event->raise(true);
     return;
@@ -497,7 +498,7 @@ void start() {
         return;
       }
 
-      BOOST_LOG(fatal) << "Couldn't start Configuration HTTP server to ports ["sv << PORT_HTTPS << ", "sv << PORT_HTTPS << "]: "sv << err.what();
+      BOOST_LOG(fatal) << "Couldn't start Configuration HTTPS server to port ["sv << port_https << "]: "sv << err.what();
       shutdown_event->raise(true);
       return;
     }

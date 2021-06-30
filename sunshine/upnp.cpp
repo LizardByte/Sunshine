@@ -2,14 +2,19 @@
 #include <miniupnpc/upnpcommands.h>
 
 #include "config.h"
+#include "confighttp.h"
 #include "main.h"
+#include "network.h"
+#include "nvhttp.h"
+#include "rtsp.h"
+#include "stream.h"
 #include "upnp.h"
 #include "utility.h"
 
 using namespace std::literals;
 
 namespace upnp {
-constexpr auto INET6_ADDRSTRLEN = 46;
+constexpr auto INET6_ADDRESS_STRLEN = 46;
 
 constexpr auto IPv4 = 0;
 constexpr auto IPv6 = 1;
@@ -21,9 +26,6 @@ KITTY_USING_MOVE_T(urls_t, UPNPUrls, , {
 });
 
 struct mapping_t {
-  mapping_t(std::string &&wan, std::string &&lan, std::string &&description, bool tcp)
-      : port { std::move(wan), std::move(lan) }, description { std::move(description) }, tcp { tcp } {}
-
   struct {
     std::string wan;
     std::string lan;
@@ -31,16 +33,6 @@ struct mapping_t {
 
   std::string description;
   bool tcp;
-};
-
-static const std::vector<mapping_t> mappings {
-  { "48010"s, "48010"s, "RTSP setup port"s, false },
-  { "47998"s, "47998"s, "Video stream port"s, false },
-  { "47999"s, "47998"s, "Control stream port"s, false },
-  { "48000"s, "48000"s, "Audio stream port"s, false },
-  { "47989"s, "47989"s, "Gamestream http port"s, true },
-  { "47984"s, "47984"s, "Gamestream https port"s, true },
-  { "47990"s, "47990"s, "Sunshine Web Manager port"s, true },
 };
 
 void unmap(
@@ -69,19 +61,18 @@ void unmap(
 class deinit_t : public platf::deinit_t {
 public:
   using iter_t = std::vector<mapping_t>::const_reverse_iterator;
-  deinit_t(urls_t &&urls, IGDdatas data, iter_t begin, iter_t end)
-      : urls { std::move(urls) }, data { data }, begin { begin }, end { end } {}
+  deinit_t(urls_t &&urls, IGDdatas data, std::vector<mapping_t> &&mapping)
+      : urls { std::move(urls) }, data { data }, mapping { std::move(mapping) } {}
 
   ~deinit_t() {
     BOOST_LOG(info) << "Unmapping UPNP ports..."sv;
-    unmap(urls, data, begin, end);
+    unmap(urls, data, std::rbegin(mapping), std::rend(mapping));
   }
 
   urls_t urls;
   IGDdatas data;
 
-  iter_t begin;
-  iter_t end;
+  std::vector<mapping_t> mapping;
 };
 
 static std::string_view status_string(int status) {
@@ -111,8 +102,8 @@ std::unique_ptr<platf::deinit_t> start() {
     BOOST_LOG(debug) << "Found device: "sv << dev->descURL;
   }
 
-  std::array<char, INET6_ADDRSTRLEN> lan_addr;
-  std::array<char, INET6_ADDRSTRLEN> wan_addr;
+  std::array<char, INET6_ADDRESS_STRLEN> lan_addr;
+  std::array<char, INET6_ADDRESS_STRLEN> wan_addr;
 
   urls_t urls;
   IGDdatas data;
@@ -137,6 +128,28 @@ std::unique_ptr<platf::deinit_t> start() {
 
   if(!config::sunshine.flags[config::flag::UPNP]) {
     return nullptr;
+  }
+
+  auto rtsp     = std::to_string(map_port(stream::RTSP_SETUP_PORT));
+  auto video    = std::to_string(map_port(stream::VIDEO_STREAM_PORT));
+  auto audio    = std::to_string(map_port(stream::AUDIO_STREAM_PORT));
+  auto control  = std::to_string(map_port(stream::CONTROL_PORT));
+  auto gs_http  = std::to_string(map_port(nvhttp::PORT_HTTP));
+  auto gs_https = std::to_string(map_port(nvhttp::PORT_HTTPS));
+  auto wm_http  = std::to_string(map_port(confighttp::PORT_HTTPS));
+
+  std::vector<mapping_t> mappings {
+    { rtsp, rtsp, "RTSP setup port"s, false },
+    { video, video, "Video stream port"s, false },
+    { audio, audio, "Control stream port"s, false },
+    { control, control, "Audio stream port"s, false },
+    { gs_http, gs_http, "Gamestream http port"s, true },
+    { gs_https, gs_https, "Gamestream https port"s, true },
+  };
+
+  // Only map port for the Web Manager if it is configured to accept connection from WAN
+  if(net::from_enum_string(config::nvhttp.origin_web_ui_allowed) > net::LAN) {
+    mappings.emplace_back(mapping_t { wm_http, wm_http, "Sunshine Web UI port"s, true });
   }
 
   auto it = std::begin(mappings);
@@ -166,6 +179,6 @@ std::unique_ptr<platf::deinit_t> start() {
     return nullptr;
   }
 
-  return std::make_unique<deinit_t>(std::move(urls), data, std::rbegin(mappings), std::rend(mappings));
+  return std::make_unique<deinit_t>(std::move(urls), data, std::move(mappings));
 }
 } // namespace upnp
