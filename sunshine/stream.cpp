@@ -181,7 +181,8 @@ struct session_t {
   } video;
 
   struct {
-    std::uint16_t frame;
+    std::uint16_t sequenceNumber;
+    std::uint32_t timestamp;
     udp::endpoint peer;
   } audio;
 
@@ -706,20 +707,24 @@ void audioBroadcastThread(udp::socket &sock) {
     TUPLE_2D_REF(channel_data, packet_data, *packet);
     auto session = (session_t *)channel_data;
 
-    auto frame = session->audio.frame++;
+    auto sequenceNumber = session->audio.sequenceNumber;
+    auto timestamp = session->audio.timestamp;
 
     audio_packet_t audio_packet { (audio_packet_raw_t *)malloc(sizeof(audio_packet_raw_t) + packet_data.size()) };
 
-    audio_packet->rtp.header         = 0;
+    audio_packet->rtp.header         = 0x80;
     audio_packet->rtp.packetType     = 97;
-    audio_packet->rtp.sequenceNumber = util::endian::big(frame);
-    audio_packet->rtp.timestamp      = 0;
+    audio_packet->rtp.sequenceNumber = util::endian::big(sequenceNumber);
+    audio_packet->rtp.timestamp      = util::endian::big(timestamp);
     audio_packet->rtp.ssrc           = 0;
+
+    session->audio.sequenceNumber++;
+    session->audio.timestamp += session->config.audio.packetDuration;
 
     std::copy(std::begin(packet_data), std::end(packet_data), audio_packet->payload());
 
     sock.send_to(asio::buffer((char *)audio_packet.get(), sizeof(audio_packet_raw_t) + packet_data.size()), session->audio.peer);
-    BOOST_LOG(verbose) << "Audio ["sv << frame << "] ::  send..."sv;
+    BOOST_LOG(verbose) << "Audio ["sv << sequenceNumber << "] ::  send..."sv;
   }
 
   shutdown_event->raise(true);
@@ -947,7 +952,8 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
   session->video.idr_events = mail->event<video::idr_t>(mail::idr);
   session->video.lowseq     = 0;
 
-  session->audio.frame = 1;
+  session->audio.sequenceNumber = 0;
+  session->audio.timestamp = 0;
 
   session->control.peer = nullptr;
   session->state.store(state_e::STOPPED, std::memory_order_relaxed);
