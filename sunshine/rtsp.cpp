@@ -328,10 +328,11 @@ void cmd_describe(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
 }
 
 void cmd_setup(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
-  OPTION_ITEM options[2] {};
+  OPTION_ITEM options[3] {};
 
   auto &seqn           = options[0];
   auto &session_option = options[1];
+  auto &port_option    = options[2];
 
   seqn.option = const_cast<char *>("CSeq");
 
@@ -343,17 +344,35 @@ void cmd_setup(rtsp_server_t *server, net::peer_t peer, msg_t &&req) {
   auto end   = std::find(begin, std::end(target), '/');
   std::string_view type { begin, (size_t)std::distance(begin, end) };
 
+  std::uint16_t port;
   if(type == "audio"sv) {
-    seqn.next = &session_option;
-
-    session_option.option  = const_cast<char *>("Session");
-    session_option.content = const_cast<char *>("DEADBEEFCAFE;timeout = 90");
+    port = map_port(stream::AUDIO_STREAM_PORT);
   }
-  else if(type != "video"sv && type != "control"sv) {
+  else if(type == "video"sv) {
+    port = map_port(stream::VIDEO_STREAM_PORT);
+  }
+  else if(type == "control"sv) {
+    port = map_port(stream::CONTROL_PORT);
+  }
+  else {
     cmd_not_found(server->host(), peer, std::move(req));
 
     return;
   }
+
+  seqn.next = &session_option;
+
+  session_option.option  = const_cast<char *>("Session");
+  session_option.content = const_cast<char *>("DEADBEEFCAFE;timeout = 90");
+
+  session_option.next = &port_option;
+
+  // Moonlight merely requires 'server_port=<port>'
+  auto port_value = "server_port=" + std::to_string(port);
+
+  port_option.option  = const_cast<char *>("Transport");
+  port_option.content = port_value.data();
+
 
   respond(server->host(), peer, &seqn, 200, "OK", req->sequenceNumber, {});
 }

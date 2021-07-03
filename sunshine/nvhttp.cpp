@@ -520,6 +520,8 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   tree.put("root.appversion", VERSION);
   tree.put("root.GfeVersion", GFE_VERSION);
   tree.put("root.uniqueid", http::unique_id);
+  tree.put("root.HttpsPort", map_port(PORT_HTTPS));
+  tree.put("root.ExternalPort", map_port(PORT_HTTP));
   tree.put("root.mac", platf::get_mac_address(request->local_endpoint_address()));
   tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 1 ? "1869449984" : "0");
   tree.put("root.LocalIP", request->local_endpoint_address());
@@ -673,6 +675,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
   stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
+  tree.put("root.sessionUrl0", "rtspru://"s + request->local_endpoint_address() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
   tree.put("root.gamesession", 1);
 }
 
@@ -718,6 +721,7 @@ void resume(bool &host_audio, resp_https_t response, req_https_t request) {
   stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
+  tree.put("root.sessionUrl0", "rtspru://"s + request->local_endpoint_address() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
   tree.put("root.resume", 1);
 }
 

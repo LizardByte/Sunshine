@@ -189,32 +189,43 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
+  util::TaskPool::task_id_t force_shutdown = nullptr;
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-  on_signal(SIGINT, [shutdown_event]() {
+  on_signal(SIGINT, [&force_shutdown, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
 
-    task_pool.pushDelayed([]() {
+    auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
       log_flush();
       std::abort();
-    },
-      10s);
+    };
+    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
+
 
     shutdown_event->raise(true);
   });
 
-  on_signal(SIGTERM, [shutdown_event]() {
+  on_signal(SIGTERM, [&force_shutdown, shutdown_event]() {
     BOOST_LOG(info) << "Terminate handler called"sv;
 
-    task_pool.pushDelayed([]() {
+    auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
       log_flush();
       std::abort();
-    },
-      10s);
+    };
+    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
     shutdown_event->raise(true);
+  });
+
+  auto exit_guard = util::fail_guard([&force_shutdown]() {
+    task_pool.cancel(force_shutdown);
+
+    std::cout << "Sunshine exited: Press enter to continue"sv << std::endl;
+
+    std::string _;
+    std::getline(std::cin, _);
   });
 
   proc::refresh(config::stream.file_apps);
