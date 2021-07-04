@@ -20,7 +20,11 @@ struct session_t;
 struct config_t {
   audio::config_t audio;
   video::config_t monitor;
+
   int packetsize;
+  int minRequiredFecPackets;
+  int featureFlags;
+  int controlProtocolType;
 
   std::optional<int> gcmap;
 };
