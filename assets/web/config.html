@@ -317,12 +317,12 @@
             <!--FEC Percentage-->
             <div class="mb-3">
                 <label for="fec_percentage" class="form-label">FEC Percentage</label>
-                <input type="text" class="form-control" id="fec_percentage" placeholder="10"
+                <input type="text" class="form-control" id="fec_percentage" placeholder="20"
                     v-model="config.fec_percentage">
                 <div class="form-text">
-                    How much error correcting packets must be send for every video.<br>
-                    This is just some random number, don't know the optimal value.<br>
-                    The higher fec_percentage, the lower space for the actual data to send per frame there is
+                    Percentage of error correcting packets per data packet in each video frame.<br>
+                    Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br>
+                    The default value of 20 is what GeForce Experience uses.
                 </div>
             </div>
             <!--Channels-->
