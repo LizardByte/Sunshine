@@ -139,7 +139,7 @@ std::unique_ptr<platf::deinit_t> start() {
   auto wm_http  = std::to_string(map_port(confighttp::PORT_HTTPS));
 
   std::vector<mapping_t> mappings {
-    { rtsp, rtsp, "RTSP setup port"s, false },
+    { rtsp, rtsp, "RTSP setup port"s, true },
     { video, video, "Video stream port"s, false },
     { audio, audio, "Control stream port"s, false },
     { control, control, "Audio stream port"s, false },

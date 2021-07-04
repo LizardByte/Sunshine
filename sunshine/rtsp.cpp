@@ -9,6 +9,7 @@ extern "C" {
 }
 
 #include <array>
+#include <cctype>
 
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
@@ -42,6 +43,7 @@ using cmd_func_t = std::function<void(rtsp_server_t *server, tcp::socket &, msg_
 
 void print_msg(PRTSP_MESSAGE msg);
 void cmd_not_found(tcp::socket &sock, msg_t &&req);
+void respond(tcp::socket &sock, POPTION_ITEM options, int statuscode, const char *status_msg, int seqn, const std::string_view &payload);
 
 class socket_t : public std::enable_shared_from_this<socket_t> {
 public:
@@ -77,11 +79,17 @@ public:
       socket->sock.close();
     });
 
-    msg_t req { new msg_t::element_type };
+    msg_t req { new msg_t::element_type {} };
 
     auto &incomplete = socket->incomplete;
+
     if(incomplete.empty()) {
-      parseRtspMessage(req.get(), socket->msg_buf.data(), bytes);
+      if(auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), bytes)) {
+        BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
+
+        respond(socket->sock, nullptr, 400, "BAD REQUEST", req->sequenceNumber, {});
+        return;
+      }
 
       for(auto option = req->options; option != nullptr; option = option->next) {
         if("Content-length"sv == option->option) {
@@ -89,8 +97,11 @@ public:
 
           // If content_length > bytes read, then we need to store current data read,
           // to be appended by the next read.
-          auto content_length = util::from_view(option->content);
-          if(content_length <= bytes) {
+          std::string_view content { option->content };
+          auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) { return (bool)std::isdigit(ch); });
+
+          socket->content_length = util::from_chars(begin, std::end(content));
+          if(socket->content_length <= bytes + incomplete.size()) {
             break;
           }
 
@@ -112,7 +123,17 @@ public:
 
       std::copy_n(socket->msg_buf.data(), bytes, std::begin(incomplete) + incomplete_size);
 
-      parseRtspMessage(req.get(), incomplete.data(), incomplete.size());
+      if(incomplete.size() < socket->content_length) {
+        fg.disable();
+        return;
+      }
+
+      if(auto status = parseRtspMessage(req.get(), incomplete.data(), incomplete.size())) {
+        BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
+
+        respond(socket->sock, nullptr, 400, "BAD REQUEST", req->sequenceNumber, {});
+        return;
+      }
     }
 
     print_msg(req.get());
@@ -128,8 +149,10 @@ public:
 
   tcp::socket sock;
 
+
   std::vector<char> incomplete;
 
+  std::size_t content_length = std::numeric_limits<std::size_t>::max();
   std::array<char, 1024> msg_buf;
 };
 
@@ -151,6 +174,8 @@ public:
     if(ec) {
       return -1;
     }
+
+    acceptor.set_option(boost::asio::socket_base::reuse_address { true });
 
     acceptor.bind(tcp::endpoint(tcp::v4(), port), ec);
     if(ec) {
@@ -532,10 +557,10 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
     config.audio.flags[audio::config_t::HIGH_QUALITY] =
       util::from_view(args.at("x-nv-audio.surround.AudioQuality"sv));
 
-    config.controlProtocolType    = util::from_view(args.at("x-nv-general.useReliableUdp"sv));
-    config.packetsize             = util::from_view(args.at("x-nv-video[0].packetSize"sv));
-    config.minRequiredFecPackets  = util::from_view(args.at("x-nv-vqos[0].fec.minRequiredFecPackets"sv));
-    config.featureFlags           = util::from_view(args.at("x-nv-general.featureFlags"sv));
+    config.controlProtocolType   = util::from_view(args.at("x-nv-general.useReliableUdp"sv));
+    config.packetsize            = util::from_view(args.at("x-nv-video[0].packetSize"sv));
+    config.minRequiredFecPackets = util::from_view(args.at("x-nv-vqos[0].fec.minRequiredFecPackets"sv));
+    config.featureFlags          = util::from_view(args.at("x-nv-general.featureFlags"sv));
 
     config.monitor.height         = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
     config.monitor.width          = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
