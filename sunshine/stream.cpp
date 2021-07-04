@@ -309,15 +309,23 @@ struct fec_t {
   }
 };
 
-static fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage) {
+static fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage, size_t minparityshards) {
   auto payload_size = payload.size();
 
   auto pad = payload_size % blocksize != 0;
 
   auto data_shards   = payload_size / blocksize + (pad ? 1 : 0);
   auto parity_shards = (data_shards * fecpercentage + 99) / 100;
-  auto nr_shards     = data_shards + parity_shards;
 
+  // increase the FEC percentage for this frame if the parity shard minimum is not met
+  if(parity_shards < minparityshards) {
+    parity_shards = minparityshards;
+    fecpercentage = (100 * parity_shards) / data_shards;
+
+    BOOST_LOG(verbose) << "Increasing FEC percentage to "sv << fecpercentage << " to meet parity shard minimum"sv << std::endl;
+  }
+
+  auto nr_shards = data_shards + parity_shards;
   if(nr_shards > DATA_SHARDS_MAX) {
     BOOST_LOG(warning)
       << "Number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl
@@ -641,9 +649,6 @@ void videoBroadcastThread(udp::socket &sock) {
         video_packet->packet.flags             = FLAG_CONTAINS_PIC_DATA;
         video_packet->packet.frameIndex        = packet->pts;
         video_packet->packet.streamPacketIndex = ((uint32_t)lowseq + fecIndex) << 8;
-        video_packet->packet.fecInfo           = (fecIndex << 12 |
-                                        end << 22 |
-                                        fecPercentage << 4);
 
         if(fecIndex == 0) {
           video_packet->packet.flags |= FLAG_SOF;
@@ -659,7 +664,7 @@ void videoBroadcastThread(udp::socket &sock) {
 
     payload = { (char *)payload_new.data(), payload_new.size() };
 
-    auto shards = fec::encode(payload, blocksize, fecPercentage);
+    auto shards = fec::encode(payload, blocksize, fecPercentage, session->config.minRequiredFecPackets);
     if(shards.data_shards == 0) {
       BOOST_LOG(info) << "skipping frame..."sv << std::endl;
       continue;
@@ -668,13 +673,19 @@ void videoBroadcastThread(udp::socket &sock) {
     for(auto x = shards.data_shards; x < shards.size(); ++x) {
       auto *inspect = (video_packet_raw_t *)shards.data(x);
 
-      inspect->packet.frameIndex = packet->pts;
-      inspect->packet.fecInfo    = (x << 12 |
-                                 shards.data_shards << 22 |
-                                 shards.percentage << 4);
+      inspect->packet.frameIndex  = packet->pts;
 
       inspect->rtp.header         = FLAG_EXTENSION;
       inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
+    }
+
+    // set FEC info now that we know for sure what our percentage will be for this frame
+    for(auto x = 0; x < shards.size(); ++x) {
+      auto *inspect = (video_packet_raw_t *)shards.data(x);
+
+      inspect->packet.fecInfo = (x << 12 |
+                                 shards.data_shards << 22 |
+                                 shards.percentage << 4);
     }
 
     for(auto x = 0; x < shards.size(); ++x) {
