@@ -87,6 +87,13 @@ public:
         if("Content-length"sv == option->option) {
           BOOST_LOG(debug) << "Found Content-Length: "sv << option->content << " bytes"sv;
 
+          // If content_length > bytes read, then we need to store current data read,
+          // to be appended by the next read.
+          auto content_length = util::from_view(option->content);
+          if(content_length <= bytes) {
+            break;
+          }
+
           auto incomplete_size = incomplete.size();
           incomplete.resize(incomplete.size() + bytes);
 
