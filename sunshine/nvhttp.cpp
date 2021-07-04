@@ -33,7 +33,7 @@
 using namespace std::literals;
 namespace nvhttp {
 
-constexpr auto VERSION     = "7.1.400.0";
+constexpr auto VERSION     = "7.1.404.0";
 constexpr auto GFE_VERSION = "3.12.0.1";
 
 namespace fs = std::filesystem;
@@ -675,7 +675,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
   stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
-  tree.put("root.sessionUrl0", "rtspru://"s + request->local_endpoint_address() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
+  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint_address() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
   tree.put("root.gamesession", 1);
 }
 

@@ -189,10 +189,12 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
+  bool shutdown_by_interrupt = false;
+
   util::TaskPool::task_id_t force_shutdown = nullptr;
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-  on_signal(SIGINT, [&force_shutdown, shutdown_event]() {
+  on_signal(SIGINT, [&shutdown_by_interrupt, &force_shutdown, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
 
     auto task = []() {
@@ -202,7 +204,7 @@ int main(int argc, char *argv[]) {
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
-
+    shutdown_by_interrupt = true;
     shutdown_event->raise(true);
   });
 
@@ -219,7 +221,11 @@ int main(int argc, char *argv[]) {
     shutdown_event->raise(true);
   });
 
-  auto exit_guard = util::fail_guard([&force_shutdown]() {
+  auto exit_guard = util::fail_guard([&shutdown_by_interrupt, &force_shutdown]() {
+    if(!shutdown_by_interrupt) {
+      return;
+    }
+
     task_pool.cancel(force_shutdown);
 
     std::cout << "Sunshine exited: Press enter to continue"sv << std::endl;
