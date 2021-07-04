@@ -11,8 +11,8 @@
 #include <openssl/err.h>
 
 extern "C" {
-#include <moonlight-common-c/src/Video.h>
 #include <moonlight-common-c/src/RtpAudioQueue.h>
+#include <moonlight-common-c/src/Video.h>
 #include <rs.h>
 }
 
@@ -33,6 +33,7 @@ extern "C" {
 #define IDX_INPUT_DATA 5
 #define IDX_RUMBLE_DATA 6
 #define IDX_TERMINATION 7
+#define IDX_PERIODIC_PING 8
 
 static const short packetTypes[] = {
   0x0305, // Start A
@@ -43,6 +44,7 @@ static const short packetTypes[] = {
   0x0206, // Input data
   0x010b, // Rumble data
   0x0100, // Termination
+  0x0200, // Periodic Ping
 };
 
 namespace asio = boost::asio;
@@ -91,9 +93,9 @@ struct audio_fec_packet_raw_t {
 
 #pragma pack(pop)
 
-using rh_t           = util::safe_ptr<reed_solomon, reed_solomon_release>;
-using video_packet_t = util::c_ptr<video_packet_raw_t>;
-using audio_packet_t = util::c_ptr<audio_packet_raw_t>;
+using rh_t               = util::safe_ptr<reed_solomon, reed_solomon_release>;
+using video_packet_t     = util::c_ptr<video_packet_raw_t>;
+using audio_packet_t     = util::c_ptr<audio_packet_raw_t>;
 using audio_fec_packet_t = util::c_ptr<audio_fec_packet_raw_t>;
 
 using message_queue_t       = std::shared_ptr<safe::queue_t<std::pair<std::uint16_t, std::string>>>;
@@ -418,6 +420,8 @@ std::vector<uint8_t> replace(const std::string_view &original, const std::string
 }
 
 void controlBroadcastThread(control_server_t *server) {
+  server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {});
+
   server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
     BOOST_LOG(debug) << "type [IDX_START_A]"sv;
   });
@@ -685,7 +689,7 @@ void videoBroadcastThread(udp::socket &sock) {
     for(auto x = shards.data_shards; x < shards.size(); ++x) {
       auto *inspect = (video_packet_raw_t *)shards.data(x);
 
-      inspect->packet.frameIndex  = packet->pts;
+      inspect->packet.frameIndex = packet->pts;
 
       inspect->rtp.header         = FLAG_EXTENSION;
       inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
@@ -742,14 +746,14 @@ void audioBroadcastThread(udp::socket &sock) {
   memcpy(&rs.get()->m[16], parity, sizeof(parity));
   memcpy(rs.get()->parity, parity, sizeof(parity));
 
-  audio_packet->rtp.header             = 0x80;
-  audio_packet->rtp.packetType         = 97;
-  audio_packet->rtp.ssrc               = 0;
+  audio_packet->rtp.header     = 0x80;
+  audio_packet->rtp.packetType = 97;
+  audio_packet->rtp.ssrc       = 0;
 
-  audio_fec_packet->rtp.header         = 0x80;
-  audio_fec_packet->rtp.packetType     = 127;
-  audio_fec_packet->rtp.timestamp      = 0;
-  audio_fec_packet->rtp.ssrc           = 0;
+  audio_fec_packet->rtp.header     = 0x80;
+  audio_fec_packet->rtp.packetType = 127;
+  audio_fec_packet->rtp.timestamp  = 0;
+  audio_fec_packet->rtp.ssrc       = 0;
 
   audio_fec_packet->fecHeader.payloadType = audio_packet->rtp.packetType;
   audio_fec_packet->fecHeader.ssrc        = audio_packet->rtp.ssrc;
@@ -763,7 +767,7 @@ void audioBroadcastThread(udp::socket &sock) {
     auto session = (session_t *)channel_data;
 
     auto sequenceNumber = session->audio.sequenceNumber;
-    auto timestamp = session->audio.timestamp;
+    auto timestamp      = session->audio.timestamp;
 
     audio_packet->rtp.sequenceNumber = util::endian::big(sequenceNumber);
     audio_packet->rtp.timestamp      = util::endian::big(timestamp);
@@ -778,21 +782,21 @@ void audioBroadcastThread(udp::socket &sock) {
     BOOST_LOG(verbose) << "Audio ["sv << sequenceNumber << "] ::  send..."sv;
 
     // initialize the FEC header at the beginning of the FEC block
-    if (sequenceNumber % RTPA_DATA_SHARDS == 0) {
-      audio_fec_packet->fecHeader.baseSequenceNumber  = util::endian::big(sequenceNumber);
-      audio_fec_packet->fecHeader.baseTimestamp       = util::endian::big(timestamp);
+    if(sequenceNumber % RTPA_DATA_SHARDS == 0) {
+      audio_fec_packet->fecHeader.baseSequenceNumber = util::endian::big(sequenceNumber);
+      audio_fec_packet->fecHeader.baseTimestamp      = util::endian::big(timestamp);
     }
 
     // generate parity shards at the end of the FEC block
-    if ((sequenceNumber + 1) % RTPA_DATA_SHARDS == 0) {
+    if((sequenceNumber + 1) % RTPA_DATA_SHARDS == 0) {
       reed_solomon_encode(rs.get(), shards_p.begin(), RTPA_TOTAL_SHARDS, packet_data.size());
 
       for(auto x = 0; x < RTPA_FEC_SHARDS; ++x) {
-        audio_fec_packet->rtp.sequenceNumber = util::endian::big(sequenceNumber + x + 1);
+        audio_fec_packet->rtp.sequenceNumber      = util::endian::big(sequenceNumber + x + 1);
         audio_fec_packet->fecHeader.fecShardIndex = x;
         memcpy(audio_fec_packet->payload(), shards_p[RTPA_DATA_SHARDS + x], packet_data.size());
         sock.send_to(asio::buffer((char *)audio_fec_packet.get(), sizeof(audio_fec_packet_raw_t) + packet_data.size()), session->audio.peer);
-        BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x <<"] ::  send..."sv;
+        BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
       }
     }
   }
@@ -1023,7 +1027,7 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
   session->video.lowseq     = 0;
 
   session->audio.sequenceNumber = 0;
-  session->audio.timestamp = 0;
+  session->audio.timestamp      = 0;
 
   session->control.peer = nullptr;
   session->state.store(state_e::STOPPED, std::memory_order_relaxed);
