@@ -34,6 +34,7 @@ extern "C" {
 #define IDX_RUMBLE_DATA 6
 #define IDX_TERMINATION 7
 #define IDX_PERIODIC_PING 8
+#define IDX_ENCRYPTED 9
 
 static const short packetTypes[] = {
   0x0305, // Start A
@@ -45,6 +46,7 @@ static const short packetTypes[] = {
   0x010b, // Rumble data
   0x0100, // Termination
   0x0200, // Periodic Ping
+  0x0001, // fully encrypted
 };
 
 namespace asio = boost::asio;
@@ -81,6 +83,17 @@ struct audio_packet_raw_t {
 
   RTP_PACKET rtp;
 };
+
+typedef struct NVCTL_ENCRYPTED_PACKET_HEADER {
+  std::uint16_t encryptedHeaderType; // Always LE 0x0001
+  std::uint16_t length;              // sizeof(seq) + 16 byte tag + secondary header and data
+  std::uint32_t seq;                 // Monotonically increasing sequence number (used as IV for AES-GCM)
+
+  uint8_t *payload() {
+    return (uint8_t *)(this + 1);
+  }
+  // encrypted NVCTL_ENET_PACKET_HEADER_V2 and payload data follow
+} * PNVCTL_ENCRYPTED_PACKET_HEADER;
 
 struct audio_fec_packet_raw_t {
   uint8_t *payload() {
@@ -133,8 +146,19 @@ public:
   // Therefore, iterate is implemented further down the source file
   void iterate(std::chrono::milliseconds timeout);
 
+  void call(std::uint16_t type, session_t *session, const std::string_view &payload);
+
   void map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
     _map_type_cb.emplace(type, std::move(cb));
+  }
+
+  void send(const std::string_view &payload, net::peer_t peer) {
+    auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
+    if(enet_peer_send(peer, 0, packet)) {
+      enet_packet_destroy(packet);
+    }
+
+    enet_host_flush(_host.get());
   }
 
   void send(const std::string_view &payload) {
@@ -248,6 +272,21 @@ session_t *control_server_t::get_session(const net::peer_t peer) {
   return nullptr;
 }
 
+void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload) {
+  auto cb = _map_type_cb.find(type);
+  if(cb == std::end(_map_type_cb)) {
+    BOOST_LOG(warning)
+      << "type [Unknown] { "sv << util::hex(type).to_string_view() << " }"sv << std::endl
+      << "---data---"sv << std::endl
+      << util::hex_vec(payload) << std::endl
+      << "---end data---"sv;
+  }
+
+  else {
+    cb->second(session, payload);
+  }
+}
+
 void control_server_t::iterate(std::chrono::milliseconds timeout) {
   ENetEvent event;
   auto res = enet_host_service(_host.get(), &event, timeout.count());
@@ -267,21 +306,10 @@ void control_server_t::iterate(std::chrono::milliseconds timeout) {
     case ENET_EVENT_TYPE_RECEIVE: {
       net::packet_t packet { event.packet };
 
-      auto type = (std::uint16_t *)packet->data;
-      std::string_view payload { (char *)packet->data + sizeof(*type), packet->dataLength - sizeof(*type) };
+      auto type = *(std::uint16_t *)packet->data;
+      std::string_view payload { (char *)packet->data + sizeof(type), packet->dataLength - sizeof(type) };
 
-      auto cb = _map_type_cb.find(*type);
-      if(cb == std::end(_map_type_cb)) {
-        BOOST_LOG(warning)
-          << "type [Unknown] { "sv << util::hex(*type).to_string_view() << " }"sv << std::endl
-          << "---data---"sv << std::endl
-          << util::hex_vec(payload) << std::endl
-          << "---end data---"sv;
-      }
-
-      else {
-        cb->second(session, payload);
-      }
+      call(type, session, payload);
     } break;
     case ENET_EVENT_TYPE_CONNECT:
       BOOST_LOG(info) << "CLIENT CONNECTED"sv;
@@ -420,7 +448,9 @@ std::vector<uint8_t> replace(const std::string_view &original, const std::string
 }
 
 void controlBroadcastThread(control_server_t *server) {
-  server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {});
+  server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
+    BOOST_LOG(verbose) << "type [IDX_START_A]"sv;
+  });
 
   server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
     BOOST_LOG(debug) << "type [IDX_START_A]"sv;
@@ -462,7 +492,7 @@ void controlBroadcastThread(control_server_t *server) {
   server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
     BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
 
-    int32_t tagged_cipher_length = util::endian::big(*(int32_t *)payload.data());
+    auto tagged_cipher_length = util::endian::big(*(int32_t *)payload.data());
     std::string_view tagged_cipher { payload.data() + sizeof(tagged_cipher_length), (size_t)tagged_cipher_length };
 
     crypto::cipher_t cipher { session->gcm_key };
@@ -475,6 +505,7 @@ void controlBroadcastThread(control_server_t *server) {
       BOOST_LOG(error) << "Failed to verify tag"sv;
 
       session::stop(*session);
+      return;
     }
 
     if(tagged_cipher_length >= 16 + session->iv.size()) {
@@ -484,6 +515,65 @@ void controlBroadcastThread(control_server_t *server) {
     input::print(plaintext.data());
     input::passthrough(session->input, std::move(plaintext));
   });
+
+  server->map(packetTypes[IDX_ENCRYPTED], [server](session_t *session, const std::string_view &payload) {
+    BOOST_LOG(verbose) << "type [IDX_ENCRYPTED]"sv;
+
+    auto header = (PNVCTL_ENCRYPTED_PACKET_HEADER)(payload.data() - 2);
+
+    auto length = util::endian::little(header->length);
+    auto seq    = util::endian::little(header->seq);
+
+    if(length < (16 + 4 + 4)) {
+      BOOST_LOG(warning) << "Control: Runt packet"sv;
+      return;
+    }
+
+    auto tagged_cipher_length = length - 4;
+    std::string_view tagged_cipher { (char *)header->payload(), (size_t)tagged_cipher_length };
+
+    crypto::aes_t iv {};
+    iv[0] = (char)seq;
+
+    crypto::cipher_t cipher { session->gcm_key };
+    cipher.padding = false;
+
+    std::vector<uint8_t> plaintext;
+    if(cipher.decrypt_gcm(iv, tagged_cipher, plaintext)) {
+      // something went wrong :(
+
+      BOOST_LOG(error) << "Failed to verify tag"sv;
+
+      session::stop(*session);
+      return;
+    }
+
+    // Ensure compatibility with old packet type
+    std::string_view next_payload { (char *)plaintext.data(), plaintext.size() };
+    auto type = *(std::uint16_t *)next_payload.data();
+
+    if(type == packetTypes[IDX_ENCRYPTED]) {
+      BOOST_LOG(error) << "Bad packet type [IDX_ENCRYPTED] found"sv;
+
+      session::stop(*session);
+      return;
+    }
+
+    // IDX_INPUT_DATA will attempt to decrypt unencrypted data, therefore we need to skip it.
+    if(type != packetTypes[IDX_INPUT_DATA]) {
+      server->call(type, session, next_payload);
+
+      return;
+    }
+
+    // Ensure compatibility with IDX_INPUT_DATA
+    constexpr auto skip = sizeof(std::uint16_t) * 2;
+    plaintext.erase(std::begin(plaintext), std::begin(plaintext) + skip);
+
+    input::print(plaintext.data());
+    input::passthrough(session->input, std::move(plaintext));
+  });
+
 
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   while(!shutdown_event->peek()) {

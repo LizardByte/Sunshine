@@ -881,7 +881,7 @@ struct endian_helper<T, std::enable_if_t<
   static inline T big(T x) {
     if(!x) return x;
 
-    if constexpr(endianness<T>::big) {
+    if constexpr(endianness<T>::little) {
       auto *data = reinterpret_cast<uint8_t *>(&*x);
 
       std::reverse(data, data + sizeof(*x));
