@@ -17,6 +17,26 @@ void cert_chain_t::add(x509_t &&cert) {
   _certs.emplace_back(std::make_pair(std::move(cert), std::move(x509_store)));
 }
 
+static int openssl_verify_cb(int ok, X509_STORE_CTX *ctx) {
+  int err_code = X509_STORE_CTX_get_error(ctx);
+
+  switch (err_code) {
+  //FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get mmonlight-embedded to work on the raspberry pi
+  case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
+    return 1;
+
+  // Expired or not-yet-valid certificates are fine. Sometimes Moonlight is running on embedded devices
+  // that don't have accurate clocks (or haven't yet synchronized by the time Moonlight first runs).
+  // This behavior also matches what GeForce Experience does.
+  case X509_V_ERR_CERT_NOT_YET_VALID:
+  case X509_V_ERR_CERT_HAS_EXPIRED:
+    return 1;
+
+  default:
+    return ok;
+  }
+}
+
 /*
  * When certificates from two or more instances of Moonlight have been added to x509_store_t,
  * only one of them will be verified by X509_verify_cert, resulting in only a single instance of
@@ -32,6 +52,7 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
     });
 
     X509_STORE_CTX_init(_cert_ctx.get(), x509_store.get(), nullptr, nullptr);
+    X509_STORE_CTX_set_verify_cb(_cert_ctx.get(), openssl_verify_cb);
     X509_STORE_CTX_set_cert(_cert_ctx.get(), cert);
 
     auto err = X509_verify_cert(_cert_ctx.get());
@@ -42,10 +63,6 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
 
     err_code = X509_STORE_CTX_get_error(_cert_ctx.get());
 
-    //FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get mmonlight-embedded to work on the raspberry pi
-    if(err_code == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
-      return nullptr;
-    }
     if(err_code != X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT && err_code != X509_V_ERR_INVALID_CA) {
       return X509_verify_cert_error_string(err_code);
     }
