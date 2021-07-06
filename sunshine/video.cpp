@@ -353,12 +353,11 @@ struct sync_session_ctx_t {
   safe::signal_t *join_event;
   safe::mail_raw_t::event_t<bool> shutdown_event;
   safe::mail_raw_t::queue_t<packet_t> packets;
-  safe::mail_raw_t::event_t<idr_t> idr_events;
+  safe::mail_raw_t::event_t<bool> idr_events;
   safe::mail_raw_t::event_t<input::touch_port_t> touch_port_events;
 
   config_t config;
   int frame_nr;
-  int key_frame_nr;
   void *channel_data;
 };
 
@@ -986,7 +985,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
 }
 
 void encode_run(
-  int &frame_nr, int &key_frame_nr, // Store progress of the frame number
+  int &frame_nr, // Store progress of the frame number
   safe::mail_t mail,
   img_event_t images,
   config_t config,
@@ -1009,7 +1008,7 @@ void encode_run(
 
   auto shutdown_event = mail->event<bool>(mail::shutdown);
   auto packets        = mail::man->queue<packet_t>(mail::video_packets);
-  auto idr_events     = mail->event<idr_t>(mail::idr);
+  auto idr_events     = mail->event<bool>(mail::idr);
 
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
@@ -1020,12 +1019,7 @@ void encode_run(
       frame->pict_type = AV_PICTURE_TYPE_I;
       frame->key_frame = 1;
 
-      auto event = idr_events->pop();
-      if(!event) {
-        return;
-      }
-
-      key_frame_nr = frame_nr;
+      idr_events->pop();
     }
 
     std::this_thread::sleep_until(next_frame);
@@ -1201,15 +1195,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
         frame->pict_type = AV_PICTURE_TYPE_I;
         frame->key_frame = 1;
 
-        auto event = ctx->idr_events->pop();
-        auto end   = event->second;
-
-        ctx->frame_nr     = end;
-        ctx->key_frame_nr = end + ctx->config.framerate;
-      }
-      else if(ctx->frame_nr == ctx->key_frame_nr) {
-        frame->pict_type = AV_PICTURE_TYPE_I;
-        frame->key_frame = 1;
+        ctx->idr_events->pop();
       }
 
       if(img_tmp) {
@@ -1306,8 +1292,7 @@ void capture_async(
     return;
   }
 
-  int frame_nr     = 1;
-  int key_frame_nr = 1;
+  int frame_nr = 1;
 
   auto touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
 
@@ -1345,7 +1330,7 @@ void capture_async(
     touch_port_event->raise(make_port(display.get(), config));
 
     encode_run(
-      frame_nr, key_frame_nr,
+      frame_nr,
       mail, images,
       config, display->width, display->height,
       hwdevice.get(),
@@ -1359,9 +1344,9 @@ void capture(
   config_t config,
   void *channel_data) {
 
-  auto idr_events = mail->event<idr_t>(mail::idr);
+  auto idr_events = mail->event<bool>(mail::idr);
 
-  idr_events->raise(std::make_pair(0, 1));
+  idr_events->raise(true);
   if(encoders.front().flags & SYSTEM_MEMORY) {
     capture_async(std::move(mail), config, channel_data);
   }
@@ -1375,7 +1360,6 @@ void capture(
       std::move(idr_events),
       mail->event<input::touch_port_t>(mail::touch_port),
       config,
-      1,
       1,
       channel_data,
     });

@@ -57,7 +57,6 @@ struct packet_raw_t : public AVPacket {
 };
 
 using packet_t = std::unique_ptr<packet_raw_t>;
-using idr_t    = std::pair<int64_t, int64_t>;
 
 struct config_t {
   int width;
