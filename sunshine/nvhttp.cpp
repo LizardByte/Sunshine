@@ -222,8 +222,7 @@ void serverchallengeresp(pair_session_t &sess, pt::ptree &tree, const args_t &ar
   auto encrypted_response = util::from_hex_vec(args.at("serverchallengeresp"s), true);
 
   std::vector<uint8_t> decrypted;
-  crypto::cipher_t cipher(*sess.cipher_key);
-  cipher.padding = false;
+  crypto::cipher::ecb_t cipher(*sess.cipher_key, false);
 
   cipher.decrypt(encrypted_response, decrypted);
 
@@ -242,8 +241,7 @@ void serverchallengeresp(pair_session_t &sess, pt::ptree &tree, const args_t &ar
 void clientchallenge(pair_session_t &sess, pt::ptree &tree, const args_t &args) {
   auto challenge = util::from_hex_vec(args.at("clientchallenge"s), true);
 
-  crypto::cipher_t cipher(*sess.cipher_key);
-  cipher.padding = false;
+  crypto::cipher::ecb_t cipher(*sess.cipher_key, false);
 
   std::vector<uint8_t> decrypted;
   cipher.decrypt(challenge, decrypted);

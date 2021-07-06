@@ -54,71 +54,82 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
   return X509_verify_cert_error_string(err_code);
 }
 
-cipher_t::cipher_t(const crypto::aes_t &key) : ctx { EVP_CIPHER_CTX_new() }, key { key }, padding { true } {}
-int cipher_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext) {
-  int len;
-
-  auto fg = util::fail_guard([this]() {
-    EVP_CIPHER_CTX_reset(ctx.get());
-  });
-
-  // Gen 7 servers use 128-bit AES ECB
-  if(EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
-    return -1;
-  }
-
-  EVP_CIPHER_CTX_set_padding(ctx.get(), padding);
-
-  plaintext.resize((cipher.size() + 15) / 16 * 16);
-  auto size = (int)plaintext.size();
-  // Encrypt into the caller's buffer, leaving room for the auth tag to be prepended
-  if(EVP_DecryptUpdate(ctx.get(), plaintext.data(), &size, (const std::uint8_t *)cipher.data(), cipher.size()) != 1) {
-    return -1;
-  }
-
-  if(EVP_DecryptFinal_ex(ctx.get(), plaintext.data(), &len) != 1) {
-    return -1;
-  }
-
-  plaintext.resize(len + size);
-  return 0;
+namespace cipher {
+gcm_t::gcm_t(const crypto::aes_t &key, const crypto::aes_t &iv, bool padding)
+    : cipher_t { nullptr, nullptr, key, padding } {
+  this->iv = iv;
 }
 
-int cipher_t::decrypt_gcm(aes_t &iv, const std::string_view &tagged_cipher,
-  std::vector<std::uint8_t> &plaintext) {
-  auto cipher = tagged_cipher.substr(16);
-  auto tag    = tagged_cipher.substr(0, 16);
+static int init_decrypt_gcm(cipher_ctx_t &ctx, aes_t *key, aes_t *iv, bool padding) {
+  ctx.reset(EVP_CIPHER_CTX_new());
 
-  auto fg = util::fail_guard([this]() {
-    EVP_CIPHER_CTX_reset(ctx.get());
-  });
+  if(!ctx) {
+    return -1;
+  }
 
   if(EVP_DecryptInit_ex(ctx.get(), EVP_aes_128_gcm(), nullptr, nullptr, nullptr) != 1) {
     return -1;
   }
 
-  if(EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr) != 1) {
+  if(EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv->size(), nullptr) != 1) {
     return -1;
   }
 
-  if(EVP_DecryptInit_ex(ctx.get(), nullptr, nullptr, key.data(), iv.data()) != 1) {
+  if(EVP_DecryptInit_ex(ctx.get(), nullptr, nullptr, key->data(), iv->data()) != 1) {
     return -1;
   }
-
   EVP_CIPHER_CTX_set_padding(ctx.get(), padding);
+
+  return 0;
+}
+
+static int init_encrypt_gcm(cipher_ctx_t &ctx, aes_t *key, aes_t *iv, bool padding) {
+  ctx.reset(EVP_CIPHER_CTX_new());
+
+  // Gen 7 servers use 128-bit AES ECB
+  if(EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_gcm(), nullptr, nullptr, nullptr) != 1) {
+    return -1;
+  }
+
+  if(EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv->size(), nullptr) != 1) {
+    return -1;
+  }
+
+  if(EVP_EncryptInit_ex(ctx.get(), nullptr, nullptr, key->data(), iv->data()) != 1) {
+    return -1;
+  }
+  EVP_CIPHER_CTX_set_padding(ctx.get(), padding);
+
+  return 0;
+}
+
+int gcm_t::decrypt(const std::string_view &tagged_cipher, std::vector<std::uint8_t> &plaintext) {
+  if(!decrypt_ctx && init_decrypt_gcm(decrypt_ctx, &key, &iv, padding)) {
+    return -1;
+  }
+
+  // Calling with cipher == nullptr results in a parameter change
+  // without requiring a reallocation of the internal cipher ctx.
+  if(EVP_DecryptInit_ex(decrypt_ctx.get(), nullptr, nullptr, nullptr, iv.data()) != 1) {
+    return false;
+  }
+
+  auto cipher = tagged_cipher.substr(16);
+  auto tag    = tagged_cipher.substr(0, 16);
+
   plaintext.resize((cipher.size() + 15) / 16 * 16);
 
   int size;
-  if(EVP_DecryptUpdate(ctx.get(), plaintext.data(), &size, (const std::uint8_t *)cipher.data(), cipher.size()) != 1) {
+  if(EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &size, (const std::uint8_t *)cipher.data(), cipher.size()) != 1) {
     return -1;
   }
 
-  if(EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, tag.size(), const_cast<char *>(tag.data())) != 1) {
+  if(EVP_CIPHER_CTX_ctrl(decrypt_ctx.get(), EVP_CTRL_GCM_SET_TAG, tag.size(), const_cast<char *>(tag.data())) != 1) {
     return -1;
   }
 
   int len = size;
-  if(EVP_DecryptFinal_ex(ctx.get(), plaintext.data() + size, &len) != 1) {
+  if(EVP_DecryptFinal_ex(decrypt_ctx.get(), plaintext.data() + size, &len) != 1) {
     return -1;
   }
 
@@ -126,34 +137,98 @@ int cipher_t::decrypt_gcm(aes_t &iv, const std::string_view &tagged_cipher,
   return 0;
 }
 
-int cipher_t::encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher) {
-  int len;
-
-  auto fg = util::fail_guard([this]() {
-    EVP_CIPHER_CTX_reset(ctx.get());
-  });
-
-  // Gen 7 servers use 128-bit AES ECB
-  if(EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
+int gcm_t::encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher) {
+  if(!encrypt_ctx && init_encrypt_gcm(encrypt_ctx, &key, &iv, padding)) {
     return -1;
   }
 
-  EVP_CIPHER_CTX_set_padding(ctx.get(), padding);
+  // Calling with cipher == nullptr results in a parameter change
+  // without requiring a reallocation of the internal cipher ctx.
+  if(EVP_EncryptInit_ex(encrypt_ctx.get(), nullptr, nullptr, nullptr, iv.data()) != 1) {
+    return false;
+  }
+
+  int len;
 
   cipher.resize((plaintext.size() + 15) / 16 * 16);
   auto size = (int)cipher.size();
+
   // Encrypt into the caller's buffer
-  if(EVP_EncryptUpdate(ctx.get(), cipher.data(), &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
+  if(EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
     return -1;
   }
 
-  if(EVP_EncryptFinal_ex(ctx.get(), cipher.data() + size, &len) != 1) {
+  if(EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher.data() + size, &len) != 1) {
     return -1;
   }
 
   cipher.resize(len + size);
   return 0;
 }
+
+int ecb_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext) {
+  int len;
+
+  auto fg = util::fail_guard([this]() {
+    EVP_CIPHER_CTX_reset(decrypt_ctx.get());
+  });
+
+  // Gen 7 servers use 128-bit AES ECB
+  if(EVP_DecryptInit_ex(decrypt_ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
+    return -1;
+  }
+
+  EVP_CIPHER_CTX_set_padding(decrypt_ctx.get(), padding);
+
+  plaintext.resize((cipher.size() + 15) / 16 * 16);
+  auto size = (int)plaintext.size();
+  // Decrypt into the caller's buffer, leaving room for the auth tag to be prepended
+  if(EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &size, (const std::uint8_t *)cipher.data(), cipher.size()) != 1) {
+    return -1;
+  }
+
+  if(EVP_DecryptFinal_ex(decrypt_ctx.get(), plaintext.data(), &len) != 1) {
+    return -1;
+  }
+
+  plaintext.resize(len + size);
+  return 0;
+}
+
+int ecb_t::encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher) {
+  auto fg = util::fail_guard([this]() {
+    EVP_CIPHER_CTX_reset(encrypt_ctx.get());
+  });
+
+  // Gen 7 servers use 128-bit AES ECB
+  if(EVP_EncryptInit_ex(encrypt_ctx.get(), EVP_aes_128_ecb(), nullptr, key.data(), nullptr) != 1) {
+    return -1;
+  }
+
+  EVP_CIPHER_CTX_set_padding(encrypt_ctx.get(), padding);
+
+  int len;
+
+  cipher.resize((plaintext.size() + 15) / 16 * 16);
+  auto size = (int)cipher.size();
+
+  // Encrypt into the caller's buffer
+  if(EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
+    return -1;
+  }
+
+  if(EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher.data() + size, &len) != 1) {
+    return -1;
+  }
+
+  cipher.resize(len + size);
+  return 0;
+}
+
+ecb_t::ecb_t(const aes_t &key, bool padding)
+    : cipher_t { EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_new(), key, padding } {}
+
+} // namespace cipher
 
 aes_t gen_aes_key(const std::array<uint8_t, 16> &salt, const std::string_view &pin) {
   aes_t key;

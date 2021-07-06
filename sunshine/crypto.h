@@ -66,24 +66,46 @@ private:
   x509_store_ctx_t _cert_ctx;
 };
 
+namespace cipher {
+
 class cipher_t {
 public:
-  cipher_t(const aes_t &key);
-  cipher_t(cipher_t &&) noexcept = default;
-  cipher_t &operator=(cipher_t &&) noexcept = default;
+  cipher_ctx_t decrypt_ctx;
+  cipher_ctx_t encrypt_ctx;
 
-  int encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher);
-
-  int decrypt_gcm(aes_t &iv, const std::string_view &cipher, std::vector<std::uint8_t> &plaintext);
-  int decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext);
-
-private:
-  cipher_ctx_t ctx;
   aes_t key;
 
-public:
   bool padding;
 };
+
+class ecb_t : public cipher_t {
+public:
+  ecb_t()                  = default;
+  ecb_t(ecb_t &&) noexcept = default;
+  ecb_t &operator=(ecb_t &&) noexcept = default;
+
+  ecb_t(const aes_t &key, bool padding = true);
+
+  int encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher);
+  int decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext);
+};
+
+class gcm_t : public cipher_t {
+public:
+  gcm_t()                  = default;
+  gcm_t(gcm_t &&) noexcept = default;
+  gcm_t &operator=(gcm_t &&) noexcept = default;
+
+  gcm_t(const crypto::aes_t &key, const crypto::aes_t &iv, bool padding = true);
+
+  int encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher);
+  int decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext);
+
+  aes_t &get_iv() { return iv; }
+
+  aes_t iv;
+};
+} // namespace cipher
 } // namespace crypto
 
 #endif //SUNSHINE_CRYPTO_H

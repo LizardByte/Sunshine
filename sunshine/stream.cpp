@@ -224,11 +224,10 @@ struct session_t {
   } audio;
 
   struct {
+    crypto::cipher::gcm_t cipher;
+
     net::peer_t peer;
   } control;
-
-  crypto::aes_t gcm_key;
-  crypto::aes_t iv;
 
   safe::mail_raw_t::event_t<bool> shutdown_event;
   safe::signal_t controlEnd;
@@ -495,11 +494,10 @@ void controlBroadcastThread(control_server_t *server) {
     auto tagged_cipher_length = util::endian::big(*(int32_t *)payload.data());
     std::string_view tagged_cipher { payload.data() + sizeof(tagged_cipher_length), (size_t)tagged_cipher_length };
 
-    crypto::cipher_t cipher { session->gcm_key };
-    cipher.padding = false;
-
     std::vector<uint8_t> plaintext;
-    if(cipher.decrypt_gcm(session->iv, tagged_cipher, plaintext)) {
+
+    auto &cipher = session->control.cipher;
+    if(cipher.decrypt(tagged_cipher, plaintext)) {
       // something went wrong :(
 
       BOOST_LOG(error) << "Failed to verify tag"sv;
@@ -508,8 +506,8 @@ void controlBroadcastThread(control_server_t *server) {
       return;
     }
 
-    if(tagged_cipher_length >= 16 + session->iv.size()) {
-      std::copy(payload.end() - 16, payload.end(), std::begin(session->iv));
+    if(tagged_cipher_length >= 16 + sizeof(crypto::aes_t)) {
+      std::copy(payload.end() - 16, payload.end(), std::begin(cipher.get_iv()));
     }
 
     input::print(plaintext.data());
@@ -532,14 +530,13 @@ void controlBroadcastThread(control_server_t *server) {
     auto tagged_cipher_length = length - 4;
     std::string_view tagged_cipher { (char *)header->payload(), (size_t)tagged_cipher_length };
 
+    auto &cipher = session->control.cipher;
     crypto::aes_t iv {};
-    iv[0] = (char)seq;
-
-    crypto::cipher_t cipher { session->gcm_key };
-    cipher.padding = false;
+    iv[0]           = (char)seq;
+    cipher.get_iv() = iv;
 
     std::vector<uint8_t> plaintext;
-    if(cipher.decrypt_gcm(iv, tagged_cipher, plaintext)) {
+    if(cipher.decrypt(tagged_cipher, plaintext)) {
       // something went wrong :(
 
       BOOST_LOG(error) << "Failed to verify tag"sv;
@@ -1109,9 +1106,11 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
 
   session->shutdown_event = mail->event<bool>(mail::shutdown);
 
-  session->config  = config;
-  session->gcm_key = gcm_key;
-  session->iv      = iv;
+  session->config = config;
+
+  session->control.cipher = crypto::cipher::gcm_t {
+    gcm_key, iv, false
+  };
 
   session->video.idr_events = mail->event<video::idr_t>(mail::idr);
   session->video.lowseq     = 0;
