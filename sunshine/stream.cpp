@@ -214,7 +214,7 @@ struct session_t {
   struct {
     int lowseq;
     udp::endpoint peer;
-    safe::mail_raw_t::event_t<video::idr_t> idr_events;
+    safe::mail_raw_t::event_t<bool> idr_events;
   } video;
 
   struct {
@@ -485,7 +485,7 @@ void controlBroadcastThread(control_server_t *server) {
       << "firstFrame [" << firstFrame << ']' << std::endl
       << "lastFrame [" << lastFrame << ']';
 
-    session->video.idr_events->raise(std::make_pair(firstFrame, lastFrame));
+    session->video.idr_events->raise(true);
   });
 
   server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
@@ -1112,7 +1112,7 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
     gcm_key, iv, false
   };
 
-  session->video.idr_events = mail->event<video::idr_t>(mail::idr);
+  session->video.idr_events = mail->event<bool>(mail::idr);
   session->video.lowseq     = 0;
 
   session->audio.sequenceNumber = 0;
