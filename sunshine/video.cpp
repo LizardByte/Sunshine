@@ -1025,22 +1025,14 @@ void encode_run(
         return;
       }
 
-      auto end     = event->second;
-      frame_nr     = end;
-      key_frame_nr = end + config.framerate;
-    }
-    else if(frame_nr == key_frame_nr) {
-      auto frame = session->device->frame;
-
-      frame->pict_type = AV_PICTURE_TYPE_I;
-      frame->key_frame = 1;
+      key_frame_nr = frame_nr;
     }
 
     std::this_thread::sleep_until(next_frame);
     next_frame += delay;
 
     // When Moonlight request an IDR frame, send frames even if there is no new captured frame
-    if(frame_nr > key_frame_nr || images->peek()) {
+    if(!frame->key_frame || images->peek()) {
       if(auto img = images->pop(delay)) {
         session->device->convert(*img);
       }
