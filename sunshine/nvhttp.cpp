@@ -365,8 +365,11 @@ void not_found(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> resp
   pt::write_xml(data, tree);
   response->write(data.str());
 
-  *response << "HTTP/1.1 404 NOT FOUND\r\n"
-            << data.str();
+  *response
+    << "HTTP/1.1 404 NOT FOUND\r\n"
+    << data.str();
+
+  response->close_connection_after_response = true;
 }
 
 template<class T>
@@ -374,6 +377,14 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
   print_req<T>(request);
 
   pt::ptree tree;
+
+  auto fg = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_xml(data, tree);
+    response->write(data.str());
+    response->close_connection_after_response = true;
+  });
 
   auto args = request->parse_query_string();
   if(args.find("uniqueid"s) == std::end(args)) {
@@ -398,11 +409,7 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
 
       ptr->second.async_insert_pin.salt = std::move(args.at("salt"s));
 
-      if(config::sunshine.flags[config::flag::CONST_PIN]) {
-        std::string pin("6174");
-        getservercert(ptr->second, tree, pin);
-      }
-      else if(config::sunshine.flags[config::flag::PIN_STDIN]) {
+      if(config::sunshine.flags[config::flag::PIN_STDIN]) {
         std::string pin;
 
         std::cout << "Please insert pin: "sv;
@@ -413,6 +420,7 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
       else {
         ptr->second.async_insert_pin.response = std::move(response);
 
+        fg.disable();
         return;
       }
     }
@@ -433,11 +441,6 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
   else {
     tree.put("root.<xmlattr>.status_code", 404);
   }
-
-  std::ostringstream data;
-
-  pt::write_xml(data, tree);
-  response->write(data.str());
 }
 
 bool pin(std::string pin) {
@@ -473,6 +476,8 @@ bool pin(std::string pin) {
 template<class T>
 void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
   print_req<T>(request);
+
+  response->close_connection_after_response = true;
 
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
@@ -572,6 +577,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
 
   pt::write_xml(data, tree);
   response->write(data.str());
+  response->close_connection_after_response = true;
 }
 
 void applist(resp_https_t response, req_https_t request) {
@@ -584,6 +590,7 @@ void applist(resp_https_t response, req_https_t request) {
 
     pt::write_xml(data, tree);
     response->write(data.str());
+    response->close_connection_after_response = true;
   });
 
   auto args = request->parse_query_string();
@@ -627,6 +634,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
 
     pt::write_xml(data, tree);
     response->write(data.str());
+    response->close_connection_after_response = true;
   });
 
   if(stream::session_count() == config::stream.channels) {
@@ -686,6 +694,7 @@ void resume(bool &host_audio, resp_https_t response, req_https_t request) {
 
     pt::write_xml(data, tree);
     response->write(data.str());
+    response->close_connection_after_response = true;
   });
 
   // It is possible that due a race condition that this if-statement gives a false negative,
@@ -732,6 +741,7 @@ void cancel(resp_https_t response, req_https_t request) {
 
     pt::write_xml(data, tree);
     response->write(data.str());
+    response->close_connection_after_response = true;
   });
 
   // It is possible that due a race condition that this if-statement gives a false positive,
@@ -756,6 +766,7 @@ void appasset(resp_https_t response, req_https_t request) {
 
   std::ifstream in(SUNSHINE_ASSETS_DIR "/box.png");
   response->write(SimpleWeb::StatusCode::success_ok, in);
+  response->close_connection_after_response = true;
 }
 
 void start() {
