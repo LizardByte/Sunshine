@@ -26,7 +26,6 @@ extern "C" {
 #include "utility.h"
 
 #define IDX_START_A 0
-#define IDX_REQUEST_IDR_FRAME 0
 #define IDX_START_B 1
 #define IDX_INVALIDATE_REF_FRAMES 2
 #define IDX_LOSS_STATS 3
@@ -34,7 +33,8 @@ extern "C" {
 #define IDX_RUMBLE_DATA 6
 #define IDX_TERMINATION 7
 #define IDX_PERIODIC_PING 8
-#define IDX_ENCRYPTED 9
+#define IDX_REQUEST_IDR_FRAME 9
+#define IDX_ENCRYPTED 10
 
 static const short packetTypes[] = {
   0x0305, // Start A
@@ -46,6 +46,7 @@ static const short packetTypes[] = {
   0x010b, // Rumble data
   0x0100, // Termination
   0x0200, // Periodic Ping
+  0x0302, // IDR frame
   0x0001, // fully encrypted
 };
 
@@ -473,6 +474,12 @@ void controlBroadcastThread(control_server_t *server) {
       << "time in milli since last report [" << t.count() << ']' << std::endl
       << "last good frame [" << lastGoodFrame << ']' << std::endl
       << "---end stats---";
+  });
+
+  server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](session_t *session, const std::string_view &payload) {
+    BOOST_LOG(debug) << "type [IDX_REQUEST_IDR_FRAME]"sv;
+
+    session->video.idr_events->raise(true);
   });
 
   server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
