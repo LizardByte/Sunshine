@@ -786,21 +786,37 @@ void start() {
 
   auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>(30);
 
-  // Ugly hack for verifying certificates, see crypto::cert_chain_t::verify() for details
-  ctx->set_verify_callback([&cert_chain, add_cert](int verified, boost::asio::ssl::verify_context &ctx) {
+  ctx->set_verify_callback([](int verified, boost::asio::ssl::verify_context &ctx) {
+    // To respond with an error message, a connection must be established
+    return 1;
+  });
+
+  // /resume doesn't get the parameter "localAudioPlayMode"
+  // /launch will store it in host_audio
+  bool host_audio {};
+
+  https_server_t https_server { ctx, boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once };
+  http_server_t http_server;
+
+  // Verify certificates after establishing connection
+  https_server.verify = [&cert_chain, add_cert](SSL *ssl) {
+    auto x509 = SSL_get_peer_certificate(ssl);
+    if(!x509) {
+      BOOST_LOG(info) << "unknown -- denied"sv;
+      return 0;
+    }
+
+    int verified = 0;
+
     auto fg = util::fail_guard([&]() {
       char subject_name[256];
 
-      auto x509 = ctx.native_handle();
-      X509_NAME_oneline(X509_get_subject_name(X509_STORE_CTX_get_current_cert(x509)), subject_name, sizeof(subject_name));
+
+      X509_NAME_oneline(X509_get_subject_name(x509), subject_name, sizeof(subject_name));
 
 
       BOOST_LOG(info) << subject_name << " -- "sv << (verified ? "verfied"sv : "denied"sv);
     });
-
-    if(verified) {
-      return 1;
-    }
 
     while(add_cert->peek()) {
       char subject_name[256];
@@ -812,22 +828,32 @@ void start() {
       cert_chain.add(std::move(cert));
     }
 
-    auto err_str = cert_chain.verify(X509_STORE_CTX_get_current_cert(ctx.native_handle()));
+    auto err_str = cert_chain.verify(x509);
     if(err_str) {
       BOOST_LOG(warning) << "SSL Verification error :: "sv << err_str;
-      return 0;
+
+      return verified;
     }
 
     verified = 1;
-    return 1;
-  });
 
-  // /resume doesn't get the parameter "localAudioPlayMode"
-  // /launch will store it in host_audio
-  bool host_audio {};
+    return verified;
+  };
 
-  https_server_t https_server { ctx, boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once };
-  http_server_t http_server;
+  https_server.on_verify_failed = [](resp_https_t resp, req_https_t req) {
+    pt::ptree tree;
+    auto g = util::fail_guard([&]() {
+      std::ostringstream data;
+
+      pt::write_xml(data, tree);
+      resp->write(data.str());
+      resp->close_connection_after_response = true;
+    });
+
+    tree.put("root.<xmlattr>.status_code"s, 401);
+    tree.put("root.<xmlattr>.query"s, req->path);
+    tree.put("root.<xmlattr>.status_message"s, "The client is not authorized. Certificate verification failed."s);
+  };
 
   https_server.default_resource                   = not_found<SimpleWeb::HTTPS>;
   https_server.resource["^/serverinfo$"]["GET"]   = serverinfo<SimpleWeb::HTTPS>;
