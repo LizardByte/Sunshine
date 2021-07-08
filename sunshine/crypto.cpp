@@ -4,6 +4,7 @@
 
 #include "crypto.h"
 #include <openssl/pem.h>
+
 namespace crypto {
 using big_num_t = util::safe_ptr<BIGNUM, BN_free>;
 //using rsa_t = util::safe_ptr<RSA, RSA_free>;
@@ -20,7 +21,7 @@ void cert_chain_t::add(x509_t &&cert) {
 static int openssl_verify_cb(int ok, X509_STORE_CTX *ctx) {
   int err_code = X509_STORE_CTX_get_error(ctx);
 
-  switch (err_code) {
+  switch(err_code) {
   //FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get mmonlight-embedded to work on the raspberry pi
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
     return 1;
@@ -72,10 +73,6 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
 }
 
 namespace cipher {
-gcm_t::gcm_t(const crypto::aes_t &key, const crypto::aes_t &iv, bool padding)
-    : cipher_t { nullptr, nullptr, key, padding } {
-  this->iv = iv;
-}
 
 static int init_decrypt_gcm(cipher_ctx_t &ctx, aes_t *key, aes_t *iv, bool padding) {
   ctx.reset(EVP_CIPHER_CTX_new());
@@ -115,6 +112,19 @@ static int init_encrypt_gcm(cipher_ctx_t &ctx, aes_t *key, aes_t *iv, bool paddi
   if(EVP_EncryptInit_ex(ctx.get(), nullptr, nullptr, key->data(), iv->data()) != 1) {
     return -1;
   }
+  EVP_CIPHER_CTX_set_padding(ctx.get(), padding);
+
+  return 0;
+}
+
+static int init_encrypt_cbc(cipher_ctx_t &ctx, aes_t *key, aes_t *iv, bool padding) {
+  ctx.reset(EVP_CIPHER_CTX_new());
+
+  // Gen 7 servers use 128-bit AES ECB
+  if(EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_cbc(), nullptr, key->data(), iv->data()) != 1) {
+    return -1;
+  }
+
   EVP_CIPHER_CTX_set_padding(ctx.get(), padding);
 
   return 0;
@@ -242,8 +252,43 @@ int ecb_t::encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> 
   return 0;
 }
 
+int cbc_t::encrypt(const std::string_view &plaintext, std::uint8_t *cipher, aes_t *iv) {
+  if(!encrypt_ctx && init_encrypt_cbc(encrypt_ctx, &key, iv, padding)) {
+    return -1;
+  }
+
+  // Calling with cipher == nullptr results in a parameter change
+  // without requiring a reallocation of the internal cipher ctx.
+  if(EVP_EncryptInit_ex(encrypt_ctx.get(), nullptr, nullptr, nullptr, iv->data()) != 1) {
+    return false;
+  }
+
+  int len;
+
+  int size = plaintext.size(); //round_to_pkcs7_padded(plaintext.size());
+
+  // Encrypt into the caller's buffer
+  if(EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
+    return -1;
+  }
+
+  if(EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher + size, &len) != 1) {
+    return -1;
+  }
+
+  return size + len;
+}
+
 ecb_t::ecb_t(const aes_t &key, bool padding)
     : cipher_t { EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_new(), key, padding } {}
+
+cbc_t::cbc_t(const aes_t &key, bool padding)
+    : cipher_t { nullptr, nullptr, key, padding } {}
+
+gcm_t::gcm_t(const crypto::aes_t &key, const crypto::aes_t &iv, bool padding)
+    : cipher_t { nullptr, nullptr, key, padding } {
+  this->iv = iv;
+}
 
 } // namespace cipher
 

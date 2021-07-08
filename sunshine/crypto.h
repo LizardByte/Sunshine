@@ -67,6 +67,9 @@ private:
 };
 
 namespace cipher {
+constexpr std::size_t round_to_pkcs7_padded(std::size_t size) {
+  return ((size + 15) / 16) * 16;
+}
 
 class cipher_t {
 public:
@@ -104,6 +107,23 @@ public:
   aes_t &get_iv() { return iv; }
 
   aes_t iv;
+};
+
+class cbc_t : public cipher_t {
+public:
+  cbc_t()                  = default;
+  cbc_t(cbc_t &&) noexcept = default;
+  cbc_t &operator=(cbc_t &&) noexcept = default;
+
+  cbc_t(const crypto::aes_t &key, bool padding = true);
+
+  /**
+   * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size())
+   * 
+   * return -1 on error
+   * return bytes written on success
+   */
+  int encrypt(const std::string_view &plaintext, std::uint8_t *cipher, aes_t *iv);
 };
 } // namespace cipher
 } // namespace crypto

@@ -107,13 +107,34 @@ struct audio_fec_packet_raw_t {
 
 #pragma pack(pop)
 
+constexpr std::size_t round_to_pkcs7_padded(std::size_t size) {
+  return ((size + 15) / 16) * 16;
+}
+constexpr std::size_t MAX_AUDIO_PACKET_SIZE = 1400;
+
 using rh_t               = util::safe_ptr<reed_solomon, reed_solomon_release>;
 using video_packet_t     = util::c_ptr<video_packet_raw_t>;
 using audio_packet_t     = util::c_ptr<audio_packet_raw_t>;
 using audio_fec_packet_t = util::c_ptr<audio_fec_packet_raw_t>;
+using audio_aes_t        = std::array<char, round_to_pkcs7_padded(MAX_AUDIO_PACKET_SIZE)>;
 
 using message_queue_t       = std::shared_ptr<safe::queue_t<std::pair<std::uint16_t, std::string>>>;
 using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e, asio::ip::address, message_queue_t>>>;
+
+// return bytes written on success
+// return -1 on error
+int encode_audio(int featureSet, const audio::buffer_t &plaintext, audio_packet_t &destination, std::uint32_t avRiKeyIv, crypto::cipher::cbc_t &cbc) {
+  // If encryption isn't enabled
+  if(!(featureSet & 0x20)) {
+    std::copy(std::begin(plaintext), std::end(plaintext), destination->payload());
+    return plaintext.size();
+  }
+
+  crypto::aes_t iv {};
+  *(std::uint32_t *)iv.data() = util::endian::big<std::uint32_t>(avRiKeyIv + destination->rtp.sequenceNumber);
+
+  return cbc.encrypt(std::string_view { (char *)std::begin(plaintext), plaintext.size() }, destination->payload(), &iv);
+}
 
 static inline void while_starting_do_nothing(std::atomic<session::state_e> &state) {
   while(state.load(std::memory_order_acquire) == session::state_e::STARTING) {
@@ -219,7 +240,11 @@ struct session_t {
   } video;
 
   struct {
+    crypto::cipher::cbc_t cipher;
+
     std::uint16_t sequenceNumber;
+    // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
+    std::uint32_t avRiKeyId;
     std::uint32_t timestamp;
     udp::endpoint peer;
   } audio;
@@ -610,22 +635,26 @@ void controlBroadcastThread(control_server_t *server) {
     if(proc::proc.running() == -1) {
       BOOST_LOG(debug) << "Process terminated"sv;
 
-      std::uint16_t reason = 0x0100;
-
-      std::array<std::uint16_t, 2> payload;
-      payload[0] = packetTypes[IDX_TERMINATION];
-      payload[1] = reason;
-
-      server->send(std::string_view { (char *)payload.data(), payload.size() });
-
-      auto lg = server->_map_addr_session.lock();
-      for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
-        auto session = pos->second.second;
-        session->shutdown_event->raise(true);
-      }
+      break;
     }
 
     server->iterate(500ms);
+  }
+
+  // Let all remaining connections know the server is shutting down
+  std::uint16_t reason = 0x0100;
+
+  std::array<std::uint16_t, 2> payload;
+  payload[0] = packetTypes[IDX_TERMINATION];
+  payload[1] = reason;
+
+  server->send(std::string_view { (char *)payload.data(), payload.size() });
+
+  auto lg = server->_map_addr_session.lock();
+  for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
+    auto session = pos->second.second;
+    session->shutdown_event->raise(true);
+    session->controlEnd.raise(true);
   }
 }
 
@@ -819,8 +848,8 @@ void audioBroadcastThread(udp::socket &sock) {
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   auto packets        = mail::man->queue<audio::packet_t>(mail::audio_packets);
 
-  auto max_block_size = 2048;
-  util::buffer_t<char> shards { RTPA_TOTAL_SHARDS * 2048 };
+  constexpr auto max_block_size = crypto::cipher::round_to_pkcs7_padded(2048);
+  util::buffer_t<char> shards { RTPA_TOTAL_SHARDS * max_block_size };
   util::buffer_t<uint8_t *> shards_p { RTPA_TOTAL_SHARDS };
 
   for(auto x = 0; x < RTPA_TOTAL_SHARDS; ++x) {
@@ -863,16 +892,26 @@ void audioBroadcastThread(udp::socket &sock) {
     auto sequenceNumber = session->audio.sequenceNumber;
     auto timestamp      = session->audio.timestamp;
 
+    // This will be mapped to big-endianness later
+    // For now, encode_audio needs it to be the proper sequenceNumber
+    audio_packet->rtp.sequenceNumber = sequenceNumber;
+
+    auto bytes = encode_audio(session->config.featureFlags, packet_data, audio_packet, session->audio.avRiKeyId, session->audio.cipher);
+    if(bytes < 0) {
+      BOOST_LOG(error) << "Couldn't encode audio packet"sv;
+      break;
+    }
+
     audio_packet->rtp.sequenceNumber = util::endian::big(sequenceNumber);
     audio_packet->rtp.timestamp      = util::endian::big(timestamp);
 
     session->audio.sequenceNumber++;
     session->audio.timestamp += session->config.audio.packetDuration;
 
-    std::copy(std::begin(packet_data), std::end(packet_data), audio_packet->payload());
-    std::copy(std::begin(packet_data), std::end(packet_data), shards_p[sequenceNumber % RTPA_DATA_SHARDS]);
+    std::copy_n(audio_packet->payload(), bytes, shards_p[sequenceNumber % RTPA_DATA_SHARDS]);
+    sock.send_to(asio::buffer((char *)audio_packet.get(), sizeof(audio_packet_raw_t) + bytes), session->audio.peer);
 
-    sock.send_to(asio::buffer((char *)audio_packet.get(), sizeof(audio_packet_raw_t) + packet_data.size()), session->audio.peer);
+
     BOOST_LOG(verbose) << "Audio ["sv << sequenceNumber << "] ::  send..."sv;
 
     // initialize the FEC header at the beginning of the FEC block
@@ -883,13 +922,13 @@ void audioBroadcastThread(udp::socket &sock) {
 
     // generate parity shards at the end of the FEC block
     if((sequenceNumber + 1) % RTPA_DATA_SHARDS == 0) {
-      reed_solomon_encode(rs.get(), shards_p.begin(), RTPA_TOTAL_SHARDS, packet_data.size());
+      reed_solomon_encode(rs.get(), shards_p.begin(), RTPA_TOTAL_SHARDS, bytes);
 
       for(auto x = 0; x < RTPA_FEC_SHARDS; ++x) {
-        audio_fec_packet->rtp.sequenceNumber      = util::endian::big(sequenceNumber + x + 1);
+        audio_fec_packet->rtp.sequenceNumber      = util::endian::big<std::uint16_t>(sequenceNumber + x + 1);
         audio_fec_packet->fecHeader.fecShardIndex = x;
-        memcpy(audio_fec_packet->payload(), shards_p[RTPA_DATA_SHARDS + x], packet_data.size());
-        sock.send_to(asio::buffer((char *)audio_fec_packet.get(), sizeof(audio_fec_packet_raw_t) + packet_data.size()), session->audio.peer);
+        memcpy(audio_fec_packet->payload(), shards_p[RTPA_DATA_SHARDS + x], bytes);
+        sock.send_to(asio::buffer((char *)audio_fec_packet.get(), sizeof(audio_fec_packet_raw_t) + bytes), session->audio.peer);
         BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
       }
     }
@@ -1122,6 +1161,12 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
   session->video.idr_events = mail->event<bool>(mail::idr);
   session->video.lowseq     = 0;
 
+
+  session->audio.cipher = crypto::cipher::cbc_t {
+    gcm_key, true
+  };
+
+  session->audio.avRiKeyId      = util::endian::big(*(std::uint32_t *)iv.data());
   session->audio.sequenceNumber = 0;
   session->audio.timestamp      = 0;
 
