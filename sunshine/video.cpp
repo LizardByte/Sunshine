@@ -1313,7 +1313,8 @@ void capture_async(
       display = ref->display_wp->lock();
     }
 
-    auto pix_fmt  = config.dynamicRange == 0 ? platf::pix_fmt_e::yuv420p : platf::pix_fmt_e::yuv420p10;
+    auto &encoder = encoders.front();
+    auto pix_fmt  = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
     auto hwdevice = display->make_hwdevice(pix_fmt);
     if(!hwdevice) {
       return;
