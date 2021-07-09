@@ -130,19 +130,19 @@ static int init_encrypt_cbc(cipher_ctx_t &ctx, aes_t *key, aes_t *iv, bool paddi
   return 0;
 }
 
-int gcm_t::decrypt(const std::string_view &tagged_cipher, std::vector<std::uint8_t> &plaintext) {
-  if(!decrypt_ctx && init_decrypt_gcm(decrypt_ctx, &key, &iv, padding)) {
+int gcm_t::decrypt(const std::string_view &tagged_cipher, std::vector<std::uint8_t> &plaintext, aes_t *iv) {
+  if(!decrypt_ctx && init_decrypt_gcm(decrypt_ctx, &key, iv, padding)) {
     return -1;
   }
 
   // Calling with cipher == nullptr results in a parameter change
   // without requiring a reallocation of the internal cipher ctx.
-  if(EVP_DecryptInit_ex(decrypt_ctx.get(), nullptr, nullptr, nullptr, iv.data()) != 1) {
+  if(EVP_DecryptInit_ex(decrypt_ctx.get(), nullptr, nullptr, nullptr, iv->data()) != 1) {
     return false;
   }
 
-  auto cipher = tagged_cipher.substr(16);
-  auto tag    = tagged_cipher.substr(0, 16);
+  auto cipher = tagged_cipher.substr(tag_size);
+  auto tag    = tagged_cipher.substr(0, tag_size);
 
   plaintext.resize((cipher.size() + 15) / 16 * 16);
 
@@ -164,33 +164,38 @@ int gcm_t::decrypt(const std::string_view &tagged_cipher, std::vector<std::uint8
   return 0;
 }
 
-int gcm_t::encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher) {
-  if(!encrypt_ctx && init_encrypt_gcm(encrypt_ctx, &key, &iv, padding)) {
+int gcm_t::encrypt(const std::string_view &plaintext, std::uint8_t *tagged_cipher, aes_t *iv) {
+  if(!encrypt_ctx && init_encrypt_gcm(encrypt_ctx, &key, iv, padding)) {
     return -1;
   }
 
   // Calling with cipher == nullptr results in a parameter change
   // without requiring a reallocation of the internal cipher ctx.
-  if(EVP_EncryptInit_ex(encrypt_ctx.get(), nullptr, nullptr, nullptr, iv.data()) != 1) {
-    return false;
+  if(EVP_EncryptInit_ex(encrypt_ctx.get(), nullptr, nullptr, nullptr, iv->data()) != 1) {
+    return -1;
   }
+
+  auto tag    = tagged_cipher;
+  auto cipher = tag + tag_size;
 
   int len;
-
-  cipher.resize((plaintext.size() + 15) / 16 * 16);
-  auto size = (int)cipher.size();
+  int size = round_to_pkcs7_padded(plaintext.size());
 
   // Encrypt into the caller's buffer
-  if(EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
+  if(EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
     return -1;
   }
 
-  if(EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher.data() + size, &len) != 1) {
+  // GCM encryption won't ever fill ciphertext here but we have to call it anyway
+  if(EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher + size, &len) != 1) {
     return -1;
   }
 
-  cipher.resize(len + size);
-  return 0;
+  if(EVP_CIPHER_CTX_ctrl(encrypt_ctx.get(), EVP_CTRL_GCM_GET_TAG, tag_size, tag) != 1) {
+    return -1;
+  }
+
+  return len + size;
 }
 
 int ecb_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext) {
@@ -285,10 +290,8 @@ ecb_t::ecb_t(const aes_t &key, bool padding)
 cbc_t::cbc_t(const aes_t &key, bool padding)
     : cipher_t { nullptr, nullptr, key, padding } {}
 
-gcm_t::gcm_t(const crypto::aes_t &key, const crypto::aes_t &iv, bool padding)
-    : cipher_t { nullptr, nullptr, key, padding } {
-  this->iv = iv;
-}
+gcm_t::gcm_t(const crypto::aes_t &key, bool padding)
+    : cipher_t { nullptr, nullptr, key, padding } {}
 
 } // namespace cipher
 

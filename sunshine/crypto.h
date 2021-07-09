@@ -67,6 +67,7 @@ private:
 };
 
 namespace cipher {
+constexpr std::size_t tag_size = 16;
 constexpr std::size_t round_to_pkcs7_padded(std::size_t size) {
   return ((size + 15) / 16) * 16;
 }
@@ -99,14 +100,17 @@ public:
   gcm_t(gcm_t &&) noexcept = default;
   gcm_t &operator=(gcm_t &&) noexcept = default;
 
-  gcm_t(const crypto::aes_t &key, const crypto::aes_t &iv, bool padding = true);
+  gcm_t(const crypto::aes_t &key, bool padding = true);
 
-  int encrypt(const std::string_view &plaintext, std::vector<std::uint8_t> &cipher);
-  int decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext);
+  /**
+   * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size
+   * 
+   * return -1 on error
+   * return bytes written on success
+   */
+  int encrypt(const std::string_view &plaintext, std::uint8_t *tagged_cipher, aes_t *iv);
 
-  aes_t &get_iv() { return iv; }
-
-  aes_t iv;
+  int decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext, aes_t *iv);
 };
 
 class cbc_t : public cipher_t {

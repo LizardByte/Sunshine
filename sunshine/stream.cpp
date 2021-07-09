@@ -123,7 +123,7 @@ using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e,
 
 // return bytes written on success
 // return -1 on error
-int encode_audio(int featureSet, const audio::buffer_t &plaintext, audio_packet_t &destination, std::uint32_t avRiKeyIv, crypto::cipher::cbc_t &cbc) {
+static inline int encode_audio(int featureSet, const audio::buffer_t &plaintext, audio_packet_t &destination, std::uint32_t avRiKeyIv, crypto::cipher::cbc_t &cbc) {
   // If encryption isn't enabled
   if(!(featureSet & 0x20)) {
     std::copy(std::begin(plaintext), std::end(plaintext), destination->payload());
@@ -174,23 +174,18 @@ public:
     _map_type_cb.emplace(type, std::move(cb));
   }
 
-  void send(const std::string_view &payload, net::peer_t peer) {
+  int send(const std::string_view &payload, net::peer_t peer) {
     auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
     if(enet_peer_send(peer, 0, packet)) {
       enet_packet_destroy(packet);
+
+      return -1;
     }
 
-    enet_host_flush(_host.get());
+    return 0;
   }
 
-  void send(const std::string_view &payload) {
-    std::for_each(_host->peers, _host->peers + _host->peerCount, [payload](auto &peer) {
-      auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
-      if(enet_peer_send(&peer, 0, packet)) {
-        enet_packet_destroy(packet);
-      }
-    });
-
+  void flush() {
     enet_host_flush(_host.get());
   }
 
@@ -251,8 +246,10 @@ struct session_t {
 
   struct {
     crypto::cipher::gcm_t cipher;
+    crypto::aes_t iv;
 
     net::peer_t peer;
+    std::uint8_t seq;
   } control;
 
   safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -260,6 +257,40 @@ struct session_t {
 
   std::atomic<session::state_e> state;
 };
+
+/**
+ * First part of cipher must be struct of type NVCTL_ENCRYPTED_PACKET_HEADER
+ * 
+ * returns empty string_view on failure
+ * returns string_view pointing to payload data
+ */
+template<std::size_t max_payload_size>
+static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {
+  static_assert(
+    max_payload_size >= sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + sizeof(crypto::cipher::tag_size),
+    "max_payload_size >= sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + sizeof(crypto::cipher::tag_size)");
+
+
+  if(session->config.controlProtocolType != 13) {
+    return plaintext;
+  }
+
+  crypto::aes_t iv {};
+  auto seq = session->control.seq++;
+  iv[0]    = seq;
+
+  auto packet = (PNVCTL_ENCRYPTED_PACKET_HEADER)tagged_cipher.data();
+
+  auto bytes = session->control.cipher.encrypt(plaintext, packet->payload(), &iv);
+  if(bytes <= 0) {
+    BOOST_LOG(error) << "Couldn't encrypt control data"sv;
+    return {};
+  }
+
+  packet->seq = util::endian::little(seq);
+
+  return std::string_view { (char *)tagged_cipher.data(), (std::size_t)bytes };
+}
 
 int start_broadcast(broadcast_ctx_t &ctx);
 void end_broadcast(broadcast_ctx_t &ctx);
@@ -529,7 +560,8 @@ void controlBroadcastThread(control_server_t *server) {
     std::vector<uint8_t> plaintext;
 
     auto &cipher = session->control.cipher;
-    if(cipher.decrypt(tagged_cipher, plaintext)) {
+    auto &iv     = session->control.iv;
+    if(cipher.decrypt(tagged_cipher, plaintext, &iv)) {
       // something went wrong :(
 
       BOOST_LOG(error) << "Failed to verify tag"sv;
@@ -539,7 +571,7 @@ void controlBroadcastThread(control_server_t *server) {
     }
 
     if(tagged_cipher_length >= 16 + sizeof(crypto::aes_t)) {
-      std::copy(payload.end() - 16, payload.end(), std::begin(cipher.get_iv()));
+      std::copy(payload.end() - 16, payload.end(), std::begin(iv));
     }
 
     input::print(plaintext.data());
@@ -564,11 +596,13 @@ void controlBroadcastThread(control_server_t *server) {
 
     auto &cipher = session->control.cipher;
     crypto::aes_t iv {};
-    iv[0]           = (char)seq;
-    cipher.get_iv() = iv;
+    iv[0] = (std::uint8_t)seq;
+
+    // update control sequence
+    ++session->control.seq;
 
     std::vector<uint8_t> plaintext;
-    if(cipher.decrypt(tagged_cipher, plaintext)) {
+    if(cipher.decrypt(tagged_cipher, plaintext, &iv)) {
       // something went wrong :(
 
       BOOST_LOG(error) << "Failed to verify tag"sv;
@@ -644,18 +678,34 @@ void controlBroadcastThread(control_server_t *server) {
   // Let all remaining connections know the server is shutting down
   std::uint16_t reason = 0x0100;
 
-  std::array<std::uint16_t, 2> payload;
-  payload[0] = packetTypes[IDX_TERMINATION];
-  payload[1] = reason;
+  std::array<std::uint16_t, 2> plaintext;
+  plaintext[0] = packetTypes[IDX_TERMINATION];
+  plaintext[1] = reason;
 
-  server->send(std::string_view { (char *)payload.data(), payload.size() });
+  std::array<std::uint8_t,
+    sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+    encrypted_payload;
+
+  auto packet                 = (PNVCTL_ENCRYPTED_PACKET_HEADER)encrypted_payload.data();
+  packet->encryptedHeaderType = util::endian::little(0x0001);
+  packet->length              = encrypted_payload.size() - sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + 4;
 
   auto lg = server->_map_addr_session.lock();
   for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
     auto session = pos->second.second;
+
+    auto payload = encode_control(session, std::string_view { (char *)plaintext.data(), plaintext.size() }, encrypted_payload);
+
+    if(server->send(payload, session->control.peer)) {
+      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *)&session->control.peer->address.address));
+      BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+    }
+
     session->shutdown_event->raise(true);
     session->controlEnd.raise(true);
   }
+
+  server->flush();
 }
 
 void recvThread(broadcast_ctx_t &ctx) {
@@ -1154,13 +1204,13 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
 
   session->config = config;
 
+  session->control.iv     = iv;
   session->control.cipher = crypto::cipher::gcm_t {
-    gcm_key, iv, false
+    gcm_key, false
   };
 
   session->video.idr_events = mail->event<bool>(mail::idr);
   session->video.lowseq     = 0;
-
 
   session->audio.cipher = crypto::cipher::cbc_t {
     gcm_key, true
