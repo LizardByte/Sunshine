@@ -85,16 +85,33 @@ struct audio_packet_raw_t {
   RTP_PACKET rtp;
 };
 
-typedef struct NVCTL_ENCRYPTED_PACKET_HEADER {
-  std::uint16_t encryptedHeaderType; // Always LE 0x0001
-  std::uint16_t length;              // sizeof(seq) + 16 byte tag + secondary header and data
-  std::uint32_t seq;                 // Monotonically increasing sequence number (used as IV for AES-GCM)
+struct control_header_v2 {
+  std::uint16_t type;
+  std::uint16_t payloadLength;
 
   uint8_t *payload() {
     return (uint8_t *)(this + 1);
   }
-  // encrypted NVCTL_ENET_PACKET_HEADER_V2 and payload data follow
-} * PNVCTL_ENCRYPTED_PACKET_HEADER;
+};
+
+struct control_terminate_t {
+  control_header_v2 header;
+
+  std::uint32_t ec;
+};
+
+typedef struct control_encrypted_t {
+  std::uint16_t encryptedHeaderType; // Always LE 0x0001
+  std::uint16_t length;              // sizeof(seq) + 16 byte tag + secondary header and data
+
+  // seq is accepted as an arbitrary value in Moonlight
+  std::uint32_t seq; // Monotonically increasing sequence number (used as IV for AES-GCM)
+
+  uint8_t *payload() {
+    return (uint8_t *)(this + 1);
+  }
+  // encrypted control_header_v2 and payload data follow
+} * control_encrypted_p;
 
 struct audio_fec_packet_raw_t {
   uint8_t *payload() {
@@ -259,7 +276,7 @@ struct session_t {
 };
 
 /**
- * First part of cipher must be struct of type NVCTL_ENCRYPTED_PACKET_HEADER
+ * First part of cipher must be struct of type control_encrypted_t
  * 
  * returns empty string_view on failure
  * returns string_view pointing to payload data
@@ -267,8 +284,8 @@ struct session_t {
 template<std::size_t max_payload_size>
 static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {
   static_assert(
-    max_payload_size >= sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + sizeof(crypto::cipher::tag_size),
-    "max_payload_size >= sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + sizeof(crypto::cipher::tag_size)");
+    max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size),
+    "max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)");
 
 
   if(session->config.controlProtocolType != 13) {
@@ -279,7 +296,7 @@ static inline std::string_view encode_control(session_t *session, const std::str
   auto seq = session->control.seq++;
   iv[0]    = seq;
 
-  auto packet = (PNVCTL_ENCRYPTED_PACKET_HEADER)tagged_cipher.data();
+  auto packet = (control_encrypted_p)tagged_cipher.data();
 
   auto bytes = session->control.cipher.encrypt(plaintext, packet->payload(), &iv);
   if(bytes <= 0) {
@@ -581,7 +598,7 @@ void controlBroadcastThread(control_server_t *server) {
   server->map(packetTypes[IDX_ENCRYPTED], [server](session_t *session, const std::string_view &payload) {
     BOOST_LOG(verbose) << "type [IDX_ENCRYPTED]"sv;
 
-    auto header = (PNVCTL_ENCRYPTED_PACKET_HEADER)(payload.data() - 2);
+    auto header = (control_encrypted_p)(payload.data() - 2);
 
     auto length = util::endian::little(header->length);
     auto seq    = util::endian::little(header->seq);
@@ -676,25 +693,27 @@ void controlBroadcastThread(control_server_t *server) {
   }
 
   // Let all remaining connections know the server is shutting down
-  std::uint16_t reason = 0x0100;
+  // reason: gracefull termination
+  std::uint32_t reason = 0x80030023;
 
-  std::array<std::uint16_t, 2> plaintext;
-  plaintext[0] = packetTypes[IDX_TERMINATION];
-  plaintext[1] = reason;
+  control_terminate_t plaintext;
+  plaintext.header.type          = packetTypes[IDX_TERMINATION];
+  plaintext.header.payloadLength = sizeof(plaintext.ec);
+  plaintext.ec                   = reason;
 
   std::array<std::uint8_t,
-    sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+    sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
     encrypted_payload;
 
-  auto packet                 = (PNVCTL_ENCRYPTED_PACKET_HEADER)encrypted_payload.data();
+  auto packet                 = (control_encrypted_p)encrypted_payload.data();
   packet->encryptedHeaderType = util::endian::little(0x0001);
-  packet->length              = encrypted_payload.size() - sizeof(NVCTL_ENCRYPTED_PACKET_HEADER) + 4;
+  packet->length              = encrypted_payload.size() - sizeof(control_encrypted_t) + 4;
 
   auto lg = server->_map_addr_session.lock();
   for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
     auto session = pos->second.second;
 
-    auto payload = encode_control(session, std::string_view { (char *)plaintext.data(), plaintext.size() }, encrypted_payload);
+    auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
 
     if(server->send(payload, session->control.peer)) {
       TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *)&session->control.peer->address.address));
