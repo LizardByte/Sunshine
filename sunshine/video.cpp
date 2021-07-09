@@ -71,6 +71,7 @@ platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
 util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
+util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
 int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
 
@@ -402,12 +403,16 @@ void end_capture_async(capture_thread_async_ctx_t &ctx);
 auto capture_thread_async = safe::make_shared<capture_thread_async_ctx_t>(start_capture_async, end_capture_async);
 auto capture_thread_sync  = safe::make_shared<capture_thread_sync_ctx_t>(start_capture_sync, end_capture_sync);
 
-#ifdef _WIN32
 static encoder_t nvenc {
   "nvenc"sv,
   { (int)nv::profile_h264_e::high, (int)nv::profile_hevc_e::main, (int)nv::profile_hevc_e::main_10 },
+#ifdef _WIN32
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
+#else
+  AV_HWDEVICE_TYPE_CUDA,
+  AV_PIX_FMT_CUDA,
+#endif
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
@@ -432,10 +437,16 @@ static encoder_t nvenc {
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_nvenc"s,
   },
+#ifdef _WIN32
   DEFAULT,
   dxgi_make_hwdevice_ctx
+#else
+  SYSTEM_MEMORY,
+  cuda_make_hwdevice_ctx
+#endif
 };
 
+#ifdef _WIN32
 static encoder_t amdvce {
   "amdvce"sv,
   { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN },
@@ -537,8 +548,8 @@ static encoder_t vaapi {
 #endif
 
 static std::vector<encoder_t> encoders {
-#ifdef _WIN32
   nvenc,
+#ifdef _WIN32
   amdvce,
 #endif
 #ifdef __linux__
@@ -1648,6 +1659,19 @@ util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *base) {
   return hw_device_buf;
 }
 
+util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *base) {
+  buffer_t hw_device_buf;
+
+  auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0);
+  if(status < 0) {
+    char string[AV_ERROR_MAX_STRING_SIZE];
+    BOOST_LOG(error) << "Failed to create a CUDA device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+    return -1;
+  }
+
+  return hw_device_buf;
+}
+
 #ifdef _WIN32
 }
 
@@ -1715,7 +1739,9 @@ platf::mem_type_e map_dev_type(AVHWDeviceType type) {
     return platf::mem_type_e::dxgi;
   case AV_HWDEVICE_TYPE_VAAPI:
     return platf::mem_type_e::vaapi;
-  case AV_PICTURE_TYPE_NONE:
+  case AV_HWDEVICE_TYPE_CUDA:
+    return platf::mem_type_e::cuda;
+  case AV_HWDEVICE_TYPE_NONE:
     return platf::mem_type_e::system;
   default:
     return platf::mem_type_e::unknown;

@@ -75,6 +75,7 @@ enum class mem_type_e {
   system,
   vaapi,
   dxgi,
+  cuda,
   unknown
 };
 
