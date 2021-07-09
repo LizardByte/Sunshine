@@ -201,10 +201,6 @@ void scroll(input_t &input, int distance) {
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
-  if(modcode == VK_RMENU) {
-    modcode = VK_LWIN;
-  }
-
   INPUT i {};
   i.type   = INPUT_KEYBOARD;
   auto &ki = i.ki;

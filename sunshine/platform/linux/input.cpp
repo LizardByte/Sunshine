@@ -290,8 +290,8 @@ uint16_t keysym(uint16_t modcode) {
     return XK_Control_R;
   case 0xA4:
     return XK_Alt_L;
-  case 0xA5: /* return XK_Alt_R; */
-    return XK_Super_L;
+  case 0xA5:
+    return XK_Alt_R;
   case 0x5B:
     return XK_Super_L;
   case 0x5C:
