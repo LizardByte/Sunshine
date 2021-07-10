@@ -409,11 +409,13 @@ static encoder_t nvenc {
 #ifdef _WIN32
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
 #else
   AV_HWDEVICE_TYPE_CUDA,
   AV_PIX_FMT_CUDA,
+  // Fully planar YUV formats are more efficient for sws_scale()
+  AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
 #endif
-  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
       { "forced-idr"s, 1 },
