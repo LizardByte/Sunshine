@@ -372,7 +372,7 @@ struct shm_attr_t : public x11_attr_t {
 };
 
 std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type) {
-  if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi) {
+  if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
   }
