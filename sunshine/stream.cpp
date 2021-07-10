@@ -410,11 +410,14 @@ std::vector<uint8_t> replace(const std::string_view &original, const std::string
   std::vector<uint8_t> replaced;
 
   auto begin = std::begin(original);
-  auto next  = std::search(begin, std::end(original), std::begin(old), std::end(old));
+  auto end   = std::end(original);
+  auto next  = std::search(begin, end, std::begin(old), std::end(old));
 
   std::copy(begin, next, std::back_inserter(replaced));
-  std::copy(std::begin(_new), std::end(_new), std::back_inserter(replaced));
-  std::copy(next + old.size(), std::end(original), std::back_inserter(replaced));
+  if(next != end) {
+    std::copy(std::begin(_new), std::end(_new), std::back_inserter(replaced));
+    std::copy(next + old.size(), end, std::back_inserter(replaced));
+  }
 
   return replaced;
 }
