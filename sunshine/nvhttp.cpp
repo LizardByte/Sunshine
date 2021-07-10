@@ -34,7 +34,7 @@ using namespace std::literals;
 namespace nvhttp {
 
 constexpr auto VERSION     = "7.1.431.0";
-constexpr auto GFE_VERSION = "3.12.0.1";
+constexpr auto GFE_VERSION = "3.23.0.74";
 
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;

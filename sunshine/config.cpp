@@ -176,7 +176,7 @@ video_t video {
 audio_t audio {};
 
 stream_t stream {
-  2s, // ping_timeout
+  10s, // ping_timeout
 
   APPS_JSON_PATH,
 
