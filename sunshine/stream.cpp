@@ -674,7 +674,7 @@ void videoBroadcastThread(udp::socket &sock) {
           video_packet->packet.flags |= FLAG_EOF;
         }
 
-        video_packet->rtp.header         = FLAG_EXTENSION;
+        video_packet->rtp.header         = 0x80 | FLAG_EXTENSION;
         video_packet->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + fecIndex);
       });
 
@@ -691,7 +691,7 @@ void videoBroadcastThread(udp::socket &sock) {
 
       inspect->packet.frameIndex = packet->pts;
 
-      inspect->rtp.header         = FLAG_EXTENSION;
+      inspect->rtp.header         = 0x80 | FLAG_EXTENSION;
       inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
     }
 
