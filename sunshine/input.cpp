@@ -222,14 +222,20 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
     return;
   }
 
-  int width  = util::endian::big(packet->width);
-  int height = util::endian::big(packet->height);
+  auto width  = (float)util::endian::big(packet->width);
+  auto height = (float)util::endian::big(packet->height);
 
-  auto offsetX = (width - (float)touch_port.width) * 0.5f;
-  auto offsetY = (height - (float)touch_port.height) * 0.5f;
+  auto scalarX = touch_port.width / width;
+  auto scalarY = touch_port.height / height;
+
+  x *= scalarX;
+  y *= scalarY;
+
+  auto offsetX = touch_port.client_offsetX;
+  auto offsetY = touch_port.client_offsetY;
 
   std::clamp(x, offsetX, width - offsetX);
-  std::clamp(y, offsetX, height - offsetY);
+  std::clamp(y, offsetY, height - offsetY);
 
   platf::touch_port_t abs_port {
     touch_port.offset_x, touch_port.offset_y,
