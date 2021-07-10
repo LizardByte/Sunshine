@@ -24,7 +24,9 @@ std::shared_ptr<input_t> alloc(safe::mail_t mail);
 struct touch_port_t : public platf::touch_port_t {
   int env_width, env_height;
 
-  // inverse of scalar used for aspect ratio
+  // Offset x and y coordinates of the client
+  float client_offsetX, client_offsetY;
+
   float scalar_inv;
 };
 } // namespace input

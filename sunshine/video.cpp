@@ -1071,13 +1071,18 @@ input::touch_port_t make_port(platf::display_t *display, const config_t &config)
   auto w2 = scalar * wd;
   auto h2 = scalar * hd;
 
+  auto offsetX = (config.width - w2) * 0.5f;
+  auto offsetY = (config.height - h2) * 0.5f;
+
   return input::touch_port_t {
     display->offset_x,
     display->offset_y,
-    (int)w2,
-    (int)h2,
+    config.width,
+    config.height,
     display->env_width,
     display->env_height,
+    offsetX,
+    offsetY,
     1.0f / scalar,
   };
 }
@@ -1794,4 +1799,4 @@ color_t colors[] {
   make_color_matrix(0.2126f, 0.0722f, 0.436f, 0.615f, 0.0625, 0.5f, { 16.0f, 235.0f }, { 16.0f, 240.0f }), // BT701 MPEG
   make_color_matrix(0.2126f, 0.0722f, 0.5f, 0.5f, 0.0f, 0.5f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),         // BT701 JPEG
 };
-}
+} // namespace video
