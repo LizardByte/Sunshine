@@ -74,6 +74,7 @@ struct video_packet_raw_t {
 
   RTP_PACKET rtp;
   char reserved[4];
+
   NV_VIDEO_PACKET packet;
 };
 
@@ -854,60 +855,99 @@ void videoBroadcastThread(udp::socket &sock) {
       payload, [&](void *p, int fecIndex, int end) {
         video_packet_raw_t *video_packet = (video_packet_raw_t *)p;
 
-        video_packet->packet.flags             = FLAG_CONTAINS_PIC_DATA;
-        video_packet->packet.frameIndex        = packet->pts;
-        video_packet->packet.streamPacketIndex = ((uint32_t)lowseq + fecIndex) << 8;
-
-        if(fecIndex == 0) {
-          video_packet->packet.flags |= FLAG_SOF;
-        }
-
-        if(fecIndex == end - 1) {
-          video_packet->packet.flags |= FLAG_EOF;
-        }
-
-        video_packet->rtp.header         = FLAG_EXTENSION;
-        video_packet->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + fecIndex);
+        video_packet->packet.flags = FLAG_CONTAINS_PIC_DATA;
       });
 
-    payload = { (char *)payload_new.data(), payload_new.size() };
+    payload = std::string_view { (char *)payload_new.data(), payload_new.size() };
 
-    auto shards = fec::encode(payload, blocksize, fecPercentage, session->config.minRequiredFecPackets);
-    if(shards.data_shards == 0) {
-      BOOST_LOG(info) << "skipping frame..."sv << std::endl;
-      continue;
-    }
+    // With a fecpercentage of 255, if payload_new is broken up into more than a 100 data_shards
+    // it will generate greater than DATA_SHARDS_MAX shards.
+    // Therefore, we start breaking the data up into three seperate fec blocks.
+    auto multi_fec_threshold = 90 * blocksize;
 
-    for(auto x = shards.data_shards; x < shards.size(); ++x) {
-      auto *inspect = (video_packet_raw_t *)shards.data(x);
+    // We can go up to 4 fec blocks, but 3 is plenty
+    constexpr auto MAX_FEC_BLOCKS = 3;
 
-      inspect->packet.frameIndex = packet->pts;
+    std::array<std::string_view, MAX_FEC_BLOCKS> fec_blocks;
+    decltype(fec_blocks)::iterator
+      fec_blocks_begin = std::begin(fec_blocks),
+      fec_blocks_end   = std::begin(fec_blocks) + 1;
 
-      inspect->rtp.header         = FLAG_EXTENSION;
-      inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
-    }
+    auto lastBlockIndex = 0;
+    if(payload.size() > multi_fec_threshold) {
+      BOOST_LOG(debug) << "Generating multiple FEC blocks"sv;
 
-    // set FEC info now that we know for sure what our percentage will be for this frame
-    for(auto x = 0; x < shards.size(); ++x) {
-      auto *inspect = (video_packet_raw_t *)shards.data(x);
+      // Align individual fec blocks to blocksize
+      auto unaligned_size = payload.size() / MAX_FEC_BLOCKS;
+      auto aligned_size   = ((unaligned_size + (blocksize - 1)) / blocksize) * blocksize;
 
-      inspect->packet.fecInfo = (x << 12 |
-                                 shards.data_shards << 22 |
-                                 shards.percentage << 4);
-    }
+      BOOST_LOG(fatal) << blocksize << " :: "sv << payload.size() << " :: "sv << aligned_size;
 
-    for(auto x = 0; x < shards.size(); ++x) {
-      sock.send_to(asio::buffer(shards[x]), session->video.peer);
-    }
+      // Break the data up into 3 blocks, each containing multiple complete video packets.
+      fec_blocks[0] = payload.substr(0, aligned_size);
+      fec_blocks[1] = payload.substr(aligned_size, aligned_size);
+      fec_blocks[2] = payload.substr(aligned_size * 2);
 
-    if(packet->flags & AV_PKT_FLAG_KEY) {
-      BOOST_LOG(verbose) << "Key Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv;
+      lastBlockIndex = 2 << 6;
+      fec_blocks_end = std::end(fec_blocks);
     }
     else {
-      BOOST_LOG(verbose) << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
+      BOOST_LOG(verbose) << "Generating single FEC block"sv;
+      fec_blocks[0] = payload;
     }
 
-    session->video.lowseq += shards.size();
+    auto blockIndex = 0;
+    std::for_each(fec_blocks_begin, fec_blocks_end, [&](std::string_view &current_payload) {
+      if(lastBlockIndex > 0) {
+        BOOST_LOG(fatal) << current_payload.size();
+      }
+
+      auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets);
+
+      // set FEC info now that we know for sure what our percentage will be for this frame
+      for(auto x = 0; x < shards.size(); ++x) {
+        auto *inspect = (video_packet_raw_t *)shards.data(x);
+
+        inspect->packet.frameIndex        = packet->pts;
+        inspect->packet.streamPacketIndex = ((uint32_t)lowseq + x) << 8;
+
+        // Match multiFecFlags with Moonlight
+        inspect->packet.multiFecFlags  = 0x10;
+        inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
+
+        inspect->packet.fecInfo =
+          (x << 12 |
+            shards.data_shards << 22 |
+            shards.percentage << 4);
+
+        if(x == 0) {
+          inspect->packet.flags |= FLAG_SOF;
+        }
+
+        if(x == shards.data_shards - 1) {
+          inspect->packet.flags |= FLAG_EOF;
+        }
+
+        inspect->rtp.header         = FLAG_EXTENSION;
+        inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
+      }
+
+      for(auto x = 0; x < shards.size(); ++x) {
+        sock.send_to(asio::buffer(shards[x]), session->video.peer);
+      }
+
+      if(packet->flags & AV_PKT_FLAG_KEY) {
+        BOOST_LOG(verbose) << "Key Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv;
+      }
+      else {
+        BOOST_LOG(verbose) << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
+      }
+
+      ++blockIndex;
+      lowseq += shards.size();
+    });
+
+    session->video.lowseq = lowseq;
   }
 
   shutdown_event->raise(true);
