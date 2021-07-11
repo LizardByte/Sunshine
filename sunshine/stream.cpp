@@ -912,11 +912,10 @@ void videoBroadcastThread(udp::socket &sock) {
 
     auto blockIndex = 0;
     std::for_each(fec_blocks_begin, fec_blocks_end, [&](std::string_view &current_payload) {
-      auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets);
+      auto packets = (current_payload.size() + (blocksize - 1)) / blocksize;
 
-      // set FEC info now that we know for sure what our percentage will be for this frame
-      for(auto x = 0; x < shards.size(); ++x) {
-        auto *inspect = (video_packet_raw_t *)shards.data(x);
+      for(int x = 0; x < packets; ++x) {
+        auto *inspect = (video_packet_raw_t *)&current_payload[x * blocksize];
 
         inspect->packet.frameIndex        = packet->pts;
         inspect->packet.streamPacketIndex = ((uint32_t)lowseq + x) << 8;
@@ -925,21 +924,31 @@ void videoBroadcastThread(udp::socket &sock) {
         inspect->packet.multiFecFlags  = 0x10;
         inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
 
+        if(x == 0) {
+          inspect->packet.flags |= FLAG_SOF;
+        }
+
+        if(x == packets - 1) {
+          inspect->packet.flags |= FLAG_EOF;
+        }
+      }
+
+      auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets);
+
+      // set FEC info now that we know for sure what our percentage will be for this frame
+      for(auto x = 0; x < shards.size(); ++x) {
+        auto *inspect = (video_packet_raw_t *)shards.data(x);
+
         inspect->packet.fecInfo =
           (x << 12 |
             shards.data_shards << 22 |
             shards.percentage << 4);
 
-        if(x == 0) {
-          inspect->packet.flags |= FLAG_SOF;
-        }
-
-        if(x == shards.data_shards - 1) {
-          inspect->packet.flags |= FLAG_EOF;
-        }
-
         inspect->rtp.header         = 0x80 | FLAG_EXTENSION;
         inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
+
+        inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
+        inspect->packet.frameIndex     = packet->pts;
       }
 
       for(auto x = 0; x < shards.size(); ++x) {
