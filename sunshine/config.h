@@ -77,6 +77,8 @@ struct input_t {
   std::chrono::milliseconds back_button_timeout;
   std::chrono::milliseconds key_repeat_delay;
   std::chrono::duration<double> key_repeat_period;
+
+  std::string gamepad;
 };
 
 namespace flag {

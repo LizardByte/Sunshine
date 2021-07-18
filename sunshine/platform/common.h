@@ -268,6 +268,8 @@ namespace publish {
 }
 
 [[nodiscard]] std::unique_ptr<deinit_t> init();
+
+std::vector<std::string_view> &supported_gamepads();
 } // namespace platf
 
 #endif //SUNSHINE_COMMON_H
