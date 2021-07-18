@@ -46,7 +46,7 @@ struct packet_raw_t : public AVPacket {
     std::string_view old;
     std::string_view _new;
 
-    KITTY_DEFAULT_CONSTR(replace_t)
+    KITTY_DEFAULT_CONSTR_MOVE(replace_t)
 
     replace_t(std::string_view old, std::string_view _new) noexcept : old { std::move(old) }, _new { std::move(_new) } {}
   };

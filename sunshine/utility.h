@@ -56,15 +56,20 @@ struct argument_type<T(U)> { typedef U type; };
   x &operator=(x &&) noexcept = default; \
   x();
 
-#define KITTY_DEFAULT_CONSTR(x)          \
+#define KITTY_DEFAULT_CONSTR_MOVE(x)     \
   x(x &&) noexcept = default;            \
   x &operator=(x &&) noexcept = default; \
   x()                         = default;
 
-#define KITTY_DEFAULT_CONSTR_THROW(x) \
-  x(x &&)    = default;               \
-  x &operator=(x &&) = default;       \
+#define KITTY_DEFAULT_CONSTR_MOVE_THROW(x) \
+  x(x &&)    = default;                    \
+  x &operator=(x &&) = default;            \
   x()                = default;
+
+#define KITTY_DEFAULT_CONSTR(x)    \
+  KITTY_DEFAULT_CONSTR_MOVE(x)     \
+  x(const x &) noexcept = default; \
+  x &operator=(const x &) = default;
 
 #define TUPLE_2D(a, b, expr)                     \
   decltype(expr) a##_##b = expr;                 \

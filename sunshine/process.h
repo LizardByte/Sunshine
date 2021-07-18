@@ -57,7 +57,7 @@ struct ctx_t {
 
 class proc_t {
 public:
-  KITTY_DEFAULT_CONSTR_THROW(proc_t)
+  KITTY_DEFAULT_CONSTR_MOVE_THROW(proc_t)
 
   proc_t(
     boost::process::environment &&env,

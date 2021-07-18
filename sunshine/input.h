@@ -5,11 +5,12 @@
 #ifndef SUNSHINE_INPUT_H
 #define SUNSHINE_INPUT_H
 
+#include <functional>
+
 #include "platform/common.h"
 #include "thread_safe.h"
 
 namespace input {
-
 struct input_t;
 
 void print(void *input);

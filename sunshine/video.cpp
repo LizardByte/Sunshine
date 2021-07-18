@@ -276,7 +276,7 @@ struct encoder_t {
   }
 
   struct option_t {
-    KITTY_DEFAULT_CONSTR(option_t)
+    KITTY_DEFAULT_CONSTR_MOVE(option_t)
     option_t(const option_t &) = default;
 
     std::string name;

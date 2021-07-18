@@ -7,9 +7,11 @@
 
 #include <bitset>
 #include <filesystem>
+#include <functional>
 #include <mutex>
 #include <string>
 
+#include "sunshine/thread_safe.h"
 #include "sunshine/utility.h"
 
 struct sockaddr;
@@ -33,6 +35,18 @@ constexpr std::uint16_t A            = 0x1000;
 constexpr std::uint16_t B            = 0x2000;
 constexpr std::uint16_t X            = 0x4000;
 constexpr std::uint16_t Y            = 0x8000;
+
+struct rumble_t {
+  KITTY_DEFAULT_CONSTR(rumble_t)
+
+  rumble_t(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq)
+      : id { id }, lowfreq { lowfreq }, highfreq { highfreq } {}
+
+  std::uint16_t id;
+  std::uint16_t lowfreq;
+  std::uint16_t highfreq;
+};
+using rumble_queue_t = safe::mail_raw_t::queue_t<rumble_t>;
 
 namespace speaker {
 enum speaker_e {
@@ -243,7 +257,7 @@ void scroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
 
-int alloc_gamepad(input_t &input, int nr);
+int alloc_gamepad(input_t &input, int nr, rumble_queue_t &&rumble_queue);
 void free_gamepad(input_t &input, int nr);
 
 #define SERVICE_NAME "Sunshine"

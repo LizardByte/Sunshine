@@ -18,11 +18,18 @@ constexpr touch_port_t target_touch_port {
   65535, 65535
 };
 
+using client_t = util::safe_ptr<_VIGEM_CLIENT_T, vigem_free>;
+using target_t = util::safe_ptr<_VIGEM_TARGET_T, vigem_target_free>;
+
+void CALLBACK x360_notify(
+  client_t::pointer client,
+  target_t::pointer target,
+  std::uint8_t largeMotor, std::uint8_t smallMotor,
+  std::uint8_t /* led_number */,
+  void *userdata);
+
 class vigem_t {
 public:
-  using client_t = util::safe_ptr<_VIGEM_CLIENT_T, vigem_free>;
-  using target_t = util::safe_ptr<_VIGEM_TARGET_T, vigem_target_free>;
-
   int init() {
     VIGEM_ERROR status;
 
@@ -40,8 +47,8 @@ public:
     return 0;
   }
 
-  int alloc_x360(int nr) {
-    auto &x360 = x360s[nr];
+  int alloc_x360(int nr, rumble_queue_t &rumble_queue) {
+    auto &[rumble, x360] = x360s[nr];
     assert(!x360);
 
     x360.reset(vigem_target_x360_alloc());
@@ -52,11 +59,18 @@ public:
       return -1;
     }
 
+    rumble = std::move(rumble_queue);
+
+    status = vigem_target_x360_register_notification(client.get(), x360.get(), x360_notify, this);
+    if(!VIGEM_SUCCESS(status)) {
+      BOOST_LOG(warning) << "Couldn't register notifications for rumble support ["sv << util::hex(status).to_string_view() << ']';
+    }
+
     return 0;
   }
 
   void free_target(int nr) {
-    auto &x360 = x360s[nr];
+    auto &[_, x360] = x360s[nr];
 
     if(x360 && vigem_target_is_attached(x360.get())) {
       auto status = vigem_target_remove(client.get(), x360.get());
@@ -68,9 +82,21 @@ public:
     x360.reset();
   }
 
+  void rumble(target_t::pointer target, std::uint8_t largeMotor, std::uint8_t smallMotor) {
+    for(int x = 0; x < x360s.size(); ++x) {
+      auto &[rumble_queue, x360] = x360s[x];
+
+      if(x360.get() == target) {
+        rumble_queue->raise(x, largeMotor, smallMotor);
+
+        return;
+      }
+    }
+  }
+
   ~vigem_t() {
     if(client) {
-      for(auto &x360 : x360s) {
+      for(auto &[_, x360] : x360s) {
         if(x360 && vigem_target_is_attached(x360.get())) {
           auto status = vigem_target_remove(client.get(), x360.get());
           if(!VIGEM_SUCCESS(status)) {
@@ -83,9 +109,24 @@ public:
     }
   }
 
-  std::vector<target_t> x360s;
+  std::vector<std::pair<rumble_queue_t, target_t>> x360s;
+
   client_t client;
 };
+
+void CALLBACK x360_notify(
+  client_t::pointer client,
+  target_t::pointer target,
+  std::uint8_t largeMotor, std::uint8_t smallMotor,
+  std::uint8_t /* led_number */,
+  void *userdata) {
+
+  BOOST_LOG(debug)
+    << "largeMotor: "sv << (int)largeMotor << std::endl
+    << "smallMotor: "sv << (int)smallMotor;
+
+  task_pool.push(&vigem_t::rumble, (vigem_t *)userdata, target, largeMotor, smallMotor);
+}
 
 input_t input() {
   input_t result { new vigem_t {} };
@@ -110,6 +151,7 @@ retry:
     BOOST_LOG(error) << "Couldn't send input"sv;
   }
 }
+
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   INPUT i {};
 
@@ -242,12 +284,12 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   send_input(i);
 }
 
-int alloc_gamepad(input_t &input, int nr) {
+int alloc_gamepad(input_t &input, int nr, rumble_queue_t &&rumble_queue) {
   if(!input) {
     return 0;
   }
 
-  return ((vigem_t *)input.get())->alloc_x360(nr);
+  return ((vigem_t *)input.get())->alloc_x360(nr, rumble_queue);
 }
 
 void free_gamepad(input_t &input, int nr) {
@@ -257,6 +299,7 @@ void free_gamepad(input_t &input, int nr) {
 
   ((vigem_t *)input.get())->free_target(nr);
 }
+
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   // If there is no gamepad support
   if(!input) {
@@ -265,8 +308,8 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
 
   auto vigem = (vigem_t *)input.get();
 
-  auto &xusb = *(PXUSB_REPORT)&gamepad_state;
-  auto &x360 = vigem->x360s[nr];
+  auto &xusb      = *(PXUSB_REPORT)&gamepad_state;
+  auto &[_, x360] = vigem->x360s[nr];
 
   auto status = vigem_target_x360_update(vigem->client.get(), x360.get(), xusb);
   if(!VIGEM_SUCCESS(status)) {

@@ -101,6 +101,16 @@ struct control_terminate_t {
   std::uint32_t ec;
 };
 
+struct control_rumble_t {
+  control_header_v2 header;
+
+  std::uint32_t useless;
+
+  std::uint16_t id;
+  std::uint16_t lowfreq;
+  std::uint16_t highfreq;
+};
+
 typedef struct control_encrypted_t {
   std::uint16_t encryptedHeaderType; // Always LE 0x0001
   std::uint16_t length;              // sizeof(seq) + 16 byte tag + secondary header and data
@@ -281,6 +291,8 @@ struct session_t {
 
     net::peer_t peer;
     std::uint8_t seq;
+
+    platf::rumble_queue_t rumble_queue;
   } control;
 
   safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -318,9 +330,13 @@ static inline std::string_view encode_control(session_t *session, const std::str
     return {};
   }
 
-  packet->seq = util::endian::little(seq);
+  std::uint16_t packet_length = bytes + crypto::cipher::tag_size + sizeof(control_encrypted_t::seq);
 
-  return std::string_view { (char *)tagged_cipher.data(), (std::size_t)bytes };
+  packet->encryptedHeaderType = util::endian::little(0x0001);
+  packet->length              = util::endian::little(packet_length);
+  packet->seq                 = util::endian::little(seq);
+
+  return std::string_view { (char *)tagged_cipher.data(), packet_length + sizeof(control_encrypted_t) - sizeof(control_encrypted_t::seq) };
 }
 
 int start_broadcast(broadcast_ctx_t &ctx);
@@ -537,6 +553,38 @@ std::vector<uint8_t> replace(const std::string_view &original, const std::string
   return replaced;
 }
 
+int send_rumble(session_t *session, std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq) {
+  if(!session->control.peer) {
+    BOOST_LOG(warning) << "Couldn't send rumble data, still waiting for PING from Moonlight"sv;
+    // Still waiting for PING from Moonlight
+    return -1;
+  }
+
+  control_rumble_t plaintext;
+  plaintext.header.type          = packetTypes[IDX_RUMBLE_DATA];
+  plaintext.header.payloadLength = sizeof(control_rumble_t) - sizeof(control_header_v2);
+
+  plaintext.useless  = 0xC0FFEE;
+  plaintext.id       = util::endian::little(id);
+  plaintext.lowfreq  = util::endian::little(lowfreq << 8);
+  plaintext.highfreq = util::endian::little(highfreq << 8);
+
+  BOOST_LOG(fatal) << util::hex(plaintext.id).to_string_view() << " :: "sv << util::hex(plaintext.lowfreq).to_string_view() << " :: "sv << util::hex(plaintext.highfreq).to_string_view();
+  std::array<std::uint8_t,
+    sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+    encrypted_payload;
+
+  auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
+  if(session->broadcast_ref->control_server.send(payload, session->control.peer)) {
+    TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *)&session->control.peer->address.address));
+    BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+
+    return -1;
+  }
+
+  return 0;
+}
+
 void controlBroadcastThread(control_server_t *server) {
   server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
     BOOST_LOG(verbose) << "type [IDX_START_A]"sv;
@@ -696,6 +744,13 @@ void controlBroadcastThread(control_server_t *server) {
           continue;
         }
 
+        auto &rumble_queue = session->control.rumble_queue;
+        while(rumble_queue->peek()) {
+          auto rumble = rumble_queue->pop();
+
+          send_rumble(session, rumble->id, rumble->lowfreq, rumble->highfreq);
+        }
+
         ++pos;
       })
     }
@@ -706,7 +761,7 @@ void controlBroadcastThread(control_server_t *server) {
       break;
     }
 
-    server->iterate(500ms);
+    server->iterate(50ms);
   }
 
   // Let all remaining connections know the server is shutting down
@@ -721,10 +776,6 @@ void controlBroadcastThread(control_server_t *server) {
   std::array<std::uint8_t,
     sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
     encrypted_payload;
-
-  auto packet                 = (control_encrypted_p)encrypted_payload.data();
-  packet->encryptedHeaderType = util::endian::little(0x0001);
-  packet->length              = encrypted_payload.size() - sizeof(control_encrypted_t) + 4;
 
   auto lg = server->_map_addr_session.lock();
   for(auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
@@ -1353,8 +1404,9 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
 
   session->config = config;
 
-  session->control.iv     = iv;
-  session->control.cipher = crypto::cipher::gcm_t {
+  session->control.rumble_queue = mail->queue<platf::rumble_t>(mail::rumble);
+  session->control.iv           = iv;
+  session->control.cipher       = crypto::cipher::gcm_t {
     gcm_key, false
   };
 
