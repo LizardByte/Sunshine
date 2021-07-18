@@ -33,6 +33,8 @@ after_build:
   - cmd: 7z a Sunshine-Windows.zip sunshine.exe
   - cmd: 7z a Sunshine-Windows.zip tools\dxgi-info.exe
   - cmd: 7z a Sunshine-Windows.zip tools\audio-info.exe
+  - cmd: 7z a Sunshine-Windows.zip tools\sunshinesvc.exe
+  - cmd: 7z a Sunshine-Windows.zip ..\tools\install-service.bat
   - cmd: appveyor PushArtifact Sunshine-Windows.zip
   - sh: appveyor PushArtifact package-deb/sunshine.deb
   - sh: appveyor PushArtifact sunshine.service
