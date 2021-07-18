@@ -52,6 +52,15 @@
                 </select>
                 <div class="form-text">Automatically configure port forwarding</div>
             </div>
+            <!--Gamepads-->
+            <div class="mb-3" v-if="platform === 'windows'">
+                <label for="gamepad" class="form-label">Gamepads</label>
+                <select id="gamepad" class="form-select" v-model="config.gamepad">
+                    <option value="ds4">DS4 (PS4)</option>
+                    <option value="x360">X360 (Xbox 360)</option>
+                </select>
+                <div class="form-text">Automatically configure port forwarding</div>
+            </div>
             <!--Ping Timeout-->
             <div class="mb-3">
                 <label for="ping_timeout" class="form-label">Ping Timeout</label>
@@ -321,7 +330,8 @@
                     v-model="config.fec_percentage">
                 <div class="form-text">
                     Percentage of error correcting packets per data packet in each video frame.<br>
-                    Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br>
+                    Higher values can correct for more network packet loss, but at the cost of increasing bandwidth
+                    usage.<br>
                     The default value of 20 is what GeForce Experience uses.
                 </div>
             </div>
@@ -535,6 +545,7 @@
                 delete this.config.status;
                 delete this.config.platform;
                 //Populate default values if not present in config
+                this.config.gamepad = this.config.gamepad || 'x360';
                 this.config.upnp = this.config.upnp || 'disabled';
                 this.config.min_log_level = this.config.min_log_level || 2;
                 this.config.origin_pin_allowed = this.config.origin_pin_allowed || "pc";

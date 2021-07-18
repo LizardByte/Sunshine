@@ -569,7 +569,7 @@ int send_rumble(session_t *session, std::uint16_t id, std::uint16_t lowfreq, std
   plaintext.lowfreq  = util::endian::little(lowfreq << 8);
   plaintext.highfreq = util::endian::little(highfreq << 8);
 
-  BOOST_LOG(fatal) << util::hex(plaintext.id).to_string_view() << " :: "sv << util::hex(plaintext.lowfreq).to_string_view() << " :: "sv << util::hex(plaintext.highfreq).to_string_view();
+  BOOST_LOG(verbose) << id << " :: "sv << util::hex(lowfreq).to_string_view() << " :: "sv << util::hex(highfreq).to_string_view();
   std::array<std::uint8_t,
     sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
     encrypted_payload;
