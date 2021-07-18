@@ -52,9 +52,13 @@ const char *cert_chain_t::verify(x509_t::element_type *cert) {
       X509_STORE_CTX_cleanup(_cert_ctx.get());
     });
 
-    X509_STORE_CTX_init(_cert_ctx.get(), x509_store.get(), nullptr, nullptr);
+    X509_STORE_CTX_init(_cert_ctx.get(), x509_store.get(), cert, nullptr);
     X509_STORE_CTX_set_verify_cb(_cert_ctx.get(), openssl_verify_cb);
-    X509_STORE_CTX_set_cert(_cert_ctx.get(), cert);
+
+    // We don't care to validate the entire chain for the purposes of client auth.
+    // Some versions of clients forked from Moonlight Embedded produce client certs
+    // that OpenSSL doesn't detect as self-signed due to some X509v3 extensions.
+    X509_STORE_CTX_set_flags(_cert_ctx.get(), X509_V_FLAG_PARTIAL_CHAIN);
 
     auto err = X509_verify_cert(_cert_ctx.get());
 
