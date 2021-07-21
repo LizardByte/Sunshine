@@ -221,7 +221,7 @@ class queue_t {
 public:
   using status_t = util::optional_t<T>;
 
-  queue_t(std::uint32_t max_elements) : _max_elements { max_elements } {}
+  queue_t(std::uint32_t max_elements = 32) : _max_elements { max_elements } {}
 
   template<class... Args>
   void raise(Args &&...args) {

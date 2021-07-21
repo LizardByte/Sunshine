@@ -18,7 +18,7 @@ void reset(std::shared_ptr<input_t> &input);
 void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data);
 
 
-void init();
+[[nodiscard]] std::unique_ptr<platf::deinit_t> init();
 
 std::shared_ptr<input_t> alloc(safe::mail_t mail);
 

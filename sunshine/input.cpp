@@ -150,7 +150,8 @@ void print(PNV_KEYBOARD_PACKET packet) {
 }
 
 void print(PNV_MULTI_CONTROLLER_PACKET packet) {
-  BOOST_LOG(debug)
+  // Moonlight spams controller packet even when not necessary
+  BOOST_LOG(verbose)
     << "--begin controller packet--"sv << std::endl
     << "controllerNumber ["sv << packet->controllerNumber << ']' << std::endl
     << "activeGamepadMask ["sv << util::hex(packet->activeGamepadMask).to_string_view() << ']' << std::endl
@@ -575,8 +576,17 @@ void reset(std::shared_ptr<input_t> &input) {
   });
 }
 
-void init() {
+class deinit_t : public platf::deinit_t {
+public:
+  ~deinit_t() override {
+    platf_input.reset();
+  }
+};
+
+[[nodiscard]] std::unique_ptr<platf::deinit_t> init() {
   platf_input = platf::input();
+
+  return std::make_unique<deinit_t>();
 }
 
 std::shared_ptr<input_t> alloc(safe::mail_t mail) {

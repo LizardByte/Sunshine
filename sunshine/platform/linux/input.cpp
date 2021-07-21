@@ -1,3 +1,7 @@
+#include <fcntl.h>
+#include <linux/uinput.h>
+#include <poll.h>
+
 #include <libevdev/libevdev-uinput.h>
 #include <libevdev/libevdev.h>
 
@@ -23,17 +27,343 @@
 #define REL_WHEEL_HI_RES 0x0b
 #endif
 
-namespace platf {
 using namespace std::literals;
+namespace platf {
+constexpr auto mail_evdev = "platf::evdev"sv;
+
 using evdev_t  = util::safe_ptr<libevdev, libevdev_free>;
 using uinput_t = util::safe_ptr<libevdev_uinput, libevdev_uinput_destroy>;
 
 using keyboard_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
 
+constexpr pollfd read_pollfd { -1, 0, 0 };
+KITTY_USING_MOVE_T(pollfd_t, pollfd, read_pollfd, {
+  if(el.fd >= 0) {
+    ioctl(el.fd, EVIOCGRAB, (void *)0);
+
+    close(el.fd);
+  }
+});
+
+using mail_evdev_t = std::tuple<uinput_t::pointer, rumble_queue_t, pollfd_t>;
+
 constexpr touch_port_t target_touch_port {
   0, 0,
   19200, 12000
 };
+
+static std::pair<int, int> operator*(const std::pair<int, int> &l, int r) {
+  return {
+    l.first * r,
+    l.second * r,
+  };
+}
+
+static std::pair<int, int> operator/(const std::pair<int, int> &l, int r) {
+  return {
+    l.first / r,
+    l.second / r,
+  };
+}
+
+static std::pair<int, int> &operator+=(std::pair<int, int> &l, const std::pair<int, int> &r) {
+  l.first += r.first;
+  l.second += r.second;
+
+  return l;
+}
+
+static inline void print(const ff_envelope &envelope) {
+  BOOST_LOG(debug)
+    << "Envelope:"sv << std::endl
+    << "  attack_length: " << envelope.attack_length << std::endl
+    << "  attack_level: " << envelope.attack_level << std::endl
+    << "  fade_length: " << envelope.fade_length << std::endl
+    << "  fade_level: " << envelope.fade_level;
+}
+
+static inline void print(const ff_replay &replay) {
+  BOOST_LOG(debug)
+    << "Replay:"sv << std::endl
+    << "  length: "sv << replay.length << std::endl
+    << "  delay: "sv << replay.delay;
+}
+
+static inline void print(const ff_trigger &trigger) {
+  BOOST_LOG(debug)
+    << "Trigger:"sv << std::endl
+    << "  button: "sv << trigger.button << std::endl
+    << "  interval: "sv << trigger.interval;
+}
+
+static inline void print(const ff_effect &effect) {
+  BOOST_LOG(debug)
+    << std::endl
+    << std::endl
+    << "Received rumble effect with id: ["sv << effect.id << ']';
+
+  switch(effect.type) {
+  case FF_CONSTANT:
+    BOOST_LOG(debug)
+      << "FF_CONSTANT:"sv << std::endl
+      << "  direction: "sv << effect.direction << std::endl
+      << "  level: "sv << effect.u.constant.level;
+
+    print(effect.u.constant.envelope);
+    break;
+
+  case FF_PERIODIC:
+    BOOST_LOG(debug)
+      << "FF_CONSTANT:"sv << std::endl
+      << "  direction: "sv << effect.direction << std::endl
+      << "  waveform: "sv << effect.u.periodic.waveform << std::endl
+      << "  period: "sv << effect.u.periodic.period << std::endl
+      << "  magnitude: "sv << effect.u.periodic.magnitude << std::endl
+      << "  offset: "sv << effect.u.periodic.offset << std::endl
+      << "  phase: "sv << effect.u.periodic.phase;
+
+    print(effect.u.periodic.envelope);
+    break;
+
+  case FF_RAMP:
+    BOOST_LOG(debug)
+      << "FF_RAMP:"sv << std::endl
+      << "  direction: "sv << effect.direction << std::endl
+      << "  start_level:" << effect.u.ramp.start_level << std::endl
+      << "  end_level:" << effect.u.ramp.end_level;
+
+    print(effect.u.ramp.envelope);
+    break;
+
+  case FF_RUMBLE:
+    BOOST_LOG(debug)
+      << "FF_RUMBLE:" << std::endl
+      << "  direction: "sv << effect.direction << std::endl
+      << "  strong_magnitude: " << effect.u.rumble.strong_magnitude << std::endl
+      << "  weak_magnitude: " << effect.u.rumble.weak_magnitude;
+    break;
+
+
+  case FF_SPRING:
+    BOOST_LOG(debug)
+      << "FF_SPRING:" << std::endl
+      << "  direction: "sv << effect.direction;
+    break;
+
+  case FF_FRICTION:
+    BOOST_LOG(debug)
+      << "FF_FRICTION:" << std::endl
+      << "  direction: "sv << effect.direction;
+    break;
+
+  case FF_DAMPER:
+    BOOST_LOG(debug)
+      << "FF_DAMPER:" << std::endl
+      << "  direction: "sv << effect.direction;
+    break;
+
+  case FF_INERTIA:
+    BOOST_LOG(debug)
+      << "FF_INERTIA:" << std::endl
+      << "  direction: "sv << effect.direction;
+    break;
+
+  case FF_CUSTOM:
+    BOOST_LOG(debug)
+      << "FF_CUSTOM:" << std::endl
+      << "  direction: "sv << effect.direction;
+    break;
+
+  default:
+    BOOST_LOG(debug)
+      << "FF_UNKNOWN:" << std::endl
+      << "  direction: "sv << effect.direction;
+    break;
+  }
+
+  print(effect.replay);
+  print(effect.trigger);
+}
+
+// Emulate rumble effects
+class effect_t {
+public:
+  KITTY_DEFAULT_CONSTR_MOVE(effect_t)
+
+  effect_t(uinput_t::pointer dev, rumble_queue_t &&q)
+      : dev { dev }, rumble_queue { std::move(q) }, gain { 0xFFFFFF }, id_to_data {} {}
+
+  class data_t {
+  public:
+    KITTY_DEFAULT_CONSTR(data_t)
+
+    data_t(const ff_effect &effect)
+        : delay { effect.replay.delay },
+          length { effect.replay.length },
+          end_point {},
+          envelope {},
+          start {},
+          end {} {
+
+      switch(effect.type) {
+      case FF_CONSTANT:
+        start.weak   = effect.u.constant.level;
+        start.strong = effect.u.constant.level;
+        end.weak     = effect.u.constant.level;
+        end.strong   = effect.u.constant.level;
+
+        envelope = effect.u.constant.envelope;
+        break;
+      case FF_PERIODIC:
+        start.weak   = effect.u.periodic.magnitude;
+        start.strong = effect.u.periodic.magnitude;
+        end.weak     = effect.u.periodic.magnitude;
+        end.strong   = effect.u.periodic.magnitude;
+
+        envelope = effect.u.periodic.envelope;
+        break;
+
+      case FF_RAMP:
+        start.weak   = effect.u.ramp.start_level;
+        start.strong = effect.u.ramp.start_level;
+        end.weak     = effect.u.ramp.end_level;
+        end.strong   = effect.u.ramp.end_level;
+
+        envelope = effect.u.ramp.envelope;
+        break;
+
+      case FF_RUMBLE:
+        start.weak   = effect.u.rumble.weak_magnitude;
+        start.strong = effect.u.rumble.strong_magnitude;
+        end.weak     = effect.u.rumble.weak_magnitude;
+        end.strong   = effect.u.rumble.strong_magnitude;
+        break;
+
+      default:
+        BOOST_LOG(warning) << "Effect type ["sv << effect.id << "] not implemented"sv;
+      }
+    }
+
+    int magnitude(std::chrono::milliseconds time_left, int start, int end) {
+      auto rel = end - start;
+
+      return start + (rel * time_left.count() / length.count());
+    }
+
+    std::pair<int, int> rumble(std::chrono::steady_clock::time_point tp) {
+      if(end_point < tp) {
+        return {};
+      }
+
+      auto time_left =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+          end_point - tp);
+
+      // If it needs to be delayed'
+      if(time_left > length) {
+        return {};
+      }
+
+      auto t = length - time_left;
+
+      auto weak   = magnitude(t, start.weak, end.weak);
+      auto strong = magnitude(t, start.strong, end.strong);
+
+      if(t.count() < envelope.attack_length) {
+        weak   = (envelope.attack_level * t.count() + weak * (envelope.attack_length - t.count())) / envelope.attack_length;
+        strong = (envelope.attack_level * t.count() + strong * (envelope.attack_length - t.count())) / envelope.attack_length;
+      }
+      else if(time_left.count() < envelope.fade_length) {
+        auto dt = (t - length).count() + envelope.fade_length;
+
+        weak   = (envelope.fade_level * dt + weak * (envelope.fade_length - dt)) / envelope.fade_length;
+        strong = (envelope.fade_level * dt + strong * (envelope.fade_length - dt)) / envelope.fade_length;
+      }
+
+      return {
+        weak, strong
+      };
+    }
+
+    std::chrono::milliseconds delay;
+    std::chrono::milliseconds length;
+
+    std::chrono::steady_clock::time_point end_point;
+
+    ff_envelope envelope;
+    struct {
+      int weak, strong;
+    } start;
+
+    struct {
+      int weak, strong;
+    } end;
+  };
+
+  std::pair<int, int> rumble(std::chrono::steady_clock::time_point tp) {
+    std::pair<int, int> weak_strong {};
+    for(auto &[_, data] : id_to_data) {
+      weak_strong += data.rumble(tp);
+    }
+
+    std::clamp(weak_strong.first, 0, 0xFFFFFF);
+    std::clamp(weak_strong.second, 0, 0xFFFFFF);
+
+    return weak_strong * gain / 0xFFFF;
+  }
+
+  void upload(const ff_effect &effect) {
+    print(effect);
+
+    auto it = id_to_data.find(effect.id);
+
+    if(it == std::end(id_to_data)) {
+      id_to_data.emplace(effect.id, effect);
+      return;
+    }
+
+    data_t data { effect };
+
+    data.end_point = it->second.end_point;
+    it->second     = data;
+  }
+
+  void erase(int id) {
+    id_to_data.erase(id);
+    BOOST_LOG(debug) << "Removed rumble effect id ["sv << id << ']';
+  }
+
+  // Used as ID for rumble notifications
+  uinput_t::pointer dev;
+  rumble_queue_t rumble_queue;
+
+  int gain;
+
+  std::unordered_map<int, data_t> id_to_data;
+};
+
+struct rumble_ctx_t {
+  std::thread rumble_thread;
+
+  safe::queue_t<mail_evdev_t> rumble_queue_queue;
+};
+
+void broadcastRumble(safe::queue_t<mail_evdev_t> &ctx);
+int startRumble(rumble_ctx_t &ctx) {
+  ctx.rumble_thread = std::thread { broadcastRumble, std::ref(ctx.rumble_queue_queue) };
+
+  return 0;
+}
+
+void stopRumble(rumble_ctx_t &ctx) {
+  ctx.rumble_queue_queue.stop();
+
+  BOOST_LOG(debug) << "Waiting for Gamepad notifications to stop..."sv;
+  ctx.rumble_thread.join();
+  BOOST_LOG(debug) << "Gamepad notifications stopped"sv;
+}
+
+static auto notifications = safe::make_shared<rumble_ctx_t>(startRumble, stopRumble);
 
 struct input_raw_t {
 public:
@@ -57,6 +387,11 @@ public:
   }
 
   void clear_gamepad(int nr) {
+    auto &[dev, _] = gamepads[nr];
+
+    // Remove this gamepad from notifications
+    rumble_ctx->rumble_queue_queue.raise(dev.get(), nullptr, pollfd {});
+
     std::stringstream ss;
 
     ss << "sunshine_gamepad_"sv << nr;
@@ -95,7 +430,7 @@ public:
     return 0;
   }
 
-  int alloc_gamepad(int nr) {
+  int alloc_gamepad(int nr, rumble_queue_t &&rumble_queue) {
     TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
 
     int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &input);
@@ -115,7 +450,18 @@ public:
       std::filesystem::remove(gamepad_path);
     }
 
-    std::filesystem::create_symlink(libevdev_uinput_get_devnode(input.get()), gamepad_path);
+    auto dev_node = libevdev_uinput_get_devnode(input.get());
+
+    rumble_ctx->rumble_queue_queue.raise(
+      input.get(),
+      std::move(rumble_queue),
+      pollfd_t {
+        dup(libevdev_uinput_get_fd(input.get())),
+        (std::int16_t)POLLIN,
+        (std::int16_t)0,
+      });
+
+    std::filesystem::create_symlink(dev_node, gamepad_path);
     return 0;
   }
 
@@ -131,6 +477,8 @@ public:
     clear();
   }
 
+  safe::shared_t<rumble_ctx_t>::ptr_t rumble_ctx;
+
   std::vector<std::pair<uinput_t, gamepad_state_t>> gamepads;
   uinput_t mouse_input;
   uinput_t touch_input;
@@ -141,6 +489,170 @@ public:
 
   keyboard_t keyboard;
 };
+
+inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
+  auto res = poll(&polls.data()->el, polls.size(), to.count());
+
+  // If timed out
+  if(!res) {
+    return;
+  }
+
+  if(res < 0) {
+    char err_str[1024];
+    BOOST_LOG(error) << "Couldn't poll Gamepad file descriptors: "sv << strerror_r(errno, err_str, 1024);
+
+    return;
+  }
+
+  for(int x = 0; x < polls.size(); ++x) {
+    auto poll      = std::begin(polls) + x;
+    auto effect_it = std::begin(effects) + x;
+
+    auto fd = (*poll)->fd;
+
+    // TUPLE_2D_REF(dev, q, *dev_q_it);
+
+    // on error
+    if((*poll)->revents & (POLLHUP | POLLRDHUP | POLLERR)) {
+      BOOST_LOG(warning) << "Gamepad ["sv << x << "] file discriptor closed unexpectedly"sv;
+
+      polls.erase(poll);
+      effects.erase(effect_it);
+
+      continue;
+    }
+
+    if(!((*poll)->revents & POLLIN)) {
+      continue;
+    }
+
+    input_event events[64];
+
+    // Read all available events
+    auto bytes = read(fd, &events, sizeof(events));
+
+    if(bytes < 0) {
+      char err_str[1024];
+
+      BOOST_LOG(error) << "Couldn't read evdev input ["sv << errno << "]: "sv << strerror_r(errno, err_str, 1024);
+
+      polls.erase(poll);
+      effects.erase(effect_it);
+
+      continue;
+    }
+
+    if(bytes < sizeof(input_event)) {
+      BOOST_LOG(warning) << "Reading evdev input: Expected at least "sv << sizeof(input_event) << " bytes, got "sv << bytes << " instead"sv;
+      continue;
+    }
+
+    auto event_count = bytes / sizeof(input_event);
+
+    for(auto event = events; event != (events + event_count); ++event) {
+      switch(event->type) {
+      case EV_FF:
+        BOOST_LOG(debug) << "EV_FF: "sv << event->value << " aka "sv << util::hex(event->value).to_string_view();
+        break;
+      case EV_UINPUT:
+        switch(event->code) {
+        case UI_FF_UPLOAD: {
+          uinput_ff_upload upload {};
+
+          // *VERY* important, without this you break
+          // the kernel and have to reboot due to dead
+          // hanging process
+          upload.request_id = event->value;
+
+          ioctl(fd, UI_BEGIN_FF_UPLOAD, &upload);
+          auto fg = util::fail_guard([&]() {
+            upload.retval = 0;
+            ioctl(fd, UI_END_FF_UPLOAD, &upload);
+          });
+
+          effect_it->upload(upload.effect);
+        } break;
+        case UI_FF_ERASE: {
+          uinput_ff_erase erase {};
+
+          // *VERY* important, without this you break
+          // the kernel and have to reboot due to dead
+          // hanging process
+          erase.request_id = event->value;
+
+          ioctl(fd, UI_BEGIN_FF_ERASE, &erase);
+          auto fg = util::fail_guard([&]() {
+            erase.retval = 0;
+            ioctl(fd, UI_END_FF_ERASE, &erase);
+          });
+
+          effect_it->erase(erase.effect_id);
+        } break;
+        }
+        break;
+      default:
+        BOOST_LOG(debug)
+          << util::hex(event->type).to_string_view() << ": "sv
+          << util::hex(event->code).to_string_view() << ": "sv
+          << event->value << " aka "sv << util::hex(event->value).to_string_view();
+      }
+    }
+  }
+}
+
+void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
+  std::vector<effect_t> effects;
+  std::vector<pollfd_t> polls;
+
+  while(rumble_queue_queue.running()) {
+    while(rumble_queue_queue.peek()) {
+      auto dev_rumble_queue = rumble_queue_queue.pop();
+
+      if(!dev_rumble_queue) {
+        // rumble_queue_queue is no longer running
+        return;
+      }
+
+      TUPLE_3D_REF(dev, rumble_queue, pollfd, *dev_rumble_queue);
+      {
+        auto effect_it = std::find_if(std::begin(effects), std::end(effects), [dev](auto &curr_effect) {
+          return dev == curr_effect.dev;
+        });
+
+        if(effect_it != std::end(effects)) {
+
+          auto poll_it = std::begin(polls) + (effect_it - std::begin(effects));
+
+          polls.erase(poll_it);
+          effects.erase(effect_it);
+
+          BOOST_LOG(debug) << "Removed Gamepad device from notifications"sv;
+
+          continue;
+        }
+
+        // There may be an attepmt to remove, that which not exists
+        if(!rumble_queue) {
+          continue;
+        }
+      }
+
+      polls.emplace_back(std::move(pollfd));
+      effects.emplace_back(dev, std::move(rumble_queue));
+
+      BOOST_LOG(debug) << "Added Gamepad device to notifications"sv;
+    }
+
+    if(polls.empty()) {
+      std::this_thread::sleep_for(50ms);
+    }
+    else {
+      rumbleIterate(effects, polls, 100ms);
+    }
+  }
+}
+
 
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   auto touchscreen = ((input_raw_t *)input.get())->touch_input.get();
@@ -337,8 +849,8 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   XFlush(keyboard.get());
 }
 
-int alloc_gamepad(input_t &input, int nr) {
-  return ((input_raw_t *)input.get())->alloc_gamepad(nr);
+int alloc_gamepad(input_t &input, int nr, rumble_queue_t &&rumble_queue) {
+  return ((input_raw_t *)input.get())->alloc_gamepad(nr, std::move(rumble_queue));
 }
 
 void free_gamepad(input_t &input, int nr) {
@@ -548,12 +1060,21 @@ evdev_t x360() {
   libevdev_enable_event_code(dev.get(), EV_ABS, ABS_Y, &stick);
   libevdev_enable_event_code(dev.get(), EV_ABS, ABS_RY, &stick);
 
+  libevdev_enable_event_type(dev.get(), EV_FF);
+  libevdev_enable_event_code(dev.get(), EV_FF, FF_RUMBLE, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_FF, FF_CONSTANT, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_FF, FF_PERIODIC, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_FF, FF_RAMP, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_FF, FF_GAIN, nullptr);
+
   return dev;
 }
 
 input_t input() {
   input_t result { new input_raw_t() };
   auto &gp = *(input_raw_t *)result.get();
+
+  gp.rumble_ctx = notifications.ref();
 
   gp.keyboard.reset(XOpenDisplay(nullptr));
 
@@ -583,5 +1104,11 @@ input_t input() {
 void freeInput(void *p) {
   auto *input = (input_raw_t *)p;
   delete input;
+}
+
+std::vector<std::string_view> &supported_gamepads() {
+  static std::vector<std::string_view> gamepads { "x360"sv };
+
+  return gamepads;
 }
 } // namespace platf

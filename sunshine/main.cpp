@@ -115,6 +115,23 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
 };
 
 int main(int argc, char *argv[]) {
+  util::TaskPool::task_id_t force_shutdown = nullptr;
+
+  bool shutdown_by_interrupt = false;
+
+  auto exit_guard = util::fail_guard([&shutdown_by_interrupt, &force_shutdown]() {
+    if(!shutdown_by_interrupt) {
+      return;
+    }
+
+    task_pool.cancel(force_shutdown);
+
+    std::cout << "Sunshine exited: Press enter to continue"sv << std::endl;
+
+    std::string _;
+    std::getline(std::cin, _);
+  });
+
   mail::man = std::make_shared<safe::mail_raw_t>();
 
   if(config::parse(argc, argv)) {
@@ -189,9 +206,6 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-  bool shutdown_by_interrupt = false;
-
-  util::TaskPool::task_id_t force_shutdown = nullptr;
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [&shutdown_by_interrupt, &force_shutdown, shutdown_event]() {
@@ -221,19 +235,6 @@ int main(int argc, char *argv[]) {
     shutdown_event->raise(true);
   });
 
-  auto exit_guard = util::fail_guard([&shutdown_by_interrupt, &force_shutdown]() {
-    if(!shutdown_by_interrupt) {
-      return;
-    }
-
-    task_pool.cancel(force_shutdown);
-
-    std::cout << "Sunshine exited: Press enter to continue"sv << std::endl;
-
-    std::string _;
-    std::getline(std::cin, _);
-  });
-
   proc::refresh(config::stream.file_apps);
 
   auto deinit_guard = platf::init();
@@ -242,7 +243,7 @@ int main(int argc, char *argv[]) {
   }
 
   reed_solomon_init();
-  input::init();
+  auto input_deinit_guard = input::init();
   if(video::init()) {
     return 2;
   }
