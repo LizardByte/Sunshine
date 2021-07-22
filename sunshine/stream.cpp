@@ -566,8 +566,8 @@ int send_rumble(session_t *session, std::uint16_t id, std::uint16_t lowfreq, std
 
   plaintext.useless  = 0xC0FFEE;
   plaintext.id       = util::endian::little(id);
-  plaintext.lowfreq  = util::endian::little(lowfreq << 8);
-  plaintext.highfreq = util::endian::little(highfreq << 8);
+  plaintext.lowfreq  = util::endian::little(lowfreq);
+  plaintext.highfreq = util::endian::little(highfreq);
 
   BOOST_LOG(verbose) << id << " :: "sv << util::hex(lowfreq).to_string_view() << " :: "sv << util::hex(highfreq).to_string_view();
   std::array<std::uint8_t,
@@ -581,6 +581,8 @@ int send_rumble(session_t *session, std::uint16_t id, std::uint16_t lowfreq, std
 
     return -1;
   }
+
+  BOOST_LOG(debug) << "Send gamepadnr ["sv << id << "] with lowfreq ["sv << lowfreq << "] and highfreq ["sv << highfreq << ']';
 
   return 0;
 }

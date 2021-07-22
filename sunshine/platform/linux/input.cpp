@@ -45,28 +45,28 @@ KITTY_USING_MOVE_T(pollfd_t, pollfd, read_pollfd, {
   }
 });
 
-using mail_evdev_t = std::tuple<uinput_t::pointer, rumble_queue_t, pollfd_t>;
+using mail_evdev_t = std::tuple<int, uinput_t::pointer, rumble_queue_t, pollfd_t>;
 
 constexpr touch_port_t target_touch_port {
   0, 0,
   19200, 12000
 };
 
-static std::pair<int, int> operator*(const std::pair<int, int> &l, int r) {
+static std::pair<std::uint32_t, std::uint32_t> operator*(const std::pair<std::uint32_t, std::uint32_t> &l, int r) {
   return {
     l.first * r,
     l.second * r,
   };
 }
 
-static std::pair<int, int> operator/(const std::pair<int, int> &l, int r) {
+static std::pair<std::uint32_t, std::uint32_t> operator/(const std::pair<std::uint32_t, std::uint32_t> &l, int r) {
   return {
     l.first / r,
     l.second / r,
   };
 }
 
-static std::pair<int, int> &operator+=(std::pair<int, int> &l, const std::pair<int, int> &r) {
+static std::pair<std::uint32_t, std::uint32_t> &operator+=(std::pair<std::uint32_t, std::uint32_t> &l, const std::pair<std::uint32_t, std::uint32_t> &r) {
   l.first += r.first;
   l.second += r.second;
 
@@ -190,8 +190,8 @@ class effect_t {
 public:
   KITTY_DEFAULT_CONSTR_MOVE(effect_t)
 
-  effect_t(uinput_t::pointer dev, rumble_queue_t &&q)
-      : dev { dev }, rumble_queue { std::move(q) }, gain { 0xFFFFFF }, id_to_data {} {}
+  effect_t(int gamepadnr, uinput_t::pointer dev, rumble_queue_t &&q)
+      : gamepadnr { gamepadnr }, dev { dev }, rumble_queue { std::move(q) }, gain { 0xFFFF }, id_to_data {} {}
 
   class data_t {
   public:
@@ -200,7 +200,7 @@ public:
     data_t(const ff_effect &effect)
         : delay { effect.replay.delay },
           length { effect.replay.length },
-          end_point {},
+          end_point { std::chrono::steady_clock::time_point::min() },
           envelope {},
           start {},
           end {} {
@@ -244,13 +244,13 @@ public:
       }
     }
 
-    int magnitude(std::chrono::milliseconds time_left, int start, int end) {
+    std::uint32_t magnitude(std::chrono::milliseconds time_left, std::uint32_t start, std::uint32_t end) {
       auto rel = end - start;
 
       return start + (rel * time_left.count() / length.count());
     }
 
-    std::pair<int, int> rumble(std::chrono::steady_clock::time_point tp) {
+    std::pair<std::uint32_t, std::uint32_t> rumble(std::chrono::steady_clock::time_point tp) {
       if(end_point < tp) {
         return {};
       }
@@ -285,6 +285,14 @@ public:
       };
     }
 
+    void activate() {
+      end_point = std::chrono::steady_clock::now() + delay + length;
+    }
+
+    void deactivate() {
+      end_point = std::chrono::steady_clock::time_point::min();
+    }
+
     std::chrono::milliseconds delay;
     std::chrono::milliseconds length;
 
@@ -292,24 +300,25 @@ public:
 
     ff_envelope envelope;
     struct {
-      int weak, strong;
+      std::uint32_t weak, strong;
     } start;
 
     struct {
-      int weak, strong;
+      std::uint32_t weak, strong;
     } end;
   };
 
-  std::pair<int, int> rumble(std::chrono::steady_clock::time_point tp) {
-    std::pair<int, int> weak_strong {};
+  std::pair<std::uint32_t, std::uint32_t> rumble(std::chrono::steady_clock::time_point tp) {
+    std::pair<std::uint32_t, std::uint32_t> weak_strong {};
     for(auto &[_, data] : id_to_data) {
       weak_strong += data.rumble(tp);
     }
 
-    std::clamp(weak_strong.first, 0, 0xFFFFFF);
-    std::clamp(weak_strong.second, 0, 0xFFFFFF);
+    std::clamp<std::uint32_t>(weak_strong.first, 0, 0xFFFF);
+    std::clamp<std::uint32_t>(weak_strong.second, 0, 0xFFFF);
 
-    return weak_strong * gain / 0xFFFF;
+    old_rumble = weak_strong * gain / 0xFFFF;
+    return old_rumble;
   }
 
   void upload(const ff_effect &effect) {
@@ -328,16 +337,39 @@ public:
     it->second     = data;
   }
 
+  void activate(int id) {
+    auto it = id_to_data.find(id);
+
+    if(it != std::end(id_to_data)) {
+      it->second.activate();
+    }
+  }
+
+  void deactivate(int id) {
+    auto it = id_to_data.find(id);
+
+    if(it != std::end(id_to_data)) {
+      it->second.deactivate();
+    }
+  }
+
   void erase(int id) {
     id_to_data.erase(id);
     BOOST_LOG(debug) << "Removed rumble effect id ["sv << id << ']';
   }
 
   // Used as ID for rumble notifications
+  int gamepadnr;
+
+  // Used as ID for adding/removinf devices from evdev notifications
   uinput_t::pointer dev;
+
   rumble_queue_t rumble_queue;
 
   int gain;
+
+  // No need to send rumble data when old values equals the new values
+  std::pair<std::uint32_t, std::uint32_t> old_rumble;
 
   std::unordered_map<int, data_t> id_to_data;
 };
@@ -390,7 +422,7 @@ public:
     auto &[dev, _] = gamepads[nr];
 
     // Remove this gamepad from notifications
-    rumble_ctx->rumble_queue_queue.raise(dev.get(), nullptr, pollfd {});
+    rumble_ctx->rumble_queue_queue.raise(nr, dev.get(), nullptr, pollfd {});
 
     std::stringstream ss;
 
@@ -453,6 +485,7 @@ public:
     auto dev_node = libevdev_uinput_get_devnode(input.get());
 
     rumble_ctx->rumble_queue_queue.raise(
+      nr,
       input.get(),
       std::move(rumble_queue),
       pollfd_t {
@@ -553,7 +586,23 @@ inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> 
     for(auto event = events; event != (events + event_count); ++event) {
       switch(event->type) {
       case EV_FF:
-        BOOST_LOG(debug) << "EV_FF: "sv << event->value << " aka "sv << util::hex(event->value).to_string_view();
+        // BOOST_LOG(debug) << "EV_FF: "sv << event->value << " aka "sv << util::hex(event->value).to_string_view();
+
+        if(event->code == FF_GAIN) {
+          BOOST_LOG(debug) << "EV_FF: code [FF_GAIN]: value: "sv << event->value << " aka "sv << util::hex(event->value).to_string_view();
+          effect_it->gain = std::clamp(event->value, 0, 0xFFFF);
+
+          break;
+        }
+
+        BOOST_LOG(debug) << "EV_FF: id ["sv << event->code << "]: value: "sv << event->value << " aka "sv << util::hex(event->value).to_string_view();
+
+        if(event->value) {
+          effect_it->activate(event->code);
+        }
+        else {
+          effect_it->deactivate(event->code);
+        }
         break;
       case EV_UINPUT:
         switch(event->code) {
@@ -614,7 +663,11 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
         return;
       }
 
-      TUPLE_3D_REF(dev, rumble_queue, pollfd, *dev_rumble_queue);
+      auto gamepadnr     = std::get<0>(*dev_rumble_queue);
+      auto dev           = std::get<1>(*dev_rumble_queue);
+      auto &rumble_queue = std::get<2>(*dev_rumble_queue);
+      auto &pollfd       = std::get<3>(*dev_rumble_queue);
+
       {
         auto effect_it = std::find_if(std::begin(effects), std::end(effects), [dev](auto &curr_effect) {
           return dev == curr_effect.dev;
@@ -639,7 +692,7 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
       }
 
       polls.emplace_back(std::move(pollfd));
-      effects.emplace_back(dev, std::move(rumble_queue));
+      effects.emplace_back(gamepadnr, dev, std::move(rumble_queue));
 
       BOOST_LOG(debug) << "Added Gamepad device to notifications"sv;
     }
@@ -649,6 +702,18 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
     }
     else {
       rumbleIterate(effects, polls, 100ms);
+
+      auto now = std::chrono::steady_clock::now();
+      for(auto &effect : effects) {
+        TUPLE_2D(old_weak, old_strong, effect.old_rumble);
+        TUPLE_2D(weak, strong, effect.rumble(now));
+
+        if(old_weak != weak || old_strong != strong) {
+          BOOST_LOG(debug) << "Sending haptic feedback: lowfreq [0x"sv << util::hex(weak).to_string_view() << "]: highfreq [0x"sv << util::hex(strong).to_string_view() << ']';
+
+          effect.rumble_queue->raise(effect.gamepadnr, weak, strong);
+        }
+      }
     }
   }
 }
@@ -1064,6 +1129,7 @@ evdev_t x360() {
   libevdev_enable_event_code(dev.get(), EV_FF, FF_RUMBLE, nullptr);
   libevdev_enable_event_code(dev.get(), EV_FF, FF_CONSTANT, nullptr);
   libevdev_enable_event_code(dev.get(), EV_FF, FF_PERIODIC, nullptr);
+  libevdev_enable_event_code(dev.get(), EV_FF, FF_SINE, nullptr);
   libevdev_enable_event_code(dev.get(), EV_FF, FF_RAMP, nullptr);
   libevdev_enable_event_code(dev.get(), EV_FF, FF_GAIN, nullptr);
 

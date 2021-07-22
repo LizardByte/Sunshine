@@ -110,12 +110,12 @@ public:
     gp.reset();
   }
 
-  void rumble(target_t::pointer target, std::uint8_t largeMotor, std::uint8_t smallMotor) {
+  void rumble(target_t::pointer target, std::uint8_t smallMotor, std::uint8_t largeMotor) {
     for(int x = 0; x < gamepads.size(); ++x) {
       auto &[rumble_queue, gp] = gamepads[x];
 
       if(gp.get() == target) {
-        rumble_queue->raise(x, largeMotor, smallMotor);
+        rumble_queue->raise(x, ((std::uint16_t)smallMotor) << 8, ((std::uint16_t)largeMotor) << 8);
 
         return;
       }
