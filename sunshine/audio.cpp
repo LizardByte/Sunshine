@@ -87,11 +87,14 @@ void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
     OPUS_APPLICATION_AUDIO,
     nullptr) };
 
-  opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
+  // For some reason, audio is crackling when the encoder is set to constant bitstream.
+  // We simulate a constant bitstream with OPUS_SET_BITRATE(OPUS_BITRATE_MAX) -->
+  // which tries to occupy as much space as possible in the packet
+  opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(OPUS_BITRATE_MAX));
 
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   while(auto sample = samples->pop()) {
-    buffer_t packet { 1024 }; // 1KB
+    buffer_t packet { 1400 }; // 1KB
 
     int bytes = opus_multistream_encode(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
     if(bytes < 0) {
@@ -99,6 +102,14 @@ void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
       packets->stop();
 
       return;
+    }
+
+    // Even with OPUS_SET_BITRATE(OPUS_BITRATE_MAX), silent packets are smaller than the rest
+    // Drop silent packets to ensure Moonlight won't complain
+    // A packet size of 128 seems a reasonable enough threshold
+    if(bytes < 128) {
+      BOOST_LOG(verbose) << "Dropped silent packet"sv;
+      continue;
     }
 
     packet.fake_resize(bytes);
