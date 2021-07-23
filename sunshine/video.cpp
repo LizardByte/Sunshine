@@ -1038,8 +1038,7 @@ void encode_run(
     std::this_thread::sleep_until(next_frame);
     next_frame += delay;
 
-    // When Moonlight request an IDR frame, send frames even if there is no new captured frame
-    if(!frame->key_frame || images->peek()) {
+    if(images->peek()) {
       if(auto img = images->pop(delay)) {
         session->device->convert(*img);
       }
