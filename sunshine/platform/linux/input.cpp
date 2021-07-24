@@ -5,11 +5,6 @@
 #include <libevdev/libevdev-uinput.h>
 #include <libevdev/libevdev.h>
 
-#include <X11/X.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/extensions/XTest.h>
-
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -17,6 +12,8 @@
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
 #include "sunshine/utility.h"
+
+#include "sunshine/platform/common.h"
 
 // Support older versions
 #ifndef REL_HWHEEL_HI_RES
@@ -34,8 +31,6 @@ constexpr auto mail_evdev = "platf::evdev"sv;
 using evdev_t  = util::safe_ptr<libevdev, libevdev_free>;
 using uinput_t = util::safe_ptr<libevdev_uinput, libevdev_uinput_destroy>;
 
-using keyboard_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
-
 constexpr pollfd read_pollfd { -1, 0, 0 };
 KITTY_USING_MOVE_T(pollfd_t, pollfd, read_pollfd, {
   if(el.fd >= 0) {
@@ -46,6 +41,153 @@ KITTY_USING_MOVE_T(pollfd_t, pollfd, read_pollfd, {
 });
 
 using mail_evdev_t = std::tuple<int, uinput_t::pointer, rumble_queue_t, pollfd_t>;
+
+struct keycode_t {
+  std::uint32_t keycode;
+  std::uint32_t scancode;
+
+  int pressed;
+};
+
+constexpr auto UNKNOWN = 0;
+
+static constexpr std::array<keycode_t, 0xDF> init_keycodes() {
+  std::array<keycode_t, 0xDF> keycodes {};
+
+#define __CONVERT(wincode, linuxcode, scancode)                                       \
+  static_assert(wincode < keycodes.size(), "Keycode doesn't fit into keycode array"); \
+  static_assert(wincode >= 0, "Are you mad?, keycode needs to be greater than zero"); \
+  keycodes[wincode] = keycode_t { linuxcode, scancode };
+
+  constexpr auto VK_NUMPAD = 0x60;
+  constexpr auto VK_F1     = 0x70;
+  constexpr auto VK_F13    = 0x7C;
+  constexpr auto VK_0      = 0x30;
+
+  for(auto x = 0; x < 9; ++x) {
+    keycodes[x + VK_NUMPAD + 1] = keycode_t { (std::uint32_t)KEY_KP1 + x, (std::uint32_t)0x70059 + x };
+    keycodes[x + VK_0 + 1]      = keycode_t { (std::uint32_t)KEY_1 + x, (std::uint32_t)0x7001E + x };
+  }
+
+  for(auto x = 0; x < 10; ++x) {
+    keycodes[x + VK_F1] = keycode_t { (std::uint32_t)KEY_F1 + x, (std::uint32_t)0x70046 + x };
+  }
+
+  for(auto x = 0; x < 12; ++x) {
+    keycodes[x + VK_F13] = keycode_t { (std::uint32_t)KEY_F13 + x, (std::uint32_t)0x7003A + x };
+  }
+
+  __CONVERT(0x08 /* VKEY_BACK */, KEY_BACKSPACE, 0x7002A);
+  __CONVERT(0x09 /* VKEY_TAB */, KEY_TAB, 0x7002B);
+  __CONVERT(0x0C /* VKEY_CLEAR */, KEY_CLEAR, UNKNOWN);
+  __CONVERT(0x0D /* VKEY_RETURN */, KEY_ENTER, 0x70028);
+  __CONVERT(0x10 /* VKEY_SHIFT */, KEY_LEFTSHIFT, 0x700E1);
+  __CONVERT(0x11 /* VKEY_CONTROL */, KEY_LEFTCTRL, 0x700E0);
+  __CONVERT(0x12 /* VKEY_MENU */, KEY_LEFTALT, UNKNOWN);
+  __CONVERT(0x13 /* VKEY_PAUSE */, KEY_PAUSE, UNKNOWN);
+  __CONVERT(0x14 /* VKEY_CAPITAL */, KEY_CAPSLOCK, 0x70039);
+  __CONVERT(0x15 /* VKEY_KANA */, KEY_KATAKANAHIRAGANA, UNKNOWN);
+  __CONVERT(0x16 /* VKEY_HANGUL */, KEY_HANGEUL, UNKNOWN);
+  __CONVERT(0x17 /* VKEY_JUNJA */, KEY_HANJA, UNKNOWN);
+  __CONVERT(0x19 /* VKEY_KANJI */, KEY_KATAKANA, UNKNOWN);
+  __CONVERT(0x1B /* VKEY_ESCAPE */, KEY_ESC, 0x70029);
+  __CONVERT(0x20 /* VKEY_SPACE */, KEY_SPACE, 0x7002C);
+  __CONVERT(0x21 /* VKEY_PRIOR */, KEY_PAGEUP, 0x7004B);
+  __CONVERT(0x22 /* VKEY_NEXT */, KEY_PAGEDOWN, 0x7004E);
+  __CONVERT(0x23 /* VKEY_END */, KEY_END, 0x7004D);
+  __CONVERT(0x24 /* VKEY_HOME */, KEY_HOME, 0x7004A);
+  __CONVERT(0x25 /* VKEY_LEFT */, KEY_LEFT, 0x70050);
+  __CONVERT(0x26 /* VKEY_UP */, KEY_UP, 0x70052);
+  __CONVERT(0x27 /* VKEY_RIGHT */, KEY_RIGHT, 0x7004F);
+  __CONVERT(0x28 /* VKEY_DOWN */, KEY_DOWN, 0x70051);
+  __CONVERT(0x29 /* VKEY_SELECT */, KEY_SELECT, UNKNOWN);
+  __CONVERT(0x2A /* VKEY_PRINT */, KEY_PRINT, UNKNOWN);
+  __CONVERT(0x2C /* VKEY_SNAPSHOT */, KEY_SYSRQ, 0x70046);
+  __CONVERT(0x2D /* VKEY_INSERT */, KEY_INSERT, 0x70049);
+  __CONVERT(0x2E /* VKEY_DELETE */, KEY_DELETE, 0x7004C);
+  __CONVERT(0x2F /* VKEY_HELP */, KEY_HELP, UNKNOWN);
+  __CONVERT(0x30 /* VKEY_0 */, KEY_0, 0x70027);
+  __CONVERT(0x31 /* VKEY_1 */, KEY_1, 0x7001E);
+  __CONVERT(0x32 /* VKEY_2 */, KEY_2, 0x7001F);
+  __CONVERT(0x33 /* VKEY_3 */, KEY_3, 0x70020);
+  __CONVERT(0x34 /* VKEY_4 */, KEY_4, 0x70021);
+  __CONVERT(0x35 /* VKEY_5 */, KEY_5, 0x70022);
+  __CONVERT(0x36 /* VKEY_6 */, KEY_6, 0x70023);
+  __CONVERT(0x37 /* VKEY_7 */, KEY_7, 0x70024);
+  __CONVERT(0x38 /* VKEY_8 */, KEY_8, 0x70025);
+  __CONVERT(0x39 /* VKEY_9 */, KEY_9, 0x70026);
+  __CONVERT(0x41 /* VKEY_A */, KEY_A, 0x70004);
+  __CONVERT(0x42 /* VKEY_B */, KEY_B, 0x70005);
+  __CONVERT(0x43 /* VKEY_C */, KEY_C, 0x70006);
+  __CONVERT(0x44 /* VKEY_D */, KEY_D, 0x70007);
+  __CONVERT(0x45 /* VKEY_E */, KEY_E, 0x70008);
+  __CONVERT(0x46 /* VKEY_F */, KEY_F, 0x70009);
+  __CONVERT(0x47 /* VKEY_G */, KEY_G, 0x7000A);
+  __CONVERT(0x48 /* VKEY_H */, KEY_H, 0x7000B);
+  __CONVERT(0x49 /* VKEY_I */, KEY_I, 0x7000C);
+  __CONVERT(0x4A /* VKEY_J */, KEY_J, 0x7000D);
+  __CONVERT(0x4B /* VKEY_K */, KEY_K, 0x7000E);
+  __CONVERT(0x4C /* VKEY_L */, KEY_L, 0x7000F);
+  __CONVERT(0x4D /* VKEY_M */, KEY_M, 0x70010);
+  __CONVERT(0x4E /* VKEY_N */, KEY_N, 0x70011);
+  __CONVERT(0x4F /* VKEY_O */, KEY_O, 0x70012);
+  __CONVERT(0x50 /* VKEY_P */, KEY_P, 0x70013);
+  __CONVERT(0x51 /* VKEY_Q */, KEY_Q, 0x70014);
+  __CONVERT(0x52 /* VKEY_R */, KEY_R, 0x70015);
+  __CONVERT(0x53 /* VKEY_S */, KEY_S, 0x70016);
+  __CONVERT(0x54 /* VKEY_T */, KEY_T, 0x70017);
+  __CONVERT(0x55 /* VKEY_U */, KEY_U, 0x70018);
+  __CONVERT(0x56 /* VKEY_V */, KEY_V, 0x70019);
+  __CONVERT(0x57 /* VKEY_W */, KEY_W, 0x7001A);
+  __CONVERT(0x58 /* VKEY_X */, KEY_X, 0x7001B);
+  __CONVERT(0x59 /* VKEY_Y */, KEY_Y, 0x7001C);
+  __CONVERT(0x5A /* VKEY_Z */, KEY_Z, 0x7001D);
+  __CONVERT(0x5B /* VKEY_LWIN */, KEY_LEFTMETA, 0x700E3);
+  __CONVERT(0x5C /* VKEY_RWIN */, KEY_RIGHTMETA, 0x700E7);
+  __CONVERT(0x5F /* VKEY_SLEEP */, KEY_SLEEP, UNKNOWN);
+  __CONVERT(0x60 /* VKEY_NUMPAD0 */, KEY_KP0, 0x70062);
+  __CONVERT(0x61 /* VKEY_NUMPAD1 */, KEY_KP1, 0x70059);
+  __CONVERT(0x62 /* VKEY_NUMPAD2 */, KEY_KP2, 0x7005A);
+  __CONVERT(0x63 /* VKEY_NUMPAD3 */, KEY_KP3, 0x7005B);
+  __CONVERT(0x64 /* VKEY_NUMPAD4 */, KEY_KP4, 0x7005C);
+  __CONVERT(0x65 /* VKEY_NUMPAD5 */, KEY_KP5, 0x7005D);
+  __CONVERT(0x66 /* VKEY_NUMPAD6 */, KEY_KP6, 0x7005E);
+  __CONVERT(0x67 /* VKEY_NUMPAD7 */, KEY_KP7, 0x7005F);
+  __CONVERT(0x68 /* VKEY_NUMPAD8 */, KEY_KP8, 0x70060);
+  __CONVERT(0x69 /* VKEY_NUMPAD9 */, KEY_KP9, 0x70061);
+  __CONVERT(0x6A /* VKEY_MULTIPLY */, KEY_KPASTERISK, 0x70055);
+  __CONVERT(0x6B /* VKEY_ADD */, KEY_KPPLUS, 0x70057);
+  __CONVERT(0x6C /* VKEY_SEPARATOR */, KEY_KPCOMMA, UNKNOWN);
+  __CONVERT(0x6D /* VKEY_SUBTRACT */, KEY_KPMINUS, 0x70056);
+  __CONVERT(0x6E /* VKEY_DECIMAL */, KEY_KPDOT, 0x70063);
+  __CONVERT(0x6F /* VKEY_DIVIDE */, KEY_KPSLASH, 0x70054);
+  __CONVERT(0x7A /* VKEY_F11 */, KEY_F11, 70044);
+  __CONVERT(0x7B /* VKEY_F12 */, KEY_F12, 70045);
+  __CONVERT(0x90 /* VKEY_NUMLOCK */, KEY_NUMLOCK, 0x70053);
+  __CONVERT(0x91 /* VKEY_SCROLL */, KEY_SCROLLLOCK, 0x70047);
+  __CONVERT(0xA0 /* VKEY_LSHIFT */, KEY_LEFTSHIFT, 0x700E1);
+  __CONVERT(0xA1 /* VKEY_RSHIFT */, KEY_RIGHTSHIFT, 0x700E5);
+  __CONVERT(0xA2 /* VKEY_LCONTROL */, KEY_LEFTCTRL, 0x700E0);
+  __CONVERT(0xA3 /* VKEY_RCONTROL */, KEY_RIGHTCTRL, 0x700E4);
+  __CONVERT(0xA4 /* VKEY_LMENU */, KEY_LEFTALT, 0x7002E);
+  __CONVERT(0xA5 /* VKEY_RMENU */, KEY_RIGHTALT, 0x700E6);
+  __CONVERT(0xBA /* VKEY_OEM_1 */, KEY_SEMICOLON, 0x70033);
+  __CONVERT(0xBB /* VKEY_OEM_PLUS */, KEY_EQUAL, 0x7002E);
+  __CONVERT(0xBC /* VKEY_OEM_COMMA */, KEY_COMMA, 0x70036);
+  __CONVERT(0xBD /* VKEY_OEM_MINUS */, KEY_MINUS, 0x7002D);
+  __CONVERT(0xBE /* VKEY_OEM_PERIOD */, KEY_DOT, 0x70037);
+  __CONVERT(0xBF /* VKEY_OEM_2 */, KEY_SLASH, 0x70038);
+  __CONVERT(0xC0 /* VKEY_OEM_3 */, KEY_GRAVE, 0x70035);
+  __CONVERT(0xDB /* VKEY_OEM_4 */, KEY_LEFTBRACE, 0x7002F);
+  __CONVERT(0xDC /* VKEY_OEM_5 */, KEY_BACKSLASH, 0x70031);
+  __CONVERT(0xDD /* VKEY_OEM_6 */, KEY_RIGHTBRACE, 0x70030);
+  __CONVERT(0xDE /* VKEY_OEM_7 */, KEY_APOSTROPHE, 0x70034);
+#undef __CONVERT
+
+  return keycodes;
+}
+
+static constexpr auto keycodes = init_keycodes();
 
 constexpr touch_port_t target_touch_port {
   0, 0,
@@ -400,7 +542,7 @@ static auto notifications = safe::make_shared<rumble_ctx_t>(startRumble, stopRum
 struct input_raw_t {
 public:
   void clear_touchscreen() {
-    std::filesystem::path touch_path { "sunshine_touchscreen"sv };
+    std::filesystem::path touch_path { appdata() / "sunshine_touchscreen"sv };
 
     if(std::filesystem::is_symlink(touch_path)) {
       std::filesystem::remove(touch_path);
@@ -408,8 +550,19 @@ public:
 
     touch_input.reset();
   }
+
+  void clear_keyboard() {
+    std::filesystem::path key_path { appdata() / "sunshine_keyboard"sv };
+
+    if(std::filesystem::is_symlink(key_path)) {
+      std::filesystem::remove(key_path);
+    }
+
+    touch_input.reset();
+  }
+
   void clear_mouse() {
-    std::filesystem::path mouse_path { "sunshine_mouse"sv };
+    std::filesystem::path mouse_path { appdata() / "sunshine_mouse"sv };
 
     if(std::filesystem::is_symlink(mouse_path)) {
       std::filesystem::remove(mouse_path);
@@ -444,7 +597,7 @@ public:
       return -1;
     }
 
-    std::filesystem::create_symlink(libevdev_uinput_get_devnode(mouse_input.get()), "sunshine_mouse"sv);
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(mouse_input.get()), appdata() / "sunshine_mouse"sv);
 
     return 0;
   }
@@ -457,7 +610,20 @@ public:
       return -1;
     }
 
-    std::filesystem::create_symlink(libevdev_uinput_get_devnode(touch_input.get()), "sunshine_touchscreen"sv);
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(touch_input.get()), appdata() / "sunshine_touchscreen"sv);
+
+    return 0;
+  }
+
+  int create_keyboard() {
+    int err = libevdev_uinput_create_from_device(keyboard_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &keyboard_input);
+
+    if(err) {
+      BOOST_LOG(error) << "Could not create Sunshine Keyboard: "sv << strerror(-err);
+      return -1;
+    }
+
+    std::filesystem::create_symlink(libevdev_uinput_get_devnode(keyboard_input.get()), appdata() / "sunshine_keyboard"sv);
 
     return 0;
   }
@@ -500,6 +666,7 @@ public:
 
   void clear() {
     clear_touchscreen();
+    clear_keyboard();
     clear_mouse();
     for(int x = 0; x < gamepads.size(); ++x) {
       clear_gamepad(x);
@@ -515,12 +682,12 @@ public:
   std::vector<std::pair<uinput_t, gamepad_state_t>> gamepads;
   uinput_t mouse_input;
   uinput_t touch_input;
+  uinput_t keyboard_input;
 
   evdev_t gamepad_dev;
   evdev_t touch_dev;
   evdev_t mouse_dev;
-
-  keyboard_t keyboard;
+  evdev_t keyboard_dev;
 };
 
 inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
@@ -787,131 +954,30 @@ void scroll(input_t &input, int high_res_distance) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
-uint16_t keysym(uint16_t modcode) {
-  constexpr auto VK_NUMPAD = 0x60;
-  constexpr auto VK_F1     = 0x70;
-
-  if(modcode >= VK_NUMPAD && modcode < VK_NUMPAD + 10) {
-    return XK_KP_0 + (modcode - VK_NUMPAD);
+static keycode_t keysym(std::uint16_t modcode) {
+  if(modcode <= keycodes.size()) {
+    return keycodes[modcode];
   }
 
-  if(modcode >= VK_F1 && modcode < VK_F1 + 13) {
-    return XK_F1 + (modcode - VK_F1);
-  }
-
-
-  switch(modcode) {
-  case 0x08:
-    return XK_BackSpace;
-  case 0x09:
-    return XK_Tab;
-  case 0x0D:
-    return XK_Return;
-  case 0x13:
-    return XK_Pause;
-  case 0x14:
-    return XK_Caps_Lock;
-  case 0x1B:
-    return XK_Escape;
-  case 0x21:
-    return XK_Page_Up;
-  case 0x22:
-    return XK_Page_Down;
-  case 0x23:
-    return XK_End;
-  case 0x24:
-    return XK_Home;
-  case 0x25:
-    return XK_Left;
-  case 0x26:
-    return XK_Up;
-  case 0x27:
-    return XK_Right;
-  case 0x28:
-    return XK_Down;
-  case 0x29:
-    return XK_Select;
-  case 0x2B:
-    return XK_Execute;
-  case 0x2C:
-    return XK_Print;
-  case 0x2D:
-    return XK_Insert;
-  case 0x2E:
-    return XK_Delete;
-  case 0x2F:
-    return XK_Help;
-  case 0x6A:
-    return XK_KP_Multiply;
-  case 0x6B:
-    return XK_KP_Add;
-  case 0x6C:
-    return XK_KP_Separator;
-  case 0x6D:
-    return XK_KP_Subtract;
-  case 0x6E:
-    return XK_KP_Decimal;
-  case 0x6F:
-    return XK_KP_Divide;
-  case 0x90:
-    return XK_Num_Lock;
-  case 0x91:
-    return XK_Scroll_Lock;
-  case 0xA0:
-    return XK_Shift_L;
-  case 0xA1:
-    return XK_Shift_R;
-  case 0xA2:
-    return XK_Control_L;
-  case 0xA3:
-    return XK_Control_R;
-  case 0xA4:
-    return XK_Alt_L;
-  case 0xA5:
-    return XK_Alt_R;
-  case 0x5B:
-    return XK_Super_L;
-  case 0x5C:
-    return XK_Super_R;
-  case 0xBA:
-    return XK_semicolon;
-  case 0xBB:
-    return XK_equal;
-  case 0xBC:
-    return XK_comma;
-  case 0xBD:
-    return XK_minus;
-  case 0xBE:
-    return XK_period;
-  case 0xBF:
-    return XK_slash;
-  case 0xC0:
-    return XK_grave;
-  case 0xDB:
-    return XK_bracketleft;
-  case 0xDC:
-    return XK_backslash;
-  case 0xDD:
-    return XK_bracketright;
-  case 0xDE:
-    return XK_apostrophe;
-  }
-
-  return modcode;
+  return {};
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
-  auto &keyboard = ((input_raw_t *)input.get())->keyboard;
-  KeyCode kc     = XKeysymToKeycode(keyboard.get(), keysym(modcode));
+  auto keyboard = ((input_raw_t *)input.get())->keyboard_input.get();
 
-  if(!kc) {
+  auto keycode = keysym(modcode);
+  if(keycode.keycode == UNKNOWN) {
     return;
   }
 
-  XTestFakeKeyEvent(keyboard.get(), kc, !release, 0);
+  if(keycode.scancode != UNKNOWN && (release || !keycode.pressed)) {
+    libevdev_uinput_write_event(keyboard, EV_MSC, MSC_SCAN, keycode.scancode);
+  }
 
-  XSync(keyboard.get(), 0);
-  XFlush(keyboard.get());
+  libevdev_uinput_write_event(keyboard, EV_KEY, keycode.keycode, release ? 0 : (1 + keycode.pressed));
+  libevdev_uinput_write_event(keyboard, EV_SYN, SYN_REPORT, 0);
+
+  keycode.pressed = 1;
 }
 
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t &&rumble_queue) {
@@ -982,6 +1048,26 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
 
   gamepad_state_old = gamepad_state;
   libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
+}
+
+evdev_t keyboard() {
+  evdev_t dev { libevdev_new() };
+
+  libevdev_set_uniq(dev.get(), "Sunshine Keyboard");
+  libevdev_set_id_product(dev.get(), 0xDEAD);
+  libevdev_set_id_vendor(dev.get(), 0xBEEF);
+  libevdev_set_id_bustype(dev.get(), 0x3);
+  libevdev_set_id_version(dev.get(), 0x111);
+  libevdev_set_name(dev.get(), "Keyboard passthrough");
+
+  libevdev_enable_event_type(dev.get(), EV_KEY);
+  for(const auto &keycode : keycodes) {
+    libevdev_enable_event_code(dev.get(), EV_KEY, keycode.keycode, nullptr);
+  }
+  libevdev_enable_event_type(dev.get(), EV_MSC);
+  libevdev_enable_event_code(dev.get(), EV_MSC, MSC_SCAN, nullptr);
+
+  return dev;
 }
 
 evdev_t mouse() {
@@ -1142,24 +1228,17 @@ input_t input() {
 
   gp.rumble_ctx = notifications.ref();
 
-  gp.keyboard.reset(XOpenDisplay(nullptr));
-
-  // If we do not have a keyboard, gamepad or mouse, no input is possible and we should abort
-  if(!gp.keyboard) {
-    BOOST_LOG(fatal) << "Could not open x11 display for keyboard"sv;
-    log_flush();
-    std::abort();
-  }
-
   gp.gamepads.resize(MAX_GAMEPADS);
 
   // Ensure starting from clean slate
   gp.clear();
-  gp.touch_dev   = touchscreen();
-  gp.mouse_dev   = mouse();
-  gp.gamepad_dev = x360();
+  gp.keyboard_dev = keyboard();
+  gp.touch_dev    = touchscreen();
+  gp.mouse_dev    = mouse();
+  gp.gamepad_dev  = x360();
 
-  if(gp.create_mouse() || gp.create_touchscreen()) {
+  // If we do not have a keyboard, gamepad or mouse, no input is possible and we should abort
+  if(gp.create_mouse() || gp.create_touchscreen() || gp.create_keyboard()) {
     log_flush();
     std::abort();
   }
