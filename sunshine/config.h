@@ -11,8 +11,7 @@
 namespace config {
 struct video_t {
   // ffmpeg params
-  int crf; // higher == more compression and less quality
-  int qp;  // higher == more compression and less quality, ignored if crf != 0
+  int qp;  // higher == more compression and less quality
 
   int hevc_mode;
 

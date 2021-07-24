@@ -250,6 +250,7 @@ struct encoder_t {
     REF_FRAMES_RESTRICT,   // Set maximum reference frames
     REF_FRAMES_AUTOSELECT, // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
     SLICE,                 // Allow frame to be partitioned into multiple slices
+    CBR,                   // Some encoders don't support CBR, if not supported --> attempt constant quantatication parameter instead
     DYNAMIC_RANGE,         // hdr
     VUI_PARAMETERS,        // AMD encoder with VAAPI doesn't add VUI parameters to SPS
     NALU_PREFIX_5b,        // libx264/libx265 have a 3-byte nalu prefix instead of 4-byte nalu prefix
@@ -265,6 +266,7 @@ struct encoder_t {
       _CONVERT(REF_FRAMES_RESTRICT);
       _CONVERT(REF_FRAMES_AUTOSELECT);
       _CONVERT(SLICE);
+      _CONVERT(CBR);
       _CONVERT(DYNAMIC_RANGE);
       _CONVERT(VUI_PARAMETERS);
       _CONVERT(NALU_PREFIX_5b);
@@ -299,7 +301,7 @@ struct encoder_t {
 
   struct {
     std::vector<option_t> options;
-    std::optional<option_t> crf, qp;
+    std::optional<option_t> qp;
 
     std::string name;
     std::bitset<MAX_FLAGS> capabilities;
@@ -424,7 +426,6 @@ static encoder_t nvenc {
       { "rc"s, &config::video.nv.rc },
     },
     std::nullopt,
-    std::nullopt,
     "hevc_nvenc"s,
   },
   {
@@ -435,7 +436,6 @@ static encoder_t nvenc {
       { "rc"s, &config::video.nv.rc },
       { "coder"s, &config::video.nv.coder },
     },
-    std::nullopt,
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_nvenc"s,
   },
@@ -463,7 +463,6 @@ static encoder_t amdvce {
       { "quality"s, &config::video.amd.quality },
       { "rc"s, &config::video.amd.rc },
     },
-    std::nullopt,
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "hevc_amf"s,
   },
@@ -474,7 +473,6 @@ static encoder_t amdvce {
       { "rc"s, &config::video.amd.rc },
       { "log_to_dbg"s, "1"s },
     },
-    std::nullopt,
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_amf"s,
   },
@@ -500,7 +498,6 @@ static encoder_t software {
       { "preset"s, &config::video.sw.preset },
       { "tune"s, &config::video.sw.tune },
     },
-    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf),
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "libx265"s,
   },
@@ -509,7 +506,6 @@ static encoder_t software {
       { "preset"s, &config::video.sw.preset },
       { "tune"s, &config::video.sw.tune },
     },
-    std::make_optional<encoder_t::option_t>("crf"s, &config::video.crf),
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "libx264"s,
   },
@@ -530,8 +526,7 @@ static encoder_t vaapi {
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
-    std::nullopt,
-    std::nullopt,
+    std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "hevc_vaapi"s,
   },
   {
@@ -539,8 +534,7 @@ static encoder_t vaapi {
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
-    std::nullopt,
-    std::nullopt,
+    std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "h264_vaapi"s,
   },
   LIMITED_GOP_SIZE | SYSTEM_MEMORY,
@@ -921,21 +915,18 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     handle_option(option);
   }
 
-  if(config.bitrate > 500) {
+  if(video_format[encoder_t::CBR]) {
     auto bitrate        = config.bitrate * 1000;
     ctx->rc_max_rate    = bitrate;
     ctx->rc_buffer_size = bitrate / config.framerate;
     ctx->bit_rate       = bitrate;
     ctx->rc_min_rate    = bitrate;
   }
-  else if(video_format.crf && config::video.crf != 0) {
-    handle_option(*video_format.crf);
-  }
   else if(video_format.qp) {
     handle_option(*video_format.qp);
   }
   else {
-    BOOST_LOG(error) << "Couldn't set video quality: encoder "sv << encoder.name << " doesn't support either crf or qp"sv;
+    BOOST_LOG(error) << "Couldn't set video quality: encoder "sv << encoder.name << " doesn't support qp"sv;
     return std::nullopt;
   }
 
@@ -1469,10 +1460,17 @@ bool validate_encoder(encoder_t &encoder) {
   config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
   config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
 
+retry:
   auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
   auto autoselect_h264     = validate_config(disp, encoder, config_autoselect);
 
   if(max_ref_frames_h264 < 0 && autoselect_h264 < 0) {
+    if(encoder.h264.qp && encoder.h264[encoder_t::CBR]) {
+      // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
+      encoder.h264.capabilities.set();
+      encoder.h264[encoder_t::CBR] = false;
+      goto retry;
+    }
     return false;
   }
 
@@ -1494,12 +1492,22 @@ bool validate_encoder(encoder_t &encoder) {
     config_max_ref_frames.videoFormat = 1;
     config_autoselect.videoFormat     = 1;
 
+retry_hevc:
     auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
     auto autoselect_hevc     = validate_config(disp, encoder, config_autoselect);
 
     // If HEVC must be supported, but it is not supported
-    if(force_hevc && max_ref_frames_hevc < 0 && autoselect_hevc < 0) {
-      return false;
+    if(max_ref_frames_hevc < 0 && autoselect_hevc < 0) {
+      if(encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
+        // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
+        encoder.hevc.capabilities.set();
+        encoder.hevc[encoder_t::CBR] = false;
+        goto retry_hevc;
+      }
+
+      if(force_hevc) {
+        return false;
+      }
     }
 
     for(auto [validate_flag, encoder_flag] : packet_deficiencies) {
