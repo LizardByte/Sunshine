@@ -558,7 +558,7 @@ public:
       std::filesystem::remove(key_path);
     }
 
-    touch_input.reset();
+    keyboard_input.reset();
   }
 
   void clear_mouse() {
@@ -574,14 +574,18 @@ public:
   void clear_gamepad(int nr) {
     auto &[dev, _] = gamepads[nr];
 
+    if(!dev) {
+      return;
+    }
+
     // Remove this gamepad from notifications
-    rumble_ctx->rumble_queue_queue.raise(nr, dev.get(), nullptr, pollfd {});
+    rumble_ctx->rumble_queue_queue.raise(nr, dev.get(), nullptr, pollfd_t {});
 
     std::stringstream ss;
 
     ss << "sunshine_gamepad_"sv << nr;
 
-    std::filesystem::path gamepad_path { ss.str() };
+    auto gamepad_path = platf::appdata() / ss.str();
     if(std::filesystem::is_symlink(gamepad_path)) {
       std::filesystem::remove(gamepad_path);
     }
@@ -642,7 +646,7 @@ public:
 
     std::stringstream ss;
     ss << "sunshine_gamepad_"sv << nr;
-    std::filesystem::path gamepad_path { ss.str() };
+    auto gamepad_path = platf::appdata() / ss.str();
 
     if(std::filesystem::is_symlink(gamepad_path)) {
       std::filesystem::remove(gamepad_path);
@@ -854,6 +858,7 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
 
         // There may be an attepmt to remove, that which not exists
         if(!rumble_queue) {
+          BOOST_LOG(warning) << "Attempting to remove a gamepad device from notifications that isn't already registered"sv;
           continue;
         }
       }
