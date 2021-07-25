@@ -574,7 +574,8 @@ int apply_flags(const char *line) {
 
 void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   if(!fs::exists(stream.file_apps.c_str())) {
-      stream.file_apps = SUNSHINE_DEFAULT_DIR "/" APPS_JSON;
+      std::string sunshine_apps_default = SUNSHINE_DEFAULT_DIR "/" APPS_JSON;
+      fs::copy_file(sunshine_apps_default.c_str(), stream.file_apps.c_str());
   }
 
   for(auto &[name, val] : vars) {
@@ -759,7 +760,8 @@ int parse(int argc, char *argv[]) {
   }
 
   if(!fs::exists(sunshine.config_file.c_str())) {
-      sunshine.config_file = SUNSHINE_DEFAULT_DIR "/sunshine.conf";
+      std::string sunshine_config_default = SUNSHINE_DEFAULT_DIR "/sunshine.conf";
+      fs::copy_file(sunshine_config_default.c_str(), sunshine.config_file.c_str());
   }
 
   auto vars = parse_config(read_file(sunshine.config_file.c_str()));

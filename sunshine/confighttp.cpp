@@ -250,8 +250,7 @@ void saveApp(resp_https_t response, req_https_t request) {
       fileTree.erase("apps");
       fileTree.push_back(std::make_pair("apps", newApps));
     }
-    std::string sunshine_apps_path = SUNSHINE_CONFIG_DIR "/" APPS_JSON;
-    pt::write_json(sunshine_apps_path, fileTree);
+    pt::write_json(config::stream.file_apps, fileTree);
   }
   catch(std::exception &e) {
     BOOST_LOG(warning) << "SaveApp: "sv << e.what();
@@ -361,8 +360,7 @@ void saveConfig(resp_https_t response, req_https_t request) {
 
       configStream << kv.first << " = " << value << std::endl;
     }
-    std::string sunshine_config_path = SUNSHINE_CONFIG_DIR "/sunshine.conf";
-    write_file(sunshine_config_path.c_str(), configStream.str());
+    write_file(config::sunshine.config_file.c_str(), configStream.str());
   }
   catch(std::exception &e) {
     BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
