@@ -74,7 +74,9 @@ public:
 
 class display_base_t : public display_t {
 public:
-  int init();
+  int init(int framerate);
+
+  std::chrono::nanoseconds delay;
 
   factory1_t factory;
   adapter_t adapter;
@@ -100,11 +102,14 @@ public:
 
 class display_ram_t : public display_base_t {
 public:
-  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
+  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible);
+
+
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img) override;
 
-  int init();
+  int init(int framerate);
 
   cursor_t cursor;
   D3D11_MAPPED_SUBRESOURCE img_info;
@@ -113,7 +118,8 @@ public:
 
 class display_vram_t : public display_base_t, public std::enable_shared_from_this<display_vram_t> {
 public:
-  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
+  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible);
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;

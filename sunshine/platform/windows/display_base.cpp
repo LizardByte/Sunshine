@@ -73,7 +73,7 @@ duplication_t::~duplication_t() {
   release_frame();
 }
 
-int display_base_t::init() {
+int display_base_t::init(int framerate) {
   /* Uncomment when use of IDXGIOutput5 is implemented
   std::call_once(windows_cpp_once_flag, []() {
     DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
@@ -93,6 +93,8 @@ int display_base_t::init() {
 
   // Ensure we can duplicate the current display
   syncThreadDesktop();
+
+  delay = std::chrono::nanoseconds { 1s } / framerate;
 
   // Get rectangle of full desktop for absolute mouse coordinates
   env_width  = GetSystemMetrics(SM_CXVIRTUALSCREEN);
@@ -431,18 +433,18 @@ const char *format_str[] = {
 } // namespace platf::dxgi
 
 namespace platf {
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type) {
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, int framerate) {
   if(hwdevice_type == mem_type_e::dxgi) {
     auto disp = std::make_shared<dxgi::display_vram_t>();
 
-    if(!disp->init()) {
+    if(!disp->init(framerate)) {
       return disp;
     }
   }
   else if(hwdevice_type == mem_type_e::system) {
     auto disp = std::make_shared<dxgi::display_ram_t>();
 
-    if(!disp->init()) {
+    if(!disp->init(framerate)) {
       return disp;
     }
   }

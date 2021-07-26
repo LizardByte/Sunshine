@@ -198,9 +198,33 @@ enum class capture_e : int {
 
 class display_t {
 public:
+  /**
+   * When display has a new image ready, this callback will be called with the new image.
+   * 
+   * On Break -->
+   *    Returns nullptr
+   * 
+   * On Success -->
+   *    Returns the image object that should be filled next.
+   *    This may or may not be the image send with the callback
+   */
+  using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img)>;
+
   display_t() noexcept : offset_x { 0 }, offset_y { 0 } {}
-  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) = 0;
-  virtual std::shared_ptr<img_t> alloc_img()                                             = 0;
+
+  /**
+   * snapshot_cb --> the callback
+   * std::shared_ptr<img_t> img --> The first image to use
+   * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
+   * 
+   * Returns either:
+   *    capture_e::ok when stopping
+   *    capture_e::error on error
+   *    capture_e::reinit when need of reinitialization
+   */
+  virtual capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) = 0;
+
+  virtual std::shared_ptr<img_t> alloc_img() = 0;
 
   virtual int dummy_img(img_t *img) = 0;
 
@@ -247,7 +271,7 @@ std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
 std::unique_ptr<audio_control_t> audio_control();
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type);
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, int framerate);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

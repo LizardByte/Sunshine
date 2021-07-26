@@ -367,9 +367,6 @@ struct sync_session_ctx_t {
 struct sync_session_t {
   sync_session_ctx_t *ctx;
 
-  std::chrono::steady_clock::time_point next_frame;
-  std::chrono::nanoseconds delay;
-
   platf::img_t *img_tmp;
   std::shared_ptr<platf::hwdevice_t> hwdevice;
   session_t session;
@@ -380,7 +377,7 @@ using encode_e                   = platf::capture_e;
 
 struct capture_ctx_t {
   img_event_t images;
-  std::chrono::nanoseconds delay;
+  int framerate;
 };
 
 struct capture_thread_async_ctx_t {
@@ -554,11 +551,11 @@ static std::vector<encoder_t> encoders {
   software
 };
 
-void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type) {
+void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, int framerate) {
   // We try this twice, in case we still get an error on reinitialization
   for(int x = 0; x < 2; ++x) {
     disp.reset();
-    disp = platf::display(map_dev_type(type));
+    disp = platf::display(map_dev_type(type), framerate);
     if(disp) {
       break;
     }
@@ -586,9 +583,11 @@ void captureThread(
     }
   });
 
-  std::chrono::nanoseconds delay = 1s;
+  if(auto capture_ctx = capture_ctx_queue->pop()) {
+    capture_ctxs.emplace_back(std::move(*capture_ctx));
+  }
 
-  auto disp = platf::display(map_dev_type(encoder.dev_type));
+  auto disp = platf::display(map_dev_type(encoder.dev_type), capture_ctxs.front().framerate);
   if(!disp) {
     return;
   }
@@ -605,30 +604,35 @@ void captureThread(
     }
   }
 
-  if(auto capture_ctx = capture_ctx_queue->pop()) {
-    capture_ctxs.emplace_back(std::move(*capture_ctx));
-
-    delay = capture_ctxs.back().delay;
-  }
-
-  auto next_frame = std::chrono::steady_clock::now();
   while(capture_ctx_queue->running()) {
-    while(capture_ctx_queue->peek()) {
-      capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+    auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img) -> std::shared_ptr<platf::img_t> {
+      while(capture_ctx_queue->peek()) {
+        capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+      }
 
-      delay = std::min(delay, capture_ctxs.back().delay);
-    }
+      KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+        if(!capture_ctx->images->running()) {
+          capture_ctx = capture_ctxs.erase(capture_ctx);
 
-    auto &img = *round_robin++;
-    while(img.use_count() > 1) {}
+          continue;
+        }
 
-    auto now = std::chrono::steady_clock::now();
-    while(next_frame > now) {
-      now = std::chrono::steady_clock::now();
-    }
-    next_frame = now + delay;
+        capture_ctx->images->raise(img);
+        ++capture_ctx;
+      })
 
-    auto status = disp->snapshot(img.get(), 1000ms, display_cursor);
+      if(!capture_ctx_queue->running()) {
+        return nullptr;
+      }
+
+      auto &next_img = *round_robin++;
+      while(next_img.use_count() > 1) {}
+
+      return next_img;
+    },
+      *round_robin++, &display_cursor);
+
+
     switch(status) {
     case platf::capture_e::reinit: {
       reinit_event.raise(true);
@@ -647,7 +651,7 @@ void captureThread(
       }
 
       while(capture_ctx_queue->running()) {
-        reset_display(disp, encoder.dev_type);
+        reset_display(disp, encoder.dev_type, capture_ctxs.front().framerate);
 
         if(disp) {
           break;
@@ -672,33 +676,13 @@ void captureThread(
       continue;
     }
     case platf::capture_e::error:
-      return;
-    case platf::capture_e::timeout:
-      std::this_thread::sleep_for(1ms);
-      continue;
     case platf::capture_e::ok:
-      break;
+    case platf::capture_e::timeout:
+      return;
     default:
       BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
       return;
     }
-
-    KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
-      if(!capture_ctx->images->running()) {
-        auto tmp_delay = capture_ctx->delay;
-        capture_ctx    = capture_ctxs.erase(capture_ctx);
-
-        if(tmp_delay == delay) {
-          delay = std::min_element(std::begin(capture_ctxs), std::end(capture_ctxs), [](const auto &l, const auto &r) {
-            return l.delay < r.delay;
-          })->delay;
-        }
-        continue;
-      }
-
-      capture_ctx->images->raise(img);
-      ++capture_ctx;
-    })
   }
 }
 
@@ -1074,10 +1058,7 @@ input::touch_port_t make_port(platf::display_t *display, const config_t &config)
 std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const encoder_t &encoder, platf::img_t &img, sync_session_ctx_t &ctx) {
   sync_session_t encode_session;
 
-  encode_session.ctx        = &ctx;
-  encode_session.next_frame = std::chrono::steady_clock::now();
-
-  encode_session.delay = std::chrono::nanoseconds { 1s } / ctx.config.framerate;
+  encode_session.ctx = &ctx;
 
   auto pix_fmt  = ctx.config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
   auto hwdevice = disp->make_hwdevice(pix_fmt);
@@ -1093,7 +1074,6 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
     return std::nullopt;
   }
 
-  encode_session.img_tmp  = &img;
   encode_session.hwdevice = std::move(hwdevice);
   encode_session.session  = std::move(*session);
 
@@ -1105,8 +1085,19 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
 
   std::shared_ptr<platf::display_t> disp;
 
+  if(synced_session_ctxs.empty()) {
+    auto ctx = encode_session_ctx_queue.pop();
+    if(!ctx) {
+      return encode_e::ok;
+    }
+
+    synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*ctx)));
+  }
+
+  int framerate = synced_session_ctxs.front()->config.framerate;
+
   while(encode_session_ctx_queue.running()) {
-    reset_display(disp, encoder.dev_type);
+    reset_display(disp, encoder.dev_type, framerate);
     if(disp) {
       break;
     }
@@ -1119,9 +1110,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
   }
 
   auto img = disp->alloc_img();
-
-  auto img_tmp = img.get();
-  if(disp->dummy_img(img_tmp)) {
+  if(disp->dummy_img(img.get())) {
     return encode_e::error;
   }
 
@@ -1135,109 +1124,83 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
     synced_sessions.emplace_back(std::move(*synced_session));
   }
 
-  auto next_frame = std::chrono::steady_clock::now();
+  auto ec = platf::capture_e::ok;
   while(encode_session_ctx_queue.running()) {
-    while(encode_session_ctx_queue.peek()) {
-      auto encode_session_ctx = encode_session_ctx_queue.pop();
-      if(!encode_session_ctx) {
-        return encode_e::ok;
-      }
-
-      synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
-
-      auto encode_session = make_synced_session(disp.get(), encoder, *img, *synced_session_ctxs.back());
-      if(!encode_session) {
-        return encode_e::error;
-      }
-
-      synced_sessions.emplace_back(std::move(*encode_session));
-
-      next_frame = std::chrono::steady_clock::now();
-    }
-
-    auto delay = std::max(0ms, std::chrono::duration_cast<std::chrono::milliseconds>(next_frame - std::chrono::steady_clock::now()));
-
-    auto status = disp->snapshot(img.get(), delay, display_cursor);
-    switch(status) {
-    case platf::capture_e::reinit:
-    case platf::capture_e::error:
-      return status;
-    case platf::capture_e::timeout:
-      break;
-    case platf::capture_e::ok:
-      img_tmp = img.get();
-      break;
-    }
-
-    auto now = std::chrono::steady_clock::now();
-
-    next_frame = now + 1s;
-    KITTY_WHILE_LOOP(auto pos = std::begin(synced_sessions), pos != std::end(synced_sessions), {
-      auto frame = pos->session.device->frame;
-      auto ctx   = pos->ctx;
-      if(ctx->shutdown_event->peek()) {
-        // Let waiting thread know it can delete shutdown_event
-        ctx->join_event->raise(true);
-
-        pos = synced_sessions.erase(pos);
-        synced_session_ctxs.erase(std::find_if(std::begin(synced_session_ctxs), std::end(synced_session_ctxs), [&ctx_p = ctx](auto &ctx) {
-          return ctx.get() == ctx_p;
-        }));
-
-        if(synced_sessions.empty()) {
-          return encode_e::ok;
+    auto snapshot_cb = [&](std::shared_ptr<platf::img_t> &img) -> std::shared_ptr<platf::img_t> {
+      while(encode_session_ctx_queue.peek()) {
+        auto encode_session_ctx = encode_session_ctx_queue.pop();
+        if(!encode_session_ctx) {
+          return nullptr;
         }
 
-        continue;
+        synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
+
+        auto encode_session = make_synced_session(disp.get(), encoder, *img, *synced_session_ctxs.back());
+        if(!encode_session) {
+          ec = platf::capture_e::error;
+          return nullptr;
+        }
+
+        synced_sessions.emplace_back(std::move(*encode_session));
       }
 
-      if(ctx->idr_events->peek()) {
-        frame->pict_type = AV_PICTURE_TYPE_I;
-        frame->key_frame = 1;
+      KITTY_WHILE_LOOP(auto pos = std::begin(synced_sessions), pos != std::end(synced_sessions), {
+        auto frame = pos->session.device->frame;
+        auto ctx   = pos->ctx;
+        if(ctx->shutdown_event->peek()) {
+          // Let waiting thread know it can delete shutdown_event
+          ctx->join_event->raise(true);
 
-        ctx->idr_events->pop();
-      }
+          pos = synced_sessions.erase(pos);
+          synced_session_ctxs.erase(std::find_if(std::begin(synced_session_ctxs), std::end(synced_session_ctxs), [&ctx_p = ctx](auto &ctx) {
+            return ctx.get() == ctx_p;
+          }));
 
-      if(img_tmp) {
-        pos->img_tmp = img_tmp;
-      }
+          if(synced_sessions.empty()) {
+            return nullptr;
+          }
 
-      auto timeout = now > pos->next_frame;
-      if(timeout) {
-        pos->next_frame += pos->delay;
-      }
+          continue;
+        }
 
-      next_frame = std::min(next_frame, pos->next_frame);
+        if(ctx->idr_events->peek()) {
+          frame->pict_type = AV_PICTURE_TYPE_I;
+          frame->key_frame = 1;
 
-      if(!timeout) {
-        ++pos;
-        continue;
-      }
+          ctx->idr_events->pop();
+        }
 
-      if(pos->img_tmp) {
-        if(pos->hwdevice->convert(*pos->img_tmp)) {
+        if(pos->hwdevice->convert(*img)) {
           BOOST_LOG(error) << "Could not convert image"sv;
           ctx->shutdown_event->raise(true);
 
           continue;
         }
-        pos->img_tmp = nullptr;
-      }
 
-      if(encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data)) {
-        BOOST_LOG(error) << "Could not encode video packet"sv;
-        ctx->shutdown_event->raise(true);
+        if(encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data)) {
+          BOOST_LOG(error) << "Could not encode video packet"sv;
+          ctx->shutdown_event->raise(true);
 
-        continue;
-      }
+          continue;
+        }
 
-      frame->pict_type = AV_PICTURE_TYPE_NONE;
-      frame->key_frame = 0;
+        frame->pict_type = AV_PICTURE_TYPE_NONE;
+        frame->key_frame = 0;
 
-      ++pos;
-    })
+        ++pos;
+      })
 
-    img_tmp = nullptr;
+      return img;
+    };
+
+    auto status = disp->capture(std::move(snapshot_cb), img, &display_cursor);
+    switch(status) {
+    case platf::capture_e::reinit:
+    case platf::capture_e::error:
+    case platf::capture_e::ok:
+    case platf::capture_e::timeout:
+      return ec != platf::capture_e::ok ? ec : status;
+    }
   }
 
   return encode_e::ok;
@@ -1284,9 +1247,8 @@ void capture_async(
     return;
   }
 
-  auto delay = std::chrono::floor<std::chrono::nanoseconds>(1s) / config.framerate;
   ref->capture_ctx_queue->raise(capture_ctx_t {
-    images, delay });
+    images, config.framerate });
 
   if(!ref->capture_ctx_queue->running()) {
     return;
@@ -1376,7 +1338,7 @@ enum validate_flag_e {
 };
 
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
-  reset_display(disp, encoder.dev_type);
+  reset_display(disp, encoder.dev_type, config.framerate);
   if(!disp) {
     return -1;
   }
