@@ -619,10 +619,14 @@ void captureThread(
       delay = std::min(delay, capture_ctxs.back().delay);
     }
 
-    auto now = std::chrono::steady_clock::now();
-
     auto &img = *round_robin++;
     while(img.use_count() > 1) {}
+
+    auto now = std::chrono::steady_clock::now();
+    while(next_frame > now) {
+      now = std::chrono::steady_clock::now();
+    }
+    next_frame = now + delay;
 
     auto status = disp->snapshot(img.get(), 1000ms, display_cursor);
     switch(status) {
@@ -695,11 +699,6 @@ void captureThread(
       capture_ctx->images->raise(img);
       ++capture_ctx;
     })
-
-    if(next_frame > now) {
-      std::this_thread::sleep_until(next_frame);
-    }
-    next_frame += delay;
   }
 }
 
@@ -1004,10 +1003,6 @@ void encode_run(
     return;
   }
 
-  auto delay = std::chrono::floor<std::chrono::nanoseconds>(1s) / config.framerate;
-
-  auto next_frame = std::chrono::steady_clock::now();
-
   auto frame = session->device->frame;
 
   auto shutdown_event = mail->event<bool>(mail::shutdown);
@@ -1026,11 +1021,8 @@ void encode_run(
       idr_events->pop();
     }
 
-    std::this_thread::sleep_until(next_frame);
-    next_frame += delay;
-
-    if(images->peek()) {
-      if(auto img = images->pop(delay)) {
+    if(!frame->key_frame || images->peek()) {
+      if(auto img = images->pop(100ms)) {
         session->device->convert(*img);
       }
       else if(images->running()) {
@@ -1492,7 +1484,7 @@ retry:
     config_max_ref_frames.videoFormat = 1;
     config_autoselect.videoFormat     = 1;
 
-retry_hevc:
+  retry_hevc:
     auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
     auto autoselect_hevc     = validate_config(disp, encoder, config_autoselect);
 
