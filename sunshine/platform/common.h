@@ -201,7 +201,7 @@ public:
   /**
    * When display has a new image ready, this callback will be called with the new image.
    * 
-   * On Break -->
+   * On Break Request -->
    *    Returns nullptr
    * 
    * On Success -->

@@ -137,6 +137,8 @@ void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
 }
 
 struct x11_attr_t : public display_t {
+  std::chrono::nanoseconds delay;
+
   xdisplay_t xdisplay;
   Window xwindow;
   XWindowAttributes xattr;
@@ -153,11 +155,13 @@ struct x11_attr_t : public display_t {
     XInitThreads();
   }
 
-  int init() {
+  int init(int framerate) {
     if(!xdisplay) {
       BOOST_LOG(error) << "Could not open X11 display"sv;
       return -1;
     }
+
+    delay = std::chrono::nanoseconds { 1s } / framerate;
 
     xwindow = DefaultRootWindow(xdisplay.get());
 
@@ -217,7 +221,41 @@ struct x11_attr_t : public display_t {
     XGetWindowAttributes(xdisplay.get(), xwindow, &xattr); //Update xattr's
   }
 
-  capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) override {
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
+    auto next_frame = std::chrono::steady_clock::now();
+
+    while(img) {
+      auto now = std::chrono::steady_clock::now();
+
+      if(next_frame > now) {
+        std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+      }
+      while(next_frame > now) {
+        now = std::chrono::steady_clock::now();
+      }
+      next_frame = now + delay;
+
+      auto status = snapshot(img.get(), 1000ms, *cursor);
+      switch(status) {
+      case platf::capture_e::reinit:
+      case platf::capture_e::error:
+        return status;
+      case platf::capture_e::timeout:
+        std::this_thread::sleep_for(1ms);
+        continue;
+      case platf::capture_e::ok:
+        img = snapshot_cb(img);
+        break;
+      default:
+        BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+        return status;
+      }
+    }
+
+    return capture_e::ok;
+  }
+
+  capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
     refresh();
 
     //The whole X server changed, so we gotta reinit everything
@@ -287,7 +325,41 @@ struct shm_attr_t : public x11_attr_t {
       ;
   }
 
-  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) override {
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
+    auto next_frame = std::chrono::steady_clock::now();
+
+    while(img) {
+      auto now = std::chrono::steady_clock::now();
+
+      if(next_frame > now) {
+        std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+      }
+      while(next_frame > now) {
+        now = std::chrono::steady_clock::now();
+      }
+      next_frame = now + delay;
+
+      auto status = snapshot(img.get(), 1000ms, *cursor);
+      switch(status) {
+      case platf::capture_e::reinit:
+      case platf::capture_e::error:
+        return status;
+      case platf::capture_e::timeout:
+        std::this_thread::sleep_for(1ms);
+        continue;
+      case platf::capture_e::ok:
+        img = snapshot_cb(img);
+        break;
+      default:
+        BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+        return status;
+      }
+    }
+
+    return capture_e::ok;
+  }
+
+  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) {
     //The whole X server changed, so we gotta reinit everything
     if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
@@ -327,8 +399,8 @@ struct shm_attr_t : public x11_attr_t {
     return 0;
   }
 
-  int init() {
-    if(x11_attr_t::init()) {
+  int init(int framerate) {
+    if(x11_attr_t::init(framerate)) {
       return 1;
     }
 
@@ -371,7 +443,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 };
 
-std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type) {
+std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerate) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
@@ -380,7 +452,7 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type) {
   // Attempt to use shared memory X11 to avoid copying the frame
   auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
 
-  auto status = shm_disp->init();
+  auto status = shm_disp->init(framerate);
   if(status > 0) {
     // x11_attr_t::init() failed, don't bother trying again.
     return nullptr;
@@ -392,7 +464,7 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type) {
 
   // Fallback
   auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
-  if(x11_disp->init()) {
+  if(x11_disp->init(framerate)) {
     return nullptr;
   }
 
