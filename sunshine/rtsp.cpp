@@ -261,6 +261,8 @@ public:
     else {
       cmd_not_found(sock, std::move(req));
     }
+
+    sock.shutdown(boost::asio::socket_base::shutdown_type::shutdown_both);
   }
 
   void handle_accept(const boost::system::error_code &ec) {
@@ -289,7 +291,14 @@ public:
   }
 
   void session_raise(launch_session_t launch_session) {
-    //FIXME: If client abandons us at this stage, _slot_count won't be raised again.
+    auto now = std::chrono::steady_clock::now();
+
+    // If a launch event is still pending, don't overwrite it.
+    if(raised_timeout > now && launch_event.peek()) {
+      return;
+    }
+    raised_timeout = now + 10s;
+
     --_slot_count;
     launch_event.raise(launch_session);
   }
@@ -301,6 +310,14 @@ public:
   safe::event_t<launch_session_t> launch_event;
 
   void clear(bool all = true) {
+    // if a launch event timed out --> Remove it.
+    if(raised_timeout < std::chrono::steady_clock::now()) {
+      auto discarded = launch_event.pop(0s);
+      if(discarded) {
+        ++_slot_count;
+      }
+    }
+
     auto lg = _session_slots.lock();
 
     for(auto &slot : *_session_slots) {
@@ -345,6 +362,7 @@ private:
 
   util::sync_t<std::vector<std::shared_ptr<session_t>>> _session_slots;
 
+  std::chrono::steady_clock::time_point raised_timeout;
   int _slot_count;
 
   boost::asio::io_service ios;
@@ -353,7 +371,7 @@ private:
   std::shared_ptr<socket_t> next_socket;
 };
 
-rtsp_server_t server;
+rtsp_server_t server {};
 
 void launch_session_raise(launch_session_t launch_session) {
   server.session_raise(launch_session);

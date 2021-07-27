@@ -94,7 +94,7 @@ int proc_t::execute(int app_id) {
 
   for(auto &cmd : proc.detached) {
     BOOST_LOG(info) << "Spawning ["sv << cmd << ']';
-    if(proc.output.empty()) {
+    if(proc.output.empty() || proc.output == "null"sv) {
       bp::spawn(cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
     }
     else {
@@ -106,14 +106,16 @@ int proc_t::execute(int app_id) {
     }
   }
 
-  BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
   if(proc.cmd.empty()) {
+    BOOST_LOG(debug) << "Executing [Desktop]"sv;
     placebo = true;
   }
   else if(proc.output.empty() || proc.output == "null"sv) {
+    BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
     _process = bp::child(_process_handle, proc.cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
   else {
+    BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
     _process = bp::child(_process_handle, proc.cmd, _env, bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
   }
 
