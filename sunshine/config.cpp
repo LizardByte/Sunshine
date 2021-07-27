@@ -20,7 +20,7 @@ using namespace std::literals;
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
 #define CERTIFICATE_FILE CA_DIR "/cacert.pem"
 
-#define APPS_JSON_PATH SUNSHINE_ASSETS_DIR "/" APPS_JSON
+#define APPS_JSON_PATH SUNSHINE_CONFIG_DIR "/" APPS_JSON
 namespace config {
 
 namespace nv {
@@ -227,7 +227,7 @@ sunshine_t sunshine {
   {},                                   // Username
   {},                                   // Password
   {},                                   // Password Salt
-  SUNSHINE_ASSETS_DIR "/sunshine.conf", // config file
+  SUNSHINE_CONFIG_DIR "/sunshine.conf", // config file
   {},                                   // cmd args
   47989,
 };
@@ -577,6 +577,10 @@ int apply_flags(const char *line) {
 }
 
 void apply_config(std::unordered_map<std::string, std::string> &&vars) {
+  if(!fs::exists(stream.file_apps.c_str())) {
+      fs::copy_file(SUNSHINE_DEFAULT_DIR "/" APPS_JSON, stream.file_apps);
+  }
+
   for(auto &[name, val] : vars) {
     std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
   }
@@ -757,6 +761,10 @@ int parse(int argc, char *argv[]) {
         cmd_vars.emplace(std::move(*var));
       }
     }
+  }
+
+  if(!fs::exists(sunshine.config_file.c_str())) {
+      fs::copy_file(SUNSHINE_DEFAULT_DIR "/sunshine.conf", sunshine.config_file);
   }
 
   auto vars = parse_config(read_file(sunshine.config_file.c_str()));
