@@ -17,11 +17,22 @@ extern "C" {
 #include "thread_pool.h"
 #include "utility.h"
 
+using namespace std::literals;
 namespace input {
 
 constexpr auto MAX_GAMEPADS = std::min((std::size_t)platf::MAX_GAMEPADS, sizeof(std::int16_t) * 8);
 #define DISABLE_LEFT_BUTTON_DELAY ((util::ThreadPool::task_id_t)0x01)
 #define ENABLE_LEFT_BUTTON_DELAY nullptr
+
+constexpr auto VKEY_SHIFT    = 0x10;
+constexpr auto VKEY_LSHIFT   = 0xA0;
+constexpr auto VKEY_RSHIFT   = 0xA1;
+constexpr auto VKEY_CONTROL  = 0x11;
+constexpr auto VKEY_LCONTROL = 0xA2;
+constexpr auto VKEY_RCONTROL = 0xA3;
+constexpr auto VKEY_MENU     = 0x12;
+constexpr auto VKEY_LMENU    = 0xA4;
+constexpr auto VKEY_RMENU    = 0xA5;
 
 enum class button_state_e {
   NONE,
@@ -84,15 +95,27 @@ struct gamepad_t {
 };
 
 struct input_t {
+  enum shortkey_e {
+    CTRL  = 0x1,
+    ALT   = 0x2,
+    SHIFT = 0x4,
+
+    SHORTCUT = CTRL | ALT | SHIFT
+  };
+
   input_t(
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
     platf::rumble_queue_t rumble_queue)
-      : active_gamepad_state {},
+      : shortcutFlags {},
+        active_gamepad_state {},
         gamepads(MAX_GAMEPADS),
         touch_port_event { std::move(touch_port_event) },
         rumble_queue { std::move(rumble_queue) },
         mouse_left_button_timeout {},
         touch_port { 0, 0, 0, 0, 0, 0, 1.0f } {}
+
+  // Keep track of alt+ctrl+shift key combo
+  int shortcutFlags;
 
   std::uint16_t active_gamepad_state;
   std::vector<gamepad_t> gamepads;
@@ -105,7 +128,61 @@ struct input_t {
   input::touch_port_t touch_port;
 };
 
-using namespace std::literals;
+/**
+ * Apply shortcut based on VKEY
+ * On success
+ *    return > 0
+ * On nothing
+ *    return 0
+ */
+inline int apply_shortcut(short keyCode) {
+  BOOST_LOG(debug) << "Apply Shortcut: 0x"sv << util::hex((std::uint8_t)keyCode).to_string_view();
+  switch(keyCode) {
+  case 0x4E /* VKEY_N */:
+    display_cursor = !display_cursor;
+    return 1;
+  }
+
+  return 0;
+}
+
+/**
+ * Update flags for keyboard shortcut combo's
+ */
+inline void update_shortcutFlags(int *flags, short keyCode, bool release) {
+  switch(keyCode) {
+  case VKEY_SHIFT:
+  case VKEY_LSHIFT:
+  case VKEY_RSHIFT:
+    if(release) {
+      *flags &= ~input_t::SHIFT;
+    }
+    else {
+      *flags |= input_t::SHIFT;
+    }
+    break;
+  case VKEY_CONTROL:
+  case VKEY_LCONTROL:
+  case VKEY_RCONTROL:
+    if(release) {
+      *flags &= ~input_t::CTRL;
+    }
+    else {
+      *flags |= input_t::CTRL;
+    }
+    break;
+  case VKEY_MENU:
+  case VKEY_LMENU:
+  case VKEY_RMENU:
+    if(release) {
+      *flags &= ~input_t::ALT;
+    }
+    else {
+      *flags |= input_t::ALT;
+    }
+    break;
+  }
+}
 
 void print(PNV_REL_MOUSE_MOVE_PACKET packet) {
   BOOST_LOG(debug)
@@ -197,15 +274,11 @@ void print(void *input) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
-  display_cursor = true;
-
   input->mouse_left_button_timeout = DISABLE_LEFT_BUTTON_DELAY;
   platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
-  display_cursor = true;
-
   if(input->mouse_left_button_timeout == DISABLE_LEFT_BUTTON_DELAY) {
     input->mouse_left_button_timeout = ENABLE_LEFT_BUTTON_DELAY;
   }
@@ -255,8 +328,6 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
 
   auto constexpr BUTTON_LEFT  = 0x01;
   auto constexpr BUTTON_RIGHT = 0x03;
-
-  display_cursor = true;
 
   auto release = packet->action == BUTTON_RELEASED;
 
@@ -323,14 +394,12 @@ void repeat_key(short key_code) {
     return;
   }
 
-  platf::keyboard(platf_input, key_code & 0x00FF, false);
+  platf::keyboard(platf_input, key_code, false);
 
   key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
 }
 
 short map_keycode(short keycode) {
-  keycode &= 0x00FF;
-
   switch(keycode) {
   case 0x10:
     return 0xA0;
@@ -342,20 +411,28 @@ short map_keycode(short keycode) {
 
   return keycode;
 }
+
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
   auto constexpr BUTTON_RELEASED = 0x04;
 
   auto release = packet->keyAction == BUTTON_RELEASED;
+  auto keyCode = packet->keyCode & 0x00FF;
 
-  auto &pressed = key_press[packet->keyCode];
+  auto &pressed = key_press[keyCode];
   if(!pressed) {
     if(!release) {
+      // A new key has been pressed down, we need to check for key combo's
+      // If a keycombo has been pressed down, don't pass it through
+      if(input->shortcutFlags == input_t::SHORTCUT && apply_shortcut(keyCode) > 0) {
+        return;
+      }
+
       if(key_press_repeat_id) {
         task_pool.cancel(key_press_repeat_id);
       }
 
       if(config::input.key_repeat_delay.count() > 0) {
-        key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, packet->keyCode).task_id;
+        key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode).task_id;
       }
     }
     else {
@@ -370,12 +447,11 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
 
   pressed = !release;
 
-  platf::keyboard(platf_input, map_keycode(packet->keyCode), release);
+  update_shortcutFlags(&input->shortcutFlags, keyCode, release);
+  platf::keyboard(platf_input, map_keycode(keyCode), release);
 }
 
 void passthrough(PNV_SCROLL_PACKET packet) {
-  display_cursor = true;
-
   platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
 }
 
@@ -446,8 +522,6 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
   if(gamepad.id < 0) {
     return;
   }
-
-  display_cursor = false;
 
   std::uint16_t bf = packet->buttonFlags;
   platf::gamepad_state_t gamepad_state {

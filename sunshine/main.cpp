@@ -45,7 +45,7 @@ bl::sources::severity_logger<int> warning(3); // Strange events
 bl::sources::severity_logger<int> error(4);   // Recoverable errors
 bl::sources::severity_logger<int> fatal(5);   // Unrecoverable errors
 
-bool display_cursor;
+bool display_cursor = true;
 
 using text_sink = bl::sinks::asynchronous_sink<bl::sinks::text_ostream_backend>;
 boost::shared_ptr<text_sink> sink;
