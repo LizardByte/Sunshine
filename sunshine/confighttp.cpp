@@ -73,6 +73,15 @@ void send_unauthorized(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::client_error_unauthorized, headers);
 }
 
+void send_redirect(resp_https_t response, req_https_t request, const char *path) {
+  auto address = request->remote_endpoint_address();
+  BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
+  const SimpleWeb::CaseInsensitiveMultimap headers {
+    { "Location", path }
+  };
+  response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
+}
+
 bool authenticate(resp_https_t response, req_https_t request) {
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
@@ -86,6 +95,13 @@ bool authenticate(resp_https_t response, req_https_t request) {
   auto fg = util::fail_guard([&]() {
     send_unauthorized(response, request);
   });
+
+  //If credentials are shown, redirect the user to a /welcome page
+  if(config::sunshine.showCredentials){
+    send_redirect(response,request,"/welcome");
+    fg.disable();
+    return false;
+  }
 
   auto auth = request->header.find("authorization");
   if(auth == request->header.end()) {
@@ -182,6 +198,17 @@ void getPasswordPage(resp_https_t response, req_https_t request) {
 
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "password.html");
+  response->write(header + content);
+}
+
+void getWelcomePage(resp_https_t response, req_https_t request) {
+  print_req(request);
+  if(!config::sunshine.showCredentials){
+    send_redirect(response,request,"/");
+    return;
+  }
+  std::string header  = read_file(WEB_DIR "header-no-nav.html");
+  std::string content = read_file(WEB_DIR "welcome.html");
   response->write(header + content);
 }
 
@@ -335,6 +362,29 @@ void getConfig(resp_https_t response, req_https_t request) {
   }
 }
 
+void getPlainPassword(resp_https_t response, req_https_t request) {
+
+  print_req(request);
+
+  pt::ptree outputTree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+
+  if(config::sunshine.showCredentials){
+    outputTree.put("status", "true");
+    outputTree.put("username", config::sunshine.username);
+    outputTree.put("password", config::sunshine.plainPassword);
+    config::sunshine.showCredentials = false;
+    config::sunshine.plainPassword = "";
+  } else {
+    outputTree.put("status", "false");
+  }
+}
+
 void saveConfig(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -467,6 +517,7 @@ void start() {
   server.resource["^/clients$"]["GET"]              = getClientsPage;
   server.resource["^/config$"]["GET"]               = getConfigPage;
   server.resource["^/password$"]["GET"]             = getPasswordPage;
+  server.resource["^/welcome$"]["GET"]              = getWelcomePage;
   server.resource["^/api/pin"]["POST"]              = savePin;
   server.resource["^/api/apps$"]["GET"]             = getApps;
   server.resource["^/api/apps$"]["POST"]            = saveApp;
@@ -474,6 +525,7 @@ void start() {
   server.resource["^/api/config$"]["POST"]          = saveConfig;
   server.resource["^/api/password$"]["POST"]        = savePassword;
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
+  server.resource["^/api/setup/password$"]["GET"]   = getPlainPassword;
   server.config.reuse_address                       = true;
   server.config.address                             = "0.0.0.0"s;
   server.config.port                                = port_https;

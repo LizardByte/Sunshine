@@ -1,0 +1,30 @@
+<main role="main" id="app"  style="max-width: 600px;margin: 0 auto;">
+    <div class="container-parent">
+      <div class="container py-3">
+        <h1 class="mb-0">Welcome to Sunshine!</h1>
+        <p class="mb-0 align-self-start">Before Getting Started, write down below these credentials</p>
+      </div>
+    </div>
+    <div class="alert alert-warning">These Credentials down below are needed to access the rest of the application.<br> Keep them safe, since <b>you will never see them again!</b></div>
+    <div class="card p-4" style="width: 100%;">
+        <div class="mb-2">
+          <label for="" class="form-label">Username: </label>
+          <input type="text" class="form-control" disabled id="username">
+        </div>
+        <div class="mb-2">
+          <label for="" class="form-label">Password: </label>
+          <input type="text" class="form-control" disabled id="password">
+        </div>
+        <a href="/" class="mb-2 btn btn-primary" style="margin: 1em auto;">Login</a>
+    </div>
+</div>
+</main>
+
+<script>
+  fetch("/api/setup/password").then(r => r.json()).then(r => {
+    if(r.status === "true"){
+      document.querySelector("#username").value = r.username;
+      document.querySelector("#password").value = r.password;
+    }
+  })
+</script>

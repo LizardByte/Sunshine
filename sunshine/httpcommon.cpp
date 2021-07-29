@@ -94,8 +94,12 @@ int save_user_creds(const std::string &file, const std::string &username, const 
   BOOST_LOG(info) << "New credentials have been created"sv;
 
   if(run_our_mouth) {
-    BOOST_LOG(info) << "Username: "sv << username;
-    BOOST_LOG(info) << "Password: "sv << password;
+    //BOOST_LOG(info) << "Username: "sv << username;
+    //BOOST_LOG(info) << "Password: "sv << password;
+    BOOST_LOG(info) << "Open the Web UI to see your new username and password";
+    //Save these two in memory to show user and password the first time Sunshine is started
+    config::sunshine.showCredentials = true;
+    config::sunshine.plainPassword = password;
   }
 
   return 0;

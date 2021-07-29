@@ -109,6 +109,9 @@ struct sunshine_t {
   } cmd;
 
   std::uint16_t port;
+
+  bool showCredentials;
+  std::string plainPassword;
 };
 
 extern video_t video;
