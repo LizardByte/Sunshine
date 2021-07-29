@@ -155,7 +155,7 @@ struct x11_attr_t : public display_t {
     XInitThreads();
   }
 
-  int init(int framerate) {
+  int init(int framerate, const std::string &output_name) {
     if(!xdisplay) {
       BOOST_LOG(error) << "Could not open X11 display"sv;
       return -1;
@@ -168,8 +168,8 @@ struct x11_attr_t : public display_t {
     refresh();
 
     int streamedMonitor = -1;
-    if(!config::video.output_name.empty()) {
-      streamedMonitor = (int)util::from_view(config::video.output_name);
+    if(!output_name.empty()) {
+      streamedMonitor = (int)util::from_view(output_name);
     }
 
     if(streamedMonitor != -1) {
@@ -399,8 +399,8 @@ struct shm_attr_t : public x11_attr_t {
     return 0;
   }
 
-  int init(int framerate) {
-    if(x11_attr_t::init(framerate)) {
+  int init(int framerate, const std::string &output_name) {
+    if(x11_attr_t::init(framerate, output_name)) {
       return 1;
     }
 
@@ -443,7 +443,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 };
 
-std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerate) {
+std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::string &output_name, int framerate) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
@@ -452,7 +452,7 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerat
   // Attempt to use shared memory X11 to avoid copying the frame
   auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
 
-  auto status = shm_disp->init(framerate);
+  auto status = shm_disp->init(framerate, output_name);
   if(status > 0) {
     // x11_attr_t::init() failed, don't bother trying again.
     return nullptr;
@@ -464,11 +464,42 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerat
 
   // Fallback
   auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
-  if(x11_disp->init(framerate)) {
+  if(x11_disp->init(framerate, output_name)) {
     return nullptr;
   }
 
   return x11_disp;
+}
+
+std::vector<std::string> display_names() {
+  BOOST_LOG(info) << "Detecting connected monitors"sv;
+
+  xdisplay_t xdisplay { XOpenDisplay(nullptr) };
+  if(!xdisplay) {
+    return {};
+  }
+
+  auto xwindow = DefaultRootWindow(xdisplay.get());
+  screen_res_t screenr { XRRGetScreenResources(xdisplay.get(), xwindow) };
+  int output = screenr->noutput;
+
+  int monitor = 0;
+  for(int x = 0; x < output; ++x) {
+    output_info_t out_info { XRRGetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
+    if(out_info && out_info->connection == RR_Connected) {
+      ++monitor;
+    }
+  }
+
+  std::vector<std::string> names;
+  names.reserve(monitor);
+
+  for(auto x = 0; x < monitor; ++x) {
+    BOOST_LOG(fatal) << x;
+    names.emplace_back(std::to_string(x));
+  }
+
+  return names;
 }
 
 void freeImage(XImage *p) {

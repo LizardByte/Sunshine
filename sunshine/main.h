@@ -44,6 +44,8 @@ MAIL(broadcast_shutdown);
 MAIL(video_packets);
 MAIL(audio_packets);
 
+MAIL(switch_display);
+
 // Local mail
 MAIL(touch_port);
 MAIL(idr);

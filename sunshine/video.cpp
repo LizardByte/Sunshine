@@ -551,11 +551,11 @@ static std::vector<encoder_t> encoders {
   software
 };
 
-void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, int framerate) {
+void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, int framerate) {
   // We try this twice, in case we still get an error on reinitialization
   for(int x = 0; x < 2; ++x) {
     disp.reset();
-    disp = platf::display(map_dev_type(type), framerate);
+    disp = platf::display(map_dev_type(type), display_name, framerate);
     if(disp) {
       break;
     }
@@ -583,11 +583,30 @@ void captureThread(
     }
   });
 
+  auto switch_display_event = mail::man->event<int>(mail::switch_display);
+
+  // Get all the monitor names now, rather than at boot, to
+  // get the most up-to-date list available monitors
+  auto display_names = platf::display_names();
+  int display_p      = 0;
+
+  if(display_names.empty()) {
+    display_names.emplace_back(config::video.output_name);
+  }
+
+  for(int x = 0; x < display_names.size(); ++x) {
+    if(display_names[x] == config::video.output_name) {
+      display_p = x;
+
+      break;
+    }
+  }
+
   if(auto capture_ctx = capture_ctx_queue->pop()) {
     capture_ctxs.emplace_back(std::move(*capture_ctx));
   }
 
-  auto disp = platf::display(map_dev_type(encoder.dev_type), capture_ctxs.front().framerate);
+  auto disp = platf::display(map_dev_type(encoder.dev_type), display_names[display_p], capture_ctxs.front().framerate);
   if(!disp) {
     return;
   }
@@ -605,11 +624,9 @@ void captureThread(
   }
 
   while(capture_ctx_queue->running()) {
-    auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img) -> std::shared_ptr<platf::img_t> {
-      while(capture_ctx_queue->peek()) {
-        capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
-      }
+    bool artificial_reinit = false;
 
+    auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img) -> std::shared_ptr<platf::img_t> {
       KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
         if(!capture_ctx->images->running()) {
           capture_ctx = capture_ctxs.erase(capture_ctx);
@@ -624,6 +641,16 @@ void captureThread(
       if(!capture_ctx_queue->running()) {
         return nullptr;
       }
+      while(capture_ctx_queue->peek()) {
+        capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
+      }
+
+      if(switch_display_event->peek()) {
+        artificial_reinit = true;
+
+        display_p = std::clamp(*switch_display_event->pop(), 0, (int)display_names.size() - 1);
+        return nullptr;
+      }
 
       auto &next_img = *round_robin++;
       while(next_img.use_count() > 1) {}
@@ -632,6 +659,12 @@ void captureThread(
     },
       *round_robin++, &display_cursor);
 
+
+    if(artificial_reinit && status != platf::capture_e::error) {
+      status = platf::capture_e::reinit;
+
+      artificial_reinit = false;
+    }
 
     switch(status) {
     case platf::capture_e::reinit: {
@@ -651,7 +684,7 @@ void captureThread(
       }
 
       while(capture_ctx_queue->running()) {
-        reset_display(disp, encoder.dev_type, capture_ctxs.front().framerate);
+        reset_display(disp, encoder.dev_type, display_names[display_p], capture_ctxs.front().framerate);
 
         if(disp) {
           break;
@@ -1080,10 +1113,16 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   return std::move(encode_session);
 }
 
-encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs, encode_session_ctx_queue_t &encode_session_ctx_queue) {
+encode_e encode_run_sync(
+  std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs,
+  encode_session_ctx_queue_t &encode_session_ctx_queue,
+  int &display_p, const std::vector<std::string> &display_names) {
+
   const auto &encoder = encoders.front();
 
   std::shared_ptr<platf::display_t> disp;
+
+  auto switch_display_event = mail::man->event<int>(mail::switch_display);
 
   if(synced_session_ctxs.empty()) {
     auto ctx = encode_session_ctx_queue.pop();
@@ -1097,7 +1136,7 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
   int framerate = synced_session_ctxs.front()->config.framerate;
 
   while(encode_session_ctx_queue.running()) {
-    reset_display(disp, encoder.dev_type, framerate);
+    reset_display(disp, encoder.dev_type, display_names[display_p], framerate);
     if(disp) {
       break;
     }
@@ -1190,6 +1229,13 @@ encode_e encode_run_sync(std::vector<std::unique_ptr<sync_session_ctx_t>> &synce
         ++pos;
       })
 
+      if(switch_display_event->peek()) {
+        ec = platf::capture_e::reinit;
+
+        display_p = std::clamp(*switch_display_event->pop(), 0, (int)display_names.size() - 1);
+        return nullptr;
+      }
+
       return img;
     };
 
@@ -1226,7 +1272,22 @@ void captureThreadSync() {
     }
   });
 
-  while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
+  auto display_names = platf::display_names();
+  int display_p      = 0;
+
+  if(display_names.empty()) {
+    display_names.emplace_back(config::video.output_name);
+  }
+
+  for(int x = 0; x < display_names.size(); ++x) {
+    if(display_names[x] == config::video.output_name) {
+      display_p = x;
+
+      break;
+    }
+  }
+
+  while(encode_run_sync(synced_session_ctxs, ctx, display_p, display_names) == encode_e::reinit) {}
 }
 
 void capture_async(
@@ -1338,7 +1399,7 @@ enum validate_flag_e {
 };
 
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
-  reset_display(disp, encoder.dev_type, config.framerate);
+  reset_display(disp, encoder.dev_type, config::video.output_name, config.framerate);
   if(!disp) {
     return -1;
   }

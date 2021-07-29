@@ -271,7 +271,18 @@ std::string from_sockaddr(const sockaddr *const);
 std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
 std::unique_ptr<audio_control_t> audio_control();
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, int framerate);
+
+/**
+ * display_name --> The name of the monitor that SHOULD be displayed
+ *    If display_name is empty --> Use the first monitor that's compatible you can find
+ *    If you require to use this parameter in a seperate thread --> make a copy of it.
+ * 
+ * framerate --> The peak number of images per second
+ * 
+ * Returns display_t based on hwdevice_type
+ */
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::vector<std::string> display_names();
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
