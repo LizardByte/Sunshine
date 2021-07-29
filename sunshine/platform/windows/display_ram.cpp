@@ -293,8 +293,8 @@ int display_ram_t::dummy_img(platf::img_t *img) {
   return 0;
 }
 
-int display_ram_t::init(int framerate) {
-  if(display_base_t::init(framerate)) {
+int display_ram_t::init(int framerate, const std::string &display_name) {
+  if(display_base_t::init(framerate, display_name)) {
     return -1;
   }
 

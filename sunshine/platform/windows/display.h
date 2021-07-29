@@ -74,7 +74,7 @@ public:
 
 class display_base_t : public display_t {
 public:
-  int init(int framerate);
+  int init(int framerate, const std::string &display_name);
 
   std::chrono::nanoseconds delay;
 
@@ -109,7 +109,7 @@ public:
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img) override;
 
-  int init(int framerate);
+  int init(int framerate, const std::string &display_name);
 
   cursor_t cursor;
   D3D11_MAPPED_SUBRESOURCE img_info;

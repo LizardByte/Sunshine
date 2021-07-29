@@ -73,7 +73,7 @@ duplication_t::~duplication_t() {
   release_frame();
 }
 
-int display_base_t::init(int framerate) {
+int display_base_t::init(int framerate, const std::string &display_name) {
   /* Uncomment when use of IDXGIOutput5 is implemented
   std::call_once(windows_cpp_once_flag, []() {
     DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
@@ -111,7 +111,7 @@ int display_base_t::init(int framerate) {
   std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   auto adapter_name = converter.from_bytes(config::video.adapter_name);
-  auto output_name  = converter.from_bytes(config::video.output_name);
+  auto output_name  = converter.from_bytes(display_name);
 
   adapter_t::pointer adapter_p;
   for(int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
@@ -433,22 +433,81 @@ const char *format_str[] = {
 } // namespace platf::dxgi
 
 namespace platf {
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, int framerate) {
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
   if(hwdevice_type == mem_type_e::dxgi) {
     auto disp = std::make_shared<dxgi::display_vram_t>();
 
-    if(!disp->init(framerate)) {
+    if(!disp->init(framerate, display_name)) {
       return disp;
     }
   }
   else if(hwdevice_type == mem_type_e::system) {
     auto disp = std::make_shared<dxgi::display_ram_t>();
 
-    if(!disp->init(framerate)) {
+    if(!disp->init(framerate, display_name)) {
       return disp;
     }
   }
 
   return nullptr;
 }
+
+std::vector<std::string> display_names() {
+  std::vector<std::string> display_names;
+
+  HRESULT status;
+
+  BOOST_LOG(debug) << "Detecting monitors..."sv;
+
+  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+
+  dxgi::factory1_t factory;
+  status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+    return {};
+  }
+
+  dxgi::adapter_t adapter;
+  for(int x = 0; factory->EnumAdapters1(x, &adapter) != DXGI_ERROR_NOT_FOUND; ++x) {
+    DXGI_ADAPTER_DESC1 adapter_desc;
+    adapter->GetDesc1(&adapter_desc);
+
+    BOOST_LOG(debug)
+      << std::endl
+      << "====== ADAPTER ====="sv << std::endl
+      << "Device Name      : "sv << converter.to_bytes(adapter_desc.Description) << std::endl
+      << "Device Vendor ID : 0x"sv << util::hex(adapter_desc.VendorId).to_string_view() << std::endl
+      << "Device Device ID : 0x"sv << util::hex(adapter_desc.DeviceId).to_string_view() << std::endl
+      << "Device Video Mem : "sv << adapter_desc.DedicatedVideoMemory / 1048576 << " MiB"sv << std::endl
+      << "Device Sys Mem   : "sv << adapter_desc.DedicatedSystemMemory / 1048576 << " MiB"sv << std::endl
+      << "Share Sys Mem    : "sv << adapter_desc.SharedSystemMemory / 1048576 << " MiB"sv << std::endl
+      << std::endl
+      << "    ====== OUTPUT ======"sv << std::endl;
+
+    dxgi::output_t::pointer output_p {};
+    for(int y = 0; adapter->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+      dxgi::output_t output { output_p };
+
+      DXGI_OUTPUT_DESC desc;
+      output->GetDesc(&desc);
+
+      auto device_name = converter.to_bytes(desc.DeviceName);
+
+      auto width  = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
+      auto height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
+
+      BOOST_LOG(debug)
+        << "    Output Name       : "sv << device_name << std::endl
+        << "    AttachedToDesktop : "sv << (desc.AttachedToDesktop ? "yes"sv : "no"sv) << std::endl
+        << "    Resolution        : "sv << width << 'x' << height << std::endl
+        << std::endl;
+
+      display_names.emplace_back(std::move(device_name));
+    }
+  }
+
+  return display_names;
+}
+
 } // namespace platf

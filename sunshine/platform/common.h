@@ -282,6 +282,8 @@ std::unique_ptr<audio_control_t> audio_control();
  * Returns display_t based on hwdevice_type
  */
 std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+
+// A list of names of displays accepted as display_name
 std::vector<std::string> display_names();
 
 input_t input();
