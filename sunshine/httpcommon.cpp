@@ -54,15 +54,11 @@ int init() {
       return -1;
     }
   }
-  if(!user_creds_exist(config::sunshine.credentials_file)) {
-    if(save_user_creds(config::sunshine.credentials_file, "sunshine"s, crypto::rand_alphabet(16), true)) {
-      return -1;
-    }
+  if(user_creds_exist(config::sunshine.credentials_file)) {
+    if(reload_user_creds(config::sunshine.credentials_file)) return -1;
+  } else {
+    BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
   }
-  if(reload_user_creds(config::sunshine.credentials_file)) {
-    return -1;
-  }
-
   return 0;
 }
 
@@ -92,16 +88,6 @@ int save_user_creds(const std::string &file, const std::string &username, const 
   }
 
   BOOST_LOG(info) << "New credentials have been created"sv;
-
-  if(run_our_mouth) {
-    //BOOST_LOG(info) << "Username: "sv << username;
-    //BOOST_LOG(info) << "Password: "sv << password;
-    BOOST_LOG(info) << "Open the Web UI to see your new username and password";
-    //Save these two in memory to show user and password the first time Sunshine is started
-    config::sunshine.showCredentials = true;
-    config::sunshine.plainPassword = password;
-  }
-
   return 0;
 }
 

@@ -230,8 +230,6 @@ sunshine_t sunshine {
   SUNSHINE_CONFIG_DIR "/sunshine.conf", // config file
   {},                                   // cmd args
   47989,
-  false,                                 // show credentials,
-  ""
 };
 
 bool endline(char ch) {

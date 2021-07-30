@@ -87,8 +87,8 @@ sunshine needs access to uinput to create mouse and gamepad events:
 - When Moonlight request you insert the correct pin on sunshine:
 	- Type in the URL bar of your browser: `https://xxx.xxx.xxx.xxx:47990` where `xxx.xxx.xxx.xxx` is the IP address of your computer
 	- Ignore any warning given by your browser about "insecure website"
-	- You should see a page containing both a new username and a password, needed to login into the next step
-	- Press "login" and log in using the credentials given above 
+	- You should compile the next page with a new username and a password, needed to login into the next step
+	- Press "Save" and log in using the credentials given above 
 	- Go to "PIN" in the Header
 	- Type in your PIN and press Enter, you should get a Success Message
 - Click on one of the Applications listed
