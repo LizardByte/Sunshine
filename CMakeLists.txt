@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine)
 
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 add_subdirectory(third-party/Simple-Web-Server)
 
@@ -106,16 +106,23 @@ else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
-	find_package(X11 REQUIRED)
-	find_package(FFmpeg REQUIRED)
+	find_package(X11)
 
-	set(PLATFORM_TARGET_FILES
+	if(X11_FOUND)
+		include_directories(${X11_INCLUDE_DIR})
+		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/display.cpp)
+	else()
+		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
+	endif()
+
+	find_package(FFMPEG REQUIRED)
+
+	list(APPEND PLATFORM_TARGET_FILES
 		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
 		sunshine/platform/linux/misc.h
 		sunshine/platform/linux/misc.cpp
-		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp
 		third-party/glad/src/egl.c
@@ -126,21 +133,13 @@ else()
 		third-party/glad/include/glad/egl.h)
 		
 	set(PLATFORM_LIBRARIES
-		Xfixes
-		Xtst
-		xcb
-		xcb-shm
-		xcb-xfixes
-		Xrandr
-		${X11_LIBRARIES}
 		dl
 		evdev
 		pulse
 		pulse-simple
 		)
 	
-	set(PLATFORM_INCLUDE_DIRS
-		${X11_INCLUDE_DIR}
+	include_directories(
 		/usr/include/libevdev-1.0
 		third-party/glad/include)
 

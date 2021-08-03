@@ -20,25 +20,268 @@
 #include "sunshine/main.h"
 #include "sunshine/task_pool.h"
 
+#include "misc.h"
 #include "vaapi.h"
 
 using namespace std::literals;
 
 namespace platf {
 
+namespace x11 {
+#define _FN(x, ret, args)    \
+  typedef ret(*x##_fn) args; \
+  static x##_fn x
+
+using XID      = unsigned long;
+using Time     = unsigned long;
+using Rotation = unsigned short;
+
+_FN(GetImage, XImage *,
+  (
+    Display * display,
+    Drawable d,
+    int x, int y,
+    unsigned int width, unsigned int height,
+    unsigned long plane_mask,
+    int format));
+
+_FN(OpenDisplay, Display *, (_Xconst char *display_name));
+_FN(GetWindowAttributes, Status,
+  (
+    Display * display,
+    Window w,
+    XWindowAttributes *window_attributes_return));
+
+_FN(CloseDisplay, int, (Display * display));
+_FN(Free, int, (void *data));
+_FN(InitThreads, Status, (void));
+
+namespace rr {
+using Mode   = XID;
+using Output = XID;
+
+struct CrtcInfo {
+  Time timestamp;
+  int x, y;
+  unsigned int width, height;
+  Mode mode;
+  Rotation rotation;
+  int noutput;
+  Output *outputs;
+  Rotation rotations;
+  int npossible;
+  Output *possible;
+};
+
+_FN(GetScreenResources, XRRScreenResources *, (Display * dpy, Window window));
+_FN(GetOutputInfo, XRROutputInfo *, (Display * dpy, XRRScreenResources *resources, RROutput output));
+_FN(GetCrtcInfo, XRRCrtcInfo *, (Display * dpy, XRRScreenResources *resources, RRCrtc crtc));
+_FN(FreeScreenResources, void, (XRRScreenResources * resources));
+_FN(FreeOutputInfo, void, (XRROutputInfo * outputInfo));
+_FN(FreeCrtcInfo, void, (XRRCrtcInfo * crtcInfo));
+
+int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libXrandr.so.2", "libXrandr.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&GetScreenResources, "XRRGetScreenResources" },
+    { (dyn::apiproc *)&GetOutputInfo, "XRRGetOutputInfo" },
+    { (dyn::apiproc *)&GetCrtcInfo, "XRRGetCrtcInfo" },
+    { (dyn::apiproc *)&FreeScreenResources, "XRRFreeScreenResources" },
+    { (dyn::apiproc *)&FreeOutputInfo, "XRRFreeOutputInfo" },
+    { (dyn::apiproc *)&FreeCrtcInfo, "XRRFreeCrtcInfo" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+
+} // namespace rr
+namespace fix {
+_FN(GetCursorImage, XFixesCursorImage *, (Display * dpy));
+
+int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libXfixes.so.3", "libXfixes.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&GetCursorImage, "XFixesGetCursorImage" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+} // namespace fix
+
+int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libX11.so.6", "libX11.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&GetImage, "XGetImage" },
+    { (dyn::apiproc *)&OpenDisplay, "XOpenDisplay" },
+    { (dyn::apiproc *)&GetWindowAttributes, "XGetWindowAttributes" },
+    { (dyn::apiproc *)&Free, "XFree" },
+    { (dyn::apiproc *)&CloseDisplay, "XCloseDisplay" },
+    { (dyn::apiproc *)&InitThreads, "XInitThreads" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+} // namespace x11
+
+namespace xcb {
+static xcb_extension_t *shm_id;
+
+_FN(shm_get_image_reply, xcb_shm_get_image_reply_t *,
+  (
+    xcb_connection_t * c,
+    xcb_shm_get_image_cookie_t cookie,
+    xcb_generic_error_t **e));
+
+_FN(shm_get_image_unchecked, xcb_shm_get_image_cookie_t,
+  (
+    xcb_connection_t * c,
+    xcb_drawable_t drawable,
+    int16_t x, int16_t y,
+    uint16_t width, uint16_t height,
+    uint32_t plane_mask,
+    uint8_t format,
+    xcb_shm_seg_t shmseg,
+    uint32_t offset));
+
+_FN(shm_attach, xcb_void_cookie_t,
+  (xcb_connection_t * c,
+    xcb_shm_seg_t shmseg,
+    uint32_t shmid,
+    uint8_t read_only));
+
+_FN(get_extension_data, xcb_query_extension_reply_t *,
+  (xcb_connection_t * c, xcb_extension_t *ext));
+
+_FN(get_setup, xcb_setup_t *, (xcb_connection_t * c));
+_FN(disconnect, void, (xcb_connection_t * c));
+_FN(connection_has_error, int, (xcb_connection_t * c));
+_FN(connect, xcb_connection_t *, (const char *displayname, int *screenp));
+_FN(setup_roots_iterator, xcb_screen_iterator_t, (const xcb_setup_t *R));
+_FN(generate_id, std::uint32_t, (xcb_connection_t * c));
+
+int init_shm() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libxcb-shm.so.0", "libxcb-shm.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&shm_id, "xcb_shm_id" },
+    { (dyn::apiproc *)&shm_get_image_reply, "xcb_shm_get_image_reply" },
+    { (dyn::apiproc *)&shm_get_image_unchecked, "xcb_shm_get_image_unchecked" },
+    { (dyn::apiproc *)&shm_attach, "xcb_shm_attach" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+
+int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libxcb.so.1", "libxcb.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&get_extension_data, "xcb_get_extension_data" },
+    { (dyn::apiproc *)&get_setup, "xcb_get_setup" },
+    { (dyn::apiproc *)&disconnect, "xcb_disconnect" },
+    { (dyn::apiproc *)&connection_has_error, "xcb_connection_has_error" },
+    { (dyn::apiproc *)&connect, "xcb_connect" },
+    { (dyn::apiproc *)&setup_roots_iterator, "xcb_setup_roots_iterator" },
+    { (dyn::apiproc *)&generate_id, "xcb_generate_id" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+
+#undef _FN
+} // namespace xcb
+
 void freeImage(XImage *);
 void freeX(XFixesCursorImage *);
 
-using xcb_connect_t = util::safe_ptr<xcb_connection_t, xcb_disconnect>;
+using xcb_connect_t = util::dyn_safe_ptr<xcb_connection_t, &xcb::disconnect>;
 using xcb_img_t     = util::c_ptr<xcb_shm_get_image_reply_t>;
 
-using xdisplay_t = util::safe_ptr_v2<Display, int, XCloseDisplay>;
+using xdisplay_t = util::dyn_safe_ptr_v2<Display, int, &x11::CloseDisplay>;
 using ximg_t     = util::safe_ptr<XImage, freeImage>;
 using xcursor_t  = util::safe_ptr<XFixesCursorImage, freeX>;
 
-using crtc_info_t   = util::safe_ptr<_XRRCrtcInfo, XRRFreeCrtcInfo>;
-using output_info_t = util::safe_ptr<_XRROutputInfo, XRRFreeOutputInfo>;
-using screen_res_t  = util::safe_ptr<_XRRScreenResources, XRRFreeScreenResources>;
+using crtc_info_t   = util::dyn_safe_ptr<_XRRCrtcInfo, &x11::rr::FreeCrtcInfo>;
+using output_info_t = util::dyn_safe_ptr<_XRROutputInfo, &x11::rr::FreeOutputInfo>;
+using screen_res_t  = util::dyn_safe_ptr<_XRRScreenResources, &x11::rr::FreeScreenResources>;
 
 class shm_id_t {
 public:
@@ -87,7 +330,7 @@ struct shm_img_t : public img_t {
 };
 
 void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
-  xcursor_t overlay { XFixesGetCursorImage(display) };
+  xcursor_t overlay { x11::fix::GetCursorImage(display) };
 
   if(!overlay) {
     BOOST_LOG(error) << "Couldn't get cursor from XFixesGetCursorImage"sv;
@@ -151,11 +394,11 @@ struct x11_attr_t : public display_t {
    */
   // int env_width, env_height;
 
-  x11_attr_t(mem_type_e mem_type) : xdisplay { XOpenDisplay(nullptr) }, xwindow {}, xattr {}, mem_type { mem_type } {
-    XInitThreads();
+  x11_attr_t(mem_type_e mem_type) : xdisplay { x11::OpenDisplay(nullptr) }, xwindow {}, xattr {}, mem_type { mem_type } {
+    x11::InitThreads();
   }
 
-  int init(int framerate, const std::string &output_name) {
+  int init(int framerate) {
     if(!xdisplay) {
       BOOST_LOG(error) << "Could not open X11 display"sv;
       return -1;
@@ -168,19 +411,19 @@ struct x11_attr_t : public display_t {
     refresh();
 
     int streamedMonitor = -1;
-    if(!output_name.empty()) {
-      streamedMonitor = (int)util::from_view(output_name);
+    if(!config::video.output_name.empty()) {
+      streamedMonitor = (int)util::from_view(config::video.output_name);
     }
 
     if(streamedMonitor != -1) {
       BOOST_LOG(info) << "Configuring selected monitor ("sv << streamedMonitor << ") to stream"sv;
-      screen_res_t screenr { XRRGetScreenResources(xdisplay.get(), xwindow) };
+      screen_res_t screenr { x11::rr::GetScreenResources(xdisplay.get(), xwindow) };
       int output = screenr->noutput;
 
       output_info_t result;
       int monitor = 0;
       for(int x = 0; x < output; ++x) {
-        output_info_t out_info { XRRGetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
+        output_info_t out_info { x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
         if(out_info && out_info->connection == RR_Connected) {
           if(monitor++ == streamedMonitor) {
             result = std::move(out_info);
@@ -194,7 +437,7 @@ struct x11_attr_t : public display_t {
         return -1;
       }
 
-      crtc_info_t crt_info { XRRGetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc) };
+      crtc_info_t crt_info { x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc) };
       BOOST_LOG(info)
         << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
 
@@ -218,7 +461,7 @@ struct x11_attr_t : public display_t {
    * Called when the display attributes should change.
    */
   void refresh() {
-    XGetWindowAttributes(xdisplay.get(), xwindow, &xattr); //Update xattr's
+    x11::GetWindowAttributes(xdisplay.get(), xwindow, &xattr); //Update xattr's
   }
 
   capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
@@ -263,7 +506,7 @@ struct x11_attr_t : public display_t {
       BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
       return capture_e::reinit;
     }
-    XImage *img { XGetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
+    XImage *img { x11::GetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
 
     auto img_out         = (x11_img_t *)img_out_base;
     img_out->width       = img->width;
@@ -316,7 +559,7 @@ struct shm_attr_t : public x11_attr_t {
     refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
-  shm_attr_t(mem_type_e mem_type) : x11_attr_t(mem_type), shm_xdisplay { XOpenDisplay(nullptr) } {
+  shm_attr_t(mem_type_e mem_type) : x11_attr_t(mem_type), shm_xdisplay { x11::OpenDisplay(nullptr) } {
     refresh_task_id = task_pool.pushDelayed(&shm_attr_t::delayed_refresh, 2s, this).task_id;
   }
 
@@ -366,9 +609,9 @@ struct shm_attr_t : public x11_attr_t {
       return capture_e::reinit;
     }
     else {
-      auto img_cookie = xcb_shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
+      auto img_cookie = xcb::shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
 
-      xcb_img_t img_reply { xcb_shm_get_image_reply(xcb.get(), img_cookie, nullptr) };
+      xcb_img_t img_reply { xcb::shm_get_image_reply(xcb.get(), img_cookie, nullptr) };
       if(!img_reply) {
         BOOST_LOG(error) << "Could not get image reply"sv;
         return capture_e::reinit;
@@ -399,26 +642,26 @@ struct shm_attr_t : public x11_attr_t {
     return 0;
   }
 
-  int init(int framerate, const std::string &output_name) {
-    if(x11_attr_t::init(framerate, output_name)) {
+  int init(int framerate) {
+    if(x11_attr_t::init(framerate)) {
       return 1;
     }
 
-    shm_xdisplay.reset(XOpenDisplay(nullptr));
-    xcb.reset(xcb_connect(nullptr, nullptr));
-    if(xcb_connection_has_error(xcb.get())) {
+    shm_xdisplay.reset(x11::OpenDisplay(nullptr));
+    xcb.reset(xcb::connect(nullptr, nullptr));
+    if(xcb::connection_has_error(xcb.get())) {
       return -1;
     }
 
-    if(!xcb_get_extension_data(xcb.get(), &xcb_shm_id)->present) {
+    if(!xcb::get_extension_data(xcb.get(), xcb::shm_id)->present) {
       BOOST_LOG(error) << "Missing SHM extension"sv;
 
       return -1;
     }
 
-    auto iter = xcb_setup_roots_iterator(xcb_get_setup(xcb.get()));
+    auto iter = xcb::setup_roots_iterator(xcb::get_setup(xcb.get()));
     display   = iter.data;
-    seg       = xcb_generate_id(xcb.get());
+    seg       = xcb::generate_id(xcb.get());
 
     shm_id.id = shmget(IPC_PRIVATE, frame_size(), IPC_CREAT | 0777);
     if(shm_id.id == -1) {
@@ -426,7 +669,7 @@ struct shm_attr_t : public x11_attr_t {
       return -1;
     }
 
-    xcb_shm_attach(xcb.get(), seg, shm_id.id, false);
+    xcb::shm_attach(xcb.get(), seg, shm_id.id, false);
     data.data = shmat(shm_id.id, nullptr, 0);
 
     if((uintptr_t)data.data == -1) {
@@ -443,16 +686,22 @@ struct shm_attr_t : public x11_attr_t {
   }
 };
 
-std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::string &output_name, int framerate) {
+std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerate) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
+    return nullptr;
+  }
+
+  if(xcb::init_shm() || xcb::init() || x11::init() || x11::rr::init() || x11::fix::init()) {
+    BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
+
     return nullptr;
   }
 
   // Attempt to use shared memory X11 to avoid copying the frame
   auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
 
-  auto status = shm_disp->init(framerate, output_name);
+  auto status = shm_disp->init(framerate);
   if(status > 0) {
     // x11_attr_t::init() failed, don't bother trying again.
     return nullptr;
@@ -464,48 +713,17 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::s
 
   // Fallback
   auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
-  if(x11_disp->init(framerate, output_name)) {
+  if(x11_disp->init(framerate)) {
     return nullptr;
   }
 
   return x11_disp;
 }
 
-std::vector<std::string> display_names() {
-  BOOST_LOG(info) << "Detecting connected monitors"sv;
-
-  xdisplay_t xdisplay { XOpenDisplay(nullptr) };
-  if(!xdisplay) {
-    return {};
-  }
-
-  auto xwindow = DefaultRootWindow(xdisplay.get());
-  screen_res_t screenr { XRRGetScreenResources(xdisplay.get(), xwindow) };
-  int output = screenr->noutput;
-
-  int monitor = 0;
-  for(int x = 0; x < output; ++x) {
-    output_info_t out_info { XRRGetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
-    if(out_info && out_info->connection == RR_Connected) {
-      ++monitor;
-    }
-  }
-
-  std::vector<std::string> names;
-  names.reserve(monitor);
-
-  for(auto x = 0; x < monitor; ++x) {
-    BOOST_LOG(fatal) << x;
-    names.emplace_back(std::to_string(x));
-  }
-
-  return names;
-}
-
 void freeImage(XImage *p) {
   XDestroyImage(p);
 }
 void freeX(XFixesCursorImage *p) {
-  XFree(p);
+  x11::Free(p);
 }
 } // namespace platf
