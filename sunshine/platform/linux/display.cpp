@@ -495,7 +495,6 @@ std::vector<std::string> display_names() {
   names.reserve(monitor);
 
   for(auto x = 0; x < monitor; ++x) {
-    BOOST_LOG(fatal) << x;
     names.emplace_back(std::to_string(x));
   }
 

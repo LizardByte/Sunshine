@@ -190,7 +190,7 @@ stream::launch_session_t make_launch_session(bool host_audio, const args_t &args
   stream::launch_session_t launch_session;
 
   launch_session.host_audio = host_audio;
-  launch_session.gcm_key    = *util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
+  launch_session.gcm_key    = util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
   uint32_t prepend_iv       = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
   auto prepend_iv_p         = (uint8_t *)&prepend_iv;
 
@@ -211,7 +211,7 @@ void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin
 
   auto salt = util::from_hex<std::array<uint8_t, 16>>(salt_view, true);
 
-  auto key        = crypto::gen_aes_key(*salt, pin);
+  auto key        = crypto::gen_aes_key(salt, pin);
   sess.cipher_key = std::make_unique<crypto::aes_t>(key);
 
   tree.put("root.paired", 1);

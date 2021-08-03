@@ -268,11 +268,12 @@ std::string hex_vec(C &&c, bool rev = false) {
 }
 
 template<class T>
-std::optional<T> from_hex(const std::string_view &hex, bool rev = false) {
+T from_hex(const std::string_view &hex, bool rev = false) {
   std::uint8_t buf[sizeof(T)];
 
   static char constexpr shift_bit = 'a' - 'A';
-  auto is_convertable             = [](char ch) -> bool {
+
+  auto is_convertable = [](char ch) -> bool {
     if(isdigit(ch)) {
       return true;
     }
@@ -287,9 +288,7 @@ std::optional<T> from_hex(const std::string_view &hex, bool rev = false) {
   };
 
   auto buf_size = std::count_if(std::begin(hex), std::end(hex), is_convertable) / 2;
-  if(buf_size != sizeof(T)) {
-    return std::nullopt;
-  }
+  auto padding  = sizeof(T) - buf_size;
 
   const char *data = hex.data() + hex.size() - 1;
 
@@ -301,7 +300,9 @@ std::optional<T> from_hex(const std::string_view &hex, bool rev = false) {
     return (std::uint8_t)(ch | (char)32) - 'a' + (char)10;
   };
 
-  for(auto &el : buf) {
+  std::fill_n(buf + buf_size, padding, 0);
+
+  std::for_each_n(buf, buf_size, [&](auto &el) {
     while(!is_convertable(*data)) { --data; }
     std::uint8_t ch_r = convert(*data--);
 
@@ -309,7 +310,7 @@ std::optional<T> from_hex(const std::string_view &hex, bool rev = false) {
     std::uint8_t ch_l = convert(*data--);
 
     el = (ch_l << 4) | ch_r;
-  }
+  });
 
   if(rev) {
     std::reverse(std::begin(buf), std::end(buf));

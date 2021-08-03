@@ -11,7 +11,7 @@
 namespace config {
 struct video_t {
   // ffmpeg params
-  int qp;  // higher == more compression and less quality
+  int qp; // higher == more compression and less quality
 
   int hevc_mode;
 
@@ -73,6 +73,8 @@ struct nvhttp_t {
 };
 
 struct input_t {
+  std::unordered_map<int, int> keybindings;
+
   std::chrono::milliseconds back_button_timeout;
   std::chrono::milliseconds key_repeat_delay;
   std::chrono::duration<double> key_repeat_period;

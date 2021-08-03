@@ -210,6 +210,11 @@ nvhttp_t nvhttp {
 };
 
 input_t input {
+  {
+    { 0x10, 0xA0 },
+    { 0x11, 0xA2 },
+    { 0x12, 0xA4 },
+  },
   2s,                                         // back_button_timeout
   500ms,                                      // key_repeat_delay
   std::chrono::duration<double> { 1 / 24.9 }, // key_repeat_period
@@ -399,8 +404,20 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
     return;
   }
 
-  auto &val = it->second;
-  input     = util::from_chars(&val[0], &val[0] + val.size());
+  std::string_view val = it->second;
+
+  // If value is something like: "756" instead of 756
+  if(val.size() >= 2 && val[0] == '"') {
+    val = val.substr(1, val.size() - 2);
+  }
+
+  // If that integer is in hexadecimal
+  if(val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
+    input = util::from_hex<int>(val.substr(2));
+  }
+  else {
+    input = util::from_view(val);
+  }
 
   vars.erase(it);
 }
@@ -412,8 +429,20 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
     return;
   }
 
-  auto &val = it->second;
-  input     = util::from_chars(&val[0], &val[0] + val.size());
+  std::string_view val = it->second;
+
+  // If value is something like: "756" instead of 756
+  if(val.size() >= 2 && val[0] == '"') {
+    val = val.substr(1, val.size() - 2);
+  }
+
+  // If that integer is in hexadecimal
+  if(val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
+    input = util::from_hex<int>(val.substr(2));
+  }
+  else {
+    input = util::from_view(val);
+  }
 
   vars.erase(it);
 }
@@ -545,7 +574,42 @@ void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::s
   list_string_f(vars, name, list);
 
   for(auto &el : list) {
-    input.emplace_back(util::from_view(el));
+    std::string_view val = el;
+
+    // If value is something like: "756" instead of 756
+    if(val.size() >= 2 && val[0] == '"') {
+      val = val.substr(1, val.size() - 2);
+    }
+
+    int tmp;
+
+    // If the integer is a hexadecimal
+    if(val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
+      tmp = util::from_hex<int>(val.substr(2));
+    }
+    else {
+      tmp = util::from_view(val);
+    }
+    input.emplace_back(tmp);
+  }
+}
+
+void map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::unordered_map<int, int> &input) {
+  std::vector<int> list;
+  list_int_f(vars, name, list);
+
+  // The list needs to be a multiple of 2
+  if(list.size() % 2) {
+    std::cout << "Warning: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size() << std::endl;
+    return;
+  }
+
+  int x = 0;
+  while(x < list.size()) {
+    auto key = list[x++];
+    auto val = list[x++];
+
+    input.emplace(key, val);
   }
 }
 
@@ -632,6 +696,17 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 
   path_f(vars, "file_apps", stream.file_apps);
   int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 255 });
+
+  map_int_int_f(vars, "keybindings"s, input.keybindings);
+
+  // This config option will only be used by the UI
+  // When editing in the config file itself, use "keybindings"
+  bool map_rightalt_to_win = false;
+  bool_f(vars, "key_rightalt_to_key_win", map_rightalt_to_win);
+
+  if(map_rightalt_to_win) {
+    input.keybindings.emplace(0xA5, 0x5B);
+  }
 
   to = std::numeric_limits<int>::min();
   int_f(vars, "back_button_timeout", to);
