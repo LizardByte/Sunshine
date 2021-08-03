@@ -720,6 +720,42 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerat
   return x11_disp;
 }
 
+std::vector<std::string> display_names() {
+  if(xcb::init_shm() || xcb::init() || x11::init() || x11::rr::init() || x11::fix::init()) {
+    BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
+
+    return nullptr;
+  }
+
+  BOOST_LOG(info) << "Detecting connected monitors"sv;
+
+  xdisplay_t xdisplay { x11::OpenDisplay(nullptr) };
+  if(!xdisplay) {
+    return {};
+  }
+
+  auto xwindow = DefaultRootWindow(xdisplay.get());
+  screen_res_t screenr { x11::rr::GetScreenResources(xdisplay.get(), xwindow) };
+  int output = screenr->noutput;
+
+  int monitor = 0;
+  for(int x = 0; x < output; ++x) {
+    output_info_t out_info { x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
+    if(out_info && out_info->connection == RR_Connected) {
+      ++monitor;
+    }
+  }
+
+  std::vector<std::string> names;
+  names.reserve(monitor);
+
+  for(auto x = 0; x < monitor; ++x) {
+    names.emplace_back(std::to_string(x));
+  }
+
+  return names;
+}
+
 void freeImage(XImage *p) {
   XDestroyImage(p);
 }

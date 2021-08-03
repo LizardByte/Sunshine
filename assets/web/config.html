@@ -111,6 +111,18 @@
                     are supported.
                 </div>
             </div>
+            <!-- Mapping Key AltRight to Key Windows -->
+            <div class="mb-3">
+                <label for="mapkey" class="form-label">Map Right Alt key to Windows key</label>
+                <select id="mapkey" class="form-select" v-model="config.key_rightalt_to_key_win">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled</option>
+                </select>
+            </div>
+            <div class="form-text">
+                It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
+                In those cases it may be usefull to make Sunshine think the Right Alt key is the Windows key
+            </div>
         </div>
         <!--Files Tab-->
         <div v-if="currentTab === 'files'" class="config-page">
@@ -533,6 +545,7 @@
                 delete this.config.status;
                 delete this.config.platform;
                 //Populate default values if not present in config
+                this.config.key_rightalt_to_key_win = this.config.key_rightalt_to_key_win || "disabled";
                 this.config.gamepad = this.config.gamepad || 'x360';
                 this.config.upnp = this.config.upnp || 'disabled';
                 this.config.min_log_level = this.config.min_log_level || 2;
@@ -561,6 +574,7 @@
                 let nl = this.config === 'windows' ? "\r\n" : "\n";
                 this.config.resolutions = "[" + nl + "    " + this.resolutions.join("," + nl + "    ") + nl + "]";
                 this.config.fps = JSON.stringify(this.fps);
+
                 fetch("/api/config", {
                     method: "POST",
                     body: JSON.stringify(this.config)

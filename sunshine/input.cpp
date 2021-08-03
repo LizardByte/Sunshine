@@ -409,13 +409,9 @@ void repeat_key(short key_code) {
 }
 
 short map_keycode(short keycode) {
-  switch(keycode) {
-  case 0x10:
-    return 0xA0;
-  case 0x11:
-    return 0xA2;
-  case 0x12:
-    return 0xA4;
+  auto it = config::input.keybindings.find(keycode);
+  if(it != std::end(config::input.keybindings)) {
+    return it->second;
   }
 
   return keycode;
