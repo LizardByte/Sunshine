@@ -73,6 +73,15 @@ void send_unauthorized(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::client_error_unauthorized, headers);
 }
 
+void send_redirect(resp_https_t response, req_https_t request, const char *path) {
+  auto address = request->remote_endpoint_address();
+  BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
+  const SimpleWeb::CaseInsensitiveMultimap headers {
+    { "Location", path }
+  };
+  response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
+}
+
 bool authenticate(resp_https_t response, req_https_t request) {
   auto address = request->remote_endpoint_address();
   auto ip_type = net::from_address(address);
@@ -80,6 +89,12 @@ bool authenticate(resp_https_t response, req_https_t request) {
   if(ip_type > http::origin_web_ui_allowed) {
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
     response->write(SimpleWeb::StatusCode::client_error_forbidden);
+    return false;
+  }
+
+  //If credentials are shown, redirect the user to a /welcome page
+  if(config::sunshine.username.empty()){
+    send_redirect(response,request,"/welcome");
     return false;
   }
 
@@ -182,6 +197,17 @@ void getPasswordPage(resp_https_t response, req_https_t request) {
 
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "password.html");
+  response->write(header + content);
+}
+
+void getWelcomePage(resp_https_t response, req_https_t request) {
+  print_req(request);
+  if(!config::sunshine.username.empty()){
+    send_redirect(response,request,"/");
+    return;
+  }
+  std::string header  = read_file(WEB_DIR "header-no-nav.html");
+  std::string content = read_file(WEB_DIR "welcome.html");
   response->write(header + content);
 }
 
@@ -371,7 +397,7 @@ void saveConfig(resp_https_t response, req_https_t request) {
 }
 
 void savePassword(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
+  if(!config::sunshine.username.empty() && !authenticate(response, request)) return;
 
   print_req(request);
 
@@ -390,27 +416,31 @@ void savePassword(resp_https_t response, req_https_t request) {
   try {
     //TODO: Input Validation
     pt::read_json(ss, inputTree);
-    auto username        = inputTree.get<std::string>("currentUsername");
+    auto username        = inputTree.count("currentUsername") > 0 ? inputTree.get<std::string>("currentUsername") : "";
     auto newUsername     = inputTree.get<std::string>("newUsername");
-    auto password        = inputTree.get<std::string>("currentPassword");
+    auto password        = inputTree.count("currentPassword") > 0 ? inputTree.get<std::string>("currentPassword") : "";
     auto newPassword     = inputTree.get<std::string>("newPassword");
     auto confirmPassword = inputTree.get<std::string>("confirmNewPassword");
     if(newUsername.length() == 0) newUsername = username;
-
-    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-    if(username == config::sunshine.username && hash == config::sunshine.password) {
-      if(newPassword != confirmPassword) {
-        outputTree.put("status", false);
-        outputTree.put("error", "Password Mismatch");
-      }
-
-      http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
-      http::reload_user_creds(config::sunshine.credentials_file);
-      outputTree.put("status", true);
-    }
-    else {
+    if(newUsername.length() == 0){
       outputTree.put("status", false);
-      outputTree.put("error", "Invalid Current Credentials");
+      outputTree.put("error", "Invalid Username");
+    } else {
+      auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+      if(config::sunshine.username.empty() || (username == config::sunshine.username && hash == config::sunshine.password)) {
+        if(newPassword != confirmPassword) {
+          outputTree.put("status", false);
+          outputTree.put("error", "Password Mismatch");
+        } else {
+          http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
+          http::reload_user_creds(config::sunshine.credentials_file);
+          outputTree.put("status", true);
+        }
+      }
+      else {
+        outputTree.put("status", false);
+        outputTree.put("error", "Invalid Current Credentials");
+      }
     }
   }
   catch(std::exception &e) {
@@ -467,6 +497,7 @@ void start() {
   server.resource["^/clients$"]["GET"]              = getClientsPage;
   server.resource["^/config$"]["GET"]               = getConfigPage;
   server.resource["^/password$"]["GET"]             = getPasswordPage;
+  server.resource["^/welcome$"]["GET"]              = getWelcomePage;
   server.resource["^/api/pin"]["POST"]              = savePin;
   server.resource["^/api/apps$"]["GET"]             = getApps;
   server.resource["^/api/apps$"]["POST"]            = saveApp;
