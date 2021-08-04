@@ -1,7 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <wtsapi32.h>
-#include <psapi.h>
 
 SERVICE_STATUS_HANDLE service_status_handle;
 SERVICE_STATUS service_status;
@@ -60,6 +59,26 @@ HANDLE DuplicateTokenForConsoleSession() {
   return new_token;
 }
 
+HANDLE OpenLogFileHandle() {
+  WCHAR log_file_name[MAX_PATH];
+
+  // Create sunshine.log in the Temp folder (usually %SYSTEMROOT%\Temp)
+  GetTempPathW(_countof(log_file_name), log_file_name);
+  wcscat_s(log_file_name, L"sunshine.log");
+
+  // The file handle must be inheritable for our child process to use it
+  SECURITY_ATTRIBUTES security_attributes = { sizeof(security_attributes), NULL, TRUE };
+
+  // Overwrite the old sunshine.log
+  return CreateFileW(log_file_name,
+                     GENERIC_WRITE,
+                     FILE_SHARE_READ,
+                     &security_attributes,
+                     CREATE_ALWAYS,
+                     0,
+                     NULL);
+}
+
 VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   stop_event = CreateEventA(NULL, TRUE, FALSE, NULL);
   if(stop_event == NULL) {
@@ -68,6 +87,11 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
 
   service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, NULL);
   if(service_status_handle == NULL) {
+    return;
+  }
+
+  auto log_file_handle = OpenLogFileHandle();
+  if (log_file_handle == INVALID_HANDLE_VALUE) {
     return;
   }
 
@@ -89,18 +113,21 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     }
 
     STARTUPINFOW startup_info = {};
-    startup_info.cb = sizeof(startup_info);
-    startup_info.lpDesktop = (LPWSTR)L"winsta0\\default";
+    startup_info.cb         = sizeof(startup_info);
+    startup_info.lpDesktop  = (LPWSTR)L"winsta0\\default";
+    startup_info.dwFlags    = STARTF_USESTDHANDLES;
+    startup_info.hStdInput  = INVALID_HANDLE_VALUE;
+    startup_info.hStdOutput = log_file_handle;
+    startup_info.hStdError  = log_file_handle;
 
-    // TODO: Redirect stdout to file and set CREATE_NO_WINDOW
     PROCESS_INFORMATION process_info;
     if(!CreateProcessAsUserW(console_token,
                              L"Sunshine.exe",
                              NULL,
                              NULL,
                              NULL,
-                             FALSE,
-                             ABOVE_NORMAL_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT /*| CREATE_NO_WINDOW */,
+                             TRUE,
+                             ABOVE_NORMAL_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
                              NULL,
                              NULL,
                              &startup_info,
