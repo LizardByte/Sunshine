@@ -107,20 +107,28 @@ else()
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	find_package(X11)
+	find_package(LIBDRM)
+
+	find_package(FFMPEG REQUIRED)
 
 	if(X11_FOUND)
 		include_directories(${X11_INCLUDE_DIR})
-		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/display.cpp)
-	else()
+		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/x11grab.cpp)
+	elseif(LIBDRM_FOUND)
+		include_directories(${LIBDRM_INCLUDE_DIRS})
+		list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES})
+		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/kmsgrab.cpp)
 		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
+	else()
+		message(FATAL "Couldn't find either x11 or libdrm")
 	endif()
-
-	find_package(FFMPEG REQUIRED)
 
 	list(APPEND PLATFORM_TARGET_FILES
 		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
+		sunshine/platform/linux/graphics.h
+		sunshine/platform/linux/graphics.cpp
 		sunshine/platform/linux/misc.h
 		sunshine/platform/linux/misc.cpp
 		sunshine/platform/linux/audio.cpp
@@ -132,7 +140,7 @@ else()
 		third-party/glad/include/glad/gl.h
 		third-party/glad/include/glad/egl.h)
 		
-	set(PLATFORM_LIBRARIES
+	list(APPEND PLATFORM_LIBRARIES
 		dl
 		evdev
 		pulse
