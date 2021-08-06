@@ -19,3 +19,11 @@ target_link_libraries(audio-info
         ksuser
         ${PLATFORM_LIBRARIES})
 target_compile_options(audio-info PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
+
+add_executable(sunshinesvc sunshinesvc.cpp)
+set_target_properties(sunshinesvc PROPERTIES CXX_STANDARD 17)
+target_link_libraries(sunshinesvc
+        ${CMAKE_THREAD_LIBS_INIT}
+        wtsapi32
+        ${PLATFORM_LIBRARIES})
+target_compile_options(sunshinesvc PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
