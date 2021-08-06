@@ -98,7 +98,7 @@ exportSurfaceHandle_fn exportSurfaceHandle;
 
 using display_t = util::dyn_safe_ptr_v2<void, VAStatus, &terminate>;
 
-int init() {
+int init_main_va() {
   static void *handle { nullptr };
   static bool funcs_loaded = false;
 
@@ -129,8 +129,8 @@ int init() {
   return 0;
 }
 
-int init_drm() {
-  if(init()) {
+int init() {
+  if(init_main_va()) {
     return -1;
   }
 
@@ -347,16 +347,3 @@ std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height) {
   return egl;
 }
 } // namespace va
-
-namespace platf {
-std::unique_ptr<deinit_t> init() {
-  gbm::init();
-  va::init_drm();
-
-  if(!gladLoaderLoadEGL(EGL_NO_DISPLAY) || !eglGetPlatformDisplay) {
-    BOOST_LOG(warning) << "Couldn't load EGL library"sv;
-  }
-
-  return std::make_unique<deinit_t>();
-}
-} // namespace platf

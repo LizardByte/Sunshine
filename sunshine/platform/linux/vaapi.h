@@ -4,5 +4,7 @@
 #include "sunshine/platform/common.h"
 namespace va {
 std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height);
+
+int init();
 } // namespace va
 #endif

@@ -592,6 +592,14 @@ bool operator!=(std::nullptr_t, const uniq_ptr<T, D> &y) {
   return (bool)y;
 }
 
+template<class P>
+using shared_t = std::shared_ptr<typename P::element_type>;
+
+template<class P, class T>
+shared_t<P> make_shared(T *pointer) {
+  return shared_t<P>(reinterpret_cast<typename P::pointer>(pointer), typename P::deleter_type());
+}
+
 template<class T>
 class wrap_ptr {
 public:

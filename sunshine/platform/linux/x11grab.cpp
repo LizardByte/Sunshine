@@ -398,7 +398,7 @@ struct x11_attr_t : public display_t {
     x11::InitThreads();
   }
 
-  int init(int framerate) {
+  int init(const std::string &display_name, int framerate) {
     if(!xdisplay) {
       BOOST_LOG(error) << "Could not open X11 display"sv;
       return -1;
@@ -411,8 +411,8 @@ struct x11_attr_t : public display_t {
     refresh();
 
     int streamedMonitor = -1;
-    if(!config::video.output_name.empty()) {
-      streamedMonitor = (int)util::from_view(config::video.output_name);
+    if(!display_name.empty()) {
+      streamedMonitor = (int)util::from_view(display_name);
     }
 
     if(streamedMonitor != -1) {
@@ -529,7 +529,7 @@ struct x11_attr_t : public display_t {
 
   std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
     if(mem_type == mem_type_e::vaapi) {
-      return egl::make_hwdevice(width, height);
+      return va::make_hwdevice(width, height);
     }
 
     return std::make_shared<hwdevice_t>();
@@ -642,8 +642,8 @@ struct shm_attr_t : public x11_attr_t {
     return 0;
   }
 
-  int init(int framerate) {
-    if(x11_attr_t::init(framerate)) {
+  int init(const std::string &display_name, int framerate) {
+    if(x11_attr_t::init(display_name, framerate)) {
       return 1;
     }
 
@@ -686,7 +686,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 };
 
-std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerate) {
+std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
@@ -701,7 +701,7 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerat
   // Attempt to use shared memory X11 to avoid copying the frame
   auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
 
-  auto status = shm_disp->init(framerate);
+  auto status = shm_disp->init(display_name, framerate);
   if(status > 0) {
     // x11_attr_t::init() failed, don't bother trying again.
     return nullptr;
@@ -713,18 +713,18 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, int framerat
 
   // Fallback
   auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
-  if(x11_disp->init(framerate)) {
+  if(x11_disp->init(display_name, framerate)) {
     return nullptr;
   }
 
   return x11_disp;
 }
 
-std::vector<std::string> display_names() {
+std::vector<std::string> x11_display_names() {
   if(xcb::init_shm() || xcb::init() || x11::init() || x11::rr::init() || x11::fix::init()) {
     BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
 
-    return nullptr;
+    return {};
   }
 
   BOOST_LOG(info) << "Detecting connected monitors"sv;

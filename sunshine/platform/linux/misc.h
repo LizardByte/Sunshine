@@ -2,7 +2,6 @@
 #define SUNSHINE_PLATFORM_MISC_H
 
 #include <vector>
-
 namespace dyn {
 typedef void (*apiproc)(void);
 
