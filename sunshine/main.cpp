@@ -185,6 +185,10 @@ int main(int argc, char *argv[]) {
     os << _date << log_type << view.attribute_values()[message].extract<std::string>();
   });
 
+  // Flush after each log record to ensure log file contents on disk isn't stale.
+  // This is particularly important when running from a Windows service.
+  sink->locked_backend()->auto_flush(true);
+
   bl::core::get()->add_sink(sink);
   auto fg = util::fail_guard(log_flush);
 
