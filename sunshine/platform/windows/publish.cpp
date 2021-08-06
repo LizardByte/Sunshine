@@ -15,6 +15,9 @@
 #include "sunshine/platform/common.h"
 #include "sunshine/thread_safe.h"
 
+#define _FN(x, ret, args)    \
+  typedef ret(*x##_fn) args; \
+  static x##_fn x
 
 using namespace std::literals;
 
@@ -72,28 +75,9 @@ typedef struct _DNS_SERVICE_REGISTER_REQUEST {
   BOOL unicastEnabled;
 } DNS_SERVICE_REGISTER_REQUEST, *PDNS_SERVICE_REGISTER_REQUEST;
 
-VOID DnsServiceFreeInstance(
-  _In_ PDNS_SERVICE_INSTANCE pInstance);
-
-DWORD DnsServiceDeRegister(
-  _In_ PDNS_SERVICE_REGISTER_REQUEST pRequest,
-  _Inout_opt_ PDNS_SERVICE_CANCEL pCancel);
-
-DWORD DnsServiceRegister(
-  _In_ PDNS_SERVICE_REGISTER_REQUEST pRequest,
-  _Inout_opt_ PDNS_SERVICE_CANCEL pCancel);
-
-PDNS_SERVICE_INSTANCE DnsServiceConstructInstance(
-  _In_ PCWSTR pServiceName,
-  _In_ PCWSTR pHostName,
-  _In_opt_ PIP4_ADDRESS pIp4,
-  _In_opt_ PIP6_ADDRESS pIp6,
-  _In_ WORD wPort,
-  _In_ WORD wPriority,
-  _In_ WORD wWeight,
-  _In_ DWORD dwPropertiesCount,
-  _In_reads_(dwPropertiesCount) PCWSTR *keys,
-  _In_reads_(dwPropertiesCount) PCWSTR *values);
+_FN(_DnsServiceFreeInstance, VOID, (_In_ PDNS_SERVICE_INSTANCE pInstance));
+_FN(_DnsServiceDeRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));
+_FN(_DnsServiceRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));
 } /* extern "C" */
 
 namespace platf::publish {
@@ -102,7 +86,7 @@ VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE
 
   auto fg = util::fail_guard([&]() {
     if(pInstance) {
-      DnsServiceFreeInstance(pInstance);
+      _DnsServiceFreeInstance(pInstance);
     }
   });
 
@@ -140,10 +124,10 @@ static int service(bool enable) {
   DNS_STATUS status {};
 
   if(enable) {
-    status = DnsServiceRegister(&req, nullptr);
+    status = _DnsServiceRegister(&req, nullptr);
   }
   else {
-    status = DnsServiceDeRegister(&req, nullptr);
+    status = _DnsServiceDeRegister(&req, nullptr);
   }
 
   alarm->wait();
@@ -168,7 +152,32 @@ public:
   }
 };
 
+int load_funcs(HMODULE handle) {
+  auto fg = util::fail_guard([handle]() {
+    FreeLibrary(handle);
+  });
+
+  _DnsServiceFreeInstance = (_DnsServiceFreeInstance_fn)GetProcAddress(handle, "DnsServiceFreeInstance");
+  _DnsServiceDeRegister   = (_DnsServiceDeRegister_fn)GetProcAddress(handle, "DnsServiceDeRegister");
+  _DnsServiceRegister     = (_DnsServiceRegister_fn)GetProcAddress(handle, "DnsServiceRegister");
+
+  if(!(_DnsServiceFreeInstance && _DnsServiceDeRegister && _DnsServiceRegister)) {
+    BOOST_LOG(error) << "mDNS service not available in dnsapi.dll"sv;
+    return -1;
+  }
+
+  fg.disable();
+  return 0;
+}
+
 std::unique_ptr<::platf::deinit_t> start() {
+  HMODULE handle = LoadLibrary("dnsapi.dll");
+
+  if(!handle || load_funcs(handle)) {
+    BOOST_LOG(error) << "Couldn't load dnsapi.dll, You'll need to add PC manually from Moonlight"sv;
+    return nullptr;
+  }
+
   if(service(true)) {
     return nullptr;
   }
