@@ -635,12 +635,6 @@ int egl_t::_set_frame(AVFrame *frame) {
   this->hwframe.reset(frame);
   this->frame = frame;
 
-  if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
-    BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
-
-    return -1;
-  }
-
   // Ensure aspect ratio is maintained
   auto scalar       = std::fminf(frame->width / (float)in_width, frame->height / (float)in_height);
   auto out_width_f  = in_width * scalar;

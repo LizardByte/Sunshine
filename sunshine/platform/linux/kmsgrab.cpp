@@ -11,6 +11,7 @@
 #include "sunshine/utility.h"
 
 #include "graphics.h"
+#include "vaapi.h"
 
 using namespace std::literals;
 
@@ -154,7 +155,7 @@ void print(plane_t::pointer plane, fb_t::pointer fb) {
 
 class display_t : public platf::display_t {
 public:
-  display_t() : platf::display_t() {}
+  display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
 
   int init(const std::string &display_name, int framerate) {
     if(!gbm::create_device) {
@@ -287,10 +288,16 @@ public:
     return capture_e::ok;
   }
 
+  std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
+    if(mem_type == mem_type_e::vaapi) {
+      return va::make_hwdevice(width, height);
+    }
+
+    return std::make_shared<hwdevice_t>();
+  }
+
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
-
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-
     gl::ctx.GetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->data);
 
     return capture_e::ok;
@@ -311,6 +318,8 @@ public:
     return 0;
   }
 
+  mem_type_e mem_type;
+
   std::chrono::nanoseconds delay;
 
   card_t card;
@@ -325,7 +334,7 @@ public:
 } // namespace kms
 
 std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
-  auto disp = std::make_shared<kms::display_t>();
+  auto disp = std::make_shared<kms::display_t>(hwdevice_type);
 
   if(disp->init(display_name, framerate)) {
     return nullptr;

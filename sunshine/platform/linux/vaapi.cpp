@@ -184,6 +184,12 @@ public:
   int set_frame(AVFrame *frame) override {
     // No deallocation necessary
 
+    if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
+      BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
+
+      return -1;
+    }
+
     va::DRMPRIMESurfaceDescriptor prime;
     va::VASurfaceID surface = (std::uintptr_t)frame->data[3];
 
