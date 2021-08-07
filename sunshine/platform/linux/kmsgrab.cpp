@@ -22,6 +22,25 @@ using plane_res_t = util::safe_ptr<drmModePlaneRes, drmModeFreePlaneResources>;
 using plane_t     = util::safe_ptr<drmModePlane, drmModeFreePlane>;
 using fb_t        = util::safe_ptr<drmModeFB, drmModeFreeFB>;
 using fb2_t       = util::safe_ptr<drmModeFB2, drmModeFreeFB2>;
+using crtc_t      = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
+using obj_prop_t  = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
+using prop_t      = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
+
+static int env_width;
+static int env_height;
+
+std::string_view plane_type(std::uint64_t val) {
+  switch(val) {
+  case DRM_PLANE_TYPE_OVERLAY:
+    return "DRM_PLANE_TYPE_OVERLAY"sv;
+  case DRM_PLANE_TYPE_PRIMARY:
+    return "DRM_PLANE_TYPE_PRIMARY"sv;
+  case DRM_PLANE_TYPE_CURSOR:
+    return "DRM_PLANE_TYPE_CURSOR"sv;
+  }
+
+  return "UNKNOWN"sv;
+}
 
 class plane_it_t : public util::it_wrap_t<plane_t::element_type, plane_it_t> {
 public:
@@ -98,7 +117,53 @@ public:
     return drmModeGetFB(fd.el, plane->fb_id);
   }
 
-  plane_t operator[](std::uint32_t index) {
+  fb2_t fb2(plane_t::pointer plane) {
+    return drmModeGetFB2(fd.el, plane->fb_id);
+  }
+
+  crtc_t crtc(std::uint32_t id) {
+    return drmModeGetCrtc(fd.el, id);
+  }
+
+  egl::file_t handleFD(std::uint32_t handle) {
+    egl::file_t fb_fd;
+
+    auto status = drmPrimeHandleToFD(fd.el, handle, 0 /* flags */, &fb_fd.el);
+    if(status) {
+      return {};
+    }
+
+    return fb_fd;
+  }
+
+
+  std::vector<std::pair<prop_t, std::uint64_t>> props(std::uint32_t id, std::uint32_t type) {
+    obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
+
+    std::vector<std::pair<prop_t, std::uint64_t>> props;
+    props.reserve(obj_prop->count_props);
+
+    for(auto x = 0; x < obj_prop->count_props; ++x) {
+      props.emplace_back(drmModeGetProperty(fd.el, obj_prop->props[x]), obj_prop->prop_values[x]);
+    }
+
+    return props;
+  }
+
+  std::vector<std::pair<prop_t, std::uint64_t>> plane_props(std::uint32_t id) {
+    return props(id, DRM_MODE_OBJECT_PLANE);
+  }
+
+  std::vector<std::pair<prop_t, std::uint64_t>> crtc_props(std::uint32_t id) {
+    return props(id, DRM_MODE_OBJECT_CRTC);
+  }
+
+  std::vector<std::pair<prop_t, std::uint64_t>> connector_props(std::uint32_t id) {
+    return props(id, DRM_MODE_OBJECT_CONNECTOR);
+  }
+
+  plane_t
+  operator[](std::uint32_t index) {
     return drmModeGetPlane(fd.el, plane_res->planes[index]);
   }
 
@@ -126,7 +191,13 @@ struct kms_img_t : public img_t {
   }
 };
 
-void print(plane_t::pointer plane, fb_t::pointer fb) {
+void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
+  if(crtc) {
+    BOOST_LOG(debug) << "crtc("sv << crtc->x << ", "sv << crtc->y << ')';
+    BOOST_LOG(debug) << "crtc("sv << crtc->width << ", "sv << crtc->height << ')';
+    BOOST_LOG(debug) << "plane->possible_crtcs == "sv << plane->possible_crtcs;
+  }
+
   BOOST_LOG(debug)
     << "x("sv << plane->x
     << ") y("sv << plane->y
@@ -194,20 +265,30 @@ public:
         return -1;
       }
 
-      auto status = drmPrimeHandleToFD(card.fd.el, fb->handle, 0 /* flags */, &fb_fd.el);
-      if(status || fb_fd.el < 0) {
+      fb_fd = card.handleFD(fb->handle);
+      if(fb_fd.el < 0) {
         BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
         continue;
       }
 
       BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
-      kms::print(plane.get(), fb.get());
 
-      width      = fb->width;
-      height     = fb->height;
-      pitch      = fb->pitch;
-      env_width  = width;
-      env_height = height;
+      auto crct = card.crtc(plane->crtc_id);
+      kms::print(plane.get(), fb.get(), crct.get());
+
+      img_width  = fb->width;
+      img_height = fb->height;
+
+      width  = crct->width;
+      height = crct->height;
+
+      pitch = fb->pitch;
+
+      this->env_width  = ::platf::kms::env_width;
+      this->env_height = ::platf::kms::env_height;
+
+      offset_x = crct->x;
+      offset_y = crct->y;
 
       break;
     }
@@ -239,8 +320,8 @@ public:
     auto rgb_opt = egl::import_source(display.get(),
       {
         fb_fd.el,
-        width,
-        height,
+        img_width,
+        img_height,
         0,
         pitch,
       });
@@ -298,7 +379,7 @@ public:
 
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    gl::ctx.GetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->data);
+    gl::ctx.GetTextureSubImage(rgb->tex[0], 0, offset_x, offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
 
     return capture_e::ok;
   }
@@ -318,6 +399,7 @@ public:
     return 0;
   }
 
+  int img_width, img_height;
   mem_type_e mem_type;
 
   std::chrono::nanoseconds delay;
@@ -357,6 +439,9 @@ std::vector<std::string> kms_display_names() {
     return {};
   }
 
+  kms::env_width  = 0;
+  kms::env_height = 0;
+
   int count = 0;
 
   auto end = std::end(card);
@@ -373,7 +458,44 @@ std::vector<std::string> kms_display_names() {
       break;
     }
 
-    kms::print(plane.get(), fb.get());
+    {
+      BOOST_LOG(verbose) << "PLANE INFO"sv;
+      auto props = card.plane_props(card.plane_res->planes[count]);
+      for(auto &[prop, val] : props) {
+        if(prop->name == "type"sv) {
+          BOOST_LOG(verbose) << prop->name << "::"sv << kms::plane_type(val);
+        }
+        else {
+          BOOST_LOG(verbose) << prop->name << "::"sv << val;
+        }
+      }
+    }
+
+    {
+      BOOST_LOG(verbose) << "CRTC INFO"sv;
+      auto props = card.crtc_props(plane->crtc_id);
+      for(auto &[prop, val] : props) {
+        BOOST_LOG(verbose) << prop->name << "::"sv << val;
+      }
+    }
+
+    // This appears to return the offset of the monitor
+    auto crtc = card.crtc(plane->crtc_id);
+    if(!crtc) {
+      BOOST_LOG(error) << "Couldn't get crtc info: "sv << strerror(errno);
+      return {};
+    }
+
+    kms::env_width  = std::max(kms::env_width, (int)(crtc->x + crtc->width));
+    kms::env_height = std::max(kms::env_height, (int)(crtc->y + crtc->height));
+
+    auto fb_2 = card.fb2(plane.get());
+    for(int x = 0; x < 4 && fb_2->handles[x]; ++x) {
+      BOOST_LOG(debug) << "handles::"sv << x << '(' << fb_2->handles[x] << ')';
+      BOOST_LOG(debug) << "pixel_format::"sv << util::view(fb_2->pixel_format);
+    }
+
+    kms::print(plane.get(), fb.get(), crtc.get());
 
     display_names.emplace_back(std::to_string(count++));
   }
