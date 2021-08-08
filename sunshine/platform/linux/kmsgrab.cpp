@@ -396,6 +396,7 @@ public:
   }
 
   int dummy_img(platf::img_t *img) override {
+    snapshot(img, 1s, false);
     return 0;
   }
 

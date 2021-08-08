@@ -675,11 +675,10 @@ void captureThread(
         img.reset();
       }
 
-      // Some classes of display cannot have multiple instances at once
-      disp.reset();
-
       // display_wp is modified in this thread only
-      while(!display_wp->expired()) {
+      // Wait for the other shared_ptr's of display to be destroyed.
+      // New displays will only be created in this thread.
+      while(display_wp->use_count() != 1) {
         std::this_thread::sleep_for(100ms);
       }
 
@@ -695,7 +694,11 @@ void captureThread(
         return;
       }
 
-      display_wp = disp;
+      {
+        auto lg    = display_wp.lock();
+        display_wp = disp;
+      }
+
       // Re-allocate images
       for(auto &img : imgs) {
         img = disp->alloc_img();

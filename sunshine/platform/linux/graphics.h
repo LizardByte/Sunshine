@@ -12,6 +12,10 @@
 #include "sunshine/platform/common.h"
 #include "sunshine/utility.h"
 
+#define SUNSHINE_STRINGIFY(x) #x
+#define gl_drain_errors_helper(x) gl::drain_errors("line " SUNSHINE_STRINGIFY(x))
+#define gl_drain_errors gl_drain_errors_helper(__LINE__)
+
 extern "C" int close(int __fd);
 
 struct AVFrame;
@@ -197,9 +201,7 @@ KITTY_USING_MOVE_T(nv12_t, nv12_img_t, , {
 KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
   TUPLE_2D_REF(disp, ctx, el);
   if(ctx) {
-    if(ctx == eglGetCurrentContext()) {
-      eglMakeCurrent(disp, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    }
+    eglMakeCurrent(disp, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroyContext(disp, ctx);
   }
 });

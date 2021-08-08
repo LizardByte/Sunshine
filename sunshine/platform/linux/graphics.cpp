@@ -22,10 +22,6 @@ extern "C" {
 
 #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/opengl"
 
-#define STRINGIFY(x) #x
-#define gl_drain_errors_helper(x) gl::drain_errors("line " STRINGIFY(x))
-#define gl_drain_errors gl_drain_errors_helper(__LINE__)
-
 using namespace std::literals;
 namespace gl {
 GladGLContext ctx;
