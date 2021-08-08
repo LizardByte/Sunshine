@@ -132,7 +132,7 @@ void save_state() {
 
 void load_state() {
   if(!fs::exists(config::nvhttp.file_state)) {
-    BOOST_LOG(info) << "DOENST EXIST"sv;
+    BOOST_LOG(info) << "File "sv << config::nvhttp.file_state << " doesn't exist";
     http::unique_id = util::uuid_t::generate().string();
     return;
   }
