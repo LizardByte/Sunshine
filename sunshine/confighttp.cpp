@@ -419,8 +419,8 @@ void savePassword(resp_https_t response, req_https_t request) {
     auto username        = inputTree.count("currentUsername") > 0 ? inputTree.get<std::string>("currentUsername") : "";
     auto newUsername     = inputTree.get<std::string>("newUsername");
     auto password        = inputTree.count("currentPassword") > 0 ? inputTree.get<std::string>("currentPassword") : "";
-    auto newPassword     = inputTree.get<std::string>("newPassword");
-    auto confirmPassword = inputTree.get<std::string>("confirmNewPassword");
+    auto newPassword     = inputTree.count("newPassword") > 0 ? inputTree.get<std::string>("newPassword") : "";
+    auto confirmPassword = inputTree.count("confirmNewPassword") > 0 ? inputTree.get<std::string>("confirmNewPassword") : "";
     if(newUsername.length() == 0) newUsername = username;
     if(newUsername.length() == 0){
       outputTree.put("status", false);
@@ -428,7 +428,7 @@ void savePassword(resp_https_t response, req_https_t request) {
     } else {
       auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
       if(config::sunshine.username.empty() || (username == config::sunshine.username && hash == config::sunshine.password)) {
-        if(newPassword != confirmPassword) {
+        if(newPassword.empty() || newPassword != confirmPassword) {
           outputTree.put("status", false);
           outputTree.put("error", "Password Mismatch");
         } else {
