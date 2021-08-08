@@ -13,11 +13,11 @@
         </div>
         <div class="mb-2">
           <label for="" class="form-label">Password: </label>
-          <input type="password" class="form-control" v-model="passwordData.newPassword">
+          <input type="password" class="form-control" v-model="passwordData.newPassword" required>
         </div>
         <div class="mb-2">
           <label for="" class="form-label">Password: </label>
-          <input type="password" class="form-control" v-model="passwordData.confirmNewPassword">
+          <input type="password" class="form-control" v-model="passwordData.confirmNewPassword" required>
         </div>
         <button class="mb-2 btn btn-primary" style="margin: 1em auto;">Login</button>
         <div class="alert alert-danger" v-if="error"><b>Error: </b>{{error}}</div>
