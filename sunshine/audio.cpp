@@ -130,7 +130,7 @@ void capture(safe::mail_t mail, config_t config, void *channel_data) {
 
   auto &control = ref->control;
   if(!control) {
-    BOOST_LOG(error) << "Couldn't create audio control"sv;
+    shutdown_event->view();
 
     return;
   }
@@ -223,21 +223,29 @@ int map_stream(int channels, bool quality) {
 }
 
 int start_audio_control(audio_ctx_t &ctx) {
+  auto fg = util::fail_guard([]() {
+    BOOST_LOG(warning) << "There will be no audio"sv;
+  });
+
   ctx.sink_flag = std::make_unique<std::atomic_bool>(false);
-
-  if(!(ctx.control = platf::audio_control())) {
-    return -1;
-  }
-
-  auto sink = ctx.control->sink_info();
-  if(!sink) {
-    return -1;
-  }
 
   // The default sink has not been replaced yet.
   ctx.restore_sink = false;
 
+  if(!(ctx.control = platf::audio_control())) {
+    return 0;
+  }
+
+  auto sink = ctx.control->sink_info();
+  if(!sink) {
+    // Let the calling code know it failed
+    ctx.control.reset();
+    return 0;
+  }
+
   ctx.sink = std::move(*sink);
+
+  fg.disable();
   return 0;
 }
 
