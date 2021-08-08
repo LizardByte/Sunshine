@@ -389,6 +389,10 @@ auto enm(T &val) -> std::underlying_type_t<T> & {
 }
 
 inline std::int64_t from_chars(const char *begin, const char *end) {
+  if(begin == end) {
+    return 0;
+  }
+
   std::int64_t res {};
   std::int64_t mul = 1;
   while(begin != --end) {
