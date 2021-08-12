@@ -5,6 +5,8 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+#include <filesystem>
+
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
 #include "sunshine/round_robin.h"
@@ -14,6 +16,7 @@
 #include "vaapi.h"
 
 using namespace std::literals;
+namespace fs = std::filesystem;
 
 namespace platf {
 
@@ -235,61 +238,74 @@ public:
   int init(const std::string &display_name, int framerate) {
     delay = std::chrono::nanoseconds { 1s } / framerate;
 
-    constexpr auto path = "/dev/dri/card1";
-    if(card.init(path)) {
-      return -1;
-    }
-
     int monitor_index = util::from_view(display_name);
     int monitor       = 0;
 
-    auto end = std::end(card);
-    for(auto plane = std::begin(card); plane != end; ++plane) {
-      if(monitor != monitor_index) {
-        ++monitor;
+    fs::path card_dir { "/dev/dri"sv };
+    for(auto &entry : fs::directory_iterator { card_dir }) {
+      auto file = entry.path().filename();
+
+      auto filestring = file.generic_u8string();
+      if(std::string_view { filestring }.substr(0, 4) != "card"sv) {
         continue;
       }
 
-      auto fb = card.fb(plane.get());
-      if(!fb) {
-        BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-        return -1;
+      kms::card_t card;
+      if(card.init(entry.path().c_str())) {
+        return {};
       }
 
-      if(!fb->handle) {
-        BOOST_LOG(error)
-          << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
-        return -1;
+      auto end = std::end(card);
+      for(auto plane = std::begin(card); plane != end; ++plane) {
+        if(monitor != monitor_index) {
+          ++monitor;
+          continue;
+        }
+
+        auto fb = card.fb(plane.get());
+        if(!fb) {
+          BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+          return -1;
+        }
+
+        if(!fb->handle) {
+          BOOST_LOG(error)
+            << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
+          return -1;
+        }
+
+        fb_fd = card.handleFD(fb->handle);
+        if(fb_fd.el < 0) {
+          BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+          continue;
+        }
+
+        BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
+
+        auto crct = card.crtc(plane->crtc_id);
+        kms::print(plane.get(), fb.get(), crct.get());
+
+        img_width  = fb->width;
+        img_height = fb->height;
+
+        width  = crct->width;
+        height = crct->height;
+
+        pitch = fb->pitch;
+
+        this->env_width  = ::platf::kms::env_width;
+        this->env_height = ::platf::kms::env_height;
+
+        offset_x = crct->x;
+        offset_y = crct->y;
+
+        this->card = std::move(card);
+        goto break_loop;
       }
-
-      fb_fd = card.handleFD(fb->handle);
-      if(fb_fd.el < 0) {
-        BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-        continue;
-      }
-
-      BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
-
-      auto crct = card.crtc(plane->crtc_id);
-      kms::print(plane.get(), fb.get(), crct.get());
-
-      img_width  = fb->width;
-      img_height = fb->height;
-
-      width  = crct->width;
-      height = crct->height;
-
-      pitch = fb->pitch;
-
-      this->env_width  = ::platf::kms::env_width;
-      this->env_height = ::platf::kms::env_height;
-
-      offset_x = crct->x;
-      offset_y = crct->y;
-
-      break;
     }
 
+  // Neatly break from nested for loop
+  break_loop:
     if(monitor != monitor_index) {
       BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
 
@@ -525,6 +541,11 @@ std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::stri
 
 // A list of names of displays accepted as display_name
 std::vector<std::string> kms_display_names() {
+  kms::env_width  = 0;
+  kms::env_height = 0;
+
+  int count = 0;
+
   if(!gbm::create_device) {
     BOOST_LOG(warning) << "libgbm not initialized"sv;
     return {};
@@ -532,70 +553,75 @@ std::vector<std::string> kms_display_names() {
 
   std::vector<std::string> display_names;
 
-  kms::card_t card;
-  if(card.init("/dev/dri/card1")) {
-    return {};
-  }
+  fs::path card_dir { "/dev/dri"sv };
+  for(auto &entry : fs::directory_iterator { card_dir }) {
+    auto file = entry.path().filename();
 
-  kms::env_width  = 0;
-  kms::env_height = 0;
-
-  int count = 0;
-
-  auto end = std::end(card);
-  for(auto plane = std::begin(card); plane != end; ++plane) {
-    auto fb = card.fb(plane.get());
-    if(!fb) {
-      BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+    auto filestring = file.generic_u8string();
+    if(std::string_view { filestring }.substr(0, 4) != "card"sv) {
       continue;
     }
 
-    if(!fb->handle) {
-      BOOST_LOG(error)
-        << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
-      break;
-    }
-
-    {
-      BOOST_LOG(verbose) << "PLANE INFO"sv;
-      auto props = card.plane_props(card.plane_res->planes[count]);
-      for(auto &[prop, val] : props) {
-        if(prop->name == "type"sv) {
-          BOOST_LOG(verbose) << prop->name << "::"sv << kms::plane_type(val);
-        }
-        else {
-          BOOST_LOG(verbose) << prop->name << "::"sv << val;
-        }
-      }
-    }
-
-    {
-      BOOST_LOG(verbose) << "CRTC INFO"sv;
-      auto props = card.crtc_props(plane->crtc_id);
-      for(auto &[prop, val] : props) {
-        BOOST_LOG(verbose) << prop->name << "::"sv << val;
-      }
-    }
-
-    // This appears to return the offset of the monitor
-    auto crtc = card.crtc(plane->crtc_id);
-    if(!crtc) {
-      BOOST_LOG(error) << "Couldn't get crtc info: "sv << strerror(errno);
+    kms::card_t card;
+    if(card.init(entry.path().c_str())) {
       return {};
     }
 
-    kms::env_width  = std::max(kms::env_width, (int)(crtc->x + crtc->width));
-    kms::env_height = std::max(kms::env_height, (int)(crtc->y + crtc->height));
+    auto end = std::end(card);
+    for(auto plane = std::begin(card); plane != end; ++plane) {
+      auto fb = card.fb(plane.get());
+      if(!fb) {
+        BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+        continue;
+      }
 
-    auto fb_2 = card.fb2(plane.get());
-    for(int x = 0; x < 4 && fb_2->handles[x]; ++x) {
-      BOOST_LOG(debug) << "handles::"sv << x << '(' << fb_2->handles[x] << ')';
-      BOOST_LOG(debug) << "pixel_format::"sv << util::view(fb_2->pixel_format);
+      if(!fb->handle) {
+        BOOST_LOG(error)
+          << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
+        break;
+      }
+
+      {
+        BOOST_LOG(verbose) << "PLANE INFO"sv;
+        auto props = card.plane_props(card.plane_res->planes[count]);
+        for(auto &[prop, val] : props) {
+          if(prop->name == "type"sv) {
+            BOOST_LOG(verbose) << prop->name << "::"sv << kms::plane_type(val);
+          }
+          else {
+            BOOST_LOG(verbose) << prop->name << "::"sv << val;
+          }
+        }
+      }
+
+      {
+        BOOST_LOG(verbose) << "CRTC INFO"sv;
+        auto props = card.crtc_props(plane->crtc_id);
+        for(auto &[prop, val] : props) {
+          BOOST_LOG(verbose) << prop->name << "::"sv << val;
+        }
+      }
+
+      // This appears to return the offset of the monitor
+      auto crtc = card.crtc(plane->crtc_id);
+      if(!crtc) {
+        BOOST_LOG(error) << "Couldn't get crtc info: "sv << strerror(errno);
+        return {};
+      }
+
+      kms::env_width  = std::max(kms::env_width, (int)(crtc->x + crtc->width));
+      kms::env_height = std::max(kms::env_height, (int)(crtc->y + crtc->height));
+
+      auto fb_2 = card.fb2(plane.get());
+      for(int x = 0; x < 4 && fb_2->handles[x]; ++x) {
+        BOOST_LOG(debug) << "handles::"sv << x << '(' << fb_2->handles[x] << ')';
+        BOOST_LOG(debug) << "pixel_format::"sv << util::view(fb_2->pixel_format);
+      }
+
+      kms::print(plane.get(), fb.get(), crtc.get());
+
+      display_names.emplace_back(std::to_string(count++));
     }
-
-    kms::print(plane.get(), fb.get(), crtc.get());
-
-    display_names.emplace_back(std::to_string(count++));
   }
 
   return display_names;
