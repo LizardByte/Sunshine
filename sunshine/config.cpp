@@ -742,7 +742,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   std::string log_level_string;
-  string_restricted_f(vars, "min_log_level", log_level_string, { "verbose"sv, "debug"sv, "info"sv, "warning"sv, "error"sv, "fatal"sv, "none"sv });
+  string_f(vars, "min_log_level", log_level_string);
 
   if(!log_level_string.empty()) {
     if(log_level_string == "verbose"sv) {
