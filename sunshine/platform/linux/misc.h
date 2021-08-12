@@ -1,7 +1,17 @@
 #ifndef SUNSHINE_PLATFORM_MISC_H
 #define SUNSHINE_PLATFORM_MISC_H
 
+#include <unistd.h>
 #include <vector>
+
+#include "sunshine/utility.h"
+
+KITTY_USING_MOVE_T(file_t, int, -1, {
+  if(el >= 0) {
+    close(el);
+  }
+});
+
 namespace dyn {
 typedef void (*apiproc)(void);
 

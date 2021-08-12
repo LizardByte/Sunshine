@@ -125,8 +125,8 @@ public:
     return drmModeGetCrtc(fd.el, id);
   }
 
-  egl::file_t handleFD(std::uint32_t handle) {
-    egl::file_t fb_fd;
+  file_t handleFD(std::uint32_t handle) {
+    file_t fb_fd;
 
     auto status = drmPrimeHandleToFD(fd.el, handle, 0 /* flags */, &fb_fd.el);
     if(status) {
@@ -180,7 +180,7 @@ public:
   }
 
 
-  egl::file_t fd;
+  file_t fd;
   plane_res_t plane_res;
 };
 
@@ -228,12 +228,11 @@ class display_t : public platf::display_t {
 public:
   display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
 
-  int init(const std::string &display_name, int framerate) {
-    if(!gbm::create_device) {
-      BOOST_LOG(warning) << "libgbm not initialized"sv;
-      return -1;
-    }
+  mem_type_e mem_type;
 
+  std::chrono::nanoseconds delay;
+
+  int init(const std::string &display_name, int framerate) {
     delay = std::chrono::nanoseconds { 1s } / framerate;
 
     constexpr auto path = "/dev/dri/card1";
@@ -243,8 +242,6 @@ public:
 
     int monitor_index = util::from_view(display_name);
     int monitor       = 0;
-
-    int pitch;
 
     auto end = std::end(card);
     for(auto plane = std::begin(card); plane != end; ++plane) {
@@ -296,6 +293,30 @@ public:
     if(monitor != monitor_index) {
       BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
 
+      return -1;
+    }
+
+    return 0;
+  }
+
+  int img_width, img_height;
+  int pitch;
+
+  card_t card;
+  file_t fb_fd;
+};
+
+class display_ram_t : public display_t {
+public:
+  display_ram_t(mem_type_e mem_type) : display_t(mem_type) {}
+
+  int init(const std::string &display_name, int framerate) {
+    if(!gbm::create_device) {
+      BOOST_LOG(warning) << "libgbm not initialized"sv;
+      return -1;
+    }
+
+    if(display_t::init(display_name, framerate)) {
       return -1;
     }
 
@@ -400,24 +421,100 @@ public:
     return 0;
   }
 
-  int img_width, img_height;
-  mem_type_e mem_type;
-
-  std::chrono::nanoseconds delay;
-
-  card_t card;
-  egl::file_t fb_fd;
-
   gbm::gbm_t gbm;
   egl::display_t display;
   egl::ctx_t ctx;
 
   egl::rgb_t rgb;
 };
+
+class display_vram_t : public display_t {
+public:
+  display_vram_t(mem_type_e mem_type) : display_t(mem_type) {}
+
+  std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
+    if(mem_type == mem_type_e::vaapi) {
+      return va::make_hwdevice(width, height, dup(card.fd.el), offset_x, offset_y,
+        {
+          fb_fd.el,
+          img_width,
+          img_height,
+          0,
+          pitch,
+        });
+    }
+
+    BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
+    return nullptr;
+  }
+
+  std::shared_ptr<img_t> alloc_img() override {
+    auto img = std::make_shared<img_t>();
+
+    img->width       = width;
+    img->height      = height;
+    img->pixel_pitch = 4;
+    img->row_pitch   = img->pixel_pitch * width;
+
+    return img;
+  }
+
+  int dummy_img(platf::img_t *img) override {
+    return 0;
+  }
+
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) {
+    auto next_frame = std::chrono::steady_clock::now();
+
+    while(img) {
+      auto now = std::chrono::steady_clock::now();
+
+      if(next_frame > now) {
+        std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+      }
+      while(next_frame > now) {
+        now = std::chrono::steady_clock::now();
+      }
+      next_frame = now + delay;
+
+      auto status = snapshot(img.get(), 1000ms, *cursor);
+      switch(status) {
+      case platf::capture_e::reinit:
+      case platf::capture_e::error:
+        return status;
+      case platf::capture_e::timeout:
+        std::this_thread::sleep_for(1ms);
+        continue;
+      case platf::capture_e::ok:
+        img = snapshot_cb(img);
+        break;
+      default:
+        BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+        return status;
+      }
+    }
+
+    return capture_e::ok;
+  }
+
+  capture_e snapshot(img_t * /*img_out_base */, std::chrono::milliseconds /* timeout */, bool /* cursor */) {
+    return capture_e::ok;
+  }
+};
 } // namespace kms
 
 std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
-  auto disp = std::make_shared<kms::display_t>(hwdevice_type);
+  if(hwdevice_type == mem_type_e::vaapi) {
+    auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
+
+    if(!disp->init(display_name, framerate)) {
+      return disp;
+    }
+
+    // In the case of failure, attempt the old method for VAAPI
+  }
+
+  auto disp = std::make_shared<kms::display_ram_t>(hwdevice_type);
 
   if(disp->init(display_name, framerate)) {
     return nullptr;

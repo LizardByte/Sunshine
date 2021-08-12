@@ -106,10 +106,13 @@ else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
-	if(NOT DEFINED SUNSHINE_DISABLE_X11)
+	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
+	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
+
+	if(${SUNSHINE_ENABLE_X11})
 		find_package(X11)
 	endif()
-	if(NOT DEFINED SUNSHINE_DISABLE_DRM)
+	if(${SUNSHINE_ENABLE_DRM})
 		find_package(LIBDRM)
 	endif()
 

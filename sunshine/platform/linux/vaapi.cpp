@@ -160,29 +160,47 @@ int init() {
 
 int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf);
 
-class va_t : public egl::egl_t {
+class va_t : public platf::hwdevice_t {
 public:
-  int init(int in_width, int in_height, const char *render_device) {
-    if(!va::initialize) {
-      BOOST_LOG(warning) << "libva not initialized"sv;
+  int init(int in_width, int in_height, file_t &&render_device) {
+    file = std::move(render_device);
+
+    if(!va::initialize || !gbm::create_device) {
+      if(!va::initialize) BOOST_LOG(warning) << "libva not initialized"sv;
+      if(!gbm::create_device) BOOST_LOG(warning) << "libgbm not initialized"sv;
       return -1;
     }
 
-    data = (void *)vaapi_make_hwdevice_ctx;
+    this->data = (void *)vaapi_make_hwdevice_ctx;
 
-    egl::file_t fd = open(render_device, O_RDWR);
-    if(fd.el < 0) {
+    gbm.reset(gbm::create_device(file.el));
+    if(!gbm) {
       char string[1024];
-      BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string, sizeof(string));
-
+      BOOST_LOG(error) << "Couldn't create GBM device: ["sv << strerror_r(errno, string, sizeof(string)) << ']';
       return -1;
     }
 
-    return egl::egl_t::init(in_width, in_height, std::move(fd));
+    display = egl::make_display(gbm.get());
+    if(!display) {
+      return -1;
+    }
+
+    auto ctx_opt = egl::make_ctx(display.get());
+    if(!ctx_opt) {
+      return -1;
+    }
+
+    ctx = std::move(*ctx_opt);
+
+    width  = in_width;
+    height = in_height;
+
+    return 0;
   }
 
-  int set_frame(AVFrame *frame) override {
-    // No deallocation necessary
+  int _set_frame(AVFrame *frame) {
+    this->hwframe.reset(frame);
+    this->frame = frame;
 
     if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
       BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
@@ -194,7 +212,7 @@ public:
     va::VASurfaceID surface = (std::uintptr_t)frame->data[3];
 
     auto status = va::exportSurfaceHandle(
-      va_display,
+      this->va_display,
       surface,
       va::SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2,
       va::EXPORT_SURFACE_WRITE_ONLY | va::EXPORT_SURFACE_COMPOSED_LAYERS,
@@ -207,7 +225,7 @@ public:
     }
 
     // Keep track of file descriptors
-    std::array<egl::file_t, egl::nv12_img_t::num_fds> fds;
+    std::array<file_t, egl::nv12_img_t::num_fds> fds;
     for(int x = 0; x < prime.num_objects; ++x) {
       fds[x] = prime.objects[x].fd;
     }
@@ -234,12 +252,106 @@ public:
       return -1;
     }
 
-    nv12 = std::move(*nv12_opt);
+    this->nv12 = std::move(*nv12_opt);
 
-    return egl::egl_t::_set_frame(frame);
+    return 0;
+  }
+
+  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
+    sws.set_colorspace(colorspace, color_range);
   }
 
   va::display_t::pointer va_display;
+  file_t file;
+
+  frame_t hwframe;
+
+  gbm::gbm_t gbm;
+  egl::display_t display;
+  egl::ctx_t ctx;
+
+  egl::sws_t sws;
+  egl::nv12_t nv12;
+
+  int width, height;
+};
+
+class va_ram_t : public va_t {
+public:
+  int convert(platf::img_t &img) override {
+    sws.load_ram(img);
+
+    sws.convert(nv12);
+    return 0;
+  }
+
+  int set_frame(AVFrame *frame) override {
+    if(_set_frame(frame)) {
+      return -1;
+    }
+
+    auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height);
+    if(!sws_opt) {
+      return -1;
+    }
+
+    this->sws = std::move(*sws_opt);
+
+    return 0;
+  }
+};
+
+class va_vram_t : public va_t {
+public:
+  int convert(platf::img_t &img) override {
+    sws.load_vram(img, offset_x, offset_y, framebuffer[0]);
+
+    sws.convert(nv12);
+    return 0;
+  }
+
+  int init(int in_width, int in_height, file_t &&render_device, int offset_x, int offset_y, const egl::surface_descriptor_t &sd) {
+    if(va_t::init(in_width, in_height, std::move(render_device))) {
+      return -1;
+    }
+
+    auto rgb_opt = egl::import_source(display.get(), sd);
+    if(!rgb_opt) {
+      return -1;
+    }
+
+    rgb = std::move(*rgb_opt);
+
+    framebuffer = gl::frame_buf_t::make(1);
+    framebuffer.bind(std::begin(rgb->tex), std::end(rgb->tex));
+
+    this->offset_x = offset_x;
+    this->offset_y = offset_y;
+
+    return 0;
+  }
+
+  int set_frame(AVFrame *frame) override {
+    if(_set_frame(frame)) {
+      return -1;
+    }
+
+    auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height);
+    if(!sws_opt) {
+      return -1;
+    }
+
+    this->sws = std::move(*sws_opt);
+
+    return 0;
+  }
+
+  file_t fb_fd;
+
+  egl::rgb_t rgb;
+  gl::frame_buf_t framebuffer;
+
+  int offset_x, offset_y;
 };
 
 /**
@@ -343,10 +455,27 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
 }
 
 std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height) {
-  auto egl = std::make_shared<va::va_t>();
-
   auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
-  if(egl->init(width, height, render_device)) {
+
+  file_t file = open(render_device, O_RDWR);
+  if(file.el < 0) {
+    char string[1024];
+    BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string, sizeof(string));
+
+    return nullptr;
+  }
+
+  auto egl = std::make_shared<va::va_ram_t>();
+  if(egl->init(width, height, std::move(file))) {
+    return nullptr;
+  }
+
+  return egl;
+}
+
+std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height, file_t &&card, int offset_x, int offset_y, const egl::surface_descriptor_t &sd) {
+  auto egl = std::make_shared<va::va_vram_t>();
+  if(egl->init(width, height, std::move(card), offset_x, offset_y, sd)) {
     return nullptr;
   }
 

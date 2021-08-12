@@ -1,10 +1,6 @@
 #include "graphics.h"
 #include "sunshine/video.h"
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-}
-
 #include <fcntl.h>
 
 // I want to have as little build dependencies as possible
@@ -460,7 +456,7 @@ std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<f
   return nv12;
 }
 
-void egl_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {
+void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {
   video::color_t *color_p;
   switch(colorspace) {
   case 5: // SWS_CS_SMPTE170M
@@ -491,31 +487,25 @@ void egl_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
   color_matrix.update(members, sizeof(members) / sizeof(decltype(members[0])));
 }
 
-int egl_t::init(int in_width, int in_height, file_t &&fd) {
-  file = std::move(fd);
+std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex) {
+  sws_t sws;
 
-  if(!gbm::create_device) {
-    BOOST_LOG(warning) << "libgbm not initialized"sv;
-    return -1;
-  }
+  // Ensure aspect ratio is maintained
+  auto scalar       = std::fminf(out_width / (float)in_width, out_heigth / (float)in_height);
+  auto out_width_f  = in_width * scalar;
+  auto out_height_f = in_height * scalar;
 
-  gbm.reset(gbm::create_device(file.el));
-  if(!gbm) {
-    BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
-    return -1;
-  }
+  // result is always positive
+  auto offsetX_f = (out_width - out_width_f) / 2;
+  auto offsetY_f = (out_heigth - out_height_f) / 2;
 
-  display = make_display(gbm.get());
-  if(!display) {
-    return -1;
-  }
+  sws.width  = out_width_f;
+  sws.height = out_height_f;
 
-  auto ctx_opt = make_ctx(display.get());
-  if(!ctx_opt) {
-    return -1;
-  }
+  sws.offsetX = offsetX_f;
+  sws.offsetY = offsetY_f;
 
-  ctx = std::move(*ctx_opt);
+  auto width_i = 1.0f / sws.width;
 
   {
     const char *sources[] {
@@ -549,27 +539,36 @@ int egl_t::init(int in_width, int in_height, file_t &&fd) {
     }
 
     if(error_flag) {
-      return -1;
+      return std::nullopt;
     }
 
     auto program = gl::program_t::link(compiled_sources[1].left(), compiled_sources[0].left());
     if(program.has_right()) {
       BOOST_LOG(error) << "GL linker: "sv << program.right();
-      return -1;
+      return std::nullopt;
     }
 
     // UV - shader
-    this->program[1] = std::move(program.left());
+    sws.program[1] = std::move(program.left());
 
     program = gl::program_t::link(compiled_sources[3].left(), compiled_sources[2].left());
     if(program.has_right()) {
       BOOST_LOG(error) << "GL linker: "sv << program.right();
-      return -1;
+      return std::nullopt;
     }
 
     // Y - shader
-    this->program[0] = std::move(program.left());
+    sws.program[0] = std::move(program.left());
   }
+
+  auto loc_width_i = gl::ctx.GetUniformLocation(sws.program[1].handle(), "width_i");
+  if(loc_width_i < 0) {
+    BOOST_LOG(error) << "Couldn't find uniform [width_i]"sv;
+    return std::nullopt;
+  }
+
+  gl::ctx.UseProgram(sws.program[1].handle());
+  gl::ctx.Uniform1fv(loc_width_i, 1, &width_i);
 
   auto color_p = &video::colors[0];
   std::pair<const char *, std::string_view> members[] {
@@ -580,25 +579,46 @@ int egl_t::init(int in_width, int in_height, file_t &&fd) {
     std::make_pair("range_uv", util::view(color_p->range_uv)),
   };
 
-  auto color_matrix = program[0].uniform("ColorMatrix", members, sizeof(members) / sizeof(decltype(members[0])));
+  auto color_matrix = sws.program[0].uniform("ColorMatrix", members, sizeof(members) / sizeof(decltype(members[0])));
   if(!color_matrix) {
-    return -1;
+    return std::nullopt;
   }
 
-  this->color_matrix = std::move(*color_matrix);
+  sws.color_matrix = std::move(*color_matrix);
 
-  tex_in = gl::tex_t::make(1);
+  sws.tex = std::move(tex);
 
-  this->in_width  = in_width;
-  this->in_height = in_height;
-  return 0;
+  gl_drain_errors;
+
+  return std::move(sws);
 }
 
-int egl_t::convert(platf::img_t &img) {
-  auto tex = tex_in[0];
+std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_heigth) {
+  auto tex = gl::tex_t::make(1);
+  gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
+  gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, in_width, in_height);
 
-  gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
-  gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, in_width, in_height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+  return make(in_width, in_height, out_width, out_heigth, std::move(tex));
+}
+
+void sws_t::load_ram(platf::img_t &img) {
+  gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
+  gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+}
+
+void sws_t::load_vram(platf::img_t &img, int offset_x, int offset_y, int framebuffer) {
+  gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+  gl::ctx.ReadBuffer(GL_COLOR_ATTACHMENT0);
+  gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
+  gl::ctx.CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, offset_x, offset_y, img.width, img.height);
+
+  gl::ctx.Flush();
+}
+
+int sws_t::convert(nv12_t &nv12) {
+  auto texture = tex[0];
+
+  gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
 
   GLenum attachments[] {
     GL_COLOR_ATTACHMENT0,
@@ -615,60 +635,16 @@ int egl_t::convert(platf::img_t &img) {
       return -1;
     }
 
-    gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
+    gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
 
     gl::ctx.UseProgram(program[x].handle());
     program[x].bind(color_matrix);
 
-    gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), out_width / (x + 1), out_height / (x + 1));
+    gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), width / (x + 1), height / (x + 1));
     gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
   }
 
   return 0;
-}
-
-int egl_t::_set_frame(AVFrame *frame) {
-  this->hwframe.reset(frame);
-  this->frame = frame;
-
-  // Ensure aspect ratio is maintained
-  auto scalar       = std::fminf(frame->width / (float)in_width, frame->height / (float)in_height);
-  auto out_width_f  = in_width * scalar;
-  auto out_height_f = in_height * scalar;
-
-  // result is always positive
-  auto offsetX_f = (frame->width - out_width_f) / 2;
-  auto offsetY_f = (frame->height - out_height_f) / 2;
-
-  out_width  = out_width_f;
-  out_height = out_height_f;
-
-  offsetX = offsetX_f;
-  offsetY = offsetY_f;
-
-  auto tex = tex_in[0];
-
-  gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
-  gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, in_width, in_height);
-
-  auto loc_width_i = gl::ctx.GetUniformLocation(program[1].handle(), "width_i");
-  if(loc_width_i < 0) {
-    BOOST_LOG(error) << "Couldn't find uniform [width_i]"sv;
-    return -1;
-  }
-
-  auto width_i = 1.0f / out_width;
-  gl::ctx.UseProgram(program[1].handle());
-  gl::ctx.Uniform1fv(loc_width_i, 1, &width_i);
-
-  gl_drain_errors;
-  return 0;
-}
-
-egl_t::~egl_t() {
-  if(gl::ctx.GetError) {
-    gl_drain_errors;
-  }
 }
 } // namespace egl
 

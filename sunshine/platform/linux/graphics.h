@@ -155,12 +155,6 @@ int init();
 namespace egl {
 using display_t = util::dyn_safe_ptr_v2<void, EGLBoolean, &eglTerminate>;
 
-KITTY_USING_MOVE_T(file_t, int, -1, {
-  if(el >= 0) {
-    close(el);
-  }
-});
-
 struct rgb_img_t {
   display_t::pointer display;
   EGLImage xrgb8;
@@ -227,37 +221,24 @@ std::optional<nv12_t> import_target(
   std::array<file_t, nv12_img_t::num_fds> &&fds,
   const surface_descriptor_t &r8, const surface_descriptor_t &gr88);
 
-class egl_t : public platf::hwdevice_t {
+class sws_t {
 public:
-  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override;
+  static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex);
+  static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_heigth);
 
-  int init(int in_width, int in_height, file_t &&fd);
+  int convert(nv12_t &nv12);
 
-  int convert(platf::img_t &img) override;
+  void load_ram(platf::img_t &img);
+  void load_vram(platf::img_t &img, int offset_x, int offset_y, int framebuffer);
 
-  /**
-   * Any specialization needs to populate nv12_t nv12
-   * Then call this function
-   */
-  int _set_frame(AVFrame *frame);
+  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
 
-  ~egl_t() override;
-
-  int in_width, in_height;
-  int out_width, out_height;
-  int offsetX, offsetY;
-
-  frame_t hwframe;
-
-  file_t file;
-  gbm::gbm_t gbm;
-  display_t display;
-  ctx_t ctx;
-
-  gl::tex_t tex_in;
-  nv12_t nv12;
+  gl::tex_t tex;
   gl::program_t program[2];
   gl::buffer_t color_matrix;
+
+  int width, height;
+  int offsetX, offsetY;
 };
 
 bool fail();
