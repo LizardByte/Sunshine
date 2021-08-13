@@ -103,8 +103,12 @@ public:
     }
 
     if(drmSetClientCap(fd.el, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
-      BOOST_LOG(error) << "Couldn't expose some/all drm planes"sv;
+      BOOST_LOG(error) << "Couldn't expose some/all drm planes for card: "sv << path;
       return -1;
+    }
+
+    if(drmSetClientCap(fd.el, DRM_CLIENT_CAP_ATOMIC, 1)) {
+      BOOST_LOG(warning) << "Couldn't expose some properties for card: "sv << path;
     }
 
     plane_res.reset(drmModeGetPlaneResources(fd.el));
@@ -257,6 +261,24 @@ public:
 
       auto end = std::end(card);
       for(auto plane = std::begin(card); plane != end; ++plane) {
+        bool cursor;
+        auto props = card.plane_props(plane->plane_id);
+        for(auto &[prop, val] : props) {
+          if(prop->name == "type"sv) {
+            BOOST_LOG(verbose) << prop->name << "::"sv << kms::plane_type(val);
+
+            if(val == DRM_PLANE_TYPE_CURSOR) {
+              // Don't count as a monitor when it is a cursor
+              cursor = true;
+              break;
+            }
+          }
+        }
+
+        if(cursor) {
+          continue;
+        }
+
         if(monitor != monitor_index) {
           ++monitor;
           continue;
@@ -581,12 +603,17 @@ std::vector<std::string> kms_display_names() {
         break;
       }
 
+      bool cursor = false;
       {
-        BOOST_LOG(verbose) << "PLANE INFO"sv;
-        auto props = card.plane_props(card.plane_res->planes[count]);
+        BOOST_LOG(verbose) << "PLANE INFO ["sv << count << ']';
+        auto props = card.plane_props(plane->plane_id);
         for(auto &[prop, val] : props) {
           if(prop->name == "type"sv) {
             BOOST_LOG(verbose) << prop->name << "::"sv << kms::plane_type(val);
+
+            if(val == DRM_PLANE_TYPE_CURSOR) {
+              cursor = true;
+            }
           }
           else {
             BOOST_LOG(verbose) << prop->name << "::"sv << val;
@@ -620,7 +647,9 @@ std::vector<std::string> kms_display_names() {
 
       kms::print(plane.get(), fb.get(), crtc.get());
 
-      display_names.emplace_back(std::to_string(count++));
+      if(!cursor) {
+        display_names.emplace_back(std::to_string(count++));
+      }
     }
   }
 

@@ -57,22 +57,6 @@ _FN(Free, int, (void *data));
 _FN(InitThreads, Status, (void));
 
 namespace rr {
-using Mode   = XID;
-using Output = XID;
-
-struct CrtcInfo {
-  Time timestamp;
-  int x, y;
-  unsigned int width, height;
-  Mode mode;
-  Rotation rotation;
-  int noutput;
-  Output *outputs;
-  Rotation rotations;
-  int npossible;
-  Output *possible;
-};
-
 _FN(GetScreenResources, XRRScreenResources *, (Display * dpy, Window window));
 _FN(GetOutputInfo, XRROutputInfo *, (Display * dpy, XRRScreenResources *resources, RROutput output));
 _FN(GetCrtcInfo, XRRCrtcInfo *, (Display * dpy, XRRScreenResources *resources, RRCrtc crtc));
