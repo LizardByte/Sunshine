@@ -27,18 +27,6 @@ static void free_frame(AVFrame *frame) {
 using frame_t = util::safe_ptr<AVFrame, free_frame>;
 
 namespace platf::dxgi {
-using input_layout_t        = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
-using render_target_t       = util::safe_ptr<ID3D11RenderTargetView, Release<ID3D11RenderTargetView>>;
-using shader_res_t          = util::safe_ptr<ID3D11ShaderResourceView, Release<ID3D11ShaderResourceView>>;
-using buf_t                 = util::safe_ptr<ID3D11Buffer, Release<ID3D11Buffer>>;
-using blend_t               = util::safe_ptr<ID3D11BlendState, Release<ID3D11BlendState>>;
-using raster_state_t        = util::safe_ptr<ID3D11RasterizerState, Release<ID3D11RasterizerState>>;
-using sampler_state_t       = util::safe_ptr<ID3D11SamplerState, Release<ID3D11SamplerState>>;
-using vs_t                  = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
-using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
-using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
-using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
-using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
 
 template<class T>
 buf_t make_buffer(device_t::pointer device, const T &t) {
@@ -98,9 +86,12 @@ blob_t convert_Y_ps_hlsl;
 blob_t scene_ps_hlsl;
 
 struct img_d3d_t : public platf::img_t {
-  shader_res_t input_res;
-  texture2d_t texture;
   std::shared_ptr<platf::display_t> display;
+
+  shader_res_t input_res;
+  render_target_t scene_rt;
+
+  texture2d_t texture;
 
   ~img_d3d_t() override = default;
 };
@@ -224,85 +215,61 @@ blob_t compile_vertex_shader(LPCSTR file) {
   return compile_shader(file, "main_vs", "vs_5_0");
 }
 
+int init_rt(device_t::pointer device, shader_res_t &shader_res, render_target_t &render_target, int width, int height, DXGI_FORMAT format, texture2d_t::pointer tex) {
+  D3D11_SHADER_RESOURCE_VIEW_DESC shader_resource_desc {
+    format,
+    D3D11_SRV_DIMENSION_TEXTURE2D
+  };
+  shader_resource_desc.Texture2D.MipLevels = 1;
+
+  auto status = device->CreateShaderResourceView(tex, &shader_resource_desc, &shader_res);
+  if(status) {
+    BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  D3D11_RENDER_TARGET_VIEW_DESC render_target_desc {
+    format,
+    D3D11_RTV_DIMENSION_TEXTURE2D
+  };
+
+  status = device->CreateRenderTargetView(tex, &render_target_desc, &render_target);
+  if(status) {
+    BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  return 0;
+}
+
+int init_rt(device_t::pointer device, shader_res_t &shader_res, render_target_t &render_target, int width, int height, DXGI_FORMAT format) {
+  D3D11_TEXTURE2D_DESC desc {};
+
+  desc.Width            = width;
+  desc.Height           = height;
+  desc.Format           = format;
+  desc.Usage            = D3D11_USAGE_DEFAULT;
+  desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+  desc.MipLevels        = 1;
+  desc.ArraySize        = 1;
+  desc.SampleDesc.Count = 1;
+
+  texture2d_t tex;
+  auto status = device->CreateTexture2D(&desc, nullptr, &tex);
+  if(status) {
+    BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  return init_rt(device, shader_res, render_target, width, height, format, tex.get());
+}
+
 class hwdevice_t : public platf::hwdevice_t {
 public:
-  hwdevice_t(std::vector<hwdevice_t *> *hwdevices_p) : hwdevices_p { hwdevices_p } {}
-  hwdevice_t() = delete;
-
-  void set_cursor_pos(LONG rel_x, LONG rel_y, bool visible) {
-    cursor_visible = visible;
-
-    if(!visible) {
-      return;
-    }
-
-    auto x = ((float)rel_x);
-    auto y = ((float)rel_y);
-
-    cursor_view.TopLeftX = x;
-    cursor_view.TopLeftY = y;
-  }
-
-  int set_cursor_texture(texture2d_t::pointer texture, LONG width, LONG height) {
-    auto device = (device_t::pointer)data;
-
-    cursor_view.Width  = width;
-    cursor_view.Height = height;
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC desc {
-      DXGI_FORMAT_B8G8R8A8_UNORM,
-      D3D11_SRV_DIMENSION_TEXTURE2D
-    };
-    desc.Texture2D.MipLevels = 1;
-
-    auto status = device->CreateShaderResourceView(texture, &desc, &img.input_res);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create cursor shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    return 0;
-  }
-
   int convert(platf::img_t &img_base) override {
     auto &img = (img_d3d_t &)img_base;
 
-    if(!img.input_res) {
-      auto device = (device_t::pointer)data;
-
-      D3D11_SHADER_RESOURCE_VIEW_DESC desc {
-        DXGI_FORMAT_B8G8R8A8_UNORM,
-        D3D11_SRV_DIMENSION_TEXTURE2D
-      };
-      desc.Texture2D.MipLevels = 1;
-
-      auto status = device->CreateShaderResourceView(img.texture.get(), &desc, &img.input_res);
-      if(FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create input shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-    }
-
-    auto input_res_p = img.input_res.get();
-
-    if(cursor_visible) {
-      _init_view_port(img.width, img.height);
-
-      device_ctx_p->OMSetRenderTargets(1, &scene_rt, nullptr);
-      device_ctx_p->VSSetShader(scene_vs.get(), nullptr, 0);
-      device_ctx_p->PSSetShader(scene_ps.get(), nullptr, 0);
-      device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
-
-      device_ctx_p->Draw(3, 0);
-
-      device_ctx_p->OMSetBlendState(blend_enable.get(), nullptr, 0xFFFFFFFFu);
-      device_ctx_p->RSSetViewports(1, &cursor_view);
-      device_ctx_p->PSSetShaderResources(0, 1, &this->img.input_res);
-      device_ctx_p->Draw(3, 0);
-      device_ctx_p->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
-
-      input_res_p = scene_sr.get();
-    }
+    device_ctx_p->IASetInputLayout(input_layout.get());
 
     _init_view_port(this->img.width, this->img.height);
     device_ctx_p->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
@@ -312,7 +279,7 @@ public:
     device_ctx_p->Draw(3, 0);
 
     device_ctx_p->RSSetViewports(1, &outY_view);
-    device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
+    device_ctx_p->PSSetShaderResources(0, 1, &img.input_res);
     device_ctx_p->Draw(3, 0);
 
     // Artifacts start appearing on the rendered image if Sunshine doesn't flush
@@ -327,7 +294,7 @@ public:
     device_ctx_p->Draw(3, 0);
 
     device_ctx_p->RSSetViewports(1, &outUV_view);
-    device_ctx_p->PSSetShaderResources(0, 1, &input_res_p);
+    device_ctx_p->PSSetShaderResources(0, 1, &img.input_res);
     device_ctx_p->Draw(3, 0);
     device_ctx_p->Flush();
 
@@ -406,8 +373,8 @@ public:
     img.width       = out_width;
     img.height      = out_height;
     img.data        = (std::uint8_t *)img.texture.get();
-    img.row_pitch   = out_width;
-    img.pixel_pitch = 1;
+    img.row_pitch   = out_width * 4;
+    img.pixel_pitch = 4;
 
     float info_in[16 / sizeof(float)] { 1.0f / (float)out_width }; //aligned to 16-byte
     info_scene = make_buffer(device_p, info_in);
@@ -429,7 +396,8 @@ public:
     }
 
     nv12_rt_desc.Format = DXGI_FORMAT_R8G8_UNORM;
-    status              = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_UV_rt);
+
+    status = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_UV_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -466,10 +434,6 @@ public:
 
     this->device_ctx_p = device_ctx_p;
 
-    cursor_visible       = false;
-    cursor_view.MinDepth = 0.0f;
-    cursor_view.MaxDepth = 1.0f;
-
     format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
     status = device_p->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
     if(status) {
@@ -501,17 +465,6 @@ public:
       return -1;
     }
 
-    blend_disable = make_blend(device_p, false);
-    blend_enable  = make_blend(device_p, true);
-
-    if(!blend_disable || !blend_enable) {
-      return -1;
-    }
-
-    if(_init_rt(scene_sr, scene_rt, display->width, display->height, DXGI_FORMAT_B8G8R8A8_UNORM)) {
-      return -1;
-    }
-
     color_matrix = make_buffer(device_p, ::video::colors[0]);
     if(!color_matrix) {
       BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
@@ -528,21 +481,6 @@ public:
       &input_layout);
 
     img.display = std::move(display);
-
-    D3D11_SAMPLER_DESC sampler_desc {};
-    sampler_desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
-    sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_WRAP;
-    sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    sampler_desc.MinLOD         = 0;
-    sampler_desc.MaxLOD         = D3D11_FLOAT32_MAX;
-
-    status = device_p->CreateSamplerState(&sampler_desc, &sampler_linear);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create point sampler state [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
 
     // Color the background black, so that the padding for keeping the aspect ratio
     // is black
@@ -563,12 +501,9 @@ public:
       return -1;
     }
 
-    device_ctx_p->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
-    device_ctx_p->PSSetSamplers(0, 1, &sampler_linear);
+    device_ctx_p->IASetInputLayout(input_layout.get());
     device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix);
     device_ctx_p->VSSetConstantBuffers(0, 1, &info_scene);
-    device_ctx_p->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-    device_ctx_p->IASetInputLayout(input_layout.get());
 
     return 0;
   }
@@ -576,11 +511,6 @@ public:
   ~hwdevice_t() override {
     if(data) {
       ((ID3D11Device *)data)->Release();
-    }
-
-    auto it = std::find(std::begin(*hwdevices_p), std::end(*hwdevices_p), this);
-    if(it != std::end(*hwdevices_p)) {
-      hwdevices_p->erase(it);
     }
   }
 
@@ -599,75 +529,21 @@ private:
     _init_view_port(0.0f, 0.0f, width, height);
   }
 
-  int _init_rt(shader_res_t &shader_res, render_target_t &render_target, int width, int height, DXGI_FORMAT format) {
-    D3D11_TEXTURE2D_DESC desc {};
-
-    desc.Width            = width;
-    desc.Height           = height;
-    desc.Format           = format;
-    desc.Usage            = D3D11_USAGE_DEFAULT;
-    desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-    desc.MipLevels        = 1;
-    desc.ArraySize        = 1;
-    desc.SampleDesc.Count = 1;
-
-    auto device = (device_t::pointer)data;
-
-    texture2d_t tex;
-    auto status = device->CreateTexture2D(&desc, nullptr, &tex);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC shader_resource_desc {
-      format,
-      D3D11_SRV_DIMENSION_TEXTURE2D
-    };
-    shader_resource_desc.Texture2D.MipLevels = 1;
-
-    device->CreateShaderResourceView(tex.get(), &shader_resource_desc, &shader_res);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    D3D11_RENDER_TARGET_VIEW_DESC render_target_desc {
-      format,
-      D3D11_RTV_DIMENSION_TEXTURE2D
-    };
-
-    device->CreateRenderTargetView(tex.get(), &render_target_desc, &render_target);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    return 0;
-  }
-
 public:
   frame_t hwframe;
 
   ::video::color_t *color_p;
 
-  blend_t blend_enable;
-  blend_t blend_disable;
-
   buf_t info_scene;
   buf_t color_matrix;
-
-  sampler_state_t sampler_linear;
 
   input_layout_t input_layout;
 
   render_target_t nv12_Y_rt;
   render_target_t nv12_UV_rt;
 
-  render_target_t scene_rt;
-  shader_res_t scene_sr;
-
+  // The image referenced by hwframe
+  // The resulting image is stored here.
   img_d3d_t img;
 
   // Clear nv12 render target to black
@@ -682,15 +558,9 @@ public:
   D3D11_VIEWPORT outY_view;
   D3D11_VIEWPORT outUV_view;
 
-  D3D11_VIEWPORT cursor_view;
-  bool cursor_visible;
-
   DXGI_FORMAT format;
 
   device_ctx_t::pointer device_ctx_p;
-
-  // The destructor will remove itself from the list of hardware devices, this is done synchronously
-  std::vector<hwdevice_t *> *hwdevices_p;
 };
 
 capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
@@ -785,40 +655,120 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       return capture_e::error;
     }
 
-    for(auto *hwdevice : hwdevices) {
-      if(hwdevice->set_cursor_texture(texture.get(), t.Width, t.Height)) {
-        return capture_e::error;
-      }
+    D3D11_SHADER_RESOURCE_VIEW_DESC desc {
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      D3D11_SRV_DIMENSION_TEXTURE2D
+    };
+    desc.Texture2D.MipLevels = 1;
+
+    // Free resources before allocating on the next line.
+    cursor.input_res.reset();
+    status = device->CreateShaderResourceView(texture.get(), &desc, &cursor.input_res);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create cursor shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
+      return capture_e::error;
     }
 
-    cursor.texture = std::move(texture);
-    cursor.width   = t.Width;
-    cursor.height  = t.Height;
+    cursor.set_texture(t.Width, t.Height, std::move(texture));
   }
 
   if(frame_info.LastMouseUpdateTime.QuadPart) {
-    for(auto *hwdevice : hwdevices) {
-      hwdevice->set_cursor_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible && cursor_visible);
-    }
+    cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y);
   }
 
   if(frame_update_flag) {
-    texture2d_t src;
+    src.reset();
     status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
 
     if(FAILED(status)) {
       BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
       return capture_e::error;
     }
+  }
 
-    device_ctx->CopyResource(img->texture.get(), src.get());
+  device_ctx->CopyResource(img->texture.get(), src.get());
+  if(frame_info.PointerPosition.Visible && cursor_visible) {
+    D3D11_VIEWPORT view {
+      0.0f, 0.0f,
+      width, height,
+      0.0f, 1.0f
+    };
+
+    device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
+    device_ctx->PSSetShader(scene_ps.get(), nullptr, 0);
+    device_ctx->RSSetViewports(1, &view);
+    device_ctx->OMSetRenderTargets(1, &img->scene_rt, nullptr);
+    device_ctx->PSSetShaderResources(0, 1, &cursor.input_res);
+    device_ctx->OMSetBlendState(blend_enable.get(), nullptr, 0xFFFFFFFFu);
+    device_ctx->RSSetViewports(1, &cursor.cursor_view);
+    device_ctx->Draw(3, 0);
+    device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
   }
 
   return capture_e::ok;
 }
 
+int display_vram_t::init(int framerate, const std::string &display_name) {
+  if(display_base_t::init(framerate, display_name)) {
+    return -1;
+  }
+
+  D3D11_SAMPLER_DESC sampler_desc {};
+  sampler_desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+  sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
+  sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_WRAP;
+  sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+  sampler_desc.MinLOD         = 0;
+  sampler_desc.MaxLOD         = D3D11_FLOAT32_MAX;
+
+  auto status = device->CreateSamplerState(&sampler_desc, &sampler_linear);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create point sampler state [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  status = device->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
+  if(status) {
+    BOOST_LOG(error) << "Failed to create scene vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+  if(status) {
+    BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  blend_enable  = make_blend(device.get(), true);
+  blend_disable = make_blend(device.get(), false);
+
+  if(!blend_disable || !blend_enable) {
+    return -1;
+  }
+
+  device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
+  device_ctx->PSSetSamplers(0, 1, &sampler_linear);
+  device_ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+  return 0;
+}
+
 std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   auto img = std::make_shared<img_d3d_t>();
+
+  img->pixel_pitch = 4;
+  img->row_pitch   = img->pixel_pitch * width;
+  img->width       = width;
+  img->height      = height;
+  img->display     = shared_from_this();
+
+  auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * height);
+  D3D11_SUBRESOURCE_DATA data {
+    dummy_data.get(),
+    (UINT)img->row_pitch
+  };
+  std::fill_n(dummy_data.get(), img->row_pitch * height, 0);
 
   D3D11_TEXTURE2D_DESC t {};
   t.Width            = width;
@@ -828,26 +778,29 @@ std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   t.SampleDesc.Count = 1;
   t.Usage            = D3D11_USAGE_DEFAULT;
   t.Format           = format;
-  t.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+  t.BindFlags        = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 
-  auto status = device->CreateTexture2D(&t, nullptr, &img->texture);
+  auto status = device->CreateTexture2D(&t, &data, &img->texture);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create img buf texture [0x"sv << util::hex(status).to_string_view() << ']';
     return nullptr;
   }
 
-  img->data        = (std::uint8_t *)img->texture.get();
-  img->row_pitch   = 0;
-  img->pixel_pitch = 4;
-  img->width       = 0;
-  img->height      = 0;
-  img->display     = shared_from_this();
+  if(init_rt(device.get(), img->input_res, img->scene_rt, width, height, format, img->texture.get())) {
+    return nullptr;
+  }
+
+  img->data = (std::uint8_t *)img->texture.get();
 
   return img;
 }
 
 int display_vram_t::dummy_img(platf::img_t *img_base) {
   auto img = (img_d3d_t *)img_base;
+
+  if(img->texture) {
+    return 0;
+  }
 
   img->row_pitch  = width * 4;
   auto dummy_data = std::make_unique<int[]>(width * height);
@@ -874,11 +827,8 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
     return -1;
   }
 
-  img->texture     = std::move(tex);
-  img->data        = (std::uint8_t *)img->texture.get();
-  img->height      = height;
-  img->width       = width;
-  img->pixel_pitch = 4;
+  img->texture = std::move(tex);
+  img->data    = (std::uint8_t *)img->texture.get();
 
   return 0;
 }
@@ -890,7 +840,7 @@ std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_f
     return nullptr;
   }
 
-  auto hwdevice = std::make_shared<hwdevice_t>(&hwdevices);
+  auto hwdevice = std::make_shared<hwdevice_t>();
 
   auto ret = hwdevice->init(
     shared_from_this(),
@@ -901,12 +851,6 @@ std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_f
   if(ret) {
     return nullptr;
   }
-
-  if(cursor.texture && hwdevice->set_cursor_texture(cursor.texture.get(), cursor.width, cursor.height)) {
-    return nullptr;
-  }
-
-  hwdevices.emplace_back(hwdevice.get());
 
   return hwdevice;
 }

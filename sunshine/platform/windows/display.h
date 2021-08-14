@@ -22,19 +22,31 @@ void Release(T *dxgi) {
   dxgi->Release();
 }
 
-using factory1_t    = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
-using dxgi_t        = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
-using dxgi1_t       = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
-using device_t      = util::safe_ptr<ID3D11Device, Release<ID3D11Device>>;
-using device_ctx_t  = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11DeviceContext>>;
-using adapter_t     = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
-using output_t      = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
-using output1_t     = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
-using dup_t         = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
-using texture2d_t   = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
-using texture1d_t   = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;
-using resource_t    = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
-using multithread_t = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
+using factory1_t            = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
+using dxgi_t                = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
+using dxgi1_t               = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
+using device_t              = util::safe_ptr<ID3D11Device, Release<ID3D11Device>>;
+using device_ctx_t          = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11DeviceContext>>;
+using adapter_t             = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
+using output_t              = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
+using output1_t             = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
+using dup_t                 = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
+using texture2d_t           = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
+using texture1d_t           = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;
+using resource_t            = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
+using multithread_t         = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
+using vs_t                  = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
+using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
+using blend_t               = util::safe_ptr<ID3D11BlendState, Release<ID3D11BlendState>>;
+using input_layout_t        = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
+using render_target_t       = util::safe_ptr<ID3D11RenderTargetView, Release<ID3D11RenderTargetView>>;
+using shader_res_t          = util::safe_ptr<ID3D11ShaderResourceView, Release<ID3D11ShaderResourceView>>;
+using buf_t                 = util::safe_ptr<ID3D11Buffer, Release<ID3D11Buffer>>;
+using raster_state_t        = util::safe_ptr<ID3D11RasterizerState, Release<ID3D11RasterizerState>>;
+using sampler_state_t       = util::safe_ptr<ID3D11SamplerState, Release<ID3D11SamplerState>>;
+using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
+using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
+using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
 
 namespace video {
 using device_t         = util::safe_ptr<ID3D11VideoDevice, Release<ID3D11VideoDevice>>;
@@ -54,10 +66,25 @@ struct cursor_t {
   bool visible;
 };
 
-struct gpu_cursor_t {
-  texture2d_t texture;
+class gpu_cursor_t {
+public:
+  gpu_cursor_t() : cursor_view { 0, 0, 0, 0, 0.0f, 1.0f } {};
+  void set_pos(LONG rel_x, LONG rel_y) {
+    cursor_view.TopLeftX = rel_x;
+    cursor_view.TopLeftY = rel_y;
+  }
 
-  LONG width, height;
+  void set_texture(LONG width, LONG height, texture2d_t &&texture) {
+    cursor_view.Width  = width;
+    cursor_view.Height = height;
+
+    this->texture = std::move(texture);
+  }
+
+  texture2d_t texture;
+  shader_res_t input_res;
+
+  D3D11_VIEWPORT cursor_view;
 };
 
 class duplication_t {
@@ -124,10 +151,20 @@ public:
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;
 
+  int init(int framerate, const std::string &display_name);
+
   std::shared_ptr<platf::hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override;
 
+  sampler_state_t sampler_linear;
+
+  blend_t blend_enable;
+  blend_t blend_disable;
+
+  ps_t scene_ps;
+  vs_t scene_vs;
+
+  texture2d_t src;
   gpu_cursor_t cursor;
-  std::vector<hwdevice_t *> hwdevices;
 };
 } // namespace platf::dxgi
 

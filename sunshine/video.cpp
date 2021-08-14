@@ -1149,7 +1149,7 @@ encode_e encode_run_sync(
   }
 
   auto img = disp->alloc_img();
-  if(disp->dummy_img(img.get())) {
+  if(!img || disp->dummy_img(img.get())) {
     return encode_e::error;
   }
 
@@ -1344,7 +1344,7 @@ void capture_async(
     }
 
     auto dummy_img = display->alloc_img();
-    if(display->dummy_img(dummy_img.get())) {
+    if(!dummy_img || display->dummy_img(dummy_img.get())) {
       return;
     }
 
@@ -1416,7 +1416,7 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
   }
 
   auto img = disp->alloc_img();
-  if(disp->dummy_img(img.get())) {
+  if(!img || disp->dummy_img(img.get())) {
     return -1;
   }
   if(session->device->convert(*img)) {
