@@ -561,6 +561,19 @@ public:
 
     return capture_e::ok;
   }
+
+  int init(const std::string &display_name, int framerate) {
+    if(display_t::init(display_name, framerate)) {
+      return -1;
+    }
+
+    if(!va::validate(card.fd.el)) {
+      BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
+      return -1;
+    }
+
+    return 0;
+  }
 };
 } // namespace kms
 

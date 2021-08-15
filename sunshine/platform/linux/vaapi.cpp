@@ -74,6 +74,119 @@ struct DRMPRIMESurfaceDescriptor {
   } layers[4];
 };
 
+/** Currently defined profiles */
+enum class profile_e {
+  // Profile ID used for video processing.
+  None                    = -1,
+  MPEG2Simple             = 0,
+  MPEG2Main               = 1,
+  MPEG4Simple             = 2,
+  MPEG4AdvancedSimple     = 3,
+  MPEG4Main               = 4,
+  H264Baseline            = 5,
+  H264Main                = 6,
+  H264High                = 7,
+  VC1Simple               = 8,
+  VC1Main                 = 9,
+  VC1Advanced             = 10,
+  H263Baseline            = 11,
+  JPEGBaseline            = 12,
+  H264ConstrainedBaseline = 13,
+  VP8Version0_3           = 14,
+  H264MultiviewHigh       = 15,
+  H264StereoHigh          = 16,
+  HEVCMain                = 17,
+  HEVCMain10              = 18,
+  VP9Profile0             = 19,
+  VP9Profile1             = 20,
+  VP9Profile2             = 21,
+  VP9Profile3             = 22,
+  HEVCMain12              = 23,
+  HEVCMain422_10          = 24,
+  HEVCMain422_12          = 25,
+  HEVCMain444             = 26,
+  HEVCMain444_10          = 27,
+  HEVCMain444_12          = 28,
+  HEVCSccMain             = 29,
+  HEVCSccMain10           = 30,
+  HEVCSccMain444          = 31,
+  AV1Profile0             = 32,
+  AV1Profile1             = 33,
+  HEVCSccMain444_10       = 34,
+
+  // Profile ID used for protected video playback.
+  Protected = 35
+};
+
+enum class entry_e {
+  VLD        = 1,
+  IZZ        = 2,
+  IDCT       = 3,
+  MoComp     = 4,
+  Deblocking = 5,
+  EncSlice   = 6, /* slice level encode */
+  EncPicture = 7, /* pictuer encode, JPEG, etc */
+  /*
+     * For an implementation that supports a low power/high performance variant
+     * for slice level encode, it can choose to expose the
+     * VAEntrypointEncSliceLP entrypoint. Certain encoding tools may not be
+     * available with this entrypoint (e.g. interlace, MBAFF) and the
+     * application can query the encoding configuration attributes to find
+     * out more details if this entrypoint is supported.
+     */
+  EncSliceLP = 8,
+  VideoProc  = 10, /**< Video pre/post-processing. */
+  /**
+     * \brief FEI
+     *
+     * The purpose of FEI (Flexible Encoding Infrastructure) is to allow applications to
+     * have more controls and trade off quality for speed with their own IPs.
+     * The application can optionally provide input to ENC for extra encode control
+     * and get the output from ENC. Application can chose to modify the ENC
+     * output/PAK input during encoding, but the performance impact is significant.
+     *
+     * On top of the existing buffers for normal encode, there will be
+     * one extra input buffer (VAEncMiscParameterFEIFrameControl) and
+     * three extra output buffers (VAEncFEIMVBufferType, VAEncFEIMBModeBufferType
+     * and VAEncFEIDistortionBufferType) for FEI entry function.
+     * If separate PAK is set, two extra input buffers
+     * (VAEncFEIMVBufferType, VAEncFEIMBModeBufferType) are needed for PAK input.
+     **/
+  FEI = 11,
+  /**
+     * \brief Stats
+     *
+     * A pre-processing function for getting some statistics and motion vectors is added,
+     * and some extra controls for Encode pipeline are provided. The application can
+     * optionally call the statistics function to get motion vectors and statistics like
+     * variances, distortions before calling Encode function via this entry point.
+     *
+     * Checking whether Statistics is supported can be performed with vaQueryConfigEntrypoints().
+     * If Statistics entry point is supported, then the list of returned entry-points will
+     * include #Stats. Supported pixel format, maximum resolution and statistics
+     * specific attributes can be obtained via normal attribute query. One input buffer
+     * (VAStatsStatisticsParameterBufferType) and one or two output buffers
+     * (VAStatsStatisticsBufferType, VAStatsStatisticsBottomFieldBufferType (for interlace only)
+     * and VAStatsMVBufferType) are needed for this entry point.
+     **/
+  Stats = 12,
+  /**
+     * \brief ProtectedTEEComm
+     *
+     * A function for communicating with TEE (Trusted Execution Environment).
+     **/
+  ProtectedTEEComm = 13,
+  /**
+     * \brief ProtectedContent
+     *
+     * A function for protected content to decrypt encrypted content.
+     **/
+  ProtectedContent = 14,
+};
+
+
+typedef VAStatus (*queryConfigEntrypoints_fn)(VADisplay dpy, profile_e profile, entry_e *entrypoint_list, int *num_entrypoints);
+typedef int (*maxNumEntrypoints_fn)(VADisplay dpy);
 typedef VADisplay (*getDisplayDRM_fn)(int fd);
 typedef VAStatus (*terminate_fn)(VADisplay dpy);
 typedef VAStatus (*initialize_fn)(VADisplay dpy, int *major_version, int *minor_version);
@@ -87,14 +200,16 @@ typedef VAStatus (*exportSurfaceHandle_fn)(
   uint32_t mem_type, uint32_t flags,
   void *descriptor);
 
-getDisplayDRM_fn getDisplayDRM;
-terminate_fn terminate;
-initialize_fn initialize;
-errorStr_fn errorStr;
-setErrorCallback_fn setErrorCallback;
-setInfoCallback_fn setInfoCallback;
-queryVendorString_fn queryVendorString;
-exportSurfaceHandle_fn exportSurfaceHandle;
+static maxNumEntrypoints_fn maxNumEntrypoints;
+static queryConfigEntrypoints_fn queryConfigEntrypoints;
+static getDisplayDRM_fn getDisplayDRM;
+static terminate_fn terminate;
+static initialize_fn initialize;
+static errorStr_fn errorStr;
+static setErrorCallback_fn setErrorCallback;
+static setInfoCallback_fn setInfoCallback;
+static queryVendorString_fn queryVendorString;
+static exportSurfaceHandle_fn exportSurfaceHandle;
 
 using display_t = util::dyn_safe_ptr_v2<void, VAStatus, &terminate>;
 
@@ -112,6 +227,8 @@ int init_main_va() {
   }
 
   std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&maxNumEntrypoints, "vaMaxNumEntrypoints" },
+    { (dyn::apiproc *)&queryConfigEntrypoints, "vaQueryConfigEntrypoints" },
     { (dyn::apiproc *)&terminate, "vaTerminate" },
     { (dyn::apiproc *)&initialize, "vaInitialize" },
     { (dyn::apiproc *)&errorStr, "vaErrorStr" },
@@ -428,6 +545,50 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
   }
 
   return 0;
+}
+
+bool validate(int fd) {
+  if(init()) {
+    return false;
+  }
+
+  va::display_t display { va::getDisplayDRM(fd) };
+  if(!display) {
+    char string[1024];
+
+    auto bytes = readlink(("/proc/self/fd/" + std::to_string(fd)).c_str(), string, sizeof(string));
+
+    std::string_view render_device { string, (std::size_t)bytes };
+
+    BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
+    return -1;
+  }
+
+  int major, minor;
+  auto status = initialize(display.get(), &major, &minor);
+  if(status) {
+    BOOST_LOG(error) << "Couldn't initialize va display: "sv << va::errorStr(status);
+    return -1;
+  }
+
+  std::vector<entry_e> entrypoints;
+  entrypoints.resize(maxNumEntrypoints(display.get()));
+
+  int count;
+  status = queryConfigEntrypoints(display.get(), profile_e::H264Main, entrypoints.data(), &count);
+  if(status) {
+    BOOST_LOG(error) << "Couldn't query entrypoints for profile::H264Main "sv << va::errorStr(status);
+    return -1;
+  }
+  entrypoints.resize(count);
+
+  for(auto entrypoint : entrypoints) {
+    if(entrypoint == entry_e::EncSlice) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height) {
