@@ -140,6 +140,7 @@ else()
 		sunshine/platform/linux/misc.cpp
 		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp
+		sunshine/platform/linux/x11grab.h
 		third-party/glad/src/egl.c
 		third-party/glad/src/gl.c
 		third-party/glad/include/EGL/eglplatform.h

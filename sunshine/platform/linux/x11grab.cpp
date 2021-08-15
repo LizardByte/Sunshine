@@ -20,21 +20,21 @@
 #include "sunshine/main.h"
 #include "sunshine/task_pool.h"
 
+#include "graphics.h"
 #include "misc.h"
 #include "vaapi.h"
+#include "x11grab.h"
 
 using namespace std::literals;
 
 namespace platf {
+int load_xcb();
+int load_x11();
 
 namespace x11 {
 #define _FN(x, ret, args)    \
   typedef ret(*x##_fn) args; \
   static x##_fn x
-
-using XID      = unsigned long;
-using Time     = unsigned long;
-using Rotation = unsigned short;
 
 _FN(GetImage, XImage *,
   (
@@ -313,7 +313,7 @@ struct shm_img_t : public img_t {
   }
 };
 
-void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
+static void blend_cursor(Display *display, img_t &img, int offsetX, int offsetY) {
   xcursor_t overlay { x11::fix::GetCursorImage(display) };
 
   if(!overlay) {
@@ -705,7 +705,7 @@ std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const st
 }
 
 std::vector<std::string> x11_display_names() {
-  if(xcb::init_shm() || xcb::init() || x11::init() || x11::rr::init() || x11::fix::init()) {
+  if(load_x11() || load_xcb()) {
     BOOST_LOG(error) << "Couldn't init x11 libraries"sv;
 
     return {};
@@ -746,4 +746,69 @@ void freeImage(XImage *p) {
 void freeX(XFixesCursorImage *p) {
   x11::Free(p);
 }
+
+int load_xcb() {
+  // This will be called once only
+  static int xcb_status = xcb::init_shm() || xcb::init();
+
+  return xcb_status;
+}
+
+int load_x11() {
+  // This will be called once only
+  static int x11_status = x11::init() || x11::rr::init() || x11::fix::init();
+
+  return x11_status;
+}
+
+namespace x11 {
+std::optional<cursor_t> cursor_t::make() {
+  if(load_x11()) {
+    return std::nullopt;
+  }
+
+  cursor_t cursor;
+
+  cursor.ctx.reset((cursor_ctx_t::pointer)x11::OpenDisplay(nullptr));
+
+  return cursor;
+}
+
+void cursor_t::capture(egl::cursor_t &img) {
+  auto display = (xdisplay_t::pointer)ctx.get();
+
+  xcursor_t xcursor = fix::GetCursorImage(display);
+
+  if(img.serial != xcursor->cursor_serial) {
+    auto buf_size = xcursor->width * xcursor->height * sizeof(int);
+
+    if(img.buffer.size() < buf_size) {
+      img.buffer.resize(buf_size);
+    }
+
+    std::transform(xcursor->pixels, xcursor->pixels + buf_size / 4, (int *)img.buffer.data(), [](long pixel) -> int {
+      return pixel;
+    });
+  }
+
+  img.data        = img.buffer.data();
+  img.width       = xcursor->width;
+  img.height      = xcursor->height;
+  img.xhot        = xcursor->xhot;
+  img.yhot        = xcursor->yhot;
+  img.x           = xcursor->x;
+  img.y           = xcursor->y;
+  img.pixel_pitch = 4;
+  img.row_pitch   = img.pixel_pitch * img.width;
+  img.serial      = xcursor->cursor_serial;
+}
+
+void cursor_t::blend(img_t &img, int offsetX, int offsetY) {
+  blend_cursor((xdisplay_t::pointer)ctx.get(), img, offsetX, offsetY);
+}
+
+void freeCursorCtx(cursor_ctx_t::pointer ctx) {
+  x11::CloseDisplay((xdisplay_t::pointer)ctx);
+}
+} // namespace x11
 } // namespace platf

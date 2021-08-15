@@ -12,8 +12,10 @@
 #include "sunshine/round_robin.h"
 #include "sunshine/utility.h"
 
+// Cursor rendering support through x11
 #include "graphics.h"
 #include "vaapi.h"
+#include "x11grab.h"
 
 using namespace std::literals;
 namespace fs = std::filesystem;
@@ -261,7 +263,8 @@ public:
 
       auto end = std::end(card);
       for(auto plane = std::begin(card); plane != end; ++plane) {
-        bool cursor;
+        bool cursor = false;
+
         auto props = card.plane_props(plane->plane_id);
         for(auto &[prop, val] : props) {
           if(prop->name == "type"sv) {
@@ -334,6 +337,8 @@ public:
       return -1;
     }
 
+    cursor_opt = x11::cursor_t::make();
+
     return 0;
   }
 
@@ -342,6 +347,8 @@ public:
 
   card_t card;
   file_t fb_fd;
+
+  std::optional<x11::cursor_t> cursor_opt;
 };
 
 class display_ram_t : public display_t {
@@ -440,6 +447,10 @@ public:
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
     gl::ctx.GetTextureSubImage(rgb->tex[0], 0, offset_x, offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
 
+    if(cursor_opt && cursor) {
+      cursor_opt->blend(*img_out_base, offset_x, offset_y);
+    }
+
     return capture_e::ok;
   }
 
@@ -487,12 +498,11 @@ public:
   }
 
   std::shared_ptr<img_t> alloc_img() override {
-    auto img = std::make_shared<img_t>();
+    auto img = std::make_shared<egl::cursor_t>();
 
-    img->width       = width;
-    img->height      = height;
+    img->serial      = std::numeric_limits<decltype(img->serial)>::max();
+    img->data        = nullptr;
     img->pixel_pitch = 4;
-    img->row_pitch   = img->pixel_pitch * width;
 
     return img;
   }
@@ -535,7 +545,20 @@ public:
     return capture_e::ok;
   }
 
-  capture_e snapshot(img_t * /*img_out_base */, std::chrono::milliseconds /* timeout */, bool /* cursor */) {
+  capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds /* timeout */, bool cursor) {
+    if(!cursor || !cursor_opt) {
+      img_out_base->data = nullptr;
+      return capture_e::ok;
+    }
+
+    auto img = (egl::cursor_t *)img_out_base;
+    cursor_opt->capture(*img);
+
+    img->x -= offset_x;
+    img->xhot -= offset_x;
+    img->yhot -= offset_y;
+    img->y -= offset_y;
+
     return capture_e::ok;
   }
 };

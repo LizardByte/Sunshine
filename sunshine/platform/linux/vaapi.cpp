@@ -198,7 +198,7 @@ public:
     return 0;
   }
 
-  int _set_frame(AVFrame *frame) {
+  int set_frame(AVFrame *frame) override {
     this->hwframe.reset(frame);
     this->frame = frame;
 
@@ -252,6 +252,12 @@ public:
       return -1;
     }
 
+    auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height);
+    if(!sws_opt) {
+      return -1;
+    }
+
+    this->sws  = std::move(*sws_opt);
     this->nv12 = std::move(*nv12_opt);
 
     return 0;
@@ -284,27 +290,12 @@ public:
     sws.convert(nv12);
     return 0;
   }
-
-  int set_frame(AVFrame *frame) override {
-    if(_set_frame(frame)) {
-      return -1;
-    }
-
-    auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height);
-    if(!sws_opt) {
-      return -1;
-    }
-
-    this->sws = std::move(*sws_opt);
-
-    return 0;
-  }
 };
 
 class va_vram_t : public va_t {
 public:
   int convert(platf::img_t &img) override {
-    sws.load_vram(img, offset_x, offset_y, framebuffer[0]);
+    sws.load_vram((egl::cursor_t &)img, offset_x, offset_y, framebuffer[0]);
 
     sws.convert(nv12);
     return 0;
@@ -327,21 +318,6 @@ public:
 
     this->offset_x = offset_x;
     this->offset_y = offset_y;
-
-    return 0;
-  }
-
-  int set_frame(AVFrame *frame) override {
-    if(_set_frame(frame)) {
-      return -1;
-    }
-
-    auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height);
-    if(!sws_opt) {
-      return -1;
-    }
-
-    this->sws = std::move(*sws_opt);
 
     return 0;
   }

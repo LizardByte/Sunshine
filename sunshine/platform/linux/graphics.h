@@ -221,6 +221,16 @@ std::optional<nv12_t> import_target(
   std::array<file_t, nv12_img_t::num_fds> &&fds,
   const surface_descriptor_t &r8, const surface_descriptor_t &gr88);
 
+class cursor_t : public platf::img_t {
+public:
+  int x, y;
+  int xhot, yhot;
+
+  unsigned long serial;
+
+  std::vector<std::uint8_t> buffer;
+};
+
 class sws_t {
 public:
   static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex);
@@ -229,16 +239,27 @@ public:
   int convert(nv12_t &nv12);
 
   void load_ram(platf::img_t &img);
-  void load_vram(platf::img_t &img, int offset_x, int offset_y, int framebuffer);
+  void load_vram(cursor_t &img, int offset_x, int offset_y, int framebuffer);
 
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
 
+  // The first texture is the monitor image.
+  // The second texture is the cursor image
   gl::tex_t tex;
-  gl::program_t program[2];
+
+  // The cursor image will be blended into this framebuffer
+  gl::frame_buf_t cursor_framebuffer;
+
+  // Y - shader, UV - shader, Cursor - shader
+  gl::program_t program[3];
   gl::buffer_t color_matrix;
 
-  int width, height;
+  int out_width, out_height;
+  int in_width, in_height;
   int offsetX, offsetY;
+
+  // Store latest cursor for load_vram
+  std::uint64_t serial;
 };
 
 bool fail();

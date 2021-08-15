@@ -147,10 +147,6 @@ public:
   std::int32_t pixel_pitch {};
   std::int32_t row_pitch {};
 
-  img_t()              = default;
-  img_t(const img_t &) = delete;
-  img_t(img_t &&)      = delete;
-
   virtual ~img_t() = default;
 };
 

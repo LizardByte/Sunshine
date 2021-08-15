@@ -485,10 +485,15 @@ void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
   };
 
   color_matrix.update(members, sizeof(members) / sizeof(decltype(members[0])));
+
+  program[0].bind(color_matrix);
+  program[1].bind(color_matrix);
 }
 
 std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex) {
   sws_t sws;
+
+  sws.serial = std::numeric_limits<std::uint64_t>::max();
 
   // Ensure aspect ratio is maintained
   auto scalar       = std::fminf(out_width / (float)in_width, out_heigth / (float)in_height);
@@ -499,13 +504,16 @@ std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int
   auto offsetX_f = (out_width - out_width_f) / 2;
   auto offsetY_f = (out_heigth - out_height_f) / 2;
 
-  sws.width  = out_width_f;
-  sws.height = out_height_f;
+  sws.out_width  = out_width_f;
+  sws.out_height = out_height_f;
+
+  sws.in_width  = in_width;
+  sws.in_height = in_height;
 
   sws.offsetX = offsetX_f;
   sws.offsetY = offsetY_f;
 
-  auto width_i = 1.0f / sws.width;
+  auto width_i = 1.0f / sws.out_width;
 
   {
     const char *sources[] {
@@ -542,7 +550,16 @@ std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int
       return std::nullopt;
     }
 
-    auto program = gl::program_t::link(compiled_sources[1].left(), compiled_sources[0].left());
+    auto program = gl::program_t::link(compiled_sources[3].left(), compiled_sources[4].left());
+    if(program.has_right()) {
+      BOOST_LOG(error) << "GL linker: "sv << program.right();
+      return std::nullopt;
+    }
+
+    // Cursor - shader
+    sws.program[2] = std::move(program.left());
+
+    program = gl::program_t::link(compiled_sources[1].left(), compiled_sources[0].left());
     if(program.has_right()) {
       BOOST_LOG(error) << "GL linker: "sv << program.right();
       return std::nullopt;
@@ -588,13 +605,21 @@ std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int
 
   sws.tex = std::move(tex);
 
+  sws.cursor_framebuffer = gl::frame_buf_t::make(1);
+  sws.cursor_framebuffer.bind(&sws.tex[0], &sws.tex[1]);
+
+  sws.program[0].bind(sws.color_matrix);
+  sws.program[1].bind(sws.color_matrix);
+
+  gl::ctx.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
   gl_drain_errors;
 
   return std::move(sws);
 }
 
 std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_heigth) {
-  auto tex = gl::tex_t::make(1);
+  auto tex = gl::tex_t::make(2);
   gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
   gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, in_width, in_height);
 
@@ -606,19 +631,46 @@ void sws_t::load_ram(platf::img_t &img) {
   gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
 }
 
-void sws_t::load_vram(platf::img_t &img, int offset_x, int offset_y, int framebuffer) {
+void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int framebuffer) {
   gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, framebuffer);
   gl::ctx.ReadBuffer(GL_COLOR_ATTACHMENT0);
   gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
-  gl::ctx.CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, offset_x, offset_y, img.width, img.height);
+  gl::ctx.CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, offset_x, offset_y, in_width, in_height);
 
-  gl::ctx.Flush();
+  if(img.data) {
+    gl::ctx.BindTexture(GL_TEXTURE_2D, tex[1]);
+    if(serial != img.serial) {
+      serial = img.serial;
+
+      gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, img.width, img.height);
+      gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+    }
+
+    gl::ctx.Enable(GL_BLEND);
+    GLenum attachment = GL_COLOR_ATTACHMENT0;
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
+    gl::ctx.DrawBuffers(1, &attachment);
+
+#ifndef NDEBUG
+    auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
+    if(status != GL_FRAMEBUFFER_COMPLETE) {
+      BOOST_LOG(error) << "Pass Cursor: CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
+      return;
+    }
+#endif
+
+    gl::ctx.UseProgram(program[2].handle());
+    gl::ctx.Viewport(img.x, img.y, img.width, img.height);
+    gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+
+    gl::ctx.Disable(GL_BLEND);
+  }
+
+  gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 }
 
 int sws_t::convert(nv12_t &nv12) {
-  auto texture = tex[0];
-
-  gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
+  gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
 
   GLenum attachments[] {
     GL_COLOR_ATTACHMENT0,
@@ -629,20 +681,22 @@ int sws_t::convert(nv12_t &nv12) {
     gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
     gl::ctx.DrawBuffers(1, &attachments[x]);
 
+#ifndef NDEBUG
     auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
     if(status != GL_FRAMEBUFFER_COMPLETE) {
       BOOST_LOG(error) << "Pass "sv << x << ": CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-
-    gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
+#endif
 
     gl::ctx.UseProgram(program[x].handle());
-    program[x].bind(color_matrix);
-
-    gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), width / (x + 1), height / (x + 1));
+    gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), out_width / (x + 1), out_height / (x + 1));
     gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
   }
+
+  gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+
+  gl::ctx.Flush();
 
   return 0;
 }
