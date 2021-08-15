@@ -794,10 +794,8 @@ void cursor_t::capture(egl::cursor_t &img) {
   img.data        = img.buffer.data();
   img.width       = xcursor->width;
   img.height      = xcursor->height;
-  img.xhot        = xcursor->xhot;
-  img.yhot        = xcursor->yhot;
-  img.x           = xcursor->x;
-  img.y           = xcursor->y;
+  img.x           = xcursor->x - xcursor->xhot;
+  img.y           = xcursor->y - xcursor->yhot;
   img.pixel_pitch = 4;
   img.row_pitch   = img.pixel_pitch * img.width;
   img.serial      = xcursor->cursor_serial;

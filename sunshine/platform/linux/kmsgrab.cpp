@@ -555,8 +555,6 @@ public:
     cursor_opt->capture(*img);
 
     img->x -= offset_x;
-    img->xhot -= offset_x;
-    img->yhot -= offset_y;
     img->y -= offset_y;
 
     return capture_e::ok;

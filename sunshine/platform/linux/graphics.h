@@ -224,7 +224,6 @@ std::optional<nv12_t> import_target(
 class cursor_t : public platf::img_t {
 public:
   int x, y;
-  int xhot, yhot;
 
   unsigned long serial;
 
