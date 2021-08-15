@@ -410,7 +410,7 @@ std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface
 }
 
 std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &r8, const surface_descriptor_t &gr88) {
-  int img_attr_planes[2][13] {
+  EGLAttrib img_attr_planes[2][13] {
     { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_R8,
       EGL_WIDTH, r8.width,
       EGL_HEIGHT, r8.height,
@@ -430,8 +430,8 @@ std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<f
 
   nv12_t nv12 {
     egl_display,
-    eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[0]),
-    eglCreateImageKHR(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[1]),
+    eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[0]),
+    eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[1]),
     gl::tex_t::make(2),
     gl::frame_buf_t::make(2),
     std::move(fds)

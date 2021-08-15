@@ -184,11 +184,11 @@ KITTY_USING_MOVE_T(rgb_t, rgb_img_t, , {
 
 KITTY_USING_MOVE_T(nv12_t, nv12_img_t, , {
   if(el.r8) {
-    eglDestroyImageKHR(el.display, el.r8);
+    eglDestroyImage(el.display, el.r8);
   }
 
   if(el.bg88) {
-    eglDestroyImageKHR(el.display, el.bg88);
+    eglDestroyImage(el.display, el.bg88);
   }
 });
 
