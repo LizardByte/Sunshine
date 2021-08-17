@@ -88,7 +88,7 @@ public:
 
     data[0] = sw_frame->data[0] + offsetY;
     if(sw_frame->format == AV_PIX_FMT_NV12) {
-      data[1] = sw_frame->data[1] + offsetUV;
+      data[1] = sw_frame->data[1] + offsetUV * 2;
       data[2] = nullptr;
     }
     else {

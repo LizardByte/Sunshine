@@ -547,6 +547,27 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
   return 0;
 }
 
+bool query(display_t::pointer display, profile_e profile) {
+  std::vector<entry_e> entrypoints;
+  entrypoints.resize(maxNumEntrypoints(display));
+
+  int count;
+  auto status = queryConfigEntrypoints(display, profile, entrypoints.data(), &count);
+  if(status) {
+    BOOST_LOG(error) << "Couldn't query entrypoints for profile::H264Main "sv << va::errorStr(status);
+    return false;
+  }
+  entrypoints.resize(count);
+
+  for(auto entrypoint : entrypoints) {
+    if(entrypoint == entry_e::EncSlice || entrypoint == entry_e::EncSliceLP) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool validate(int fd) {
   if(init()) {
     return false;
@@ -561,34 +582,29 @@ bool validate(int fd) {
     std::string_view render_device { string, (std::size_t)bytes };
 
     BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
-    return -1;
+    return false;
   }
 
   int major, minor;
   auto status = initialize(display.get(), &major, &minor);
   if(status) {
     BOOST_LOG(error) << "Couldn't initialize va display: "sv << va::errorStr(status);
-    return -1;
+    return false;
   }
 
-  std::vector<entry_e> entrypoints;
-  entrypoints.resize(maxNumEntrypoints(display.get()));
-
-  int count;
-  status = queryConfigEntrypoints(display.get(), profile_e::H264Main, entrypoints.data(), &count);
-  if(status) {
-    BOOST_LOG(error) << "Couldn't query entrypoints for profile::H264Main "sv << va::errorStr(status);
-    return -1;
-  }
-  entrypoints.resize(count);
-
-  for(auto entrypoint : entrypoints) {
-    if(entrypoint == entry_e::EncSlice) {
-      return true;
-    }
+  if(!query(display.get(), profile_e::H264Main)) {
+    return false;
   }
 
-  return false;
+  if(config::video.hevc_mode > 1 && !query(display.get(), profile_e::HEVCMain)) {
+    return false;
+  }
+
+  if(config::video.hevc_mode > 2 && !query(display.get(), profile_e::HEVCMain10)) {
+    return false;
+  }
+
+  return true;
 }
 
 std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height) {
