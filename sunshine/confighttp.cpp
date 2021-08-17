@@ -211,6 +211,16 @@ void getWelcomePage(resp_https_t response, req_https_t request) {
   response->write(header + content);
 }
 
+void getTroubleshootingPage(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+
+  print_req(request);
+
+  std::string header  = read_file(WEB_DIR "header.html");
+  std::string content = read_file(WEB_DIR "troubleshooting.html");
+  response->write(header + content);
+}
+
 void getApps(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -481,6 +491,56 @@ void savePin(resp_https_t response, req_https_t request) {
   }
 }
 
+void unpairAll(resp_https_t response, req_https_t request){
+  if(!authenticate(response, request)) return;
+  
+  print_req(request);
+
+  pt::ptree outputTree;
+
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+
+  try {
+    nvhttp::erase_all_clients();
+    outputTree.put("status", true);
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "unpairAll: "sv << e.what();
+    outputTree.put("status", false);
+    outputTree.put("error", e.what());
+    return;
+  }
+}
+
+void closeApp(resp_https_t response, req_https_t request){
+  if(!authenticate(response, request)) return;
+  
+  print_req(request);
+
+  pt::ptree outputTree;
+
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+
+  try {
+    proc::proc.terminate();
+    outputTree.put("status", true);
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "CloseApp: "sv << e.what();
+    outputTree.put("status", false);
+    outputTree.put("error", e.what());
+    return;
+  }
+}
+
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -498,6 +558,7 @@ void start() {
   server.resource["^/config$"]["GET"]               = getConfigPage;
   server.resource["^/password$"]["GET"]             = getPasswordPage;
   server.resource["^/welcome$"]["GET"]              = getWelcomePage;
+  server.resource["^/troubleshooting$"]["GET"]      = getTroubleshootingPage;
   server.resource["^/api/pin"]["POST"]              = savePin;
   server.resource["^/api/apps$"]["GET"]             = getApps;
   server.resource["^/api/apps$"]["POST"]            = saveApp;
@@ -505,6 +566,8 @@ void start() {
   server.resource["^/api/config$"]["POST"]          = saveConfig;
   server.resource["^/api/password$"]["POST"]        = savePassword;
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
+  server.resource["^/api/clients/unpair$"]["POST"]  = unpairAll;
+  server.resource["^/api/apps/close"]["POST"]       = closeApp;
   server.config.reuse_address                       = true;
   server.config.address                             = "0.0.0.0"s;
   server.config.port                                = port_https;
