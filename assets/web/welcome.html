@@ -1,69 +1,90 @@
-<main role="main" id="app"  style="max-width: 600px;margin: 0 auto;">
-    <div class="container-parent">
-      <div class="container py-3">
-        <h1 class="mb-0">Welcome to Sunshine!</h1>
-        <p class="mb-0 align-self-start">Before Getting Started, write down below these credentials</p>
-      </div>
+<main role="main" id="app" style="max-width: 600px; margin: 0 auto">
+  <div class="container-parent">
+    <div class="container py-3">
+      <h1 class="mb-0">Welcome to Sunshine!</h1>
+      <p class="mb-0 align-self-start">
+        Before Getting Started, write down below these credentials
+      </p>
     </div>
-    <div class="alert alert-warning">These Credentials down below are needed to access the rest of the application.<br> Keep them safe, since <b>you will never see them again!</b></div>
-    <form @submit.prevent="save" class="card p-4" style="width: 100%;">
-        <div class="mb-2">
-          <label for="" class="form-label">Username: </label>
-          <input type="text" class="form-control" v-model="passwordData.newUsername">
-        </div>
-        <div class="mb-2">
-          <label for="" class="form-label">Password: </label>
-          <input type="password" class="form-control" v-model="passwordData.newPassword" required>
-        </div>
-        <div class="mb-2">
-          <label for="" class="form-label">Password: </label>
-          <input type="password" class="form-control" v-model="passwordData.confirmNewPassword" required>
-        </div>
-        <button class="mb-2 btn btn-primary" style="margin: 1em auto;">Login</button>
-        <div class="alert alert-danger" v-if="error"><b>Error: </b>{{error}}</div>
-        <div class="alert alert-success" v-if="success"><b>Success! </b>This page will reload soon, your browser will ask you for the new credentials</div>
-      </form>
-</div>
+  </div>
+  <div class="alert alert-warning">
+    These Credentials down below are needed to access the rest of the
+    application.<br />
+    Keep them safe, since <b>you will never see them again!</b>
+  </div>
+  <form @submit.prevent="save" class="card p-4" style="width: 100%">
+    <div class="mb-2">
+      <label for="" class="form-label">Username: </label>
+      <input
+        type="text"
+        class="form-control"
+        v-model="passwordData.newUsername"
+      />
+    </div>
+    <div class="mb-2">
+      <label for="" class="form-label">Password: </label>
+      <input
+        type="password"
+        class="form-control"
+        v-model="passwordData.newPassword"
+        required
+      />
+    </div>
+    <div class="mb-2">
+      <label for="" class="form-label">Password: </label>
+      <input
+        type="password"
+        class="form-control"
+        v-model="passwordData.confirmNewPassword"
+        required
+      />
+    </div>
+    <button class="mb-2 btn btn-primary" style="margin: 1em auto">Login</button>
+    <div class="alert alert-danger" v-if="error"><b>Error: </b>{{error}}</div>
+    <div class="alert alert-success" v-if="success">
+      <b>Success! </b>This page will reload soon, your browser will ask you for
+      the new credentials
+    </div>
+  </form>
 </main>
 
 <script>
   new Vue({
-      el: '#app',
-      data() {
-          return {
-              error: null,
-              success: false,
-              passwordData: {
-                  newUsername: 'sunshine',
-                  newPassword: '',
-                  confirmNewPassword: ''
+    el: "#app",
+    data() {
+      return {
+        error: null,
+        success: false,
+        passwordData: {
+          newUsername: "sunshine",
+          newPassword: "",
+          confirmNewPassword: "",
+        },
+      };
+    },
+    methods: {
+      save() {
+        this.error = null;
+        fetch("/api/password", {
+          method: "POST",
+          body: JSON.stringify(this.passwordData),
+        }).then((r) => {
+          if (r.status == 200) {
+            r.json().then((rj) => {
+              if (rj.status.toString() === "true") {
+                this.success = true;
+                setTimeout(() => {
+                  document.location.reload();
+                }, 5000);
+              } else {
+                this.error = rj.error;
               }
+            });
+          } else {
+            this.error = "Internal Server Error";
           }
+        });
       },
-      methods: {
-          save() {
-              this.error = null;
-              fetch("/api/password", {
-                  method: "POST",
-                  body: JSON.stringify(this.passwordData)
-              }).then((r) => {
-                  if (r.status == 200){
-                      r.json().then((rj) => {
-                          if(rj.status.toString() === "true"){
-                              this.success = true;
-                              setTimeout(()=>{
-                                  document.location.reload();
-                              },5000);
-                          } else {
-                              this.error = rj.error;
-                          }
-                      })
-                  }
-                  else  {
-                      this.error = "Internal Server Error"
-                  }
-              });
-          }
-      }
-  })
+    },
+  });
 </script>
