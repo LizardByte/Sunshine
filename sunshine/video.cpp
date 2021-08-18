@@ -237,10 +237,11 @@ public:
 };
 
 enum flag_e {
-  DEFAULT          = 0x00,
-  SYSTEM_MEMORY    = 0x01,
-  H264_ONLY        = 0x02,
-  LIMITED_GOP_SIZE = 0x04,
+  DEFAULT           = 0x00,
+  PARALLEL_ENCODING = 0x01,
+  H264_ONLY         = 0x02, // When HEVC is to heavy
+  LIMITED_GOP_SIZE  = 0x04, // Some encoders don't like it when you have an infinite GOP_SIZE. *cough* VAAPI *cough*
+  SINGLE_SLICE_ONLY = 0x08, // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
 };
 
 struct encoder_t {
@@ -440,7 +441,7 @@ static encoder_t nvenc {
   DEFAULT,
   dxgi_make_hwdevice_ctx
 #else
-  SYSTEM_MEMORY,
+  PARALLEL_ENCODING,
   cuda_make_hwdevice_ctx
 #endif
 };
@@ -506,7 +507,7 @@ static encoder_t software {
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "libx264"s,
   },
-  H264_ONLY | SYSTEM_MEMORY,
+  H264_ONLY | PARALLEL_ENCODING,
 
   nullptr
 };
@@ -534,7 +535,7 @@ static encoder_t vaapi {
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "h264_vaapi"s,
   },
-  LIMITED_GOP_SIZE | SYSTEM_MEMORY,
+  LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY,
 
   vaapi_make_hwdevice_ctx
 };
@@ -1374,7 +1375,7 @@ void capture(
   auto idr_events = mail->event<bool>(mail::idr);
 
   idr_events->raise(true);
-  if(encoders.front().flags & SYSTEM_MEMORY) {
+  if(encoders.front().flags & PARALLEL_ENCODING) {
     capture_async(std::move(mail), config, channel_data);
   }
   else {
@@ -1540,8 +1541,13 @@ retry:
 
   std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
     { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } },
-    { encoder_t::SLICE, { 1920, 1080, 60, 1000, 2, 1, 1, 0, 0 } },
   };
+
+  if(!(encoder.flags & SINGLE_SLICE_ONLY)) {
+    configs.emplace_back(
+      std::pair<encoder_t::flag_e, config_t> { encoder_t::SLICE, { 1920, 1080, 60, 1000, 2, 1, 1, 0, 0 } });
+  }
+
   for(auto &[flag, config] : configs) {
     auto h264 = config;
     auto hevc = config;
@@ -1553,6 +1559,11 @@ retry:
     if(encoder.hevc[encoder_t::PASSED]) {
       encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
     }
+  }
+
+  if(encoder.flags & SINGLE_SLICE_ONLY) {
+    encoder.h264.capabilities[encoder_t::SLICE] = false;
+    encoder.hevc.capabilities[encoder_t::SLICE] = false;
   }
 
   encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];

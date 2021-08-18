@@ -547,14 +547,14 @@ int vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf
   return 0;
 }
 
-bool query(display_t::pointer display, profile_e profile) {
+static bool query(display_t::pointer display, profile_e profile) {
   std::vector<entry_e> entrypoints;
   entrypoints.resize(maxNumEntrypoints(display));
 
   int count;
   auto status = queryConfigEntrypoints(display, profile, entrypoints.data(), &count);
   if(status) {
-    BOOST_LOG(error) << "Couldn't query entrypoints for profile::H264Main "sv << va::errorStr(status);
+    BOOST_LOG(error) << "Couldn't query entrypoints: "sv << va::errorStr(status);
     return false;
   }
   entrypoints.resize(count);
