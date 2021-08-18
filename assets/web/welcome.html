@@ -45,7 +45,7 @@
         required
       />
     </div>
-    <button class="mb-2 btn btn-primary" style="margin: 1em auto">Login</button>
+    <button class="mb-2 btn btn-primary" v-bind:disabled="loading" style="margin: 1em auto">Login</button>
     <div class="alert alert-danger" v-if="error"><b>Error: </b>{{error}}</div>
     <div class="alert alert-success" v-if="success">
       <b>Success! </b>This page will reload soon, your browser will ask you for
@@ -61,6 +61,7 @@
       return {
         error: null,
         success: false,
+        loading: false,
         passwordData: {
           newUsername: "sunshine",
           newPassword: "",
@@ -71,10 +72,12 @@
     methods: {
       save() {
         this.error = null;
+        this.loading = true;
         fetch("/api/password", {
           method: "POST",
           body: JSON.stringify(this.passwordData),
         }).then((r) => {
+          this.loading = false;
           if (r.status == 200) {
             r.json().then((rj) => {
               if (rj.status.toString() === "true") {
