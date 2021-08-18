@@ -673,7 +673,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
   }
 
   if(frame_info.LastMouseUpdateTime.QuadPart) {
-    cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y);
+    cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible && cursor_visible);
   }
 
   if(frame_update_flag) {
@@ -687,10 +687,10 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
   }
 
   device_ctx->CopyResource(img->texture.get(), src.get());
-  if(frame_info.PointerPosition.Visible && cursor_visible) {
+  if(cursor.visible) {
     D3D11_VIEWPORT view {
       0.0f, 0.0f,
-      width, height,
+      (float)width, (float)height,
       0.0f, 1.0f
     };
 
