@@ -19,6 +19,7 @@
         type="text"
         class="form-control"
         id="usernameInput"
+        autocomplete="username"
         v-model="passwordData.newUsername"
       />
     </div>
@@ -28,6 +29,7 @@
         type="password"
         class="form-control"
         id="passwordInput"
+        autocomplete="new-password"
         v-model="passwordData.newPassword"
         required
       />
@@ -38,6 +40,7 @@
         type="password"
         class="form-control"
         id="confirmPasswordInput"
+        autocomplete="new-password"
         v-model="passwordData.confirmNewPassword"
         required
       />
