@@ -14,27 +14,30 @@
   </div>
   <form @submit.prevent="save" class="card p-4" style="width: 100%">
     <div class="mb-2">
-      <label for="" class="form-label">Username: </label>
+      <label for="usernameInput" class="form-label">Username: </label>
       <input
         type="text"
         class="form-control"
+        id="usernameInput"
         v-model="passwordData.newUsername"
       />
     </div>
     <div class="mb-2">
-      <label for="" class="form-label">Password: </label>
+      <label for="passwordInput" class="form-label">Password: </label>
       <input
         type="password"
         class="form-control"
+        id="passwordInput"
         v-model="passwordData.newPassword"
         required
       />
     </div>
     <div class="mb-2">
-      <label for="" class="form-label">Password: </label>
+      <label for="confirmPasswordInput" class="form-label">Password: </label>
       <input
         type="password"
         class="form-control"
+        id="confirmPasswordInput"
         v-model="passwordData.confirmNewPassword"
         required
       />
