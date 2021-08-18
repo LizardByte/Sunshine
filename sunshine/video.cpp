@@ -695,10 +695,7 @@ void captureThread(
         return;
       }
 
-      {
-        auto lg    = display_wp.lock();
-        display_wp = disp;
-      }
+      display_wp = disp;
 
       // Re-allocate images
       for(auto &img : imgs) {
