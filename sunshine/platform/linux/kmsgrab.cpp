@@ -236,10 +236,39 @@ void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
 class display_t : public platf::display_t {
 public:
   display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
+  ~display_t() {
+    while(!thread_pool.cancel(loop_id))
+      ;
+  }
 
   mem_type_e mem_type;
 
   std::chrono::nanoseconds delay;
+
+  // Done on a seperate thread to prevent additional latency to capture code
+  // This code detects if the framebuffer has been removed from KMS
+  void task_loop() {
+    capture_e capture = capture_e::reinit;
+
+    auto end = std::end(card);
+    for(auto plane = std::begin(card); plane != end; ++plane) {
+      auto fb = card.fb(plane.get());
+      if(!fb) {
+        BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+        capture = capture_e::error;
+      }
+
+      if(fb->fb_id == framebuffer_id) {
+        capture = capture_e::ok;
+
+        break;
+      }
+    }
+
+    this->status = capture;
+
+    loop_id = thread_pool.pushDelayed(&display_t::task_loop, 2s, this).task_id;
+  }
 
   int init(const std::string &display_name, int framerate) {
     delay = std::chrono::nanoseconds { 1s } / framerate;
@@ -310,6 +339,8 @@ public:
         auto crct = card.crtc(plane->crtc_id);
         kms::print(plane.get(), fb.get(), crct.get());
 
+        framebuffer_id = fb->fb_id;
+
         img_width  = fb->width;
         img_height = fb->height;
 
@@ -339,8 +370,18 @@ public:
 
     cursor_opt = x11::cursor_t::make();
 
+    status = capture_e::ok;
+
+    thread_pool.start(1);
+    loop_id = thread_pool.pushDelayed(&display_t::task_loop, 2s, this).task_id;
+
     return 0;
   }
+
+  // When the framebuffer is reinitialized, this id can no longer be found
+  std::uint32_t framebuffer_id;
+
+  capture_e status;
 
   int img_width, img_height;
   int pitch;
@@ -349,6 +390,9 @@ public:
   file_t fb_fd;
 
   std::optional<x11::cursor_t> cursor_opt;
+
+  util::TaskPool::task_id_t loop_id;
+  util::ThreadPool thread_pool;
 };
 
 class display_ram_t : public display_t {
@@ -451,7 +495,7 @@ public:
       cursor_opt->blend(*img_out_base, offset_x, offset_y);
     }
 
-    return capture_e::ok;
+    return status;
   }
 
   std::shared_ptr<img_t> alloc_img() override {
@@ -557,7 +601,7 @@ public:
     img->x -= offset_x;
     img->y -= offset_y;
 
-    return capture_e::ok;
+    return status;
   }
 
   int init(const std::string &display_name, int framerate) {
