@@ -89,7 +89,12 @@ if [ -f /etc/sunshine/sunshine.conf ]; then
 	chmod 666 /etc/sunshine/sunshine.conf
 fi
 
-setcap cap_sys_admin+ep /usr/bin/sunshine
+# Ensure Sunshine can grab images from KMS
+path_to_setcap=$(which setcap)
+if [ -x "$path_to_setcap" ] ; then
+  echo "$path_to_setcap cap_sys_admin+ep /usr/bin/sunshine"
+	$path_to_setcap cap_sys_admin+ep /usr/bin/sunshine
+fi
 EOF
 
 cat << 'EOF' > $RULES/85-sunshine-rules.rules
