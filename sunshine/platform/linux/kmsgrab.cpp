@@ -250,17 +250,31 @@ public:
   void task_loop() {
     capture_e capture = capture_e::reinit;
 
+    std::uint32_t framebuffer_count = 0;
+
     auto end = std::end(card);
     for(auto plane = std::begin(card); plane != end; ++plane) {
+      if(++framebuffer_count != framebuffer_index) {
+        continue;
+      }
+
       auto fb = card.fb(plane.get());
       if(!fb) {
         BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
         capture = capture_e::error;
       }
 
-      if(fb->fb_id == framebuffer_id) {
-        capture = capture_e::ok;
+      auto crct = card.crtc(plane->crtc_id);
 
+      bool different =
+        fb->width != img_width ||
+        fb->height != img_height ||
+        fb->pitch != pitch ||
+        crct->x != offset_x ||
+        crct->y != offset_y;
+
+      if(!different) {
+        capture = capture_e::ok;
         break;
       }
     }
@@ -290,8 +304,12 @@ public:
         return {};
       }
 
+      std::uint32_t framebuffer_index = 0;
+
       auto end = std::end(card);
       for(auto plane = std::begin(card); plane != end; ++plane) {
+        ++framebuffer_index;
+
         bool cursor = false;
 
         auto props = card.plane_props(plane->plane_id);
@@ -339,8 +357,6 @@ public:
         auto crct = card.crtc(plane->crtc_id);
         kms::print(plane.get(), fb.get(), crct.get());
 
-        framebuffer_id = fb->fb_id;
-
         img_width  = fb->width;
         img_height = fb->height;
 
@@ -356,6 +372,9 @@ public:
         offset_y = crct->y;
 
         this->card = std::move(card);
+
+        this->framebuffer_index = framebuffer_index;
+
         goto break_loop;
       }
     }
@@ -379,7 +398,7 @@ public:
   }
 
   // When the framebuffer is reinitialized, this id can no longer be found
-  std::uint32_t framebuffer_id;
+  std::uint32_t framebuffer_index;
 
   capture_e status;
 
