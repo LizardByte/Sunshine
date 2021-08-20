@@ -77,7 +77,7 @@ struct DRMPRIMESurfaceDescriptor {
 /** Currently defined profiles */
 enum class profile_e {
   // Profile ID used for video processing.
-  None                    = -1,
+  ProfileNone             = -1,
   MPEG2Simple             = 0,
   MPEG2Main               = 1,
   MPEG4Simple             = 2,

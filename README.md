@@ -34,7 +34,7 @@ sudo apt install cmake gcc-10 g++-10 libssl-dev libavdevice-dev libboost-thread-
 #### X11 Only
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
 - `cd sunshine && mkdir build && cd build`
-- `cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 -DSUNSHINE_BUILD_DRM=OFF ..`
+- `cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 -DSUNSHINE_ENABLE_DRM=OFF ..`
 - `make -j ${nproc}`
 
 #### X11 + KMS
