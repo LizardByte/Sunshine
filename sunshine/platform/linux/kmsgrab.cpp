@@ -26,7 +26,6 @@ namespace kms {
 using plane_res_t = util::safe_ptr<drmModePlaneRes, drmModeFreePlaneResources>;
 using plane_t     = util::safe_ptr<drmModePlane, drmModeFreePlane>;
 using fb_t        = util::safe_ptr<drmModeFB, drmModeFreeFB>;
-using fb2_t       = util::safe_ptr<drmModeFB2, drmModeFreeFB2>;
 using crtc_t      = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
 using obj_prop_t  = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
 using prop_t      = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
@@ -124,10 +123,6 @@ public:
 
   fb_t fb(plane_t::pointer plane) {
     return drmModeGetFB(fd.el, plane->fb_id);
-  }
-
-  fb2_t fb2(plane_t::pointer plane) {
-    return drmModeGetFB2(fd.el, plane->fb_id);
   }
 
   crtc_t crtc(std::uint32_t id) {
@@ -735,12 +730,6 @@ std::vector<std::string> kms_display_names() {
 
       kms::env_width  = std::max(kms::env_width, (int)(crtc->x + crtc->width));
       kms::env_height = std::max(kms::env_height, (int)(crtc->y + crtc->height));
-
-      auto fb_2 = card.fb2(plane.get());
-      for(int x = 0; x < 4 && fb_2->handles[x]; ++x) {
-        BOOST_LOG(debug) << "handles::"sv << x << '(' << fb_2->handles[x] << ')';
-        BOOST_LOG(debug) << "pixel_format::"sv << util::view(fb_2->pixel_format);
-      }
 
       kms::print(plane.get(), fb.get(), crtc.get());
 
