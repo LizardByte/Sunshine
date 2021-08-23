@@ -26,6 +26,8 @@
 #include "upnp.h"
 #include "video.h"
 
+#include "platform/linux/wayland.h"
+
 #include "platform/common.h"
 extern "C" {
 #include <libavutil/log.h>
@@ -238,6 +240,9 @@ int main(int argc, char *argv[]) {
 
     shutdown_event->raise(true);
   });
+
+  wl::test();
+  return 0;
 
   proc::refresh(config::stream.file_apps);
 

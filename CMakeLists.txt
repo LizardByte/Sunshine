@@ -104,12 +104,16 @@ else()
 
 	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
 	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
+	option(SUNSHINE_ENABLE_WAYLAND "Enable building wayland specific code" ON)
 
 	if(${SUNSHINE_ENABLE_X11})
 		find_package(X11)
 	endif()
 	if(${SUNSHINE_ENABLE_DRM})
 		find_package(LIBDRM)
+	endif()
+	if(${SUNSHINE_ENABLE_WAYLAND})
+		find_package(Wayland)
 	endif()
 
 	find_package(FFMPEG REQUIRED)
@@ -126,8 +130,40 @@ else()
 		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/kmsgrab.cpp)
 		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
 	endif()
+	if(WAYLAND_FOUND)
+		macro(genWayland FILEPATH FILENAME)
+			message("wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c")
+			message("wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h")
+			execute_process(
+				COMMAND wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c
+				COMMAND wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h
+
+				RESULT_VARIABLE EXIT_INT
+			)
+
+			if(NOT ${EXIT_INT} EQUAL 0)
+				message(FATAL_ERROR "wayland-scanner failed")
+			endif()
+
+			list(APPEND PLATFORM_TARGET_FILES
+				${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c
+				${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h
+			)
+		endmacro()
+
+		genWayland(unstable/xdg-output xdg-output-unstable-v1)
+
+		include_directories(
+			${WAYLAND_INCLUDE_DIRS}
+			${CMAKE_BINARY_DIR}/generated-src
+		)
+
+		list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES})
+		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/wayland.h)
+		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/wayland.cpp)
+	endif()
 	if(NOT X11_FOUND AND NOT LIBDRM_FOUND)
-		message(FATAL "Couldn't find either x11 or libdrm")
+		message(FATAL_ERROR "Couldn't find either x11 or libdrm")
 	endif()
 
 	list(APPEND PLATFORM_TARGET_FILES
