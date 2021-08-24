@@ -150,6 +150,22 @@
           that sleeps indefinitely
         </div>
       </div>
+      <!--starting dir-->
+      <div class="mb-3">
+        <label for="appStartingDir" class="form-label">Starting Dir</label>
+        <input
+          type="text"
+          class="form-control monospace"
+          id="appStartindDir"
+          aria-describedby="appStartindDirHelp"
+          v-model="editForm.startingDir"
+        />
+        <div id="appStartindDirHelp" class="form-text">
+          The starting dir that should be passed to the process.
+          Some apps needs this set to find configuration files for example.
+          If not set, will default to the parent directory of the command
+        </div>
+      </div>
       <!--buttons-->
       <div class="d-flex">
         <button @click="showEditForm = false" class="btn btn-secondary m-2">
