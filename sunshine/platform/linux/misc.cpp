@@ -139,6 +139,9 @@ std::string get_mac_address(const std::string_view &address) {
 }
 
 enum class source_e {
+#ifdef SUNSHINE_BUILD_WAYLAND
+  WAYLAND,
+#endif
 #ifdef SUNSHINE_BUILD_DRM
   KMS,
 #endif
@@ -147,6 +150,15 @@ enum class source_e {
 #endif
 };
 static source_e source;
+
+#ifdef SUNSHINE_BUILD_WAYLAND
+std::vector<std::string> wl_display_names();
+std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+
+bool verify_wl() {
+  return !wl_display_names().empty();
+}
+#endif
 
 #ifdef SUNSHINE_BUILD_DRM
 std::vector<std::string> kms_display_names();
@@ -168,6 +180,10 @@ bool verify_x11() {
 
 std::vector<std::string> display_names() {
   switch(source) {
+#ifdef SUNSHINE_BUILD_WAYLAND
+  case source_e::WAYLAND:
+    return wl_display_names();
+#endif
 #ifdef SUNSHINE_BUILD_DRM
   case source_e::KMS:
     return kms_display_names();
@@ -183,6 +199,10 @@ std::vector<std::string> display_names() {
 
 std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
   switch(source) {
+#ifdef SUNSHINE_BUILD_WAYLAND
+  case source_e::WAYLAND:
+    return wl_display(hwdevice_type, display_name, framerate);
+#endif
 #ifdef SUNSHINE_BUILD_DRM
   case source_e::KMS:
     return kms_display(hwdevice_type, display_name, framerate);
@@ -200,7 +220,13 @@ std::unique_ptr<deinit_t> init() {
   // These are allowed to fail.
   gbm::init();
   va::init();
-
+#ifdef SUNSHINE_BUILD_WAYLAND
+  if(verify_wl()) {
+    BOOST_LOG(info) << "Using Wayland for screencasting"sv;
+    source = source_e::WAYLAND;
+    goto found_source;
+  }
+#endif
 #ifdef SUNSHINE_BUILD_DRM
   if(verify_kms()) {
     BOOST_LOG(info) << "Using KMS for screencasting"sv;

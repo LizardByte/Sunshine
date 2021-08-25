@@ -295,7 +295,7 @@ public:
       auto file = entry.path().filename();
 
       auto filestring = file.generic_u8string();
-      if(std::string_view { filestring }.substr(0, 4) != "card"sv) {
+      if(filestring.size() < 4 || std::string_view { filestring }.substr(0, 4) != "card"sv) {
         continue;
       }
 
@@ -464,7 +464,7 @@ public:
     return 0;
   }
 
-  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) {
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
     auto next_frame = std::chrono::steady_clock::now();
 
     while(img) {

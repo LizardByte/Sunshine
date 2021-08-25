@@ -288,10 +288,23 @@ bool fail() {
   return eglGetError() != EGL_SUCCESS;
 }
 
-display_t make_display(gbm::gbm_t::pointer gbm) {
-  constexpr auto EGL_PLATFORM_GBM_MESA = 0x31D7;
+display_t make_display(util::Either<gbm::gbm_t::pointer, wl_display *> native_display) {
+  constexpr auto EGL_PLATFORM_GBM_MESA    = 0x31D7;
+  constexpr auto EGL_PLATFORM_WAYLAND_KHR = 0x31D8;
 
-  display_t display = eglGetPlatformDisplay(EGL_PLATFORM_GBM_MESA, gbm, nullptr);
+  int egl_platform;
+  void *native_display_p;
+  if(native_display.has_left()) {
+    egl_platform     = EGL_PLATFORM_GBM_MESA;
+    native_display_p = native_display.left();
+  }
+  else {
+    egl_platform     = EGL_PLATFORM_WAYLAND_KHR;
+    native_display_p = native_display.right();
+  }
+
+  // native_display.left() equals native_display.right()
+  display_t display = eglGetPlatformDisplay(egl_platform, native_display_p, nullptr);
 
   if(fail()) {
     BOOST_LOG(error) << "Couldn't open EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
@@ -316,7 +329,7 @@ display_t make_display(gbm::gbm_t::pointer gbm) {
     "EGL_KHR_create_context",
     "EGL_KHR_surfaceless_context",
     "EGL_EXT_image_dma_buf_import",
-    "EGL_KHR_image_pixmap"
+    // "EGL_KHR_image_pixmap"
   };
 
   for(auto ext : extensions) {

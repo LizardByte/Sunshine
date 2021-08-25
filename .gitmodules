@@ -10,6 +10,3 @@
 [submodule "third-party/miniupnp"]
 	path = third-party/miniupnp
 	url = https://github.com/miniupnp/miniupnp
-[submodule "third-party/wayland-protocols"]
-	path = third-party/wayland-protocols
-	url = https://github.com/wayland-project/wayland-protocols.git

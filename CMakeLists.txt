@@ -131,12 +131,13 @@ else()
 		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
 	endif()
 	if(WAYLAND_FOUND)
-		macro(genWayland FILEPATH FILENAME)
-			message("wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c")
-			message("wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h")
+		add_compile_definitions(SUNSHINE_BUILD_WAYLAND)
+		macro(genWayland FILENAME)
+			message("wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c")
+			message("wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h")
 			execute_process(
-				COMMAND wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c
-				COMMAND wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILEPATH}/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h
+				COMMAND wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c
+				COMMAND wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h
 
 				RESULT_VARIABLE EXIT_INT
 			)
@@ -151,7 +152,8 @@ else()
 			)
 		endmacro()
 
-		genWayland(unstable/xdg-output xdg-output-unstable-v1)
+		genWayland(xdg-output-unstable-v1)
+		genWayland(wlr-export-dmabuf-unstable-v1)
 
 		include_directories(
 			${WAYLAND_INCLUDE_DIRS}
@@ -159,10 +161,12 @@ else()
 		)
 
 		list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES})
-		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/wayland.h)
-		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/wayland.cpp)
+		list(APPEND PLATFORM_TARGET_FILES
+			sunshine/platform/linux/wlgrab.cpp
+			sunshine/platform/linux/wayland.cpp
+			sunshine/platform/linux/wayland.h)
 	endif()
-	if(NOT X11_FOUND AND NOT LIBDRM_FOUND)
+	if(NOT ${X11_FOUND} AND NOT ${LIBDRM_FOUND} AND NOT ${WAYLAND_FOUND})
 		message(FATAL_ERROR "Couldn't find either x11 or libdrm")
 	endif()
 

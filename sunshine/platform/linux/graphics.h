@@ -209,7 +209,7 @@ struct surface_descriptor_t {
   int pitch;
 };
 
-display_t make_display(gbm::gbm_t::pointer gbm);
+display_t make_display(util::Either<gbm::gbm_t::pointer, wl_display *> native_display);
 std::optional<ctx_t> make_ctx(display_t::pointer display);
 
 std::optional<rgb_t> import_source(

@@ -1,10 +1,95 @@
 #ifndef SUNSHINE_WAYLAND_H
 #define SUNSHINE_WAYLAND_H
 
+#include <bitset>
+
+#include <wlr-export-dmabuf-unstable-v1.h>
 #include <xdg-output-unstable-v1.h>
+
+#include "graphics.h"
 
 namespace wl {
 using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
+
+class frame_t {
+public:
+  std::uint32_t format;
+  std::uint32_t width, height;
+  std::uint32_t obj_count;
+  std::uint32_t strides[4];
+  std::uint32_t sizes[4];
+  std::int32_t fds[4];
+  std::uint32_t offsets[4];
+  std::uint32_t plane_indices[4];
+
+  egl::rgb_t rgb;
+
+  zwlr_export_dmabuf_frame_v1 *frame;
+
+  void destroy();
+};
+
+class dmabuf_t {
+public:
+  enum status_e {
+    WAITING,
+    READY,
+    REINIT,
+  };
+
+  dmabuf_t(dmabuf_t &&)      = delete;
+  dmabuf_t(const dmabuf_t &) = delete;
+
+  dmabuf_t &operator=(const dmabuf_t &) = delete;
+  dmabuf_t &operator=(dmabuf_t &&) = delete;
+
+  dmabuf_t();
+
+  int init(wl_display *display);
+  void listen(zwlr_export_dmabuf_manager_v1 *dmabuf_manager, wl_output *output, bool blend_cursor = false);
+
+  ~dmabuf_t();
+
+  void frame(
+    zwlr_export_dmabuf_frame_v1 *frame,
+    std::uint32_t width, std::uint32_t height,
+    std::uint32_t x, std::uint32_t y,
+    std::uint32_t buffer_flags, std::uint32_t flags,
+    std::uint32_t format,
+    std::uint32_t high, std::uint32_t low,
+    std::uint32_t obj_count);
+
+  void object(
+    zwlr_export_dmabuf_frame_v1 *frame,
+    std::uint32_t index,
+    std::int32_t fd,
+    std::uint32_t size,
+    std::uint32_t offset,
+    std::uint32_t stride,
+    std::uint32_t plane_index);
+
+  void ready(
+    zwlr_export_dmabuf_frame_v1 *frame,
+    std::uint32_t tv_sec_hi, std::uint32_t tv_sec_lo, std::uint32_t tv_nsec);
+
+  void cancel(
+    zwlr_export_dmabuf_frame_v1 *frame,
+    zwlr_export_dmabuf_frame_v1_cancel_reason reason);
+
+  inline frame_t *get_next_frame() {
+    return current_frame == &frames[0] ? &frames[1] : &frames[0];
+  }
+
+  status_e status;
+
+  egl::display_t display;
+  egl::ctx_t ctx;
+
+  std::array<frame_t, 2> frames;
+  frame_t *current_frame;
+
+  zwlr_export_dmabuf_frame_v1_listener listener;
+};
 
 class monitor_t {
 public:
@@ -41,20 +126,36 @@ class interface_t {
   };
 
 public:
+  enum interface_e {
+    XDG_OUTPUT,
+    WLR_EXPORT_DMABUF,
+    MAX_INTERFACES,
+  };
+
   interface_t(interface_t &&)      = delete;
   interface_t(const interface_t &) = delete;
 
   interface_t &operator=(const interface_t &) = delete;
   interface_t &operator=(interface_t &&) = delete;
 
-  interface_t(wl_registry *registry);
+  interface_t() noexcept;
+
+  void listen(wl_registry *registry);
 
   std::vector<std::unique_ptr<monitor_t>> monitors;
+
+  zwlr_export_dmabuf_manager_v1 *dmabuf_manager;
   zxdg_output_manager_v1 *output_manager;
+
+  bool operator[](interface_e bit) const {
+    return interface[bit];
+  }
 
 private:
   void add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version);
   void del_interface(wl_registry *registry, uint32_t id);
+
+  std::bitset<MAX_INTERFACES> interface;
 
   wl_registry_listener listener;
 };
@@ -73,6 +174,10 @@ public:
   // Get the registry associated with the display
   // No need to manually free the registry
   wl_registry *registry();
+
+  inline display_internal_t::pointer get() {
+    return display_internal.get();
+  }
 
 private:
   display_internal_t display_internal;
