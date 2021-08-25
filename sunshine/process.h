@@ -34,7 +34,7 @@ struct cmd_t {
  * cmd -- Runs indefinitely until:
  *    No session is running and a different set of commands it to be executed
  *    Command exits
- * starting_dir -- the process starting dir. This is required for some games to run properly.
+ * working_dir -- the process working directory. This is required for some games to run properly.
  * cmd_output --
  *    empty    -- The output of the commands are appended to the output of sunshine
  *    "null"   -- The output of the commands are discarded
@@ -53,7 +53,7 @@ struct ctx_t {
 
   std::string name;
   std::string cmd;
-  std::string starting_dir;
+  std::string working_dir;
   std::string output;
 };
 

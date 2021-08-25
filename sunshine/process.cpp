@@ -111,15 +111,15 @@ int proc_t::execute(int app_id) {
     BOOST_LOG(debug) << "Executing [Desktop]"sv;
     placebo = true;
   } else {
-    boost::filesystem::path start_dir = proc.starting_dir.empty() ? 
-    boost::filesystem::path(proc.cmd).parent_path() : boost::filesystem::path(proc.starting_dir);
+    boost::filesystem::path working_dir = proc.working_dir.empty() ? 
+    boost::filesystem::path(proc.cmd).parent_path() : boost::filesystem::path(proc.working_dir);
     if(proc.output.empty() || proc.output == "null"sv) {
       BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
-      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(start_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
+      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
     }
     else {
       BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
-      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(start_dir), bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
+      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(working_dir), bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
     }
   }
 
@@ -279,7 +279,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto output             = app_node.get_optional<std::string>("output"s);
       auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd                = app_node.get_optional<std::string>("cmd"s);
-      auto starting_dir       = app_node.get_optional<std::string>("startingDir"s);
+      auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       if(prep_nodes_opt) {
@@ -317,8 +317,8 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.cmd = parse_env_val(this_env, *cmd);
       }
 
-      if(starting_dir) {
-        ctx.starting_dir = parse_env_val(this_env, *starting_dir);
+      if(working_dir) {
+        ctx.working_dir = parse_env_val(this_env, *working_dir);
       }
 
       ctx.name      = std::move(name);
