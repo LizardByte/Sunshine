@@ -265,7 +265,7 @@ public:
   int convert(nv12_t &nv12);
 
   void load_ram(platf::img_t &img);
-  void load_vram(cursor_t &img, int offset_x, int offset_y, int framebuffer);
+  void load_vram(cursor_t &img, int offset_x, int offset_y, int texture);
 
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
 
@@ -283,6 +283,9 @@ public:
   int out_width, out_height;
   int in_width, in_height;
   int offsetX, offsetY;
+
+  // Pointer to the texture to be converted to nv12
+  int loaded_texture;
 
   // Store latest cursor for load_vram
   std::uint64_t serial;

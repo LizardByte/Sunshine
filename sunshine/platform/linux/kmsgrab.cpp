@@ -200,7 +200,7 @@ struct kms_img_t : public img_t {
   }
 };
 
-void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
+void print(plane_t::pointer plane, fb2_t::pointer fb, crtc_t::pointer crtc) {
   if(crtc) {
     BOOST_LOG(debug) << "crtc("sv << crtc->x << ", "sv << crtc->y << ')';
     BOOST_LOG(debug) << "crtc("sv << crtc->width << ", "sv << crtc->height << ')';
@@ -217,9 +217,8 @@ void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
 
   BOOST_LOG(debug)
     << "Resolution: "sv << fb->width << 'x' << fb->height
-    << ": Pitch: "sv << fb->pitch
-    << ": bpp: "sv << fb->bpp
-    << ": depth: "sv << fb->depth;
+    << ": Pitch: "sv << fb->pitches[0]
+    << ": Offset: "sv << fb->offsets[0];
 
   std::stringstream ss;
 
@@ -334,19 +333,19 @@ public:
           continue;
         }
 
-        auto fb = card.fb(plane.get());
+        auto fb = card.fb2(plane.get());
         if(!fb) {
           BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
           return -1;
         }
 
-        if(!fb->handle) {
+        if(!fb->handles[0]) {
           BOOST_LOG(error)
             << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
           return -1;
         }
 
-        fb_fd = card.handleFD(fb->handle);
+        fb_fd = card.handleFD(fb->handles[0]);
         if(fb_fd.el < 0) {
           BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
           continue;
@@ -363,7 +362,8 @@ public:
         width  = crct->width;
         height = crct->height;
 
-        pitch = fb->pitch;
+        pitch  = fb->pitches[0];
+        offset = fb->offsets[0];
 
         this->env_width  = ::platf::kms::env_width;
         this->env_height = ::platf::kms::env_height;
@@ -404,6 +404,7 @@ public:
 
   int img_width, img_height;
   int pitch;
+  int offset;
 
   card_t card;
   file_t fb_fd;
@@ -566,7 +567,7 @@ public:
     img->img_width  = img_width;
     img->img_height = img_height;
     img->fds[0]     = fb_fd.el;
-    img->offsets[0] = 0;
+    img->offsets[0] = offset;
     img->strides[0] = pitch;
 
     return img;
@@ -613,7 +614,7 @@ public:
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds /* timeout */, bool cursor) {
     if(!cursor || !cursor_opt) {
       img_out_base->data = nullptr;
-      return capture_e::ok;
+      return status;
     }
 
     auto img = (egl::cursor_t *)img_out_base;
@@ -690,13 +691,13 @@ std::vector<std::string> kms_display_names() {
 
     auto end = std::end(card);
     for(auto plane = std::begin(card); plane != end; ++plane) {
-      auto fb = card.fb(plane.get());
+      auto fb = card.fb2(plane.get());
       if(!fb) {
         BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
         continue;
       }
 
-      if(!fb->handle) {
+      if(!fb->handles[0]) {
         BOOST_LOG(error)
           << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
         break;
@@ -737,12 +738,6 @@ std::vector<std::string> kms_display_names() {
 
       kms::env_width  = std::max(kms::env_width, (int)(crtc->x + crtc->width));
       kms::env_height = std::max(kms::env_height, (int)(crtc->y + crtc->height));
-
-      auto fb_2 = card.fb2(plane.get());
-      for(int x = 0; x < 4 && fb_2->handles[x]; ++x) {
-        BOOST_LOG(debug) << "handles::"sv << x << '(' << fb_2->handles[x] << ')';
-        BOOST_LOG(debug) << "pixel_format::"sv << util::view(fb_2->pixel_format);
-      }
 
       kms::print(plane.get(), fb.get(), crtc.get());
 

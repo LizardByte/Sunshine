@@ -298,6 +298,10 @@ public:
     return std::make_shared<platf::hwdevice_t>();
   }
 
+  int dummy_img(platf::img_t *img) override {
+    return snapshot(img, 1000ms, false) != platf::capture_e::ok;
+  }
+
   std::uint64_t sequence {};
 };
 

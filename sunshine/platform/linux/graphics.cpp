@@ -644,13 +644,19 @@ void sws_t::load_ram(platf::img_t &img) {
   gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
 }
 
-void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int framebuffer) {
-  gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-  gl::ctx.ReadBuffer(GL_COLOR_ATTACHMENT0);
-  gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
-  gl::ctx.CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, offset_x, offset_y, in_width, in_height);
-
+void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int texture) {
   if(img.data) {
+    loaded_texture    = tex[0];
+    GLenum attachment = GL_COLOR_ATTACHMENT0;
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
+    gl::ctx.DrawBuffers(1, &attachment);
+
+    gl::ctx.UseProgram(program[2].handle());
+    gl::ctx.Viewport(offset_x, offset_y, in_width, in_height);
+    gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex[1]);
     if(serial != img.serial) {
       serial = img.serial;
@@ -660,8 +666,7 @@ void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int framebuffer
     }
 
     gl::ctx.Enable(GL_BLEND);
-    GLenum attachment = GL_COLOR_ATTACHMENT0;
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
+
     gl::ctx.DrawBuffers(1, &attachment);
 
 #ifndef NDEBUG
@@ -672,18 +677,21 @@ void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int framebuffer
     }
 #endif
 
-    gl::ctx.UseProgram(program[2].handle());
     gl::ctx.Viewport(img.x, img.y, img.width, img.height);
     gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
 
     gl::ctx.Disable(GL_BLEND);
-  }
 
-  gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+    gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+  }
+  else {
+    loaded_texture = texture;
+  }
 }
 
 int sws_t::convert(nv12_t &nv12) {
-  gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
+  gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
 
   GLenum attachments[] {
     GL_COLOR_ATTACHMENT0,

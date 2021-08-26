@@ -417,8 +417,6 @@ public:
     if(descriptor.sequence > sequence) {
       sequence = descriptor.sequence;
 
-      framebuffer.bind(nullptr, nullptr);
-
       auto rgb_opt = egl::import_source(display.get(),
         {
           descriptor.fds[0],
@@ -433,11 +431,9 @@ public:
       }
 
       rgb = std::move(*rgb_opt);
-
-      framebuffer.bind(std::begin(rgb->tex), std::end(rgb->tex));
     }
 
-    sws.load_vram(descriptor, offset_x, offset_y, framebuffer[0]);
+    sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
 
     sws.convert(nv12);
     return 0;
@@ -447,8 +443,6 @@ public:
     if(va_t::init(in_width, in_height, std::move(render_device))) {
       return -1;
     }
-
-    framebuffer = gl::frame_buf_t::make(1);
 
     sequence = 0;
 
@@ -460,7 +454,6 @@ public:
 
   std::uint64_t sequence;
   egl::rgb_t rgb;
-  gl::frame_buf_t framebuffer;
 
   int offset_x, offset_y;
 };
