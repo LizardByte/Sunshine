@@ -397,7 +397,7 @@ public:
     return 0;
   }
 
-  // When the framebuffer is reinitialized, this id can no longer be found
+  // Keep track of what framebuffer we're using.
   std::uint32_t framebuffer_index;
 
   capture_e status;
@@ -500,7 +500,7 @@ public:
 
   std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
     if(mem_type == mem_type_e::vaapi) {
-      return va::make_hwdevice(width, height);
+      return va::make_hwdevice(width, height, false);
     }
 
     return std::make_shared<hwdevice_t>();
@@ -546,14 +546,7 @@ public:
 
   std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
     if(mem_type == mem_type_e::vaapi) {
-      return va::make_hwdevice(width, height, dup(card.fd.el), offset_x, offset_y,
-        {
-          fb_fd.el,
-          img_width,
-          img_height,
-          0,
-          pitch,
-        });
+      return va::make_hwdevice(width, height, dup(card.fd.el), offset_x, offset_y, true);
     }
 
     BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
@@ -561,11 +554,20 @@ public:
   }
 
   std::shared_ptr<img_t> alloc_img() override {
-    auto img = std::make_shared<egl::cursor_t>();
+    auto img = std::make_shared<egl::img_descriptor_t>();
 
     img->serial      = std::numeric_limits<decltype(img->serial)>::max();
     img->data        = nullptr;
     img->pixel_pitch = 4;
+
+    img->sequence = 1;
+
+    img->obj_count  = 1;
+    img->img_width  = img_width;
+    img->img_height = img_height;
+    img->fds[0]     = fb_fd.el;
+    img->offsets[0] = 0;
+    img->strides[0] = pitch;
 
     return img;
   }

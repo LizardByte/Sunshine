@@ -22,8 +22,6 @@ public:
   std::uint32_t offsets[4];
   std::uint32_t plane_indices[4];
 
-  egl::rgb_t rgb;
-
   zwlr_export_dmabuf_frame_v1 *frame;
 
   void destroy();
@@ -45,7 +43,6 @@ public:
 
   dmabuf_t();
 
-  int init(wl_display *display);
   void listen(zwlr_export_dmabuf_manager_v1 *dmabuf_manager, wl_output *output, bool blend_cursor = false);
 
   ~dmabuf_t();
@@ -81,9 +78,6 @@ public:
   }
 
   status_e status;
-
-  egl::display_t display;
-  egl::ctx_t ctx;
 
   std::array<frame_t, 2> frames;
   frame_t *current_frame;

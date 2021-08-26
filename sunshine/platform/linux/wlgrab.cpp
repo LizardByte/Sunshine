@@ -22,7 +22,7 @@ public:
     delay    = std::chrono::nanoseconds { 1s } / framerate;
     mem_type = hwdevice_type;
 
-    if(display.init() || dmabuf.init(display.get())) {
+    if(display.init()) {
       return -1;
     }
 
@@ -72,6 +72,48 @@ public:
     return 0;
   }
 
+  int dummy_img(platf::img_t *img) override {
+    return 0;
+  }
+
+  inline platf::capture_e snapshot(platf::img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
+    auto to = std::chrono::steady_clock::now() + timeout;
+
+    dmabuf.listen(interface.dmabuf_manager, output, cursor);
+    do {
+      display.roundtrip();
+
+      if(to < std::chrono::steady_clock::now()) {
+        return platf::capture_e::timeout;
+      }
+    } while(dmabuf.status == dmabuf_t::WAITING);
+
+    auto current_frame = dmabuf.current_frame;
+
+    if(
+      dmabuf.status == dmabuf_t::REINIT ||
+      current_frame->width != width ||
+      current_frame->height != height) {
+
+      return platf::capture_e::reinit;
+    }
+
+    return platf::capture_e::ok;
+  }
+
+  platf::mem_type_e mem_type;
+
+  std::chrono::nanoseconds delay;
+
+  wl::display_t display;
+  interface_t interface;
+  dmabuf_t dmabuf;
+
+  wl_output *output;
+};
+
+class wlr_ram_t : public wlr_t {
+public:
   platf::capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<platf::img_t> img, bool *cursor) override {
     auto next_frame = std::chrono::steady_clock::now();
 
@@ -106,34 +148,59 @@ public:
   }
 
   platf::capture_e snapshot(platf::img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
-    auto to = std::chrono::steady_clock::now() + timeout;
-
-    dmabuf.listen(interface.dmabuf_manager, output, cursor);
-    do {
-      display.roundtrip();
-
-      if(to < std::chrono::steady_clock::now()) {
-        return platf::capture_e::timeout;
-      }
-    } while(dmabuf.status == dmabuf_t::WAITING);
+    auto status = wlr_t::snapshot(img_out_base, timeout, cursor);
+    if(status != platf::capture_e::ok) {
+      return status;
+    }
 
     auto current_frame = dmabuf.current_frame;
 
-    if(
-      dmabuf.status == dmabuf_t::REINIT ||
-      current_frame->width != width ||
-      current_frame->height != height) {
+    auto rgb_opt = egl::import_source(egl_display.get(),
+      {
+        current_frame->fds[0],
+        (int)current_frame->width,
+        (int)current_frame->height,
+        (int)current_frame->offsets[0],
+        (int)current_frame->strides[0],
+      });
 
+    if(!rgb_opt) {
       return platf::capture_e::reinit;
     }
 
-    auto &rgb = current_frame->rgb;
-
-    gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    gl::ctx.GetTextureSubImage(rgb->tex[0], 0, 0, 0, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
+    gl::ctx.BindTexture(GL_TEXTURE_2D, (*rgb_opt)->tex[0]);
+    gl::ctx.GetTextureSubImage((*rgb_opt)->tex[0], 0, 0, 0, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
     return platf::capture_e::ok;
+  }
+
+  int init(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+    if(wlr_t::init(hwdevice_type, display_name, framerate)) {
+      return -1;
+    }
+
+    egl_display = egl::make_display(display.get());
+    if(!egl_display) {
+      return -1;
+    }
+
+    auto ctx_opt = egl::make_ctx(egl_display.get());
+    if(!ctx_opt) {
+      return -1;
+    }
+
+    ctx = std::move(*ctx_opt);
+
+    return 0;
+  }
+
+  std::shared_ptr<platf::hwdevice_t> make_hwdevice(platf::pix_fmt_e pix_fmt) override {
+    if(mem_type == platf::mem_type_e::vaapi) {
+      return va::make_hwdevice(width, height, false);
+    }
+
+    return std::make_shared<platf::hwdevice_t>();
   }
 
   std::shared_ptr<platf::img_t> alloc_img() override {
@@ -147,27 +214,91 @@ public:
     return img;
   }
 
-  int dummy_img(platf::img_t *img) override {
-    return 0;
+  egl::display_t egl_display;
+  egl::ctx_t ctx;
+};
+
+class wlr_vram_t : public wlr_t {
+public:
+  platf::capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<platf::img_t> img, bool *cursor) override {
+    auto next_frame = std::chrono::steady_clock::now();
+
+    while(img) {
+      auto now = std::chrono::steady_clock::now();
+
+      if(next_frame > now) {
+        std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+      }
+      while(next_frame > now) {
+        now = std::chrono::steady_clock::now();
+      }
+      next_frame = now + delay;
+
+      auto status = snapshot(img.get(), 1000ms, *cursor);
+      switch(status) {
+      case platf::capture_e::reinit:
+      case platf::capture_e::error:
+        return status;
+      case platf::capture_e::timeout:
+        continue;
+      case platf::capture_e::ok:
+        img = snapshot_cb(img);
+        break;
+      default:
+        BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+        return status;
+      }
+    }
+
+    return platf::capture_e::ok;
+  }
+
+  platf::capture_e snapshot(platf::img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
+    auto status = wlr_t::snapshot(img_out_base, timeout, cursor);
+    if(status != platf::capture_e::ok) {
+      return status;
+    }
+
+    auto img = (egl::img_descriptor_t *)img_out_base;
+
+    auto current_frame = dmabuf.current_frame;
+
+    ++sequence;
+    img->sequence = sequence;
+
+    img->obj_count  = 1;
+    img->img_width  = current_frame->width;
+    img->img_height = current_frame->height;
+    img->obj_count  = current_frame->obj_count;
+
+    std::copy_n(std::begin(current_frame->fds), current_frame->obj_count, img->fds);
+    std::copy_n(std::begin(current_frame->offsets), current_frame->obj_count, img->offsets);
+    std::copy_n(std::begin(current_frame->strides), current_frame->obj_count, img->strides);
+
+    return platf::capture_e::ok;
+  }
+
+  std::shared_ptr<platf::img_t> alloc_img() override {
+    auto img = std::make_shared<egl::img_descriptor_t>();
+
+    img->img_width  = width;
+    img->img_height = height;
+    img->sequence   = 0;
+    img->serial     = std::numeric_limits<decltype(img->serial)>::max();
+    img->data       = nullptr;
+
+    return img;
   }
 
   std::shared_ptr<platf::hwdevice_t> make_hwdevice(platf::pix_fmt_e pix_fmt) override {
     if(mem_type == platf::mem_type_e::vaapi) {
-      return va::make_hwdevice(width, height);
+      return va::make_hwdevice(width, height, 0, 0, true);
     }
 
     return std::make_shared<platf::hwdevice_t>();
   }
 
-  platf::mem_type_e mem_type;
-
-  std::chrono::nanoseconds delay;
-
-  wl::display_t display;
-  interface_t interface;
-  dmabuf_t dmabuf;
-
-  wl_output *output;
+  std::uint64_t sequence {};
 };
 
 } // namespace wl
@@ -179,7 +310,16 @@ std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::strin
     return nullptr;
   }
 
-  auto wlr = std::make_shared<wl::wlr_t>();
+  if(hwdevice_type == platf::mem_type_e::vaapi) {
+    auto wlr = std::make_shared<wl::wlr_vram_t>();
+    if(wlr->init(hwdevice_type, display_name, framerate)) {
+      return nullptr;
+    }
+
+    return wlr;
+  }
+
+  auto wlr = std::make_shared<wl::wlr_ram_t>();
   if(wlr->init(hwdevice_type, display_name, framerate)) {
     return nullptr;
   }

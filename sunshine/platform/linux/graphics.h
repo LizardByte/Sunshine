@@ -50,6 +50,17 @@ public:
 
   static frame_buf_t make(std::size_t count);
 
+  inline void bind(std::nullptr_t, std::nullptr_t) {
+    int x = 0;
+    for(auto fb : (*this)) {
+      ctx.BindFramebuffer(GL_FRAMEBUFFER, fb);
+      ctx.FramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, 0, 0);
+
+      ++x;
+    }
+    return;
+  }
+
   template<class It>
   void bind(It it_begin, It it_end) {
     using namespace std::literals;
@@ -228,6 +239,22 @@ public:
   unsigned long serial;
 
   std::vector<std::uint8_t> buffer;
+};
+
+// Allow cursor and the underlying image to be kept together
+class img_descriptor_t : public cursor_t {
+public:
+  std::uint32_t format;
+  std::uint32_t img_width, img_height;
+  std::uint32_t obj_count;
+  std::uint32_t strides[4];
+  // std::uint32_t sizes[4];
+  std::int32_t fds[4];
+  std::uint32_t offsets[4];
+  // std::uint32_t plane_indices[4];
+
+  // Increment sequence when new rgb_t needs to be created
+  std::uint64_t sequence;
 };
 
 class sws_t {

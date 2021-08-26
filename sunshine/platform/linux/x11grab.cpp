@@ -513,7 +513,7 @@ struct x11_attr_t : public display_t {
 
   std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
     if(mem_type == mem_type_e::vaapi) {
-      return va::make_hwdevice(width, height);
+      return va::make_hwdevice(width, height, false);
     }
 
     return std::make_shared<hwdevice_t>();

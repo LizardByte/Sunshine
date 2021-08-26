@@ -133,32 +133,12 @@ void interface_t::del_interface(wl_registry *registry, uint32_t id) {
 }
 
 dmabuf_t::dmabuf_t()
-    : status { REINIT }, frames {}, current_frame { &frames[0] }, listener {
+    : status { READY }, frames {}, current_frame { &frames[0] }, listener {
         (decltype(zwlr_export_dmabuf_frame_v1_listener::frame))&dmabuf_t::frame,
         (decltype(zwlr_export_dmabuf_frame_v1_listener::object))&dmabuf_t::object,
         (decltype(zwlr_export_dmabuf_frame_v1_listener::ready))&dmabuf_t::ready,
         (decltype(zwlr_export_dmabuf_frame_v1_listener::cancel))&dmabuf_t::cancel,
       } {
-}
-
-int dmabuf_t::init(wl_display *display_p) {
-  display = egl::make_display(display_p);
-
-  if(!display) {
-    return -1;
-  }
-
-  auto ctx_opt = egl::make_ctx(display.get());
-
-  if(!ctx_opt) {
-    return -1;
-  }
-
-  ctx = std::move(*ctx_opt);
-
-  status = READY;
-
-  return 0;
 }
 
 void dmabuf_t::listen(zwlr_export_dmabuf_manager_v1 *dmabuf_manager, wl_output *output, bool blend_cursor) {
@@ -211,27 +191,9 @@ void dmabuf_t::object(
 void dmabuf_t::ready(
   zwlr_export_dmabuf_frame_v1 *frame,
   std::uint32_t tv_sec_hi, std::uint32_t tv_sec_lo, std::uint32_t tv_nsec) {
-  auto next_frame = get_next_frame();
-
-  auto rgb_opt = egl::import_source(display.get(),
-    {
-      next_frame->fds[0],
-      (int)next_frame->width,
-      (int)next_frame->height,
-      (int)next_frame->offsets[0],
-      (int)next_frame->strides[0],
-    });
-
-  if(!rgb_opt) {
-    status = REINIT;
-
-    return;
-  }
-
-  next_frame->rgb = std::move(*rgb_opt);
 
   current_frame->destroy();
-  current_frame = next_frame;
+  current_frame = get_next_frame();
 
   status = READY;
 }
@@ -253,8 +215,6 @@ void frame_t::destroy() {
   for(auto x = 0; x < obj_count; ++x) {
     close(fds[x]);
   }
-
-  rgb = egl::rgb_t {};
 
   frame     = nullptr;
   obj_count = 0;
