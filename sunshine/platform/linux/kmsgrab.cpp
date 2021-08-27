@@ -23,9 +23,63 @@ namespace fs = std::filesystem;
 namespace platf {
 
 namespace kms {
+
+class wrapper_fb {
+public:
+  wrapper_fb(drmModeFB *fb)
+    : fb { fb }, fb_id { fb->fb_id }, width { fb->width }, height { fb->height } {
+      pixel_format = DRM_FORMAT_XRGB8888;
+      modifier = DRM_FORMAT_MOD_INVALID;
+      std::fill_n(handles, 4, 0);
+      std::fill_n(pitches, 4, 0);
+      std::fill_n(offsets, 4, 0);
+      handles[0] = fb->handle;
+      pitches[0] = fb->pitch;
+    }
+
+  wrapper_fb(drmModeFB2 *fb2)
+    : fb2 { fb2 }, fb_id { fb2->fb_id }, width { fb2->width }, height { fb2->height } {
+      pixel_format = fb2->pixel_format;
+      modifier = fb2->modifier;
+      memcpy(handles, fb2->handles, sizeof(handles));
+      memcpy(pitches, fb2->pitches, sizeof(pitches));
+      memcpy(offsets, fb2->offsets, sizeof(offsets));
+    }
+
+  ~wrapper_fb() {
+    if(fb) {
+      drmModeFreeFB(fb);
+    } else if(fb2) {
+      drmModeFreeFB2(fb2);
+    }
+  }
+
+  egl::surface_descriptor_t to_sd() const {
+    egl::surface_descriptor_t sd = {};
+    sd.width = width;
+    sd.height = height;
+    sd.fourcc = pixel_format;
+    sd.modifier = modifier;
+    memcpy(sd.pitches, pitches, sizeof(pitches));
+    memcpy(sd.offsets, offsets, sizeof(offsets));
+    return sd;
+  }
+
+  drmModeFB *fb = nullptr;
+  drmModeFB2 *fb2 = nullptr;
+  uint32_t fb_id;
+  uint32_t width;
+  uint32_t height;
+  uint32_t pixel_format;
+  uint64_t modifier;
+  uint32_t handles[4];
+  uint32_t pitches[4];
+  uint32_t offsets[4];
+};
+
 using plane_res_t = util::safe_ptr<drmModePlaneRes, drmModeFreePlaneResources>;
 using plane_t     = util::safe_ptr<drmModePlane, drmModeFreePlane>;
-using fb_t        = util::safe_ptr<drmModeFB, drmModeFreeFB>;
+using fb_t        = std::unique_ptr<wrapper_fb>;
 using crtc_t      = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
 using obj_prop_t  = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
 using prop_t      = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
@@ -122,7 +176,11 @@ public:
   }
 
   fb_t fb(plane_t::pointer plane) {
-    return drmModeGetFB(fd.el, plane->fb_id);
+    auto fb = drmModeGetFB2(fd.el, plane->fb_id);
+    if(fb) {
+      return std::make_unique<wrapper_fb>(fb);
+    }
+    return std::make_unique<wrapper_fb>(drmModeGetFB(fd.el, plane->fb_id));
   }
 
   crtc_t crtc(std::uint32_t id) {
@@ -212,9 +270,7 @@ void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
 
   BOOST_LOG(debug)
     << "Resolution: "sv << fb->width << 'x' << fb->height
-    << ": Pitch: "sv << fb->pitch
-    << ": bpp: "sv << fb->bpp
-    << ": depth: "sv << fb->depth;
+    << ": Pitch: "sv << fb->pitches[0];
 
   std::stringstream ss;
 
@@ -262,9 +318,11 @@ public:
       auto crct = card.crtc(plane->crtc_id);
 
       bool different =
-        fb->width != img_width ||
-        fb->height != img_height ||
-        fb->pitch != pitch ||
+        fb->width != surf_sd.width ||
+        fb->height != surf_sd.height ||
+        fb->pixel_format != surf_sd.fourcc ||
+        fb->modifier != surf_sd.modifier ||
+        fb->pitches[0] != surf_sd.pitches[0] ||
         crct->x != offset_x ||
         crct->y != offset_y;
 
@@ -335,16 +393,21 @@ public:
           return -1;
         }
 
-        if(!fb->handle) {
+        if(!fb->handles[0]) {
           BOOST_LOG(error)
             << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
           return -1;
         }
 
-        fb_fd = card.handleFD(fb->handle);
-        if(fb_fd.el < 0) {
-          BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-          continue;
+        for(int i = 0; i < 4; ++i) {
+          if(!fb->handles[i]) {
+            break;
+          }
+          fb_fd[i] = card.handleFD(fb->handles[i]);
+          if(fb_fd[i].el < 0) {
+            BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+            continue;
+          }
         }
 
         BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
@@ -352,13 +415,10 @@ public:
         auto crct = card.crtc(plane->crtc_id);
         kms::print(plane.get(), fb.get(), crct.get());
 
-        img_width  = fb->width;
-        img_height = fb->height;
+        surf_sd = fb->to_sd();
 
         width  = crct->width;
         height = crct->height;
-
-        pitch = fb->pitch;
 
         this->env_width  = ::platf::kms::env_width;
         this->env_height = ::platf::kms::env_height;
@@ -397,11 +457,9 @@ public:
 
   capture_e status;
 
-  int img_width, img_height;
-  int pitch;
-
   card_t card;
-  file_t fb_fd;
+  file_t fb_fd[4];
+  egl::surface_descriptor_t surf_sd;
 
   std::optional<x11::cursor_t> cursor_opt;
 
@@ -441,14 +499,11 @@ public:
 
     ctx = std::move(*ctx_opt);
 
-    auto rgb_opt = egl::import_source(display.get(),
-      {
-        fb_fd.el,
-        img_width,
-        img_height,
-        0,
-        pitch,
-      });
+    auto sd = surf_sd;
+    for(auto i = 0; i < 4; ++i) {
+      sd.fds[i] = fb_fd[i].el;
+    }
+    auto rgb_opt = egl::import_source(display.get(), sd);
 
     if(!rgb_opt) {
       return -1;
@@ -541,14 +596,11 @@ public:
 
   std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
     if(mem_type == mem_type_e::vaapi) {
-      return va::make_hwdevice(width, height, dup(card.fd.el), offset_x, offset_y,
-        {
-          fb_fd.el,
-          img_width,
-          img_height,
-          0,
-          pitch,
-        });
+      auto sd = surf_sd;
+      for(auto i = 0; i < 4; ++i) {
+        sd.fds[i] = fb_fd[i].el;
+      }
+      return va::make_hwdevice(width, height, dup(card.fd.el), offset_x, offset_y, sd);
     }
 
     BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
@@ -689,7 +741,7 @@ std::vector<std::string> kms_display_names() {
         continue;
       }
 
-      if(!fb->handle) {
+      if(!fb->handles[0]) {
         BOOST_LOG(error)
           << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
         break;

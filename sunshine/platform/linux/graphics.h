@@ -201,12 +201,13 @@ KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
 });
 
 struct surface_descriptor_t {
-  int fd;
-
   int width;
   int height;
-  int offset;
-  int pitch;
+  int fds[4];
+  uint32_t fourcc;
+  uint64_t modifier;
+  uint32_t pitches[4];
+  uint32_t offsets[4];
 };
 
 display_t make_display(gbm::gbm_t::pointer gbm);
