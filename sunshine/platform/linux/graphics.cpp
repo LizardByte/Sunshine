@@ -640,7 +640,9 @@ std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int
 }
 
 void sws_t::load_ram(platf::img_t &img) {
-  gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
+  loaded_texture = tex[0];
+
+  gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
   gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
 }
 

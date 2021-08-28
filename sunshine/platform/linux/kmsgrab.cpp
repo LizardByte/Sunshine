@@ -452,7 +452,7 @@ public:
         fb_fd.el,
         img_width,
         img_height,
-        0,
+        offset,
         pitch,
       });
 
@@ -530,7 +530,6 @@ public:
   }
 
   int dummy_img(platf::img_t *img) override {
-    snapshot(img, 1s, false);
     return 0;
   }
 

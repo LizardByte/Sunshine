@@ -12,9 +12,10 @@
 #include "sunshine/platform/common.h"
 #include "sunshine/utility.h"
 
-#define SUNSHINE_STRINGIFY(x) #x
-#define gl_drain_errors_helper(x) gl::drain_errors("line " SUNSHINE_STRINGIFY(x))
-#define gl_drain_errors gl_drain_errors_helper(__LINE__)
+#define SUNSHINE_STRINGIFY_HELPER(x) #x
+#define SUNSHINE_STRINGIFY(x) SUNSHINE_STRINGIFY_HELPER(x)
+#define gl_drain_errors_helper(x) gl::drain_errors(x)
+#define gl_drain_errors gl_drain_errors_helper(__FILE__ ":" SUNSHINE_STRINGIFY(__LINE__))
 
 extern "C" int close(int __fd);
 
