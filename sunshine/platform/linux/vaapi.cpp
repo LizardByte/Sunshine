@@ -417,6 +417,8 @@ public:
     if(descriptor.sequence > sequence) {
       sequence = descriptor.sequence;
 
+      rgb = egl::rgb_t {};
+
       auto rgb_opt = egl::import_source(display.get(),
         {
           descriptor.fds[0],

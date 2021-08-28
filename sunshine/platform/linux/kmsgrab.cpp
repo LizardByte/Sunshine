@@ -171,8 +171,7 @@ public:
     return props(id, DRM_MODE_OBJECT_CONNECTOR);
   }
 
-  plane_t
-  operator[](std::uint32_t index) {
+  plane_t operator[](std::uint32_t index) {
     return drmModeGetPlane(fd.el, plane_res->planes[index]);
   }
 
@@ -198,6 +197,10 @@ struct kms_img_t : public img_t {
     delete[] data;
     data = nullptr;
   }
+};
+
+struct kms_vram_img_t : public egl::img_descriptor_t {
+  file_t fb_fd;
 };
 
 void print(plane_t::pointer plane, fb2_t::pointer fb, crtc_t::pointer crtc) {
@@ -235,53 +238,6 @@ void print(plane_t::pointer plane, fb2_t::pointer fb, crtc_t::pointer crtc) {
 class display_t : public platf::display_t {
 public:
   display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
-  ~display_t() {
-    while(!thread_pool.cancel(loop_id))
-      ;
-  }
-
-  mem_type_e mem_type;
-
-  std::chrono::nanoseconds delay;
-
-  // Done on a seperate thread to prevent additional latency to capture code
-  // This code detects if the framebuffer has been removed from KMS
-  void task_loop() {
-    capture_e capture = capture_e::reinit;
-
-    std::uint32_t framebuffer_count = 0;
-
-    auto end = std::end(card);
-    for(auto plane = std::begin(card); plane != end; ++plane) {
-      if(++framebuffer_count != framebuffer_index) {
-        continue;
-      }
-
-      auto fb = card.fb(plane.get());
-      if(!fb) {
-        BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-        capture = capture_e::error;
-      }
-
-      auto crct = card.crtc(plane->crtc_id);
-
-      bool different =
-        fb->width != img_width ||
-        fb->height != img_height ||
-        fb->pitch != pitch ||
-        crct->x != offset_x ||
-        crct->y != offset_y;
-
-      if(!different) {
-        capture = capture_e::ok;
-        break;
-      }
-    }
-
-    this->status = capture;
-
-    loop_id = thread_pool.pushDelayed(&display_t::task_loop, 2s, this).task_id;
-  }
 
   int init(const std::string &display_name, int framerate) {
     delay = std::chrono::nanoseconds { 1s } / framerate;
@@ -303,12 +259,8 @@ public:
         return {};
       }
 
-      std::uint32_t framebuffer_index = 0;
-
       auto end = std::end(card);
       for(auto plane = std::begin(card); plane != end; ++plane) {
-        ++framebuffer_index;
-
         bool cursor = false;
 
         auto props = card.plane_props(plane->plane_id);
@@ -345,10 +297,10 @@ public:
           return -1;
         }
 
-        fb_fd = card.handleFD(fb->handles[0]);
+        file_t fb_fd = card.handleFD(fb->handles[0]);
         if(fb_fd.el < 0) {
           BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-          continue;
+          return -1;
         }
 
         BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
@@ -362,9 +314,6 @@ public:
         width  = crct->width;
         height = crct->height;
 
-        pitch  = fb->pitches[0];
-        offset = fb->offsets[0];
-
         this->env_width  = ::platf::kms::env_width;
         this->env_height = ::platf::kms::env_height;
 
@@ -373,7 +322,7 @@ public:
 
         this->card = std::move(card);
 
-        this->framebuffer_index = framebuffer_index;
+        plane_id = plane->plane_id;
 
         goto break_loop;
       }
@@ -389,30 +338,54 @@ public:
 
     cursor_opt = x11::cursor_t::make();
 
-    status = capture_e::ok;
-
-    thread_pool.start(1);
-    loop_id = thread_pool.pushDelayed(&display_t::task_loop, 2s, this).task_id;
-
     return 0;
   }
 
-  // Keep track of what framebuffer we're using.
-  std::uint32_t framebuffer_index;
+  inline capture_e refresh(file_t *file) {
+    plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
 
-  capture_e status;
+    auto fb = card.fb2(plane.get());
+    if(!fb) {
+      BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+      return capture_e::error;
+    }
+
+    if(!fb->handles[0]) {
+      BOOST_LOG(error)
+        << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
+      return capture_e::error;
+    }
+
+    *file = card.handleFD(fb->handles[0]);
+    if(file->el < 0) {
+      BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+      return capture_e::error;
+    }
+
+    if(
+      fb->width != img_width ||
+      fb->height != img_height) {
+      return capture_e::reinit;
+    }
+
+    pitch  = fb->pitches[0];
+    offset = fb->offsets[0];
+
+    return capture_e::ok;
+  }
+
+  mem_type_e mem_type;
+
+  std::chrono::nanoseconds delay;
 
   int img_width, img_height;
   int pitch;
   int offset;
+  int plane_id;
 
   card_t card;
-  file_t fb_fd;
 
   std::optional<x11::cursor_t> cursor_opt;
-
-  util::TaskPool::task_id_t loop_id;
-  util::ThreadPool thread_pool;
 };
 
 class display_ram_t : public display_t {
@@ -446,21 +419,6 @@ public:
     }
 
     ctx = std::move(*ctx_opt);
-
-    auto rgb_opt = egl::import_source(display.get(),
-      {
-        fb_fd.el,
-        img_width,
-        img_height,
-        offset,
-        pitch,
-      });
-
-    if(!rgb_opt) {
-      return -1;
-    }
-
-    rgb = std::move(*rgb_opt);
 
     return 0;
   }
@@ -508,6 +466,28 @@ public:
   }
 
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
+    file_t fb_fd;
+
+    auto status = refresh(&fb_fd);
+    if(status != capture_e::ok) {
+      return status;
+    }
+
+    auto rgb_opt = egl::import_source(display.get(),
+      {
+        fb_fd.el,
+        img_width,
+        img_height,
+        offset,
+        pitch,
+      });
+
+    if(!rgb_opt) {
+      return capture_e::error;
+    }
+
+    auto &rgb = *rgb_opt;
+
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
     gl::ctx.GetTextureSubImage(rgb->tex[0], 0, offset_x, offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
 
@@ -515,7 +495,7 @@ public:
       cursor_opt->blend(*img_out_base, offset_x, offset_y);
     }
 
-    return status;
+    return capture_e::ok;
   }
 
   std::shared_ptr<img_t> alloc_img() override {
@@ -536,8 +516,6 @@ public:
   gbm::gbm_t gbm;
   egl::display_t display;
   egl::ctx_t ctx;
-
-  egl::rgb_t rgb;
 };
 
 class display_vram_t : public display_t {
@@ -554,25 +532,23 @@ public:
   }
 
   std::shared_ptr<img_t> alloc_img() override {
-    auto img = std::make_shared<egl::img_descriptor_t>();
+    auto img = std::make_shared<kms_vram_img_t>();
 
     img->serial      = std::numeric_limits<decltype(img->serial)>::max();
     img->data        = nullptr;
     img->pixel_pitch = 4;
 
-    img->sequence = 1;
+    img->sequence = 0;
 
     img->obj_count  = 1;
     img->img_width  = img_width;
     img->img_height = img_height;
-    img->fds[0]     = fb_fd.el;
-    img->offsets[0] = offset;
-    img->strides[0] = pitch;
 
     return img;
   }
 
   int dummy_img(platf::img_t *img) override {
+    snapshot(img, 1s, false);
     return 0;
   }
 
@@ -611,18 +587,34 @@ public:
   }
 
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds /* timeout */, bool cursor) {
-    if(!cursor || !cursor_opt) {
-      img_out_base->data = nullptr;
+    file_t fb_fd;
+
+    auto status = refresh(&fb_fd);
+    if(status != capture_e::ok) {
       return status;
     }
 
-    auto img = (egl::cursor_t *)img_out_base;
+    auto img = (kms_vram_img_t *)img_out_base;
+
+    img->fb_fd      = std::move(fb_fd);
+    img->sequence   = ++sequence;
+    img->fds[0]     = img->fb_fd.el;
+    img->offsets[0] = offset;
+    img->strides[0] = pitch;
+
+    if(!cursor || !cursor_opt) {
+      img_out_base->data = nullptr;
+
+
+      return capture_e::ok;
+    }
+
     cursor_opt->capture(*img);
 
     img->x -= offset_x;
     img->y -= offset_y;
 
-    return status;
+    return capture_e::ok;
   }
 
   int init(const std::string &display_name, int framerate) {
@@ -635,8 +627,12 @@ public:
       return -1;
     }
 
+    sequence = 0;
+
     return 0;
   }
+
+  std::uint64_t sequence;
 };
 } // namespace kms
 
