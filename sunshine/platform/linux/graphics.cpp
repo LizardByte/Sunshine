@@ -390,6 +390,8 @@ std::optional<ctx_t> make_ctx(display_t::pointer display) {
   return ctx;
 }
 std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
+  gl_drain_errors;
+
   EGLAttrib img_attr_planes[13] {
     EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_XRGB8888,
     EGL_WIDTH, xrgb.width,
@@ -663,8 +665,7 @@ void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int texture) {
     if(serial != img.serial) {
       serial = img.serial;
 
-      gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, img.width, img.height);
-      gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+      gl::ctx.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.width, img.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
     }
 
     gl::ctx.Enable(GL_BLEND);
