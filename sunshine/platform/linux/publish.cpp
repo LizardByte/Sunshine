@@ -426,4 +426,4 @@ public:
 
   return std::make_unique<deinit_t>(std::thread { avahi::simple_poll_loop, poll.get() });
 }
-}; // namespace platf::publish
+} // namespace platf::publish

@@ -69,9 +69,11 @@ struct cursor_t {
 class gpu_cursor_t {
 public:
   gpu_cursor_t() : cursor_view { 0, 0, 0, 0, 0.0f, 1.0f } {};
-  void set_pos(LONG rel_x, LONG rel_y) {
+  void set_pos(LONG rel_x, LONG rel_y, bool visible) {
     cursor_view.TopLeftX = rel_x;
     cursor_view.TopLeftY = rel_y;
+
+    this->visible = visible;
   }
 
   void set_texture(LONG width, LONG height, texture2d_t &&texture) {
@@ -85,6 +87,8 @@ public:
   shader_res_t input_res;
 
   D3D11_VIEWPORT cursor_view;
+
+  bool visible;
 };
 
 class duplication_t {

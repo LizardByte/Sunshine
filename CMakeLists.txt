@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine)
 
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 add_subdirectory(third-party/Simple-Web-Server)
 
@@ -102,18 +102,45 @@ else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
-	find_package(X11 REQUIRED)
-	find_package(FFmpeg REQUIRED)
+	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
+	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
 
-	set(PLATFORM_TARGET_FILES
+	if(${SUNSHINE_ENABLE_X11})
+		find_package(X11)
+	endif()
+	if(${SUNSHINE_ENABLE_DRM})
+		find_package(LIBDRM)
+	endif()
+
+	find_package(FFMPEG REQUIRED)
+
+	if(X11_FOUND)
+		add_compile_definitions(SUNSHINE_BUILD_X11)
+		include_directories(${X11_INCLUDE_DIR})
+		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/x11grab.cpp)
+	endif()
+	if(LIBDRM_FOUND)
+		add_compile_definitions(SUNSHINE_BUILD_DRM)
+		include_directories(${LIBDRM_INCLUDE_DIRS})
+		list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES})
+		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/kmsgrab.cpp)
+		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
+	endif()
+	if(NOT X11_FOUND AND NOT LIBDRM_FOUND)
+		message(FATAL "Couldn't find either x11 or libdrm")
+	endif()
+
+	list(APPEND PLATFORM_TARGET_FILES
 		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
+		sunshine/platform/linux/graphics.h
+		sunshine/platform/linux/graphics.cpp
 		sunshine/platform/linux/misc.h
 		sunshine/platform/linux/misc.cpp
-		sunshine/platform/linux/display.cpp
 		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp
+		sunshine/platform/linux/x11grab.h
 		third-party/glad/src/egl.c
 		third-party/glad/src/gl.c
 		third-party/glad/include/EGL/eglplatform.h
@@ -121,22 +148,14 @@ else()
 		third-party/glad/include/glad/gl.h
 		third-party/glad/include/glad/egl.h)
 		
-	set(PLATFORM_LIBRARIES
-		Xfixes
-		Xtst
-		xcb
-		xcb-shm
-		xcb-xfixes
-		Xrandr
-		${X11_LIBRARIES}
+	list(APPEND PLATFORM_LIBRARIES
 		dl
 		evdev
 		pulse
 		pulse-simple
 		)
 	
-	set(PLATFORM_INCLUDE_DIRS
-		${X11_INCLUDE_DIR}
+	include_directories(
 		/usr/include/libevdev-1.0
 		third-party/glad/include)
 

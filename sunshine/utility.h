@@ -389,6 +389,10 @@ auto enm(T &val) -> std::underlying_type_t<T> & {
 }
 
 inline std::int64_t from_chars(const char *begin, const char *end) {
+  if(begin == end) {
+    return 0;
+  }
+
   std::int64_t res {};
   std::int64_t mul = 1;
   while(begin != --end) {
@@ -590,6 +594,14 @@ bool operator==(std::nullptr_t, const uniq_ptr<T, D> &y) {
 template<class T, class D>
 bool operator!=(std::nullptr_t, const uniq_ptr<T, D> &y) {
   return (bool)y;
+}
+
+template<class P>
+using shared_t = std::shared_ptr<typename P::element_type>;
+
+template<class P, class T>
+shared_t<P> make_shared(T *pointer) {
+  return shared_t<P>(reinterpret_cast<typename P::pointer>(pointer), typename P::deleter_type());
 }
 
 template<class T>

@@ -7,7 +7,10 @@
 
 #include <fstream>
 
+#include "graphics.h"
 #include "misc.h"
+#include "vaapi.h"
+
 #include "sunshine/main.h"
 #include "sunshine/platform/common.h"
 
@@ -20,6 +23,47 @@
 using namespace std::literals;
 namespace fs = std::filesystem;
 
+namespace dyn {
+void *handle(const std::vector<const char *> &libs) {
+  void *handle;
+
+  for(auto lib : libs) {
+    handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
+    if(handle) {
+      return handle;
+    }
+  }
+
+  std::stringstream ss;
+  ss << "Couldn't find any of the following libraries: ["sv << libs.front();
+  std::for_each(std::begin(libs) + 1, std::end(libs), [&](auto lib) {
+    ss << ", "sv << lib;
+  });
+
+  ss << ']';
+
+  BOOST_LOG(error) << ss.str();
+
+  return nullptr;
+}
+
+int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
+  int err = 0;
+  for(auto &func : funcs) {
+    TUPLE_2D_REF(fn, name, func);
+
+    *fn = SUNSHINE_GNUC_EXTENSION(apiproc) dlsym(handle, name);
+
+    if(!*fn && strict) {
+      BOOST_LOG(error) << "Couldn't find function: "sv << name;
+
+      err = -1;
+    }
+  }
+
+  return err;
+}
+} // namespace dyn
 namespace platf {
 using ifaddr_t = util::safe_ptr<ifaddrs, freeifaddrs>;
 
@@ -93,46 +137,94 @@ std::string get_mac_address(const std::string_view &address) {
   BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
   return "00:00:00:00:00:00"s;
 }
-} // namespace platf
 
-namespace dyn {
-void *handle(const std::vector<const char *> &libs) {
-  void *handle;
+enum class source_e {
+#ifdef SUNSHINE_BUILD_DRM
+  KMS,
+#endif
+#ifdef SUNSHINE_BUILD_X11
+  X11,
+#endif
+};
+static source_e source;
 
-  for(auto lib : libs) {
-    handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
-    if(handle) {
-      return handle;
-    }
+#ifdef SUNSHINE_BUILD_DRM
+std::vector<std::string> kms_display_names();
+std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+
+bool verify_kms() {
+  return !kms_display_names().empty();
+}
+#endif
+
+#ifdef SUNSHINE_BUILD_X11
+std::vector<std::string> x11_display_names();
+std::shared_ptr<display_t> x11_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+
+bool verify_x11() {
+  return !x11_display_names().empty();
+}
+#endif
+
+std::vector<std::string> display_names() {
+  switch(source) {
+#ifdef SUNSHINE_BUILD_DRM
+  case source_e::KMS:
+    return kms_display_names();
+#endif
+#ifdef SUNSHINE_BUILD_X11
+  case source_e::X11:
+    return x11_display_names();
+#endif
   }
 
-  std::stringstream ss;
-  ss << "Couldn't find any of the following libraries: ["sv << libs.front();
-  std::for_each(std::begin(libs) + 1, std::end(libs), [&](auto lib) {
-    ss << ", "sv << lib;
-  });
+  return {};
+}
 
-  ss << ']';
-
-  BOOST_LOG(error) << ss.str();
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+  switch(source) {
+#ifdef SUNSHINE_BUILD_DRM
+  case source_e::KMS:
+    return kms_display(hwdevice_type, display_name, framerate);
+#endif
+#ifdef SUNSHINE_BUILD_X11
+  case source_e::X11:
+    return x11_display(hwdevice_type, display_name, framerate);
+#endif
+  }
 
   return nullptr;
 }
 
-int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict) {
-  int err = 0;
-  for(auto &func : funcs) {
-    TUPLE_2D_REF(fn, name, func);
+std::unique_ptr<deinit_t> init() {
+  // These are allowed to fail.
+  gbm::init();
+  va::init();
 
-    *fn = SUNSHINE_GNUC_EXTENSION(apiproc) dlsym(handle, name);
+#ifdef SUNSHINE_BUILD_DRM
+  if(verify_kms()) {
+    BOOST_LOG(info) << "Using KMS for screencasting"sv;
+    source = source_e::KMS;
+    goto found_source;
+  }
+#endif
+#ifdef SUNSHINE_BUILD_X11
+  if(verify_x11()) {
+    BOOST_LOG(info) << "Using X11 for screencasting"sv;
+    source = source_e::X11;
+    goto found_source;
+  }
+#endif
+  // Did not find a source
+  return nullptr;
 
-    if(!*fn && strict) {
-      BOOST_LOG(error) << "Couldn't find function: "sv << name;
-
-      err = -1;
-    }
+// Normally, I would simply use if-else statements to achieve this result,
+// but due to the macro's, (*spits on ground*), it would be too messy
+found_source:
+  if(!gladLoaderLoadEGL(EGL_NO_DISPLAY) || !eglGetPlatformDisplay) {
+    BOOST_LOG(warning) << "Couldn't load EGL library"sv;
   }
 
-  return err;
+  return std::make_unique<deinit_t>();
 }
-} // namespace dyn
+} // namespace platf

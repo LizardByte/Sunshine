@@ -221,6 +221,27 @@ void getTroubleshootingPage(resp_https_t response, req_https_t request) {
   response->write(header + content);
 }
 
+void getBootstrapCss(resp_https_t response, req_https_t request) {
+  print_req(request);
+
+  std::string content = read_file(WEB_DIR "third_party/bootstrap.min.css");
+  response->write(content);
+}
+
+void getBootstrapJs(resp_https_t response, req_https_t request) {
+  print_req(request);
+
+  std::string content = read_file(WEB_DIR "third_party/bootstrap.bundle.min.js");
+  response->write(content);
+}
+
+void getVueJs(resp_https_t response, req_https_t request) {
+  print_req(request);
+
+  std::string content = read_file(WEB_DIR "third_party/vue.js");
+  response->write(content);
+}
+
 void getApps(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -550,27 +571,30 @@ void start() {
   ctx->use_certificate_chain_file(config::nvhttp.cert);
   ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
   https_server_t server { ctx, 0 };
-  server.default_resource                           = not_found;
-  server.resource["^/$"]["GET"]                     = getIndexPage;
-  server.resource["^/pin$"]["GET"]                  = getPinPage;
-  server.resource["^/apps$"]["GET"]                 = getAppsPage;
-  server.resource["^/clients$"]["GET"]              = getClientsPage;
-  server.resource["^/config$"]["GET"]               = getConfigPage;
-  server.resource["^/password$"]["GET"]             = getPasswordPage;
-  server.resource["^/welcome$"]["GET"]              = getWelcomePage;
+  server.default_resource                                          = not_found;
+  server.resource["^/$"]["GET"]                                    = getIndexPage;
+  server.resource["^/pin$"]["GET"]                                 = getPinPage;
+  server.resource["^/apps$"]["GET"]                                = getAppsPage;
+  server.resource["^/clients$"]["GET"]                             = getClientsPage;
+  server.resource["^/config$"]["GET"]                              = getConfigPage;
+  server.resource["^/password$"]["GET"]                            = getPasswordPage;
+  server.resource["^/welcome$"]["GET"]                             = getWelcomePage;
   server.resource["^/troubleshooting$"]["GET"]      = getTroubleshootingPage;
-  server.resource["^/api/pin"]["POST"]              = savePin;
-  server.resource["^/api/apps$"]["GET"]             = getApps;
-  server.resource["^/api/apps$"]["POST"]            = saveApp;
-  server.resource["^/api/config$"]["GET"]           = getConfig;
-  server.resource["^/api/config$"]["POST"]          = saveConfig;
-  server.resource["^/api/password$"]["POST"]        = savePassword;
-  server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
+  server.resource["^/api/pin"]["POST"]                             = savePin;
+  server.resource["^/api/apps$"]["GET"]                            = getApps;
+  server.resource["^/api/apps$"]["POST"]                           = saveApp;
+  server.resource["^/api/config$"]["GET"]                          = getConfig;
+  server.resource["^/api/config$"]["POST"]                         = saveConfig;
+  server.resource["^/api/password$"]["POST"]                       = savePassword;
+  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]                = deleteApp;
   server.resource["^/api/clients/unpair$"]["POST"]  = unpairAll;
   server.resource["^/api/apps/close"]["POST"]       = closeApp;
-  server.config.reuse_address                       = true;
-  server.config.address                             = "0.0.0.0"s;
-  server.config.port                                = port_https;
+  server.resource["^/third_party/bootstrap.min.css$"]["GET"]       = getBootstrapCss;
+  server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"] = getBootstrapJs;
+  server.resource["^/third_party/vue.js$"]["GET"]                  = getVueJs;
+  server.config.reuse_address                                      = true;
+  server.config.address                                            = "0.0.0.0"s;
+  server.config.port                                               = port_https;
 
   try {
     server.bind();

@@ -1,45 +1,57 @@
 <main role="main" id="app" style="max-width: 600px; margin: 0 auto">
-  <div class="container-parent">
-    <div class="container py-3">
-      <h1 class="mb-0">Welcome to Sunshine!</h1>
-      <p class="mb-0 align-self-start">
-        Before Getting Started, write down below these credentials
-      </p>
-    </div>
-  </div>
+  <header>
+    <h1 class="mb-0">Welcome to Sunshine!</h1>
+    <p class="mb-0 align-self-start">
+      Before Getting Started, write down below these credentials
+    </p>
+  </header>
   <div class="alert alert-warning">
     These Credentials down below are needed to access the rest of the
     application.<br />
     Keep them safe, since <b>you will never see them again!</b>
   </div>
-  <form @submit.prevent="save" class="card p-4" style="width: 100%">
+  <form @submit.prevent="save">
     <div class="mb-2">
-      <label for="" class="form-label">Username: </label>
+      <label for="usernameInput" class="form-label">Username:</label>
       <input
         type="text"
         class="form-control"
+        id="usernameInput"
+        autocomplete="username"
         v-model="passwordData.newUsername"
       />
     </div>
     <div class="mb-2">
-      <label for="" class="form-label">Password: </label>
+      <label for="passwordInput" class="form-label">Password:</label>
       <input
         type="password"
         class="form-control"
+        id="passwordInput"
+        autocomplete="new-password"
         v-model="passwordData.newPassword"
         required
       />
     </div>
     <div class="mb-2">
-      <label for="" class="form-label">Password: </label>
+      <label for="confirmPasswordInput" class="form-label"
+        >Password (confirm):</label
+      >
       <input
         type="password"
         class="form-control"
+        id="confirmPasswordInput"
+        autocomplete="new-password"
         v-model="passwordData.confirmNewPassword"
         required
       />
     </div>
-    <button class="mb-2 btn btn-primary" style="margin: 1em auto">Login</button>
+    <button
+      type="submit"
+      class="btn btn-primary w-100 mb-2"
+      v-bind:disabled="loading"
+    >
+      Login
+    </button>
     <div class="alert alert-danger" v-if="error"><b>Error: </b>{{error}}</div>
     <div class="alert alert-success" v-if="success">
       <b>Success! </b>This page will reload soon, your browser will ask you for
@@ -55,6 +67,7 @@
       return {
         error: null,
         success: false,
+        loading: false,
         passwordData: {
           newUsername: "sunshine",
           newPassword: "",
@@ -65,10 +78,12 @@
     methods: {
       save() {
         this.error = null;
+        this.loading = true;
         fetch("/api/password", {
           method: "POST",
           body: JSON.stringify(this.passwordData),
         }).then((r) => {
+          this.loading = false;
           if (r.status == 200) {
             r.json().then((rj) => {
               if (rj.status.toString() === "true") {

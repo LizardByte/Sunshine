@@ -150,6 +150,22 @@
           that sleeps indefinitely
         </div>
       </div>
+      <!--working dir-->
+      <div class="mb-3">
+        <label for="appWorkingDir" class="form-label">Working Directory</label>
+        <input
+          type="text"
+          class="form-control monospace"
+          id="appWorkingDir"
+          aria-describedby="appWorkingDirHelp"
+          v-model="editForm['working-dir']"
+        />
+        <div id="appWorkingDirHelp" class="form-text">
+          The working directory that should be passed to the process.
+          For example, some applications use the working directory to search for configuration files.
+          If not set, Sunshine will default to the parent directory of the command
+        </div>
+      </div>
       <!--buttons-->
       <div class="d-flex">
         <button @click="showEditForm = false" class="btn btn-secondary m-2">

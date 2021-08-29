@@ -14,21 +14,38 @@ Sunshine is a Gamestream host for Moonlight
 ## Linux
 
 ### Requirements:
+
 Ubuntu 20.04:
-Install the following
+Install the following:
+#### X11 Only
 ```
 sudo apt install cmake gcc-10 g++-10 libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev
 ```
 
+#### X11 + KMS (Requires additional setup)
+KMS allows Sunshine to grab the monitor with lower latency then through X11
+
+```
+sudo apt install cmake gcc-10 g++-10 libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev
+```
+
 ### Compilation:
+
+#### X11 Only
+- `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
+- `cd sunshine && mkdir build && cd build`
+- `cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 -DSUNSHINE_ENABLE_DRM=OFF ..`
+- `make -j ${nproc}`
+
+#### X11 + KMS
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
 - `cd sunshine && mkdir build && cd build`
 - `cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 ..`
 - `make -j ${nproc}`
 
-
 ### Setup:
 sunshine needs access to uinput to create mouse and gamepad events:
+
 - Add user to group 'input':
 	`usermod -a -G input $USER`
 - Create udev rules:
@@ -51,6 +68,11 @@ sunshine needs access to uinput to create mouse and gamepad events:
 			`systemctl --user enable sunshine`
 
 - `assets/apps.json` is an [example](README.md#application-list) of a list of applications that are started just before running a stream
+
+#### Additional Setup for KMS:
+Please note that `cap_sys_admin` may as well be root, except you don't need to be root to run it.
+It's necessary to allow Sunshine to use KMS
+- `sudo setcap cap_sys_admin+ep sunshine`
 
 ### Trouleshooting:
 - If you get "Could not create Sunshine Gamepad: Permission Denied", ensure you are part of the group "input":
