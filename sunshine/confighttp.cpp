@@ -579,7 +579,7 @@ void start() {
   server.resource["^/config$"]["GET"]                              = getConfigPage;
   server.resource["^/password$"]["GET"]                            = getPasswordPage;
   server.resource["^/welcome$"]["GET"]                             = getWelcomePage;
-  server.resource["^/troubleshooting$"]["GET"]      = getTroubleshootingPage;
+  server.resource["^/troubleshooting$"]["GET"]                     = getTroubleshootingPage;
   server.resource["^/api/pin"]["POST"]                             = savePin;
   server.resource["^/api/apps$"]["GET"]                            = getApps;
   server.resource["^/api/apps$"]["POST"]                           = saveApp;
@@ -587,8 +587,8 @@ void start() {
   server.resource["^/api/config$"]["POST"]                         = saveConfig;
   server.resource["^/api/password$"]["POST"]                       = savePassword;
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"]                = deleteApp;
-  server.resource["^/api/clients/unpair$"]["POST"]  = unpairAll;
-  server.resource["^/api/apps/close"]["POST"]       = closeApp;
+  server.resource["^/api/clients/unpair$"]["POST"]                 = unpairAll;
+  server.resource["^/api/apps/close"]["POST"]                      = closeApp;
   server.resource["^/third_party/bootstrap.min.css$"]["GET"]       = getBootstrapCss;
   server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"] = getBootstrapJs;
   server.resource["^/third_party/vue.js$"]["GET"]                  = getVueJs;
