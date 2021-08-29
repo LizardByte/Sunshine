@@ -9,6 +9,12 @@
         If Moonlight complains about an app currently running, force closing the
         app should fix the issue
       </p>
+      <div class="alert alert-success" v-if="closeAppStatus === true">
+        Application Closed Successfuly!
+      </div>
+      <div class="alert alert-danger" v-if="closeAppStatus === false">
+        Error while closing Appplication
+      </div>
     </div>
     <div>
       <button
@@ -26,6 +32,12 @@
       <h2>Unpair All Clients</h2>
       <br />
       <p>Remove all your paired devices</p>
+      <div class="alert alert-success" v-if="unpairAllStatus === true">
+        Unpair Successful!
+      </div>
+      <div class="alert alert-danger" v-if="unpairAllStatus === false">
+        Error while unpairing
+      </div>
     </div>
     <div>
       <button
@@ -58,6 +70,9 @@
           .then((r) => {
             this.closeAppPressed = false;
             this.closeAppStatus = r.status.toString() === "true";
+            setTimeout(() => {
+              this.closeAppStatus = null;
+            }, 5000);
           });
       },
       unpairAll() {
@@ -67,6 +82,9 @@
           .then((r) => {
             this.unpairAllPressed = false;
             this.unpairAllStatus = r.status.toString() === "true";
+            setTimeout(() => {
+              this.unpairAllStatus = null;
+            }, 5000);
           });
       },
     },
