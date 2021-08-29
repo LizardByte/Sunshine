@@ -16,6 +16,21 @@ struct img_t : public platf::img_t {
   }
 };
 
+class frame_descriptor_t : public egl::img_descriptor_t {
+public:
+  ~frame_descriptor_t() {
+    reset();
+  }
+
+  void reset() {
+    std::for_each_n(fds, obj_count, [](int fd) {
+      close(fd);
+    });
+
+    obj_count = 0;
+  }
+};
+
 class wlr_t : public platf::display_t {
 public:
   int init(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
@@ -259,7 +274,8 @@ public:
       return status;
     }
 
-    auto img = (egl::img_descriptor_t *)img_out_base;
+    auto img = (frame_descriptor_t *)img_out_base;
+    img->reset();
 
     auto current_frame = dmabuf.current_frame;
 
@@ -275,11 +291,14 @@ public:
     std::copy_n(std::begin(current_frame->offsets), current_frame->obj_count, img->offsets);
     std::copy_n(std::begin(current_frame->strides), current_frame->obj_count, img->strides);
 
+    // Prevent dmabuf from closing the file descriptors.
+    current_frame->obj_count = 0;
+
     return platf::capture_e::ok;
   }
 
   std::shared_ptr<platf::img_t> alloc_img() override {
-    auto img = std::make_shared<egl::img_descriptor_t>();
+    auto img = std::make_shared<frame_descriptor_t>();
 
     img->img_width  = width;
     img->img_height = height;

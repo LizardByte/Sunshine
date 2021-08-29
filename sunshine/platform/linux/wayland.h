@@ -22,8 +22,6 @@ public:
   std::uint32_t offsets[4];
   std::uint32_t plane_indices[4];
 
-  zwlr_export_dmabuf_frame_v1 *frame;
-
   void destroy();
 };
 

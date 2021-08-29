@@ -168,7 +168,6 @@ void dmabuf_t::frame(
   next_frame->width     = width;
   next_frame->height    = height;
   next_frame->obj_count = obj_count;
-  next_frame->frame     = frame;
 }
 
 void dmabuf_t::object(
@@ -192,6 +191,8 @@ void dmabuf_t::ready(
   zwlr_export_dmabuf_frame_v1 *frame,
   std::uint32_t tv_sec_hi, std::uint32_t tv_sec_lo, std::uint32_t tv_nsec) {
 
+  zwlr_export_dmabuf_frame_v1_destroy(frame);
+
   current_frame->destroy();
   current_frame = get_next_frame();
 
@@ -201,6 +202,9 @@ void dmabuf_t::ready(
 void dmabuf_t::cancel(
   zwlr_export_dmabuf_frame_v1 *frame,
   zwlr_export_dmabuf_frame_v1_cancel_reason reason) {
+
+  zwlr_export_dmabuf_frame_v1_destroy(frame);
+
   auto next_frame = get_next_frame();
   next_frame->destroy();
 
@@ -208,15 +212,10 @@ void dmabuf_t::cancel(
 }
 
 void frame_t::destroy() {
-  if(frame) {
-    zwlr_export_dmabuf_frame_v1_destroy(frame);
-  }
-
   for(auto x = 0; x < obj_count; ++x) {
     close(fds[x]);
   }
 
-  frame     = nullptr;
   obj_count = 0;
 }
 
