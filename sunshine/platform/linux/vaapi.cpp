@@ -351,18 +351,22 @@ public:
       display.get(),
       std::move(fds),
       {
-        prime.objects[prime.layers[0].object_index[0]].fd,
         (int)prime.width,
         (int)prime.height,
-        (int)prime.layers[0].offset[0],
-        (int)prime.layers[0].pitch[0],
+        {prime.objects[prime.layers[0].object_index[0]].fd, -1, -1, -1},
+        0,
+        0,
+        {prime.layers[0].pitch[0], 0, 0, 0},
+        {prime.layers[0].offset[0], 0, 0, 0}
       },
       {
-        prime.objects[prime.layers[0].object_index[1]].fd,
         (int)prime.width / 2,
         (int)prime.height / 2,
-        (int)prime.layers[0].offset[1],
-        (int)prime.layers[0].pitch[1],
+        {prime.objects[prime.layers[0].object_index[1]].fd, -1, -1, -1},
+        0,
+        0,
+        {prime.layers[0].pitch[1], 0, 0, 0},
+        {prime.layers[0].offset[1], 0, 0, 0}
       });
 
     if(!nv12_opt) {
