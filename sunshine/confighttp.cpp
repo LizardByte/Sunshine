@@ -524,17 +524,8 @@ void unpairAll(resp_https_t response, req_https_t request){
     pt::write_json(data, outputTree);
     response->write(data.str());
   });
-
-  try {
-    nvhttp::erase_all_clients();
-    outputTree.put("status", true);
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "unpairAll: "sv << e.what();
-    outputTree.put("status", false);
-    outputTree.put("error", e.what());
-    return;
-  }
+  nvhttp::erase_all_clients();
+  outputTree.put("status", true);
 }
 
 void closeApp(resp_https_t response, req_https_t request){
@@ -550,16 +541,8 @@ void closeApp(resp_https_t response, req_https_t request){
     response->write(data.str());
   });
 
-  try {
-    proc::proc.terminate();
-    outputTree.put("status", true);
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "CloseApp: "sv << e.what();
-    outputTree.put("status", false);
-    outputTree.put("error", e.what());
-    return;
-  }
+  proc::proc.terminate();
+  outputTree.put("status", true);
 }
 
 void start() {

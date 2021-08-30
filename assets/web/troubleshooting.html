@@ -2,7 +2,7 @@
   <h1 class="my-4">Troubleshooting</h1>
   <!--Force Close App-->
   <div class="card p-2 my-4">
-    <div>
+    <div class="card-body">
       <h2>Force Close</h2>
       <br />
       <p>
@@ -15,20 +15,20 @@
       <div class="alert alert-danger" v-if="closeAppStatus === false">
         Error while closing Appplication
       </div>
-    </div>
-    <div>
-      <button
-        class="btn btn-warning"
-        :disabled="closeAppPressed"
-        @click="closeApp"
-      >
-        Force Close
-      </button>
+      <div>
+        <button
+          class="btn btn-warning"
+          :disabled="closeAppPressed"
+          @click="closeApp"
+        >
+          Force Close
+        </button>
+      </div>
     </div>
   </div>
   <!--Unpair all Clients-->
   <div class="card p-2 my-4">
-    <div>
+    <div class="card-body">
       <h2>Unpair All Clients</h2>
       <br />
       <p>Remove all your paired devices</p>
@@ -38,15 +38,15 @@
       <div class="alert alert-danger" v-if="unpairAllStatus === false">
         Error while unpairing
       </div>
-    </div>
-    <div>
-      <button
-        class="btn btn-danger"
-        :disabled="unpairAllPressed"
-        @click="unpairAll"
-      >
-        Unpair All
-      </button>
+      <div>
+        <button
+          class="btn btn-danger"
+          :disabled="unpairAllPressed"
+          @click="unpairAll"
+        >
+          Unpair All
+        </button>
+      </div>
     </div>
   </div>
 </div>
