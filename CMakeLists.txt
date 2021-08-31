@@ -133,6 +133,8 @@ else()
 	if(WAYLAND_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_WAYLAND)
 		macro(genWayland FILENAME)
+			make_directory(${CMAKE_BINARY_DIR}/generated-src)
+
 			message("wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c")
 			message("wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h")
 			execute_process(

@@ -219,6 +219,44 @@ void frame_t::destroy() {
   obj_count = 0;
 }
 
+std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name) {
+  display_t display;
+
+  if(display.init(display_name)) {
+    return {};
+  }
+
+  interface_t interface;
+  interface.listen(display.registry());
+
+  display.roundtrip();
+
+  if(!interface[interface_t::XDG_OUTPUT]) {
+    BOOST_LOG(error) << "Missing Wayland wire XDG_OUTPUT"sv;
+    return {};
+  }
+
+  for(auto &monitor : interface.monitors) {
+    monitor->listen(interface.output_manager);
+  }
+
+  display.roundtrip();
+
+  return std::move(interface.monitors);
+}
+
+static bool validate() {
+  display_t display;
+
+  return display.init() == 0;
+}
+
+int init() {
+  static bool validated = validate();
+
+  return !validated;
+}
+
 } // namespace wl
 
 #pragma GCC diagnostic pop

@@ -175,7 +175,9 @@ private:
   display_internal_t display_internal;
 };
 
-void test();
+std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name = nullptr);
+
+int init();
 } // namespace wl
 
 #endif

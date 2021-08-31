@@ -15,6 +15,7 @@
 // Cursor rendering support through x11
 #include "graphics.h"
 #include "vaapi.h"
+#include "wayland.h"
 #include "x11grab.h"
 
 using namespace std::literals;
@@ -24,12 +25,16 @@ namespace platf {
 
 namespace kms {
 using plane_res_t = util::safe_ptr<drmModePlaneRes, drmModeFreePlaneResources>;
+using encoder_t   = util::safe_ptr<drmModeEncoder, drmModeFreeEncoder>;
+using res_t       = util::safe_ptr<drmModeRes, drmModeFreeResources>;
 using plane_t     = util::safe_ptr<drmModePlane, drmModeFreePlane>;
 using fb_t        = util::safe_ptr<drmModeFB, drmModeFreeFB>;
 using fb2_t       = util::safe_ptr<drmModeFB2, drmModeFreeFB2>;
 using crtc_t      = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
 using obj_prop_t  = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
 using prop_t      = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
+
+using conn_type_count_t = std::map<std::uint32_t, std::uint32_t>;
 
 static int env_width;
 static int env_height;
@@ -45,6 +50,58 @@ std::string_view plane_type(std::uint64_t val) {
   }
 
   return "UNKNOWN"sv;
+}
+
+struct connector_t {
+  // For example: HDMI-A or HDMI
+  std::uint32_t type;
+
+  // Equals zero if not applicable
+  std::uint32_t crtc_id;
+
+  // For example HDMI-A-{index} or HDMI-{index}
+  std::uint32_t index;
+
+  bool connected;
+};
+
+struct monitor_t {
+  std::uint32_t type;
+
+  std::uint32_t index;
+
+  platf::touch_port_t viewport;
+};
+
+struct card_descriptor_t {
+  std::string path;
+
+  std::map<std::uint32_t, monitor_t> crtc_to_monitor;
+};
+
+static std::vector<card_descriptor_t> card_descriptors;
+
+static std::uint32_t from_view(const std::string_view &string) {
+#define _CONVERT(x, y) \
+  if(string == x) return DRM_MODE_CONNECTOR_##y
+
+  _CONVERT("VGA"sv, VGA);
+  _CONVERT("DVI-I"sv, DVII);
+  _CONVERT("DVI-D"sv, DVID);
+  _CONVERT("DVI-A"sv, DVIA);
+  _CONVERT("S-Video"sv, SVIDEO);
+  _CONVERT("LVDS"sv, LVDS);
+  _CONVERT("DIN"sv, 9PinDIN);
+  _CONVERT("DisplayPort"sv, DisplayPort);
+  _CONVERT("DP"sv, DisplayPort);
+  _CONVERT("HDMI-A"sv, HDMIA);
+  _CONVERT("HDMI"sv, HDMIA);
+  _CONVERT("HDMI-B"sv, HDMIB);
+  _CONVERT("eDP"sv, eDP);
+  _CONVERT("DSI"sv, DSI);
+
+  BOOST_LOG(error) << "Unknown Monitor connector type ["sv << string << "]: Please report this to the Github issue tracker"sv;
+  return DRM_MODE_CONNECTOR_Unknown;
 }
 
 class plane_it_t : public util::it_wrap_t<plane_t::element_type, plane_it_t> {
@@ -96,6 +153,8 @@ public:
 
 class card_t {
 public:
+  using connector_interal_t = util::safe_ptr<drmModeConnector, drmModeFreeConnector>;
+
   int init(const char *path) {
     fd.el = open(path, O_RDWR);
 
@@ -134,6 +193,67 @@ public:
     return drmModeGetCrtc(fd.el, id);
   }
 
+  encoder_t encoder(std::uint32_t id) {
+    return drmModeGetEncoder(fd.el, id);
+  }
+
+  res_t res() {
+    return drmModeGetResources(fd.el);
+  }
+
+  bool is_cursor(std::uint32_t plane_id) {
+    auto props = plane_props(plane_id);
+    for(auto &[prop, val] : props) {
+      if(prop->name == "type"sv) {
+        if(val == DRM_PLANE_TYPE_CURSOR) {
+          return true;
+        }
+        else {
+          return false;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  connector_interal_t connector(std::uint32_t id) {
+    return drmModeGetConnector(fd.el, id);
+  }
+
+  std::vector<connector_t> monitors(conn_type_count_t &conn_type_count) {
+    auto resources = res();
+    if(!resources) {
+      BOOST_LOG(error) << "Couldn't get connector resources"sv;
+      return {};
+    }
+
+    std::vector<connector_t> monitors;
+    std::for_each_n(resources->connectors, resources->count_connectors, [this, &conn_type_count, &monitors](std::uint32_t id) {
+      auto conn = connector(id);
+
+      std::uint32_t crtc_id = 0;
+
+      if(conn->encoder_id) {
+        auto enc = encoder(conn->encoder_id);
+        if(enc) {
+          crtc_id = enc->crtc_id;
+        }
+      }
+
+      auto index = ++conn_type_count[conn->connector_type];
+
+      monitors.emplace_back(connector_t {
+        conn->connector_type,
+        crtc_id,
+        index,
+        conn->connection == DRM_MODE_CONNECTED,
+      });
+    });
+
+    return monitors;
+  }
+
   file_t handleFD(std::uint32_t handle) {
     file_t fb_fd;
 
@@ -144,7 +264,6 @@ public:
 
     return fb_fd;
   }
-
 
   std::vector<std::pair<prop_t, std::uint64_t>> props(std::uint32_t id, std::uint32_t type) {
     obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
@@ -191,6 +310,20 @@ public:
   file_t fd;
   plane_res_t plane_res;
 };
+
+std::map<std::uint32_t, monitor_t> map_crtc_to_monitor(const std::vector<connector_t> &connectors) {
+  std::map<std::uint32_t, monitor_t> result;
+
+  for(auto &connector : connectors) {
+    result.emplace(connector.crtc_id,
+      monitor_t {
+        connector.type,
+        connector.index,
+      });
+  }
+
+  return result;
+}
 
 struct kms_img_t : public img_t {
   ~kms_img_t() override {
@@ -261,22 +394,7 @@ public:
 
       auto end = std::end(card);
       for(auto plane = std::begin(card); plane != end; ++plane) {
-        bool cursor = false;
-
-        auto props = card.plane_props(plane->plane_id);
-        for(auto &[prop, val] : props) {
-          if(prop->name == "type"sv) {
-            BOOST_LOG(verbose) << prop->name << "::"sv << kms::plane_type(val);
-
-            if(val == DRM_PLANE_TYPE_CURSOR) {
-              // Don't count as a monitor when it is a cursor
-              cursor = true;
-              break;
-            }
-          }
-        }
-
-        if(cursor) {
+        if(card.is_cursor(plane->plane_id)) {
           continue;
         }
 
@@ -305,20 +423,47 @@ public:
 
         BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
 
+        // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
+        auto pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](card_descriptor_t &cd) {
+          return cd.path == filestring;
+        });
+
+        if(pos == std::end(card_descriptors)) {
+          // This code path shouldn't happend, but it's there just in case.
+          // card_descriptors is part of the guesswork after all.
+          BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
+          return -1;
+        }
+
         auto crct = card.crtc(plane->crtc_id);
         kms::print(plane.get(), fb.get(), crct.get());
 
-        img_width  = fb->width;
-        img_height = fb->height;
-
-        width  = crct->width;
-        height = crct->height;
+        img_width    = fb->width;
+        img_height   = fb->height;
+        img_offset_x = crct->x;
+        img_offset_y = crct->y;
 
         this->env_width  = ::platf::kms::env_width;
         this->env_height = ::platf::kms::env_height;
 
-        offset_x = crct->x;
-        offset_y = crct->y;
+        auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
+        if(monitor != std::end(pos->crtc_to_monitor)) {
+          auto &viewport = monitor->second.viewport;
+
+          width    = viewport.width;
+          height   = viewport.height;
+          offset_x = viewport.offset_x;
+          offset_y = viewport.offset_y;
+        }
+        // This code path shouldn't happend, but it's there just in case.
+        // crtc_to_monitor is part of the guesswork after all.
+        else {
+          BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
+          width    = crct->width;
+          height   = crct->height;
+          offset_x = crct->x;
+          offset_y = crct->y;
+        }
 
         this->card = std::move(card);
 
@@ -379,6 +524,8 @@ public:
   std::chrono::nanoseconds delay;
 
   int img_width, img_height;
+  int img_offset_x, img_offset_y;
+
   int pitch;
   int offset;
   int plane_id;
@@ -489,10 +636,10 @@ public:
     auto &rgb = *rgb_opt;
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    gl::ctx.GetTextureSubImage(rgb->tex[0], 0, offset_x, offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
+    gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
 
     if(cursor_opt && cursor) {
-      cursor_opt->blend(*img_out_base, offset_x, offset_y);
+      cursor_opt->blend(*img_out_base, img_offset_x, img_offset_y);
     }
 
     return capture_e::ok;
@@ -524,7 +671,7 @@ public:
 
   std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override {
     if(mem_type == mem_type_e::vaapi) {
-      return va::make_hwdevice(width, height, dup(card.fd.el), offset_x, offset_y, true);
+      return va::make_hwdevice(width, height, dup(card.fd.el), img_offset_x, img_offset_y, true);
     }
 
     BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
@@ -634,6 +781,7 @@ public:
 
   std::uint64_t sequence;
 };
+
 } // namespace kms
 
 std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
@@ -656,11 +804,69 @@ std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::stri
   return disp;
 }
 
+
+/**
+ * On Wayland, it's not possible to determine the position of the monitor on the desktop with KMS.
+ * Wayland does allow applications to query attached monitors on the desktop,
+ * however, the naming scheme is not standardized across implementations.
+ * 
+ * As a result, correlating the KMS output to the wayland outputs is guess work at best.
+ * But, it's necessary for absolute mouse coordinates to work.
+ * 
+ * This is an ugly hack :(
+ */
+void correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
+  auto monitors = wl::monitors();
+
+  for(auto &monitor : monitors) {
+    std::string_view name = monitor->name;
+
+    BOOST_LOG(info) << name << ": "sv << monitor->description;
+
+    // Try to convert names in the format:
+    // {type}-{index}
+    // {index} is n'th occurence of {type}
+    auto index_begin = name.find_last_of('-');
+
+    std::uint32_t index;
+    if(index_begin == std::string_view::npos) {
+      index = 1;
+    }
+    else {
+      index = std::max<int64_t>(1, util::from_view(name.substr(index_begin + 1)));
+    }
+
+    auto type = kms::from_view(name.substr(0, index_begin));
+
+    for(auto &card_descriptor : cds) {
+      for(auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
+        if(monitor_descriptor.index == index && monitor_descriptor.type == type) {
+          monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
+          monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
+
+          // A sanity check, it's guesswork after all.
+          if(
+            monitor_descriptor.viewport.width != monitor->viewport.width ||
+            monitor_descriptor.viewport.height != monitor->viewport.height) {
+            BOOST_LOG(warning)
+              << "Mismatch on expected Resolution compared to actual resolution: "sv
+              << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height
+              << " vs "sv
+              << monitor->viewport.width << 'x' << monitor->viewport.height;
+          }
+
+          goto break_for_loop;
+        }
+      }
+    }
+  break_for_loop:
+
+    BOOST_LOG(verbose) << "Reduced to name: "sv << name << ": "sv << index;
+  }
+}
+
 // A list of names of displays accepted as display_name
 std::vector<std::string> kms_display_names() {
-  kms::env_width  = 0;
-  kms::env_height = 0;
-
   int count = 0;
 
   if(!gbm::create_device) {
@@ -668,6 +874,9 @@ std::vector<std::string> kms_display_names() {
     return {};
   }
 
+  kms::conn_type_count_t conn_type_count;
+
+  std::vector<kms::card_descriptor_t> cds;
   std::vector<std::string> display_names;
 
   fs::path card_dir { "/dev/dri"sv };
@@ -684,6 +893,8 @@ std::vector<std::string> kms_display_names() {
       return {};
     }
 
+    auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
+
     auto end = std::end(card);
     for(auto plane = std::begin(card); plane != end; ++plane) {
       auto fb = card.fb2(plane.get());
@@ -698,30 +909,8 @@ std::vector<std::string> kms_display_names() {
         break;
       }
 
-      bool cursor = false;
-      {
-        BOOST_LOG(verbose) << "PLANE INFO ["sv << count << ']';
-        auto props = card.plane_props(plane->plane_id);
-        for(auto &[prop, val] : props) {
-          if(prop->name == "type"sv) {
-            BOOST_LOG(verbose) << prop->name << "::"sv << kms::plane_type(val);
-
-            if(val == DRM_PLANE_TYPE_CURSOR) {
-              cursor = true;
-            }
-          }
-          else {
-            BOOST_LOG(verbose) << prop->name << "::"sv << val;
-          }
-        }
-      }
-
-      {
-        BOOST_LOG(verbose) << "CRTC INFO"sv;
-        auto props = card.crtc_props(plane->crtc_id);
-        for(auto &[prop, val] : props) {
-          BOOST_LOG(verbose) << prop->name << "::"sv << val;
-        }
+      if(card.is_cursor(plane->plane_id)) {
+        continue;
       }
 
       // This appears to return the offset of the monitor
@@ -731,16 +920,52 @@ std::vector<std::string> kms_display_names() {
         return {};
       }
 
+      auto it = crtc_to_monitor.find(plane->crtc_id);
+      if(it != std::end(crtc_to_monitor)) {
+        it->second.viewport = platf::touch_port_t {
+          (int)crtc->x,
+          (int)crtc->y,
+          (int)crtc->width,
+          (int)crtc->height,
+        };
+      }
+
       kms::env_width  = std::max(kms::env_width, (int)(crtc->x + crtc->width));
       kms::env_height = std::max(kms::env_height, (int)(crtc->y + crtc->height));
 
       kms::print(plane.get(), fb.get(), crtc.get());
 
-      if(!cursor) {
-        display_names.emplace_back(std::to_string(count++));
-      }
+      display_names.emplace_back(std::to_string(count++));
+    }
+
+    cds.emplace_back(kms::card_descriptor_t {
+      std::move(file),
+      std::move(crtc_to_monitor),
+    });
+  }
+
+  if(!wl::init()) {
+    correlate_to_wayland(cds);
+  }
+
+  // Deduce the full virtual desktop size
+  kms::env_width  = 0;
+  kms::env_height = 0;
+
+  for(auto &card_descriptor : cds) {
+    for(auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
+      BOOST_LOG(debug) << "Monitor description"sv;
+      BOOST_LOG(debug) << "Resolution: "sv << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height;
+      BOOST_LOG(debug) << "Offset: "sv << monitor_descriptor.viewport.offset_x << 'x' << monitor_descriptor.viewport.offset_y;
+
+      kms::env_width  = std::max(kms::env_width, (int)(monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width));
+      kms::env_height = std::max(kms::env_height, (int)(monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height));
     }
   }
+
+  BOOST_LOG(debug) << "Desktop resolution: "sv << kms::env_width << 'x' << kms::env_height;
+
+  kms::card_descriptors = std::move(cds);
 
   return display_names;
 }
