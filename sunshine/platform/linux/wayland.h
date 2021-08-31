@@ -3,10 +3,18 @@
 
 #include <bitset>
 
+#ifdef SUNSHINE_BUILD_WAYLAND
 #include <wlr-export-dmabuf-unstable-v1.h>
 #include <xdg-output-unstable-v1.h>
+#endif
 
 #include "graphics.h"
+
+/**
+ * The classes defined in this macro block should only be used by
+ * cpp files whose compilation depends on SUNSHINE_BUILD_WAYLAND
+ */
+#ifdef SUNSHINE_BUILD_WAYLAND
 
 namespace wl {
 using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
@@ -179,5 +187,36 @@ std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name = null
 
 int init();
 } // namespace wl
+#else
+
+struct wl_output;
+struct zxdg_output_manager_v1;
+
+namespace wl {
+class monitor_t {
+public:
+  monitor_t(monitor_t &&)      = delete;
+  monitor_t(const monitor_t &) = delete;
+
+  monitor_t &operator=(const monitor_t &) = delete;
+  monitor_t &operator=(monitor_t &&) = delete;
+
+  monitor_t(wl_output *output);
+
+  void listen(zxdg_output_manager_v1 *output_manager);
+
+  wl_output *output;
+
+  std::string name;
+  std::string description;
+
+  platf::touch_port_t viewport;
+};
+
+inline std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name = nullptr) { return {}; }
+
+inline int init() { return -1; }
+} // namespace wl
+#endif
 
 #endif

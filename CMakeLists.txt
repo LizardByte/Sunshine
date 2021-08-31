@@ -108,12 +108,18 @@ else()
 
 	if(${SUNSHINE_ENABLE_X11})
 		find_package(X11)
+	else()
+		set(X11_FOUND OFF)
 	endif()
 	if(${SUNSHINE_ENABLE_DRM})
 		find_package(LIBDRM)
+	else()
+		set(LIBDRM_FOUND OFF)
 	endif()
 	if(${SUNSHINE_ENABLE_WAYLAND})
 		find_package(Wayland)
+	else()
+		set(WAYLAND_FOUND OFF)
 	endif()
 
 	find_package(FFMPEG REQUIRED)
@@ -165,11 +171,10 @@ else()
 		list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES})
 		list(APPEND PLATFORM_TARGET_FILES
 			sunshine/platform/linux/wlgrab.cpp
-			sunshine/platform/linux/wayland.cpp
-			sunshine/platform/linux/wayland.h)
+			sunshine/platform/linux/wayland.cpp)
 	endif()
 	if(NOT ${X11_FOUND} AND NOT ${LIBDRM_FOUND} AND NOT ${WAYLAND_FOUND})
-		message(FATAL_ERROR "Couldn't find either x11 or libdrm")
+		message(FATAL_ERROR "Couldn't find either x11, wayland or libdrm")
 	endif()
 
 	list(APPEND PLATFORM_TARGET_FILES
@@ -183,6 +188,7 @@ else()
 		sunshine/platform/linux/audio.cpp
 		sunshine/platform/linux/input.cpp
 		sunshine/platform/linux/x11grab.h
+		sunshine/platform/linux/wayland.h
 		third-party/glad/src/egl.c
 		third-party/glad/src/gl.c
 		third-party/glad/include/EGL/eglplatform.h
