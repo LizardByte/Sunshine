@@ -211,6 +211,16 @@ void getWelcomePage(resp_https_t response, req_https_t request) {
   response->write(header + content);
 }
 
+void getTroubleshootingPage(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+
+  print_req(request);
+
+  std::string header  = read_file(WEB_DIR "header.html");
+  std::string content = read_file(WEB_DIR "troubleshooting.html");
+  response->write(header + content);
+}
+
 void getBootstrapCss(resp_https_t response, req_https_t request) {
   print_req(request);
 
@@ -502,6 +512,39 @@ void savePin(resp_https_t response, req_https_t request) {
   }
 }
 
+void unpairAll(resp_https_t response, req_https_t request){
+  if(!authenticate(response, request)) return;
+  
+  print_req(request);
+
+  pt::ptree outputTree;
+
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+  nvhttp::erase_all_clients();
+  outputTree.put("status", true);
+}
+
+void closeApp(resp_https_t response, req_https_t request){
+  if(!authenticate(response, request)) return;
+  
+  print_req(request);
+
+  pt::ptree outputTree;
+
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+
+  proc::proc.terminate();
+  outputTree.put("status", true);
+}
+
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -519,6 +562,7 @@ void start() {
   server.resource["^/config$"]["GET"]                              = getConfigPage;
   server.resource["^/password$"]["GET"]                            = getPasswordPage;
   server.resource["^/welcome$"]["GET"]                             = getWelcomePage;
+  server.resource["^/troubleshooting$"]["GET"]                     = getTroubleshootingPage;
   server.resource["^/api/pin"]["POST"]                             = savePin;
   server.resource["^/api/apps$"]["GET"]                            = getApps;
   server.resource["^/api/apps$"]["POST"]                           = saveApp;
@@ -526,6 +570,8 @@ void start() {
   server.resource["^/api/config$"]["POST"]                         = saveConfig;
   server.resource["^/api/password$"]["POST"]                       = savePassword;
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"]                = deleteApp;
+  server.resource["^/api/clients/unpair$"]["POST"]                 = unpairAll;
+  server.resource["^/api/apps/close"]["POST"]                      = closeApp;
   server.resource["^/third_party/bootstrap.min.css$"]["GET"]       = getBootstrapCss;
   server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"] = getBootstrapJs;
   server.resource["^/third_party/vue.js$"]["GET"]                  = getVueJs;

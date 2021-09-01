@@ -927,4 +927,9 @@ void start() {
   ssl.join();
   tcp.join();
 }
+
+void erase_all_clients(){
+  map_id_client.clear();
+  save_state();
+}
 } // namespace nvhttp

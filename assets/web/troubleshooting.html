@@ -1,0 +1,92 @@
+<div id="app" class="container">
+  <h1 class="my-4">Troubleshooting</h1>
+  <!--Force Close App-->
+  <div class="card p-2 my-4">
+    <div class="card-body">
+      <h2>Force Close</h2>
+      <br />
+      <p>
+        If Moonlight complains about an app currently running, force closing the
+        app should fix the issue
+      </p>
+      <div class="alert alert-success" v-if="closeAppStatus === true">
+        Application Closed Successfuly!
+      </div>
+      <div class="alert alert-danger" v-if="closeAppStatus === false">
+        Error while closing Appplication
+      </div>
+      <div>
+        <button
+          class="btn btn-warning"
+          :disabled="closeAppPressed"
+          @click="closeApp"
+        >
+          Force Close
+        </button>
+      </div>
+    </div>
+  </div>
+  <!--Unpair all Clients-->
+  <div class="card p-2 my-4">
+    <div class="card-body">
+      <h2>Unpair All Clients</h2>
+      <br />
+      <p>Remove all your paired devices</p>
+      <div class="alert alert-success" v-if="unpairAllStatus === true">
+        Unpair Successful!
+      </div>
+      <div class="alert alert-danger" v-if="unpairAllStatus === false">
+        Error while unpairing
+      </div>
+      <div>
+        <button
+          class="btn btn-danger"
+          :disabled="unpairAllPressed"
+          @click="unpairAll"
+        >
+          Unpair All
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  new Vue({
+    el: "#app",
+    data() {
+      return {
+        closeAppPressed: false,
+        closeAppStatus: null,
+        unpairAllPressed: false,
+        unpairAllStatus: null,
+      };
+    },
+    methods: {
+      closeApp() {
+        this.closeAppPressed = true;
+        fetch("/api/apps/close", { method: "POST" })
+          .then((r) => r.json())
+          .then((r) => {
+            this.closeAppPressed = false;
+            this.closeAppStatus = r.status.toString() === "true";
+            setTimeout(() => {
+              this.closeAppStatus = null;
+            }, 5000);
+          });
+      },
+      unpairAll() {
+        this.unpairAllPressed = true;
+        fetch("/api/clients/unpair", { method: "POST" })
+          .then((r) => r.json())
+          .then((r) => {
+            this.unpairAllPressed = false;
+            this.unpairAllStatus = r.status.toString() === "true";
+            setTimeout(() => {
+              this.unpairAllStatus = null;
+            }, 5000);
+          });
+      },
+    },
+  });
+</script>
