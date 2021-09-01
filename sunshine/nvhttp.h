@@ -14,6 +14,7 @@ constexpr auto PORT_HTTPS = -5;
 
 void start();
 bool pin(std::string pin);
+void erase_all_clients();
 } // namespace nvhttp
 
 #endif //SUNSHINE_NVHTTP_H
