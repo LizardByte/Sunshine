@@ -9,12 +9,13 @@
 // They aren't likely to change any time soon.
 #define fourcc_code(a, b, c, d) ((std::uint32_t)(a) | ((std::uint32_t)(b) << 8) | \
                                  ((std::uint32_t)(c) << 16) | ((std::uint32_t)(d) << 24))
+#define fourcc_mod_code(vendor, val) ((((uint64_t)vendor) << 56) | ((val)&0x00ffffffffffffffULL))
 #define DRM_FORMAT_R8 fourcc_code('R', '8', ' ', ' ')       /* [7:0] R */
 #define DRM_FORMAT_GR88 fourcc_code('G', 'R', '8', '8')     /* [15:0] G:R 8:8 little endian */
 #define DRM_FORMAT_ARGB8888 fourcc_code('A', 'R', '2', '4') /* [31:0] A:R:G:B 8:8:8:8 little endian */
 #define DRM_FORMAT_XRGB8888 fourcc_code('X', 'R', '2', '4') /* [31:0] x:R:G:B 8:8:8:8 little endian */
 #define DRM_FORMAT_XBGR8888 fourcc_code('X', 'B', '2', '4') /* [31:0] x:B:G:R 8:8:8:8 little endian */
-
+#define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
 
 #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/opengl"
 
@@ -278,11 +279,28 @@ int init() {
 } // namespace gbm
 
 namespace egl {
-constexpr auto EGL_LINUX_DMA_BUF_EXT         = 0x3270;
-constexpr auto EGL_LINUX_DRM_FOURCC_EXT      = 0x3271;
-constexpr auto EGL_DMA_BUF_PLANE0_FD_EXT     = 0x3272;
-constexpr auto EGL_DMA_BUF_PLANE0_OFFSET_EXT = 0x3273;
-constexpr auto EGL_DMA_BUF_PLANE0_PITCH_EXT  = 0x3274;
+constexpr auto EGL_LINUX_DMA_BUF_EXT              = 0x3270;
+constexpr auto EGL_LINUX_DRM_FOURCC_EXT           = 0x3271;
+constexpr auto EGL_DMA_BUF_PLANE0_FD_EXT          = 0x3272;
+constexpr auto EGL_DMA_BUF_PLANE0_OFFSET_EXT      = 0x3273;
+constexpr auto EGL_DMA_BUF_PLANE0_PITCH_EXT       = 0x3274;
+constexpr auto EGL_DMA_BUF_PLANE1_FD_EXT          = 0x3275;
+constexpr auto EGL_DMA_BUF_PLANE1_OFFSET_EXT      = 0x3276;
+constexpr auto EGL_DMA_BUF_PLANE1_PITCH_EXT       = 0x3277;
+constexpr auto EGL_DMA_BUF_PLANE2_FD_EXT          = 0x3278;
+constexpr auto EGL_DMA_BUF_PLANE2_OFFSET_EXT      = 0x3279;
+constexpr auto EGL_DMA_BUF_PLANE2_PITCH_EXT       = 0x327A;
+constexpr auto EGL_DMA_BUF_PLANE3_FD_EXT          = 0x3440;
+constexpr auto EGL_DMA_BUF_PLANE3_OFFSET_EXT      = 0x3441;
+constexpr auto EGL_DMA_BUF_PLANE3_PITCH_EXT       = 0x3442;
+constexpr auto EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT = 0x3443;
+constexpr auto EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT = 0x3444;
+constexpr auto EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT = 0x3445;
+constexpr auto EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT = 0x3446;
+constexpr auto EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT = 0x3447;
+constexpr auto EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT = 0x3448;
+constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT = 0x3449;
+constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT = 0x344A;
 
 bool fail() {
   return eglGetError() != EGL_SUCCESS;
@@ -329,7 +347,6 @@ display_t make_display(util::Either<gbm::gbm_t::pointer, wl_display *> native_di
     "EGL_KHR_create_context",
     "EGL_KHR_surfaceless_context",
     "EGL_EXT_image_dma_buf_import",
-    // "EGL_KHR_image_pixmap"
   };
 
   for(auto ext : extensions) {
@@ -389,22 +406,87 @@ std::optional<ctx_t> make_ctx(display_t::pointer display) {
 
   return ctx;
 }
-std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
-  gl_drain_errors;
 
-  EGLAttrib img_attr_planes[13] {
-    EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_XRGB8888,
-    EGL_WIDTH, xrgb.width,
-    EGL_HEIGHT, xrgb.height,
-    EGL_DMA_BUF_PLANE0_FD_EXT, xrgb.fd,
-    EGL_DMA_BUF_PLANE0_OFFSET_EXT, xrgb.offset,
-    EGL_DMA_BUF_PLANE0_PITCH_EXT, xrgb.pitch,
-    EGL_NONE
-  };
+struct plane_attr_t {
+  EGLAttrib fd;
+  EGLAttrib offset;
+  EGLAttrib pitch;
+  EGLAttrib lo;
+  EGLAttrib hi;
+};
+
+inline plane_attr_t get_plane(std::uint32_t plane_indice) {
+  switch(plane_indice) {
+  case 0:
+    return {
+      EGL_DMA_BUF_PLANE0_FD_EXT,
+      EGL_DMA_BUF_PLANE0_OFFSET_EXT,
+      EGL_DMA_BUF_PLANE0_PITCH_EXT,
+      EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT,
+      EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT,
+    };
+  case 1:
+    return {
+      EGL_DMA_BUF_PLANE1_FD_EXT,
+      EGL_DMA_BUF_PLANE1_OFFSET_EXT,
+      EGL_DMA_BUF_PLANE1_PITCH_EXT,
+      EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT,
+      EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT,
+    };
+  case 2:
+    return {
+      EGL_DMA_BUF_PLANE2_FD_EXT,
+      EGL_DMA_BUF_PLANE2_OFFSET_EXT,
+      EGL_DMA_BUF_PLANE2_PITCH_EXT,
+      EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT,
+      EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT,
+    };
+  case 3:
+    return {
+      EGL_DMA_BUF_PLANE3_FD_EXT,
+      EGL_DMA_BUF_PLANE3_OFFSET_EXT,
+      EGL_DMA_BUF_PLANE3_PITCH_EXT,
+      EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT,
+      EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT,
+    };
+  }
+
+  // Avoid warning
+  return {};
+}
+
+std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
+  EGLAttrib attribs[47];
+  int atti        = 0;
+  attribs[atti++] = EGL_WIDTH;
+  attribs[atti++] = xrgb.width;
+  attribs[atti++] = EGL_HEIGHT;
+  attribs[atti++] = xrgb.height;
+  attribs[atti++] = EGL_LINUX_DRM_FOURCC_EXT;
+  attribs[atti++] = xrgb.fourcc;
+
+  for(auto x = 0; x < xrgb.obj_count; ++x) {
+    auto plane_attr = get_plane(xrgb.plane_indices[x]);
+
+    attribs[atti++] = plane_attr.fd;
+    attribs[atti++] = xrgb.fds[x];
+    attribs[atti++] = plane_attr.offset;
+    attribs[atti++] = xrgb.offsets[x];
+    attribs[atti++] = plane_attr.pitch;
+    attribs[atti++] = xrgb.pitches[x];
+
+    if(xrgb.modifier && xrgb.modifier != DRM_FORMAT_MOD_INVALID) {
+      attribs[atti++] = plane_attr.lo;
+      attribs[atti++] = xrgb.modifier & 0xFFFFFFFF;
+      attribs[atti++] = plane_attr.hi;
+      attribs[atti++] = xrgb.modifier >> 32;
+    }
+  }
+  attribs[atti++] = EGL_NONE;
 
   rgb_t rgb {
     egl_display,
-    eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes),
+    eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs),
     gl::tex_t::make(1)
   };
 
@@ -429,17 +511,17 @@ std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<f
     { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_R8,
       EGL_WIDTH, r8.width,
       EGL_HEIGHT, r8.height,
-      EGL_DMA_BUF_PLANE0_FD_EXT, r8.fd,
-      EGL_DMA_BUF_PLANE0_OFFSET_EXT, r8.offset,
-      EGL_DMA_BUF_PLANE0_PITCH_EXT, r8.pitch,
+      EGL_DMA_BUF_PLANE0_FD_EXT, r8.fds[0],
+      EGL_DMA_BUF_PLANE0_OFFSET_EXT, r8.offsets[0],
+      EGL_DMA_BUF_PLANE0_PITCH_EXT, r8.pitches[0],
       EGL_NONE },
 
     { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_GR88,
       EGL_WIDTH, gr88.width,
       EGL_HEIGHT, gr88.height,
-      EGL_DMA_BUF_PLANE0_FD_EXT, r8.fd,
-      EGL_DMA_BUF_PLANE0_OFFSET_EXT, gr88.offset,
-      EGL_DMA_BUF_PLANE0_PITCH_EXT, gr88.pitch,
+      EGL_DMA_BUF_PLANE0_FD_EXT, r8.fds[0],
+      EGL_DMA_BUF_PLANE0_OFFSET_EXT, gr88.offsets[0],
+      EGL_DMA_BUF_PLANE0_PITCH_EXT, gr88.pitches[0],
       EGL_NONE },
   };
 

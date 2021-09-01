@@ -24,12 +24,56 @@ namespace fs = std::filesystem;
 namespace platf {
 
 namespace kms {
+
+class wrapper_fb {
+public:
+  wrapper_fb(drmModeFB *fb)
+      : fb { fb }, fb_id { fb->fb_id }, width { fb->width }, height { fb->height } {
+    pixel_format = DRM_FORMAT_XRGB8888;
+    modifier     = DRM_FORMAT_MOD_INVALID;
+    std::fill_n(handles, 4, 0);
+    std::fill_n(pitches, 4, 0);
+    std::fill_n(offsets, 4, 0);
+    handles[0] = fb->handle;
+    pitches[0] = fb->pitch;
+  }
+
+  wrapper_fb(drmModeFB2 *fb2)
+      : fb2 { fb2 }, fb_id { fb2->fb_id }, width { fb2->width }, height { fb2->height } {
+    pixel_format = fb2->pixel_format;
+    modifier     = fb2->modifier;
+
+    memcpy(handles, fb2->handles, sizeof(handles));
+    memcpy(pitches, fb2->pitches, sizeof(pitches));
+    memcpy(offsets, fb2->offsets, sizeof(offsets));
+  }
+
+  ~wrapper_fb() {
+    if(fb) {
+      drmModeFreeFB(fb);
+    }
+    else if(fb2) {
+      drmModeFreeFB2(fb2);
+    }
+  }
+
+  drmModeFB *fb   = nullptr;
+  drmModeFB2 *fb2 = nullptr;
+  uint32_t fb_id;
+  uint32_t width;
+  uint32_t height;
+  uint32_t pixel_format;
+  uint64_t modifier;
+  uint32_t handles[4];
+  uint32_t pitches[4];
+  uint32_t offsets[4];
+};
+
 using plane_res_t = util::safe_ptr<drmModePlaneRes, drmModeFreePlaneResources>;
 using encoder_t   = util::safe_ptr<drmModeEncoder, drmModeFreeEncoder>;
 using res_t       = util::safe_ptr<drmModeRes, drmModeFreeResources>;
 using plane_t     = util::safe_ptr<drmModePlane, drmModeFreePlane>;
-using fb_t        = util::safe_ptr<drmModeFB, drmModeFreeFB>;
-using fb2_t       = util::safe_ptr<drmModeFB2, drmModeFreeFB2>;
+using fb_t        = std::unique_ptr<wrapper_fb>;
 using crtc_t      = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
 using obj_prop_t  = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
 using prop_t      = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
@@ -182,11 +226,11 @@ public:
   }
 
   fb_t fb(plane_t::pointer plane) {
-    return drmModeGetFB(fd.el, plane->fb_id);
-  }
-
-  fb2_t fb2(plane_t::pointer plane) {
-    return drmModeGetFB2(fd.el, plane->fb_id);
+    auto fb = drmModeGetFB2(fd.el, plane->fb_id);
+    if(fb) {
+      return std::make_unique<wrapper_fb>(fb);
+    }
+    return std::make_unique<wrapper_fb>(drmModeGetFB(fd.el, plane->fb_id));
   }
 
   crtc_t crtc(std::uint32_t id) {
@@ -332,11 +376,7 @@ struct kms_img_t : public img_t {
   }
 };
 
-struct kms_vram_img_t : public egl::img_descriptor_t {
-  file_t fb_fd;
-};
-
-void print(plane_t::pointer plane, fb2_t::pointer fb, crtc_t::pointer crtc) {
+void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
   if(crtc) {
     BOOST_LOG(debug) << "crtc("sv << crtc->x << ", "sv << crtc->y << ')';
     BOOST_LOG(debug) << "crtc("sv << crtc->width << ", "sv << crtc->height << ')';
@@ -403,7 +443,7 @@ public:
           continue;
         }
 
-        auto fb = card.fb2(plane.get());
+        auto fb = card.fb(plane.get());
         if(!fb) {
           BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
           return -1;
@@ -415,10 +455,16 @@ public:
           return -1;
         }
 
-        file_t fb_fd = card.handleFD(fb->handles[0]);
-        if(fb_fd.el < 0) {
-          BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-          return -1;
+        for(int i = 0; i < 4; ++i) {
+          if(!fb->handles[i]) {
+            break;
+          }
+
+          auto fb_fd = card.handleFD(fb->handles[i]);
+          if(fb_fd.el < 0) {
+            BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+            continue;
+          }
         }
 
         BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
@@ -434,6 +480,8 @@ public:
           BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
           return -1;
         }
+
+        //TODO: surf_sd = fb->to_sd();
 
         auto crct = card.crtc(plane->crtc_id);
         kms::print(plane.get(), fb.get(), crct.get());
@@ -486,10 +534,10 @@ public:
     return 0;
   }
 
-  inline capture_e refresh(file_t *file) {
+  inline capture_e refresh(file_t *file, egl::surface_descriptor_t *sd) {
     plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
 
-    auto fb = card.fb2(plane.get());
+    auto fb = card.fb(plane.get());
     if(!fb) {
       BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
       return capture_e::error;
@@ -501,11 +549,35 @@ public:
       return capture_e::error;
     }
 
-    *file = card.handleFD(fb->handles[0]);
-    if(file->el < 0) {
-      BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-      return capture_e::error;
+    auto obj_count = 4;
+
+    int x = 0;
+    for(int y = 0; y < 4; ++y) {
+      if(!fb->handles[y]) {
+        // It's not clear wheter there could still be valid handles left.
+        // So, continue anyway.
+        // TODO: Is this redundent?
+        --obj_count;
+        continue;
+      }
+
+      file[x] = card.handleFD(fb->handles[x]);
+      if(file[x].el < 0) {
+        BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+        return capture_e::error;
+      }
+
+      sd->fds[x]           = file[x].el;
+      sd->offsets[x]       = fb->offsets[y];
+      sd->pitches[x]       = fb->pitches[y];
+      sd->plane_indices[x] = y;
     }
+
+    sd->width     = fb->width;
+    sd->height    = fb->height;
+    sd->modifier  = fb->modifier;
+    sd->fourcc    = fb->pixel_format;
+    sd->obj_count = obj_count;
 
     if(
       fb->width != img_width ||
@@ -513,8 +585,7 @@ public:
       return capture_e::reinit;
     }
 
-    pitch  = fb->pitches[0];
-    offset = fb->offsets[0];
+    ++x;
 
     return capture_e::ok;
   }
@@ -526,8 +597,6 @@ public:
   int img_width, img_height;
   int img_offset_x, img_offset_y;
 
-  int pitch;
-  int offset;
   int plane_id;
 
   card_t card;
@@ -613,21 +682,16 @@ public:
   }
 
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
-    file_t fb_fd;
+    file_t fb_fd[4];
 
-    auto status = refresh(&fb_fd);
+    egl::surface_descriptor_t sd;
+
+    auto status = refresh(fb_fd, &sd);
     if(status != capture_e::ok) {
       return status;
     }
 
-    auto rgb_opt = egl::import_source(display.get(),
-      {
-        fb_fd.el,
-        img_width,
-        img_height,
-        offset,
-        pitch,
-      });
+    auto rgb_opt = egl::import_source(display.get(), sd);
 
     if(!rgb_opt) {
       return capture_e::error;
@@ -679,24 +743,20 @@ public:
   }
 
   std::shared_ptr<img_t> alloc_img() override {
-    auto img = std::make_shared<kms_vram_img_t>();
+    auto img = std::make_shared<egl::img_descriptor_t>();
 
     img->serial      = std::numeric_limits<decltype(img->serial)>::max();
     img->data        = nullptr;
     img->pixel_pitch = 4;
 
-    img->sequence = 0;
-
-    img->obj_count  = 1;
-    img->img_width  = img_width;
-    img->img_height = img_height;
+    img->sequence     = 0;
+    img->sd.obj_count = 0;
 
     return img;
   }
 
   int dummy_img(platf::img_t *img) override {
-    snapshot(img, 1s, false);
-    return 0;
+    return snapshot(img, 1s, false) != capture_e::ok;
   }
 
   capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) {
@@ -734,25 +794,24 @@ public:
   }
 
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds /* timeout */, bool cursor) {
-    file_t fb_fd;
+    file_t fb_fd[4];
 
-    auto status = refresh(&fb_fd);
+    auto img = (egl::img_descriptor_t *)img_out_base;
+    img->reset();
+
+    auto status = refresh(fb_fd, &img->sd);
     if(status != capture_e::ok) {
       return status;
     }
 
-    auto img = (kms_vram_img_t *)img_out_base;
-
-    img->fb_fd      = std::move(fb_fd);
-    img->sequence   = ++sequence;
-    img->fds[0]     = img->fb_fd.el;
-    img->offsets[0] = offset;
-    img->strides[0] = pitch;
+    img->sequence = ++sequence;
 
     if(!cursor || !cursor_opt) {
       img_out_base->data = nullptr;
 
-
+      for(auto x = 0; x < img->sd.obj_count; ++x) {
+        fb_fd[x].release();
+      }
       return capture_e::ok;
     }
 
@@ -761,6 +820,9 @@ public:
     img->x -= offset_x;
     img->y -= offset_y;
 
+    for(auto x = 0; x < img->sd.obj_count; ++x) {
+      fb_fd[x].release();
+    }
     return capture_e::ok;
   }
 
@@ -897,7 +959,7 @@ std::vector<std::string> kms_display_names() {
 
     auto end = std::end(card);
     for(auto plane = std::begin(card); plane != end; ++plane) {
-      auto fb = card.fb2(plane.get());
+      auto fb = card.fb(plane.get());
       if(!fb) {
         BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
         continue;

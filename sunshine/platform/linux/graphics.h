@@ -213,12 +213,16 @@ KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
 });
 
 struct surface_descriptor_t {
-  int fd;
+  int obj_count;
 
   int width;
   int height;
-  int offset;
-  int pitch;
+  int fds[4];
+  std::uint32_t fourcc;
+  std::uint64_t modifier;
+  std::uint32_t pitches[4];
+  std::uint32_t offsets[4];
+  std::uint32_t plane_indices[4];
 };
 
 display_t make_display(util::Either<gbm::gbm_t::pointer, wl_display *> native_display);
@@ -245,14 +249,19 @@ public:
 // Allow cursor and the underlying image to be kept together
 class img_descriptor_t : public cursor_t {
 public:
-  std::uint32_t format;
-  std::uint32_t img_width, img_height;
-  std::uint32_t obj_count;
-  std::uint32_t strides[4];
-  // std::uint32_t sizes[4];
-  std::int32_t fds[4];
-  std::uint32_t offsets[4];
-  // std::uint32_t plane_indices[4];
+  ~img_descriptor_t() {
+    reset();
+  }
+
+  void reset() {
+    std::for_each_n(sd.fds, sd.obj_count, [](int fd) {
+      close(fd);
+    });
+
+    sd.obj_count = 0;
+  }
+
+  surface_descriptor_t sd;
 
   // Increment sequence when new rgb_t needs to be created
   std::uint64_t sequence;

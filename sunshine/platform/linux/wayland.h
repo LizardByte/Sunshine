@@ -21,14 +21,9 @@ using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
 
 class frame_t {
 public:
-  std::uint32_t format;
-  std::uint32_t width, height;
+  egl::surface_descriptor_t sd;
+
   std::uint32_t obj_count;
-  std::uint32_t strides[4];
-  std::uint32_t sizes[4];
-  std::int32_t fds[4];
-  std::uint32_t offsets[4];
-  std::uint32_t plane_indices[4];
 
   void destroy();
 };

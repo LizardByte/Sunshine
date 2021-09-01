@@ -46,6 +46,12 @@ struct argument_type<T(U)> { typedef U type; };
     element_type *operator->() { return &el; }                     \
     const element_type *operator->() const { return &el; }         \
                                                                    \
+    inline element_type release() {                                \
+      element_type val = std::move(el);                            \
+      el               = element_type { init_val };                \
+      return val;                                                  \
+    }                                                              \
+                                                                   \
     ~move_t() z                                                    \
                                                                    \
       element_type el;                                             \

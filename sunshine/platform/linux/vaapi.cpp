@@ -350,20 +350,22 @@ public:
     auto nv12_opt = egl::import_target(
       display.get(),
       std::move(fds),
-      {
-        prime.objects[prime.layers[0].object_index[0]].fd,
+      { 1,
         (int)prime.width,
         (int)prime.height,
-        (int)prime.layers[0].offset[0],
-        (int)prime.layers[0].pitch[0],
-      },
-      {
-        prime.objects[prime.layers[0].object_index[1]].fd,
+        { prime.objects[prime.layers[0].object_index[0]].fd, -1, -1, -1 },
+        0,
+        0,
+        { prime.layers[0].pitch[0] },
+        { prime.layers[0].offset[0] } },
+      { 1,
         (int)prime.width / 2,
         (int)prime.height / 2,
-        (int)prime.layers[0].offset[1],
-        (int)prime.layers[0].pitch[1],
-      });
+        { prime.objects[prime.layers[0].object_index[1]].fd, -1, -1, -1 },
+        0,
+        0,
+        { prime.layers[0].pitch[1] },
+        { prime.layers[0].offset[1] } });
 
     if(!nv12_opt) {
       return -1;
@@ -419,14 +421,7 @@ public:
 
       rgb = egl::rgb_t {};
 
-      auto rgb_opt = egl::import_source(display.get(),
-        {
-          descriptor.fds[0],
-          (int)descriptor.img_width,
-          (int)descriptor.img_height,
-          (int)descriptor.offsets[0],
-          (int)descriptor.strides[0],
-        });
+      auto rgb_opt = egl::import_source(display.get(), descriptor.sd);
 
       if(!rgb_opt) {
         return -1;

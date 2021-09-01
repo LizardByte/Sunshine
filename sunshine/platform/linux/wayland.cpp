@@ -164,10 +164,15 @@ void dmabuf_t::frame(
   std::uint32_t obj_count) {
   auto next_frame = get_next_frame();
 
-  next_frame->format    = format;
-  next_frame->width     = width;
-  next_frame->height    = height;
-  next_frame->obj_count = obj_count;
+  next_frame->sd.fourcc   = format;
+  next_frame->sd.width    = width;
+  next_frame->sd.height   = height;
+  next_frame->sd.modifier = (((std::uint64_t)high) << 32) | low;
+  next_frame->obj_count   = obj_count;
+
+  std::fill_n(next_frame->sd.fds + obj_count, 4 - obj_count, -1);
+  std::fill_n(next_frame->sd.pitches + obj_count, 4 - obj_count, 0);
+  std::fill_n(next_frame->sd.offsets + obj_count, 4 - obj_count, 0);
 }
 
 void dmabuf_t::object(
@@ -180,11 +185,10 @@ void dmabuf_t::object(
   std::uint32_t plane_index) {
   auto next_frame = get_next_frame();
 
-  next_frame->fds[index]           = fd;
-  next_frame->sizes[index]         = size;
-  next_frame->strides[index]       = stride;
-  next_frame->offsets[index]       = offset;
-  next_frame->plane_indices[index] = plane_index;
+  next_frame->sd.fds[index]           = fd;
+  next_frame->sd.pitches[index]       = stride;
+  next_frame->sd.offsets[index]       = offset;
+  next_frame->sd.plane_indices[index] = plane_index;
 }
 
 void dmabuf_t::ready(
@@ -213,7 +217,7 @@ void dmabuf_t::cancel(
 
 void frame_t::destroy() {
   for(auto x = 0; x < obj_count; ++x) {
-    close(fds[x]);
+    close(sd.fds[x]);
   }
 
   obj_count = 0;

@@ -16,21 +16,6 @@ struct img_t : public platf::img_t {
   }
 };
 
-class frame_descriptor_t : public egl::img_descriptor_t {
-public:
-  ~frame_descriptor_t() {
-    reset();
-  }
-
-  void reset() {
-    std::for_each_n(fds, obj_count, [](int fd) {
-      close(fd);
-    });
-
-    obj_count = 0;
-  }
-};
-
 class wlr_t : public platf::display_t {
 public:
   int init(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
@@ -107,8 +92,8 @@ public:
 
     if(
       dmabuf.status == dmabuf_t::REINIT ||
-      current_frame->width != width ||
-      current_frame->height != height) {
+      current_frame->sd.width != width ||
+      current_frame->sd.height != height) {
 
       return platf::capture_e::reinit;
     }
@@ -170,14 +155,7 @@ public:
 
     auto current_frame = dmabuf.current_frame;
 
-    auto rgb_opt = egl::import_source(egl_display.get(),
-      {
-        current_frame->fds[0],
-        (int)current_frame->width,
-        (int)current_frame->height,
-        (int)current_frame->offsets[0],
-        (int)current_frame->strides[0],
-      });
+    auto rgb_opt = egl::import_source(egl_display.get(), current_frame->sd);
 
     if(!rgb_opt) {
       return platf::capture_e::reinit;
@@ -274,7 +252,7 @@ public:
       return status;
     }
 
-    auto img = (frame_descriptor_t *)img_out_base;
+    auto img = (egl::img_descriptor_t *)img_out_base;
     img->reset();
 
     auto current_frame = dmabuf.current_frame;
@@ -282,14 +260,8 @@ public:
     ++sequence;
     img->sequence = sequence;
 
-    img->obj_count  = 1;
-    img->img_width  = current_frame->width;
-    img->img_height = current_frame->height;
-    img->obj_count  = current_frame->obj_count;
-
-    std::copy_n(std::begin(current_frame->fds), current_frame->obj_count, img->fds);
-    std::copy_n(std::begin(current_frame->offsets), current_frame->obj_count, img->offsets);
-    std::copy_n(std::begin(current_frame->strides), current_frame->obj_count, img->strides);
+    img->sd           = current_frame->sd;
+    img->sd.obj_count = current_frame->obj_count;
 
     // Prevent dmabuf from closing the file descriptors.
     current_frame->obj_count = 0;
@@ -298,13 +270,11 @@ public:
   }
 
   std::shared_ptr<platf::img_t> alloc_img() override {
-    auto img = std::make_shared<frame_descriptor_t>();
+    auto img = std::make_shared<egl::img_descriptor_t>();
 
-    img->img_width  = width;
-    img->img_height = height;
-    img->sequence   = 0;
-    img->serial     = std::numeric_limits<decltype(img->serial)>::max();
-    img->data       = nullptr;
+    img->sequence = 0;
+    img->serial   = std::numeric_limits<decltype(img->serial)>::max();
+    img->data     = nullptr;
 
     return img;
   }
