@@ -571,6 +571,7 @@ public:
       sd->offsets[x]       = fb->offsets[y];
       sd->pitches[x]       = fb->pitches[y];
       sd->plane_indices[x] = y;
+      ++x;
     }
 
     sd->width     = fb->width;
@@ -584,8 +585,6 @@ public:
       fb->height != img_height) {
       return capture_e::reinit;
     }
-
-    ++x;
 
     return capture_e::ok;
   }
