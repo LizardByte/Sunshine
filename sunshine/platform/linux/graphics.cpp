@@ -475,7 +475,7 @@ std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface
     attribs[atti++] = plane_attr.pitch;
     attribs[atti++] = xrgb.pitches[x];
 
-    if(xrgb.modifier && xrgb.modifier != DRM_FORMAT_MOD_INVALID) {
+    if(xrgb.modifier != DRM_FORMAT_MOD_INVALID) {
       attribs[atti++] = plane_attr.lo;
       attribs[atti++] = xrgb.modifier & 0xFFFFFFFF;
       attribs[atti++] = plane_attr.hi;
