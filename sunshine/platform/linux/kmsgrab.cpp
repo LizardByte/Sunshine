@@ -41,7 +41,7 @@ public:
   wrapper_fb(drmModeFB2 *fb2)
       : fb2 { fb2 }, fb_id { fb2->fb_id }, width { fb2->width }, height { fb2->height } {
     pixel_format = fb2->pixel_format;
-    modifier     = fb2->modifier;
+    modifier     = (fb2->flags & DRM_MODE_FB_MODIFIERS) ? fb2->modifier : DRM_FORMAT_MOD_INVALID;
 
     memcpy(handles, fb2->handles, sizeof(handles));
     memcpy(pitches, fb2->pitches, sizeof(pitches));
@@ -571,6 +571,7 @@ public:
       sd->offsets[x]       = fb->offsets[y];
       sd->pitches[x]       = fb->pitches[y];
       sd->plane_indices[x] = y;
+
       ++x;
     }
 
