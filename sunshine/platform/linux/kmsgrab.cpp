@@ -28,8 +28,9 @@ namespace kms {
 class wrapper_fb {
 public:
   wrapper_fb(drmModeFB *fb)
-      : fb { fb }, fb_id { fb->fb_id }, width { fb->width }, height { fb->height }, pixel_format { DRM_FORMAT_XRGB8888 }, modifier { DRM_FORMAT_MOD_INVALID } {
-
+      : fb { fb }, fb_id { fb->fb_id }, width { fb->width }, height { fb->height } {
+    pixel_format = DRM_FORMAT_XRGB8888;
+    modifier     = DRM_FORMAT_MOD_INVALID;
     std::fill_n(handles, 4, 0);
     std::fill_n(pitches, 4, 0);
     std::fill_n(offsets, 4, 0);
@@ -37,12 +38,10 @@ public:
     pitches[0] = fb->pitch;
   }
 
-  wrapper_fb(drmModeFB2 *fb2, bool bModifiers)
-      : fb2 { fb2 },
-        fb_id { fb2->fb_id },
-        width { fb2->width }, height { fb2->height },
-        pixel_format { fb2->pixel_format },
-        modifier { bModifiers ? fb2->modifier : DRM_FORMAT_MOD_INVALID } {
+  wrapper_fb(drmModeFB2 *fb2)
+      : fb2 { fb2 }, fb_id { fb2->fb_id }, width { fb2->width }, height { fb2->height } {
+    pixel_format = fb2->pixel_format;
+    modifier     = fb2->modifier;
 
     memcpy(handles, fb2->handles, sizeof(handles));
     memcpy(pitches, fb2->pitches, sizeof(pitches));
@@ -226,22 +225,12 @@ public:
     return 0;
   }
 
-  fb_t fb(plane_t::pointer plane, bool bModifiers) {
-    {
-      auto fb = drmModeGetFB2(fd.el, plane->fb_id);
-      if(fb) {
-        return std::make_unique<wrapper_fb>(fb, bModifiers);
-      }
+  fb_t fb(plane_t::pointer plane) {
+    auto fb = drmModeGetFB2(fd.el, plane->fb_id);
+    if(fb) {
+      return std::make_unique<wrapper_fb>(fb);
     }
-
-    {
-      auto fb = drmModeGetFB(fd.el, plane->fb_id);
-      if(fb) {
-        return std::make_unique<wrapper_fb>(fb);
-      }
-    }
-
-    return nullptr;
+    return std::make_unique<wrapper_fb>(drmModeGetFB(fd.el, plane->fb_id));
   }
 
   crtc_t crtc(std::uint32_t id) {
@@ -419,116 +408,6 @@ void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
   BOOST_LOG(debug) << ss.str();
 }
 
-int init_sd(card_t &card, fb_t::pointer fb, file_t *files, egl::surface_descriptor_t *sd) {
-  auto obj_count = 4;
-
-  int x = 0;
-  for(int y = 0; y < 4; ++y) {
-    if(!fb->handles[y]) {
-      // It's not clear whether there could still be valid handles left.
-      // So, continue anyway.
-      // TODO: Is this redundent?
-      --obj_count;
-      continue;
-    }
-
-    files[x] = card.handleFD(fb->handles[x]);
-    if(files[x].el < 0) {
-      BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-      return -1;
-    }
-
-    sd->fds[x]           = files[x].el;
-    sd->offsets[x]       = fb->offsets[y];
-    sd->pitches[x]       = fb->pitches[y];
-    sd->plane_indices[x] = y;
-
-    ++x;
-  }
-
-  sd->width     = fb->width;
-  sd->height    = fb->height;
-  sd->modifier  = fb->modifier;
-  sd->fourcc    = fb->pixel_format;
-  sd->obj_count = obj_count;
-
-  return 0;
-}
-
-/**
- * Test the ability of the GPU card to import images.
- *
- * Returns:
- *   1 --> It failed to import the image
- *   0 --> It succeeded at importing the image
- *  -1 --> An error occurred
- */
-int test_modifiers(card_t &card, plane_t::pointer plane, egl::display_t::pointer display, bool bModifiers) {
-  auto fb = card.fb(plane, bModifiers);
-  if(!fb) {
-    BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-    return -1;
-  }
-
-  if(!fb->handles[0]) {
-    BOOST_LOG(error)
-      << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
-    return -1;
-  }
-
-  file_t files[4];
-  egl::surface_descriptor_t sd;
-  if(init_sd(card, fb.get(), files, &sd)) {
-    return -1;
-  }
-
-  auto rgb_opt = egl::import_source(display, sd);
-
-  if(!rgb_opt) {
-    return 1;
-  }
-
-  return 0;
-}
-
-/**
- * Test the ability of the GPU card to import images with modifiers
- * 
- * Returns:
- *   1 --> It doesn't support modifiers
- *   0 --> It supports modifiers
- *  -1 --> An error occurred
- */
-int test_modifiers(card_t &card, plane_t::pointer plane) {
-  if(!gbm::create_device) {
-    BOOST_LOG(warning) << "libgbm not initialized"sv;
-    return -1;
-  }
-
-  gbm::gbm_t gbm = gbm::create_device(card.fd.el);
-  if(!gbm) {
-    BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
-    return -1;
-  }
-
-  auto display = egl::make_display(gbm.get());
-  if(!display) {
-    return -1;
-  }
-
-  auto ctx_opt = egl::make_ctx(display.get());
-  if(!ctx_opt) {
-    return -1;
-  }
-
-  auto status = test_modifiers(card, plane, display.get(), true);
-  if(status > 0) {
-    return test_modifiers(card, plane, display.get(), false);
-  }
-
-  return status;
-}
-
 class display_t : public platf::display_t {
 public:
   display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
@@ -564,15 +443,29 @@ public:
           continue;
         }
 
-        // If test_modifiers returns zero, than it supports modifiers
-        auto status = test_modifiers(card, plane.get());
-        if(status < 0) {
+        auto fb = card.fb(plane.get());
+        if(!fb) {
+          BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
           return -1;
         }
 
-        bModifiers = status == 0;
+        if(!fb->handles[0]) {
+          BOOST_LOG(error)
+            << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
+          return -1;
+        }
 
-        auto fb = card.fb(plane.get(), bModifiers);
+        for(int i = 0; i < 4; ++i) {
+          if(!fb->handles[i]) {
+            break;
+          }
+
+          auto fb_fd = card.handleFD(fb->handles[i]);
+          if(fb_fd.el < 0) {
+            BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+            continue;
+          }
+        }
 
         BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
 
@@ -587,6 +480,8 @@ public:
           BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
           return -1;
         }
+
+        //TODO: surf_sd = fb->to_sd();
 
         auto crct = card.crtc(plane->crtc_id);
         kms::print(plane.get(), fb.get(), crct.get());
@@ -608,7 +503,7 @@ public:
           offset_x = viewport.offset_x;
           offset_y = viewport.offset_y;
         }
-        // This code path shouldn't have happend, but it's there just in case.
+        // This code path shouldn't happend, but it's there just in case.
         // crtc_to_monitor is part of the guesswork after all.
         else {
           BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
@@ -642,7 +537,7 @@ public:
   inline capture_e refresh(file_t *file, egl::surface_descriptor_t *sd) {
     plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
 
-    auto fb = card.fb(plane.get(), bModifiers);
+    auto fb = card.fb(plane.get());
     if(!fb) {
       BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
       return capture_e::error;
@@ -654,9 +549,36 @@ public:
       return capture_e::error;
     }
 
-    if(init_sd(card, fb.get(), file, sd)) {
-      return capture_e::error;
+    auto obj_count = 4;
+
+    int x = 0;
+    for(int y = 0; y < 4; ++y) {
+      if(!fb->handles[y]) {
+        // It's not clear wheter there could still be valid handles left.
+        // So, continue anyway.
+        // TODO: Is this redundent?
+        --obj_count;
+        continue;
+      }
+
+      file[x] = card.handleFD(fb->handles[x]);
+      if(file[x].el < 0) {
+        BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
+        return capture_e::error;
+      }
+
+      sd->fds[x]           = file[x].el;
+      sd->offsets[x]       = fb->offsets[y];
+      sd->pitches[x]       = fb->pitches[y];
+      sd->plane_indices[x] = y;
+      ++x;
     }
+
+    sd->width     = fb->width;
+    sd->height    = fb->height;
+    sd->modifier  = fb->modifier;
+    sd->fourcc    = fb->pixel_format;
+    sd->obj_count = obj_count;
 
     if(
       fb->width != img_width ||
@@ -677,10 +599,6 @@ public:
   int plane_id;
 
   card_t card;
-
-  // Some older GPU's may not support modifers, yet support FB2
-  // This flags wether it's capable of it.
-  bool bModifiers;
 
   std::optional<x11::cursor_t> cursor_opt;
 };
@@ -1040,8 +958,7 @@ std::vector<std::string> kms_display_names() {
 
     auto end = std::end(card);
     for(auto plane = std::begin(card); plane != end; ++plane) {
-      // The framebuffer won't be imported to an openGL texture, so the boolean matters only for logging purposes
-      auto fb = card.fb(plane.get(), true);
+      auto fb = card.fb(plane.get());
       if(!fb) {
         BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
         continue;
