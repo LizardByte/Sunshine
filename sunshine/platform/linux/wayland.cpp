@@ -169,10 +169,6 @@ void dmabuf_t::frame(
   next_frame->sd.height   = height;
   next_frame->sd.modifier = (((std::uint64_t)high) << 32) | low;
   next_frame->obj_count   = obj_count;
-
-  std::fill_n(next_frame->sd.fds + obj_count, 4 - obj_count, -1);
-  std::fill_n(next_frame->sd.pitches + obj_count, 4 - obj_count, 0);
-  std::fill_n(next_frame->sd.offsets + obj_count, 4 - obj_count, 0);
 }
 
 void dmabuf_t::object(
