@@ -65,7 +65,7 @@ struct mic_attr_t : public mic_t {
   }
 };
 
-std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate) {
+std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) {
   auto mic = std::make_unique<mic_attr_t>();
 
   pa_sample_spec ss { PA_SAMPLE_S16LE, sample_rate, (std::uint8_t)channels };
@@ -75,6 +75,9 @@ std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std
   std::for_each_n(pa_map.map, pa_map.channels, [mapping](auto &channel) mutable {
     channel = position_mapping[*mapping++];
   });
+
+  pa_buffer_attr pa_attr = {};
+  pa_attr.maxlength = frame_size * 8;
 
   int status;
 
@@ -86,7 +89,7 @@ std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std
   mic->mic.reset(
     pa_simple_new(nullptr, "sunshine",
       pa_stream_direction_t::PA_STREAM_RECORD, audio_sink,
-      "sunshine-record", &ss, &pa_map, nullptr, &status));
+      "sunshine-record", &ss, &pa_map, &pa_attr, &status));
 
   if(!mic->mic) {
     auto err_str = pa_strerror(status);
@@ -380,7 +383,7 @@ public:
   }
 
   std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
-    return ::platf::microphone(mapping, channels, sample_rate);
+    return ::platf::microphone(mapping, channels, sample_rate, frame_size);
   }
 
   int set_sink(const std::string &sink) override {
