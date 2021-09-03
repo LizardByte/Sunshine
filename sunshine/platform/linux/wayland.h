@@ -23,7 +23,7 @@ class frame_t {
 public:
   egl::surface_descriptor_t sd;
 
-  std::uint32_t obj_count;
+  bool close_fds = false;
 
   void destroy();
 };

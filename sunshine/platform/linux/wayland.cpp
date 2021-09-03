@@ -164,11 +164,14 @@ void dmabuf_t::frame(
   std::uint32_t obj_count) {
   auto next_frame = get_next_frame();
 
-  next_frame->sd.fourcc   = format;
-  next_frame->sd.width    = width;
-  next_frame->sd.height   = height;
-  next_frame->sd.modifier = (((std::uint64_t)high) << 32) | low;
-  next_frame->obj_count   = obj_count;
+  next_frame->sd.fourcc    = format;
+  next_frame->sd.width     = width;
+  next_frame->sd.height    = height;
+  next_frame->sd.modifier  = (((std::uint64_t)high) << 32) | low;
+  next_frame->sd.obj_count = obj_count;
+
+  next_frame->close_fds = true;
+  std::fill_n(next_frame->sd.fds + obj_count, 4 - obj_count, -1);
 }
 
 void dmabuf_t::object(
@@ -212,11 +215,15 @@ void dmabuf_t::cancel(
 }
 
 void frame_t::destroy() {
-  for(auto x = 0; x < obj_count; ++x) {
-    close(sd.fds[x]);
+  if(!close_fds) {
+    return;
   }
-
-  obj_count = 0;
+  for(auto x = 0; x < 4; ++x) {
+    if(sd.fds[x] >= 0) {
+      close(sd.fds[x]);
+    }
+  }
+  close_fds = false;
 }
 
 std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name) {
