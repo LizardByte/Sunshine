@@ -137,7 +137,12 @@ else()
 		list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES} ${LIBCAP_LIBRARIES})
 		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/kmsgrab.cpp)
 		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
+	elseif(LIBDRM_FOUND)
+		message(WARNING "Found libdrm, yet there is no libcap")
+	elseif(LIBDRM_FOUND)
+		message(WARNING "Found libcap, yet there is no libdrm")
 	endif()
+
 	if(WAYLAND_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_WAYLAND)
 		macro(genWayland FILENAME)
@@ -175,8 +180,8 @@ else()
 			sunshine/platform/linux/wlgrab.cpp
 			sunshine/platform/linux/wayland.cpp)
 	endif()
-	if(NOT ${X11_FOUND} AND NOT ${LIBDRM_FOUND} AND NOT ${WAYLAND_FOUND})
-		message(FATAL_ERROR "Couldn't find either x11, wayland or libdrm")
+	if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND})
+		message(FATAL_ERROR "Couldn't find either x11, wayland or (libdrm and libcap)")
 	endif()
 
 	list(APPEND PLATFORM_TARGET_FILES

@@ -1,10 +1,10 @@
 #include <drm_fourcc.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/capability.h>
 #include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
-#include <sys/capability.h>
 
 #include <filesystem>
 
@@ -30,6 +30,7 @@ class cap_sys_admin {
 public:
   cap_sys_admin() {
     caps = cap_get_proc();
+
     cap_value_t sys_admin = CAP_SYS_ADMIN;
     if(cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_SET) || cap_set_proc(caps)) {
       BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN";
