@@ -69,6 +69,13 @@ frame_buf_t frame_buf_t::make(std::size_t count) {
   return frame_buf;
 }
 
+void frame_buf_t::copy(int id, int texture, int offset_x, int offset_y, int width, int height) {
+  gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, (*this)[id]);
+  gl::ctx.ReadBuffer(GL_COLOR_ATTACHMENT0 + id);
+  gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
+  gl::ctx.CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, offset_x, offset_y, width, height);
+}
+
 std::string shader_t::err_str() {
   int length;
   ctx.GetShaderiv(handle(), GL_INFO_LOG_LENGTH, &length);
@@ -730,18 +737,36 @@ void sws_t::load_ram(platf::img_t &img) {
   gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
 }
 
-void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int texture) {
+void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture) {
+  // When only a sub-part of the image must be encoded...
+  const bool copy = offset_x || offset_y || img.sd.width != in_width || img.sd.height != in_height;
+  if(copy) {
+    auto framebuf = gl::frame_buf_t::make(1);
+    framebuf.bind(&texture, &texture + 1);
+
+    loaded_texture = tex[0];
+    framebuf.copy(0, loaded_texture, offset_x, offset_y, in_width, in_height);
+  }
+  else {
+    loaded_texture = texture;
+  }
+
   if(img.data) {
-    loaded_texture    = tex[0];
     GLenum attachment = GL_COLOR_ATTACHMENT0;
 
-    gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
     gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
-    gl::ctx.DrawBuffers(1, &attachment);
-
     gl::ctx.UseProgram(program[2].handle());
-    gl::ctx.Viewport(offset_x, offset_y, in_width, in_height);
-    gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+
+    // When a copy has already been made...
+    if(!copy) {
+      gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
+      gl::ctx.DrawBuffers(1, &attachment);
+
+      gl::ctx.Viewport(0, 0, in_width, in_height);
+      gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+
+      loaded_texture = tex[0];
+    }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex[1]);
     if(serial != img.serial) {
@@ -769,9 +794,6 @@ void sws_t::load_vram(cursor_t &img, int offset_x, int offset_y, int texture) {
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
     gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-  }
-  else {
-    loaded_texture = texture;
   }
 }
 

@@ -80,6 +80,11 @@ public:
       ++x;
     });
   }
+
+  /**
+   * Copies a part of the framebuffer to texture
+   */
+  void copy(int id, int texture, int offset_x, int offset_y, int width, int height);
 };
 
 class shader_t {
@@ -275,7 +280,7 @@ public:
   int convert(nv12_t &nv12);
 
   void load_ram(platf::img_t &img);
-  void load_vram(cursor_t &img, int offset_x, int offset_y, int texture);
+  void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
 
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
 
@@ -285,6 +290,7 @@ public:
 
   // The cursor image will be blended into this framebuffer
   gl::frame_buf_t cursor_framebuffer;
+  gl::frame_buf_t copy_framebuffer;
 
   // Y - shader, UV - shader, Cursor - shader
   gl::program_t program[3];
