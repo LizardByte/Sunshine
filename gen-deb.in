@@ -38,7 +38,7 @@ Architecture: amd64
 Maintainer: @loki
 Priority: optional
 Version: 0.10.2
-Depends: libssl1.1, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0, libboost-log1.67.0 | libboost-log1.71.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2
+Depends: libssl1.1, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0, libboost-log1.67.0 | libboost-log1.71.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap
 Description: Gamestream host for Moonlight
 EOF
 
@@ -92,8 +92,8 @@ fi
 # Ensure Sunshine can grab images from KMS
 path_to_setcap=$(which setcap)
 if [ -x "$path_to_setcap" ] ; then
-  echo "$path_to_setcap cap_sys_admin+ep /usr/bin/sunshine"
-	$path_to_setcap cap_sys_admin+ep /usr/bin/sunshine
+  echo "$path_to_setcap cap_sys_admin+p /usr/bin/sunshine"
+	$path_to_setcap cap_sys_admin+p /usr/bin/sunshine
 fi
 EOF
 

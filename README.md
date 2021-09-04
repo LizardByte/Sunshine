@@ -26,7 +26,7 @@ sudo apt install cmake gcc-10 g++-10 libssl-dev libavdevice-dev libboost-thread-
 KMS allows Sunshine to grab the monitor with lower latency then through X11
 
 ```
-sudo apt install cmake gcc-10 g++-10 libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev
+sudo apt install cmake gcc-10 g++-10 libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev
 ```
 
 ### Compilation:
@@ -72,7 +72,7 @@ sunshine needs access to uinput to create mouse and gamepad events:
 #### Additional Setup for KMS:
 Please note that `cap_sys_admin` may as well be root, except you don't need to be root to run it.
 It's necessary to allow Sunshine to use KMS
-- `sudo setcap cap_sys_admin+ep sunshine`
+- `sudo setcap cap_sys_admin+p sunshine`
 
 ### Trouleshooting:
 - If you get "Could not create Sunshine Gamepad: Permission Denied", ensure you are part of the group "input":

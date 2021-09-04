@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
+#include <sys/capability.h>
 
 #include <filesystem>
 
@@ -24,6 +25,27 @@ namespace fs = std::filesystem;
 namespace platf {
 
 namespace kms {
+
+class cap_sys_admin {
+public:
+  cap_sys_admin() {
+    caps = cap_get_proc();
+    cap_value_t sys_admin = CAP_SYS_ADMIN;
+    if(cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_SET) || cap_set_proc(caps)) {
+      BOOST_LOG(error) << "Failed to gain CAP_SYS_ADMIN";
+    }
+  }
+
+  ~cap_sys_admin() {
+    cap_value_t sys_admin = CAP_SYS_ADMIN;
+    if(cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_admin, CAP_CLEAR) || cap_set_proc(caps)) {
+      BOOST_LOG(error) << "Failed to drop CAP_SYS_ADMIN";
+    }
+    cap_free(caps);
+  }
+
+  cap_t caps;
+};
 
 class wrapper_fb {
 public:
@@ -200,6 +222,7 @@ public:
   using connector_interal_t = util::safe_ptr<drmModeConnector, drmModeFreeConnector>;
 
   int init(const char *path) {
+    cap_sys_admin admin;
     fd.el = open(path, O_RDWR);
 
     if(fd.el < 0) {
@@ -226,6 +249,7 @@ public:
   }
 
   fb_t fb(plane_t::pointer plane) {
+    cap_sys_admin admin;
     auto fb = drmModeGetFB2(fd.el, plane->fb_id);
     if(fb) {
       return std::make_unique<wrapper_fb>(fb);
@@ -451,7 +475,7 @@ public:
 
         if(!fb->handles[0]) {
           BOOST_LOG(error)
-            << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
+            << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+p sunshine]"sv;
           return -1;
         }
 
@@ -545,7 +569,7 @@ public:
 
     if(!fb->handles[0]) {
       BOOST_LOG(error)
-        << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
+        << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+p sunshine]"sv;
       return capture_e::error;
     }
 
@@ -967,7 +991,7 @@ std::vector<std::string> kms_display_names() {
 
       if(!fb->handles[0]) {
         BOOST_LOG(error)
-          << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+ep sunshine]"sv;
+          << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+p sunshine]"sv;
         break;
       }
 
