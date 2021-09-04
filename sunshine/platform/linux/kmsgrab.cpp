@@ -649,6 +649,7 @@ public:
         std::this_thread::sleep_for((next_frame - now) / 3 * 2);
       }
       while(next_frame > now) {
+        std::this_thread::sleep_for(1ns);
         now = std::chrono::steady_clock::now();
       }
       next_frame = now + delay;
@@ -769,6 +770,7 @@ public:
         std::this_thread::sleep_for((next_frame - now) / 3 * 2);
       }
       while(next_frame > now) {
+        std::this_thread::sleep_for(1ns);
         now = std::chrono::steady_clock::now();
       }
       next_frame = now + delay;
