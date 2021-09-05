@@ -169,9 +169,6 @@ void dmabuf_t::frame(
   next_frame->sd.height    = height;
   next_frame->sd.modifier  = (((std::uint64_t)high) << 32) | low;
   next_frame->sd.obj_count = obj_count;
-
-  next_frame->close_fds = true;
-  std::fill_n(next_frame->sd.fds + obj_count, 4 - obj_count, -1);
 }
 
 void dmabuf_t::object(
@@ -215,15 +212,10 @@ void dmabuf_t::cancel(
 }
 
 void frame_t::destroy() {
-  if(!close_fds) {
-    return;
+  for(auto x = 0; x < sd.obj_count; ++x) {
+    close(sd.fds[x]);
   }
-  for(auto x = 0; x < 4; ++x) {
-    if(sd.fds[x] >= 0) {
-      close(sd.fds[x]);
-    }
-  }
-  close_fds = false;
+  sd.obj_count = 0;
 }
 
 std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name) {

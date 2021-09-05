@@ -23,8 +23,6 @@ class frame_t {
 public:
   egl::surface_descriptor_t sd;
 
-  bool close_fds = false;
-
   void destroy();
 };
 

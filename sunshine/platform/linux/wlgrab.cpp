@@ -260,10 +260,10 @@ public:
     ++sequence;
     img->sequence = sequence;
 
-    img->sd           = current_frame->sd;
+    img->sd = current_frame->sd;
 
     // Prevent dmabuf from closing the file descriptors.
-    current_frame->close_fds = false;
+    current_frame->sd.obj_count = 0;
 
     return platf::capture_e::ok;
   }
