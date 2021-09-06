@@ -263,7 +263,7 @@ public:
     img->sd = current_frame->sd;
 
     // Prevent dmabuf from closing the file descriptors.
-    current_frame->sd.obj_count = 0;
+    std::fill_n(current_frame->sd.fds, 4, -1);
 
     return platf::capture_e::ok;
   }
@@ -274,6 +274,9 @@ public:
     img->sequence = 0;
     img->serial   = std::numeric_limits<decltype(img->serial)>::max();
     img->data     = nullptr;
+
+    // File descriptors aren't open
+    std::fill_n(img->sd.fds, 4, -1);
 
     return img;
   }

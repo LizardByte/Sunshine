@@ -472,11 +472,17 @@ std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface
   attribs[atti++] = EGL_LINUX_DRM_FOURCC_EXT;
   attribs[atti++] = xrgb.fourcc;
 
-  for(auto x = 0; x < xrgb.obj_count; ++x) {
-    auto plane_attr = get_plane(xrgb.plane_indices[x]);
+  for(auto x = 0; x < 4; ++x) {
+    auto fd = xrgb.fds[x];
+
+    if(fd < 0) {
+      continue;
+    }
+
+    auto plane_attr = get_plane(x);
 
     attribs[atti++] = plane_attr.fd;
-    attribs[atti++] = xrgb.fds[x];
+    attribs[atti++] = fd;
     attribs[atti++] = plane_attr.offset;
     attribs[atti++] = xrgb.offsets[x];
     attribs[atti++] = plane_attr.pitch;

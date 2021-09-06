@@ -21,6 +21,7 @@ using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
 
 class frame_t {
 public:
+  frame_t();
   egl::surface_descriptor_t sd;
 
   void destroy();

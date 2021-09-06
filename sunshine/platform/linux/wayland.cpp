@@ -17,6 +17,7 @@ using namespace std::literals;
 // Disable warning for converting incompatible functions
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
 
 namespace wl {
 int display_t::init(const char *display_name) {
@@ -164,11 +165,10 @@ void dmabuf_t::frame(
   std::uint32_t obj_count) {
   auto next_frame = get_next_frame();
 
-  next_frame->sd.fourcc    = format;
-  next_frame->sd.width     = width;
-  next_frame->sd.height    = height;
-  next_frame->sd.modifier  = (((std::uint64_t)high) << 32) | low;
-  next_frame->sd.obj_count = obj_count;
+  next_frame->sd.fourcc   = format;
+  next_frame->sd.width    = width;
+  next_frame->sd.height   = height;
+  next_frame->sd.modifier = (((std::uint64_t)high) << 32) | low;
 }
 
 void dmabuf_t::object(
@@ -181,10 +181,9 @@ void dmabuf_t::object(
   std::uint32_t plane_index) {
   auto next_frame = get_next_frame();
 
-  next_frame->sd.fds[index]           = fd;
-  next_frame->sd.pitches[index]       = stride;
-  next_frame->sd.offsets[index]       = offset;
-  next_frame->sd.plane_indices[index] = plane_index;
+  next_frame->sd.fds[plane_index]     = fd;
+  next_frame->sd.pitches[plane_index] = stride;
+  next_frame->sd.offsets[plane_index] = offset;
 }
 
 void dmabuf_t::ready(
@@ -212,11 +211,19 @@ void dmabuf_t::cancel(
 }
 
 void frame_t::destroy() {
-  for(auto x = 0; x < sd.obj_count; ++x) {
-    close(sd.fds[x]);
+  for(auto x = 0; x < 4; ++x) {
+    if(sd.fds[x] >= 0) {
+      close(sd.fds[x]);
+
+      sd.fds[x] = -1;
+    }
   }
-  sd.obj_count = 0;
 }
+
+frame_t::frame_t() {
+  // File descriptors aren't open
+  std::fill_n(sd.fds, 4, -1);
+};
 
 std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name) {
   display_t display;

@@ -574,37 +574,29 @@ public:
       return capture_e::error;
     }
 
-    auto obj_count = 4;
-
-    int x = 0;
     for(int y = 0; y < 4; ++y) {
       if(!fb->handles[y]) {
         // It's not clear wheter there could still be valid handles left.
         // So, continue anyway.
         // TODO: Is this redundent?
-        --obj_count;
         continue;
       }
 
-      file[x] = card.handleFD(fb->handles[x]);
-      if(file[x].el < 0) {
+      file[y] = card.handleFD(fb->handles[y]);
+      if(file[y].el < 0) {
         BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
         return capture_e::error;
       }
 
-      sd->fds[x]           = file[x].el;
-      sd->offsets[x]       = fb->offsets[y];
-      sd->pitches[x]       = fb->pitches[y];
-      sd->plane_indices[x] = y;
-
-      ++x;
+      sd->fds[y]     = file[y].el;
+      sd->offsets[y] = fb->offsets[y];
+      sd->pitches[y] = fb->pitches[y];
     }
 
-    sd->width     = fb->width;
-    sd->height    = fb->height;
-    sd->modifier  = fb->modifier;
-    sd->fourcc    = fb->pixel_format;
-    sd->obj_count = obj_count;
+    sd->width    = fb->width;
+    sd->height   = fb->height;
+    sd->modifier = fb->modifier;
+    sd->fourcc   = fb->pixel_format;
 
     if(
       fb->width != img_width ||
@@ -775,8 +767,8 @@ public:
     img->data        = nullptr;
     img->pixel_pitch = 4;
 
-    img->sequence     = 0;
-    img->sd.obj_count = 0;
+    img->sequence = 0;
+    std::fill_n(img->sd.fds, 4, -1);
 
     return img;
   }
@@ -836,7 +828,7 @@ public:
     if(!cursor || !cursor_opt) {
       img_out_base->data = nullptr;
 
-      for(auto x = 0; x < img->sd.obj_count; ++x) {
+      for(auto x = 0; x < 4; ++x) {
         fb_fd[x].release();
       }
       return capture_e::ok;
@@ -847,7 +839,7 @@ public:
     img->x -= offset_x;
     img->y -= offset_y;
 
-    for(auto x = 0; x < img->sd.obj_count; ++x) {
+    for(auto x = 0; x < 4; ++x) {
       fb_fd[x].release();
     }
     return capture_e::ok;

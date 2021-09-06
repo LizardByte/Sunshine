@@ -218,8 +218,6 @@ KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
 });
 
 struct surface_descriptor_t {
-  int obj_count;
-
   int width;
   int height;
   int fds[4];
@@ -227,7 +225,6 @@ struct surface_descriptor_t {
   std::uint64_t modifier;
   std::uint32_t pitches[4];
   std::uint32_t offsets[4];
-  std::uint32_t plane_indices[4];
 };
 
 display_t make_display(util::Either<gbm::gbm_t::pointer, wl_display *> native_display);
@@ -259,11 +256,13 @@ public:
   }
 
   void reset() {
-    std::for_each_n(sd.fds, sd.obj_count, [](int fd) {
-      close(fd);
-    });
+    for(auto x = 0; x < 4; ++x) {
+      if(sd.fds[x] >= 0) {
+        close(sd.fds[x]);
 
-    sd.obj_count = 0;
+        sd.fds[x] = -1;
+      }
+    }
   }
 
   surface_descriptor_t sd;
