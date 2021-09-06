@@ -12,6 +12,14 @@ KITTY_USING_MOVE_T(file_t, int, -1, {
   }
 });
 
+enum class window_system_e {
+  NONE,
+  X11,
+  WAYLAND,
+};
+
+extern window_system_e window_system;
+
 namespace dyn {
 typedef void (*apiproc)(void);
 

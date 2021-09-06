@@ -23,6 +23,8 @@
 using namespace std::literals;
 namespace fs = std::filesystem;
 
+window_system_e window_system;
+
 namespace dyn {
 void *handle(const std::vector<const char *> &libs) {
   void *handle;
@@ -156,7 +158,7 @@ std::vector<std::string> wl_display_names();
 std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
 
 bool verify_wl() {
-  return !wl_display_names().empty();
+  return window_system == window_system_e::WAYLAND && !wl_display_names().empty();
 }
 #endif
 
@@ -174,7 +176,7 @@ std::vector<std::string> x11_display_names();
 std::shared_ptr<display_t> x11_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
 
 bool verify_x11() {
-  return !x11_display_names().empty();
+  return window_system == window_system_e::X11 && !x11_display_names().empty();
 }
 #endif
 
@@ -220,6 +222,22 @@ std::unique_ptr<deinit_t> init() {
   // These are allowed to fail.
   gbm::init();
   va::init();
+
+  window_system = window_system_e::NONE;
+#ifdef SUNSHINE_BUILD_WAYLAND
+  if(std::getenv("WAYLAND_DISPLAY")) {
+    window_system = window_system_e::WAYLAND;
+  }
+#endif
+#ifdef SUNSHINE_BUILD_X11
+  if(std::getenv("DISPLAY") && window_system != window_system_e::WAYLAND) {
+    if(std::getenv("WAYLAND_DISPLAY")) {
+      BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
+    }
+
+    window_system = window_system_e::X11;
+  }
+#endif
 #ifdef SUNSHINE_BUILD_WAYLAND
   if(verify_wl()) {
     BOOST_LOG(info) << "Using Wayland for screencasting"sv;
@@ -229,6 +247,12 @@ std::unique_ptr<deinit_t> init() {
 #endif
 #ifdef SUNSHINE_BUILD_DRM
   if(verify_kms()) {
+    if(window_system == window_system_e::WAYLAND) {
+      // On Wayland, using KMS, the cursor is unreliable.
+      // Hide it by default
+      display_cursor = false;
+    }
+
     BOOST_LOG(info) << "Using KMS for screencasting"sv;
     source = source_e::KMS;
     goto found_source;

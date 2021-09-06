@@ -756,7 +756,9 @@ int load_xcb() {
 
 int load_x11() {
   // This will be called once only
-  static int x11_status = x11::init() || x11::rr::init() || x11::fix::init();
+  static int x11_status =
+    window_system == window_system_e::NONE ||
+    x11::init() || x11::rr::init() || x11::fix::init();
 
   return x11_status;
 }
