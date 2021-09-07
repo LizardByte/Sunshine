@@ -83,6 +83,9 @@ It's necessary to allow Sunshine to use KMS
 	2. Copy the name to the configuration option "audio_sink"
 	3. restart sunshine
 
+- If you get "Error: Failed to create client: Daemon not running", ensure that your avahi-daemon is running:
+	- `systemctl status avahi-daemon`
+
 ## Windows 10
 
 ### Requirements:
