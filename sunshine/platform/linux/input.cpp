@@ -51,8 +51,8 @@ struct keycode_t {
 
 constexpr auto UNKNOWN = 0;
 
-static constexpr std::array<keycode_t, 0xDF> init_keycodes() {
-  std::array<keycode_t, 0xDF> keycodes {};
+static constexpr std::array<keycode_t, 0xE3> init_keycodes() {
+  std::array<keycode_t, 0xE3> keycodes {};
 
 #define __CONVERT(wincode, linuxcode, scancode)                                       \
   static_assert(wincode < keycodes.size(), "Keycode doesn't fit into keycode array"); \
@@ -182,6 +182,7 @@ static constexpr std::array<keycode_t, 0xDF> init_keycodes() {
   __CONVERT(0xDC /* VKEY_OEM_5 */, KEY_BACKSLASH, 0x70031);
   __CONVERT(0xDD /* VKEY_OEM_6 */, KEY_RIGHTBRACE, 0x70030);
   __CONVERT(0xDE /* VKEY_OEM_7 */, KEY_APOSTROPHE, 0x70034);
+  __CONVERT(0xE2 /* VKEY_NON_US_BACKSLASH */, KEY_102ND, 0x70064);
 #undef __CONVERT
 
   return keycodes;
