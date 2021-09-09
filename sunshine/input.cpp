@@ -155,44 +155,6 @@ inline int apply_shortcut(short keyCode) {
   return 0;
 }
 
-/**
- * Update flags for keyboard shortcut combo's
- */
-inline void update_shortcutFlags(int *flags, short keyCode, bool release) {
-  switch(keyCode) {
-  case VKEY_SHIFT:
-  case VKEY_LSHIFT:
-  case VKEY_RSHIFT:
-    if(release) {
-      *flags &= ~input_t::SHIFT;
-    }
-    else {
-      *flags |= input_t::SHIFT;
-    }
-    break;
-  case VKEY_CONTROL:
-  case VKEY_LCONTROL:
-  case VKEY_RCONTROL:
-    if(release) {
-      *flags &= ~input_t::CTRL;
-    }
-    else {
-      *flags |= input_t::CTRL;
-    }
-    break;
-  case VKEY_MENU:
-  case VKEY_LMENU:
-  case VKEY_RMENU:
-    if(release) {
-      *flags &= ~input_t::ALT;
-    }
-    else {
-      *flags |= input_t::ALT;
-    }
-    break;
-  }
-}
-
 void print(PNV_REL_MOUSE_MOVE_PACKET packet) {
   BOOST_LOG(debug)
     << "--begin relative mouse move packet--"sv << std::endl
@@ -396,18 +358,6 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
   platf::button_mouse(platf_input, button, release);
 }
 
-void repeat_key(short key_code) {
-  // If key no longer pressed, stop repeating
-  if(!key_press[key_code]) {
-    key_press_repeat_id = nullptr;
-    return;
-  }
-
-  platf::keyboard(platf_input, key_code, false);
-
-  key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
-}
-
 short map_keycode(short keycode) {
   auto it = config::input.keybindings.find(keycode);
   if(it != std::end(config::input.keybindings)) {
@@ -415,6 +365,56 @@ short map_keycode(short keycode) {
   }
 
   return keycode;
+}
+
+/**
+ * Update flags for keyboard shortcut combo's
+ */
+inline void update_shortcutFlags(int *flags, short keyCode, bool release) {
+  switch(map_keycode(keyCode)) {
+  case VKEY_SHIFT:
+  case VKEY_LSHIFT:
+  case VKEY_RSHIFT:
+    if(release) {
+      *flags &= ~input_t::SHIFT;
+    }
+    else {
+      *flags |= input_t::SHIFT;
+    }
+    break;
+  case VKEY_CONTROL:
+  case VKEY_LCONTROL:
+  case VKEY_RCONTROL:
+    if(release) {
+      *flags &= ~input_t::CTRL;
+    }
+    else {
+      *flags |= input_t::CTRL;
+    }
+    break;
+  case VKEY_MENU:
+  case VKEY_LMENU:
+  case VKEY_RMENU:
+    if(release) {
+      *flags &= ~input_t::ALT;
+    }
+    else {
+      *flags |= input_t::ALT;
+    }
+    break;
+  }
+}
+
+void repeat_key(short key_code) {
+  // If key no longer pressed, stop repeating
+  if(!key_press[key_code]) {
+    key_press_repeat_id = nullptr;
+    return;
+  }
+
+  platf::keyboard(platf_input, map_keycode(key_code), false);
+
+  key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
