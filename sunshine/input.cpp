@@ -412,7 +412,7 @@ void repeat_key(short key_code) {
     return;
   }
 
-  platf::keyboard(platf_input, map_keycode(keyCode), false);
+  platf::keyboard(platf_input, map_keycode(key_code), false);
 
   key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
 }
