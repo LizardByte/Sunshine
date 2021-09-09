@@ -396,18 +396,6 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
   platf::button_mouse(platf_input, button, release);
 }
 
-void repeat_key(short key_code) {
-  // If key no longer pressed, stop repeating
-  if(!key_press[key_code]) {
-    key_press_repeat_id = nullptr;
-    return;
-  }
-
-  platf::keyboard(platf_input, key_code, false);
-
-  key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
-}
-
 short map_keycode(short keycode) {
   auto it = config::input.keybindings.find(keycode);
   if(it != std::end(config::input.keybindings)) {
@@ -415,6 +403,18 @@ short map_keycode(short keycode) {
   }
 
   return keycode;
+}
+  
+void repeat_key(short key_code) {
+  // If key no longer pressed, stop repeating
+  if(!key_press[key_code]) {
+    key_press_repeat_id = nullptr;
+    return;
+  }
+
+  platf::keyboard(platf_input, map_keycode(keyCode), false);
+
+  key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
