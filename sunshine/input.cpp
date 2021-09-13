@@ -371,7 +371,7 @@ short map_keycode(short keycode) {
  * Update flags for keyboard shortcut combo's
  */
 inline void update_shortcutFlags(int *flags, short keyCode, bool release) {
-  switch(map_keycode(keyCode)) {
+  switch(keyCode) {
   case VKEY_SHIFT:
   case VKEY_LSHIFT:
   case VKEY_RSHIFT:
@@ -452,7 +452,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
 
   pressed = !release;
 
-  update_shortcutFlags(&input->shortcutFlags, keyCode, release);
+  update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
   platf::keyboard(platf_input, map_keycode(keyCode), release);
 }
 
