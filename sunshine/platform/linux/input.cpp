@@ -986,7 +986,7 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   keycode.pressed = 1;
 }
 
-int alloc_gamepad(input_t &input, int nr, rumble_queue_t &&rumble_queue) {
+int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   return ((input_raw_t *)input.get())->alloc_gamepad(nr, std::move(rumble_queue));
 }
 
