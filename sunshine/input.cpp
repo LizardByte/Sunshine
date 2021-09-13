@@ -460,7 +460,7 @@ void passthrough(PNV_SCROLL_PACKET packet) {
   platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
 }
 
-int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std::int16_t new_state, platf::rumble_queue_t rumble_queue) {
+int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std::int16_t new_state, const platf::rumble_queue_t &rumble_queue) {
   auto xorGamepadMask = old_state ^ new_state;
   if(!xorGamepadMask) {
     return 0;
@@ -486,7 +486,7 @@ int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std
           return -1;
         }
 
-        if(platf::alloc_gamepad(platf_input, id, std::move(rumble_queue))) {
+        if(platf::alloc_gamepad(platf_input, id, rumble_queue)) {
           free_id(gamepadMask, id);
           // allocating a gamepad failed: solution: ignore gamepads
           // The implementations of platf::alloc_gamepad already has logging

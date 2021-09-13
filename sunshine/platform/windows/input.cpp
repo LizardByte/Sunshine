@@ -326,7 +326,7 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   send_input(i);
 }
 
-int alloc_gamepad(input_t &input, int nr, rumble_queue_t &&rumble_queue) {
+int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   if(!input) {
     return 0;
   }
