@@ -79,9 +79,11 @@ It's necessary to allow Sunshine to use KMS
 	- `groups $USER`
 	
 - If Sunshine sends audio from the microphone instead of the speaker, try the following steps:
- 	1. `$ pacmd list-sources | grep "name:"` or `$ pactl info | grep Source` if running pipewire.
+	1. Check whether you're using Pulseaudio or Pipewire
+		- Pulseaudio: Use `pacmd list-sources | grep "name:"`
+		- Pipewire: Use `pactl info | grep Source`. In some causes you'd need to use the `sink` device. Try `pactl info | grep Sink`, if _Source_ doesn't work.
 	2. Copy the name to the configuration option "audio_sink"
-	3. restart sunshine
+	3. Restart sunshine
 
 - If you get "Error: Failed to create client: Daemon not running", ensure that your avahi-daemon is running:
 	- `systemctl status avahi-daemon`
