@@ -282,6 +282,9 @@ public:
   // Convert the loaded image into the first two framebuffers
   int convert(gl::frame_buf_t &fb);
 
+  // Make an area of the image black
+  int blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
+
   void load_ram(platf::img_t &img);
   void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
 

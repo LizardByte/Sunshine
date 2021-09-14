@@ -213,9 +213,8 @@ public:
       return -1;
     }
 
-    this->sws = std::move(*sws_opt);
-
-    return 0;
+    sws = std::move(*sws_opt);
+    return sws.blank(fb, 0, 0, frame->width, frame->height);
   }
 
   int convert(platf::img_t &img) override {

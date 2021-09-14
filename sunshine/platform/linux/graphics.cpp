@@ -739,6 +739,20 @@ std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int
   return std::move(sws);
 }
 
+int sws_t::blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height) {
+  auto f = [&]() {
+    std::swap(offsetX, this->offsetX);
+    std::swap(offsetY, this->offsetY);
+    std::swap(width, this->out_width);
+    std::swap(height, this->out_height);
+  };
+
+  f();
+  auto fg = util::fail_guard(f);
+
+  return convert(fb);
+}
+
 std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_heigth) {
   auto tex = gl::tex_t::make(2);
   gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
