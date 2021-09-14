@@ -26,6 +26,8 @@
 #include "upnp.h"
 #include "video.h"
 
+#include "platform/linux/cuda.h"
+
 #include "platform/common.h"
 extern "C" {
 #include <libavutil/log.h>

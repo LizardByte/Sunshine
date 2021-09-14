@@ -188,6 +188,8 @@ else()
 		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
+		sunshine/platform/linux/cuda.cpp
+		sunshine/platform/linux/cuda.h
 		sunshine/platform/linux/graphics.h
 		sunshine/platform/linux/graphics.cpp
 		sunshine/platform/linux/misc.h
@@ -212,6 +214,7 @@ else()
 	
 	include_directories(
 		/usr/include/libevdev-1.0
+		third-party/nv-codec-headers/include
 		third-party/glad/include)
 
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)

@@ -313,19 +313,30 @@ bool fail() {
   return eglGetError() != EGL_SUCCESS;
 }
 
-display_t make_display(util::Either<gbm::gbm_t::pointer, wl_display *> native_display) {
+display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display) {
   constexpr auto EGL_PLATFORM_GBM_MESA    = 0x31D7;
   constexpr auto EGL_PLATFORM_WAYLAND_KHR = 0x31D8;
+  constexpr auto EGL_PLATFORM_X11_KHR     = 0x31D5;
 
   int egl_platform;
   void *native_display_p;
-  if(native_display.has_left()) {
+
+  switch(native_display.index()) {
+  case 0:
     egl_platform     = EGL_PLATFORM_GBM_MESA;
-    native_display_p = native_display.left();
-  }
-  else {
+    native_display_p = std::get<0>(native_display);
+    break;
+  case 1:
     egl_platform     = EGL_PLATFORM_WAYLAND_KHR;
-    native_display_p = native_display.right();
+    native_display_p = std::get<1>(native_display);
+    break;
+  case 2:
+    egl_platform     = EGL_PLATFORM_X11_KHR;
+    native_display_p = std::get<2>(native_display);
+    break;
+  default:
+    BOOST_LOG(error) << "egl::make_display(): Index ["sv << native_display.index() << "] not implemented"sv;
+    return nullptr;
   }
 
   // native_display.left() equals native_display.right()
@@ -803,7 +814,7 @@ void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int tex
   }
 }
 
-int sws_t::convert(nv12_t &nv12) {
+int sws_t::convert(gl::frame_buf_t &fb) {
   gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
 
   GLenum attachments[] {
@@ -812,7 +823,7 @@ int sws_t::convert(nv12_t &nv12) {
   };
 
   for(int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, fb[x]);
     gl::ctx.DrawBuffers(1, &attachments[x]);
 
 #ifndef NDEBUG

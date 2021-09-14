@@ -10,3 +10,6 @@
 [submodule "third-party/miniupnp"]
 	path = third-party/miniupnp
 	url = https://github.com/miniupnp/miniupnp
+[submodule "third-party/nv-codec-headers"]
+	path = third-party/nv-codec-headers
+	url = https://github.com/FFmpeg/nv-codec-headers
