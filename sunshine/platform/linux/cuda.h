@@ -1,6 +1,8 @@
 #ifndef SUNSHINE_PLATFORM_CUDA_H
 #define SUNSHINE_PLATFORM_CUDA_H
 
+#include <memory>
+
 #ifndef __NVCC__
 
 #include "sunshine/platform/common.h"
@@ -26,10 +28,18 @@ typedef __location__(device_builtin) unsigned long long cudaTextureObject_t;
 #endif /* !defined(__CUDACC__) */
 
 namespace cuda {
+
+class freeCudaPtr_t {
+public:
+  void operator()(void *ptr);
+};
+
+using ptr_t = std::unique_ptr<void, freeCudaPtr_t>;
+
 class sws_t {
 public:
   ~sws_t();
-  sws_t(int in_width, int in_height, int out_width, int out_height, int threadsPerBlock);
+  sws_t(int in_width, int in_height, int out_width, int out_height, int threadsPerBlock, ptr_t &&color_matrix);
 
   /**
    * in_width, out_width -- The width and height of the captured image in bytes
@@ -46,6 +56,7 @@ public:
 
   int load_ram(platf::img_t &img);
 
+  ptr_t color_matrix;
   cudaArray_t array;
   cudaTextureObject_t texture;
 

@@ -65,7 +65,9 @@ struct __attribute__((__aligned__(16))) color_extern_t {
   __float2 range_uv;
 };
 
-extern color_extern_t colors[4];
+static_assert(sizeof(video::color_t) == sizeof(video::color_extern_t), "color matrix struct mismatch");
+
+extern color_t colors[4];
 } // namespace video
 
 //////////////////// End special declarations
@@ -91,36 +93,47 @@ inline static int check(cudaError_t result, const std::string_view &sv) {
   return 0;
 }
 
-__device__ __constant__ video::color_t color;
+template<class T>
+ptr_t make_ptr() {
+  void *p;
+  CU_CHECK_PTR(cudaMalloc(&p, sizeof(T)), "Couldn't allocate color matrix");
 
+  ptr_t ptr { p };
+
+  return ptr;
+}
+
+void freeCudaPtr_t::operator()(void *ptr) {
+  CU_CHECK_IGNORE(cudaFree(ptr), "Couldn't free cuda device pointer");
+}
 
 inline __device__ float3 bgra_to_rgb(uchar4 vec) {
   return make_float3((float)vec.z, (float)vec.y, (float)vec.x);
 }
 
-inline __device__ float2 calcUV(float3 pixel) {
-  float4 vec_u = color.color_vec_u;
-  float4 vec_v = color.color_vec_v;
+inline __device__ float2 calcUV(float3 pixel, const video::color_t *const color_matrix) {
+  float4 vec_u = color_matrix->color_vec_u;
+  float4 vec_v = color_matrix->color_vec_v;
 
   float u = dot(pixel, make_float3(vec_u)) + vec_u.w;
   float v = dot(pixel, make_float3(vec_v)) + vec_v.w;
 
-  u = u * color.range_uv.x + color.range_uv.y;
-  v = (v * color.range_uv.x + color.range_uv.y) * 224.0f / 256.0f + 0.0625f * 256.0f;
+  u = u * color_matrix->range_uv.x + color_matrix->range_uv.y;
+  v = (v * color_matrix->range_uv.x + color_matrix->range_uv.y) * 224.0f / 256.0f + 0.0625f * 256.0f;
 
   return make_float2(u, v);
 }
 
-inline __device__ float calcY(float3 pixel) {
-  float4 vec_y = color.color_vec_y;
+inline __device__ float calcY(float3 pixel, const video::color_t *const color_matrix) {
+  float4 vec_y = color_matrix->color_vec_y;
 
-  return (dot(pixel, make_float3(vec_y)) + vec_y.w) * color.range_y.x + color.range_y.y;
+  return (dot(pixel, make_float3(vec_y)) + vec_y.w) * color_matrix->range_y.x + color_matrix->range_y.y;
 }
 
 __global__ void RGBA_to_NV12(
   cudaTextureObject_t srcImage, std::uint8_t *dstY, std::uint8_t *dstUV,
   std::uint32_t dstPitchY, std::uint32_t dstPitchUV,
-  std::uint32_t width, std::uint32_t height) {
+  std::uint32_t width, std::uint32_t height, const video::color_t *const color_matrix) {
 
   int idX = (threadIdx.x + blockDim.x * blockIdx.x) * 2;
   int idY = (threadIdx.y + blockDim.y * blockIdx.y);
@@ -137,16 +150,16 @@ __global__ void RGBA_to_NV12(
   float3 rgb_l = bgra_to_rgb(tex2D<uchar4>(srcImage, x, y));
   float3 rgb_r = bgra_to_rgb(tex2D<uchar4>(srcImage, x + 0.25f / width, y + 1.0f / height));
 
-  float2 uv = calcUV((rgb_l + rgb_r) * 0.5f);
+  float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix);
 
   dstUV[0] = uv.x;
   dstUV[1] = uv.y;
-  dstY[0]  = calcY(rgb_l);
-  dstY[1]  = calcY(rgb_r);
+  dstY[0]  = calcY(rgb_l, color_matrix);
+  dstY[1]  = calcY(rgb_r, color_matrix);
 }
 
-sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int threadsPerBlock)
-    : array {}, texture { INVALID_TEXTURE }, width { out_width }, height { out_height }, threadsPerBlock { threadsPerBlock } {
+sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int threadsPerBlock, ptr_t &&color_matrix)
+    : array {}, texture { INVALID_TEXTURE }, width { out_width }, height { out_height }, threadsPerBlock { threadsPerBlock }, color_matrix { std::move(color_matrix) } {
   auto format = cudaCreateChannelDesc<uchar4>();
 
   CU_CHECK_VOID(cudaMallocArray(&array, &format, in_width, in_height, cudaArrayDefault), "Couldn't allocate cuda array");
@@ -186,7 +199,12 @@ std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, i
   CU_CHECK_PTR(cudaGetDevice(&device), "Couldn't get cuda device");
   CU_CHECK_PTR(cudaGetDeviceProperties(&props, device), "Couldn't get cuda device properties");
 
-  auto sws = std::make_unique<sws_t>(in_width, in_height, out_width, out_height, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor / 2);
+  auto ptr = make_ptr<video::color_t>();
+  if(!ptr) {
+    return nullptr;
+  }
+
+  auto sws = std::make_unique<sws_t>(in_width, in_height, out_width, out_height, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor / 2, std::move(ptr));
 
   if(sws->texture == INVALID_TEXTURE) {
     return nullptr;
@@ -202,15 +220,13 @@ int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std:
   dim3 block(threadsPerBlock, threadsPerBlock);
   dim3 grid(div_align(threadsX, threadsPerBlock), div_align(threadsY, threadsPerBlock));
 
-  RGBA_to_NV12<<<block, grid>>>(texture, Y, UV, pitchY, pitchUV, width, height);
+  RGBA_to_NV12<<<block, grid>>>(texture, Y, UV, pitchY, pitchUV, width, height, (video::color_t*)color_matrix.get());
 
   return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
 }
 
 void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {
-  color_range = 1;
-  colorspace = 5;
-  video::color_extern_t *color_p;
+  video::color_t *color_p;
   switch(colorspace) {
   case 5: // SWS_CS_SMPTE170M
     color_p = &video::colors[0];
@@ -228,7 +244,7 @@ void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
     ++color_p;
   }
 
-  auto color_matrix = *(video::color_t*)color_p;
+  auto color_matrix = *color_p;
   color_matrix.color_vec_y.w *= 256.0f;
   color_matrix.color_vec_u.w *= 256.0f;
   color_matrix.color_vec_v.w *= 256.0f;
@@ -236,9 +252,7 @@ void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
   color_matrix.range_y.y *= 256.0f;
   color_matrix.range_uv.y *= 256.0f;
 
-  static_assert(sizeof(video::color_t) == sizeof(video::color_extern_t), "color matrix struct mismatch");
-
-  CU_CHECK_IGNORE(cudaMemcpyToSymbol(color, &color_matrix, sizeof(video::color_t)), "Couldn't copy color matrix to cuda");
+  CU_CHECK_IGNORE(cudaMemcpy(this->color_matrix.get(), &color_matrix, sizeof(video::color_t), cudaMemcpyHostToDevice), "Couldn't copy color matrix to cuda");
 }
 
 int sws_t::load_ram(platf::img_t &img) {
