@@ -1,9 +1,4 @@
-#include "cuda.h"
-#include "graphics.h"
-#include "sunshine/main.h"
-#include "sunshine/utility.h"
-#include "wayland.h"
-#include "x11grab.h"
+#include <NvFBC.h>
 #include <ffnvcodec/dynlink_loader.h>
 
 extern "C" {
@@ -11,6 +6,13 @@ extern "C" {
 #include <libavutil/hwcontext_cuda.h>
 #include <libavutil/imgutils.h>
 }
+
+#include "cuda.h"
+#include "graphics.h"
+#include "sunshine/main.h"
+#include "sunshine/utility.h"
+#include "wayland.h"
+#include "x11grab.h"
 
 #define SUNSHINE_STRINGVIEW_HELPER(x) x##sv
 #define SUNSHINE_STRINGVIEW(x) SUNSHINE_STRINGVIEW_HELPER(x)
@@ -23,6 +25,13 @@ extern "C" {
 
 using namespace std::literals;
 namespace cuda {
+constexpr auto cudaDevAttrMaxThreadsPerBlock          = (CUdevice_attribute)1;
+constexpr auto cudaDevAttrMaxThreadsPerMultiProcessor = (CUdevice_attribute)39;
+
+void pass_error(const std::string_view &sv, const char *name, const char *description) {
+  BOOST_LOG(error) << sv << name << ':' << description;
+}
+
 void cff(CudaFunctions *cf) {
   cuda_free_functions(&cf);
 }
@@ -151,7 +160,7 @@ int init() {
   return 0;
 }
 
-class cuda_t : public platf::hwdevice_t {
+class opengl_t : public platf::hwdevice_t {
 public:
   int init(int in_width, int in_height, platf::x11::xdisplay_t::pointer xdisplay) {
     if(!cdf) {
@@ -273,16 +282,203 @@ public:
   int width, height;
 };
 
+class cuda_t : public platf::hwdevice_t {
+public:
+  ~cuda_t() override {
+    // sws_t needs to be destroyed while the context is active
+    if(sws) {
+      ctx_t ctx { cuda_ctx };
+
+      sws.reset();
+    }
+  }
+
+  int init(int in_width, int in_height) {
+    if(!cdf) {
+      BOOST_LOG(warning) << "cuda not initialized"sv;
+      return -1;
+    }
+
+    data = (void *)0x1;
+
+    width  = in_width;
+    height = in_height;
+
+    return 0;
+  }
+
+  int set_frame(AVFrame *frame) override {
+    this->hwframe.reset(frame);
+    this->frame = frame;
+
+    if(((AVHWFramesContext *)frame->hw_frames_ctx->data)->sw_format != AV_PIX_FMT_NV12) {
+      BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12"sv;
+      return -1;
+    }
+
+    if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
+      BOOST_LOG(error) << "Couldn't get hwframe for NVENC"sv;
+
+      return -1;
+    }
+
+    cuda_ctx = ((AVCUDADeviceContext *)((AVHWFramesContext *)frame->hw_frames_ctx->data)->device_ctx->hwctx)->cuda_ctx;
+
+    ctx_t ctx { cuda_ctx };
+    sws = sws_t::make(width * 4, height, frame->width, frame->height);
+
+    if(!sws) {
+      return -1;
+    }
+
+    return 0;
+  }
+
+  int convert(platf::img_t &img) override {
+    ctx_t ctx { cuda_ctx };
+
+    return sws->load_ram(img) || sws->convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1]);
+  }
+
+  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
+    ctx_t ctx { cuda_ctx };
+    sws->set_colorspace(colorspace, color_range);
+  }
+
+  frame_t hwframe;
+
+  std::unique_ptr<sws_t> sws;
+
+  int width, height;
+
+  CUcontext cuda_ctx;
+};
+
 std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height, platf::x11::xdisplay_t::pointer xdisplay) {
   if(init()) {
     return nullptr;
   }
 
   auto cuda = std::make_shared<cuda_t>();
-  if(cuda->init(width, height, xdisplay)) {
+  if(cuda->init(width, height)) {
     return nullptr;
   }
 
   return cuda;
 }
 } // namespace cuda
+
+namespace platf::nvfbc {
+static PNVFBCCREATEINSTANCE createInstance {};
+static NVFBC_API_FUNCTION_LIST func { NVFBC_VERSION };
+
+static void *handle { nullptr };
+int init() {
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libnvidia-fbc.so.1", "libnvidia-fbc.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&createInstance, "NvFBCCreateInstance" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    dlclose(handle);
+    handle = nullptr;
+
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+
+class handle_t {
+  KITTY_USING_MOVE_T(session_t, NVFBC_SESSION_HANDLE, std::numeric_limits<std::uint64_t>::max(), {
+    if(el == std::numeric_limits<std::uint64_t>::max()) {
+      return;
+    }
+    NVFBC_DESTROY_HANDLE_PARAMS params { NVFBC_DESTROY_HANDLE_PARAMS_VER };
+
+    auto status = func.nvFBCDestroyHandle(el, &params);
+    if(status) {
+      BOOST_LOG(error) << "Failed to destroy nvfbc handle: "sv << func.nvFBCGetLastErrorStr(el);
+    }
+  });
+
+public:
+  static std::optional<handle_t> make() {
+    NVFBC_CREATE_HANDLE_PARAMS params { NVFBC_CREATE_HANDLE_PARAMS_VER };
+    session_t session;
+
+    auto status = func.nvFBCCreateHandle(&session.el, &params);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create session: "sv << func.nvFBCGetLastErrorStr(session.el);
+      session.release();
+
+      return std::nullopt;
+    }
+
+    return handle_t { std::move(session) };
+  }
+
+  const char *last_error() {
+    return func.nvFBCGetLastErrorStr(session.el);
+  }
+
+  std::optional<NVFBC_GET_STATUS_PARAMS> status() {
+    NVFBC_GET_STATUS_PARAMS params { NVFBC_GET_STATUS_PARAMS_VER };
+
+    auto status = func.nvFBCGetStatus(session.el, &params);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create session: "sv << last_error();
+
+      return std::nullopt;
+    }
+
+    return params;
+  }
+
+  session_t session;
+};
+
+std::vector<std::string> nvfbc_display_names() {
+  if(init()) {
+    return {};
+  }
+
+  std::vector<std::string> display_names;
+
+  auto status = createInstance(&func);
+  if(status) {
+    BOOST_LOG(error) << "Unable to create NvFBC instance"sv;
+    return {};
+  }
+
+  auto handle = handle_t::make();
+  if(!handle) {
+    return {};
+  }
+
+  auto status_params = handle->status();
+  if(!status_params) {
+    return {};
+  }
+
+  if(!status_params->bIsCapturePossible) {
+    BOOST_LOG(error) << "NVidia driver doesn't support NvFBC screencasting"sv;
+  }
+
+  BOOST_LOG(info) << "Found ["sv << status_params->dwOutputNum << "] outputs"sv;
+  BOOST_LOG(info) << "Virtual Desktop: "sv << status_params->screenSize.w << 'x' << status_params->screenSize.h;
+
+  return display_names;
+}
+} // namespace platf::nvfbc

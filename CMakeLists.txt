@@ -4,15 +4,6 @@ project(Sunshine)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-add_subdirectory(third-party/Simple-Web-Server)
-
-set(UPNPC_BUILD_SHARED OFF CACHE BOOL "no shared libraries")
-set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
-set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "Don't build samples for miniupnpc")
-set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniupnpc")
-add_subdirectory(third-party/miniupnp/miniupnpc)
-include_directories(third-party/miniupnp)
-
 if(WIN32)
 	# Ugly hack to compile with #include <qos2.h>
 	add_compile_definitions(
@@ -21,9 +12,20 @@ if(WIN32)
 		QOS_NON_ADAPTIVE_FLOW=2)
 endif()
 add_subdirectory(third-party/moonlight-common-c/enet)
+add_subdirectory(third-party/Simple-Web-Server)
+add_subdirectory(third-party/cbs)
+
+set(UPNPC_BUILD_SHARED OFF CACHE BOOL "no shared libraries")
+set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
+set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "Don't build samples for miniupnpc")
+set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniupnpc")
+add_subdirectory(third-party/miniupnp/miniupnpc)
+include_directories(third-party/miniupnp)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
+set(Boost_USE_STATIC_LIBS ON)
+find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -fPIC -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
@@ -105,6 +107,11 @@ else()
 	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
 	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
 	option(SUNSHINE_ENABLE_WAYLAND "Enable building wayland specific code" ON)
+
+	if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  	set(CMAKE_CUDA_ARCHITECTURES 75)
+	endif()
+	enable_language(CUDA)
 
 	if(${SUNSHINE_ENABLE_X11})
 		find_package(X11)
@@ -188,6 +195,7 @@ else()
 		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
+		sunshine/platform/linux/cuda.cu
 		sunshine/platform/linux/cuda.cpp
 		sunshine/platform/linux/cuda.h
 		sunshine/platform/linux/graphics.h
@@ -203,7 +211,8 @@ else()
 		third-party/glad/include/EGL/eglplatform.h
 		third-party/glad/include/KHR/khrplatform.h
 		third-party/glad/include/glad/gl.h
-		third-party/glad/include/glad/egl.h)
+		third-party/glad/include/glad/egl.h
+		third-party/nvfbc/NvFBC.h)
 		
 	list(APPEND PLATFORM_LIBRARIES
 		dl
@@ -215,7 +224,8 @@ else()
 	include_directories(
 		/usr/include/libevdev-1.0
 		third-party/nv-codec-headers/include
-		third-party/glad/include)
+		third-party/glad/include
+		third-party/nvfbc)
 
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
 		set(SUNSHINE_EXECUTABLE_PATH "sunshine")
@@ -223,11 +233,6 @@ else()
 	configure_file(gen-deb.in gen-deb @ONLY)
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
-
-add_subdirectory(third-party/cbs)
-
-set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 set(SUNSHINE_TARGET_FILES
 	third-party/moonlight-common-c/reedsolomon/rs.c
@@ -290,7 +295,7 @@ include_directories(
 
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
-	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -pedantic -ggdb3)
+	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -ggdb3)
 	if(WIN32)
 		set_source_files_properties(sunshine/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
 	endif()

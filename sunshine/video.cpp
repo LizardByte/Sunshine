@@ -324,7 +324,7 @@ struct encoder_t {
 class session_t {
 public:
   session_t() = default;
-  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device, int inject) : ctx { std::move(ctx) }, device { std::move(device) }, inject { inject } {}
+  session_t(ctx_t &&ctx, std::shared_ptr<platf::hwdevice_t> &&device, int inject) : ctx { std::move(ctx) }, device { std::move(device) }, inject { inject } {}
 
   session_t(session_t &&other) noexcept = default;
 
@@ -342,7 +342,7 @@ public:
   }
 
   ctx_t ctx;
-  util::wrap_ptr<platf::hwdevice_t> device;
+  std::shared_ptr<platf::hwdevice_t> device;
 
   std::vector<packet_raw_t::replace_t> replacements;
 
@@ -369,7 +369,6 @@ struct sync_session_t {
   sync_session_ctx_t *ctx;
 
   platf::img_t *img_tmp;
-  std::shared_ptr<platf::hwdevice_t> hwdevice;
   session_t session;
 };
 
@@ -779,7 +778,7 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
   return 0;
 }
 
-std::optional<session_t> make_session(const encoder_t &encoder, const config_t &config, int width, int height, platf::hwdevice_t *hwdevice) {
+std::optional<session_t> make_session(const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
   bool hardware = encoder.dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
@@ -886,7 +885,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   if(hardware) {
     ctx->pix_fmt = encoder.dev_pix_fmt;
 
-    auto buf_or_error = encoder.make_hwdevice_ctx(hwdevice);
+    auto buf_or_error = encoder.make_hwdevice_ctx(hwdevice.get());
     if(buf_or_error.has_right()) {
       return std::nullopt;
     }
@@ -965,7 +964,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     frame->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
   }
 
-  util::wrap_ptr<platf::hwdevice_t> device;
+  std::shared_ptr<platf::hwdevice_t> device;
 
   if(!hwdevice->data) {
     auto device_tmp = std::make_unique<swdevice_t>();
@@ -977,7 +976,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     device = std::move(device_tmp);
   }
   else {
-    device = hwdevice;
+    device = std::move(hwdevice);
   }
 
   if(device->set_frame(frame.release())) {
@@ -1009,12 +1008,12 @@ void encode_run(
   img_event_t images,
   config_t config,
   int width, int height,
-  platf::hwdevice_t *hwdevice,
+  std::shared_ptr<platf::hwdevice_t> &&hwdevice,
   safe::signal_t &reinit_event,
   const encoder_t &encoder,
   void *channel_data) {
 
-  auto session = make_session(encoder, config, width, height, hwdevice);
+  auto session = make_session(encoder, config, width, height, std::move(hwdevice));
   if(!session) {
     return;
   }
@@ -1101,12 +1100,11 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   // absolute mouse coordinates require that the dimensions of the screen are known
   ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
-  auto session = make_session(encoder, ctx.config, img.width, img.height, hwdevice.get());
+  auto session = make_session(encoder, ctx.config, img.width, img.height, std::move(hwdevice));
   if(!session) {
     return std::nullopt;
   }
 
-  encode_session.hwdevice = std::move(hwdevice);
   encode_session.session  = std::move(*session);
 
   return std::move(encode_session);
@@ -1208,7 +1206,7 @@ encode_e encode_run_sync(
           ctx->idr_events->pop();
         }
 
-        if(pos->hwdevice->convert(*img)) {
+        if(pos->session.device->convert(*img)) {
           BOOST_LOG(error) << "Could not convert image"sv;
           ctx->shutdown_event->raise(true);
 
@@ -1356,7 +1354,7 @@ void capture_async(
       frame_nr,
       mail, images,
       config, display->width, display->height,
-      hwdevice.get(),
+      std::move(hwdevice),
       ref->reinit_event, *ref->encoder_p,
       channel_data);
   }
@@ -1409,7 +1407,7 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
     return -1;
   }
 
-  auto session = make_session(encoder, config, disp->width, disp->height, hwdevice.get());
+  auto session = make_session(encoder, config, disp->width, disp->height, std::move(hwdevice));
   if(!session) {
     return -1;
   }
