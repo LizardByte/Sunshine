@@ -111,6 +111,10 @@ inline __device__ float3 bgra_to_rgb(uchar4 vec) {
   return make_float3((float)vec.z, (float)vec.y, (float)vec.x);
 }
 
+inline __device__ float3 bgra_to_rgb(float4 vec) {
+  return make_float3(vec.z, vec.y, vec.x) * 255.0f;;
+}
+
 inline __device__ float2 calcUV(float3 pixel, const video::color_t *const color_matrix) {
   float4 vec_u = color_matrix->color_vec_u;
   float4 vec_v = color_matrix->color_vec_v;
@@ -150,8 +154,8 @@ __global__ void RGBA_to_NV12(
   dstY  = dstY + idX + idY * dstPitchY;
   dstUV = dstUV + idX + (idY / 2 * dstPitchUV);
 
-  float3 rgb_l = bgra_to_rgb(tex2D<uchar4>(srcImage, x, y));
-  float3 rgb_r = bgra_to_rgb(tex2D<uchar4>(srcImage, x + 0.25f / viewport.width, y + 1.0f / viewport.height));
+  float3 rgb_l = bgra_to_rgb(tex2D<float4>(srcImage, x, y));
+  float3 rgb_r = bgra_to_rgb(tex2D<float4>(srcImage, x + 0.25f / viewport.width, y + 1.0f / viewport.height));
 
   float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix);
 
@@ -173,8 +177,8 @@ sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pit
 
   cudaTextureDesc desc {};
 
-  desc.readMode         = cudaReadModeElementType;
-  desc.filterMode       = cudaFilterModePoint;
+  desc.readMode         = cudaReadModeNormalizedFloat;
+  desc.filterMode       = cudaFilterModeLinear;
   desc.normalizedCoords = true;
 
   std::fill_n(std::begin(desc.addressMode), 2, cudaAddressModeClamp);
