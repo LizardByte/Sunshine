@@ -112,7 +112,7 @@ inline __device__ float3 bgra_to_rgb(uchar4 vec) {
 }
 
 inline __device__ float3 bgra_to_rgb(float4 vec) {
-  return make_float3(vec.z, vec.y, vec.x) * 255.0f;;
+  return make_float3(vec.z, vec.y, vec.x);
 }
 
 inline __device__ float2 calcUV(float3 pixel, const video::color_t *const color_matrix) {
@@ -123,7 +123,7 @@ inline __device__ float2 calcUV(float3 pixel, const video::color_t *const color_
   float v = dot(pixel, make_float3(vec_v)) + vec_v.w;
 
   u = u * color_matrix->range_uv.x + color_matrix->range_uv.y;
-  v = (v * color_matrix->range_uv.x + color_matrix->range_uv.y) * 224.0f / 256.0f + 0.0625f * 256.0f;
+  v = (v * color_matrix->range_uv.x + color_matrix->range_uv.y) * 224.0f / 256.0f + 0.0625f;
 
   return make_float2(u, v);
 }
@@ -157,12 +157,12 @@ __global__ void RGBA_to_NV12(
   float3 rgb_l = bgra_to_rgb(tex2D<float4>(srcImage, x, y));
   float3 rgb_r = bgra_to_rgb(tex2D<float4>(srcImage, x + 0.25f / viewport.width, y + 1.0f / viewport.height));
 
-  float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix);
+  float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix) * 255.0f;
 
   dstUV[0] = uv.x;
   dstUV[1] = uv.y;
-  dstY[0]  = calcY(rgb_l, color_matrix);
-  dstY[1]  = calcY(rgb_r, color_matrix);
+  dstY[0]  = calcY(rgb_l, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
+  dstY[1]  = calcY(rgb_r, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
 }
 
 sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pitch, int threadsPerBlock, ptr_t &&color_matrix)
@@ -271,15 +271,7 @@ void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
     ++color_p;
   }
 
-  auto color_matrix = *color_p;
-  color_matrix.color_vec_y.w *= 256.0f;
-  color_matrix.color_vec_u.w *= 256.0f;
-  color_matrix.color_vec_v.w *= 256.0f;
-
-  color_matrix.range_y.y *= 256.0f;
-  color_matrix.range_uv.y *= 256.0f;
-
-  CU_CHECK_IGNORE(cudaMemcpy(this->color_matrix.get(), &color_matrix, sizeof(video::color_t), cudaMemcpyHostToDevice), "Couldn't copy color matrix to cuda");
+  CU_CHECK_IGNORE(cudaMemcpy(color_matrix.get(), color_p, sizeof(video::color_t), cudaMemcpyHostToDevice), "Couldn't copy color matrix to cuda");
 }
 
 int sws_t::load_ram(platf::img_t &img) {
