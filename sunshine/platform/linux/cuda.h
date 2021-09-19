@@ -36,21 +36,27 @@ public:
 
 using ptr_t = std::unique_ptr<void, freeCudaPtr_t>;
 
+struct viewport_t {
+  int width, height;
+  int offsetX, offsetY;
+};
+
 class sws_t {
 public:
   ~sws_t();
-  sws_t(int in_width, int in_height, int out_width, int out_height, int threadsPerBlock, ptr_t &&color_matrix);
+  sws_t(int in_width, int in_height, int out_width, int out_height, int pitch, int threadsPerBlock, ptr_t &&color_matrix);
 
   /**
-   * in_width, out_width -- The width and height of the captured image in bytes
+   * in_width, in_height -- The width and height of the captured image in pixels
    * out_width, out_height -- the width and height of the NV12 image in pixels
    * 
-   * cuda_device -- pointer to the cuda device
+   * pitch -- The size of a single row of pixels in bytes
    */
-  static std::unique_ptr<sws_t> make(int in_width, int in_height, int out_width, int out_height);
+  static std::unique_ptr<sws_t> make(int in_width, int in_height, int out_width, int out_height, int pitch);
 
   // Converts loaded image into a CUDevicePtr
   int convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV);
+  int convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, const viewport_t &viewport);
 
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
 
@@ -60,9 +66,9 @@ public:
   cudaArray_t array;
   cudaTextureObject_t texture;
 
-  int width, height;
-
   int threadsPerBlock;
+
+  viewport_t viewport;
 };
 } // namespace cuda
 

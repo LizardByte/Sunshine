@@ -325,7 +325,7 @@ public:
     cuda_ctx = ((AVCUDADeviceContext *)((AVHWFramesContext *)frame->hw_frames_ctx->data)->device_ctx->hwctx)->cuda_ctx;
 
     ctx_t ctx { cuda_ctx };
-    sws = sws_t::make(width * 4, height, frame->width, frame->height);
+    sws = sws_t::make(width, height, frame->width, frame->height, width * 4);
 
     if(!sws) {
       return -1;
@@ -343,6 +343,28 @@ public:
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
     ctx_t ctx { cuda_ctx };
     sws->set_colorspace(colorspace, color_range);
+
+
+    // The default green color is ugly.
+    // Update the background color
+    platf::img_t img;
+    img.width = frame->width;
+    img.height = frame->height;
+    img.pixel_pitch = 4;
+    img.row_pitch = img.width * img.pixel_pitch;
+
+    std::vector<std::uint8_t> image_data;
+    image_data.resize(img.row_pitch * img.height);
+
+    img.data = image_data.data();
+
+    if(sws->load_ram(img)) {
+      return;
+    }
+
+    sws->convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], {
+      frame->width, frame->height, 0, 0
+    });
   }
 
   frame_t hwframe;

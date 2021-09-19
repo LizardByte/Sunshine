@@ -133,22 +133,25 @@ inline __device__ float calcY(float3 pixel, const video::color_t *const color_ma
 __global__ void RGBA_to_NV12(
   cudaTextureObject_t srcImage, std::uint8_t *dstY, std::uint8_t *dstUV,
   std::uint32_t dstPitchY, std::uint32_t dstPitchUV,
-  std::uint32_t width, std::uint32_t height, const video::color_t *const color_matrix) {
+  const viewport_t viewport, const video::color_t *const color_matrix) {
 
   int idX = (threadIdx.x + blockDim.x * blockIdx.x) * 2;
   int idY = (threadIdx.y + blockDim.y * blockIdx.y);
 
-  if(idX >= width) return;
-  if(idY >= height) return;
+  if(idX >= viewport.width) return;
+  if(idY >= viewport.height) return;
+
+  float x = (float)idX / (float)viewport.width / 4;
+  float y = (float)idY / (float)viewport.height;
+
+  idX += viewport.offsetX;
+  idY += viewport.offsetY;
 
   dstY  = dstY + idX + idY * dstPitchY;
   dstUV = dstUV + idX + (idY / 2 * dstPitchUV);
 
-  float x = (float)idX / (float)width / 4;
-  float y = (float)idY / (float)height;
-
   float3 rgb_l = bgra_to_rgb(tex2D<uchar4>(srcImage, x, y));
-  float3 rgb_r = bgra_to_rgb(tex2D<uchar4>(srcImage, x + 0.25f / width, y + 1.0f / height));
+  float3 rgb_r = bgra_to_rgb(tex2D<uchar4>(srcImage, x + 0.25f / viewport.width, y + 1.0f / viewport.height));
 
   float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix);
 
@@ -158,11 +161,11 @@ __global__ void RGBA_to_NV12(
   dstY[1]  = calcY(rgb_r, color_matrix);
 }
 
-sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int threadsPerBlock, ptr_t &&color_matrix)
-    : array {}, texture { INVALID_TEXTURE }, width { out_width }, height { out_height }, threadsPerBlock { threadsPerBlock }, color_matrix { std::move(color_matrix) } {
+sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pitch, int threadsPerBlock, ptr_t &&color_matrix)
+    : array {}, texture { INVALID_TEXTURE }, threadsPerBlock { threadsPerBlock }, color_matrix { std::move(color_matrix) } {
   auto format = cudaCreateChannelDesc<uchar4>();
 
-  CU_CHECK_VOID(cudaMallocArray(&array, &format, in_width, in_height, cudaArrayDefault), "Couldn't allocate cuda array");
+  CU_CHECK_VOID(cudaMallocArray(&array, &format, pitch, in_height, cudaArrayDefault), "Couldn't allocate cuda array");
 
   cudaResourceDesc res {};
   res.resType         = cudaResourceTypeArray;
@@ -177,6 +180,22 @@ sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int thr
   std::fill_n(std::begin(desc.addressMode), 2, cudaAddressModeClamp);
 
   CU_CHECK_VOID(cudaCreateTextureObject(&texture, &res, &desc, nullptr), "Couldn't create cuda texture");
+
+
+  // Ensure aspect ratio is maintained
+  auto scalar       = std::fminf(out_width / (float)in_width, out_height / (float)in_height);
+  auto out_width_f  = in_width * scalar;
+  auto out_height_f = in_height * scalar;
+
+  // result is always positive
+  auto offsetX_f = (out_width - out_width_f) / 2;
+  auto offsetY_f = (out_height - out_height_f) / 2;
+
+  viewport.width  = out_width_f;
+  viewport.height = out_height_f;
+
+  viewport.offsetX = offsetX_f;
+  viewport.offsetY = offsetY_f;
 }
 
 sws_t::~sws_t() {
@@ -193,7 +212,7 @@ sws_t::~sws_t() {
   }
 }
 
-std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height) {
+std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, int pitch) {
   cudaDeviceProp props;
   int device;
   CU_CHECK_PTR(cudaGetDevice(&device), "Couldn't get cuda device");
@@ -204,7 +223,7 @@ std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, i
     return nullptr;
   }
 
-  auto sws = std::make_unique<sws_t>(in_width, in_height, out_width, out_height, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor / 2, std::move(ptr));
+  auto sws = std::make_unique<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor / 2, std::move(ptr));
 
   if(sws->texture == INVALID_TEXTURE) {
     return nullptr;
@@ -214,13 +233,17 @@ std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, i
 }
 
 int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV) {
-  int threadsX = width / 2;
-  int threadsY = height;
+  return convert(Y, UV, pitchY, pitchUV, viewport);
+}
+
+int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, const viewport_t &viewport) {
+  int threadsX = viewport.width / 2;
+  int threadsY = viewport.height;
 
   dim3 block(threadsPerBlock, threadsPerBlock);
   dim3 grid(div_align(threadsX, threadsPerBlock), div_align(threadsY, threadsPerBlock));
 
-  RGBA_to_NV12<<<block, grid>>>(texture, Y, UV, pitchY, pitchUV, width, height, (video::color_t*)color_matrix.get());
+  RGBA_to_NV12<<<block, grid>>>(texture, Y, UV, pitchY, pitchUV, viewport, (video::color_t*)color_matrix.get());
 
   return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
 }
