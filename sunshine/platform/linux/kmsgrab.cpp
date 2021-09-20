@@ -950,6 +950,10 @@ void correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
 std::vector<std::string> kms_display_names() {
   int count = 0;
 
+  if(!fs::exists("/dev/dri")) {
+    BOOST_LOG(warning) << "Couldn't find /dev/dri, kmsgrab won't be enabled"sv;
+  }
+
   if(!gbm::create_device) {
     BOOST_LOG(warning) << "libgbm not initialized"sv;
     return {};

@@ -421,14 +421,21 @@ struct x11_attr_t : public display_t {
         return -1;
       }
 
-      crtc_info_t crt_info { x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc) };
-      BOOST_LOG(info)
-        << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
+      if(result->crtc) {
+        crtc_info_t crt_info { x11::rr::GetCrtcInfo(xdisplay.get(), screenr.get(), result->crtc) };
+        BOOST_LOG(info)
+          << "Streaming display: "sv << result->name << " with res "sv << crt_info->width << 'x' << crt_info->height << " offset by "sv << crt_info->x << 'x' << crt_info->y;
 
-      width    = crt_info->width;
-      height   = crt_info->height;
-      offset_x = crt_info->x;
-      offset_y = crt_info->y;
+        width    = crt_info->width;
+        height   = crt_info->height;
+        offset_x = crt_info->x;
+        offset_y = crt_info->y;
+      }
+      else {
+        BOOST_LOG(warning) << "Couldn't get requested display info, defaulting to recording entire virtual desktop"sv;
+        width  = xattr.width;
+        height = xattr.height;
+      }
     }
     else {
       width  = xattr.width;
