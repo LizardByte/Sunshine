@@ -20,11 +20,11 @@
 #include "sunshine/main.h"
 #include "sunshine/task_pool.h"
 
+#include "cuda.h"
 #include "graphics.h"
 #include "misc.h"
 #include "vaapi.h"
 #include "x11grab.h"
-#include "cuda.h"
 
 using namespace std::literals;
 
@@ -517,9 +517,11 @@ struct x11_attr_t : public display_t {
       return va::make_hwdevice(width, height, false);
     }
 
+#ifdef SUNSHINE_BUILD_CUDA
     if(mem_type == mem_type_e::cuda) {
       return cuda::make_hwdevice(width, height, false);
     }
+#endif
 
     return std::make_shared<hwdevice_t>();
   }

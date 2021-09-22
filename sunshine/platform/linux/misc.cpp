@@ -141,9 +141,9 @@ std::string get_mac_address(const std::string_view &address) {
 }
 
 enum class source_e {
-  // #ifdef SUNSHINE_BUILD_CUDA
+#ifdef SUNSHINE_BUILD_CUDA
   NVFBC,
-// #endif
+#endif
 #ifdef SUNSHINE_BUILD_WAYLAND
   WAYLAND,
 #endif
@@ -156,14 +156,14 @@ enum class source_e {
 };
 static source_e source;
 
-// #ifdef SUNSHINE_BUILD_CUDA
+#ifdef SUNSHINE_BUILD_CUDA
 std::vector<std::string> nvfbc_display_names();
 std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
 
 bool verify_nvfbc() {
   return !nvfbc_display_names().empty();
 }
-// #endif
+#endif
 
 #ifdef SUNSHINE_BUILD_WAYLAND
 std::vector<std::string> wl_display_names();
@@ -194,10 +194,10 @@ bool verify_x11() {
 
 std::vector<std::string> display_names() {
   switch(source) {
-  // #ifdef SUNSHINE_BUILD_CUDA
+#ifdef SUNSHINE_BUILD_CUDA
   case source_e::NVFBC:
     return nvfbc_display_names();
-    // #endif
+#endif
 #ifdef SUNSHINE_BUILD_WAYLAND
   case source_e::WAYLAND:
     return wl_display_names();
@@ -217,10 +217,10 @@ std::vector<std::string> display_names() {
 
 std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
   switch(source) {
-    // #ifdef SUNSHINE_BUILD_CUDA
+#ifdef SUNSHINE_BUILD_CUDA
   case source_e::NVFBC:
     return nvfbc_display(hwdevice_type, display_name, framerate);
-    // #endif
+#endif
 #ifdef SUNSHINE_BUILD_WAYLAND
   case source_e::WAYLAND:
     return wl_display(hwdevice_type, display_name, framerate);
@@ -249,7 +249,7 @@ std::unique_ptr<deinit_t> init() {
     window_system = window_system_e::WAYLAND;
   }
 #endif
-#if defined(SUNSHINE_BUILD_X11) // || defined(SUNSHINE_BUILD_CUDA)
+#if defined(SUNSHINE_BUILD_X11) || defined(SUNSHINE_BUILD_CUDA)
   if(std::getenv("DISPLAY") && window_system != window_system_e::WAYLAND) {
     if(std::getenv("WAYLAND_DISPLAY")) {
       BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
@@ -258,13 +258,13 @@ std::unique_ptr<deinit_t> init() {
     window_system = window_system_e::X11;
   }
 #endif
-// #ifdef SUNSHINE_BUILD_CUDA
+#ifdef SUNSHINE_BUILD_CUDA
   if(verify_nvfbc()) {
     BOOST_LOG(info) << "Using nvFBC for screencasting"sv;
     source = source_e::NVFBC;
     goto found_source;
   }
-// #endif
+#endif
 #ifdef SUNSHINE_BUILD_WAYLAND
   if(verify_wl()) {
     BOOST_LOG(info) << "Using Wayland for screencasting"sv;

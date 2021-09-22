@@ -14,7 +14,6 @@ extern "C" {
 #include "sunshine/main.h"
 #include "sunshine/utility.h"
 #include "wayland.h"
-#include "x11grab.h"
 
 #define SUNSHINE_STRINGVIEW_HELPER(x) x##sv
 #define SUNSHINE_STRINGVIEW(x) SUNSHINE_STRINGVIEW_HELPER(x)

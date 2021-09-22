@@ -107,16 +107,27 @@ else()
 	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
 	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
 	option(SUNSHINE_ENABLE_WAYLAND "Enable building wayland specific code" ON)
-
-	if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  	set(CMAKE_CUDA_ARCHITECTURES 75)
-	endif()
-	enable_language(CUDA)
+	option(SUNSHINE_ENABLE_CUDA "Enable cuda specific code" ON)
 
 	if(${SUNSHINE_ENABLE_X11})
 		find_package(X11)
 	else()
 		set(X11_FOUND OFF)
+	endif()
+
+	set(CUDA_FOUND OFF)
+	if(${SUNSHINE_ENABLE_CUDA})
+		include(CheckLanguage)
+		check_language(CUDA)
+
+		if(CMAKE_CUDA_COMPILER)
+			if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+				set(CMAKE_CUDA_ARCHITECTURES 75)
+			endif()
+
+			set(CUDA_FOUND ON)
+			enable_language(CUDA)
+		endif()
 	endif()
 	if(${SUNSHINE_ENABLE_DRM})
 		find_package(LIBDRM)
@@ -138,6 +149,17 @@ else()
 		include_directories(${X11_INCLUDE_DIR})
 		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/x11grab.cpp)
 	endif()
+
+	if(CUDA_FOUND)
+		include_directories(third-party/nvfbc)
+		list(APPEND PLATFORM_TARGET_FILES
+			sunshine/platform/linux/cuda.cu
+			sunshine/platform/linux/cuda.cpp
+			third-party/nvfbc/NvFBC.h)
+
+			add_compile_definitions(SUNSHINE_BUILD_CUDA)
+	endif()
+
 	if(LIBDRM_FOUND AND LIBCAP_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_DRM)
 		include_directories(${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
@@ -187,16 +209,14 @@ else()
 			sunshine/platform/linux/wlgrab.cpp
 			sunshine/platform/linux/wayland.cpp)
 	endif()
-	if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND})
-		message(FATAL_ERROR "Couldn't find either x11, wayland or (libdrm and libcap)")
+	if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND} AND NOT ${})
+		message(FATAL_ERROR "Couldn't find either x11, wayland, cuda or (libdrm and libcap)")
 	endif()
 
 	list(APPEND PLATFORM_TARGET_FILES
 		sunshine/platform/linux/publish.cpp
 		sunshine/platform/linux/vaapi.h
 		sunshine/platform/linux/vaapi.cpp
-		sunshine/platform/linux/cuda.cu
-		sunshine/platform/linux/cuda.cpp
 		sunshine/platform/linux/cuda.h
 		sunshine/platform/linux/graphics.h
 		sunshine/platform/linux/graphics.cpp
@@ -211,8 +231,7 @@ else()
 		third-party/glad/include/EGL/eglplatform.h
 		third-party/glad/include/KHR/khrplatform.h
 		third-party/glad/include/glad/gl.h
-		third-party/glad/include/glad/egl.h
-		third-party/nvfbc/NvFBC.h)
+		third-party/glad/include/glad/egl.h)
 		
 	list(APPEND PLATFORM_LIBRARIES
 		dl
@@ -224,8 +243,7 @@ else()
 	include_directories(
 		/usr/include/libevdev-1.0
 		third-party/nv-codec-headers/include
-		third-party/glad/include
-		third-party/nvfbc)
+		third-party/glad/include)
 
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
 		set(SUNSHINE_EXECUTABLE_PATH "sunshine")

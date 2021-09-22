@@ -1,10 +1,14 @@
-#ifndef SUNSHINE_PLATFORM_CUDA_H
+#if !defined(SUNSHINE_PLATFORM_CUDA_H) && defined(SUNSHINE_BUILD_CUDA)
 #define SUNSHINE_PLATFORM_CUDA_H
 
-#ifndef __NVCC__
+#include <vector>
+#include <memory>
+#include <optional>
 
-#include "sunshine/platform/common.h"
-#include "x11grab.h"
+namespace platf {
+  class hwdevice_t;
+  class img_t;
+}
 
 namespace cuda {
 namespace nvfbc {
@@ -13,12 +17,6 @@ std::vector<std::string> display_names();
 std::shared_ptr<platf::hwdevice_t> make_hwdevice(int width, int height, bool vram);
 int init();
 } // namespace cuda
-
-#else
-namespace platf {
-class img_t;
-}
-#endif
 
 typedef struct cudaArray *cudaArray_t;
 
