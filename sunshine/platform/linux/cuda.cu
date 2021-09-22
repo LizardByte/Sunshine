@@ -264,10 +264,10 @@ int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std:
   int threadsX = viewport.width / 2;
   int threadsY = viewport.height;
 
-  dim3 block(threadsPerBlock, threadsPerBlock);
-  dim3 grid(div_align(threadsX, threadsPerBlock), div_align(threadsY, threadsPerBlock));
+  dim3 block(threadsPerBlock);
+  dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
 
-  RGBA_to_NV12<<<block, grid>>>(texture, Y, UV, pitchY, pitchUV, viewport, (video::color_t *)color_matrix.get());
+  RGBA_to_NV12<<<grid, block>>>(texture, Y, UV, pitchY, pitchUV, viewport, (video::color_t *)color_matrix.get());
 
   return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
 }
