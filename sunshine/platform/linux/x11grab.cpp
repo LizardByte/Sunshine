@@ -518,7 +518,7 @@ struct x11_attr_t : public display_t {
     }
 
     if(mem_type == mem_type_e::cuda) {
-      return cuda::make_hwdevice(width, height, xdisplay.get());
+      return cuda::make_hwdevice(width, height, false);
     }
 
     return std::make_shared<hwdevice_t>();
@@ -678,7 +678,7 @@ struct shm_attr_t : public x11_attr_t {
 
 std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
-    BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
+    BOOST_LOG(error) << "Could not initialize x11 display with the given hw device type"sv;
     return nullptr;
   }
 

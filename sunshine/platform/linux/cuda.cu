@@ -21,6 +21,9 @@ using namespace std::literals;
 #define CU_CHECK_PTR(x, y) \
   if(check((x), SUNSHINE_STRINGVIEW(y ": "))) return nullptr;
 
+#define CU_CHECK_OPT(x, y) \
+  if(check((x), SUNSHINE_STRINGVIEW(y ": "))) return std::nullopt;
+
 #define CU_CHECK_IGNORE(x, y) \
   check((x), SUNSHINE_STRINGVIEW(y ": "))
 
@@ -165,15 +168,21 @@ __global__ void RGBA_to_NV12(
   dstY[1]  = calcY(rgb_r, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
 }
 
-sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pitch, int threadsPerBlock, ptr_t &&color_matrix)
-    : array {}, texture { INVALID_TEXTURE }, threadsPerBlock { threadsPerBlock }, color_matrix { std::move(color_matrix) } {
-  auto format = cudaCreateChannelDesc<uchar4>();
+int tex_t::copy(std::uint8_t *src, int height, int pitch) {
+  CU_CHECK(cudaMemcpy2DToArray(array, 0, 0, src, pitch, pitch, height, cudaMemcpyDeviceToDevice), "Couldn't copy to cuda array from deviceptr");
 
-  CU_CHECK_VOID(cudaMallocArray(&array, &format, pitch, in_height, cudaArrayDefault), "Couldn't allocate cuda array");
+  return 0;
+}
+
+std::optional<tex_t> tex_t::make(int height, int pitch) {
+  tex_t tex;
+
+  auto format = cudaCreateChannelDesc<uchar4>();
+  CU_CHECK_OPT(cudaMallocArray(&tex.array, &format, pitch, height, cudaArrayDefault), "Couldn't allocate cuda array");
 
   cudaResourceDesc res {};
   res.resType         = cudaResourceTypeArray;
-  res.res.array.array = array;
+  res.res.array.array = tex.array;
 
   cudaTextureDesc desc {};
 
@@ -183,9 +192,40 @@ sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pit
 
   std::fill_n(std::begin(desc.addressMode), 2, cudaAddressModeClamp);
 
-  CU_CHECK_VOID(cudaCreateTextureObject(&texture, &res, &desc, nullptr), "Couldn't create cuda texture");
+  CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture, &res, &desc, nullptr), "Couldn't create cuda texture");
 
+  return std::move(tex);
+}
 
+tex_t::tex_t() : array { }, texture { INVALID_TEXTURE } {}
+tex_t::tex_t(tex_t &&other) : array { other.array }, texture { other.texture } {
+  other.array = 0;
+  other.texture = INVALID_TEXTURE;
+}
+
+tex_t &tex_t::operator=(tex_t &&other) {
+  std::swap(array, other.array);
+  std::swap(texture, other.texture);
+
+  return *this;
+}
+
+tex_t::~tex_t() {
+  if(texture != INVALID_TEXTURE) {
+    CU_CHECK_IGNORE(cudaDestroyTextureObject(texture), "Couldn't deallocate cuda texture");
+
+    texture = INVALID_TEXTURE;
+  }
+
+  if(array) {
+    CU_CHECK_IGNORE(cudaFreeArray(array), "Couldn't deallocate cuda array");
+
+    array = cudaArray_t {};
+  }
+}
+
+sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pitch, int threadsPerBlock, ptr_t &&color_matrix)
+    : threadsPerBlock { threadsPerBlock }, color_matrix { std::move(color_matrix) } {
   // Ensure aspect ratio is maintained
   auto scalar       = std::fminf(out_width / (float)in_width, out_height / (float)in_height);
   auto out_width_f  = in_width * scalar;
@@ -202,52 +242,32 @@ sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pit
   viewport.offsetY = offsetY_f;
 }
 
-sws_t::~sws_t() {
-  if(texture != INVALID_TEXTURE) {
-    CU_CHECK_IGNORE(cudaDestroyTextureObject(texture), "Couldn't deallocate cuda texture");
-
-    texture = INVALID_TEXTURE;
-  }
-
-  if(array) {
-    CU_CHECK_IGNORE(cudaFreeArray(array), "Couldn't deallocate cuda array");
-
-    array = cudaArray_t {};
-  }
-}
-
-std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, int pitch) {
+std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, int pitch) {
   cudaDeviceProp props;
   int device;
-  CU_CHECK_PTR(cudaGetDevice(&device), "Couldn't get cuda device");
-  CU_CHECK_PTR(cudaGetDeviceProperties(&props, device), "Couldn't get cuda device properties");
+  CU_CHECK_OPT(cudaGetDevice(&device), "Couldn't get cuda device");
+  CU_CHECK_OPT(cudaGetDeviceProperties(&props, device), "Couldn't get cuda device properties");
 
   auto ptr = make_ptr<video::color_t>();
   if(!ptr) {
-    return nullptr;
+    return std::nullopt;
   }
 
-  auto sws = std::make_unique<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor / 2, std::move(ptr));
-
-  if(sws->texture == INVALID_TEXTURE) {
-    return nullptr;
-  }
-
-  return sws;
+  return std::make_optional<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor / 2, std::move(ptr));
 }
 
-int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV) {
-  return convert(Y, UV, pitchY, pitchUV, viewport);
+int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture) {
+  return convert(Y, UV, pitchY, pitchUV, texture, viewport);
 }
 
-int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, const viewport_t &viewport) {
+int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, const viewport_t &viewport) {
   int threadsX = viewport.width / 2;
   int threadsY = viewport.height;
 
   dim3 block(threadsPerBlock, threadsPerBlock);
   dim3 grid(div_align(threadsX, threadsPerBlock), div_align(threadsY, threadsPerBlock));
 
-  RGBA_to_NV12<<<block, grid>>>(texture, Y, UV, pitchY, pitchUV, viewport, (video::color_t*)color_matrix.get());
+  RGBA_to_NV12<<<block, grid>>>(texture, Y, UV, pitchY, pitchUV, viewport, (video::color_t *)color_matrix.get());
 
   return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
 }
@@ -274,7 +294,7 @@ void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
   CU_CHECK_IGNORE(cudaMemcpy(color_matrix.get(), color_p, sizeof(video::color_t), cudaMemcpyHostToDevice), "Couldn't copy color matrix to cuda");
 }
 
-int sws_t::load_ram(platf::img_t &img) {
+int sws_t::load_ram(platf::img_t &img, cudaArray_t array) {
   return CU_CHECK_IGNORE(cudaMemcpy2DToArray(array, 0, 0, img.data, img.row_pitch, img.width * img.pixel_pitch, img.height, cudaMemcpyHostToDevice), "Couldn't copy to cuda array");
 }
 

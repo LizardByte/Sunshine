@@ -141,6 +141,13 @@ public:
 
 struct img_t {
 public:
+  img_t() = default;
+
+  img_t(img_t &&)      = delete;
+  img_t(const img_t &) = delete;
+  img_t &operator=(img_t &&) = delete;
+  img_t &operator=(const img_t &) = delete;
+
   std::uint8_t *data {};
   std::int32_t width {};
   std::int32_t height {};
