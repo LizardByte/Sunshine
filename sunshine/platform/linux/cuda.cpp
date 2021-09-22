@@ -461,7 +461,7 @@ public:
     }
 
     cursor_visible = cursor;
-    if(false && cursor) {
+    if(cursor) {
       capture_params.bPushModel          = nv_bool(false);
       capture_params.bWithCursor         = nv_bool(true);
       capture_params.bAllowDirectCapture = nv_bool(false);
