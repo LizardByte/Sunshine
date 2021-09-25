@@ -393,6 +393,8 @@ public:
       }
     }
 
+    delay = std::chrono::nanoseconds { 1s } / framerate;
+
     capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS { NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER };
 
     capture_params.eCaptureType                = NVFBC_CAPTURE_SHARED_CUDA;
@@ -426,6 +428,8 @@ public:
   }
 
   platf::capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<platf::img_t> img, bool *cursor) override {
+    auto next_frame = std::chrono::steady_clock::now();
+
     // Force display_t::capture to initialize handle_t::capture
     cursor_visible = !*cursor;
 
@@ -434,7 +438,17 @@ public:
     });
 
     while(img) {
-      auto status = snapshot(img.get(), 500ms, *cursor);
+      auto now = std::chrono::steady_clock::now();
+      if(next_frame > now) {
+        std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+      }
+      while(next_frame > now) {
+        std::this_thread::sleep_for(1ns);
+        now = std::chrono::steady_clock::now();
+      }
+      next_frame = now + delay;
+
+      auto status = snapshot(img.get(), 150ms, *cursor);
       switch(status) {
       case platf::capture_e::reinit:
       case platf::capture_e::error:
@@ -552,10 +566,6 @@ public:
       return platf::capture_e::error;
     }
 
-    if(!info.bIsNewFrame) {
-      return platf::capture_e::timeout;
-    }
-
     if(((img_t *)img)->tex.copy((std::uint8_t *)device_ptr, img->height, img->row_pitch)) {
       return platf::capture_e::error;
     }
@@ -589,6 +599,8 @@ public:
   int dummy_img(platf::img_t *) override {
     return 0;
   }
+
+  std::chrono::nanoseconds delay;
 
   bool cursor_visible;
   handle_t handle;
