@@ -29,6 +29,9 @@ KMS allows Sunshine to grab the monitor with lower latency then through X11
 sudo apt install cmake gcc-10 g++-10 libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev
 ```
 
+#### Warning:
+You might require ffmpeg version >= 4.3. Check the troubleshooting section for more information.
+
 ### Compilation:
 
 #### X11 Only
@@ -87,6 +90,9 @@ It's necessary to allow Sunshine to use KMS
 
 - If you get "Error: Failed to create client: Daemon not running", ensure that your avahi-daemon is running:
 	- `systemctl status avahi-daemon`
+
+- If you hardware acceleration on Linux using an Intel or an AMD GPU (with VAAPI), you will get tons of [graphical issues](https://github.com/loki-47-6F-64/sunshine/issues/228) if your ffmpeg version is < 4.3. If it is not available in your distribution's repositories, consider using a newer version of your distribution.
+	- Ubuntu started to ship ffmpeg 4.3 starting with groovy (20.10). If you're using an older version, you could use [this PPA](https://launchpad.net/%7Esavoury1/+archive/ubuntu/ffmpeg4) instead of upgrading. **Using PPAs is dangerous and may break your system. Use it at your own risk.**
 
 ## Windows 10
 
