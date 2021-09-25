@@ -140,7 +140,7 @@ inline __device__ float calcY(float3 pixel, const video::color_t *const color_ma
 __global__ void RGBA_to_NV12(
   cudaTextureObject_t srcImage, std::uint8_t *dstY, std::uint8_t *dstUV,
   std::uint32_t dstPitchY, std::uint32_t dstPitchUV,
-  const viewport_t viewport, const video::color_t *const color_matrix) {
+  float scale, const viewport_t viewport, const video::color_t *const color_matrix) {
 
   int idX = (threadIdx.x + blockDim.x * blockIdx.x) * 2;
   int idY = (threadIdx.y + blockDim.y * blockIdx.y);
@@ -148,8 +148,8 @@ __global__ void RGBA_to_NV12(
   if(idX >= viewport.width) return;
   if(idY >= viewport.height) return;
 
-  float x = (float)idX / (float)viewport.width / 4;
-  float y = (float)idY / (float)viewport.height;
+  float x = idX * scale;
+  float y = idY * scale;
 
   idX += viewport.offsetX;
   idY += viewport.offsetY;
@@ -158,7 +158,7 @@ __global__ void RGBA_to_NV12(
   dstUV = dstUV + idX + (idY / 2 * dstPitchUV);
 
   float3 rgb_l = bgra_to_rgb(tex2D<float4>(srcImage, x, y));
-  float3 rgb_r = bgra_to_rgb(tex2D<float4>(srcImage, x + 0.25f / viewport.width, y + 1.0f / viewport.height));
+  float3 rgb_r = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y));
 
   float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix) * 255.0f;
 
@@ -188,7 +188,7 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
 
   desc.readMode         = cudaReadModeNormalizedFloat;
   desc.filterMode       = cudaFilterModeLinear;
-  desc.normalizedCoords = true;
+  desc.normalizedCoords = false;
 
   std::fill_n(std::begin(desc.addressMode), 2, cudaAddressModeClamp);
 
@@ -197,9 +197,9 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
   return std::move(tex);
 }
 
-tex_t::tex_t() : array { }, texture { INVALID_TEXTURE } {}
+tex_t::tex_t() : array {}, texture { INVALID_TEXTURE } {}
 tex_t::tex_t(tex_t &&other) : array { other.array }, texture { other.texture } {
-  other.array = 0;
+  other.array   = 0;
   other.texture = INVALID_TEXTURE;
 }
 
@@ -240,6 +240,8 @@ sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pit
 
   viewport.offsetX = offsetX_f;
   viewport.offsetY = offsetY_f;
+
+  scale = 1.0f / scalar;
 }
 
 std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, int pitch) {
@@ -253,7 +255,7 @@ std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int
     return std::nullopt;
   }
 
-  return std::make_optional<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor / 2, std::move(ptr));
+  return std::make_optional<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor, std::move(ptr));
 }
 
 int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture) {
@@ -267,7 +269,7 @@ int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std:
   dim3 block(threadsPerBlock);
   dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
 
-  RGBA_to_NV12<<<grid, block>>>(texture, Y, UV, pitchY, pitchUV, viewport, (video::color_t *)color_matrix.get());
+  RGBA_to_NV12<<<grid, block>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (video::color_t *)color_matrix.get());
 
   return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
 }

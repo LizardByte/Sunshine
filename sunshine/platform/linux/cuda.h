@@ -83,6 +83,8 @@ public:
   int threadsPerBlock;
 
   viewport_t viewport;
+
+  float scale;
 };
 } // namespace cuda
 
