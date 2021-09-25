@@ -286,8 +286,8 @@ std::unique_ptr<audio_control_t> audio_control();
  */
 std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
 
-// A list of names of displays accepted as display_name
-std::vector<std::string> display_names();
+// A list of names of displays accepted as display_name with the mem_type_e
+std::vector<std::string> display_names(mem_type_e hwdevice_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

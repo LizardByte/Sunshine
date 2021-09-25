@@ -585,7 +585,7 @@ void captureThread(
 
   // Get all the monitor names now, rather than at boot, to
   // get the most up-to-date list available monitors
-  auto display_names = platf::display_names();
+  auto display_names = platf::display_names(map_dev_type(encoder.dev_type));
   int display_p      = 0;
 
   if(display_names.empty()) {
@@ -1105,17 +1105,30 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
     return std::nullopt;
   }
 
-  encode_session.session  = std::move(*session);
+  encode_session.session = std::move(*session);
 
   return std::move(encode_session);
 }
 
 encode_e encode_run_sync(
   std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs,
-  encode_session_ctx_queue_t &encode_session_ctx_queue,
-  int &display_p, const std::vector<std::string> &display_names) {
+  encode_session_ctx_queue_t &encode_session_ctx_queue) {
 
   const auto &encoder = encoders.front();
+  auto display_names  = platf::display_names(map_dev_type(encoder.dev_type));
+  int display_p       = 0;
+
+  if(display_names.empty()) {
+    display_names.emplace_back(config::video.output_name);
+  }
+
+  for(int x = 0; x < display_names.size(); ++x) {
+    if(display_names[x] == config::video.output_name) {
+      display_p = x;
+
+      break;
+    }
+  }
 
   std::shared_ptr<platf::display_t> disp;
 
@@ -1269,22 +1282,7 @@ void captureThreadSync() {
     }
   });
 
-  auto display_names = platf::display_names();
-  int display_p      = 0;
-
-  if(display_names.empty()) {
-    display_names.emplace_back(config::video.output_name);
-  }
-
-  for(int x = 0; x < display_names.size(); ++x) {
-    if(display_names[x] == config::video.output_name) {
-      display_p = x;
-
-      break;
-    }
-  }
-
-  while(encode_run_sync(synced_session_ctxs, ctx, display_p, display_names) == encode_e::reinit) {}
+  while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
 
 void capture_async(
