@@ -112,6 +112,8 @@ public:
 
     sws = std::move(*sws_opt);
 
+    linear_interpolation = width != frame->width || height != frame->height;
+
     return 0;
   }
 
@@ -140,12 +142,19 @@ public:
       return;
     }
 
-    sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture, { frame->width, frame->height, 0, 0 });
+    sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, { frame->width, frame->height, 0, 0 });
+  }
+
+  cudaTextureObject_t tex_obj(const tex_t &tex) const {
+    return linear_interpolation ? tex.texture.linear : tex.texture.point;
   }
 
   frame_t hwframe;
 
   int width, height;
+
+  // When heigth and width don't change, it's not necessary to use linear interpolation
+  bool linear_interpolation;
 
   sws_t sws;
 };
@@ -153,7 +162,7 @@ public:
 class cuda_ram_t : public cuda_t {
 public:
   int convert(platf::img_t &img) override {
-    return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex.texture);
+    return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex));
   }
 
   int set_frame(AVFrame *frame) {
@@ -177,7 +186,7 @@ public:
 class cuda_vram_t : public cuda_t {
 public:
   int convert(platf::img_t &img) override {
-    return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], (cudaTextureObject_t)img.data);
+    return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *)&img)->tex));
   }
 };
 
@@ -497,7 +506,7 @@ public:
 
       NVFBC_TOCUDA_GRAB_FRAME_PARAMS grab {
         NVFBC_TOCUDA_GRAB_FRAME_PARAMS_VER,
-        NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY,
+        NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT,
         &device_ptr,
         &info,
         0,
@@ -551,7 +560,7 @@ public:
 
     NVFBC_TOCUDA_GRAB_FRAME_PARAMS grab {
       NVFBC_TOCUDA_GRAB_FRAME_PARAMS_VER,
-      NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY,
+      NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT,
       &device_ptr,
       &info,
       (std::uint32_t)timeout.count(),
@@ -580,6 +589,7 @@ public:
   std::shared_ptr<platf::img_t> alloc_img() override {
     auto img = std::make_shared<cuda::img_t>();
 
+    img->data        = nullptr;
     img->width       = width;
     img->height      = height;
     img->pixel_pitch = 4;
@@ -590,8 +600,7 @@ public:
       return nullptr;
     }
 
-    img->tex  = std::move(*tex_opt);
-    img->data = (std::uint8_t *)img->tex.texture;
+    img->tex = std::move(*tex_opt);
 
     return img;
   };

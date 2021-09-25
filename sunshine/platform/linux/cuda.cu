@@ -160,7 +160,7 @@ __global__ void RGBA_to_NV12(
   float3 rgb_l = bgra_to_rgb(tex2D<float4>(srcImage, x, y));
   float3 rgb_r = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y));
 
-  float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix) * 255.0f;
+  float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix) * 256.0f;
 
   dstUV[0] = uv.x;
   dstUV[1] = uv.y;
@@ -187,12 +187,16 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
   cudaTextureDesc desc {};
 
   desc.readMode         = cudaReadModeNormalizedFloat;
-  desc.filterMode       = cudaFilterModeLinear;
+  desc.filterMode       = cudaFilterModePoint;
   desc.normalizedCoords = false;
 
   std::fill_n(std::begin(desc.addressMode), 2, cudaAddressModeClamp);
 
-  CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture, &res, &desc, nullptr), "Couldn't create cuda texture");
+  CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture.point, &res, &desc, nullptr), "Couldn't create cuda texture that uses point interpolation");
+
+  desc.filterMode = cudaFilterModeLinear;
+
+  CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture.linear, &res, &desc, nullptr), "Couldn't create cuda texture that uses linear interpolation");
 
   return std::move(tex);
 }
@@ -200,7 +204,8 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
 tex_t::tex_t() : array {}, texture { INVALID_TEXTURE } {}
 tex_t::tex_t(tex_t &&other) : array { other.array }, texture { other.texture } {
   other.array   = 0;
-  other.texture = INVALID_TEXTURE;
+  other.texture.point = INVALID_TEXTURE;
+  other.texture.linear = INVALID_TEXTURE;
 }
 
 tex_t &tex_t::operator=(tex_t &&other) {
@@ -211,10 +216,16 @@ tex_t &tex_t::operator=(tex_t &&other) {
 }
 
 tex_t::~tex_t() {
-  if(texture != INVALID_TEXTURE) {
-    CU_CHECK_IGNORE(cudaDestroyTextureObject(texture), "Couldn't deallocate cuda texture");
+  if(texture.point != INVALID_TEXTURE) {
+    CU_CHECK_IGNORE(cudaDestroyTextureObject(texture.point), "Couldn't deallocate cuda texture that uses point interpolation");
 
-    texture = INVALID_TEXTURE;
+    texture.point = INVALID_TEXTURE;
+  }
+
+  if(texture.linear != INVALID_TEXTURE) {
+    CU_CHECK_IGNORE(cudaDestroyTextureObject(texture.linear), "Couldn't deallocate cuda texture that uses linear interpolation");
+
+    texture.linear = INVALID_TEXTURE;
   }
 
   if(array) {

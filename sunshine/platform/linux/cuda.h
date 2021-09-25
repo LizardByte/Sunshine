@@ -54,7 +54,11 @@ public:
   int copy(std::uint8_t *src, int height, int pitch);
 
   cudaArray_t array;
-  cudaTextureObject_t texture;
+
+  struct texture {
+    cudaTextureObject_t point;
+    cudaTextureObject_t linear;
+  } texture;
 };
 
 class sws_t {
