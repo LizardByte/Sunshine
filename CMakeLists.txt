@@ -13,7 +13,6 @@ if(WIN32)
 endif()
 add_subdirectory(third-party/moonlight-common-c/enet)
 add_subdirectory(third-party/Simple-Web-Server)
-add_subdirectory(third-party/cbs)
 
 set(UPNPC_BUILD_SHARED OFF CACHE BOOL "no shared libraries")
 set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
@@ -310,6 +309,8 @@ include_directories(
   ${FFMPEG_INCLUDE_DIRS}
   ${PLATFORM_INCLUDE_DIRS}
 )
+
+add_subdirectory(third-party/cbs)
 
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
