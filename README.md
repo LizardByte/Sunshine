@@ -38,16 +38,15 @@ This is for wlroots based compositores, such as Sway
 ```
 sudo apt install libwayland-dev
 ```
-#### Warning:
-You might require ffmpeg version >= 4.3. Check the troubleshooting section for more information.
-
-### Compilation:
 
 #### Cuda + NvFBC
 This requires proprietary software
 ```
 sudo apt install nvidia-cuda-dev nvidia-cuda-toolkit
 ```
+
+#### Warning:
+You might require ffmpeg version >= 4.3. Check the troubleshooting section for more information.
 
 ### Compilation:
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
