@@ -1,4 +1,5 @@
 #include <bitset>
+#include <optional>
 
 #include <NvFBC.h>
 #include <ffnvcodec/dynlink_loader.h>
@@ -29,7 +30,7 @@ namespace cuda {
 constexpr auto cudaDevAttrMaxThreadsPerBlock          = (CUdevice_attribute)1;
 constexpr auto cudaDevAttrMaxThreadsPerMultiProcessor = (CUdevice_attribute)39;
 
-void pass_error(const std::string_view &sv, const char *name, const char *description) {
+void pass_error(const std::string &sv, const char *name, const char *description) {
   BOOST_LOG(error) << sv << name << ':' << description;
 }
 
@@ -276,7 +277,7 @@ public:
     return *this;
   }
 
-  static std::optional<handle_t> make() {
+  static std::unique_ptr<handle_t> make() {
     NVFBC_CREATE_HANDLE_PARAMS params { NVFBC_CREATE_HANDLE_PARAMS_VER };
 
     handle_t handle;
@@ -284,12 +285,12 @@ public:
     if(status) {
       BOOST_LOG(error) << "Failed to create session: "sv << handle.last_error();
 
-      return std::nullopt;
+      return nullptr;
     }
 
     handle.handle_flags[SESSION_HANDLE] = true;
 
-    return std::move(handle);
+    return std::make_unique<handle_t>(std::move(handle));
   }
 
   const char *last_error() {

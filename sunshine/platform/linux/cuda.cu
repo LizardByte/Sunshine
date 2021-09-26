@@ -1,15 +1,11 @@
-// #include <algorithm>
+#include <algorithm>
 #include <helper_math.h>
 #include <limits>
 #include <memory>
-#include <optional>
-#include <string_view>
 
 #include "cuda.h"
 
-using namespace std::literals;
-
-#define SUNSHINE_STRINGVIEW_HELPER(x) x##sv
+#define SUNSHINE_STRINGVIEW_HELPER(x) x
 #define SUNSHINE_STRINGVIEW(x) SUNSHINE_STRINGVIEW_HELPER(x)
 
 #define CU_CHECK(x, y) \
@@ -21,13 +17,8 @@ using namespace std::literals;
 #define CU_CHECK_PTR(x, y) \
   if(check((x), SUNSHINE_STRINGVIEW(y ": "))) return nullptr;
 
-#define CU_CHECK_OPT(x, y) \
-  if(check((x), SUNSHINE_STRINGVIEW(y ": "))) return std::nullopt;
-
 #define CU_CHECK_IGNORE(x, y) \
   check((x), SUNSHINE_STRINGVIEW(y ": "))
-
-using namespace std::literals;
 
 //////////////////// Special desclarations
 /**
@@ -83,8 +74,8 @@ inline T div_align(T l, T r) {
   return (l + r - 1) / r;
 }
 
-void pass_error(const std::string_view &sv, const char *name, const char *description);
-inline static int check(cudaError_t result, const std::string_view &sv) {
+void pass_error(const std::string &sv, const char *name, const char *description);
+inline static int check(cudaError_t result, const std::string &sv) {
   if(result) {
     auto name        = cudaGetErrorName(result);
     auto description = cudaGetErrorString(result);
@@ -174,11 +165,11 @@ int tex_t::copy(std::uint8_t *src, int height, int pitch) {
   return 0;
 }
 
-std::optional<tex_t> tex_t::make(int height, int pitch) {
+std::unique_ptr<tex_t> tex_t::make(int height, int pitch) {
   tex_t tex;
 
   auto format = cudaCreateChannelDesc<uchar4>();
-  CU_CHECK_OPT(cudaMallocArray(&tex.array, &format, pitch, height, cudaArrayDefault), "Couldn't allocate cuda array");
+  CU_CHECK_PTR(cudaMallocArray(&tex.array, &format, pitch, height, cudaArrayDefault), "Couldn't allocate cuda array");
 
   cudaResourceDesc res {};
   res.resType         = cudaResourceTypeArray;
@@ -192,13 +183,13 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
 
   std::fill_n(std::begin(desc.addressMode), 2, cudaAddressModeClamp);
 
-  CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture.point, &res, &desc, nullptr), "Couldn't create cuda texture that uses point interpolation");
+  CU_CHECK_PTR(cudaCreateTextureObject(&tex.texture.point, &res, &desc, nullptr), "Couldn't create cuda texture that uses point interpolation");
 
   desc.filterMode = cudaFilterModeLinear;
 
-  CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture.linear, &res, &desc, nullptr), "Couldn't create cuda texture that uses linear interpolation");
+  CU_CHECK_PTR(cudaCreateTextureObject(&tex.texture.linear, &res, &desc, nullptr), "Couldn't create cuda texture that uses linear interpolation");
 
-  return std::move(tex);
+  return std::make_unique<tex_t>(std::move(tex));
 }
 
 tex_t::tex_t() : array {}, texture { INVALID_TEXTURE } {}
@@ -255,18 +246,18 @@ sws_t::sws_t(int in_width, int in_height, int out_width, int out_height, int pit
   scale = 1.0f / scalar;
 }
 
-std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, int pitch) {
+std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, int pitch) {
   cudaDeviceProp props;
   int device;
-  CU_CHECK_OPT(cudaGetDevice(&device), "Couldn't get cuda device");
-  CU_CHECK_OPT(cudaGetDeviceProperties(&props, device), "Couldn't get cuda device properties");
+  CU_CHECK_PTR(cudaGetDevice(&device), "Couldn't get cuda device");
+  CU_CHECK_PTR(cudaGetDeviceProperties(&props, device), "Couldn't get cuda device properties");
 
   auto ptr = make_ptr<video::color_t>();
   if(!ptr) {
-    return std::nullopt;
+    return nullptr;
   }
 
-  return std::make_optional<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor, std::move(ptr));
+  return std::make_unique<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor, std::move(ptr));
 }
 
 int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture) {

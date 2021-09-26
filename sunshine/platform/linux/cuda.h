@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <memory>
-#include <optional>
+#include <string>
 
 namespace platf {
   class hwdevice_t;
@@ -42,7 +42,7 @@ struct viewport_t {
 
 class tex_t {
 public:
-  static std::optional<tex_t> make(int height, int pitch);
+  static std::unique_ptr<tex_t> make(int height, int pitch);
 
   tex_t();
   tex_t(tex_t &&);
@@ -72,7 +72,7 @@ public:
    * 
    * pitch -- The size of a single row of pixels in bytes
    */
-  static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, int pitch);
+  static std::unique_ptr<sws_t> make(int in_width, int in_height, int out_width, int out_height, int pitch);
 
   // Converts loaded image into a CUDevicePtr
   int convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture);

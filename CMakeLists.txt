@@ -351,11 +351,14 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${PLATFORM_LIBRARIES})
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++17>")
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:${SUNSHINE_COMPILE_OPTIONS}>")
 
 foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
   add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=${flag}>)
 endforeach()
+add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-std=c++14>)
+add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:-std=c++14>)
 
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_CONFIG_DIR="${SUNSHINE_CONFIG_DIR}")
@@ -363,4 +366,4 @@ list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_DEFAULT_DIR="${SUNSHINE_DEFAULT_DIR}")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
-set_target_properties(sunshine PROPERTIES CXX_STANDARD 17)
+# set_target_properties(sunshine PROPERTIES CXX_STANDARD 17)
