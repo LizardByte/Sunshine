@@ -264,13 +264,11 @@ std::unique_ptr<deinit_t> init() {
 #endif
 #ifdef SUNSHINE_BUILD_CUDA
   if(verify_nvfbc()) {
-    BOOST_LOG(info) << "Using NvFBC for screencasting"sv;
     sources[source::NVFBC] = true;
   }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
   if(verify_wl()) {
-    BOOST_LOG(info) << "Using Wayland for screencasting"sv;
     sources[source::WAYLAND] = true;
   }
 #endif
@@ -282,13 +280,11 @@ std::unique_ptr<deinit_t> init() {
       display_cursor = false;
     }
 
-    BOOST_LOG(info) << "Using KMS for screencasting"sv;
     sources[source::KMS] = true;
   }
 #endif
 #ifdef SUNSHINE_BUILD_X11
   if(verify_x11()) {
-    BOOST_LOG(info) << "Using X11 for screencasting"sv;
     sources[source::X11] = true;
   }
 #endif

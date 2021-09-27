@@ -101,6 +101,23 @@ void freeCudaPtr_t::operator()(void *ptr) {
   CU_CHECK_IGNORE(cudaFree(ptr), "Couldn't free cuda device pointer");
 }
 
+void freeCudaStream_t::operator()(cudaStream_t ptr) {
+  CU_CHECK_IGNORE(cudaStreamDestroy(ptr), "Couldn't free cuda stream");
+}
+
+stream_t make_stream(int flags) {
+  cudaStream_t stream;
+
+  if(!flags) {
+    CU_CHECK_PTR(cudaStreamCreate(&stream), "Couldn't create cuda stream");
+  }
+  else {
+    CU_CHECK_PTR(cudaStreamCreateWithFlags(&stream, flags), "Couldn't create cuda stream with flags");
+  }
+
+  return stream_t { stream };
+}
+
 inline __device__ float3 bgra_to_rgb(uchar4 vec) {
   return make_float3((float)vec.z, (float)vec.y, (float)vec.x);
 }
@@ -260,18 +277,18 @@ std::unique_ptr<sws_t> sws_t::make(int in_width, int in_height, int out_width, i
   return std::make_unique<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor, std::move(ptr));
 }
 
-int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture) {
-  return convert(Y, UV, pitchY, pitchUV, texture, viewport);
+int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream) {
+  return convert(Y, UV, pitchY, pitchUV, texture, stream, viewport);
 }
 
-int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, const viewport_t &viewport) {
+int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport) {
   int threadsX = viewport.width / 2;
   int threadsY = viewport.height;
 
   dim3 block(threadsPerBlock);
   dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
 
-  RGBA_to_NV12<<<grid, block>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (video::color_t *)color_matrix.get());
+  RGBA_to_NV12<<<grid, block, 0, stream>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (video::color_t *)color_matrix.get());
 
   return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
 }
