@@ -696,7 +696,13 @@ public:
 };
 
 inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
-  auto res = poll(&polls.data()->el, polls.size(), to.count());
+  std::vector<pollfd> polls_tmp;
+  polls_tmp.reserve(polls.size());
+  for(auto &poll : polls) {
+    polls_tmp.emplace_back(poll.el);
+  }
+
+  auto res = poll(polls_tmp.data(), polls.size(), to.count());
 
   // If timed out
   if(!res) {
@@ -871,7 +877,7 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
     }
 
     if(polls.empty()) {
-      std::this_thread::sleep_for(50ms);
+      std::this_thread::sleep_for(250ms);
     }
     else {
       rumbleIterate(effects, polls, 100ms);
