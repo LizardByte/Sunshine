@@ -19,6 +19,9 @@
 
 extern "C" int close(int __fd);
 
+// X11 Display
+extern "C" struct _XDisplay;
+
 struct AVFrame;
 void free_frame(AVFrame *frame);
 
@@ -227,7 +230,7 @@ struct surface_descriptor_t {
   std::uint32_t offsets[4];
 };
 
-display_t make_display(util::Either<gbm::gbm_t::pointer, wl_display *> native_display);
+display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display);
 std::optional<ctx_t> make_ctx(display_t::pointer display);
 
 std::optional<rgb_t> import_source(
@@ -276,7 +279,11 @@ public:
   static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex);
   static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_heigth);
 
-  int convert(nv12_t &nv12);
+  // Convert the loaded image into the first two framebuffers
+  int convert(gl::frame_buf_t &fb);
+
+  // Make an area of the image black
+  int blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
 
   void load_ram(platf::img_t &img);
   void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);

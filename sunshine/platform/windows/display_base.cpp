@@ -452,7 +452,7 @@ std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &
   return nullptr;
 }
 
-std::vector<std::string> display_names() {
+std::vector<std::string> display_names(mem_type_e) {
   std::vector<std::string> display_names;
 
   HRESULT status;
