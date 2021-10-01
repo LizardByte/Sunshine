@@ -99,14 +99,20 @@ enum quality_e : int {
   _default = 0,
   speed,
   balanced,
-  //quality2,
 };
 
-enum rc_e : int {
+enum class rc_hevc_e : int {
   constqp,     /**< Constant QP mode */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
   vbr_peak,    /**< Peak Contrained Variable Bitrate */
   cbr,         /**< Constant bitrate mode */
+};
+
+enum class rc_h264_e : int {
+  constqp,     /**< Constant QP mode */
+  cbr,         /**< Constant bitrate mode */
+  vbr_peak,    /**< Peak Contrained Variable Bitrate */
+  vbr_latency, /**< Latency Constrained Variable Bitrate */
 };
 
 enum coder_e : int {
@@ -120,15 +126,25 @@ std::optional<quality_e> quality_from_view(const std::string_view &quality) {
   if(quality == #x##sv) return x
   _CONVERT_(speed);
   _CONVERT_(balanced);
-  //_CONVERT_(quality2);
   if(quality == "default"sv) return _default;
 #undef _CONVERT_
   return std::nullopt;
 }
 
-std::optional<rc_e> rc_from_view(const std::string_view &rc) {
+std::optional<int> rc_h264_from_view(const std::string_view &rc) {
 #define _CONVERT_(x) \
-  if(rc == #x##sv) return x
+  if(rc == #x##sv) return (int)rc_h264_e::x
+  _CONVERT_(constqp);
+  _CONVERT_(vbr_latency);
+  _CONVERT_(vbr_peak);
+  _CONVERT_(cbr);
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+std::optional<int> rc_hevc_from_view(const std::string_view &rc) {
+#define _CONVERT_(x) \
+  if(rc == #x##sv) return (int)rc_hevc_e::x
   _CONVERT_(constqp);
   _CONVERT_(vbr_latency);
   _CONVERT_(vbr_peak);
@@ -164,6 +180,7 @@ video_t video {
 
   {
     amd::balanced,
+    std::nullopt,
     std::nullopt,
     -1 }, // amd
 
@@ -659,8 +676,14 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
 
   int_f(vars, "amd_quality", video.amd.quality, amd::quality_from_view);
-  int_f(vars, "amd_rc", video.amd.rc, amd::rc_from_view);
+
+  std::string rc;
+  string_f(vars, "amd_rc", rc);
   int_f(vars, "amd_coder", video.amd.coder, amd::coder_from_view);
+  if(!rc.empty()) {
+    video.amd.rc_h264 = amd::rc_h264_from_view(rc);
+    video.amd.rc_hevc = amd::rc_hevc_from_view(rc);
+  }
 
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);

@@ -29,7 +29,8 @@ struct video_t {
 
   struct {
     std::optional<int> quality;
-    std::optional<int> rc;
+    std::optional<int> rc_h264;
+    std::optional<int> rc_hevc;
     int coder;
   } amd;
 

@@ -56,6 +56,10 @@ inline static int check(CUresult result, const std::string_view &sv) {
   return 0;
 }
 
+void freeStream(CUstream stream) {
+  CU_CHECK_IGNORE(cdf->cuStreamDestroy(stream), "Couldn't destroy cuda stream");
+}
+
 class img_t : public platf::img_t {
 public:
   tex_t tex;
@@ -94,7 +98,8 @@ public:
     this->hwframe.reset(frame);
     this->frame = frame;
 
-    if(((AVHWFramesContext *)frame->hw_frames_ctx->data)->sw_format != AV_PIX_FMT_NV12) {
+    auto hwframe_ctx = (AVHWFramesContext *)frame->hw_frames_ctx->data;
+    if(hwframe_ctx->sw_format != AV_PIX_FMT_NV12) {
       BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12"sv;
       return -1;
     }
@@ -104,6 +109,15 @@ public:
 
       return -1;
     }
+
+    auto cuda_ctx = (AVCUDADeviceContext *)hwframe_ctx->device_ctx->hwctx;
+
+    stream = make_stream();
+    if(!stream) {
+      return -1;
+    }
+
+    cuda_ctx->stream = stream.get();
 
     auto sws_opt = sws_t::make(width, height, frame->width, frame->height, width * 4);
     if(!sws_opt) {
@@ -142,13 +156,14 @@ public:
       return;
     }
 
-    sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, { frame->width, frame->height, 0, 0 });
+    sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), { frame->width, frame->height, 0, 0 });
   }
 
   cudaTextureObject_t tex_obj(const tex_t &tex) const {
     return linear_interpolation ? tex.texture.linear : tex.texture.point;
   }
 
+  stream_t stream;
   frame_t hwframe;
 
   int width, height;
@@ -162,7 +177,7 @@ public:
 class cuda_ram_t : public cuda_t {
 public:
   int convert(platf::img_t &img) override {
-    return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex));
+    return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
   }
 
   int set_frame(AVFrame *frame) {
@@ -186,7 +201,7 @@ public:
 class cuda_vram_t : public cuda_t {
 public:
   int convert(platf::img_t &img) override {
-    return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *)&img)->tex));
+    return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *)&img)->tex), stream.get());
   }
 };
 
@@ -255,6 +270,28 @@ int init() {
   funcs_loaded = true;
   return 0;
 }
+
+class ctx_t {
+public:
+  ctx_t(NVFBC_SESSION_HANDLE handle) {
+    NVFBC_BIND_CONTEXT_PARAMS params { NVFBC_BIND_CONTEXT_PARAMS_VER };
+
+    if(func.nvFBCBindContext(handle, &params)) {
+      BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << func.nvFBCGetLastErrorStr(handle);
+    }
+
+    this->handle = handle;
+  }
+
+  ~ctx_t() {
+    NVFBC_RELEASE_CONTEXT_PARAMS params { NVFBC_RELEASE_CONTEXT_PARAMS_VER };
+    if(func.nvFBCReleaseContext(handle, &params)) {
+      BOOST_LOG(error) << "Couldn't release NvFBC context from current thread: " << func.nvFBCGetLastErrorStr(handle);
+    }
+  }
+
+  NVFBC_SESSION_HANDLE handle;
+};
 
 class handle_t {
   enum flag_e {
@@ -347,24 +384,26 @@ public:
     return 0;
   }
 
-  ~handle_t() {
+  int reset() {
     if(!handle_flags[SESSION_HANDLE]) {
-      return;
+      return 0;
     }
 
-    if(handle_flags[SESSION_CAPTURE]) {
-      NVFBC_DESTROY_CAPTURE_SESSION_PARAMS params { NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER };
-
-      if(func.nvFBCDestroyCaptureSession(handle, &params)) {
-        BOOST_LOG(error) << "Couldn't destroy capture session: "sv << func.nvFBCGetLastErrorStr(handle);
-      }
-    }
+    stop();
 
     NVFBC_DESTROY_HANDLE_PARAMS params { NVFBC_DESTROY_HANDLE_PARAMS_VER };
 
     if(func.nvFBCDestroyHandle(handle, &params)) {
       BOOST_LOG(error) << "Couldn't destroy session handle: "sv << func.nvFBCGetLastErrorStr(handle);
     }
+
+    handle_flags[SESSION_HANDLE] = false;
+
+    return 0;
+  }
+
+  ~handle_t() {
+    reset();
   }
 
   std::bitset<MAX_FLAGS> handle_flags;
@@ -379,6 +418,8 @@ public:
     if(!handle) {
       return -1;
     }
+
+    ctx_t ctx { handle->handle };
 
     auto status_params = handle->status();
     if(!status_params) {
@@ -442,8 +483,9 @@ public:
     // Force display_t::capture to initialize handle_t::capture
     cursor_visible = !*cursor;
 
+    ctx_t ctx { handle.handle };
     auto fg = util::fail_guard([&]() {
-      handle.stop();
+      handle.reset();
     });
 
     while(img) {
