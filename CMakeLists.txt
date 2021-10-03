@@ -29,6 +29,8 @@ find_package(Boost COMPONENTS log filesystem REQUIRED)
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
 if(WIN32)
+	enable_language(RC)
+	set(CMAKE_RC_COMPILER windres)
 	file(
 		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		TIMEOUT 60
@@ -50,7 +52,12 @@ if(WIN32)
 
 	include_directories(third-party/ViGEmClient/include)
 
+	if(NOT DEFINED SUNSHINE_ICON_PATH)
+		set(SUNSHINE_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/sunshine.ico")
+	endif()
+	configure_file(sunshine/platform/windows/windows.rs.in windows.rc @ONLY)
 	set(PLATFORM_TARGET_FILES
+		"${CMAKE_CURRENT_BINARY_DIR}/windows.rc"
 		sunshine/platform/windows/publish.cpp
 		sunshine/platform/windows/misc.h
 		sunshine/platform/windows/misc.cpp

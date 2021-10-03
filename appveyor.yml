@@ -13,7 +13,7 @@ environment:
       BUILD_TYPE: Release
 
 install:
-  - cmd: C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make"
+  - cmd: C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make"
 
 before_build:
   - cmd: git submodule update --init --recursive

@@ -1,3 +1,4 @@
+![Sunshine icon](gamepad.png "Sunshine")
 # Introduction
 Sunshine is a Gamestream host for Moonlight
 
@@ -113,7 +114,7 @@ It's necessary to allow Sunshine to use KMS
 
 First you need to install [MSYS2](https://www.msys2.org), then startup "MSYS2 MinGW 64-bit" and install the following packages using `pacman -S`:
 
-	mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git mingw-w64-x86_64-make cmake make gcc
+	mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git mingw-w64-x86_64-make cmake make gcc
 
 ### Compilation:
 - `git clone https://github.com/loki-47-6F-64/sunshine.git --recursive`
@@ -153,6 +154,7 @@ All shortcuts start with CTRL + ALT + SHIFT, just like Moonlight
 - [Moonlight](https://github.com/moonlight-stream)
 - [Looking-Glass](https://github.com/gnif/LookingGlass) (For showing me how to properly capture frames on Windows, saving me a lot of time :)
 - [Eretik](http://eretik.omegahg.com/) (For creating PolicyConfig.h, allowing me to change the default audio device on Windows programmatically)
+- [Twitter emoji](https://github.com/twitter/twemoji/blob/master/LICENSE-GRAPHICS) (Sunshine's icon is made of twemoji)
 
 ## Application List:
 **Note:** You can change the Application List in the "Apps" section of the User Interface `https://xxx.xxx.xxx.xxx:47990/`
