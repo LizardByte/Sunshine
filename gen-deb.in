@@ -37,8 +37,8 @@ Package: sunshine
 Architecture: amd64
 Maintainer: @loki
 Priority: optional
-Version: 0.10.2
-Depends: libssl1.1, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0, libboost-log1.67.0 | libboost-log1.71.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2
+Version: 0.11.0
+Depends: libssl1.1, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2
 Description: Gamestream host for Moonlight
 EOF
 

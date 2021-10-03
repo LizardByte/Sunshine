@@ -141,6 +141,13 @@ public:
 
 struct img_t {
 public:
+  img_t() = default;
+
+  img_t(img_t &&)      = delete;
+  img_t(const img_t &) = delete;
+  img_t &operator=(img_t &&) = delete;
+  img_t &operator=(const img_t &) = delete;
+
   std::uint8_t *data {};
   std::int32_t width {};
   std::int32_t height {};
@@ -279,8 +286,8 @@ std::unique_ptr<audio_control_t> audio_control();
  */
 std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
 
-// A list of names of displays accepted as display_name
-std::vector<std::string> display_names();
+// A list of names of displays accepted as display_name with the mem_type_e
+std::vector<std::string> display_names(mem_type_e hwdevice_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

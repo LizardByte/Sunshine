@@ -324,7 +324,7 @@ struct encoder_t {
 class session_t {
 public:
   session_t() = default;
-  session_t(ctx_t &&ctx, util::wrap_ptr<platf::hwdevice_t> &&device, int inject) : ctx { std::move(ctx) }, device { std::move(device) }, inject { inject } {}
+  session_t(ctx_t &&ctx, std::shared_ptr<platf::hwdevice_t> &&device, int inject) : ctx { std::move(ctx) }, device { std::move(device) }, inject { inject } {}
 
   session_t(session_t &&other) noexcept = default;
 
@@ -342,7 +342,7 @@ public:
   }
 
   ctx_t ctx;
-  util::wrap_ptr<platf::hwdevice_t> device;
+  std::shared_ptr<platf::hwdevice_t> device;
 
   std::vector<packet_raw_t::replace_t> replacements;
 
@@ -369,7 +369,6 @@ struct sync_session_t {
   sync_session_ctx_t *ctx;
 
   platf::img_t *img_tmp;
-  std::shared_ptr<platf::hwdevice_t> hwdevice;
   session_t session;
 };
 
@@ -409,13 +408,11 @@ static encoder_t nvenc {
 #ifdef _WIN32
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
-  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
 #else
   AV_HWDEVICE_TYPE_CUDA,
   AV_PIX_FMT_CUDA,
-  // Fully planar YUV formats are more efficient for sws_scale()
-  AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
 #endif
+  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
       { "forced-idr"s, 1 },
@@ -459,19 +456,19 @@ static encoder_t amdvce {
       { "gops_per_idr"s, 30 },
       { "usage"s, "ultralowlatency"s },
       { "quality"s, &config::video.amd.quality },
-      { "rc"s, &config::video.amd.rc },
+      { "rc"s, &config::video.amd.rc_hevc },
     },
-    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "hevc_amf"s,
   },
   {
     {
       { "usage"s, "ultralowlatency"s },
       { "quality"s, &config::video.amd.quality },
-      { "rc"s, &config::video.amd.rc },
+      { "rc"s, &config::video.amd.rc_h264 },
       { "log_to_dbg"s, "1"s },
     },
-    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "h264_amf"s,
   },
   DEFAULT,
@@ -588,7 +585,7 @@ void captureThread(
 
   // Get all the monitor names now, rather than at boot, to
   // get the most up-to-date list available monitors
-  auto display_names = platf::display_names();
+  auto display_names = platf::display_names(map_dev_type(encoder.dev_type));
   int display_p      = 0;
 
   if(display_names.empty()) {
@@ -781,7 +778,7 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
   return 0;
 }
 
-std::optional<session_t> make_session(const encoder_t &encoder, const config_t &config, int width, int height, platf::hwdevice_t *hwdevice) {
+std::optional<session_t> make_session(const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
   bool hardware = encoder.dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
@@ -888,7 +885,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   if(hardware) {
     ctx->pix_fmt = encoder.dev_pix_fmt;
 
-    auto buf_or_error = encoder.make_hwdevice_ctx(hwdevice);
+    auto buf_or_error = encoder.make_hwdevice_ctx(hwdevice.get());
     if(buf_or_error.has_right()) {
       return std::nullopt;
     }
@@ -967,7 +964,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     frame->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
   }
 
-  util::wrap_ptr<platf::hwdevice_t> device;
+  std::shared_ptr<platf::hwdevice_t> device;
 
   if(!hwdevice->data) {
     auto device_tmp = std::make_unique<swdevice_t>();
@@ -979,7 +976,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     device = std::move(device_tmp);
   }
   else {
-    device = hwdevice;
+    device = std::move(hwdevice);
   }
 
   if(device->set_frame(frame.release())) {
@@ -1011,12 +1008,12 @@ void encode_run(
   img_event_t images,
   config_t config,
   int width, int height,
-  platf::hwdevice_t *hwdevice,
+  std::shared_ptr<platf::hwdevice_t> &&hwdevice,
   safe::signal_t &reinit_event,
   const encoder_t &encoder,
   void *channel_data) {
 
-  auto session = make_session(encoder, config, width, height, hwdevice);
+  auto session = make_session(encoder, config, width, height, std::move(hwdevice));
   if(!session) {
     return;
   }
@@ -1103,23 +1100,35 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   // absolute mouse coordinates require that the dimensions of the screen are known
   ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
-  auto session = make_session(encoder, ctx.config, img.width, img.height, hwdevice.get());
+  auto session = make_session(encoder, ctx.config, img.width, img.height, std::move(hwdevice));
   if(!session) {
     return std::nullopt;
   }
 
-  encode_session.hwdevice = std::move(hwdevice);
-  encode_session.session  = std::move(*session);
+  encode_session.session = std::move(*session);
 
   return std::move(encode_session);
 }
 
 encode_e encode_run_sync(
   std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs,
-  encode_session_ctx_queue_t &encode_session_ctx_queue,
-  int &display_p, const std::vector<std::string> &display_names) {
+  encode_session_ctx_queue_t &encode_session_ctx_queue) {
 
   const auto &encoder = encoders.front();
+  auto display_names  = platf::display_names(map_dev_type(encoder.dev_type));
+  int display_p       = 0;
+
+  if(display_names.empty()) {
+    display_names.emplace_back(config::video.output_name);
+  }
+
+  for(int x = 0; x < display_names.size(); ++x) {
+    if(display_names[x] == config::video.output_name) {
+      display_p = x;
+
+      break;
+    }
+  }
 
   std::shared_ptr<platf::display_t> disp;
 
@@ -1210,7 +1219,7 @@ encode_e encode_run_sync(
           ctx->idr_events->pop();
         }
 
-        if(pos->hwdevice->convert(*img)) {
+        if(pos->session.device->convert(*img)) {
           BOOST_LOG(error) << "Could not convert image"sv;
           ctx->shutdown_event->raise(true);
 
@@ -1273,22 +1282,7 @@ void captureThreadSync() {
     }
   });
 
-  auto display_names = platf::display_names();
-  int display_p      = 0;
-
-  if(display_names.empty()) {
-    display_names.emplace_back(config::video.output_name);
-  }
-
-  for(int x = 0; x < display_names.size(); ++x) {
-    if(display_names[x] == config::video.output_name) {
-      display_p = x;
-
-      break;
-    }
-  }
-
-  while(encode_run_sync(synced_session_ctxs, ctx, display_p, display_names) == encode_e::reinit) {}
+  while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
 
 void capture_async(
@@ -1358,7 +1352,7 @@ void capture_async(
       frame_nr,
       mail, images,
       config, display->width, display->height,
-      hwdevice.get(),
+      std::move(hwdevice),
       ref->reinit_event, *ref->encoder_p,
       channel_data);
   }
@@ -1411,7 +1405,7 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
     return -1;
   }
 
-  auto session = make_session(encoder, config, disp->width, disp->height, hwdevice.get());
+  auto session = make_session(encoder, config, disp->width, disp->height, std::move(hwdevice));
   if(!session) {
     return -1;
   }
@@ -1703,7 +1697,7 @@ util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *base) {
 util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *base) {
   buffer_t hw_device_buf;
 
-  auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 0);
+  auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */);
   if(status < 0) {
     char string[AV_ERROR_MAX_STRING_SIZE];
     BOOST_LOG(error) << "Failed to create a CUDA device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);

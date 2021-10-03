@@ -3,8 +3,6 @@
 
 #include <fcntl.h>
 
-#include <glad/egl.h>
-
 extern "C" {
 #include <libavcodec/avcodec.h>
 }
@@ -404,7 +402,7 @@ public:
   int convert(platf::img_t &img) override {
     sws.load_ram(img);
 
-    sws.convert(nv12);
+    sws.convert(nv12->buf);
     return 0;
   }
 };
@@ -430,7 +428,7 @@ public:
 
     sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
 
-    sws.convert(nv12);
+    sws.convert(nv12->buf);
     return 0;
   }
 

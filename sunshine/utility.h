@@ -64,8 +64,7 @@ struct argument_type<T(U)> { typedef U type; };
 
 #define KITTY_DEFAULT_CONSTR_MOVE(x)     \
   x(x &&) noexcept = default;            \
-  x &operator=(x &&) noexcept = default; \
-  x()                         = default;
+  x &operator=(x &&) noexcept = default;
 
 #define KITTY_DEFAULT_CONSTR_MOVE_THROW(x) \
   x(x &&)    = default;                    \
@@ -415,9 +414,9 @@ inline std::int64_t from_view(const std::string_view &number) {
 }
 
 template<class X, class Y>
-class Either : public std::variant<X, Y> {
+class Either : public std::variant<std::monostate, X, Y> {
 public:
-  using std::variant<X, Y>::variant;
+  using std::variant<std::monostate, X, Y>::variant;
 
   constexpr bool has_left() const {
     return std::holds_alternative<X>(*this);
