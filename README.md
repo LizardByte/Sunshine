@@ -13,6 +13,10 @@ Sunshine is a Gamestream host for Moonlight
 
 ## Linux
 
+If you do not wish to clutter your PC with development files, yet you want the very latest version...
+You can use these [build scripts](scripts/README.md)
+They make use of docker to handle building Sunshine automatically
+
 ### Requirements:
 
 Ubuntu 20.04:
@@ -41,6 +45,7 @@ sudo apt install libwayland-dev
 
 #### Cuda + NvFBC
 This requires proprietary software
+On Ubuntu 20.04, the cuda compiler will fail since it's version is too old, it's recommended you compile the sources with the [build scripts](scripts/README.md)
 ```
 sudo apt install nvidia-cuda-dev nvidia-cuda-toolkit
 ```

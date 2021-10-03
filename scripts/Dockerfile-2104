@@ -1,0 +1,13 @@
+FROM ubuntu:21.04 AS sunshine-2104
+
+ARG DEBIAN_FRONTEND=noninteractive 
+ARG TZ="Europe/London"
+
+RUN apt-get update -y && \
+    apt-get install -y \
+    git build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev nvidia-cuda-dev nvidia-cuda-toolkit
+
+COPY build-private.sh /root/build.sh
+
+
+ENTRYPOINT ["/root/build.sh"]

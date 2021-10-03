@@ -1,40 +1,36 @@
-image:
-  - Ubuntu2004
-  - Visual Studio 2019
+services:
+  - docker
 
 environment:
   matrix:
-    - BUILD_TYPE: Debug
-    - BUILD_TYPE: Release
+    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
+      DOCKERFILE: Dockerfile-2004
+    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
+      DOCKERFILE: Dockerfile-2104
+    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
+      DOCKERFILE: Dockerfile-debian
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+      BUILD_TYPE: Release
 
 install:
-  - sh: sudo apt update --ignore-missing
-  - sh: sudo apt install -y build-essential fakeroot gcc-10 g++-10 cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev software-properties-common wget curl
-  - sh: sudo apt list --installed
-  - sh: sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run -O cuda_11.4.2_470.57.02_linux.run
-  - sh: sudo sh cuda_11.4.2_470.57.02_linux.run --silent --toolkit --no-opengl-libs --no-man-page --no-drm
-  - sh: export PATH=/usr/local/cuda-11.4/bin${PATH:+:${PATH}}
-  - sh: export LD_LIBRARY_PATH=/usr/local/cuda-11.4/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-  # - sh: export APPVEYOR_SSH_BLOCK=true
-  # - sh: curl -sflL 'https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-ssh.sh' | bash -e -
   - cmd: C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make"
 
 before_build:
-  - git submodule update --init --recursive
-  - mkdir build
-  - cd build
+  - cmd: git submodule update --init --recursive
+  - cmd: mkdir build
+  - cmd: cd build
+  - sh: cd scripts
+  - sh: ./build-container.sh -f $DOCKERFILE
 
 build_script:
   - cmd: set OLDPATH=%PATH%
   - cmd: set PATH=C:\msys64\mingw64\bin
-  - sh: cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DSUNSHINE_EXECUTABLE_PATH=sunshine -DSUNSHINE_ASSETS_DIR=/etc/sunshine ..
   - cmd: cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
-  - sh: make -j$(nproc)
   - cmd: mingw32-make -j2
   - cmd: set PATH=%OLDPATH%
+  - sh: ./build-sunshine.sh -pu
 
 after_build:
-  - sh: ./gen-deb
   - cmd: Del ..\assets\apps_linux.json
   - cmd: 7z a Sunshine-Windows.zip ..\assets
   - cmd: 7z a Sunshine-Windows.zip sunshine.exe
@@ -44,5 +40,5 @@ after_build:
   - cmd: 7z a Sunshine-Windows.zip ..\tools\install-service.bat
   - cmd: 7z a Sunshine-Windows.zip ..\tools\uninstall-service.bat
   - cmd: appveyor PushArtifact Sunshine-Windows.zip
-  - sh: appveyor PushArtifact package-deb/sunshine.deb
-  - sh: appveyor PushArtifact sunshine.service
+  - sh: appveyor PushArtifact sunshine-build/sunshine.deb
+
