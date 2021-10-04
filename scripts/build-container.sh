@@ -1,6 +1,6 @@
 #/bin/bash -e
 
-function usage {
+usage() {
 	echo "Usage: $0 [OPTIONS]"
 	echo "	-c: command --> default [build]"
 	echo "	  | delete  --> Delete the container, Dockerfile isn't mandatory"
@@ -13,7 +13,7 @@ function usage {
 }
 
 # Attempt to turn relative paths into absolute paths
-function absolute_path() {
+absolute_path() {
 	RELATIVE_PATH=$1
 	if which realpath >/dev/null 2>/dev/null
 	then
@@ -28,7 +28,7 @@ function absolute_path() {
 CONTAINER_NAME=sunshine
 COMMAND=BUILD
 
-function build_container() {
+build_container() {
 	CONTAINER_NAME=$1
 	DOCKER_FILE=$2
 
@@ -42,9 +42,9 @@ function build_container() {
 	docker build . -t "$CONTAINER_NAME" -f "$DOCKER_FILE"
 }
 
-function delete() {
+delete() {
 	CONTAINER_NAME_UPPER=$(echo "$CONTAINER_NAME" | tr '[:lower:]' '[:upper:]')
-	if [ "$CONTAINER_NAME_UPPER" == "ALL" ]
+	if [ "$CONTAINER_NAME_UPPER" = "ALL" ]
 	then
 		shopt -s nullglob
 		for file in $(find . -maxdepth 1 -iname "Dockerfile-*" -type f)
@@ -67,9 +67,9 @@ function delete() {
 	fi
 }
 
-function build() {
+build() {
 	CONTAINER_NAME_UPPER=$(echo "$CONTAINER_NAME" | tr '[:lower:]' '[:upper:]')
-	if [ "$CONTAINER_NAME_UPPER" == "ALL" ]
+	if [ "$CONTAINER_NAME_UPPER" = "ALL" ]
 	then
 		shopt -s nullglob
 		for file in $(find . -maxdepth 1 -iname "Dockerfile-*" -type f)
@@ -89,14 +89,14 @@ function build() {
 	fi
 }
 
-function abort() {
+abort() {
 	echo "$1"
 	exit 10
 }
 
-function compile() {
+compile() {
 	CONTAINER_NAME_UPPER=$(echo "$CONTAINER_NAME" | tr '[:lower:]' '[:upper:]')
-	if [ "$CONTAINER_NAME_UPPER" == "ALL" ]
+	if [ "$CONTAINER_NAME_UPPER" = "ALL" ]
 	then
 		shopt -s nullglob
 
@@ -152,18 +152,18 @@ done
 
 echo "$0 set to $(echo $COMMAND | tr '[:upper:]' '[:lower:]')"
 
-if [[ "$COMMAND" == "BUILD" ]]
+if [ "$COMMAND" = "BUILD" ]
 then
 	echo "Start building..."
 	delete
 	build
 	echo "Done."
-elif [[ "$COMMAND" == "COMPILE" ]]
+elif [ "$COMMAND" = "COMPILE" ]
 then
 	echo "Start compiling..."
 	compile
 	echo "Done."
-elif [[ "$COMMAND" == "DELETE" ]]
+elif [ "$COMMAND" = "DELETE" ]
 then
 	echo "Start deleting..."
 	delete

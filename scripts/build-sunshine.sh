@@ -1,6 +1,6 @@
 #/bin/bash -e
 
-function usage {
+usage() {
 	echo "Usage: $0"
 	echo "	-d: Generate a debug build"
 	echo "	-p: Generate a debian package"
@@ -11,7 +11,7 @@ function usage {
 }
 
 # Attempt to turn relative paths into absolute paths
-function absolute_path() {
+absolute_path() {
 	RELATIVE_PATH=$1
 	if which realpath >/dev/null 2>/dev/null
 	then
@@ -81,7 +81,7 @@ while getopts ":dpuhc:s:n:" arg; do
 	esac
 done
 
-[ "$USERNAME" == "" ] && USERNAME=$(logname)
+[ "$USERNAME" = "" ] && USERNAME=$(logname)
 
 BUILD_DIR="$PWD/$CONTAINER_NAME-build"
 SUNSHINE_ASSETS_DIR="-e SUNSHINE_ASSETS_DIR=$BUILD_DIR/assets"
