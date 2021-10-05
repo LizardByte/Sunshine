@@ -7,6 +7,7 @@ usage() {
 	echo "	  | build   --> Build the container, Dockerfile is mandatory"
 	echo "	  | compile --> Builds the container, then compiles it. Dockerfile is mandatory"
 	echo ""
+	echo "  -s: path: The path to the source for compilation"
 	echo "	-n: name: Docker container name --> default [sunshine]"
 	echo "	  --> all: Build/Compile/Delete all available docker containers"
 	echo "	-f: Dockerfile: The name of the docker file"
@@ -113,16 +114,16 @@ compile() {
 		do
 			CURRENT_CONTAINER="sunshine-$(echo $file | cut -c 14-)"
 
-			echo "$PWD/build-sunshine.sh -p -n $CURRENT_CONTAINER"
-			"$PWD/build-sunshine.sh" -p -n "$CURRENT_CONTAINER"
+			echo "$PWD/build-sunshine.sh -p -n $CURRENT_CONTAINER $SUNSHINE_SOURCES"
+			"$PWD/build-sunshine.sh" -p -n "$CURRENT_CONTAINER" $SUNSHINE_SOURCES
 		done
 		shopt -u nullglob #revert nullglob back to it's normal default state
 	else
 		# If container exists
-		if docker inspect "$CURRENT_CONTAINER" > /dev/null 2> /dev/null
+		if docker inspect "$CONTAINER_NAME" > /dev/null 2> /dev/null
 		then
-			echo "$PWD/build-sunshine.sh -p -n $CONTAINER_NAME"
-			"$PWD/build-sunshine.sh" -p -n "$CONTAINER_NAME"
+			echo "$PWD/build-sunshine.sh -p -n $CONTAINER_NAME $SUNSHINE_SOURCES"
+			"$PWD/build-sunshine.sh" -p -n "$CONTAINER_NAME" $SUNSHINE_SOURCES
 		else
 			echo "Error: container image [$CONTAINER_NAME] doesn't exist"
 			exit 9
@@ -130,8 +131,11 @@ compile() {
 	fi
 }
 
-while getopts ":c:hn:f:" arg; do
+while getopts ":c:hn:f:s:" arg; do
 	case ${arg} in
+		s)
+			SUNSHINE_SOURCES="-s $OPTARG"
+			;;
 		c)
 			COMMAND=$(echo $OPTARG | tr '[:lower:]' '[:upper:]')
 			;;
