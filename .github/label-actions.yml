@@ -1,0 +1,46 @@
+# Configuration for Label Actions - https://github.com/dessant/label-actions
+
+added:
+  comment: >
+    This feature has been added and will be available in the next release.
+
+fixed:
+  comment: >
+    This issue has been fixed and will be available in the next release.
+
+invalid:duplicate:
+  comment: >
+    :wave: @{issue-author}, this appears to be a duplicate of a pre-existing issue.
+  close: true
+  lock: true
+  unlabel: 'status:awaiting-triage'
+
+-invalid:duplicate:
+  reopen: true
+  unlock: true
+
+invalid:support:
+  comment: >
+    :wave: @{issue-author}, we use the issue tracker exclusively for bug reports.
+    However, this issue appears to be a support request. Please use our
+    [Discord Server](https://discord.com/invite/CGg5JxN) to get help. Thanks.
+  close: true
+  lock: true
+  lock-reason: 'off-topic'
+  unlabel: 'status:awaiting-triage'
+
+-invalid:support:
+  reopen: true
+  unlock: true
+
+invalid:template-incomplete:
+  issues:
+    comment: >
+      :wave: @{issue-author}, please edit your issue to complete the template with
+      all the required info. Your issue will be automatically closed in 5 days if
+      the template is not completed. Thanks.
+  prs:
+    comment: >
+      :wave: @{issue-author}, please edit your PR to complete the template with
+      all the required info. Your PR will be automatically closed in 5 days if
+      the template is not completed. Thanks.

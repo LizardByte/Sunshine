@@ -1,0 +1,35 @@
+name: Pull Requests
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, edited, reopened]
+
+jobs:
+  check-branch:
+    name: Check Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Branch check
+        if: ( github.head_ref == 'repo-sync/common-repo-files/default' && github.base_ref == 'master' ) || ( github.head_ref == 'nightly' && github.base_ref == 'master' )
+        run: |
+          echo Base: "$GITHUB_BASE_REF"
+          echo Head: "$GITHUB_HEAD_REF"
+          echo "branch=True" >> $GITHUB_ENV
+
+      - name: Comment on Pull Request
+        uses: mshick/add-pr-comment@v1
+        if: github.base_ref != 'nightly' && env.branch != 'True'
+        with:
+          message: Pull requests must be made to the `nightly` branch. Thanks.
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token-user-login: 'github-actions[bot]'
+
+      - name: Fail Workflow
+        if: github.base_ref != 'nightly' && env.branch != 'True'
+        run: |
+          echo Base: "$GITHUB_BASE_REF"
+          echo Head: "$GITHUB_HEAD_REF"
+          exit 1
