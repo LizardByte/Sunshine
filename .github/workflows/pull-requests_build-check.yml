@@ -2,6 +2,7 @@ name: Build test
 
 on:
   pull_request:
+    branches: [master, nightly]
     types: [opened, synchronize, edited, reopened]
   workflow_dispatch:
 
@@ -26,7 +27,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
       with:
-        submodules: true
+        submodules: recursive
 
     - name: Setup Dependencies
       run: |
