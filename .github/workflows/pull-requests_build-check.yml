@@ -23,7 +23,11 @@ jobs:
 #    needs: check_branch
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        submodules: true
+
     - name: Setup Dependencies
       run: |
         mkdir -p artifacts
@@ -40,7 +44,7 @@ jobs:
         sudo apt-get update -y
         sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
         sudo apt-get install ffmpeg -y
-    - name: Build Sunshine for AppImage
+    - name: Build AppImage
       run: |
         CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
         SUNSHINE_EXECUTABLE_PATH="${SUNSHINE_EXECUTABLE_PATH:-/usr/bin/sunshine}"
@@ -56,7 +60,7 @@ jobs:
         cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
 
         make -j ${nproc} DESTDIR=AppDir
-    - name: Build AppImage
+    - name: Package AppImage
       # https://docs.appimage.org/packaging-guide/index.html
       run: |
         mkdir -p appimage_temp && cd appimage_temp
