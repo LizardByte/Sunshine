@@ -85,7 +85,7 @@ jobs:
       run: |
         wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage .temp_appimage/sunshine/sunshine.AppImage
     - name: Upload Artifacts
-    - uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v2
       with:
         name: Artifacts
         path: artifacts/
