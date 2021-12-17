@@ -53,21 +53,22 @@ jobs:
 
         mkdir -p appimage-build && cd appimage-build
 
-        cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" ".." -DCMAKE_INSTALL_PREFIX=/usr
+        cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
 
         make -j ${nproc} DESTDIR=AppDir
     - name: Build AppImage
       # https://docs.appimage.org/packaging-guide/index.html
       run: |
+        mkdir -p appimage_temp && cd appimage_temp
+
         DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
         ICON_FILE="${ICON_FILE:-sunshine.png}"
         CONFIG_DIR="${CONFIG_DIR:-sunshine/sunshine.AppImage.config/}"
         HOME_DIR="${HOME_DIR:-sunshine/sunshine.AppImage.home/}"
 
-        mkdir -p temp_appimage && cd temp_appimage
-
         wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
-        ./linuxdeploy-x86_64.AppImage --appdir AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../$DESKTOP_FILE" --output appimage
+
+        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../$DESKTOP_FILE" --output appimage
 
         mv sunshine*.AppImage sunshine.AppImage
         mkdir sunshine && mv sunshine.AppImage sunshine/
@@ -75,15 +76,15 @@ jobs:
         ./sunshine/sunshine.AppImage --appimage-portable-home
         cp -r ../assets/* "$CONFIG_DIR"
         rm -f "$CONFIG_DIR"/apps_windows.json
-        mkdir -p ./$HOME_DIR/.config/$CONFIG_DIR
-        cp ./$CONFIG_DIR/apps_linux.json ./$HOME_DIR/.config/$CONFIG_DIR
+        mkdir -p ./"$HOME_DIR"/.config/"$CONFIG_DIR"
+        cp ./"$CONFIG_DIR"/apps_linux.json ./"$HOME_DIR"/.config/"$CONFIG_DIR"
         zip -r ./sunshine_linux.zip ./sunshine/*
 
-        cd ..
-        mv ./temp_appimage/sunshine_linux.zip ./artifacts/sunshine_linux.zip
+        mv sunshine_linux.zip ../artifacts/
     - name: Verify AppImage
       run: |
-        wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage .temp_appimage/sunshine/sunshine.AppImage
+        cd appimage_temp
+        wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./sunshine/sunshine.AppImage
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       with:
