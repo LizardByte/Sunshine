@@ -7,21 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-#  check_branch:
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#      - name: Fail Workflow
-#        if: github.base_ref != 'nightly'
-#        run: |
-#          echo Base: "$GITHUB_BASE_REF"
-#          echo Head: "$GITHUB_HEAD_REF"
-#          exit 1
-
-  build_linux:
-    name: Linux
+  build_appimage:
+    name: AppImage
     runs-on: ubuntu-20.04
-#    needs: check_branch
 
     steps:
     - name: Checkout
@@ -29,7 +17,7 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Setup Dependencies
+    - name: Setup Dependencies AppImage
       run: |
         mkdir -p artifacts
 
@@ -93,5 +81,38 @@ jobs:
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
       with:
-        name: Artifacts
+        name: sunshine-AppImage
         path: artifacts/
+
+  build_deb:
+    name: deb
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        distro: [ 2004, 2104, debian ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Setup Docker
+        run: |
+          mkdir -p artifacts
+
+          cd scripts
+          ./build-container.sh -f Dockerfile-${{ matrix.distro }}
+      - name: Build and Package deb
+        run: |
+          cd scripts
+          ./build-sunshine -p -s ..
+
+          cd sunshine-build
+          mv sunshine.deb sunshine-${{ matrix.distro }}.deb
+          mv sunshine-${{ matrix.distro }}.deb ../artifacts/
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: sunshine-${{ matrix.distro }}
+          path: artifacts/
