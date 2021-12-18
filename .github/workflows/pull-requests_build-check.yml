@@ -148,6 +148,8 @@ jobs:
         run: |
           C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make"
       - name: Build Windows
+        env:
+          BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
           set PATH=C:\msys64\mingw64\bin
