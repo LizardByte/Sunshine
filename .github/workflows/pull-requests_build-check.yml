@@ -138,7 +138,7 @@ jobs:
           # https://github.com/actions/boost-versions/blob/main/versions-manifest.json
           boost_version: 1.73.0
           # OPTIONAL: Specify a custom installation location
-          boost_install_dir: C:\boost
+          boost_install_dir: 'C:'
           # OPTIONAL: Specify a platform version
           platform_version: 2016
 
