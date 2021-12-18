@@ -106,7 +106,7 @@ jobs:
       - name: Build and Package deb
         run: |
           cd scripts
-          ./build-sunshine -p -s ..
+          ./build-sunshine.sh -p -s ..
 
           cd sunshine-build
           mv sunshine.deb sunshine-${{ matrix.distro }}.deb
