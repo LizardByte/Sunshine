@@ -79,6 +79,7 @@ jobs:
         cd appimage_temp
         wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./sunshine/sunshine.AppImage
     - name: Upload Artifacts
+      if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
       uses: actions/upload-artifact@v2
       with:
         name: sunshine-AppImage
@@ -97,21 +98,28 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Docker
+      - name: Build
         run: |
           mkdir -p artifacts
 
           cd scripts
-          ./build-container.sh -f Dockerfile-${{ matrix.distro }}
-      - name: Build and Package deb
-        run: |
-          cd scripts
-          ./build-sunshine.sh -p -s ..
+          sudo ./build-container.sh -f Dockerfile-${{ matrix.distro }} -n sunshine-${{ matrix.distro }}
+
+          ls
 
           cd sunshine-build
           mv sunshine.deb sunshine-${{ matrix.distro }}.deb
           mv sunshine-${{ matrix.distro }}.deb ../artifacts/
+#      - name: Build and Package deb
+#        run: |
+#          cd scripts
+#          sudo ./build-sunshine.sh -p -n sunshine-${{ matrix.distro }} -s ..
+#
+#          cd sunshine-build
+#          mv sunshine.deb sunshine-${{ matrix.distro }}.deb
+#          mv sunshine-${{ matrix.distro }}.deb ../artifacts/
       - name: Upload Artifacts
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v2
         with:
           name: sunshine-${{ matrix.distro }}
