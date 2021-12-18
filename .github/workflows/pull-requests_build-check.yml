@@ -103,11 +103,13 @@ jobs:
           mkdir -p artifacts
 
           cd scripts
-          sudo ./build-container.sh -f Dockerfile-${{ matrix.distro }} -n sunshine-${{ matrix.distro }}
+          sudo ./build-container.sh -c compile -f Dockerfile-${{ matrix.distro }} -n sunshine-${{ matrix.distro }}
 
           ls
+          echo "...."
+          ls ..
 
-          cd sunshine-build
+          cd sunshine-${{ matrix.distro }}-build
           mv sunshine.deb sunshine-${{ matrix.distro }}.deb
           mv sunshine-${{ matrix.distro }}.deb ../artifacts/
 #      - name: Build and Package deb
