@@ -104,7 +104,7 @@ jobs:
 
           cd scripts
           sudo ./build-container.sh -c build -f Dockerfile-${{ matrix.distro }} -n sunshine-${{ matrix.distro }}
-          sudo ./build-container.sh -c compile -f Dockerfile-${{ matrix.distro }} -n sunshine-${{ matrix.distro }}
+          sudo ./build-sunshine.sh -p -u -n sunshine-${{ matrix.distro }} -s ..
 
           ls
           echo "...."
