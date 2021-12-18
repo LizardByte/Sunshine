@@ -136,7 +136,7 @@ jobs:
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
           set PATH=C:\msys64\mingw64\bin
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
+          cmake -DBoost_DEBUG=ON -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
       - name: Package Windows
         run: |
