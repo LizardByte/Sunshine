@@ -3,7 +3,9 @@ FROM ubuntu:18.04 AS sunshine-ubuntu_18_04
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends software-properties-common && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update -y && \
     apt-get install -y --no-install-recommends \
                         build-essential \
@@ -29,7 +31,6 @@ RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
                         libxfixes-dev \
                         libxrandr-dev \
                         libxtst-dev \
-                        software-properties-common \
                         wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
