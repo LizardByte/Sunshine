@@ -10,7 +10,8 @@ RUN apt-get update -y && \
         ca-certificates \
         gnupg \
         software-properties-common \
-    && wget -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc | sudo apt-key add - && \
+        wget \
+    && wget -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc | apt-key add - && \
     add-apt-repository 'deb https://apt.kitware.com/ubuntu/ bionic main' && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update -y && \
@@ -38,7 +39,6 @@ RUN apt-get update -y && \
         libxfixes-dev \
         libxrandr-dev \
         libxtst-dev \
-        wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
