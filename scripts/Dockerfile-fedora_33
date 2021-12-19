@@ -1,11 +1,9 @@
 FROM fedora:33 AS sunshine-fedora_33
 
-ARG DEBIAN_FRONTEND=noninteractive 
-ARG TZ="Europe/London"
-
-RUN dnf group install "Development Tools" \
-    dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm \
-    dnf install -y openssl-devel ffmpeg-devel boost-devel boost-static.x86_64 pulseaudio-libs-devel opus-devel libXtst-devel libX11-devel libXfixes-devel libevdev-devel libxcb-devel cmake
+RUN dnf -y update && \
+    dnf -y group install "Development Tools" \
+    dnf -y install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm \
+    dnf -y install openssl-devel ffmpeg-devel boost-devel boost-static.x86_64 pulseaudio-libs-devel opus-devel libXtst-devel libX11-devel libXfixes-devel libevdev-devel libxcb-devel cmake
 
 COPY build-private.sh /root/build.sh
 
