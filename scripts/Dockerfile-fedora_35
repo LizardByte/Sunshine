@@ -2,24 +2,25 @@ FROM fedora:35 AS sunshine-fedora_35
 
 RUN dnf -y update && \
     dnf -y group install "Development Tools" && \
-    dnf -y install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm \
-    boost-devel \
-    boost-static.x86_64 \
-    cmake \
-    ffmpeg-devel \
-    libevdev-devel \
-    libxcb-devel \
-    libX11-devel \
-    libXcursor-devel \
-    libXfixes-devel \
-    libXinerama-devel \
-    libXi-devel \
-    libXrandr-devel \
-    libXtst-devel \
-    mesa-libGL-devel \
-    openssl-devel \
-    opus-devel \
-    pulseaudio-libs-devel \
+    dnf -y install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && \
+    dnf -y install \
+        boost-devel \
+        boost-static.x86_64 \
+        cmake \
+        ffmpeg-devel \
+        libevdev-devel \
+        libxcb-devel \
+        libX11-devel \
+        libXcursor-devel \
+        libXfixes-devel \
+        libXinerama-devel \
+        libXi-devel \
+        libXrandr-devel \
+        libXtst-devel \
+        mesa-libGL-devel \
+        openssl-devel \
+        opus-devel \
+        pulseaudio-libs-devel \
     && dnf clean all \
     && rm -rf /var/cache/yum
 
