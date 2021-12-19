@@ -152,10 +152,11 @@ jobs:
           BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
-          set PATH=C:\msys64\mingw64\bin
-          #cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
-          cmake -DBOOST_INCLUDEDIR=C:\msys64\mingw64\include\boost -DBOOST_LIBRARYDIR=C:\msys64\mingw64\lib -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
-          #-DBOOST_ROOT=${{ steps.install-boost.outputs.BOOST_ROOT }} -DBOOST_INCLUDEDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/include -DBOOST_LIBRARYDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/lib
+          set PATH=%PATH%;C:\msys64\mingw64\bin
+          set BOOST_ROOT=${{ steps.install-boost.outputs.BOOST_ROOT }}
+          set BOOST_INCLUDEDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}
+          set BOOST_LIBRARYDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}\lib
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
       - name: Package Windows
         run: |
