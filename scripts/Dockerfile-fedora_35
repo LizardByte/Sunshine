@@ -1,4 +1,4 @@
-FROM fedora:33 AS sunshine-fedora_33
+FROM fedora:35 AS sunshine-fedora_35
 
 RUN dnf -y update && \
     dnf -y group install "Development Tools" && \
