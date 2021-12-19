@@ -85,8 +85,8 @@ jobs:
         name: sunshine-AppImage
         path: artifacts/
 
-  build_deb:
-    name: deb
+  build_linux:
+    name: Linux
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
