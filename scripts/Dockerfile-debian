@@ -3,9 +3,10 @@ FROM debian:bullseye AS sunshine-debian
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo deb http://deb.debian.org/debian/ bullseye main contrib non-free | tee /etc/apt/sources.list.d/non-free.list
 RUN apt-get update -y && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
                         build-essential \
                         cmake \
                         git \
@@ -29,9 +30,8 @@ RUN apt-get update -y && \
                         libxtst-dev \
                         nvidia-cuda-dev \
                         nvidia-cuda-toolkit \
-    && \
-    apt-get clean && \
-    apt-get autoclean
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY build-private.sh /root/build.sh
 

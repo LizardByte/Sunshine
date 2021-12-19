@@ -20,9 +20,8 @@ RUN dnf -y update && \
                     openssl-devel \
                     opus-devel \
                     pulseaudio-libs-devel \
-    && \
-    dnf clean all && \
-    rm -rf /var/cache/yum
+    && dnf clean all \
+    && rm -rf /var/cache/yum
 
 COPY build-private.sh /root/build.sh
 
