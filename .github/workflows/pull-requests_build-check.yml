@@ -160,7 +160,7 @@ jobs:
           set BOOST_LIBRARYDIR=C:\boost\lib
           dir C:\boost\boost\lib
           echo -----------
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
+          cmake -DBoost_USE_STATIC_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
       - name: Package Windows
         run: |
