@@ -130,17 +130,17 @@ jobs:
           submodules: recursive
 
       - name: Install boost
-        uses: MarkusJx/install-boost@v1.0.1
+        uses: MarkusJx/install-boost@v2.0.0
         id: install-boost
         with:
           # REQUIRED: Specify the required boost version
           # A list of supported versions can be found here:
           # https://github.com/actions/boost-versions/blob/main/versions-manifest.json
-          boost_version: 1.70.0
-          # OPTIONAL: Specify a toolset on windows
-          toolset: msvc14.1
-          # OPTIONAL: Specify a custom install location
-          #boost_install_dir: C:\some_directory
+          boost_version: 1.73.0
+          # OPTIONAL: Specify a custon install location
+          #boost_install_dir: 'C:'
+          # OPTIONAL: Specify a platform version
+          platform_version: 2019
 
           # NOTE: If a boost version matching all requirements cannot be found,
           # this build step will fail
@@ -153,7 +153,8 @@ jobs:
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
           set PATH=C:\msys64\mingw64\bin
-          cmake -DBOOST_ROOT=${{ steps.install-boost.outputs.BOOST_ROOT }} -DBOOST_INCLUDEDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/include -DBOOST_LIBRARYDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/lib -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
+          #-DBOOST_ROOT=${{ steps.install-boost.outputs.BOOST_ROOT }} -DBOOST_INCLUDEDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/include -DBOOST_LIBRARYDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/lib
           mingw32-make -j2
       - name: Package Windows
         run: |
