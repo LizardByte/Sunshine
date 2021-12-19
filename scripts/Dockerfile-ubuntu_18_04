@@ -3,12 +3,37 @@ FROM ubuntu:18.04 AS sunshine-ubuntu_18_04
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 
-RUN apt-get update -y && \
-    apt-get install -y \
-    git wget g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev  && \
-    add-apt-repository ppa:ubuntu-toolchain-r/test && \
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update -y && \
-    apt-get install -y gcc-10
+    apt-get install -y \
+                        build-essential \
+                        cmake \
+                        gcc-10
+                        git \
+                        g++-10 \
+                        libavdevice-dev \
+                        libboost-thread-dev \
+                        libboost-filesystem-dev \
+                        libboost-log-dev \
+                        libcap-dev \
+                        libdrm-dev \
+                        libevdev-dev \
+                        libpulse-dev \
+                        libopus-dev \
+                        libssl-dev \
+                        libwayland-dev \
+                        libx11-dev \
+                        libxcb-shm0-dev \
+                        libxcb-xfixes0-dev \
+                        libxcb1-dev \
+                        libxfixes-dev \
+                        libxrandr-dev \
+                        libxtst-dev \
+                        software-properties-common \
+                        wget \
+    && \
+    apt-get clean && \
+    apt-get autoclean
 
 RUN cp /usr/bin/gcc-10 /usr/bin/gcc && cp /usr/bin/g++-10 /usr/bin/gcc-10
 

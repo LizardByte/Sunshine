@@ -5,7 +5,32 @@ ARG TZ="Europe/London"
 
 RUN apt-get update -y && \
     apt-get install -y \
-    git build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev nvidia-cuda-dev nvidia-cuda-toolkit
+                        build-essential \
+                        cmake \
+                        git \
+                        libavdevice-dev \
+                        libboost-thread-dev \
+                        libboost-filesystem-dev \
+                        libboost-log-dev \
+                        libcap-dev \
+                        libdrm-dev \
+                        libevdev-dev \
+                        libpulse-dev \
+                        libopus-dev \
+                        libssl-dev \
+                        libwayland-dev \
+                        libx11-dev \
+                        libxcb-shm0-dev \
+                        libxcb-xfixes0-dev \
+                        libxcb1-dev \
+                        libxfixes-dev \
+                        libxrandr-dev \
+                        libxtst-dev \
+                        nvidia-cuda-dev \
+                        nvidia-cuda-toolkit \
+    && \
+    apt-get clean && \
+    apt-get autoclean
 
 COPY build-private.sh /root/build.sh
 
