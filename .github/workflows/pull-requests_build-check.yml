@@ -153,7 +153,7 @@ jobs:
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
           set PATH=C:\msys64\mingw64\bin
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
+          cmake -DBoost_NO_BOOST_CMAKE=ON -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           #-DBOOST_ROOT=${{ steps.install-boost.outputs.BOOST_ROOT }} -DBOOST_INCLUDEDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/include -DBOOST_LIBRARYDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}/lib
           mingw32-make -j2
       - name: Package Windows
