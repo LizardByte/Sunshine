@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 AS sunshine-2004
+FROM ubuntu:18.04 AS sunshine-ubuntu_18_04
 
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"

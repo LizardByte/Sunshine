@@ -89,8 +89,9 @@ jobs:
     name: deb
     runs-on: ubuntu-20.04
     strategy:
+      fail-fast: false
       matrix:
-        distro: [ 2004, 2104, debian ]
+        distro: [ debian, Fedora_33, Fedora_35, Ubuntu_18_04, Ubuntu_20_04, Ubuntu_21_04, Ubuntu_21_10 ]
 
     steps:
       - name: Checkout
@@ -154,13 +155,9 @@ jobs:
           mkdir sunshine-windows-build && cd sunshine-windows-build
           set PATH=C:\msys64\mingw64\bin
           set BOOST_ROOT=C:\boost
-          dir C:\boost\boost
-          echo -----------
           set BOOST_INCLUDEDIR=C:\boost
           set BOOST_LIBRARYDIR=C:\boost\lib
-          dir C:\boost\boost\lib
-          echo -----------
-          cmake -DBoost_USE_STATIC_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
       - name: Package Windows
         run: |
