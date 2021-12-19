@@ -91,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [ debian, Fedora_33, Fedora_35, Ubuntu_18_04, Ubuntu_20_04, Ubuntu_21_04, Ubuntu_21_10 ]
+        distro: [ debian, fedora_33, fedora_35, ubuntu_18_04, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]
 
     steps:
       - name: Checkout
