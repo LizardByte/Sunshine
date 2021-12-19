@@ -152,7 +152,7 @@ jobs:
           BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
-          set PATH=%PATH%;C:\msys64\mingw64\bin
+          set PATH=C:\msys64\mingw64\bin
           set BOOST_ROOT=${{ steps.install-boost.outputs.BOOST_ROOT }}
           set BOOST_INCLUDEDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}
           set BOOST_LIBRARYDIR=${{ steps.install-boost.outputs.BOOST_ROOT }}\lib
