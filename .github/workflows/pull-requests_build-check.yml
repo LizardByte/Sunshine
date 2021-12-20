@@ -149,7 +149,7 @@ jobs:
           # this build step will fail
       - name: Setup Windows
         run: |
-          C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make"
+          C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost mingw-w64-libc++ git yasm nasm diffutils make"
       - name: Build Windows
         env:
           BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
