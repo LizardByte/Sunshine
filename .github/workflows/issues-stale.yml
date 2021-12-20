@@ -1,0 +1,50 @@
+name: Stale Issues / PRs
+
+on:
+  schedule:
+    - cron: '00 19 * * *'
+
+jobs:
+  stale:
+    name: Check Issues / PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stale
+        uses: actions/stale@v3
+        with:
+          stale-issue-message: >
+            This issue is stale because it has been open for 30 days with no activity.
+            Remove the stale label or comment, otherwise this will be closed in 5 days.
+          close-issue-message: >
+            This issue was closed because it has been stalled for 5 days with no activity.
+          stale-issue-label: 'stale'
+          exempt-issue-labels: 'added,fixed,type:enhancement,status:awaiting-triage,status:in-progress'
+          stale-pr-message: >
+            This PR is stale because it has been open for 30 days with no activity.
+            Remove the stale label or comment, otherwise this will be closed in 5 days.
+          close-pr-message: >
+            This PR was closed because it has been stalled for 5 days with no activity.
+          stale-pr-label: 'stale'
+          exempt-pr-labels: 'status:in-progress'
+          days-before-stale: 30
+          days-before-close: 5
+
+      - name: Invalid Template
+        uses: actions/stale@v3
+        with:
+          stale-issue-message: >
+            Invalid issues template.
+          close-issue-message: >
+            This issue was closed because the the template was not completed after 5 days.
+          stale-issue-label: 'invalid:template-incomplete'
+          skip-stale-issue-message: true
+          stale-pr-message: >
+            Invalid PR template.
+          close-pr-message: >
+            This PR was closed because the the template was not completed after 5 days.
+          stale-pr-label: 'invalid:template-incomplete'
+          exempt-pr-labels: 'status:in-progress'
+          skip-stale-pr-message: true
+          only-labels: 'invalid:template-incomplete'
+          days-before-stale: 0
+          days-before-close: 5

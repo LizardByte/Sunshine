@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Github Discussions
+    url: https://github.com/SunshineStream/Sunshine/discussions
+    about: General discussion, support, feature requests and more!
+  - name: Discord support
+    url: https://discord.com/invite/CGg5JxN
+    about: Ask question about Sunshine in Discord
