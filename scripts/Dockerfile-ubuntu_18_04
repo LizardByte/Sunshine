@@ -56,7 +56,7 @@ RUN mkdir glibc-src && cd glibc-src && \
     wget http://ftp.gnu.org/gnu/libc/glibc-2.31.tar.gz && \
     tar -xvzf glibc-2.31.tar.gz && \
     mkdir build && cd build && \
-    ../glibc-src/glibc-2.31/configure --prefix=/usr/glibc && \
+    ../glibc-2.31/configure --prefix=/usr/glibc && \
     make && \
     make install
 
