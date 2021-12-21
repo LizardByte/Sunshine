@@ -22,9 +22,9 @@ RUN apt-get update -y && \
         build-essential \
         cmake \
         ffmpeg \
-        gcc-10 \
+        gcc-9 \
         git \
-        g++-10 \
+        g++-9 \
         libavdevice-dev \
         libboost-filesystem-dev \
         libboost-log-dev \
@@ -36,6 +36,7 @@ RUN apt-get update -y && \
         libpulse-dev \
         libopus-dev \
         libssl-dev \
+        libstdc++-9 \
         libwayland-dev \
         libx11-dev \
         libxcb-shm0-dev \
@@ -47,7 +48,7 @@ RUN apt-get update -y && \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cp /usr/bin/gcc-10 /usr/bin/gcc && cp /usr/bin/g++-10 /usr/bin/gcc-10
+RUN cp /usr/bin/gcc-9 /usr/bin/gcc && cp /usr/bin/g++-9 /usr/bin/gcc-9
 
 RUN wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && chmod a+x /root/cuda.run
 RUN /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm /root/cuda.run
