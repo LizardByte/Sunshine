@@ -10,9 +10,9 @@ RUN apt-get update -y && \
         git \
         g++-10 \
         libavdevice-dev \
-        libboost-thread-dev \
         libboost-filesystem-dev \
         libboost-log-dev \
+        libboost-thread-dev \
         libcap-dev \
         libdrm-dev \
         libevdev-dev \
