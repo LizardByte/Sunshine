@@ -131,8 +131,7 @@ jobs:
           submodules: recursive
 
       - name: Install boost
-        #uses: MarkusJx/install-boost@v2.0.0
-        uses: MarkusJx/install-boost@boost-mingw
+        uses: MarkusJx/install-boost@v2.1.0
         id: install-boost
         with:
           # REQUIRED: Specify the required boost version
