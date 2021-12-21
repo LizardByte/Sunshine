@@ -26,10 +26,7 @@ RUN apt-get update -y && \
         git \
         g++-10 \
         libavdevice-dev \
-        libboost-filesystem-dev \
-        libboost-log-dev \
-        libboost-regex-dev \
-        libboost-thread-dev \
+        libboost-all-dev \
         libcap-dev \
         libdrm-dev \
         libevdev-dev \
@@ -55,4 +52,4 @@ RUN /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-m
 COPY build-private.sh /root/build.sh
 
 
-ENTRYPOINT ["/root/build.sh" -p]
+ENTRYPOINT ["/root/build.sh"]
