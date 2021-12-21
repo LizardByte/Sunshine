@@ -52,6 +52,14 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /
 RUN wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && chmod a+x /root/cuda.run
 RUN /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm /root/cuda.run
 
+RUN mkdir glibc-src && cd glibc-src && \
+    wget http://ftp.gnu.org/gnu/libc/glibc-2.31.tar.gz && \
+    tar -xvzf glibc-2.31.tar.gz && \
+    mkdir build && cd build && \
+    ../glibc-src/glibc-2.31/configure --prefix=/usr/glibc && \
+    make && \
+    make install && \
+
 COPY build-private.sh /root/build.sh
 
 
