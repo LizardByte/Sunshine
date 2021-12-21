@@ -58,7 +58,7 @@ RUN mkdir glibc-src && cd glibc-src && \
     mkdir build && cd build && \
     ../glibc-src/glibc-2.31/configure --prefix=/usr/glibc && \
     make && \
-    make install && \
+    make install
 
 COPY build-private.sh /root/build.sh
 
