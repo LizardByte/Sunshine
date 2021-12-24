@@ -152,7 +152,7 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "Unix Makefiles" ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
       - name: Package Windows
         run: |
