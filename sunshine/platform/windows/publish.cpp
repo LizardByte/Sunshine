@@ -25,15 +25,18 @@ using namespace std::literals;
 #define SV(quote) __SV(quote)
 
 extern "C" {
+#ifndef __MINGW32__
 constexpr auto DNS_REQUEST_PENDING        = 9506L;
 constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
 constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
+#endif
 
 #define SERVICE_DOMAIN "local"
 
 constexpr auto SERVICE_INSTANCE_NAME = SV(SERVICE_NAME "." SERVICE_TYPE "." SERVICE_DOMAIN);
 constexpr auto SERVICE_TYPE_DOMAIN   = SV(SERVICE_TYPE "." SERVICE_DOMAIN);
 
+#ifndef __MINGW32__
 typedef struct _DNS_SERVICE_INSTANCE {
   LPWSTR pszInstanceName;
   LPWSTR pszHostName;
@@ -53,6 +56,7 @@ typedef struct _DNS_SERVICE_INSTANCE {
 
   DWORD dwInterfaceIndex;
 } DNS_SERVICE_INSTANCE, *PDNS_SERVICE_INSTANCE;
+#endif
 
 typedef VOID WINAPI DNS_SERVICE_REGISTER_COMPLETE(
   _In_ DWORD Status,
@@ -61,6 +65,7 @@ typedef VOID WINAPI DNS_SERVICE_REGISTER_COMPLETE(
 
 typedef DNS_SERVICE_REGISTER_COMPLETE *PDNS_SERVICE_REGISTER_COMPLETE;
 
+#ifndef __MINGW32__
 typedef struct _DNS_SERVICE_CANCEL {
   PVOID reserved;
 } DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;
@@ -74,6 +79,7 @@ typedef struct _DNS_SERVICE_REGISTER_REQUEST {
   HANDLE hCredentials;
   BOOL unicastEnabled;
 } DNS_SERVICE_REGISTER_REQUEST, *PDNS_SERVICE_REGISTER_REQUEST;
+#endif
 
 _FN(_DnsServiceFreeInstance, VOID, (_In_ PDNS_SERVICE_INSTANCE pInstance));
 _FN(_DnsServiceDeRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));

@@ -129,44 +129,30 @@ jobs:
         uses: actions/checkout@v2
         with:
           submodules: recursive
-
-      - name: Install boost
-        uses: MarkusJx/install-boost@v2.1.0
-        id: install-boost
+      - name: MSYS2 Setup
+        uses: msys2/setup-msys2@v2
         with:
-          # REQUIRED: Specify the required boost version
-          # A list of supported versions can be found here:
-          # https://github.com/actions/boost-versions/blob/main/versions-manifest.json
-          boost_version: 1.78.0
-          # OPTIONAL: Specify a custom install location
-          boost_install_dir: 'C:'
-          # OPTIONAL: Specify a platform version
-          platform_version: 2019
-          toolset: mingw
-
-          # NOTE: If a boost version matching all requirements cannot be found,
-          # this build step will fail
-      - name: Setup Windows
-        run: |
-          C:\msys64\usr\bin\bash -lc "pacman --needed --noconfirm -S mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git yasm nasm diffutils make"
-#      - name: Build Windows
-#          env:
-#            BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
-#          run: |
-#            mkdir sunshine-windows-build && cd sunshine-windows-build
-#            set PATH=C:\msys64\mingw64\bin
-#            set BOOST_ROOT=C:\boost
-#            set BOOST_INCLUDEDIR=C:\boost
-#            set BOOST_LIBRARYDIR=C:\boost\lib
-#            cmake -DCMAKE_CXX_STANDARD=17 -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
-#            mingw32-make -j2
+          update: true
+          install: >-
+            base-devel
+            git
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-openssl 
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-opus 
+            mingw-w64-x86_64-x265
+            mingw-w64-x86_64-boost 
+            git 
+            yasm 
+            nasm 
+            diffutils 
+            make
       - name: Build Windows
-        env:
-          BOOST_ROOT: ${{ steps.install-boost.outputs.BOOST_ROOT }}
+        shell: msys2 {0}
         run: |
           mkdir sunshine-windows-build && cd sunshine-windows-build
-          set PATH=C:\msys64\mingw64\bin
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "Unix Makefiles" ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
       - name: Package Windows
         run: |
