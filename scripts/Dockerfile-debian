@@ -37,5 +37,3 @@ COPY build-private.sh /root/build.sh
 
 
 ENTRYPOINT ["/root/build.sh"]
-
-ENTRYPOINT ["/root/sunshine-build/gen-deb"]
