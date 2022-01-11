@@ -96,11 +96,11 @@ jobs:
     name: Linux
     runs-on: ubuntu-20.04
     strategy:
-      fail-fast: false
+      fail-fast: true  # false to test all, true to fail entire job if any fail
       matrix:
-        distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]
+        distro: [ debian, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]  # removed ubuntu_18_04 for now
         package: [ -p ]
-        include:
+        include:  # don't package these
           - distro: fedora_33
             package: ''
           - distro: fedora_35
