@@ -87,7 +87,9 @@ jobs:
         name: sunshine-AppImage
         path: artifacts/
     - name: Create Release
-      uses: ./.github/workflows/create_release.yml
+      uses: SunshineStream/.github/actions/create_release
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
 
 
   build_linux:
@@ -125,7 +127,9 @@ jobs:
           name: sunshine-${{ matrix.distro }}
           path: artifacts/
       - name: Create Release
-        uses: ./.github/workflows/create_release.yml
+        uses: SunshineStream/.github/actions/create_release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   build_win:
     name: Windows
@@ -182,4 +186,6 @@ jobs:
           name: sunshine-${{ runner.os }}
           path: artifacts/
       - name: Create Release
-        uses: ./.github/workflows/create_release.yml
+        uses: SunshineStream/.github/actions/create_release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
