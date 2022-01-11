@@ -88,7 +88,7 @@ jobs:
         path: artifacts/
     - name: Create Release
       uses: ./.github/workflows/create_release.yml
-      secrets:
+      with:
         token: ${{ secrets.GITHUB_TOKEN }}
 
 
@@ -128,7 +128,7 @@ jobs:
           path: artifacts/
       - name: Create Release
         uses: ./.github/workflows/create_release.yml
-        secrets:
+        with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   build_win:
@@ -187,5 +187,5 @@ jobs:
           path: artifacts/
       - name: Create Release
         uses: ./.github/workflows/create_release.yml
-        secrets:
+        with:
           token: ${{ secrets.GITHUB_TOKEN }}
