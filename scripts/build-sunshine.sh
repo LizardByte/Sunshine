@@ -1,4 +1,5 @@
-#/bin/bash -e
+#!/bin/bash -e
+set -e
 
 usage() {
 	echo "Usage: $0"

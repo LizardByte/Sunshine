@@ -1,0 +1,199 @@
+name: Create Package
+
+on:
+  pull_request:
+    branches: [master, nightly]
+    types: [opened, synchronize, edited, reopened]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build_appimage:
+    name: AppImage
+    runs-on: ubuntu-20.04
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Setup Dependencies AppImage
+      run: |
+        mkdir -p artifacts
+
+        sudo apt-get update -y && \
+        sudo apt-get --reinstall install -y \
+        git wget gcc-10 g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+        sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && sudo chmod a+x /root/cuda.run
+        sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && sudo rm /root/cuda.run
+        sudo add-apt-repository ppa:savoury1/graphics -y
+        sudo add-apt-repository ppa:savoury1/multimedia -y
+        sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
+        sudo apt-get update -y
+        sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
+        sudo apt-get install ffmpeg -y
+    - name: Build AppImage
+      run: |
+        CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
+        SUNSHINE_EXECUTABLE_PATH="${SUNSHINE_EXECUTABLE_PATH:-/usr/bin/sunshine}"
+        SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR:-sunshine.AppImage.config}"
+
+        SUNSHINE_ENABLE_WAYLAND=${SUNSHINE_ENABLE_WAYLAND:-ON}
+        SUNSHINE_ENABLE_X11=${SUNSHINE_ENABLE_X11:-ON}
+        SUNSHINE_ENABLE_DRM=${SUNSHINE_ENABLE_DRM:-ON}
+        SUNSHINE_ENABLE_CUDA=${SUNSHINE_ENABLE_CUDA:-ON}
+
+        mkdir -p appimage-build && cd appimage-build
+
+        cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
+
+        make -j ${nproc} DESTDIR=AppDir
+    - name: Package AppImage
+      # https://docs.appimage.org/packaging-guide/index.html
+      run: |
+        mkdir -p appimage_temp && cd appimage_temp
+
+        DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
+        ICON_FILE="${ICON_FILE:-sunshine.png}"
+        CONFIG_DIR="${CONFIG_DIR:-sunshine/sunshine.AppImage.config/}"
+        HOME_DIR="${HOME_DIR:-sunshine/sunshine.AppImage.home/}"
+
+        wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
+
+        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../$DESKTOP_FILE" --output appimage
+
+        mv sunshine*.AppImage sunshine.AppImage
+        mkdir sunshine && mv sunshine.AppImage sunshine/
+        ./sunshine/sunshine.AppImage --appimage-portable-config
+        ./sunshine/sunshine.AppImage --appimage-portable-home
+        cp -r ../assets/* "$CONFIG_DIR"
+        rm -f "$CONFIG_DIR"/apps_windows.json
+        mkdir -p ./"$HOME_DIR"/.config/"$CONFIG_DIR"
+        cp ./"$CONFIG_DIR"/apps_linux.json ./"$HOME_DIR"/.config/"$CONFIG_DIR"
+        zip -r ./sunshine_linux.zip ./sunshine/*
+
+        mv sunshine_linux.zip ../artifacts/
+    - name: Verify AppImage
+      run: |
+        cd appimage_temp
+        wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./sunshine/sunshine.AppImage
+    - name: Upload Artifacts
+      if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: sunshine-AppImage
+        path: artifacts/
+    - name: Create Release
+      uses: SunshineStream/actions/create_release@v0
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+
+  build_linux:
+    name: Linux
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: true  # false to test all, true to fail entire job if any fail
+      matrix:
+        distro: [ debian, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]  # removed ubuntu_18_04 for now
+        package: [ -p ]
+        include:  # don't package these
+          - distro: fedora_33
+            package: ''
+          - distro: fedora_35
+            package: ''
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Setup Container
+        run: |
+          mkdir -p artifacts
+
+          cd scripts
+          sudo ./build-container.sh -c build -f Dockerfile-${{ matrix.distro }} -n sunshine-${{ matrix.distro }}
+      - name: Build Linux
+        run: |
+          cd scripts
+          sudo ./build-sunshine.sh ${{ matrix.package }} -u -n sunshine-${{ matrix.distro }} -s ..
+      - name: Package Linux
+        if: ${{ matrix.package == '-p' }}
+        run: |
+          cd scripts
+          sudo mv ./sunshine-${{ matrix.distro }}-build/sunshine-${{ matrix.distro }}.deb ../artifacts/
+      - name: Upload Artifacts
+        if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: sunshine-${{ matrix.distro }}
+          path: artifacts/
+      - name: Create Release
+        if: ${{ matrix.package == '-p' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: SunshineStream/actions/create_release@v0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build_win:
+    name: Windows
+    runs-on: windows-2019
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+      - name: MSYS2 Setup
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel
+            git
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-openssl 
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-opus 
+            mingw-w64-x86_64-x265
+            mingw-w64-x86_64-boost 
+            git 
+            yasm 
+            nasm 
+            diffutils 
+            make
+      - name: Build Windows
+        shell: msys2 {0}
+        run: |
+          mkdir sunshine-windows-build && cd sunshine-windows-build
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
+          mingw32-make -j2
+      - name: Package Windows
+        run: |
+          cd sunshine-windows-build
+          Del ..\assets\apps_linux.json
+          7z a Sunshine-Windows.zip ..\assets
+          7z a Sunshine-Windows.zip sunshine.exe
+          7z a Sunshine-Windows.zip tools\dxgi-info.exe
+          7z a Sunshine-Windows.zip tools\audio-info.exe
+          7z a Sunshine-Windows.zip tools\sunshinesvc.exe
+          7z a Sunshine-Windows.zip ..\tools\install-service.bat
+          7z a Sunshine-Windows.zip ..\tools\uninstall-service.bat
+          cd ..
+          mkdir artifacts
+          move "sunshine-windows-build/Sunshine-Windows.zip" "artifats"
+      - name: Upload Artifacts
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: sunshine-${{ runner.os }}
+          path: artifacts/
+      - name: Create Release
+        uses: SunshineStream/actions/create_release@v0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

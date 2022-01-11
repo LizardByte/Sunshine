@@ -32,13 +32,13 @@ cd scripts
 
 Then, the sources will be compiled and the debian package generated:
 ```
-./build-sunshine -p -s ..
+./build-sunshine.sh -p -s ..
 ```
 You can run `build-sunshine -p -s ..` again as long as the docker container exists.
 
 ```
 git pull
-./build-sunshine -p -s ..
+./build-sunshine.sh -p -s ..
 ```
 
 Optionally, the docker container can be removed after you're finished:
