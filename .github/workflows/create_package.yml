@@ -87,7 +87,7 @@ jobs:
         name: sunshine-AppImage
         path: artifacts/
     - name: Create Release
-      uses: .github/workflows/create_release.yml
+      uses: ./.github/workflows/create_release.yml
       secrets:
         token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -127,7 +127,7 @@ jobs:
           name: sunshine-${{ matrix.distro }}
           path: artifacts/
       - name: Create Release
-        uses: .github/workflows/create_release.yml
+        uses: ./.github/workflows/create_release.yml
         secrets:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -186,6 +186,6 @@ jobs:
           name: sunshine-${{ runner.os }}
           path: artifacts/
       - name: Create Release
-        uses: .github/workflows/create_release.yml
+        uses: ./.github/workflows/create_release.yml
         secrets:
           token: ${{ secrets.GITHUB_TOKEN }}
