@@ -2,9 +2,6 @@ name: Create Release
 
 on:
   workflow_call:
-    secrets:
-      token:
-        required: true
 
 jobs:
   create_release:
@@ -20,7 +17,7 @@ jobs:
         id: last_release
         uses: InsonusK/get-latest-release@v1.0.1  # https://github.com/InsonusK/get-latest-release
         with:
-          myToken: ${{ secrets.token }}
+          myToken: ${{ secrets.GITHUB_TOKEN }}
           exclude_types: "draft|prerelease"
           view_top: 1
 
@@ -39,6 +36,6 @@ jobs:
           name: Release ${{ steps.changelog.outputs.version }}
           tag: ${{ steps.changelog.outputs.version }}
           artifacts: "./artifacts/*"
-          token: ${{ secrets.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdated: true
           body: ${{ steps.changelog.outputs.description }}
