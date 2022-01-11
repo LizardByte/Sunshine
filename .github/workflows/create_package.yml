@@ -1,9 +1,11 @@
-name: Build test
+name: Create Package
 
 on:
   pull_request:
     branches: [master, nightly]
     types: [opened, synchronize, edited, reopened]
+  push:
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
@@ -24,7 +26,7 @@ jobs:
         sudo apt-get update -y && \
         sudo apt-get --reinstall install -y \
         git wget gcc-10 g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
-        sudo cp /usr/bin/gcc-10 /usr/bin/gcc && sudo cp /usr/bin/g++-10 /usr/bin/gcc-10
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
         sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && sudo chmod a+x /root/cuda.run
         sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && sudo rm /root/cuda.run
         sudo add-apt-repository ppa:savoury1/graphics -y
@@ -84,6 +86,11 @@ jobs:
       with:
         name: sunshine-AppImage
         path: artifacts/
+    - name: Create Release
+      uses: .github/workflows/create_release.yml
+      secrets:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
 
   build_linux:
     name: Linux
@@ -119,6 +126,10 @@ jobs:
         with:
           name: sunshine-${{ matrix.distro }}
           path: artifacts/
+      - name: Create Release
+        uses: .github/workflows/create_release.yml
+        secrets:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   build_win:
     name: Windows
@@ -165,9 +176,16 @@ jobs:
           7z a Sunshine-Windows.zip tools\sunshinesvc.exe
           7z a Sunshine-Windows.zip ..\tools\install-service.bat
           7z a Sunshine-Windows.zip ..\tools\uninstall-service.bat
+          cd ..
+          mkdir artifacts
+          move "sunshine-windows-build/Sunshine-Windows.zip" "artifats"
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v2
         with:
-          name: Windows
-          path: sunshine-windows-build/Sunshine-Windows.zip
+          name: sunshine-${{ runner.os }}
+          path: artifacts/
+      - name: Create Release
+        uses: .github/workflows/create_release.yml
+        secrets:
+          token: ${{ secrets.GITHUB_TOKEN }}
