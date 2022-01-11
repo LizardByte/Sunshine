@@ -201,7 +201,7 @@ jobs:
       - name: Package Windows
         run: |
           cd sunshine-windows-build
-          Del ..\assets\apps_linux.json
+          del ..\assets\apps_linux.json
           7z a Sunshine-Windows.zip ..\assets
           7z a Sunshine-Windows.zip sunshine.exe
           7z a Sunshine-Windows.zip tools\dxgi-info.exe
@@ -211,7 +211,7 @@ jobs:
           7z a Sunshine-Windows.zip ..\tools\uninstall-service.bat
           cd ..
           mkdir artifacts
-          move "sunshine-windows-build/Sunshine-Windows.zip" "artifats"
+          move "sunshine-windows-build\Sunshine-Windows.zip" "artifacts"
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v2
