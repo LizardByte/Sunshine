@@ -15,7 +15,8 @@ jobs:
     steps:
     - name: Verify Changelog
       id: verify_changelog
-      if: ${{ github.ref == 'refs/heads/master' }}
+      if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
+      # base_ref for pull request check, ref for push
       uses: SunshineStream/actions/verify_changelog@v0
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
