@@ -4,9 +4,9 @@ services:
 environment:
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
-      DOCKERFILE: Dockerfile-2004
+      DOCKERFILE: Dockerfile-ubuntu_20_04
     - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
-      DOCKERFILE: Dockerfile-2104
+      DOCKERFILE: Dockerfile-ubuntu_21_04
     - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
       DOCKERFILE: Dockerfile-debian
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
