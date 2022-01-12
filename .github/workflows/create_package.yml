@@ -13,6 +13,9 @@ jobs:
     name: Check Changelog
     runs-on: ubuntu-latest
     steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+      
     - name: Verify Changelog
       id: verify_changelog
       if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
