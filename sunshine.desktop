@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=sunshine
+Exec=sunshine
+Version=1.0
+Comment=Host for Moonlight Streaming Client
+Icon=sunshine
+Categories=Utility;
+Terminal=true
+X-AppImage-Name=sunshine
+X-AppImage-Version=1.0
+X-AppImage-Arch=x86_64

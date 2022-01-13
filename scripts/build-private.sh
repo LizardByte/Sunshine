@@ -1,4 +1,5 @@
 #!/bin/bash -e
+set -e
 
 CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
 SUNSHINE_EXECUTABLE_PATH="${SUNSHINE_EXECUTABLE_PATH:-/usr/bin/sunshine}"

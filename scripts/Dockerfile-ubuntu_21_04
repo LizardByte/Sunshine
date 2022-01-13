@@ -1,10 +1,8 @@
-FROM debian:bullseye AS sunshine-debian
+FROM ubuntu:21.04 AS sunshine-ubuntu_21_04
 
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN echo deb http://deb.debian.org/debian/ bullseye main contrib non-free | tee /etc/apt/sources.list.d/non-free.list
 RUN apt-get update -y && \
     apt-get install -y \
         build-essential \

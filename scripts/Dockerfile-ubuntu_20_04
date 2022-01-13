@@ -1,19 +1,18 @@
-FROM debian:bullseye AS sunshine-debian
+FROM ubuntu:20.04 AS sunshine-ubuntu_20_04
 
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN echo deb http://deb.debian.org/debian/ bullseye main contrib non-free | tee /etc/apt/sources.list.d/non-free.list
 RUN apt-get update -y && \
     apt-get install -y \
         build-essential \
         cmake \
         git \
+        g++-10 \
         libavdevice-dev \
-        libboost-thread-dev \
         libboost-filesystem-dev \
         libboost-log-dev \
+        libboost-thread-dev \
         libcap-dev \
         libdrm-dev \
         libevdev-dev \
@@ -28,10 +27,14 @@ RUN apt-get update -y && \
         libxfixes-dev \
         libxrandr-dev \
         libxtst-dev \
-        nvidia-cuda-dev \
-        nvidia-cuda-toolkit \
+        wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+
+RUN wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && chmod a+x /root/cuda.run
+RUN /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm /root/cuda.run
 
 COPY build-private.sh /root/build.sh
 
