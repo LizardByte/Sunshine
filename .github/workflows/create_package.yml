@@ -20,7 +20,7 @@ jobs:
       id: verify_changelog
       if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
       # base_ref for pull request check, ref for push
-      uses: SunshineStream/actions/verify_changelog@v0
+      uses: SunshineStream/actions/verify_changelog@master
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
     outputs:
