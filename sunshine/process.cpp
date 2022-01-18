@@ -189,6 +189,14 @@ std::vector<ctx_t> &proc_t::get_apps() {
   return _apps;
 }
 
+std::string proc_t::get_app_image(int app_id) {
+  if(app_id < 0 || app_id >= _apps.size()) {
+    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
+    return {};
+  }
+  return _apps[app_id].image;
+}
+
 proc_t::~proc_t() {
   terminate();
 }
@@ -279,6 +287,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto output             = app_node.get_optional<std::string>("output"s);
       auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd                = app_node.get_optional<std::string>("cmd"s);
+      auto image              = app_node.get_optional<std::string>("image"s);
       auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
@@ -319,6 +328,10 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
       if(working_dir) {
         ctx.working_dir = parse_env_val(this_env, *working_dir);
+      }
+
+      if (image) {
+        ctx.image = parse_env_val(this_env, *image);
       }
 
       ctx.name      = std::move(name);

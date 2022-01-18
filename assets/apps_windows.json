@@ -7,7 +7,8 @@
 		"name":"Steam BigPicture",
 
 		"output":"steam.txt",
-		"detached":["steam steam://open/bigpicture"]
+		"detached":["steam steam://open/bigpicture"],
+		"image":"steam.png"
 	}
 	]
 }

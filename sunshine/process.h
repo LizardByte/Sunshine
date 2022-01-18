@@ -55,6 +55,7 @@ struct ctx_t {
   std::string cmd;
   std::string working_dir;
   std::string output;
+  std::string image;
 };
 
 class proc_t {
@@ -78,6 +79,7 @@ public:
 
   const std::vector<ctx_t> &get_apps() const;
   std::vector<ctx_t> &get_apps();
+  std::string get_app_image(int app_id);
 
   void terminate();
 
