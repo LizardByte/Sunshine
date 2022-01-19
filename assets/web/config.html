@@ -85,7 +85,7 @@
           <option value="ds4">DS4 (PS4)</option>
           <option value="x360">X360 (Xbox 360)</option>
         </select>
-        <div class="form-text">Automatically configure port forwarding</div>
+        <div class="form-text">Choose which type of gamepad to Emulate on the host</div>
       </div>
       <!--Ping Timeout-->
       <div class="mb-3">
@@ -186,7 +186,8 @@
           The display modes advertised by Sunshine<br />
           Some versions of Moonlight, such as Moonlight-nx (Switch), rely on
           this list to ensure that the requested resolutions and fps are
-          supported.
+          supported.<br>
+          This setting does <b>not</b> change how the screen stream is sent to Moonlight
         </div>
       </div>
       <!-- Mapping Key AltRight to Key Windows -->
@@ -628,6 +629,9 @@
           placeholder="superfast"
           v-model="config.sw_preset"
         />
+        <div class="form-text">
+          Available Values: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+        </div>
       </div>
       <div class="mb-3">
         <label for="sw_tune" class="form-label">SW Tune</label>
@@ -637,6 +641,15 @@
           placeholder="zerolatency"
           v-model="config.sw_tune"
         />
+        <div class="form-text">
+          Available Tune settings: <br>
+          film - use for high quality movie content; lowers deblocking<br>
+          animation - good for cartoons; uses higher deblocking and more reference frames<br>
+          grain - preserves the grain structure in old, grainy film material<br>
+          stillimage - good for slideshow-like content<br>
+          fastdecode - allows faster decoding by disabling certain filters<br>
+          zerolatency - good for fast encoding and low-latency streaming<br>
+        </div>
       </div>
     </div>
     <!--Nvidia Encoder Settings-->

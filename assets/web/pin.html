@@ -28,14 +28,14 @@
     fetch("/api/pin", { method: "POST", body: b })
       .then((response) => response.json())
       .then((response) => {
-        if (response.status) {
+        if (response.status && response.status === "true") {
           document.querySelector(
             "#status"
           ).innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
         } else {
           document.querySelector(
             "#status"
-          ).innerHTML = `<div class="alert alert-danger" role="alert">PIN does not match, please check if it's typed correctly</div>`;
+          ).innerHTML = `<div class="alert alert-danger" role="alert">Pairing Failed: Check if the PIN is typed correctly</div>`;
         }
       });
   });

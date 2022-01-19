@@ -54,3 +54,14 @@
     </nav>
   </body>
 </html>
+
+<script>
+  let el = document.querySelector("a[href='"+document.location.pathname+"']");
+  if(el)el.classList.add("active")
+</script>
+
+<style>
+  .nav-link.active {
+    font-weight: 500;
+  }
+</style>
