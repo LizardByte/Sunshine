@@ -166,6 +166,22 @@
           If not set, Sunshine will default to the parent directory of the command
         </div>
       </div>
+      <!-- Image path -->
+      <div class="mb-3">
+        <label for="appImagePath" class="form-label">Image</label>
+        <input
+          type="text"
+          class="form-control monospace"
+          id="appImagePath"
+          aria-describedby="appImagePathHelp"
+          v-model="editForm['image-path']"
+        />
+        <div id="appImagePathHelp" class="form-text">
+          Application icon/picture/image path that will be sent to client.
+          Only full path are working, so no relative path.
+          If not set, Sunshine will send default box image.
+        </div>
+      </div>
       <!--buttons-->
       <div class="d-flex">
         <button @click="showEditForm = false" class="btn btn-secondary m-2">
