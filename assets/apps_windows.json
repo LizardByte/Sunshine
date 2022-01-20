@@ -8,7 +8,7 @@
 
 		"output":"steam.txt",
 		"detached":["steam steam://open/bigpicture"],
-		"image":"steam.png"
+		"image_path":"./asset/steam.png"
 	}
 	]
 }

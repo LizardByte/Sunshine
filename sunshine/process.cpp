@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -189,19 +190,31 @@ std::vector<ctx_t> &proc_t::get_apps() {
   return _apps;
 }
 
+#define CHECK_EXPECTED_EXTENTIONS(extention) (extention == "png" || extention == "jpg"  || extention == "jpeg")
+
 /// Gets application image from application list.
 /// Returns default image if image configuration is not set.
 std::string proc_t::get_app_image(int app_id) {
-  if(app_id < 0 || app_id >= _apps.size()) {
+  auto app_index = app_id -1;
+  if(app_index < 0 || app_index >= _apps.size()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-    return "box.png";
+    return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
-  auto app_image = _apps[app_id].image;
-  if (app_image.empty()) {
-    return "box.png";
+  auto app_image_path = _apps[app_index].image_path;
+  if (app_image_path.empty()) {
+    return SUNSHINE_ASSETS_DIR "/box.png";
   }
-  return app_image;
+
+  auto image_extention = std::filesystem::path(app_image_path).extension().string();
+  image_extention = image_extention.substr(1, image_extention.length() - 1);
+
+  std::error_code code;
+  if (!std::filesystem::exists(app_image_path, code) || !CHECK_EXPECTED_EXTENTIONS(image_extention)) {
+    return SUNSHINE_ASSETS_DIR "/box.png";
+  }
+
+  return app_image_path;
 }
 
 proc_t::~proc_t() {
@@ -294,7 +307,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto output             = app_node.get_optional<std::string>("output"s);
       auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd                = app_node.get_optional<std::string>("cmd"s);
-      auto image              = app_node.get_optional<std::string>("image"s);
+      auto image_path              = app_node.get_optional<std::string>("image-path"s);
       auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
@@ -337,8 +350,8 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.working_dir = parse_env_val(this_env, *working_dir);
       }
 
-      if (image) {
-        ctx.image = parse_env_val(this_env, *image);
+      if (image_path) {
+        ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
       ctx.name      = std::move(name);

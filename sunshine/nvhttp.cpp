@@ -761,29 +761,14 @@ void cancel(resp_https_t response, req_https_t request) {
   }
 }
 
-#define CHECK_EXPECTED_EXTENTIONS(extention) (extention == "png" || extention == "jpg"  || extention == "jpeg")
 
 void appasset(resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
   auto args = request->parse_query_string();
-  auto appid = util::from_view(args.at("appid")) - 1;
-  auto app_image = proc::proc.get_app_image(appid);
-  if (app_image.empty()) {
-    app_image = "box.png";
-  }
+  auto app_image = proc::proc.get_app_image(util::from_view(args.at("appid")));
   
-  auto file_path = SUNSHINE_ASSETS_DIR "/" + app_image;
-  auto image_extention = std::filesystem::path(file_path).extension().string();
-  image_extention = image_extention.substr(1, image_extention.length() - 1);
-
-  std::error_code code;
-  if (!std::filesystem::exists(file_path, code) || !CHECK_EXPECTED_EXTENTIONS(image_extention)) {
-    response->write(SimpleWeb::StatusCode::client_error_not_found);
-    return;
-  }
-
-  std::ifstream in(file_path, std::ios::binary);
+  std::ifstream in(app_image, std::ios::binary);
   response->write(SimpleWeb::StatusCode::success_ok, in);
   response->close_connection_after_response = true;
 }

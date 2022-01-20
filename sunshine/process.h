@@ -55,7 +55,7 @@ struct ctx_t {
   std::string cmd;
   std::string working_dir;
   std::string output;
-  std::string image;
+  std::string image_path;
 };
 
 class proc_t {
