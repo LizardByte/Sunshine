@@ -189,12 +189,19 @@ std::vector<ctx_t> &proc_t::get_apps() {
   return _apps;
 }
 
+/// Gets application image from application list.
+/// Returns default image if image configuration is not set.
 std::string proc_t::get_app_image(int app_id) {
   if(app_id < 0 || app_id >= _apps.size()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-    return {};
+    return "box.png";
   }
-  return _apps[app_id].image;
+
+  auto app_image = _apps[app_id].image;
+  if (app_image.empty()) {
+    return "box.png";
+  }
+  return app_image;
 }
 
 proc_t::~proc_t() {
