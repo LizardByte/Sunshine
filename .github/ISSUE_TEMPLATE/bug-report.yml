@@ -1,0 +1,82 @@
+name: Bug Report
+description: Create a bug report to help us improve.
+body:
+  - type: markdown
+    attributes:
+      value: >
+        **THIS IS NOT THE PLACE TO ASK FOR SUPPORT!**
+        Please use [Github Discussions](https://github.com/SunshineStream/Sunshine/discussions) for support issues.
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the bug here.
+  - type: input
+    id: os
+    attributes:
+      label: Sunshine Host Operating System and Version
+      placeholder: eg. Windows 10, macOS 10.15, Ubuntu 20.04, etc.
+    validations:
+      required: true
+  - type: input
+    id: architecture
+    attributes:
+      label: Architecture
+      placeholder: e.g. 32 bit, 64 bit, arm
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Sunshine Version
+      placeholder: eg. 0.11.1
+    validations:
+      required: true
+  - type: input
+    id: graphics_type
+    attributes:
+      label: GPU Type
+      description: The type of the installed graphics card.
+      placeholder: e.g. Intel, AMD, Nvidia
+    validations:
+      required: true
+  - type: input
+    id: graphics_model
+    attributes:
+      label: GPU Model
+      description: The model of the installed graphics card.
+      placeholder: e.g. GeForce RTX 2080 SUPER
+    validations:
+      required: true
+  - type: input
+    id: graphics_driver
+    attributes:
+      label: GPU Driver/Mesa Version
+      description: The driver/mesa version of the installed graphics card.
+      placeholder: e.g. 497.29
+    validations:
+      required: true
+  - type: input
+    id: capture_method
+    attributes:
+      label: Capture Method (Linux Only)
+      description: The driver/mesa version of the installed graphics card.
+      placeholder: e.g. PipeWire/KVM/X11
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        Make sure to close your issue when it's solved! If you found the solution yourself please comment so that others benefit from it.
