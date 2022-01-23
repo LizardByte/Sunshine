@@ -105,8 +105,8 @@ jobs:
       # base_ref for pull request check, ref for push
       run: |
         cd ./appimage_temp/sunshine
-        version=$(./sunshine.AppImage --version | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
-        echo "sunshine_version=v${version}" >> $GITHUB_ENV
+        version=$(./sunshine.AppImage --version | grep -o -E 'v[0-9]+\.[0-9]+\.[0-9]+')
+        echo "sunshine_version=${version}" >> $GITHUB_ENV
     - name: Compare Versions
       if: ${{ ( github.ref == 'refs/heads/master' || github.base_ref == 'master') && ( env.sunshine_version != needs.check_changelog.outputs.next_version ) }}
       run: |
