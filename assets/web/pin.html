@@ -28,7 +28,7 @@
     fetch("/api/pin", { method: "POST", body: b })
       .then((response) => response.json())
       .then((response) => {
-        if (response.status && response.status === "true") {
+        if (response.status.toString().toLowerCase() === "true") {
           document.querySelector(
             "#status"
           ).innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
