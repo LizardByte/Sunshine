@@ -770,7 +770,7 @@ void appasset(resp_https_t response, req_https_t request) {
 
   std::ifstream in(app_image, std::ios::binary);
   SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", image_content_type);
+  headers.emplace("Content-Type", "image/" + image_content_type);
   response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   response->close_connection_after_response = true;
 }
