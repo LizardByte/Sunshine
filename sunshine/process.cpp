@@ -307,7 +307,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto output             = app_node.get_optional<std::string>("output"s);
       auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd                = app_node.get_optional<std::string>("cmd"s);
-      auto image_path              = app_node.get_optional<std::string>("image-path"s);
+      auto image_path         = app_node.get_optional<std::string>("image-path"s);
       auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
