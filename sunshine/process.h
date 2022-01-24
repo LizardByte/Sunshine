@@ -16,8 +16,6 @@
 
 #include "utility.h"
 
-#define CHECK_EXPECTED_PICTURE_EXTENTIONS(extention) (extention == "png" || extention == "jpg"  || extention == "jpeg")
-
 namespace proc {
 using file_t = util::safe_ptr_v2<FILE, int, fclose>;
 
@@ -81,7 +79,7 @@ public:
 
   const std::vector<ctx_t> &get_apps() const;
   std::vector<ctx_t> &get_apps();
-  std::tuple<std::string, std::string> get_app_image(int app_id);
+  std::string get_app_image(int app_id);
 
   void terminate();
 

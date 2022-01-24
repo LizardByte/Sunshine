@@ -193,28 +193,28 @@ std::vector<ctx_t> &proc_t::get_apps() {
 /// Gets application image from application list.
 /// Returns default image if image configuration is not set.
 /// returns http content-type header compatible image type
-std::tuple<std::string, std::string> proc_t::get_app_image(int app_id) {
+std::string proc_t::get_app_image(int app_id) {
   auto app_index = app_id -1;
   if(app_index < 0 || app_index >= _apps.size()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-    return { SUNSHINE_ASSETS_DIR "/box.png", "png" };
+    return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
   auto app_image_path = _apps[app_index].image_path;
   if (app_image_path.empty()) {
-    return { SUNSHINE_ASSETS_DIR "/box.png", "png" };
+    return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
-  auto image_extention = std::filesystem::path(app_image_path).extension().string();
-  image_extention = image_extention.substr(1, image_extention.length() - 1);
+  auto image_extension = std::filesystem::path(app_image_path).extension().string();
+  image_extension = image_extension.substr(1, image_extension.length() - 1);
 
   std::error_code code;
-  if (!std::filesystem::exists(app_image_path, code) || !CHECK_EXPECTED_PICTURE_EXTENTIONS(image_extention)) {
-    return { SUNSHINE_ASSETS_DIR "/box.png", "png" };
+  if (!std::filesystem::exists(app_image_path, code) || image_extension != "png") {
+    return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
   // return only "content-type" http header compatible image type.
-  return { app_image_path, image_extention == "jpg" ? "jpeg" : image_extention };
+  return app_image_path;
 }
 
 proc_t::~proc_t() {
