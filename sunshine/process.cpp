@@ -13,6 +13,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "main.h"
 #include "utility.h"
@@ -206,7 +207,7 @@ std::string proc_t::get_app_image(int app_id) {
   }
 
   auto image_extension = std::filesystem::path(app_image_path).extension().string();
-  image_extension = image_extension.substr(1, image_extension.length() - 1);
+  boost::to_lower(image_extension);
 
   std::error_code code;
   if (!std::filesystem::exists(app_image_path, code) || image_extension != "png") {
