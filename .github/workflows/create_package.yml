@@ -100,6 +100,19 @@ jobs:
       run: |
         cd appimage_temp
         wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./sunshine/sunshine.AppImage
+    - name: Check Version
+      if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
+      # base_ref for pull request check, ref for push
+      run: |
+        cd ./appimage_temp/sunshine
+        version=$(./sunshine.AppImage --version | grep -o -E 'v[0-9]+\.[0-9]+\.[0-9]+')
+        echo "sunshine_version=${version}" >> $GITHUB_ENV
+    - name: Compare Versions
+      if: ${{ ( github.ref == 'refs/heads/master' || github.base_ref == 'master') && ( env.sunshine_version != needs.check_changelog.outputs.next_version ) }}
+      run: |
+        echo AppImage version: "$sunshine_version"
+        echo Changelog version: "${{ needs.check_changelog.outputs.next_version }}"
+        exit 1
     - name: Upload Artifacts
       if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
       uses: actions/upload-artifact@v2

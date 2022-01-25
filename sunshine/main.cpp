@@ -25,6 +25,7 @@
 #include "thread_pool.h"
 #include "upnp.h"
 #include "video.h"
+#include "version.h"
 
 #include "platform/common.h"
 extern "C" {
@@ -63,6 +64,7 @@ void print_help(const char *name) {
     << std::endl
     << "    --help                    | print help"sv << std::endl
     << "    --creds username password | set user credentials for the Web manager" << std::endl
+    << "    --version                 | print the version of sunshine" << std::endl
     << std::endl
     << "    flags"sv << std::endl
     << "        -0 | Read PIN from stdin"sv << std::endl
@@ -79,6 +81,13 @@ int entry(const char *name, int argc, char *argv[]) {
   return 0;
 }
 } // namespace help
+
+namespace version {
+int entry(const char *name, int argc, char *argv[]) {
+  std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
+  return 0;
+}
+} // namespace version
 
 void log_flush() {
   sink->flush();
@@ -111,7 +120,8 @@ int entry(const char *name, int argc, char *argv[]) {
 
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   { "creds"sv, gen_creds::entry },
-  { "help"sv, help::entry }
+  { "help"sv, help::entry },
+  { "version"sv, version::entry }
 };
 
 int main(int argc, char *argv[]) {
