@@ -210,7 +210,7 @@ std::string proc_t::get_app_image(int app_id) {
   boost::to_lower(image_extension);
 
   std::error_code code;
-  if (!std::filesystem::exists(app_image_path, code) || image_extension != "png") {
+  if (!std::filesystem::exists(app_image_path, code) || image_extension != ".png") {
     return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
