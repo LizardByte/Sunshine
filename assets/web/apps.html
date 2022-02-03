@@ -223,6 +223,7 @@
           index: -1,
           "prep-cmd": [],
           detached: [],
+          "image-path": ""
         };
         this.editForm.index = -1;
         this.showEditForm = true;
@@ -253,6 +254,7 @@
         });
       },
       save() {
+        this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
         fetch("/api/apps", {
           method: "POST",
           body: JSON.stringify(this.editForm),
