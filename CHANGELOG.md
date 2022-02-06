@@ -1,9 +1,13 @@
 # Changelog
 
 ## [0.12.0] - 2022-01-20
+### Added
+- New command line argument `--version`
+- Custom png poster support
 ### Changed
-- Increase vbv-bufsize to 1/10 of requested bitrate
 - Correct software bitrate calculation
+- Increase vbv-bufsize to 1/10 of requested bitrate
+- Improvements to Web UI
 
 ## [0.11.1] - 2021-10-04
 ### Changed
