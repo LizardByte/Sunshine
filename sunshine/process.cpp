@@ -8,10 +8,12 @@
 
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include "main.h"
 #include "utility.h"
@@ -189,6 +191,33 @@ std::vector<ctx_t> &proc_t::get_apps() {
   return _apps;
 }
 
+/// Gets application image from application list.
+/// Returns default image if image configuration is not set.
+/// returns http content-type header compatible image type
+std::string proc_t::get_app_image(int app_id) {
+  auto app_index = app_id -1;
+  if(app_index < 0 || app_index >= _apps.size()) {
+    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
+    return SUNSHINE_ASSETS_DIR "/box.png";
+  }
+
+  auto app_image_path = _apps[app_index].image_path;
+  if (app_image_path.empty()) {
+    return SUNSHINE_ASSETS_DIR "/box.png";
+  }
+
+  auto image_extension = std::filesystem::path(app_image_path).extension().string();
+  boost::to_lower(image_extension);
+
+  std::error_code code;
+  if (!std::filesystem::exists(app_image_path, code) || image_extension != ".png") {
+    return SUNSHINE_ASSETS_DIR "/box.png";
+  }
+
+  // return only "content-type" http header compatible image type.
+  return app_image_path;
+}
+
 proc_t::~proc_t() {
   terminate();
 }
@@ -279,6 +308,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto output             = app_node.get_optional<std::string>("output"s);
       auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd                = app_node.get_optional<std::string>("cmd"s);
+      auto image_path         = app_node.get_optional<std::string>("image-path"s);
       auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
@@ -319,6 +349,10 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
       if(working_dir) {
         ctx.working_dir = parse_env_val(this_env, *working_dir);
+      }
+
+      if (image_path) {
+        ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
       ctx.name      = std::move(name);

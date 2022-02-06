@@ -13,7 +13,8 @@
 		"name":"Steam BigPicture",
 
 		"output":"steam.txt",
-		"detached":["setsid steam steam://open/bigpicture"]
+		"detached":["setsid steam steam://open/bigpicture"],
+		"image-path":"./assets/steam.png"
 	}
 	]
 }
