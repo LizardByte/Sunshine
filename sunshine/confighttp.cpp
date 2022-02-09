@@ -224,22 +224,19 @@ void getTroubleshootingPage(resp_https_t response, req_https_t request) {
 void getFaviconImage(resp_https_t response, req_https_t request) {
   print_req(request);
 
-  std::string content = read_file(WEB_DIR "images/favicon.ico");
-  response->write(content);
+  std::ifstream in(WEB_DIR "images/favicon.ico", std::ios::binary);
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "image/x-icon");
+  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
 void getSunshineLogoImage(resp_https_t response, req_https_t request) {
   print_req(request);
 
-  std::string content = read_file(WEB_DIR "images/logo-sunshine-45.png");
-  response->write(content);
-}
-
-void getFontAwesomeCss(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::string content = read_file(WEB_DIR "third_party/font-awesome.5.15.4.all.min.css");
-  response->write(content);
+  std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "image/png");
+  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
 void getBootstrapCss(resp_https_t response, req_https_t request) {
@@ -595,7 +592,6 @@ void start() {
   server.resource["^/api/apps/close"]["POST"]                              = closeApp;
   server.resource["^/images/favicon.ico$"]["GET"]                          = getFaviconImage;
   server.resource["^/images/logo-sunshine-45.png$"]["GET"]                 = getSunshineLogoImage;
-  server.resource["^/third_party/font-awesome.5.15.4.all.min.css$"]["GET"] = getFontAwesomeCss;
   server.resource["^/third_party/bootstrap.min.css$"]["GET"]               = getBootstrapCss;
   server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"]         = getBootstrapJs;
   server.resource["^/third_party/vue.js$"]["GET"]                          = getVueJs;
