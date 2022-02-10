@@ -26,8 +26,7 @@
           v-model="config.sunshine_name"
         />
         <div class="form-text">
-          The name displayed by Moonlight. If not specified, the PC's hostname
-          is used
+          The name displayed by Moonlight. If not specified, the PC's hostname is used
         </div>
       </div>
       <!--Log Level-->
@@ -65,8 +64,7 @@
           <option value="wan">Anyone may access Web UI</option>
         </select>
         <div class="form-text">
-          The origin of the remote endpoint address that is not denied access to
-          Web UI
+          The origin of the remote endpoint address that is not denied access to Web UI
         </div>
       </div>
       <!--UPnP-->
@@ -98,8 +96,7 @@
           v-model="config.ping_timeout"
         />
         <div class="form-text">
-          How long to wait in milliseconds for data from moonlight before
-          shutting down the stream
+          How long to wait in milliseconds for data from moonlight before shutting down the stream
         </div>
       </div>
       <!--Advertised FPS and Resolutions-->
@@ -184,9 +181,8 @@
         </div>
         <div class="form-text">
           The display modes advertised by Sunshine<br />
-          Some versions of Moonlight, such as Moonlight-nx (Switch), rely on
-          this list to ensure that the requested resolutions and fps are
-          supported.<br>
+          Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
+          resolutions and fps are supported.<br>
           This setting does <b>not</b> change how the screen stream is sent to Moonlight
         </div>
       </div>
@@ -205,10 +201,8 @@
         </select>
       </div>
       <div class="form-text">
-        It may be possible that you cannot send the Windows Key from Moonlight
-        directly.<br />
-        In those cases it may be usefull to make Sunshine think the Right Alt
-        key is the Windows key
+        It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
+        In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
       </div>
     </div>
     <!--Files Tab-->
@@ -284,12 +278,9 @@
         />
         <div class="form-text">
           The back/select button on the controller.<br />
-          On the Shield, the home and powerbutton are not passed to
-          Moonlight.<br />
-          If, after the timeout, the back button is still pressed down,
-          Home/Guide button press is emulated.<br />
-          If back_button_timeout &lt; 0, then the Home/Guide button will not be
-          emulated<br />
+          On the Shield, the home and power button are not passed to  Moonlight.<br />
+          If, after the timeout, the back button is still pressed down, Home/Guide button press is emulated.<br />
+          If back_button_timeout &lt; 0, then the Home/Guide button will not be emulated<br />
         </div>
       </div>
       <!-- Key Repeat Delay-->
@@ -341,8 +332,7 @@
         />
         <div class="form-text">
           The name of the audio sink used for Audio Loopback<br />
-          You can find the name of the audio sink using the following
-          command:<br />
+          You can find the name of the audio sink using the following command:<br />
           <pre>tools\audio-info.exe</pre>
         </div>
       </div>
@@ -357,8 +347,7 @@
         />
         <div class="form-text">
           The name of the audio sink used for Audio Loopback<br />
-          If you do not specify this variable, pulseaudio will select the
-          default monitor device.<br />
+          If you do not specify this variable, pulseaudio will select the default monitor device.<br />
           <br />
           You can find the name of the audio sink using either command:<br />
           <pre>pacmd list-sinks | grep "name:"</pre>
@@ -377,9 +366,8 @@
           v-model="config.virtual_sink"
         />
         <div class="form-text">
-          The virtual sink, is the audio device that's virtual (Like Steam
-          Streaming Speakers), it allows Sunshine to stream audio, while muting
-          the speakers.
+          The virtual sink, is the audio device that's virtual (Like Steam Streaming Speakers), it allows Sunshine to
+          stream audio, while muting the speakers.
         </div>
       </div>
       <!--Adapter Name -->
@@ -411,7 +399,8 @@
         <div class="form-text">
           You can select the video card you want to stream:<br />
           The appropriate values can be found using the following command:<br />
-          tools\dxgi-info.exe<br /><br />
+          tools\dxgi-info.exe<br />
+          <br />
         </div>
       </div>
       <div class="mb-3" class="config-page" v-if="platform === 'linux'">
@@ -431,7 +420,7 @@
       </div>
     </div>
     <div v-if="currentTab === 'advanced'" class="config-page">
-      <!--Port familly-->
+      <!--Port family-->
       <div class="mb-3">
         <label for="port" class="form-label">Port</label>
         <input
@@ -443,7 +432,7 @@
           placeholder="47989"
           v-model="config.port"
         />
-        <div class="form-text">Set the familly of ports used by Sunshine</div>
+        <div class="form-text">Set the family of ports used by Sunshine</div>
       </div>
       <!-- Quantization Parameter -->
       <div class="mb-3">
@@ -477,15 +466,12 @@
         />
         <div class="form-text">
           Minimum number of threads used by ffmpeg to encode the video.<br />
-          Increasing the value slightly reduces encoding efficiency, but the
-          tradeoff is usually<br />
-          worth it to gain the use of more CPU cores for encoding. The ideal
-          value is the lowest<br />
-          value that can reliably encode at your desired streaming settings on
-          your hardware.
+          Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br />
+          worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br />
+          value that can reliably encode at your desired streaming settings on your hardware.
         </div>
       </div>
-      <!--HEVC Suppport -->
+      <!--HEVC Support -->
       <div class="mb-3">
         <label for="hevc_mode" class="form-label">HEVC Support</label>
         <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
@@ -499,15 +485,12 @@
             Sunshine will advertise support for HEVC Main profile
           </option>
           <option value="3">
-            Sunshine will advertise support for HEVC Main and Main10 (HDR)
-            profiles
+            Sunshine will advertise support for HEVC Main and Main10 (HDR) profiles
           </option>
         </select>
         <div class="form-text">
-          Allows the client to request HEVC Main or HEVC Main10 video
-          streams.<br />
-          HEVC is more CPU-intensive to encode, so enabling this may reduce
-          performance when using software encoding.
+          Allows the client to request HEVC Main or HEVC Main10 video streams.<br />
+          HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
         </div>
       </div>
       <!--Encoder -->
@@ -521,8 +504,7 @@
           <option value="software">Software</option>
         </select>
         <div class="form-text">
-          Force a specific encoder, otherwise Sunshine will use the first
-          encoder that is available
+          Force a specific encoder, otherwise Sunshine will use the first encoder that is available
         </div>
       </div>
       <!--FEC Percentage-->
@@ -536,10 +518,8 @@
           v-model="config.fec_percentage"
         />
         <div class="form-text">
-          Percentage of error correcting packets per data packet in each video
-          frame.<br />
-          Higher values can correct for more network packet loss, but at the
-          cost of increasing bandwidth usage.<br />
+          Percentage of error correcting packets per data packet in each video frame.<br />
+          Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br />
           The default value of 20 is what GeForce Experience uses.
         </div>
       </div>
@@ -554,17 +534,16 @@
           v-model="config.channels"
         />
         <div class="form-text">
-          When multicasting, it could be useful to have different configurations
-          for each connected Client. For example:
+          When multicasting, it could be useful to have different configurations for each connected Client. For example:
           <ul>
             <li>
-              Clients connected through WAN and LAN have different bitrate
-              contstraints.
+              Clients connected through WAN and LAN have different bitrate constraints.
             </li>
-            <li>Decoders may require different settings for color</li>
+            <li>
+              Decoders may require different settings for color
+            </li>
           </ul>
-          Unlike simply broadcasting to multiple Client, this will generate
-          distinct video streams.<br />
+          Unlike simply broadcasting to multiple Client, this will generate distinct video streams.<br />
           Note, CPU usage increases for each distinct video stream generated
         </div>
       </div>
@@ -581,7 +560,7 @@
           v-model="config.credentials_file"
         />
         <div class="form-text">
-          Store Username/Password seperately from Sunshine's state file.
+          Store Username/Password separately from Sunshine's state file.
         </div>
       </div>
       <!--Origin PIN Allowed-->
@@ -599,8 +578,7 @@
           <option value="wan">Anyone may access /pin</option>
         </select>
         <div class="form-text">
-          The origin of the remote endpoint address that is not denied for HTTP
-          method /pin
+          The origin of the remote endpoint address that is not denied for HTTP method /pin
         </div>
       </div>
       <!--External IP-->
@@ -614,8 +592,7 @@
           v-model="config.external_ip"
         />
         <div class="form-text">
-          If no external IP address is given, Sunshine will automatically detect
-          external IP
+          If no external IP address is given, Sunshine will automatically detect external IP
         </div>
       </div>
     </div>
@@ -680,9 +657,7 @@
           <option value="vbr">vbr -- variable bitrate</option>
           <option value="cbr">cbr -- constant bitrate</option>
           <option value="cbr_hq">cbr_hq -- cbr high quality</option>
-          <option value="cbr_ld_hq">
-            cbr_ld_hq -- cbr low delay high quality
-          </option>
+          <option value="cbr_ld_hq">cbr_ld_hq -- cbr low delay high quality</option>
           <option value="vbr_hq">vbr_hq -- vbr high quality</option>
         </select>
       </div>
@@ -715,12 +690,8 @@
         <select id="amd_rc" class="form-select" v-model="config.amd_rc">
           <option value="auto">auto -- let ffmpeg decide rate control</option>
           <option value="constqp">constqp -- constant QP mode</option>
-          <option value="vbr_latency">
-            vbr_latency -- Latency Constrained Variable Bitrate
-          </option>
-          <option value="vbr_peak">
-            vbr_peak -- Peak Contrained Variable Bitrate
-          </option>
+          <option value="vbr_latency">vbr_latency -- Latency Constrained Variable Bitrate</option>
+          <option value="vbr_peak">vbr_peak -- Peak Contrained Variable Bitrate</option>
           <option value="cbr">cbr -- constant bitrate</option>
         </select>
       </div>
