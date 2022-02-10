@@ -31,14 +31,14 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninit
 if(WIN32)
 	enable_language(RC)
 	set(CMAKE_RC_COMPILER windres)
-	# file(
-	# 	DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-	# 	TIMEOUT 60
-	# 	EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
+	file(
+		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		TIMEOUT 60
+		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
 
-	# file(ARCHIVE_EXTRACT
-	# 	INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-	# 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+	file(ARCHIVE_EXTRACT
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	
 	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
@@ -345,12 +345,9 @@ if(NOT SUNSHINE_DEFAULT_DIR)
 	set(SUNSHINE_DEFAULT_DIR "${SUNSHINE_ASSETS_DIR}")
 endif()
 
-# list(APPEND CBS_EXTERNAL_LIBRARIES
-# 	cbs)
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		libminiupnpc-static
-		# ${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 		stdc++fs
 		enet
