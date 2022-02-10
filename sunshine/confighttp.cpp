@@ -239,6 +239,31 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
+void getFontAwesomeCss(resp_https_t response, req_https_t request) {
+  print_req(request);
+
+  std::string content = read_file(WEB_DIR "fonts/fontawesome-free-web/css/all.min.css");
+  response->write(content);
+}
+
+void getFontAwesomeBrands(resp_https_t response, req_https_t request) {
+  print_req(request);
+
+  std::ifstream in(WEB_DIR "fonts/fontawesome-free-web/webfonts/fa-brands-400.ttf", std::ios::binary);
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "font/ttf");
+  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+}
+
+void getFontAwesomeSolid(resp_https_t response, req_https_t request) {
+  print_req(request);
+
+  std::ifstream in(WEB_DIR "fonts/fontawesome-free-web/webfonts/fa-solid-900.ttf", std::ios::binary);
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "font/ttf");
+  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+}
+
 void getBootstrapCss(resp_https_t response, req_https_t request) {
   print_req(request);
 
@@ -594,6 +619,9 @@ void start() {
   server.resource["^/images/logo-sunshine-45.png$"]["GET"]                 = getSunshineLogoImage;
   server.resource["^/third_party/bootstrap.min.css$"]["GET"]               = getBootstrapCss;
   server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"]         = getBootstrapJs;
+  server.resource["^/fontawesome/css/all.min.css$"]["GET"]                 = getFontAwesomeCss;
+  server.resource["^/fontawesome/webfonts/fa-brands-400.ttf$"]["GET"]      = getFontAwesomeBrands;
+  server.resource["^/fontawesome/webfonts/fa-solid-900.ttf$"]["GET"]       = getFontAwesomeSolid;
   server.resource["^/third_party/vue.js$"]["GET"]                          = getVueJs;
   server.config.reuse_address                                              = true;
   server.config.address                                                    = "0.0.0.0"s;
