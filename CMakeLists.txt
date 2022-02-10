@@ -320,8 +320,6 @@ include_directories(
   ${PLATFORM_INCLUDE_DIRS}
 )
 
-# add_subdirectory(third-party/cbs)
-
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -ggdb3)
