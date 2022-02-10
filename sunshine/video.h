@@ -27,6 +27,8 @@ struct packet_raw_t : public AVPacket {
     buf             = nullptr;
     side_data       = nullptr;
     side_data_elems = 0;
+    opaque          = nullptr;
+    opaque_ref      = nullptr;
   }
 
   template<class P>
