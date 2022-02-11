@@ -102,7 +102,7 @@ enum quality_e : int {
 };
 
 enum class rc_hevc_e : int {
-  cqp,     /**< Constant QP mode */
+  cqp,         /**< Constant QP mode */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
   vbr_peak,    /**< Peak Contrained Variable Bitrate */
   cbr,         /**< Constant bitrate mode */
