@@ -109,7 +109,7 @@ enum class rc_hevc_e : int {
 };
 
 enum class rc_h264_e : int {
-  cqp,     /**< Constant QP mode */
+  cqp,         /**< Constant QP mode */
   cbr,         /**< Constant bitrate mode */
   vbr_peak,    /**< Peak Contrained Variable Bitrate */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
