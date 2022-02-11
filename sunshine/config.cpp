@@ -102,14 +102,14 @@ enum quality_e : int {
 };
 
 enum class rc_hevc_e : int {
-  constqp,     /**< Constant QP mode */
+  cqp,     /**< Constant QP mode */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
   vbr_peak,    /**< Peak Contrained Variable Bitrate */
   cbr,         /**< Constant bitrate mode */
 };
 
 enum class rc_h264_e : int {
-  constqp,     /**< Constant QP mode */
+  cqp,     /**< Constant QP mode */
   cbr,         /**< Constant bitrate mode */
   vbr_peak,    /**< Peak Contrained Variable Bitrate */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
@@ -134,7 +134,7 @@ std::optional<quality_e> quality_from_view(const std::string_view &quality) {
 std::optional<int> rc_h264_from_view(const std::string_view &rc) {
 #define _CONVERT_(x) \
   if(rc == #x##sv) return (int)rc_h264_e::x
-  _CONVERT_(constqp);
+  _CONVERT_(cqp);
   _CONVERT_(vbr_latency);
   _CONVERT_(vbr_peak);
   _CONVERT_(cbr);
@@ -145,7 +145,7 @@ std::optional<int> rc_h264_from_view(const std::string_view &rc) {
 std::optional<int> rc_hevc_from_view(const std::string_view &rc) {
 #define _CONVERT_(x) \
   if(rc == #x##sv) return (int)rc_hevc_e::x
-  _CONVERT_(constqp);
+  _CONVERT_(cqp);
   _CONVERT_(vbr_latency);
   _CONVERT_(vbr_peak);
   _CONVERT_(cbr);
