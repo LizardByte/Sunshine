@@ -5,6 +5,8 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Sunshine</title>
+    <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+    <link href="/fontawesome/css/all.min.css" rel="stylesheet">
     <link href="/third_party/bootstrap.min.css" rel="stylesheet" />
     <script src="/third_party/bootstrap.bundle.min.js"></script>
     <script src="/third_party/vue.js"></script>
@@ -16,7 +18,9 @@
       style="background-color: #ffc400"
     >
       <div class="container-fluid">
-        <span class="navbar-brand">Sunshine</span>
+        <a class="navbar-brand" href="/" title="Sunshine">
+          <img src="/images/logo-sunshine-45.png" height="45" alt="Sunshine">
+        </a>
         <button
           class="navbar-toggler"
           type="button"
@@ -31,22 +35,22 @@
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             <li class="nav-item">
-              <a class="nav-link" href="/">Home</a>
+              <a class="nav-link" href="/"><i class="fas fa-fw fa-home"></i> Home</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/pin">PIN</a>
+              <a class="nav-link" href="/pin"><i class="fas fa-fw fa-unlock"></i> PIN</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/apps">Applications</a>
+              <a class="nav-link" href="/apps"><i class="fas fa-fw fa-stream"></i> Applications</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/config">Configuration</a>
+              <a class="nav-link" href="/config"><i class="fas fa-fw fa-cog"></i> Configuration</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/password">Change Password</a>
+              <a class="nav-link" href="/password"><i class="fas fa-fw fa-user-shield"></i> Change Password</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link" href="/troubleshooting">Troubleshooting</a>
+              <a class="nav-link" href="/troubleshooting"><i class="fas fa-fw fa-info"></i> Troubleshooting</a>
             </li>
           </ul>
         </div>
