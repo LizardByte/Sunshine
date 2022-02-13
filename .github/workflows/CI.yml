@@ -82,7 +82,7 @@ jobs:
   build_appimage:
     name: AppImage
     runs-on: ubuntu-20.04
-    needs: [check_changelog, check_versions]
+    needs: check_changelog
 
     steps:
     - name: Checkout
@@ -169,7 +169,7 @@ jobs:
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
-    needs: [check_changelog, check_versions]
+    needs: check_changelog
     strategy:
       fail-fast: true  # false to test all, true to fail entire job if any fail
       matrix:
@@ -220,7 +220,7 @@ jobs:
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: [check_changelog, check_versions]
+    needs: check_changelog
 
     steps:
       - name: Checkout
