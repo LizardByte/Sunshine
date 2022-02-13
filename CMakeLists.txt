@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine VERSION 0.11.1)
+project(Sunshine VERSION 0.12.0)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
