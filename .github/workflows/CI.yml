@@ -65,18 +65,14 @@ jobs:
 
     - name: Check sunshine.desktop Versions
       run: |
-        version=$(grep -o -E '^Version=[0-9]+\.[0-9]+\.[0-9]+' sunshine.desktop | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
-        version_x=$(grep -o -E '^X-AppImage-Version=[0-9]+\.[0-9]+\.[0-9]+' sunshine.desktop | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+        version=$(grep -o -E '^X-AppImage-Version=[0-9]+\.[0-9]+\.[0-9]+' sunshine.desktop | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
         echo "appimage_version=${version}" >> $GITHUB_ENV
-        echo "appimagex_version=${version_x}" >> $GITHUB_ENV
     - name: Compare sunshine.desktop Versions
-      if: ${{ ( env.appimage_version != needs.check_changelog.outputs.next_version_bare ) && ( env.appimagex_version != needs.check_changelog.outputs.next_version_bare ) }}
+      if: ${{ env.appimage_version != needs.check_changelog.outputs.next_version_bare }}
       run: |
         echo sunshine.desktop Version: "$appimage_version"
-        echo sunshine.desktop X-AppImage-Version: "$appimagex_version"
         echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
-        echo Within 'sunshine.desktop' change "Version=$appimage_version" to "Version=${{ needs.check_changelog.outputs.next_version_bare }}"
-        echo Within 'sunshine.desktop' change "X-AppImage-Version=$appimagex_version" to "X-AppImage-Version=${{ needs.check_changelog.outputs.next_version_bare }}"
+        echo Within 'sunshine.desktop' change "X-AppImage-Version=$appimage_version" to "X-AppImage-Version=${{ needs.check_changelog.outputs.next_version_bare }}"
         exit 1
 
   build_appimage:
@@ -122,6 +118,11 @@ jobs:
         cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
 
         make -j ${nproc} DESTDIR=AppDir
+    - name: Set AppImage Version
+      if: ${{ needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version }}
+      run: |
+        version=${{ needs.check_changelog.outputs.next_version_bare }}
+        echo "VERSION=${version}" >> $GITHUB_ENV
     - name: Package AppImage
       # https://docs.appimage.org/packaging-guide/index.html
       run: |
