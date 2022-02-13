@@ -25,13 +25,64 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       next_version: ${{ steps.verify_changelog.outputs.changelog_parser_version }}
+      next_version_bare: ${{ steps.verify_changelog.outputs.changelog_parser_version_bare }}
       last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
       release_body:  ${{ steps.verify_changelog.outputs.changelog_parser_description }}
+
+  check_versions:
+    name: Check Versions
+    runs-on: ubuntu-latest
+    needs: check_changelog
+    if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
+    # base_ref for pull request check, ref for push
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Check CMakeLists.txt Version
+      run: |
+        version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+\)' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+        echo "cmakelists_version=${version}" >> $GITHUB_ENV
+    - name: Compare CMakeList.txt Version
+      if: ${{ env.cmakelists_version != needs.check_changelog.outputs.next_version_bare }}
+      run: |
+        echo CMakeLists version: "$cmakelists_version"
+        echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
+        echo Within 'CMakeLists.txt' change "project(Sunshine VERSION $cmakelists_version)" to "project(Sunshine VERSION ${{ needs.check_changelog.outputs.next_version_bare }})"
+        exit 1
+
+    - name: Check gen-deb.in Version
+      run: |
+        version=$(grep -o -E '^Version: [0-9]+\.[0-9]+\.[0-9]+' gen-deb.in | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+        echo "gendeb_version=${version}" >> $GITHUB_ENV
+    - name: Compare gen-deb.in Version
+      if: ${{ env.gendeb_version != needs.check_changelog.outputs.next_version_bare }}
+      run: |
+        echo gen-deb.in version: "$gendeb_version"
+        echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
+        echo Within 'gen-deb.in' change "Version: $gendeb_version" to "Version: ${{ needs.check_changelog.outputs.next_version_bare }}"
+        exit 1
+
+    - name: Check sunshine.desktop Versions
+      run: |
+        version=$(grep -o -E '^Version=[0-9]+\.[0-9]+\.[0-9]+' sunshine.desktop | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+        version_x=$(grep -o -E '^X-AppImage-Version=[0-9]+\.[0-9]+\.[0-9]+' sunshine.desktop | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+        echo "appimage_version=${version}" >> $GITHUB_ENV
+        echo "appimagex_version=${version_x}" >> $GITHUB_ENV
+    - name: Compare sunshine.desktop Versions
+      if: ${{ ( env.appimage_version != needs.check_changelog.outputs.next_version_bare ) && ( env.appimagex_version != needs.check_changelog.outputs.next_version_bare ) }}
+      run: |
+        echo sunshine.desktop Version: "$appimage_version"
+        echo sunshine.desktop X-AppImage-Version: "$appimagex_version"
+        echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
+        echo Within 'sunshine.desktop' change "Version=$appimage_version" to "Version=${{ needs.check_changelog.outputs.next_version_bare }}"
+        echo Within 'sunshine.desktop' change "X-AppImage-Version=$appimagex_version" to "X-AppImage-Version=${{ needs.check_changelog.outputs.next_version_bare }}"
+        exit 1
 
   build_appimage:
     name: AppImage
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: [check_changelog, check_versions]
 
     steps:
     - name: Checkout
@@ -100,19 +151,6 @@ jobs:
       run: |
         cd appimage_temp
         wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./sunshine/sunshine.AppImage
-    - name: Check Version
-      if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-      # base_ref for pull request check, ref for push
-      run: |
-        cd ./appimage_temp/sunshine
-        version=$(./sunshine.AppImage --version | grep -o -E 'v[0-9]+\.[0-9]+\.[0-9]+')
-        echo "sunshine_version=${version}" >> $GITHUB_ENV
-    - name: Compare Versions
-      if: ${{ ( github.ref == 'refs/heads/master' || github.base_ref == 'master') && ( env.sunshine_version != needs.check_changelog.outputs.next_version ) }}
-      run: |
-        echo AppImage version: "$sunshine_version"
-        echo Changelog version: "${{ needs.check_changelog.outputs.next_version }}"
-        exit 1
     - name: Upload Artifacts
       if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
       uses: actions/upload-artifact@v2
@@ -128,11 +166,10 @@ jobs:
         last_version: ${{ needs.check_changelog.outputs.last_version }}
         release_body: ${{ needs.check_changelog.outputs.release_body }}
 
-
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: [check_changelog, check_versions]
     strategy:
       fail-fast: true  # false to test all, true to fail entire job if any fail
       matrix:
@@ -183,7 +220,7 @@ jobs:
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: check_changelog
+    needs: [check_changelog, check_versions]
 
     steps:
       - name: Checkout
