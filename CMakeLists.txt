@@ -32,9 +32,9 @@ if(WIN32)
 	enable_language(RC)
 	set(CMAKE_RC_COMPILER windres)
 	file(
-		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DOWNLOAD "https://github.com/SunshineStream/Sunshine-Windows-Prebuilt/releases/download/v1/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		TIMEOUT 60
-		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
+		EXPECTED_HASH SHA256=e0bd75cc9cd98e1c22b8c6805afd9126ce141d46837405bdc10c4458437590a2)
 
 	file(ARCHIVE_EXTRACT
 		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
