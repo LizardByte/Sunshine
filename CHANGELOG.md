@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.0] - 2022-01-20
+## [0.12.0] - 2022-02-13
 ### Added
 - New command line argument `--version`
 - Custom png poster support
