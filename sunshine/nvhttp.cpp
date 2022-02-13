@@ -761,11 +761,17 @@ void cancel(resp_https_t response, req_https_t request) {
   }
 }
 
+
 void appasset(resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
-  std::ifstream in(SUNSHINE_ASSETS_DIR "/box.png");
-  response->write(SimpleWeb::StatusCode::success_ok, in);
+  auto args = request->parse_query_string();
+  auto app_image = proc::proc.get_app_image(util::from_view(args.at("appid")));
+
+  std::ifstream in(app_image, std::ios::binary);
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "image/png");
+  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   response->close_connection_after_response = true;
 }
 

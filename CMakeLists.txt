@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine)
+project(Sunshine VERSION 0.11.1)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -258,6 +258,9 @@ else()
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
+configure_file(version.h.in version.h @ONLY)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
 set(SUNSHINE_TARGET_FILES
 	third-party/moonlight-common-c/reedsolomon/rs.c
 	third-party/moonlight-common-c/reedsolomon/rs.h
@@ -367,7 +370,10 @@ list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_DEFAULT_DIR="${SUNSHINE_DEFAULT_DIR}")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
-set_target_properties(sunshine PROPERTIES CXX_STANDARD 17)
+set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
+                            VERSION ${PROJECT_VERSION}
+                            SOVERSION ${PROJECT_VERSION_MAJOR}
+                            )
 
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 17)
