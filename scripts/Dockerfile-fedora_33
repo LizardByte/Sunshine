@@ -18,6 +18,7 @@ RUN dnf -y update && \
         openssl-devel \
         opus-devel \
         pulseaudio-libs-devel \
+        wget \
     && dnf clean all \
     && rm -rf /var/cache/yum
 
