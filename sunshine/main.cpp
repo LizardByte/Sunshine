@@ -63,7 +63,6 @@ void print_help(const char *name) {
     << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
     << std::endl
     << "    --help                    | print help"sv << std::endl
-    << "    --creds username password | set user credentials for the Web manager" << std::endl
     << "    --version                 | print the version of sunshine" << std::endl
     << std::endl
     << "    flags"sv << std::endl
@@ -105,21 +104,7 @@ void on_signal(int sig, FN &&fn) {
   std::signal(sig, on_signal_forwarder);
 }
 
-namespace gen_creds {
-int entry(const char *name, int argc, char *argv[]) {
-  if(argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
-    print_help(name);
-    return 0;
-  }
-
-  http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
-
-  return 0;
-}
-} // namespace gen_creds
-
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
-  { "creds"sv, gen_creds::entry },
   { "help"sv, help::entry },
   { "version"sv, version::entry }
 };

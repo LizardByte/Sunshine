@@ -30,17 +30,14 @@ using namespace std::literals;
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
-int reload_user_creds(const std::string &file);
-bool user_creds_exist(const std::string &file);
-
 std::string unique_id;
 net::net_e origin_pin_allowed;
-net::net_e origin_web_ui_allowed;
+net::net_e origin_web_api_allowed;
 
 int init() {
   bool clean_slate      = config::sunshine.flags[config::flag::FRESH_STATE];
   origin_pin_allowed    = net::from_enum_string(config::nvhttp.origin_pin_allowed);
-  origin_web_ui_allowed = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
+  origin_web_api_allowed = net::from_enum_string(config::nvhttp.origin_web_api_allowed);
 
   if(clean_slate) {
     unique_id           = util::uuid_t::generate().string();
@@ -53,74 +50,6 @@ int init() {
     if(create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
       return -1;
     }
-  }
-  if(user_creds_exist(config::sunshine.credentials_file)) {
-    if(reload_user_creds(config::sunshine.credentials_file)) return -1;
-  } else {
-    BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
-  }
-  return 0;
-}
-
-int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
-  pt::ptree outputTree;
-
-  if(fs::exists(file)) {
-    try {
-      pt::read_json(file, outputTree);
-    }
-    catch(std::exception &e) {
-      BOOST_LOG(error) << "Couldn't read user credentials: "sv << e.what();
-      return -1;
-    }
-  }
-
-  auto salt = crypto::rand_alphabet(16);
-  outputTree.put("username", username);
-  outputTree.put("salt", salt);
-  outputTree.put("password", util::hex(crypto::hash(password + salt)).to_string());
-  try {
-    pt::write_json(file, outputTree);
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(error) << "generating user credentials: "sv << e.what();
-    return -1;
-  }
-
-  BOOST_LOG(info) << "New credentials have been created"sv;
-  return 0;
-}
-
-bool user_creds_exist(const std::string &file) {
-  if(!fs::exists(file)) {
-    return false;
-  }
-
-  pt::ptree inputTree;
-  try {
-    pt::read_json(file, inputTree);
-    return inputTree.find("username") != inputTree.not_found() &&
-           inputTree.find("password") != inputTree.not_found() &&
-           inputTree.find("salt") != inputTree.not_found();
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(error) << "validating user credentials: "sv << e.what();
-  }
-
-  return false;
-}
-
-int reload_user_creds(const std::string &file) {
-  pt::ptree inputTree;
-  try {
-    pt::read_json(file, inputTree);
-    config::sunshine.username = inputTree.get<std::string>("username");
-    config::sunshine.password = inputTree.get<std::string>("password");
-    config::sunshine.salt     = inputTree.get<std::string>("salt");
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(error) << "loading user credentials: "sv << e.what();
-    return -1;
   }
   return 0;
 }

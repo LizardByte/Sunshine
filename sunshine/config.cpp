@@ -9,6 +9,7 @@
 
 #include "config.h"
 #include "main.h"
+#include "crypto.h"
 #include "utility.h"
 
 #include "platform/common.h"
@@ -245,10 +246,7 @@ input_t input {
 sunshine_t sunshine {
   2,                                    // min_log_level
   0,                                    // flags
-  {},                                   // User file
-  {},                                   // Username
-  {},                                   // Password
-  {},                                   // Password Salt
+  crypto::rand_alphabet(20),            // token
   SUNSHINE_CONFIG_DIR "/sunshine.conf", // config file
   {},                                   // cmd args
   47989,
@@ -695,10 +693,6 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 
   path_f(vars, "file_state", nvhttp.file_state);
 
-  // Must be run after "file_state"
-  config::sunshine.credentials_file = config::nvhttp.file_state;
-  path_f(vars, "credentials_file", config::sunshine.credentials_file);
-
   string_f(vars, "external_ip", nvhttp.external_ip);
   list_string_f(vars, "resolutions"s, nvhttp.resolutions);
   list_int_f(vars, "fps"s, nvhttp.fps);
@@ -707,7 +701,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "virtual_sink", audio.virtual_sink);
 
   string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, { "pc"sv, "lan"sv, "wan"sv });
-  string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, { "pc"sv, "lan"sv, "wan"sv });
+  string_restricted_f(vars, "origin_web_api_allowed", nvhttp.origin_web_api_allowed, { "pc"sv, "lan"sv, "wan"sv });
 
   int to = -1;
   int_between_f(vars, "ping_timeout", to, { -1, std::numeric_limits<int>::max() });
@@ -756,6 +750,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int port = sunshine.port;
   int_f(vars, "port"s, port);
   sunshine.port = (std::uint16_t)port;
+  string_f(vars, "token"s, sunshine.token);
 
   bool upnp = false;
   bool_f(vars, "upnp"s, upnp);

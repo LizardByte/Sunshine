@@ -12,6 +12,7 @@ if(WIN32)
 		QOS_NON_ADAPTIVE_FLOW=2)
 endif()
 add_subdirectory(third-party/moonlight-common-c/enet)
+add_subdirectory(third-party/Simple-WebSocket-Server)
 add_subdirectory(third-party/Simple-Web-Server)
 
 set(UPNPC_BUILD_SHARED OFF CACHE BOOL "no shared libraries")

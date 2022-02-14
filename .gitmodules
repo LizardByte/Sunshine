@@ -13,3 +13,6 @@
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers
+[submodule "third-party/Simple-WebSocket-Server"]
+	path = third-party/Simple-WebSocket-Server
+	url = https://gitlab.com/eidheim/Simple-WebSocket-Server.git

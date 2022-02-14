@@ -148,8 +148,8 @@ std::unique_ptr<platf::deinit_t> start() {
   };
 
   // Only map port for the Web Manager if it is configured to accept connection from WAN
-  if(net::from_enum_string(config::nvhttp.origin_web_ui_allowed) > net::LAN) {
-    mappings.emplace_back(mapping_t { wm_http, wm_http, "Sunshine Web UI port"s, true });
+  if(net::from_enum_string(config::nvhttp.origin_web_api_allowed) > net::LAN) {
+    mappings.emplace_back(mapping_t { wm_http, wm_http, "Sunshine Web API port"s, true });
   }
 
   auto it = std::begin(mappings);

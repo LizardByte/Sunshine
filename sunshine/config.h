@@ -59,7 +59,7 @@ struct nvhttp_t {
   // Could be any of the following values:
   // pc|lan|wan
   std::string origin_pin_allowed;
-  std::string origin_web_ui_allowed;
+  std::string origin_web_api_allowed;
 
   std::string pkey; // must be 2048 bits
   std::string cert; // must be signed with a key of 2048 bits
@@ -97,12 +97,7 @@ enum flag_e : std::size_t {
 struct sunshine_t {
   int min_log_level;
   std::bitset<flag::FLAG_SIZE> flags;
-  std::string credentials_file;
-
-  std::string username;
-  std::string password;
-  std::string salt;
-
+  std::string token;
   std::string config_file;
 
   struct cmd_t {
