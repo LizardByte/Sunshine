@@ -21,3 +21,9 @@ jobs:
         clangFormatVersion: 13
         style: file
         inplace: False
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: clang-formatted-files
+        path: sunshine/
