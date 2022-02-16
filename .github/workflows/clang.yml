@@ -20,7 +20,7 @@ jobs:
         extensions: 'cpp,h'
         clangFormatVersion: 13
         style: file
-        inplace: False
+        inplace: True
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
