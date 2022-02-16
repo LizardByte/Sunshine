@@ -28,7 +28,7 @@ jobs:
         inplace: ${{ matrix.inplace }}
 
     - name: Upload Artifacts
-      if: ${{ matrix.inplace == True }}
+      if: ${{ matrix.inplace == 'True' }}
       uses: actions/upload-artifact@v2
       with:
         name: sunshine
