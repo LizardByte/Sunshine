@@ -24,8 +24,8 @@
 #include "rtsp.h"
 #include "thread_pool.h"
 #include "upnp.h"
-#include "video.h"
 #include "version.h"
+#include "video.h"
 
 #include "platform/common.h"
 extern "C" {
