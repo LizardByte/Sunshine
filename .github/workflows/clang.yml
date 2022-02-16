@@ -1,0 +1,23 @@
+name: clang-format-lint
+
+on:
+  pull_request:
+    branches: [master, nightly]
+    types: [opened, synchronize, edited, reopened]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Clang format lint
+      uses: DoozyX/clang-format-lint-action@v0.13
+      with:
+        source: './sunshine'
+        extensions: 'cpp,h'
+        clangFormatVersion: 13
+        style: file
+        inplace: False
