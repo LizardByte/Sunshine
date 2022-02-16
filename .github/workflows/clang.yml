@@ -7,7 +7,12 @@ on:
 
 jobs:
   lint:
+    name: Clang Format Lint
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        inplace: [ True, False ]  # removed ubuntu_18_04 for now
 
     steps:
     - name: Checkout
@@ -20,10 +25,11 @@ jobs:
         extensions: 'cpp,h'
         clangFormatVersion: 13
         style: file
-        inplace: True
+        inplace: ${{ matrix.inplace }}
 
     - name: Upload Artifacts
+      if: ${{ matrix.inplace == True }}
       uses: actions/upload-artifact@v2
       with:
-        name: clang-formatted-files
+        name: sunshine
         path: sunshine/
