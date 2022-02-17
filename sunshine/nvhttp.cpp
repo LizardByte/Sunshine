@@ -765,7 +765,7 @@ void cancel(resp_https_t response, req_https_t request) {
 void appasset(resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
-  auto args = request->parse_query_string();
+  auto args      = request->parse_query_string();
   auto app_image = proc::proc.get_app_image(util::from_view(args.at("appid")));
 
   std::ifstream in(app_image, std::ios::binary);
@@ -934,7 +934,7 @@ void start() {
   tcp.join();
 }
 
-void erase_all_clients(){
+void erase_all_clients() {
   map_id_client.clear();
   save_state();
 }

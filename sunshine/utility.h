@@ -62,8 +62,8 @@ struct argument_type<T(U)> { typedef U type; };
   x &operator=(x &&) noexcept = default; \
   x();
 
-#define KITTY_DEFAULT_CONSTR_MOVE(x)     \
-  x(x &&) noexcept = default;            \
+#define KITTY_DEFAULT_CONSTR_MOVE(x) \
+  x(x &&) noexcept = default;        \
   x &operator=(x &&) noexcept = default;
 
 #define KITTY_DEFAULT_CONSTR_MOVE_THROW(x) \

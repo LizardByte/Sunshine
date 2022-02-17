@@ -77,7 +77,7 @@ std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std
   });
 
   pa_buffer_attr pa_attr = {};
-  pa_attr.maxlength = frame_size * 8;
+  pa_attr.maxlength      = frame_size * 8;
 
   int status;
 
