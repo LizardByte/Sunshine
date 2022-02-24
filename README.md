@@ -10,6 +10,7 @@ Sunshine is a Gamestream host for Moonlight
 
 # Building
 - [Linux](README.md#linux)
+- [MacOS](README.md#macos)
 - [Windows](README.md#windows-10)
 
 ## Linux
@@ -107,6 +108,53 @@ It's necessary to allow Sunshine to use KMS
 
 - If you use hardware acceleration on Linux using an Intel or an AMD GPU (with VAAPI), you will get tons of [graphical issues](https://github.com/loki-47-6F-64/sunshine/issues/228) if your ffmpeg version is < 4.3. If it is not available in your distribution's repositories, consider using a newer version of your distribution.
 	- Ubuntu started to ship ffmpeg 4.3 starting with groovy (20.10). If you're using an older version, you could use [this PPA](https://launchpad.net/%7Esavoury1/+archive/ubuntu/ffmpeg4) instead of upgrading. **Using PPAs is dangerous and may break your system. Use it at your own risk.**
+
+## macOS
+
+### Quickstart
+
+- Install [MacPorts](https://www.macports.org)
+- Download the `Portfile` from this repository to `/tmp`
+- In a Terminal run `cd /tmp && sudo port install`
+- Sunshine configuration is in `/opt/local/etc`
+- Run `sunshine` to start the Sunshine server
+- You will be asked to grant access to screen recording and your microphone to be able to stream it
+
+### Manuel Build
+
+#### Requirements:
+macOS Big Sur and Xcode 12.5+:
+
+Either, using [MacPorts](https://www.macports.org), install the following
+```
+sudo port install cmake boost libopus ffmpeg
+```
+
+Or, using [Homebrew](https://brew.sh), install the follwoing:
+```
+brew install boost cmake ffmpeg libopusenc
+# if there are issues with an SSL header that is not found:
+cd /usr/local/include
+ln -s ../opt/openssl/include/openssl .
+```
+
+#### Compilation:
+- `git clone https://github.com/SunshineStream/Sunshine.git --recurse-submodules`
+- `cd sunshine && mkdir build && cd build`
+- `cmake ..`
+- `make -j ${nproc}`
+
+If cmake fails complaining to find Boost, try to set the path explicitly: `cmake -DBOOST_ROOT=[boost path] ..`, e.g., `cmake -DBOOST_ROOT=/opt/local/libexec/boost/1.76 ..`
+
+### Setup:
+- Sunshine can only access microphones on macOS due to system limitations. To stream system audio use [Soundflower](https://github.com/mattingalls/Soundflower) or [BlackHole](https://github.com/ExistentialAudio/BlackHole) and select their sink as audio device in `sunshine.conf`
+- `assets/sunshine.conf` is an example configuration file. Modify it as you see fit, then use it by running: 
+	`sunshine path/to/sunshine.conf`
+- `assets/apps.json` is an [example](README.md#application-list) of a list of applications that are started just before running a stream
+
+### Usage & Limitations:
+- Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
+- Gamepads are not supported
 
 ## Windows 10
 
