@@ -22,7 +22,7 @@ jobs:
       uses: DoozyX/clang-format-lint-action@v0.13
       with:
         source: './sunshine'
-        extensions: 'cpp,h'
+        extensions: 'cpp,h,m,mm'
         clangFormatVersion: 13
         style: file
         inplace: ${{ matrix.inplace }}
