@@ -72,6 +72,7 @@ platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
+util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
 int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
 
@@ -474,6 +475,32 @@ static encoder_t amdvce {
   DEFAULT,
   dxgi_make_hwdevice_ctx
 };
+
+
+static encoder_t quicksync {
+  "quicksync"sv,
+  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN },
+  AV_HWDEVICE_TYPE_QSV,
+  AV_PIX_FMT_QSV,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
+  {
+    {
+      { "forced-idr"s, 1 },
+      { "preset"s, &config::video.sw.preset },
+    },
+    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    "hevc_qsv"s,
+  },
+  {
+    {
+      { "preset"s, 7 },
+    },
+    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    "h264_qsv"s,
+  },
+  H264_ONLY,
+  qsv_make_hwdevice_ctx
+};
 #endif
 
 static encoder_t software {
@@ -542,6 +569,7 @@ static std::vector<encoder_t> encoders {
   nvenc,
 #ifdef _WIN32
   amdvce,
+  quicksync,
 #endif
 #ifdef __linux__
   vaapi,
@@ -735,7 +763,9 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
   }
 
   while(ret >= 0) {
-    auto packet = std::make_unique<packet_t::element_type>(nullptr);
+    auto packet    = std::make_unique<packet_t::element_type>(nullptr);
+    auto av_packet = packet.get();
+    av_packet->alloc();
 
     ret = avcodec_receive_packet(ctx.get(), packet.get());
     if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
@@ -1280,7 +1310,7 @@ void captureThreadSync() {
       ctx.shutdown_event->raise(true);
       ctx.join_event->raise(true);
     }
-  });
+    });
 
   while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
@@ -1296,7 +1326,7 @@ void capture_async(
   auto lg     = util::fail_guard([&]() {
     images->stop();
     shutdown_event->raise(true);
-  });
+      });
 
   auto ref = capture_thread_async.ref();
   if(!ref) {
@@ -1656,7 +1686,7 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   frame_ctx->sw_format         = format;
   frame_ctx->height            = ctx->height;
   frame_ctx->width             = ctx->width;
-  frame_ctx->initial_pool_size = 0;
+  frame_ctx->initial_pool_size = 20;
 
   if(auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
     return err;
@@ -1738,6 +1768,25 @@ util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_c
 
   return ctx_buf;
 }
+
+util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
+
+  AVBufferRef *hw_device_ctx = NULL;
+
+  auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, NULL, NULL, 0);
+
+  if(err) {
+    char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+    BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+
+    return err;
+  }
+
+  buffer_t ctx_buf { hw_device_ctx };
+
+  return ctx_buf;
+}
+
 #endif
 
 int start_capture_async(capture_thread_async_ctx_t &capture_thread_ctx) {
@@ -1774,6 +1823,8 @@ platf::mem_type_e map_dev_type(AVHWDeviceType type) {
     return platf::mem_type_e::dxgi;
   case AV_HWDEVICE_TYPE_VAAPI:
     return platf::mem_type_e::vaapi;
+  case AV_HWDEVICE_TYPE_QSV:
+    return platf::mem_type_e::system;
   case AV_HWDEVICE_TYPE_CUDA:
     return platf::mem_type_e::cuda;
   case AV_HWDEVICE_TYPE_NONE:
