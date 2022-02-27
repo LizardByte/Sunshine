@@ -313,6 +313,7 @@ else()
 		set(SUNSHINE_EXECUTABLE_PATH "sunshine")
 	endif()
 	configure_file(gen-deb.in gen-deb @ONLY)
+	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
