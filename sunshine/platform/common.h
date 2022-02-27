@@ -161,7 +161,7 @@ struct sink_t {
   // Play on host PC
   std::string host;
 
-  // On Windows, it is not possible to create a virtual sink
+  // On MacOS and Windows, it is not possible to create a virtual sink
   // Therefore, it is optional
   struct null_t {
     std::string stereo;

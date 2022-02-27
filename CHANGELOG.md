@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.13.0] - 2022-02-27
+### Added
+- (MacOS) Initial support for MacOS (#40)
+
 ## [0.12.0] - 2022-02-13
 ### Added
 - New command line argument `--version`

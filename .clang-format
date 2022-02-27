@@ -23,6 +23,7 @@ BraceWrapping:
   AfterEnum: false
   AfterFunction: false
   AfterNamespace: false
+  AfterObjCDeclaration: false
   AfterUnion: false
   BeforeCatch: true
   BeforeElse: true

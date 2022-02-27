@@ -162,6 +162,42 @@ int coder_from_view(const std::string_view &coder) {
 }
 } // namespace amd
 
+namespace vt {
+
+enum coder_e : int {
+  _auto = 0,
+  cabac,
+  cavlc
+};
+
+int coder_from_view(const std::string_view &coder) {
+  if(coder == "auto"sv) return _auto;
+  if(coder == "cabac"sv || coder == "ac"sv) return cabac;
+  if(coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
+
+  return -1;
+}
+
+int allow_software_from_view(const std::string_view &software) {
+  if(software == "allowed"sv || software == "forced") return 1;
+
+  return 0;
+}
+
+int force_software_from_view(const std::string_view &software) {
+  if(software == "forced") return 1;
+
+  return 0;
+}
+
+int rt_from_view(const std::string_view &rt) {
+  if(rt == "disabled" || rt == "off" || rt == "0") return 0;
+
+  return 1;
+}
+
+} // namespace vt
+
 video_t video {
   28, // qp
 
@@ -684,6 +720,14 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     video.amd.rc_h264 = amd::rc_h264_from_view(rc);
     video.amd.rc_hevc = amd::rc_hevc_from_view(rc);
   }
+
+  int_f(vars, "vt_coder", video.vt.coder, vt::coder_from_view);
+  video.vt.allow_sw = 0;
+  int_f(vars, "vt_software", video.vt.allow_sw, vt::allow_software_from_view);
+  video.vt.require_sw = 0;
+  int_f(vars, "vt_software", video.vt.require_sw, vt::force_software_from_view);
+  video.vt.realtime = 1;
+  int_f(vars, "vt_realtime", video.vt.realtime, vt::rt_from_view);
 
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);

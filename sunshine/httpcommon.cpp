@@ -56,7 +56,8 @@ int init() {
   }
   if(user_creds_exist(config::sunshine.credentials_file)) {
     if(reload_user_creds(config::sunshine.credentials_file)) return -1;
-  } else {
+  }
+  else {
     BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
   }
   return 0;
