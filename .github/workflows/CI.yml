@@ -111,7 +111,7 @@ jobs:
 
         wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
 
-        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../$DESKTOP_FILE" --output appimage
+        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../appimage-build/$DESKTOP_FILE" --output appimage
 
         mv sunshine*.AppImage sunshine.AppImage
         mkdir sunshine && mv sunshine.AppImage sunshine/
