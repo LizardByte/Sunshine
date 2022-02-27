@@ -22,6 +22,8 @@ extern "C" {
 #include "stream.h"
 #include "sync.h"
 
+#include <unordered_map>
+
 namespace asio = boost::asio;
 
 using asio::ip::tcp;

@@ -9,6 +9,7 @@ extern "C" {
 }
 
 #include <bitset>
+#include <unordered_map>
 
 #include "config.h"
 #include "input.h"

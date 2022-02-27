@@ -1,0 +1,6 @@
+{
+	"env":{
+		"PATH":"$(PATH):$(HOME)/.local/bin"
+	},
+	"apps":[ ]
+}

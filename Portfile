@@ -1,0 +1,48 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:ft=tcl:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           cmake 1.1
+PortGroup           github 1.0
+PortGroup           boost 1.0
+
+github.setup        abusse sunshine macos-dev
+version             20220224
+
+categories          multimedia
+platforms           darwin
+license             GPL-2
+maintainers         {outlook.com:anselm.busse}
+
+fetch.type          git
+post-fetch {
+    system -W ${worksrcpath} "${git.cmd} submodule update --init --recursive"
+}
+
+description         Sunshine is a Gamestream host for Moonlight
+long_description    Sunshine is a Gamestream host for Moonlight
+
+homepage            https://github.com/SunshineStream/Sunshine
+
+depends_lib         port:avahi port:ffmpeg port:libopus
+
+
+boost.version       1.76
+
+configure.args      -DBOOST_ROOT=[boost::install_area] \
+                    -DSUNSHINE_ASSETS_DIR=${prefix}/etc/sunshine
+
+cmake.out_of_source yes
+
+destroot {
+    xinstall -d -m 755 ${destroot}${prefix}/etc/${name}
+    xinstall ${worksrcpath}/assets/apps_mac.json ${destroot}${prefix}/etc/${name}
+    xinstall ${worksrcpath}/assets/box.png ${destroot}${prefix}/etc/${name}
+    xinstall ${worksrcpath}/assets/sunshine.conf ${destroot}${prefix}/etc/${name}
+
+    xinstall -d -m 755 ${destroot}${prefix}/etc/${name}/web
+    xinstall {*}[glob ${worksrcpath}/assets/web/*.html] ${destroot}${prefix}/etc/${name}/web
+    xinstall -d -m 755 ${destroot}${prefix}/etc/${name}/web/third_party
+    xinstall {*}[glob ${worksrcpath}/assets/web/third_party/*] ${destroot}${prefix}/etc/${name}/web/third_party
+
+    xinstall ${workpath}/build/${name} ${destroot}${prefix}/bin
+}
