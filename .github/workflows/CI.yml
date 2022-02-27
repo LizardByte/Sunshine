@@ -51,30 +51,6 @@ jobs:
         echo Within 'CMakeLists.txt' change "project(Sunshine VERSION $cmakelists_version)" to "project(Sunshine VERSION ${{ needs.check_changelog.outputs.next_version_bare }})"
         exit 1
 
-    - name: Check gen-deb.in Version
-      run: |
-        version=$(grep -o -E '^Version: [0-9]+\.[0-9]+\.[0-9]+' gen-deb.in | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
-        echo "gendeb_version=${version}" >> $GITHUB_ENV
-    - name: Compare gen-deb.in Version
-      if: ${{ env.gendeb_version != needs.check_changelog.outputs.next_version_bare }}
-      run: |
-        echo gen-deb.in version: "$gendeb_version"
-        echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
-        echo Within 'gen-deb.in' change "Version: $gendeb_version" to "Version: ${{ needs.check_changelog.outputs.next_version_bare }}"
-        exit 1
-
-    - name: Check sunshine.desktop Versions
-      run: |
-        version=$(grep -o -E '^X-AppImage-Version=[0-9]+\.[0-9]+\.[0-9]+' sunshine.desktop | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
-        echo "appimage_version=${version}" >> $GITHUB_ENV
-    - name: Compare sunshine.desktop Versions
-      if: ${{ env.appimage_version != needs.check_changelog.outputs.next_version_bare }}
-      run: |
-        echo sunshine.desktop Version: "$appimage_version"
-        echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
-        echo Within 'sunshine.desktop' change "X-AppImage-Version=$appimage_version" to "X-AppImage-Version=${{ needs.check_changelog.outputs.next_version_bare }}"
-        exit 1
-
   build_appimage:
     name: AppImage
     runs-on: ubuntu-20.04
@@ -135,7 +111,7 @@ jobs:
 
         wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
 
-        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../$DESKTOP_FILE" --output appimage
+        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../appimage-build/$DESKTOP_FILE" --output appimage
 
         mv sunshine*.AppImage sunshine.AppImage
         mkdir sunshine && mv sunshine.AppImage sunshine/
@@ -160,7 +136,7 @@ jobs:
         path: artifacts/
     - name: Create Release
       if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-      uses: SunshineStream/actions/create_release@v0
+      uses: SunshineStream/actions/create_release@master
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         next_version: ${{ needs.check_changelog.outputs.next_version }}
@@ -211,7 +187,7 @@ jobs:
           path: artifacts/
       - name: Create Release
         if: ${{ matrix.package == '-p' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@v0
+        uses: SunshineStream/actions/create_release@master
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
@@ -275,7 +251,7 @@ jobs:
           path: artifacts/
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@v0
+        uses: SunshineStream/actions/create_release@master
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}

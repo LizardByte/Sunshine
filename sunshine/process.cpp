@@ -6,14 +6,14 @@
 
 #include "process.h"
 
+#include <filesystem>
 #include <string>
 #include <vector>
-#include <filesystem>
 
+#include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/algorithm/string.hpp>
 
 #include "main.h"
 #include "utility.h"
@@ -112,9 +112,11 @@ int proc_t::execute(int app_id) {
   if(proc.cmd.empty()) {
     BOOST_LOG(debug) << "Executing [Desktop]"sv;
     placebo = true;
-  } else {
-    boost::filesystem::path working_dir = proc.working_dir.empty() ? 
-    boost::filesystem::path(proc.cmd).parent_path() : boost::filesystem::path(proc.working_dir);
+  }
+  else {
+    boost::filesystem::path working_dir = proc.working_dir.empty() ?
+                                            boost::filesystem::path(proc.cmd).parent_path() :
+                                            boost::filesystem::path(proc.working_dir);
     if(proc.output.empty() || proc.output == "null"sv) {
       BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
       _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
@@ -195,14 +197,14 @@ std::vector<ctx_t> &proc_t::get_apps() {
 /// Returns default image if image configuration is not set.
 /// returns http content-type header compatible image type
 std::string proc_t::get_app_image(int app_id) {
-  auto app_index = app_id -1;
+  auto app_index = app_id - 1;
   if(app_index < 0 || app_index >= _apps.size()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
     return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
   auto app_image_path = _apps[app_index].image_path;
-  if (app_image_path.empty()) {
+  if(app_image_path.empty()) {
     return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
@@ -210,7 +212,7 @@ std::string proc_t::get_app_image(int app_id) {
   boost::to_lower(image_extension);
 
   std::error_code code;
-  if (!std::filesystem::exists(app_image_path, code) || image_extension != ".png") {
+  if(!std::filesystem::exists(app_image_path, code) || image_extension != ".png") {
     return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
@@ -351,7 +353,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.working_dir = parse_env_val(this_env, *working_dir);
       }
 
-      if (image_path) {
+      if(image_path) {
         ctx.image_path = parse_env_val(this_env, *image_path);
       }
 

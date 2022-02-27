@@ -565,14 +565,50 @@ static encoder_t vaapi {
 };
 #endif
 
+#ifdef __APPLE__
+static encoder_t videotoolbox {
+  "videotoolbox"sv,
+  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
+  AV_HWDEVICE_TYPE_NONE,
+  AV_PIX_FMT_VIDEOTOOLBOX,
+  AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
+  {
+    {
+      { "allow_sw"s, &config::video.vt.allow_sw },
+      { "require_sw"s, &config::video.vt.require_sw },
+      { "realtime"s, &config::video.vt.realtime },
+    },
+    std::nullopt,
+    "hevc_videotoolbox"s,
+  },
+  {
+    {
+      { "allow_sw"s, &config::video.vt.allow_sw },
+      { "require_sw"s, &config::video.vt.require_sw },
+      { "realtime"s, &config::video.vt.realtime },
+    },
+    std::nullopt,
+    "h264_videotoolbox"s,
+  },
+  DEFAULT,
+
+  nullptr
+};
+#endif
+
 static std::vector<encoder_t> encoders {
+#ifndef __APPLE__
   nvenc,
+#endif
 #ifdef _WIN32
   amdvce,
   quicksync,
 #endif
 #ifdef __linux__
   vaapi,
+#endif
+#ifdef __APPLE__
+  videotoolbox,
 #endif
   software
 };

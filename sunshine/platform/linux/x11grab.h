@@ -21,7 +21,7 @@ void freeCursorCtx(cursor_ctx_raw_t *ctx);
 void freeDisplay(_XDisplay *xdisplay);
 
 using cursor_ctx_t = util::safe_ptr<cursor_ctx_raw_t, freeCursorCtx>;
-using xdisplay_t = util::safe_ptr<_XDisplay, freeDisplay>;
+using xdisplay_t   = util::safe_ptr<_XDisplay, freeDisplay>;
 
 class cursor_t {
 public:

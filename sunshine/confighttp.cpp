@@ -93,8 +93,8 @@ bool authenticate(resp_https_t response, req_https_t request) {
   }
 
   //If credentials are shown, redirect the user to a /welcome page
-  if(config::sunshine.username.empty()){
-    send_redirect(response,request,"/welcome");
+  if(config::sunshine.username.empty()) {
+    send_redirect(response, request, "/welcome");
     return false;
   }
 
@@ -202,8 +202,8 @@ void getPasswordPage(resp_https_t response, req_https_t request) {
 
 void getWelcomePage(resp_https_t response, req_https_t request) {
   print_req(request);
-  if(!config::sunshine.username.empty()){
-    send_redirect(response,request,"/");
+  if(!config::sunshine.username.empty()) {
+    send_redirect(response, request, "/");
     return;
   }
   std::string header  = read_file(WEB_DIR "header-no-nav.html");
@@ -496,16 +496,18 @@ void savePassword(resp_https_t response, req_https_t request) {
     auto newPassword     = inputTree.count("newPassword") > 0 ? inputTree.get<std::string>("newPassword") : "";
     auto confirmPassword = inputTree.count("confirmNewPassword") > 0 ? inputTree.get<std::string>("confirmNewPassword") : "";
     if(newUsername.length() == 0) newUsername = username;
-    if(newUsername.length() == 0){
+    if(newUsername.length() == 0) {
       outputTree.put("status", false);
       outputTree.put("error", "Invalid Username");
-    } else {
+    }
+    else {
       auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
       if(config::sunshine.username.empty() || (username == config::sunshine.username && hash == config::sunshine.password)) {
         if(newPassword.empty() || newPassword != confirmPassword) {
           outputTree.put("status", false);
           outputTree.put("error", "Password Mismatch");
-        } else {
+        }
+        else {
           http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
           http::reload_user_creds(config::sunshine.credentials_file);
           outputTree.put("status", true);
@@ -555,9 +557,9 @@ void savePin(resp_https_t response, req_https_t request) {
   }
 }
 
-void unpairAll(resp_https_t response, req_https_t request){
+void unpairAll(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
-  
+
   print_req(request);
 
   pt::ptree outputTree;
@@ -571,9 +573,9 @@ void unpairAll(resp_https_t response, req_https_t request){
   outputTree.put("status", true);
 }
 
-void closeApp(resp_https_t response, req_https_t request){
+void closeApp(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
-  
+
   print_req(request);
 
   pt::ptree outputTree;
@@ -597,35 +599,35 @@ void start() {
   ctx->use_certificate_chain_file(config::nvhttp.cert);
   ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
   https_server_t server { ctx, 0 };
-  server.default_resource                                                  = not_found;
-  server.resource["^/$"]["GET"]                                            = getIndexPage;
-  server.resource["^/pin$"]["GET"]                                         = getPinPage;
-  server.resource["^/apps$"]["GET"]                                        = getAppsPage;
-  server.resource["^/clients$"]["GET"]                                     = getClientsPage;
-  server.resource["^/config$"]["GET"]                                      = getConfigPage;
-  server.resource["^/password$"]["GET"]                                    = getPasswordPage;
-  server.resource["^/welcome$"]["GET"]                                     = getWelcomePage;
-  server.resource["^/troubleshooting$"]["GET"]                             = getTroubleshootingPage;
-  server.resource["^/api/pin"]["POST"]                                     = savePin;
-  server.resource["^/api/apps$"]["GET"]                                    = getApps;
-  server.resource["^/api/apps$"]["POST"]                                   = saveApp;
-  server.resource["^/api/config$"]["GET"]                                  = getConfig;
-  server.resource["^/api/config$"]["POST"]                                 = saveConfig;
-  server.resource["^/api/password$"]["POST"]                               = savePassword;
-  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]                        = deleteApp;
-  server.resource["^/api/clients/unpair$"]["POST"]                         = unpairAll;
-  server.resource["^/api/apps/close"]["POST"]                              = closeApp;
-  server.resource["^/images/favicon.ico$"]["GET"]                          = getFaviconImage;
-  server.resource["^/images/logo-sunshine-45.png$"]["GET"]                 = getSunshineLogoImage;
-  server.resource["^/third_party/bootstrap.min.css$"]["GET"]               = getBootstrapCss;
-  server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"]         = getBootstrapJs;
-  server.resource["^/fontawesome/css/all.min.css$"]["GET"]                 = getFontAwesomeCss;
-  server.resource["^/fontawesome/webfonts/fa-brands-400.ttf$"]["GET"]      = getFontAwesomeBrands;
-  server.resource["^/fontawesome/webfonts/fa-solid-900.ttf$"]["GET"]       = getFontAwesomeSolid;
-  server.resource["^/third_party/vue.js$"]["GET"]                          = getVueJs;
-  server.config.reuse_address                                              = true;
-  server.config.address                                                    = "0.0.0.0"s;
-  server.config.port                                                       = port_https;
+  server.default_resource                                             = not_found;
+  server.resource["^/$"]["GET"]                                       = getIndexPage;
+  server.resource["^/pin$"]["GET"]                                    = getPinPage;
+  server.resource["^/apps$"]["GET"]                                   = getAppsPage;
+  server.resource["^/clients$"]["GET"]                                = getClientsPage;
+  server.resource["^/config$"]["GET"]                                 = getConfigPage;
+  server.resource["^/password$"]["GET"]                               = getPasswordPage;
+  server.resource["^/welcome$"]["GET"]                                = getWelcomePage;
+  server.resource["^/troubleshooting$"]["GET"]                        = getTroubleshootingPage;
+  server.resource["^/api/pin"]["POST"]                                = savePin;
+  server.resource["^/api/apps$"]["GET"]                               = getApps;
+  server.resource["^/api/apps$"]["POST"]                              = saveApp;
+  server.resource["^/api/config$"]["GET"]                             = getConfig;
+  server.resource["^/api/config$"]["POST"]                            = saveConfig;
+  server.resource["^/api/password$"]["POST"]                          = savePassword;
+  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]                   = deleteApp;
+  server.resource["^/api/clients/unpair$"]["POST"]                    = unpairAll;
+  server.resource["^/api/apps/close"]["POST"]                         = closeApp;
+  server.resource["^/images/favicon.ico$"]["GET"]                     = getFaviconImage;
+  server.resource["^/images/logo-sunshine-45.png$"]["GET"]            = getSunshineLogoImage;
+  server.resource["^/third_party/bootstrap.min.css$"]["GET"]          = getBootstrapCss;
+  server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"]    = getBootstrapJs;
+  server.resource["^/fontawesome/css/all.min.css$"]["GET"]            = getFontAwesomeCss;
+  server.resource["^/fontawesome/webfonts/fa-brands-400.ttf$"]["GET"] = getFontAwesomeBrands;
+  server.resource["^/fontawesome/webfonts/fa-solid-900.ttf$"]["GET"]  = getFontAwesomeSolid;
+  server.resource["^/third_party/vue.js$"]["GET"]                     = getVueJs;
+  server.config.reuse_address                                         = true;
+  server.config.address                                               = "0.0.0.0"s;
+  server.config.port                                                  = port_https;
 
   try {
     server.bind();

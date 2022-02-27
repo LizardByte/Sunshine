@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine VERSION 0.12.0)
+project(Sunshine VERSION 0.13.0)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -11,6 +11,22 @@ if(WIN32)
 		PQOS_FLOWID=UINT32*
 		QOS_NON_ADAPTIVE_FLOW=2)
 endif()
+if(APPLE)
+	macro(ADD_FRAMEWORK fwname appname)
+    find_library(FRAMEWORK_${fwname}
+    NAMES ${fwname}
+    PATHS ${CMAKE_OSX_SYSROOT}/System/Library
+    PATH_SUFFIXES Frameworks
+    NO_DEFAULT_PATH)
+    if( ${FRAMEWORK_${fwname}} STREQUAL FRAMEWORK_${fwname}-NOTFOUND)
+        MESSAGE(ERROR ": Framework ${fwname} not found")
+    else()
+        TARGET_LINK_LIBRARIES(${appname} "${FRAMEWORK_${fwname}}/${fwname}")
+        MESSAGE(STATUS "Framework ${fwname} found at ${FRAMEWORK_${fwname}}")
+    endif()
+	endmacro(ADD_FRAMEWORK)
+endif()
+
 add_subdirectory(third-party/moonlight-common-c/enet)
 add_subdirectory(third-party/Simple-Web-Server)
 
@@ -23,7 +39,9 @@ include_directories(third-party/miniupnp)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
-set(Boost_USE_STATIC_LIBS ON)
+if(NOT APPLE)
+	set(Boost_USE_STATIC_LIBS ON)
+endif()
 find_package(Boost COMPONENTS log filesystem REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
@@ -107,6 +125,46 @@ if(WIN32)
 
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
+elseif(APPLE)
+	add_compile_definitions(SUNSHINE_PLATFORM="macos")
+	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_mac.json")
+	link_directories(/opt/local/lib)
+	link_directories(/usr/local/lib)
+	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
+
+	find_package(FFmpeg REQUIRED)
+	FIND_LIBRARY(APP_SERVICES_LIBRARY ApplicationServices )
+	FIND_LIBRARY(AV_FOUNDATION_LIBRARY AVFoundation )
+	FIND_LIBRARY(CORE_MEDIA_LIBRARY CoreMedia )
+	FIND_LIBRARY(CORE_VIDEO_LIBRARY CoreVideo )
+	FIND_LIBRARY(FOUNDATION_LIBRARY Foundation )
+	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
+		${APP_SERVICES_LIBRARY}
+		${AV_FOUNDATION_LIBRARY}
+		${CORE_MEDIA_LIBRARY}
+		${CORE_VIDEO_LIBRARY}
+		${FOUNDATION_LIBRARY})
+
+	set(PLATFORM_INCLUDE_DIRS
+		${Boost_INCLUDE_DIR})
+
+	set(PLATFORM_TARGET_FILES
+		sunshine/platform/macos/av_audio.h
+		sunshine/platform/macos/av_audio.m
+		sunshine/platform/macos/av_img_t.h
+		sunshine/platform/macos/av_video.h
+		sunshine/platform/macos/av_video.m
+		sunshine/platform/macos/display.mm
+		sunshine/platform/macos/input.cpp
+		sunshine/platform/macos/microphone.mm
+		sunshine/platform/macos/misc.cpp
+		sunshine/platform/macos/misc.h
+		sunshine/platform/macos/nv12_zero_device.cpp
+		sunshine/platform/macos/nv12_zero_device.h
+		sunshine/platform/macos/publish.cpp
+		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.c
+		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.h
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/Info.plist)
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
@@ -256,6 +314,7 @@ else()
 		set(SUNSHINE_EXECUTABLE_PATH "sunshine")
 	endif()
 	configure_file(gen-deb.in gen-deb @ONLY)
+	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
@@ -353,7 +412,6 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		libminiupnpc-static
 		${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
-		stdc++fs
 		enet
 		opus
 		${FFMPEG_LIBRARIES}
@@ -369,7 +427,7 @@ list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_CONFIG_DIR="${SUNSHINE_CONFIG_DIR}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_DEFAULT_DIR="${SUNSHINE_DEFAULT_DIR}")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
-target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES})
+target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
 set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
                             VERSION ${PROJECT_VERSION}
@@ -379,6 +437,10 @@ set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+endif()
+
+if(APPLE)
+	target_link_options(sunshine PRIVATE LINKER:-sectcreate,__TEXT,__info_plist,${CMAKE_CURRENT_SOURCE_DIR}/assets/Info.plist)
 endif()
 
 foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)

@@ -712,6 +712,34 @@
         v-model="config.adapter_name"
       />
     </div>
+    <!--VideoToolbox Encoder Settings-->
+    <div v-if="currentTab === 'vt'" class="config-page">
+      <!--Presets-->
+      <div class="mb-3">
+        <label for="vt_coder" class="form-label">VideoToolbox Coder</label>
+        <select id="vt_coder" class="form-select" v-model="config.vt_coder">
+          <option value="auto">auto</option>
+          <option value="cabac">cabac</option>
+          <option value="cavlc">cavlc</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="vt_software" class="form-label">VideoToolbox Software Encoding</label>
+        <select id="vt_software" class="form-select" v-model="config.vt_software">
+          <option value="auto">auto</option>
+          <option value="disabled">disabled</option>
+          <option value="allowed">allowed</option>
+          <option value="forced">forced</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="vt_realtime" class="form-label">VideoToolbox Realtime Encoding</label>
+        <select id="vt_realtime" class="form-select" v-model="config.vt_realtime">
+          <option value="enabled">enabled</option>
+          <option value="disabled">disabled</option>
+        </select>
+      </div>
+    </div>
   </div>
   <div class="alert alert-success my-4" v-if="success">
     <b>Success!</b> Restart Sunshine to apply changes
@@ -771,6 +799,10 @@
             id: "va-api",
             name: "VA-API encoder",
           },
+          {
+            id: "vt",
+            name: "VideoToolbox encoder",
+          },
         ],
       };
     },
@@ -812,6 +844,9 @@
           this.config.nv_coder = this.config.nv_coder || "auto";
           this.config.amd_quality = this.config.amd_quality || "default";
           this.config.amd_rc = this.config.amd_rc || "auto";
+          this.config.vt_coder = this.config.vt_coder || "auto";
+          this.config.vt_software = this.config.vt_software || "auto";
+          this.config.vt_realtime = this.config.vt_realtime || "enabled";
           this.config.fps = this.config.fps || "[10, 30, 60, 90, 120]";
           this.config.resolutions =
             this.config.resolutions ||

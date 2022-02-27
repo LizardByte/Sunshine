@@ -1,0 +1,35 @@
+name: clang-format-lint
+
+on:
+  pull_request:
+    branches: [master, nightly]
+    types: [opened, synchronize, edited, reopened]
+
+jobs:
+  lint:
+    name: Clang Format Lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        inplace: [ true, false ]  # removed ubuntu_18_04 for now
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Clang format lint
+      uses: DoozyX/clang-format-lint-action@v0.13
+      with:
+        source: './sunshine'
+        extensions: 'cpp,h,m,mm'
+        clangFormatVersion: 13
+        style: file
+        inplace: ${{ matrix.inplace }}
+
+    - name: Upload Artifacts
+      if: ${{ matrix.inplace == true }}
+      uses: actions/upload-artifact@v2
+      with:
+        name: sunshine
+        path: sunshine/
