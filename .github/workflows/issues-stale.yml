@@ -37,14 +37,12 @@ jobs:
           close-issue-message: >
             This issue was closed because the the template was not completed after 5 days.
           stale-issue-label: 'invalid:template-incomplete'
-          skip-stale-issue-message: true
           stale-pr-message: >
             Invalid PR template.
           close-pr-message: >
             This PR was closed because the the template was not completed after 5 days.
           stale-pr-label: 'invalid:template-incomplete'
           exempt-pr-labels: 'status:in-progress'
-          skip-stale-pr-message: true
           only-labels: 'invalid:template-incomplete'
           days-before-stale: 0
           days-before-close: 5
