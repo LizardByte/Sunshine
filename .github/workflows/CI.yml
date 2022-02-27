@@ -160,7 +160,7 @@ jobs:
         path: artifacts/
     - name: Create Release
       if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-      uses: SunshineStream/actions/create_release@v0
+      uses: SunshineStream/actions/create_release@master
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         next_version: ${{ needs.check_changelog.outputs.next_version }}
@@ -211,7 +211,7 @@ jobs:
           path: artifacts/
       - name: Create Release
         if: ${{ matrix.package == '-p' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@v0
+        uses: SunshineStream/actions/create_release@master
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
@@ -275,7 +275,7 @@ jobs:
           path: artifacts/
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@v0
+        uses: SunshineStream/actions/create_release@master
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
