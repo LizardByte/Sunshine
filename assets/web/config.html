@@ -1,15 +1,10 @@
 <div id="app" class="container">
-  <h1 class="my-4">Configuration</h1>
-  <div class="form" v-if="config">
-    <!--Header-->
-    <ul class="nav nav-tabs">
-      <li class="nav-item" v-for="tab in tabs" :key="tab.id">
-        <a
-          class="nav-link"
-          :class="{'active': tab.id === currentTab}"
-          href="#"
-          @click="currentTab = tab.id"
-          >{{tab.name}}</a
+    <h1 class="my-4">Configuration</h1>
+    <div class="form" v-if="config">
+        <!--Header-->
+        <ul class="nav nav-tabs">
+            <li class="nav-item" v-for="tab in tabs" :key="tab.id">
+                <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#" @click="currentTab = tab.id">{{tab.name}}</a
         >
       </li>
     </ul>
@@ -501,6 +496,7 @@
           <option value="nvenc">nVidia NVENC</option>
           <option value="amdvce">AMD AMF/VCE</option>
           <option value="vaapi">VA-API</option>
+          <option value="quicksync">Intel QuickSync</option>
           <option value="software">Software</option>
         </select>
         <div class="form-text">
@@ -627,6 +623,35 @@
           fastdecode - allows faster decoding by disabling certain filters<br>
           zerolatency - good for fast encoding and low-latency streaming<br>
         </div>
+      </div>
+    </div>
+    <!-- Intel QuickSync Settings-->
+    <div v-if="currentTab === 'qsv'" class="config-page">
+      <div class="mb-3">
+        <label for="qsv_preset" class="form-label">QuickSync Presets</label>
+        <div class="form-text">
+          <label for="qsv_preset" class="form-label">QuickSync Preset</label>
+          <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
+            <option value="7">Very Fast</option>
+            <option value="6">Faster</option>
+            <option value="5">Fast</option>
+            <option value="4">Medium</option>
+            <option value="3">Slow</option>
+            <option value="2">Slower</option>
+            <option value="1">Very Slow</option>
+          </select>
+        </div>
+      </div>
+      <div class="mb-3">
+          <label for="qsv_cavlc" class="form-label">CAVLC</label>
+          <div class="form-text">
+            <label for="qsv_cavlc" class="form-label">Enable CAVLC</label>
+            <select id="qsv_cavlc" class="form-select" v-model="config.qsv_cavlc">
+              <option value="1">Enabled</option>
+              <option value="0">Disabled</option>
+          
+            </select>
+          </div>
       </div>
     </div>
     <!--Nvidia Encoder Settings-->
@@ -788,6 +813,10 @@
             name: "Software Encoder",
           },
           {
+            id: "qsv",
+            name: "QuickSync Encoder",
+          },
+          {
             id: "nv",
             name: "NVENC Encoder",
           },
@@ -839,6 +868,8 @@
             this.config.origin_web_manager_allowed || "lan";
           this.config.hevc_mode = this.config.hevc_mode || 0;
           this.config.encoder = this.config.encoder || "";
+          this.config.qsv_preset = this.config.qsv_preset || "4";
+          this.config.qsv_cavlc = this.config.qsv_cavlc || "0";
           this.config.nv_preset = this.config.nv_preset || "default";
           this.config.nv_rc = this.config.nv_rc || "auto";
           this.config.nv_coder = this.config.nv_coder || "auto";

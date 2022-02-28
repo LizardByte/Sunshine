@@ -52,7 +52,7 @@ if(WIN32)
 	file(
 		DOWNLOAD "https://github.com/caioavidal/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		TIMEOUT 60
-		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
+		EXPECTED_HASH SHA256=bf0cab8832272f7e077ee87a678bfd9edfeddb6cd613c0aab25a0d893ff08eda)
 
 	file(ARCHIVE_EXTRACT
 		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
@@ -380,8 +380,6 @@ include_directories(
   ${PLATFORM_INCLUDE_DIRS}
 )
 
-add_subdirectory(third-party/cbs)
-
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -ggdb3)
@@ -405,12 +403,8 @@ if(NOT SUNSHINE_DEFAULT_DIR)
 	set(SUNSHINE_DEFAULT_DIR "${SUNSHINE_ASSETS_DIR}")
 endif()
 
-list(APPEND CBS_EXTERNAL_LIBRARIES
-	cbs)
-
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		libminiupnpc-static
-		${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 		enet
 		opus

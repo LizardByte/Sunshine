@@ -26,6 +26,11 @@ struct video_t {
     std::optional<int> rc;
     int coder;
   } nv;
+  
+  struct {
+    std::optional<int> preset;
+    std::optional<int> cavlc;
+  } qsv;
 
   struct {
     std::optional<int> quality;

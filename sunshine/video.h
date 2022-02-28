@@ -27,31 +27,10 @@ struct packet_raw_t : public AVPacket {
     buf             = nullptr;
     side_data       = nullptr;
     side_data_elems = 0;
+    opaque          = nullptr;
+    opaque_ref      = nullptr;
   }
-
-  void alloc() {
-    AVPacket *enc_pkt;
-
-    if(!(enc_pkt = av_packet_alloc())) {
-      return;
-    }
-
-    pts             = enc_pkt->pts;
-    dts             = enc_pkt->dts;
-    pos             = enc_pkt->pos;
-    duration        = enc_pkt->duration;
-    flags           = enc_pkt->flags;
-    stream_index    = enc_pkt->stream_index;
-    buf             = enc_pkt->buf;
-    side_data       = enc_pkt->side_data;
-    side_data_elems = enc_pkt->side_data_elems;
-    data            = enc_pkt->data;
-    opaque          = enc_pkt->opaque;
-    opaque_ref      = enc_pkt->opaque_ref;
-    size            = enc_pkt->size;
-    time_base       = enc_pkt->time_base;
-  }
-
+  
   template<class P>
   explicit packet_raw_t(P *user_data) : channel_data { user_data } {
     init_packet();

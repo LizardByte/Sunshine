@@ -162,6 +162,26 @@ int coder_from_view(const std::string_view &coder) {
 }
 } // namespace amd
 
+namespace qsv {
+enum preset_e : int {
+  _default = 4,
+  veryslow = 1,
+  slower   = 2,
+  slow     = 3,
+  medium   = 4,
+  fast     = 5,
+  faster   = 6,
+  veryfast = 7
+};
+
+enum cavlc_e : int {
+  _auto = false,
+  enabled  = true,
+  disabled = false
+};
+
+} // namespace qsv
+
 namespace vt {
 
 enum coder_e : int {
@@ -213,9 +233,10 @@ video_t video {
     nv::llhq,
     std::nullopt,
     -1 }, // nv
-
   {
-    amd::balanced,
+    qsv::medium,
+    qsv::disabled }, //qsv
+  { amd::balanced,
     std::nullopt,
     std::nullopt,
     -1 }, // amd
@@ -710,6 +731,9 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
   int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
   int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+
+  int_f(vars, "qsv_preset", video.qsv.preset);
+  int_f(vars, "qsv_cavlc", video.qsv.cavlc);
 
   int_f(vars, "amd_quality", video.amd.quality, amd::quality_from_view);
 
