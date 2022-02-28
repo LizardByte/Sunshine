@@ -486,14 +486,16 @@ static encoder_t quicksync {
   {
     {
       { "forced-idr"s, 1 },
-      { "preset"s, &config::video.sw.preset },
+      { "preset"s,  &config::video.qsv.preset },
     },
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "hevc_qsv"s,
   },
   {
     {
-      { "preset"s, 7 },
+      { "preset"s,  &config::video.qsv.preset },
+      { "cavlc"s,  &config::video.qsv.cavlc },
+
     },
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_qsv"s,
@@ -800,8 +802,6 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
 
   while(ret >= 0) {
     auto packet    = std::make_unique<packet_t::element_type>(nullptr);
-    auto av_packet = packet.get();
-    av_packet->alloc();
 
     ret = avcodec_receive_packet(ctx.get(), packet.get());
     if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
