@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Branch check
         if: ( github.head_ref == 'repo-sync/common-repo-files/default' && github.base_ref == 'master' ) || ( github.head_ref == 'nightly' && github.base_ref == 'master' )
