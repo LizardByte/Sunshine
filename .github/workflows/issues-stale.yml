@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Stale
-        uses: actions/stale@v4.1.0
+        uses: actions/stale@v5
         with:
           stale-issue-message: >
             This issue is stale because it has been open for 30 days with no activity.
@@ -30,7 +30,7 @@ jobs:
           days-before-close: 5
 
       - name: Invalid Template
-        uses: actions/stale@v4.1.0
+        uses: actions/stale@v5
         with:
           stale-issue-message: >
             Invalid issues template.
