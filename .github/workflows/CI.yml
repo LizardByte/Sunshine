@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       
     - name: Verify Changelog
       id: verify_changelog
@@ -37,7 +37,7 @@ jobs:
     # base_ref for pull request check, ref for push
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Check CMakeLists.txt Version
       run: |
@@ -58,7 +58,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: recursive
 
@@ -160,7 +160,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
 
@@ -201,7 +201,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: MSYS2 Setup
