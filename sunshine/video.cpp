@@ -22,6 +22,7 @@ extern "C" {
 #ifdef _WIN32
 extern "C" {
 #include <libavutil/hwcontext_d3d11va.h>
+#include <libavutil/hwcontext_qsv.h>
 }
 #endif
 
@@ -81,7 +82,7 @@ public:
   int convert(platf::img_t &img) override {
     av_frame_make_writable(sw_frame.get());
 
-    const int linesizes[2] {
+       const int linesizes[2] {
       img.row_pitch, 0
     };
 
@@ -486,21 +487,20 @@ static encoder_t quicksync {
   {
     {
       { "forced-idr"s, 1 },
-      { "preset"s,  &config::video.qsv.preset },
+      { "preset"s, &config::video.qsv.preset },
     },
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "hevc_qsv"s,
   },
   {
     {
-      { "preset"s,  &config::video.qsv.preset },
-      { "cavlc"s,  &config::video.qsv.cavlc },
-
+      { "preset"s, &config::video.qsv.preset },
+      { "cavlc"s, &config::video.qsv.cavlc }
     },
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_qsv"s,
   },
-  H264_ONLY,
+  H264_ONLY | PARALLEL_ENCODING,
   qsv_make_hwdevice_ctx
 };
 #endif
@@ -526,9 +526,9 @@ static encoder_t software {
     "libx265"s,
   },
   {
-    {
+    { 
       { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune },
+      { "tune"s, &config::video.sw.tune } 
     },
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "libx264"s,
@@ -801,7 +801,7 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
   }
 
   while(ret >= 0) {
-    auto packet    = std::make_unique<packet_t::element_type>(nullptr);
+    auto packet = std::make_unique<packet_t::element_type>(nullptr);
 
     ret = avcodec_receive_packet(ctx.get(), packet.get());
     if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
@@ -1062,6 +1062,9 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   if(!video_format[encoder_t::NALU_PREFIX_5b]) {
     auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
 
+    session.replacements.emplace_back("\000\000\000\001\'"sv, "\000\000\000\001g"sv); //sps
+    session.replacements.emplace_back("\000\000\000\001("sv, "\000\000\000\001h"sv);  //pps
+    session.replacements.emplace_back("\000\000\001%"sv, "\000\000\001e"sv);          //idr
     session.replacements.emplace_back(nalu_prefix.substr(1), nalu_prefix);
   }
 
@@ -1809,7 +1812,11 @@ util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ct
 
   AVBufferRef *hw_device_ctx = NULL;
 
-  auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, NULL, NULL, 0);
+   AVDictionary *child_device_opts = NULL;
+
+   av_dict_set(&child_device_opts, "child_device_type", "d3d11va", 0);
+
+  auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, "d3d11va", child_device_opts, 0);
 
   if(err) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
