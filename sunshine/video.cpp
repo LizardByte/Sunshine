@@ -486,7 +486,7 @@ static encoder_t quicksync {
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
-      { "forced-idr"s, 1 },
+      { "forced_idr"s, "1" },
       { "preset"s, &config::video.qsv.preset },
     },
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
@@ -495,12 +495,13 @@ static encoder_t quicksync {
   {
     {
       { "preset"s, &config::video.qsv.preset },
-      { "cavlc"s, &config::video.qsv.cavlc }
+      { "cavlc"s, &config::video.qsv.cavlc },
+      { "forced_idr"s, "1" },
     },
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_qsv"s,
   },
-  H264_ONLY | PARALLEL_ENCODING,
+  PARALLEL_ENCODING,
   qsv_make_hwdevice_ctx
 };
 #endif
