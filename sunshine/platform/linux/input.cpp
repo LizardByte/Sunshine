@@ -720,7 +720,7 @@ inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> 
   for(auto x = 0; x < polls_tmp.size(); ++x) {
     auto pfd = polls_tmp[x].fd;
     for(auto y = 0; y < polls.size(); ++y) {
-      if (pfd == polls[y].el.fd) {
+      if(pfd == polls[y].el.fd) {
         polls[y].el.revents = polls_tmp[x].revents;
       }
     }
