@@ -717,9 +717,10 @@ inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> 
   }
 
   // Copy over the received events
-  for (auto x = 0; x < polls_tmp.size(); ++x) {
-    for (auto y = 0; y < polls.size(); ++y) {
-      if (polls_tmp[x].fd == polls[y].el.fd) {
+  for(auto x = 0; x < polls_tmp.size(); ++x) {
+    auto pfd = polls_tmp[x].fd;
+    for(auto y = 0; y < polls.size(); ++y) {
+      if (pfd == polls[y].el.fd) {
         polls[y].el.revents = polls_tmp[x].revents;
       }
     }
