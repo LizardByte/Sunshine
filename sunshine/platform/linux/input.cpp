@@ -696,13 +696,13 @@ public:
 };
 
 inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
-  std::vector<pollfd> polls_tmp;
-  polls_tmp.reserve(polls.size());
+  std::vector<pollfd> polls_recv;
+  polls_recv.reserve(polls.size());
   for(auto &poll : polls) {
-    polls_tmp.emplace_back(poll.el);
+    polls_recv.emplace_back(poll.el);
   }
 
-  auto res = poll(polls_tmp.data(), polls.size(), to.count());
+  auto res = poll(polls_recv.data(), polls_recv.size(), to.count());
 
   // If timed out
   if(!res) {
@@ -716,16 +716,6 @@ inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> 
     return;
   }
 
-  // Copy over the received events
-  for(auto x = 0; x < polls_tmp.size(); ++x) {
-    auto pfd = polls_tmp[x].fd;
-    for(auto y = 0; y < polls.size(); ++y) {
-      if(pfd == polls[y].el.fd) {
-        polls[y].el.revents = polls_tmp[x].revents;
-      }
-    }
-  }
-
   for(int x = 0; x < polls.size(); ++x) {
     auto poll      = std::begin(polls) + x;
     auto effect_it = std::begin(effects) + x;
@@ -735,16 +725,17 @@ inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> 
     // TUPLE_2D_REF(dev, q, *dev_q_it);
 
     // on error
-    if((*poll)->revents & (POLLHUP | POLLRDHUP | POLLERR)) {
+    if(polls_recv[x].revents & (POLLHUP | POLLRDHUP | POLLERR)) {
       BOOST_LOG(warning) << "Gamepad ["sv << x << "] file discriptor closed unexpectedly"sv;
 
       polls.erase(poll);
       effects.erase(effect_it);
 
+      --x;
       continue;
     }
 
-    if(!((*poll)->revents & POLLIN)) {
+    if(!(polls_recv[x].revents & POLLIN)) {
       continue;
     }
 
@@ -761,6 +752,7 @@ inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> 
       polls.erase(poll);
       effects.erase(effect_it);
 
+      --x;
       continue;
     }
 
