@@ -324,7 +324,7 @@ struct encoder_t {
 class session_t {
 public:
   session_t() = default;
-  session_t(ctx_t &&ctx, std::shared_ptr<platf::hwdevice_t> &&device, int inject) : ctx { std::move(ctx) }, device { std::move(device) }, inject { inject } {}
+  session_t(ctx_t &&ctx, std::shared_ptr<platf::hwdevice_t> &&device, int inject) : device { std::move(device) }, ctx { std::move(ctx) }, inject { inject } {}
 
   session_t(session_t &&other) noexcept = default;
 
@@ -341,8 +341,8 @@ public:
     return *this;
   }
 
-  ctx_t ctx;
   std::shared_ptr<platf::hwdevice_t> device;
+  ctx_t ctx;
 
   std::vector<packet_raw_t::replace_t> replacements;
 
