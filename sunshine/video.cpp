@@ -82,7 +82,7 @@ public:
   int convert(platf::img_t &img) override {
     av_frame_make_writable(sw_frame.get());
 
-       const int linesizes[2] {
+    const int linesizes[2] {
       img.row_pitch, 0
     };
 
@@ -497,6 +497,7 @@ static encoder_t quicksync {
       { "preset"s, &config::video.qsv.preset },
       { "cavlc"s, &config::video.qsv.cavlc },
       { "forced_idr"s, "1" },
+      //{ "async_depth"s, "1" }
     },
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_qsv"s,
@@ -527,10 +528,8 @@ static encoder_t software {
     "libx265"s,
   },
   {
-    { 
-      { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune } 
-    },
+    { { "preset"s, &config::video.sw.preset },
+      { "tune"s, &config::video.sw.tune } },
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "libx264"s,
   },
@@ -1813,11 +1812,13 @@ util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ct
 
   AVBufferRef *hw_device_ctx = NULL;
 
-   AVDictionary *child_device_opts = NULL;
+  AVDictionary *child_device_opts = NULL;
 
-   av_dict_set(&child_device_opts, "child_device_type", "d3d11va", 0);
+  av_dict_set(&child_device_opts, "child_device", "1", 0);
+  av_dict_set(&child_device_opts, "child_device_type", "d3d11va", 0);
 
-  auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, "d3d11va", child_device_opts, 0);
+
+  auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, NULL, child_device_opts, 0);
 
   if(err) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
