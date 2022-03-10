@@ -30,6 +30,7 @@ struct video_t {
   struct {
     std::optional<int> preset;
     std::optional<int> cavlc;
+    std::string child_device;
   } qsv;
 
   struct {

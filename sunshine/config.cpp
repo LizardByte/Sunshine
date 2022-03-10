@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <charconv>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <string>
 #include <unordered_map>
 
 #include <boost/asio.hpp>
@@ -175,7 +177,7 @@ enum preset_e : int {
 };
 
 enum cavlc_e : int {
-  _auto = false,
+  _auto    = false,
   enabled  = true,
   disabled = false
 };
@@ -228,14 +230,14 @@ video_t video {
     "superfast"s,   // preset
     "zerolatency"s, // tune
   },                // software
-
   {
     nv::llhq,
     std::nullopt,
     -1 }, // nv
   {
     qsv::medium,
-    qsv::disabled }, //qsv
+    qsv::disabled,
+    "" }, //qsv
   { amd::balanced,
     std::nullopt,
     std::nullopt,
@@ -734,6 +736,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 
   int_f(vars, "qsv_preset", video.qsv.preset);
   int_f(vars, "qsv_cavlc", video.qsv.cavlc);
+  string_f(vars, "qsv_child_device", video.qsv.child_device);
 
   int_f(vars, "amd_quality", video.amd.quality, amd::quality_from_view);
 

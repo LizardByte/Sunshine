@@ -75,7 +75,6 @@ util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_
 util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
 
 class swdevice_t : public platf::hwdevice_t {
 public:
@@ -321,7 +320,11 @@ struct encoder_t {
   int flags;
 
   std::function<util::Either<buffer_t, int>(platf::hwdevice_t *hwdevice)> make_hwdevice_ctx;
+  int hwframe_initial_pool_size;
 };
+
+int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format, const encoder_t &encoder);
+
 
 class session_t {
 public:
@@ -443,6 +446,8 @@ static encoder_t nvenc {
   PARALLEL_ENCODING,
   cuda_make_hwdevice_ctx
 #endif
+  ,
+  -1
 };
 
 #ifdef _WIN32
@@ -474,7 +479,8 @@ static encoder_t amdvce {
     "h264_amf"s,
   },
   DEFAULT,
-  dxgi_make_hwdevice_ctx
+  dxgi_make_hwdevice_ctx,
+  -1
 };
 
 
@@ -503,7 +509,8 @@ static encoder_t quicksync {
     "h264_qsv"s,
   },
   PARALLEL_ENCODING,
-  qsv_make_hwdevice_ctx
+  qsv_make_hwdevice_ctx,
+  20
 };
 #endif
 
@@ -535,7 +542,9 @@ static encoder_t software {
   },
   H264_ONLY | PARALLEL_ENCODING,
 
-  nullptr
+  nullptr,
+  -1
+
 };
 
 #ifdef __linux__
@@ -563,7 +572,8 @@ static encoder_t vaapi {
   },
   LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY,
 
-  vaapi_make_hwdevice_ctx
+  vaapi_make_hwdevice_ctx,
+  nullptr
 };
 #endif
 
@@ -594,6 +604,7 @@ static encoder_t videotoolbox {
   },
   DEFAULT,
 
+  nullptr,
   nullptr
 };
 #endif
@@ -957,7 +968,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     }
 
     hwdevice_ctx = std::move(buf_or_error.left());
-    if(hwframe_ctx(ctx, hwdevice_ctx, sw_fmt)) {
+    if(hwframe_ctx(ctx, hwdevice_ctx, sw_fmt, encoder)) {
       return std::nullopt;
     }
 
@@ -1717,15 +1728,18 @@ int init() {
   return 0;
 }
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
+int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format, const encoder_t &encoder) {
   buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice.get()) };
 
-  auto frame_ctx               = (AVHWFramesContext *)frame_ref->data;
-  frame_ctx->format            = ctx->pix_fmt;
-  frame_ctx->sw_format         = format;
-  frame_ctx->height            = ctx->height;
-  frame_ctx->width             = ctx->width;
-  frame_ctx->initial_pool_size = 20;
+  auto frame_ctx       = (AVHWFramesContext *)frame_ref->data;
+  frame_ctx->format    = ctx->pix_fmt;
+  frame_ctx->sw_format = format;
+  frame_ctx->height    = ctx->height;
+  frame_ctx->width     = ctx->width;
+
+  if(encoder.hwframe_initial_pool_size >= 0) {
+    frame_ctx->initial_pool_size = encoder.hwframe_initial_pool_size;
+  }
 
   if(auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
     return err;
@@ -1737,14 +1751,14 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
 }
 
 // Linux only declaration
-typedef int (*vaapi_make_hwdevice_ctx_fn)(platf::hwdevice_t *base, AVBufferRef **hw_device_buf);
+typedef int (*vaapi_make_hwdevice_ctx_fn)(platf::hwdevice_t *hwdevice_ctx, AVBufferRef **hw_device_buf);
 
-util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *base) {
+util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
   buffer_t hw_device_buf;
 
   // If an egl hwdevice
-  if(base->data) {
-    if(((vaapi_make_hwdevice_ctx_fn)base->data)(base, &hw_device_buf)) {
+  if(hwdevice_ctx->data) {
+    if(((vaapi_make_hwdevice_ctx_fn)hwdevice_ctx->data)(hwdevice_ctx, &hw_device_buf)) {
       return -1;
     }
 
@@ -1763,7 +1777,7 @@ util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *base) {
   return hw_device_buf;
 }
 
-util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *base) {
+util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
   buffer_t hw_device_buf;
 
   auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */);
@@ -1814,9 +1828,9 @@ util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ct
 
   AVDictionary *child_device_opts = NULL;
 
-  av_dict_set(&child_device_opts, "child_device", "1", 0);
-  av_dict_set(&child_device_opts, "child_device_type", "d3d11va", 0);
-
+  if(!config::video.qsv.child_device.empty()) {
+    av_dict_set(&child_device_opts, "child_device", config::video.qsv.child_device.data(), 0);
+  }
 
   auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, NULL, child_device_opts, 0);
 

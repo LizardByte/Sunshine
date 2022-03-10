@@ -653,6 +653,21 @@
             </select>
           </div>
       </div>
+      <div class="mb-3" class="config-page">
+        <label for="qsv_child_device" class="form-label">Child Device</label>
+        <input
+          type="text"
+          class="form-control"
+          id="qsv_child_device"
+          placeholder="0"
+          v-model="config.qsv_child_device"
+        />
+        <div class="form-text">
+          You can select your intel device index:<br />
+          Usually 0 or 1<br />
+          <br />
+        </div>
+      </div>
     </div>
     <!--Nvidia Encoder Settings-->
     <div v-if="currentTab === 'nv'" class="config-page">
