@@ -3,8 +3,8 @@ name: localize
 on:
   push:
     branches: [nightly]
-    paths-ignore:
-      - 'locale/**'
+    paths:  # prevents workflow from running again when this workflow pushes changes back into 'locale' directory
+      - 'sunshine/**'  # only localizing files inside sunshine directory
   workflow_dispatch:
 
 jobs:
