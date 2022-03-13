@@ -18,3 +18,7 @@ cmake-build*
 /assets/web/fonts/fontawesome-free-web/scss/
 /assets/web/fonts/fontawesome-free-web/sprites/
 /assets/web/fonts/fontawesome-free-web/svgs/
+
+# Translations
+*.mo
+*.pot
