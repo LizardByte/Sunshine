@@ -49,7 +49,7 @@ def x_extract():
         '--package-version=v0'
     ]
 
-    pot_filepath = os.path.join(locale_dir, f'{project_name.lower()}.pot')
+    pot_filepath = os.path.join(locale_dir, f'{project_name.lower()}.po')
 
     extensions = ['cpp', 'h', 'm', 'mm']
 
@@ -91,7 +91,7 @@ def babel_init(locale_code: str):
     commands = [
         'pybabel',
         'init',
-        '-i', os.path.join(locale_dir, f'{project_name.lower()}.pot'),
+        '-i', os.path.join(locale_dir, f'{project_name.lower()}.po'),
         '-d', locale_dir,
         '-D', project_name.lower(),
         '-l', locale_code
@@ -106,7 +106,7 @@ def babel_update():
     commands = [
         'pybabel',
         'update',
-        '-i', os.path.join(locale_dir, f'{project_name.lower()}.pot'),
+        '-i', os.path.join(locale_dir, f'{project_name.lower()}.po'),
         '-d', locale_dir,
         '-D', project_name.lower(),
         '--update-header-comment'
