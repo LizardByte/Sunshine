@@ -38,7 +38,7 @@ def x_extract():
     commands = [
         'xgettext',
         f'--default-domain={project_name.lower()}',
-        f'--output={os.path.join(locale_dir, project_name.lower() + ".pot")}',
+        f'--output={os.path.join(locale_dir, project_name.lower() + ".po")}',
         '--language=C++',
         '--boost',
         '--from-code=utf-8',

@@ -35,7 +35,7 @@ jobs:
 
     - name: Update Strings
       run: |
-        python ./scripts/_locale.py --extract --init --update
+        python ./scripts/_locale.py --extract
 
     - name: GitHub Commit & Push  # push changes back into nightly
       uses: actions-js/push@v1.2
