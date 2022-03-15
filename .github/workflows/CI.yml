@@ -181,7 +181,7 @@ jobs:
         if: ${{ matrix.package != '' }}
         run: |
           cd scripts
-          sudo mv ./sunshine-${{ matrix.distro }}-build/sunshine-${{ matrix.distro }}.{matrix.extension} ../artifacts/
+          sudo mv ./sunshine-${{ matrix.distro }}-build/sunshine-${{ matrix.distro }}.${{ matrix.extension }} ../artifacts/
       - name: Upload Artifacts
         if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
         uses: actions/upload-artifact@v2
