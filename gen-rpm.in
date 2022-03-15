@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# Export filepaths
+export BUILDDIR=@CMAKE_CURRENT_BINARY_DIR@
+export BUILDROOT=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/
+export RPMSRC=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/SOURCES
+export RPMSPEC=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/SPECS
+export RPMBUILD=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/BUILD
+
+# Create rpmbuild folder structure
+mkdir rpmbuild
+mkdir rpmbuild/BUILD
+mkdir rpmbuild/BUILDROOT
+mkdir rpmbuild/RPMS
+mkdir rpmbuild/SOURCES
+mkdir rpmbuild/SPECS
+mkdir rpmbuild/SRPMS
+
+# Create sunshine .spec file with preinstall and postinstall scripts
+cat << 'EOF' > $RPMSPEC/sunshine.spec
+
+EOF
+
+# Copy over sunshine binary and supplemental files into rpmbuild/BUILD/
+cp @CMAKE_CURRENT_BINARY_DIR@/sunshine $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine
+cp @CMAKE_CURRENT_BINARY_DIR@/sunshine.service $RPMBUILD/sunshine.service
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf RPMBUILD/sunshine.conf
+
+# Set permissions
+chmod 755 sunshine
+chmod 666 RPMBUILD/sunshine.conf
+
+# Use rpmbuild to build the RPM package.
+rpmbuild -bb $RPMSPEC/sunshine.spec
+
+# Done.

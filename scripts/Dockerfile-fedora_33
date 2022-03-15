@@ -24,4 +24,4 @@ RUN dnf -y update && \
 COPY build-private.sh /root/build.sh
 
 
-ENTRYPOINT ["/root/build.sh"]
+ENTRYPOINT ["/root/build.sh -rpm"]
