@@ -32,4 +32,11 @@ cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHI
 
 make -j ${nproc}
 
-./gen-deb
+# Get preferred package format
+if [ "$1" == "-rpm" ]
+then
+  echo "Packaging in .rpm format."
+else
+  echo "Pagkaging in .deb format."
+  ./gen-deb
+fi
