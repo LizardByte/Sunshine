@@ -150,13 +150,16 @@ jobs:
     strategy:
       fail-fast: true  # false to test all, true to fail entire job if any fail
       matrix:
-        distro: [ debian, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]  # removed ubuntu_18_04 for now
+        distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]
         package: [ -p ]
+        extension: 'deb'
         include:  # don't package these
           - distro: fedora_33
             package: ''
+            extension: 'rpm'
           - distro: fedora_35
             package: ''
+            extension: 'rpm'
 
     steps:
       - name: Checkout
@@ -175,10 +178,10 @@ jobs:
           cd scripts
           sudo ./build-sunshine.sh ${{ matrix.package }} -u -n sunshine-${{ matrix.distro }} -s ..
       - name: Package Linux
-        if: ${{ matrix.package == '-p' }}
+        if: ${{ matrix.package != '' }}
         run: |
           cd scripts
-          sudo mv ./sunshine-${{ matrix.distro }}-build/sunshine-${{ matrix.distro }}.deb ../artifacts/
+          sudo mv ./sunshine-${{ matrix.distro }}-build/sunshine-${{ matrix.distro }}.{matrix.extension} ../artifacts/
       - name: Upload Artifacts
         if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
         uses: actions/upload-artifact@v2
