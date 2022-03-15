@@ -6,30 +6,24 @@ ARG TZ="Europe/London"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update -y && \
     apt-get install -y \
-        apt-transport-https \
-        ca-certificates \
-        gnupg \
         software-properties-common \
-        wget \
-    && wget -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc | apt-key add - && \
-    add-apt-repository 'deb https://apt.kitware.com/ubuntu/ bionic main' && \
-    add-apt-repository ppa:ubuntu-toolchain-r/test && \
-    add-apt-repository ppa:savoury1/graphics && \
+    && add-apt-repository ppa:savoury1/graphics && \
     add-apt-repository ppa:savoury1/multimedia && \
     add-apt-repository ppa:savoury1/ffmpeg4 && \
+    add-apt-repository ppa:savoury1/boost-defaults-1.71 && \
+    add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update -y && \
     apt-get install -y \
         build-essential \
         cmake \
-        ffmpeg \
         gcc-10 \
         git \
         g++-10 \
         libavdevice-dev \
-        libboost-filesystem-dev \
-        libboost-log-dev \
-        libboost-regex-dev \
-        libboost-thread-dev \
+        libboost-filesystem1.71-dev \
+        libboost-log1.71-dev \
+        libboost-regex1.71-dev \
+        libboost-thread1.71-dev \
         libcap-dev \
         libdrm-dev \
         libevdev-dev \
@@ -44,15 +38,24 @@ RUN apt-get update -y && \
         libxfixes-dev \
         libxrandr-dev \
         libxtst-dev \
+        wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Update gcc alias
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
 
+# Install CuDA
 RUN wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && chmod a+x /root/cuda.run
 RUN /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm /root/cuda.run
 
+# Install cmake
+ADD https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh /cmake-3.22.2-linux-x86_64.sh
+RUN mkdir /opt/cmake
+RUN sh /cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
+RUN ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
+RUN cmake --version
+
+# Entrypoint
 COPY build-private.sh /root/build.sh
-
-
 ENTRYPOINT ["/root/build.sh"]
