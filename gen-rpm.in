@@ -15,6 +15,7 @@ mkdir rpmbuild/RPMS
 mkdir rpmbuild/SOURCES
 mkdir rpmbuild/SPECS
 mkdir rpmbuild/SRPMS
+mkdir rpmbuild/sunshine_@PROJECT_VERSION@
 
 # Create sunshine .spec file with preinstall and postinstall scripts
 cat << 'EOF' > $RPMSPEC/sunshine.spec
@@ -24,12 +25,11 @@ Release:        master
 Summary:        An NVIDIA Gamestream-Compatible Server
 BuildArch:      x86_64
 BuildRoot:      @CMAKE_CURRENT_BINARY_DIR@/rpmbuild/
+Source0:        sunshine_0.13.0.tar.gz
 
 License:        GNU GPLv3
 URL:            https://github.com/SunshineStream/Sunshine
-Source0:        
 
-BuildRequires:  
 Requires:       systemd
 
 %description
@@ -101,21 +101,22 @@ install -m 755 sunshine %{buildroot}/usr/bin/sunshine
 %files
 %{_bindir}/sunshine
 
-%license add-license-file-here
-
 %changelog
 * Sat Mar 12 2022 h <65380846+thatsysadmin@users.noreply.github.com>
 - Initial packaging of Sunshine.
 EOF
 
 # Copy over sunshine binary and supplemental files into rpmbuild/BUILD/
-cp @CMAKE_CURRENT_BINARY_DIR@/sunshine $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine
+cp @CMAKE_CURRENT_BINARY_DIR@/sunshine-@PROJECT_VERSION@ $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine
 cp @CMAKE_CURRENT_BINARY_DIR@/sunshine.service $RPMBUILD/sunshine.service
-cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf RPMBUILD/sunshine.conf
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf $RPMBUILD/sunshine.conf
+
+# Compress Source
+tar -zcvf rpmbuild/SOURCES/sunshine_0.13.0.tar.gz /home/h/Desktop/Sunshine
 
 # Set permissions
 chmod 755 sunshine
-chmod 666 RPMBUILD/sunshine.conf
+chmod 666 $RPMBUILD/sunshine.conf
 
 # Use rpmbuild to build the RPM package.
 rpmbuild -bb $RPMSPEC/sunshine.spec
