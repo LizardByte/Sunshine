@@ -152,14 +152,14 @@ jobs:
       matrix:
         distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]
         package: [ -p ]
-        extension: 'deb'
+        extension: [ deb ]
         include:  # don't package these
           - distro: fedora_33
             package: ''
-            extension: 'rpm'
+            extension: rpm
           - distro: fedora_35
             package: ''
-            extension: 'rpm'
+            extension: rpm
 
     steps:
       - name: Checkout
