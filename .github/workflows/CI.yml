@@ -163,7 +163,7 @@ jobs:
     strategy:
       fail-fast: true  # false to test all, true to fail entire job if any fail
       matrix:
-        distro: [ debian_bullseye, ubuntu_18_04, ubuntu_20_04, ubuntu_21_10 ]
+        distro: [ debian_bullseye, ubuntu_18_04, ubuntu_20_04 ]
         package: [ -p ]
         extension: [ deb ]
         include:  # don't package these

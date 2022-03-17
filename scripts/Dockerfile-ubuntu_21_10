@@ -1,3 +1,4 @@
+# ffmpeg 5.0 not available for impish from https://launchpad.net/~savoury1/+archive/ubuntu/ffmpeg5
 FROM ubuntu:21.10 AS sunshine-ubuntu_21_10
 
 ARG DEBIAN_FRONTEND=noninteractive 
@@ -6,14 +7,8 @@ ARG TZ="Europe/London"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update -y && \
     apt-get install -y \
-        software-properties-common \
-    && add-apt-repository ppa:savoury1/ffmpeg4 && \
-    add-apt-repository ppa:savoury1/ffmpeg5 && \
-    apt-get update -y && \
-    apt-get install -y \
         build-essential \
         cmake \
-        ffmpeg \
         git \
         libavdevice-dev \
         libboost-thread-dev \
