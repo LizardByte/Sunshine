@@ -66,18 +66,29 @@ jobs:
       run: |
         mkdir -p artifacts
 
-        sudo apt-get update -y && \
-        sudo apt-get --reinstall install -y \
-        git wget gcc-10 g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-        sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && sudo chmod a+x /root/cuda.run
-        sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && sudo rm /root/cuda.run
+        # ffmpeg repos
         sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
         sudo add-apt-repository ppa:savoury1/ffmpeg5 -y
+        sudo add-apt-repository ppa:savoury1/multimedia -y
+
+        # update and upgrade
         sudo apt-get update -y
         sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
-        sudo apt-get install -y \
+
+        # standard dependencies
+        sudo apt-get --reinstall install -y \
+        git wget gcc-10 g++-10 build-essential cmake libssl-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
+
+        # ffmpeg dependencies
+        sudo apt-get --reinstall install -y \
         ffmpeg libavcodec59 libavdevice59 libavfilter8 libavformat59
+
+        # Update gcc alias
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+
+        # Setup cuda
+        sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && sudo chmod a+x /root/cuda.run
+        sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && sudo rm /root/cuda.run
 
         ffmpeg -version
     - name: Build AppImage
