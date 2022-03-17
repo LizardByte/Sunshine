@@ -25,7 +25,7 @@ Release:        master
 Summary:        An NVIDIA Gamestream-Compatible Server
 BuildArch:      x86_64
 BuildRoot:      @CMAKE_CURRENT_BINARY_DIR@/rpmbuild/
-Source0:        sunshine_0.13.0.tar.gz
+Source0:        @CMAKE_CURRENT_BINARY_DIR@/rpmbuild/SOURCES/sunshine_0.13.0.tar.gz
 
 License:        GNU GPLv3
 URL:            https://github.com/SunshineStream/Sunshine
@@ -108,17 +108,17 @@ EOF
 
 # Copy over sunshine binary and supplemental files into rpmbuild/BUILD/
 cp @CMAKE_CURRENT_BINARY_DIR@/sunshine-@PROJECT_VERSION@ $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine
-cp @CMAKE_CURRENT_BINARY_DIR@/sunshine.service $RPMBUILD/sunshine.service
-cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf $RPMBUILD/sunshine.conf
+cp @CMAKE_CURRENT_BINARY_DIR@/sunshine.service $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine.service
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine.conf
 
 # Compress Source
 tar -zcvf rpmbuild/SOURCES/sunshine_0.13.0.tar.gz /home/h/Desktop/Sunshine
 
 # Set permissions
 chmod 755 sunshine
-chmod 666 $RPMBUILD/sunshine.conf
+chmod 666 $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine.conf
 
 # Use rpmbuild to build the RPM package.
-rpmbuild -bb $RPMSPEC/sunshine.spec
+rpmbuild --buildroot @CMAKE_CURRENT_BINARY_DIR@/rpmbuild -bb $RPMSPEC/sunshine.spec
 
 # Done.

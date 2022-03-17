@@ -36,6 +36,7 @@ make -j ${nproc}
 if [ "$1" == "-rpm" ]
 then
   echo "Packaging in .rpm format."
+  ./gen-rpm
 else
   echo "Pagkaging in .deb format."
   ./gen-deb
