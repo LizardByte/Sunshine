@@ -76,7 +76,8 @@ jobs:
         sudo add-apt-repository ppa:savoury1/ffmpeg5 -y
         sudo apt-get update -y
         sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
-        sudo apt-get install ffmpeg -y
+        sudo apt-get install -y \
+        ffmpeg libavcodec59 libavdevice59 libavfilter8 libavformat59
 
         ffmpeg -version
     - name: Build AppImage
