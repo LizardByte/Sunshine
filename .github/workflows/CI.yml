@@ -81,7 +81,7 @@ jobs:
 
         # ffmpeg dependencies
         sudo apt-get --reinstall install -y \
-        ffmpeg libavcodec59 libavdevice59 libavfilter8 libavformat59
+        ffmpeg libavcodec59 libavdevice59 libavfilter8 libavformat59 libx264-164
 
         # Update gcc alias
         sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
