@@ -19,7 +19,10 @@ RUN apt-get update -y && \
         gcc-10 \
         git \
         g++-10 \
-        libavdevice-dev \
+        libavcodec59 \
+        libavdevice59 \
+        libavfilter8 \
+        libavformat59 \
         libboost-filesystem1.71-dev \
         libboost-log1.71-dev \
         libboost-regex1.71-dev \

@@ -16,7 +16,10 @@ RUN apt-get update -y && \
         ffmpeg \
         git \
         g++-10 \
-        libavdevice-dev \
+        libavcodec59 \
+        libavdevice59 \
+        libavfilter8 \
+        libavformat59 \
         libboost-filesystem-dev \
         libboost-log-dev \
         libboost-thread-dev \
