@@ -8,13 +8,11 @@ RUN echo deb http://deb.debian.org/debian/ bullseye main contrib non-free | tee 
 RUN apt-get update -y && \
     apt-get install -y \
         software-properties-common \
-    && add-apt-repository ppa:savoury1/ffmpeg4 && \
-    add-apt-repository ppa:savoury1/ffmpeg5 && \
+    && add-apt-repository 'http://deb.debian.org/debian experimental main' && \
     apt-get update -y && \
     apt-get install -y \
         build-essential \
         cmake \
-        ffmpeg \
         git \
         libavdevice-dev \
         libboost-thread-dev \
@@ -36,6 +34,7 @@ RUN apt-get update -y && \
         libxtst-dev \
         nvidia-cuda-dev \
         nvidia-cuda-toolkit \
+    && apt-get -t experimental install ffmpeg
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
