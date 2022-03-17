@@ -75,9 +75,12 @@ jobs:
         sudo add-apt-repository ppa:savoury1/graphics -y
         sudo add-apt-repository ppa:savoury1/multimedia -y
         sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
+        sudo add-apt-repository ppa:savoury1/ffmpeg5 -y
         sudo apt-get update -y
         sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
         sudo apt-get install ffmpeg -y
+
+        ffmpeg -version
     - name: Build AppImage
       run: |
         CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
@@ -150,13 +153,10 @@ jobs:
     strategy:
       fail-fast: true  # false to test all, true to fail entire job if any fail
       matrix:
-        distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]
+        distro: [ debian_bullseye, ubuntu_18_04, ubuntu_20_04, ubuntu_21_10 ]
         package: [ -p ]
         extension: [ deb ]
         include:  # don't package these
-          - distro: fedora_33
-            package: ''
-            extension: rpm
           - distro: fedora_35
             package: ''
             extension: rpm

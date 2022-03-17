@@ -7,15 +7,15 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update -y && \
     apt-get install -y \
         software-properties-common \
-    && add-apt-repository ppa:savoury1/graphics && \
-    add-apt-repository ppa:savoury1/multimedia && \
-    add-apt-repository ppa:savoury1/ffmpeg4 && \
+    && add-apt-repository ppa:savoury1/ffmpeg4 && \
+    add-apt-repository ppa:savoury1/ffmpeg5 && \
     add-apt-repository ppa:savoury1/boost-defaults-1.71 && \
     add-apt-repository ppa:ubuntu-toolchain-r/test && \
     apt-get update -y && \
     apt-get install -y \
         build-essential \
         cmake \
+        ffmpeg \
         gcc-10 \
         git \
         g++-10 \
@@ -41,6 +41,8 @@ RUN apt-get update -y && \
         wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN ffmpeg -version
 
 # Update gcc alias
 RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10

@@ -1,3 +1,6 @@
+# Fedora 33 is end of life
+# This file is only for reference
+
 FROM fedora:33 AS sunshine-fedora_33
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -20,6 +23,8 @@ RUN dnf -y update && \
         pulseaudio-libs-devel \
     && dnf clean all \
     && rm -rf /var/cache/yum
+
+RUN ffmpeg -version
 
 # Entrypoint
 COPY build-private.sh /root/build.sh

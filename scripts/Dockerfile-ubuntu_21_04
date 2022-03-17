@@ -1,3 +1,6 @@
+# Ubuntu 21.04 is end of life
+# This file is only for reference
+
 FROM ubuntu:21.04 AS sunshine-ubuntu_21_04
 
 ARG DEBIAN_FRONTEND=noninteractive 
@@ -6,8 +9,14 @@ ARG TZ="Europe/London"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update -y && \
     apt-get install -y \
+        software-properties-common \
+    && add-apt-repository ppa:savoury1/ffmpeg4 && \
+    add-apt-repository ppa:savoury1/ffmpeg5 && \
+    apt-get update -y && \
+    apt-get install -y \
         build-essential \
         cmake \
+        ffmpeg \
         git \
         libavdevice-dev \
         libboost-thread-dev \
@@ -31,6 +40,8 @@ RUN apt-get update -y && \
         nvidia-cuda-toolkit \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN ffmpeg -version
 
 # Entrypoint
 COPY build-private.sh /root/build.sh
