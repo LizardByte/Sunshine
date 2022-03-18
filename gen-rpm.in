@@ -2,41 +2,45 @@
 
 # Export filepaths
 export BUILDDIR=@CMAKE_CURRENT_BINARY_DIR@
-export BUILDROOT=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/
-export RPMSRC=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/SOURCES
-export RPMSPEC=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/SPECS
-export RPMBUILD=@CMAKE_CURRENT_BINARY_DIR@/rpmbuild/BUILD
+export BUILDROOT=~/rpmbuild/
+export RPMSRC=~/rpmbuild/SOURCES
+export RPMSPEC=~/rpmbuild/SPECS
+export RPMBUILD=~/rpmbuild/BUILD
+
+# Check if user's rpmbuild folder is there, if so, temoprairly rename it.
+if [ -f ~/rpmbuild ]; then
+	echo "Backing up rpmbuild"
+	~/rpmbuild ~/rpmbuild.bkp
+	export RPMBUILDEXISTS=TRUE
+else
+	export RPMBUILDEXISTS=FALSE
+fi
 
 # Create rpmbuild folder structure
-mkdir rpmbuild
-mkdir rpmbuild/BUILD
-mkdir rpmbuild/BUILDROOT
-mkdir rpmbuild/RPMS
-mkdir rpmbuild/SOURCES
-mkdir rpmbuild/SPECS
-mkdir rpmbuild/SRPMS
-mkdir rpmbuild/sunshine_@PROJECT_VERSION@
+mkdir ~/rpmbuild
+mkdir ~/rpmbuild/BUILD
+mkdir ~/rpmbuild/BUILDROOT
+mkdir ~/rpmbuild/RPMS
+mkdir ~/rpmbuild/SOURCES
+mkdir ~/rpmbuild/SPECS
+mkdir ~/rpmbuild/SRPMS
 
 # Create sunshine .spec file with preinstall and postinstall scripts
 cat << 'EOF' > $RPMSPEC/sunshine.spec
 Name:           sunshine
 Version:        @PROJECT_VERSION@
-Release:        master
-Summary:        An NVIDIA Gamestream-Compatible Server
+Release:        1%{?dist}
+Summary:        An NVIDIA Gamestream-compatible hosting server
 BuildArch:      x86_64
-BuildRoot:      @CMAKE_CURRENT_BINARY_DIR@/rpmbuild/
-Source0:        @CMAKE_CURRENT_BINARY_DIR@/rpmbuild/SOURCES/sunshine_0.13.0.tar.gz
 
-License:        GNU GPLv3
+License:        GPLv3
 URL:            https://github.com/SunshineStream/Sunshine
+Source0:        sunshine-@PROJECT_VERSION@_bin.tar.gz
 
 Requires:       systemd
 
 %description
-An NVIDIA Gamestream-Compatible Server for streaming video games over the local network of over the internets!
-
-%prep
-%setup -q
+An NVIDIA Gamestream-compatible hosting server
 
 %pre
 #!/bin/sh
@@ -95,11 +99,22 @@ if [ -x "$path_to_setcap" ] ; then
 	$path_to_setcap cap_sys_admin+p /usr/bin/sunshine
 fi
 
+%prep
+%setup -q
+
 %install
-install -m 755 sunshine %{buildroot}/usr/bin/sunshine
+rm -rf $RPM_BUILD_ROOT
+mkdir -p $RPM_BUILD_ROOT/%{_bindir}
+mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}
+cp sunshine $RPM_BUILD_ROOT/%{_bindir}/sunshine
+cp sunshine.service $RPM_BUILD_ROOT/%{_sysconfdir}/sunshine.service
+
+%clean
+rm -rf $RPM_BUILD_ROOT
 
 %files
 %{_bindir}/sunshine
+%{_sysconfdir}/sunshine.service
 
 %changelog
 * Sat Mar 12 2022 h <65380846+thatsysadmin@users.noreply.github.com>
@@ -107,18 +122,29 @@ install -m 755 sunshine %{buildroot}/usr/bin/sunshine
 EOF
 
 # Copy over sunshine binary and supplemental files into rpmbuild/BUILD/
-cp @CMAKE_CURRENT_BINARY_DIR@/sunshine-@PROJECT_VERSION@ $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine
-cp @CMAKE_CURRENT_BINARY_DIR@/sunshine.service $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine.service
-cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine.conf
+mkdir genrpm
+mkdir genrpm/sunshine-@PROJECT_VERSION@
+cp sunshine-@PROJECT_VERSION@ genrpm/sunshine-@PROJECT_VERSION@/sunshine
+cp sunshine.service genrpm/sunshine-@PROJECT_VERSION@/sunshine.service
+cd genrpm
 
-# Compress Source
-tar -zcvf rpmbuild/SOURCES/sunshine_0.13.0.tar.gz /home/h/Desktop/Sunshine
-
-# Set permissions
-chmod 755 sunshine
-chmod 666 $RPMBUILD/sunshine_@PROJECT_VERSION@/sunshine.conf
+# tarball everything as if it was a source file for rpmbuild
+tar --create --file sunshine-@PROJECT_VERSION@_bin.tar.gz sunshine-@PROJECT_VERSION@/
+cp sunshine-@PROJECT_VERSION@_bin.tar.gz ~/rpmbuild/SOURCES
 
 # Use rpmbuild to build the RPM package.
-rpmbuild --buildroot @CMAKE_CURRENT_BINARY_DIR@/rpmbuild -bb $RPMSPEC/sunshine.spec
+rpmbuild -bb $RPMSPEC/sunshine.spec
+
+# Move the completed RPM into the cmake build folder
+mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc35.x86_64.rpm @CMAKE_CURRENT_BINARY_DIR@/
+
+# Clean up; delete the rpmbuild folder we created and move back the original one
+if [ -f ~/rpmbuild ]; then
+	echo "Backing up rpmbuild"
+	~/rpmbuild ~/rpmbuild.bkp
+	export RPMBUILDEXISTS=TRUE
+else
+	export RPMBUILDEXISTS=FALSE
+fi
 
 # Done.
