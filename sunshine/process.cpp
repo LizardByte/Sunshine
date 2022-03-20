@@ -188,7 +188,7 @@ void proc_t::terminate() {
 
   _undo_begin = std::begin(proc.disconnect_cmd);
   _undo_it    = _undo_begin;
-  
+
 for(; _undo_it != std::end(proc.disconnect_cmds); ++_undo_it) {
     auto &cmd = _undo_it->do_cmd;
 
@@ -197,12 +197,12 @@ for(; _undo_it != std::end(proc.disconnect_cmds); ++_undo_it) {
 
     if(ec) {
       BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
-      return -1;
+      return 1;
     }
 
     if(ret != 0) {
       BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
-      return -1;
+      return 1;
     }
   }
   _pipe.reset();
