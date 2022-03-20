@@ -126,6 +126,7 @@ mkdir genrpm
 mkdir genrpm/sunshine-@PROJECT_VERSION@
 cp sunshine-@PROJECT_VERSION@ genrpm/sunshine-@PROJECT_VERSION@/sunshine
 cp sunshine.service genrpm/sunshine-@PROJECT_VERSION@/sunshine.service
+cp sunshine.desktop genrpm/sunshine-0.13.0/sunshine.desktop
 cd genrpm
 
 # tarball everything as if it was a source file for rpmbuild
@@ -139,12 +140,10 @@ rpmbuild -bb $RPMSPEC/sunshine.spec
 mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc35.x86_64.rpm @CMAKE_CURRENT_BINARY_DIR@/
 
 # Clean up; delete the rpmbuild folder we created and move back the original one
-if [ -f ~/rpmbuild ]; then
-	echo "Backing up rpmbuild"
-	~/rpmbuild ~/rpmbuild.bkp
-	export RPMBUILDEXISTS=TRUE
-else
-	export RPMBUILDEXISTS=FALSE
+if [ $RPMBUILDEXISTS=TRUE ]; then
+	echo "Removing and replacing original rpmbuild folder."
+	rm -rf ~/rpmbuild
+	mv ~/rpmbuild.bkp ~/rpmbuild
 fi
 
 # Done.
