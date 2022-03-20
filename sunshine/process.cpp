@@ -197,12 +197,12 @@ for(; _undo_it != std::end(proc.disconnect_cmds); ++_undo_it) {
 
     if(ec) {
       BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
-      return 1;
+      return 0;
     }
 
     if(ret != 0) {
       BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
-      return 1;
+      return 0;
     }
   }
   _pipe.reset();
