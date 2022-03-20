@@ -322,6 +322,9 @@ void saveApp(resp_https_t response, req_https_t request) {
       inputTree.erase("prep-cmd");
     }
 
+    if(inputTree.get_child("disconnect-cmd").empty()) {
+      inputTree.erase("disconnect-cmd");
+    }
     if(inputTree.get_child("detached").empty()) {
       inputTree.erase("detached");
     }
