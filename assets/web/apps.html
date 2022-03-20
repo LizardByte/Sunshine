@@ -103,6 +103,54 @@
           &plus; Add
         </button>
       </div>
+      <!--disconnect-cmd-->
+      <div class="mb-3 d-flex flex-column">
+        <label for="appName" class="form-label">Disconnect Command Preparations</label>
+        <div class="form-text">
+          A list of commands to be run once disconnect has been triggered. <br />
+          If any of the disconnect-commands fail we continue disconnecting
+        </div>
+        <table v-if="editForm['disconnect-cmd'].length > 0">
+          <thead>
+            <th class="precmd-head">Do</th>
+            <th class="precmd-head">Undo</th>
+            <th style="width: 48px"></th>
+          </thead>
+          <tbody>
+            <tr v-for="(c,i) in editForm['disconnect-cmd']">
+              <td>
+                <input
+                  type="text"
+                  class="form-control monospace"
+                  v-model="c.do"
+                />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  class="form-control monospace"
+                  v-model="c.undo"
+                />
+              </td>
+              <td>
+                <button
+                  class="btn btn-danger"
+                  @click="editForm['disconnect-cmd'].splice(i,1)"
+                >
+                  &times;
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <button
+          class="mt-2 btn btn-success"
+          style="margin: 0 auto"
+          @click="addDisconnectCmd"
+        >
+          &plus; Add
+        </button>
+      </div>
       <!--detatched-->
       <div class="mb-3">
         <label for="appName" class="form-label">Detached Commands</label>
@@ -251,6 +299,12 @@
         this.editForm["prep-cmd"].push({
           do: "",
           undo: "",
+        });
+      },
+      addDisconnectCmd() {
+        this.editForm["disconnect-cmd"].push({
+          do: "",
+          undo: "", 
         });
       },
       save() {

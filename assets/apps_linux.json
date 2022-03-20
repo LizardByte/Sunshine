@@ -7,7 +7,10 @@
 		"name":"Low Res Desktop",
 		"prep-cmd":[
 		{ "do":"xrandr --output HDMI-1 --mode 1920x1080", "undo":"xrandr --output HDMI-1 --mode 1920x1200" }
-		]
+		],
+		"disconnect-cmd":[
+			{ "do":"xrandr --output HDMI-1 --mode 1920x1080", "undo":"xrandr --output HDMI-1 --mode 1920x1200" }
+			]
 	},
 	{
 		"name":"Steam BigPicture",
