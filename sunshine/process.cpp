@@ -186,7 +186,7 @@ void proc_t::terminate() {
   }
  auto &proc = _apps[app_id];
 
-  _undo_begin = std::begin(proc.disconnect_cmd);
+  _undo_begin = std::begin(proc.disconnect_cmds);
   _undo_it    = _undo_begin;
 
 for(; _undo_it != std::end(proc.disconnect_cmds); ++_undo_it) {
@@ -327,14 +327,14 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
     for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
 
-      auto prep_nodes_opt     = app_node.get_child_optional("prep-cmd"s);
+      auto prep_nodes_opt           = app_node.get_child_optional("prep-cmd"s);
       auto disconnect_nodes_opt     = app_node.get_child_optional("disconnect-cmd"s);
-      auto detached_nodes_opt = app_node.get_child_optional("detached"s);
-      auto output             = app_node.get_optional<std::string>("output"s);
-      auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
-      auto cmd                = app_node.get_optional<std::string>("cmd"s);
-      auto image_path         = app_node.get_optional<std::string>("image-path"s);
-      auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
+      auto detached_nodes_opt       = app_node.get_child_optional("detached"s);
+      auto output                   = app_node.get_optional<std::string>("output"s);
+      auto name                     = parse_env_val(this_env, app_node.get<std::string>("name"s));
+      auto cmd                      = app_node.get_optional<std::string>("cmd"s);
+      auto image_path               = app_node.get_optional<std::string>("image-path"s);
+      auto working_dir              = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       if(prep_nodes_opt) {
