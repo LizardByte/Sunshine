@@ -42,7 +42,7 @@ struct cmd_t {
  */
 struct ctx_t {
   std::vector<cmd_t> prep_cmds;
-
+  std::vector<cmd_t> disconnect_cmds;
   /**
    * Some applications, such as Steam,
    * either exit quickly, or keep running indefinitely.
