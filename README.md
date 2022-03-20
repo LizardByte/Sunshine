@@ -240,6 +240,13 @@ All shortcuts start with CTRL + ALT + SHIFT, just like Moonlight
 		- undo <optional>: Run after the application has terminated
 			- This should not fail considering it is supposed to undo the 'do' commands.
 			- If it fails, Sunshine is terminated
+	- disconnect-cmd: A list of commands to be run once the stream has started disconnecting
+		- If any of the disconnect-commands fail we continue disconnecting.
+		- do: Run once disconnect is issued
+			- If it fails, all 'undo' commands of the previously succeeded 'do' commands are run
+		- undo <optional>: Run after the application has terminated
+			- This should not fail considering it is supposed to undo the 'do' commands.
+			- If it fails, Sunshine is terminated
 	- cmd <optional>: The main application
 		- If not specified, a processs is started that sleeps indefinitely
 
