@@ -397,10 +397,10 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
-      ctx.name      = std::move(name);
-      ctx.prep_cmds = std::move(prep_cmds);
+      ctx.name            = std::move(name);
+      ctx.prep_cmds       = std::move(prep_cmds);
       ctx.disconnect_cmds = std::move(disconnect_cmds);
-      ctx.detached  = std::move(detached);
+      ctx.detached        = std::move(detached);
 
       apps.emplace_back(std::move(ctx));
     }
