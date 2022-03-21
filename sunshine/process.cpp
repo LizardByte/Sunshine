@@ -148,7 +148,6 @@ int proc_t::running() {
 void proc_t::terminate() {
   std::error_code ec;
   int app_id = _app_id;
-  
   // Ensure child process is terminated
   placebo = false;
   process_end(_process, _process_handle);
