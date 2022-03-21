@@ -148,8 +148,7 @@ int proc_t::running() {
 void proc_t::terminate() {
   std::error_code ec;
   int app_id = _app_id;
- 
-
+  
   // Ensure child process is terminated
   placebo = false;
   process_end(_process, _process_handle);
@@ -184,12 +183,12 @@ void proc_t::terminate() {
       std::abort();
     }
   }
- auto &proc = _apps[app_id];
+  auto &proc = _apps[app_id];
 
   _undo_begin = std::begin(proc.disconnect_cmds);
   _undo_it    = _undo_begin;
 
-for(; _undo_it != std::end(proc.disconnect_cmds); ++_undo_it) {
+  for(; _undo_it != std::end(proc.disconnect_cmds); ++_undo_it) {
     auto &cmd = _undo_it->do_cmd;
 
     BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
@@ -325,14 +324,14 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
     for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
 
-      auto prep_nodes_opt           = app_node.get_child_optional("prep-cmd"s);
-      auto disconnect_nodes_opt     = app_node.get_child_optional("disconnect-cmd"s);
-      auto detached_nodes_opt       = app_node.get_child_optional("detached"s);
-      auto output                   = app_node.get_optional<std::string>("output"s);
-      auto name                     = parse_env_val(this_env, app_node.get<std::string>("name"s));
-      auto cmd                      = app_node.get_optional<std::string>("cmd"s);
-      auto image_path               = app_node.get_optional<std::string>("image-path"s);
-      auto working_dir              = app_node.get_optional<std::string>("working-dir"s);
+      auto prep_nodes_opt       = app_node.get_child_optional("prep-cmd"s);
+      auto disconnect_nodes_opt = app_node.get_child_optional("disconnect-cmd"s);
+      auto detached_nodes_opt   = app_node.get_child_optional("detached"s);
+      auto output               = app_node.get_optional<std::string>("output"s);
+      auto name                 = parse_env_val(this_env, app_node.get<std::string>("name"s));
+      auto cmd                  = app_node.get_optional<std::string>("cmd"s);
+      auto image_path           = app_node.get_optional<std::string>("image-path"s);
+      auto working_dir          = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       if(prep_nodes_opt) {
