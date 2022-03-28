@@ -15,6 +15,9 @@ These scripts use docker under the hood, as such, they can only be used to compi
 sudo apt install docker
 ```
 
+You also must have all of this repository's submodules pulled onto your local filesystem. To do this, use `git submodule update --init --recursive`. To ensure it worked, verify that in the repo, `./third-party/moonlight-common-c` has files in it.
+
+
 #### instructions
 
 You'll require one of the following Dockerfiles:
