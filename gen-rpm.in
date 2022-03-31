@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Export filepaths
-export BUILDDIR=@CMAKE_CURRENT_BINARY_DIR@
+export BUILDDIR=@CMAKE_CURRENT_SOURCE_DIR@/build
 export BUILDROOT=~/rpmbuild/
 export RPMSRC=~/rpmbuild/SOURCES
 export RPMSPEC=~/rpmbuild/SPECS
@@ -12,8 +12,6 @@ if [ -f ~/rpmbuild ]; then
 	echo "Backing up rpmbuild"
 	~/rpmbuild ~/rpmbuild.bkp
 	export RPMBUILDEXISTS=TRUE
-else
-	export RPMBUILDEXISTS=FALSE
 fi
 
 # Create rpmbuild folder structure
@@ -28,7 +26,7 @@ mkdir ~/rpmbuild/SRPMS
 # Create sunshine .spec file with preinstall and postinstall scripts
 cat << 'EOF' > $RPMSPEC/sunshine.spec
 Name:           sunshine
-Version:        @PROJECT_VERSION@
+Version:        0.13.0
 Release:        1%{?dist}
 Summary:        An NVIDIA Gamestream-compatible hosting server
 BuildArch:      x86_64
@@ -105,16 +103,28 @@ fi
 %install
 rm -rf $RPM_BUILD_ROOT
 mkdir -p $RPM_BUILD_ROOT/%{_bindir}
-mkdir -p $RPM_BUILD_ROOT/%{_sysconfdir}
+mkdir -p $RPM_BUILD_ROOT/etc/sunshine
+mkdir -p $RPM_BUILD_ROOT/usr/lib/systemd/user
+mkdir -p $RPM_BUILD_ROOT/usr/share/applications
+mkdir -p $RPM_BUILD_ROOT/etc/udev/rules.d
+
 cp sunshine $RPM_BUILD_ROOT/%{_bindir}/sunshine
-cp sunshine.service $RPM_BUILD_ROOT/%{_sysconfdir}/sunshine.service
+cp sunshine.conf $RPM_BUILD_ROOT/etc/sunshine/sunshine.conf
+cp apps_linux.json $RPM_BUILD_ROOT/etc/sunshine/apps_linux.json
+cp sunshine.service $RPM_BUILD_ROOT/usr/lib/systemd/user/sunshine.service
+cp sunshine.desktop $RPM_BUILD_ROOT/usr/share/applications/sunshine.desktop
+cp 85-sunshine-rules.rules $RPM_BUILD_ROOT/etc/udev/rules.d/85-sunshine-rules.rules
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %files
 %{_bindir}/sunshine
-%{_sysconfdir}/sunshine.service
+/usr/lib/systemd/user/sunshine.service
+/etc/sunshine/sunshine.conf
+/etc/sunshine/apps_linux.json
+/usr/share/applications/sunshine.desktop
+/etc/udev/rules.d/85-sunshine-rules.rules
 
 %changelog
 * Sat Mar 12 2022 h <65380846+thatsysadmin@users.noreply.github.com>
@@ -126,7 +136,10 @@ mkdir genrpm
 mkdir genrpm/sunshine-@PROJECT_VERSION@
 cp sunshine-@PROJECT_VERSION@ genrpm/sunshine-@PROJECT_VERSION@/sunshine
 cp sunshine.service genrpm/sunshine-@PROJECT_VERSION@/sunshine.service
-cp sunshine.desktop genrpm/sunshine-0.13.0/sunshine.desktop
+cp sunshine.desktop genrpm/sunshine-@PROJECT_VERSION@/sunshine.desktop
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/sunshine.conf genrpm/sunshine-@PROJECT_VERSION@/sunshine.conf
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/apps_linux.json genrpm/sunshine-@PROJECT_VERSION@/apps_linux.json
+cp @CMAKE_CURRENT_SOURCE_DIR@/assets/85-sunshine-rules.rules genrpm/sunshine-@PROJECT_VERSION@/85-sunshine-rules.rules
 cd genrpm
 
 # tarball everything as if it was a source file for rpmbuild
