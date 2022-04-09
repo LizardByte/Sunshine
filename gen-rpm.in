@@ -26,7 +26,7 @@ mkdir ~/rpmbuild/SRPMS
 # Create sunshine .spec file with preinstall and postinstall scripts
 cat << 'EOF' > $RPMSPEC/sunshine.spec
 Name:           sunshine
-Version:        0.13.0
+Version:        @PROJECT_VERSION@
 Release:        1%{?dist}
 Summary:        An NVIDIA Gamestream-compatible hosting server
 BuildArch:      x86_64

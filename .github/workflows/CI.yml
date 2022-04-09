@@ -152,11 +152,14 @@ jobs:
       matrix:
         distro: [ debian, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]  # removed ubuntu_18_04 for now
         package: [ -p ]
-        include:  # don't package these
+        extension: [ deb ]
+        include:  # package these differently
           - distro: fedora_33
-            package: ''
+            package: '-p'
+            extension: rpm
           - distro: fedora_35
-            package: ''
+            package: '-p'
+            extension: rpm
 
     steps:
       - name: Checkout
@@ -173,7 +176,7 @@ jobs:
       - name: Build Linux
         run: |
           cd scripts
-          sudo ./build-sunshine.sh ${{ matrix.package }} -u -n sunshine-${{ matrix.distro }} -s ..
+          sudo ./build-sunshine.sh ${{ matrix.package }} -e ${{ matrix.extension }} -u -n sunshine-${{ matrix.distro }} -s ..
       - name: Package Linux
         if: ${{ matrix.package == '-p' }}
         run: |
