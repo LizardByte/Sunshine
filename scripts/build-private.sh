@@ -37,7 +37,12 @@ if [ "$1" == "-rpm" ]
 then
   echo "Packaging in .rpm format."
   ./gen-rpm
-else
+elif [ "$1" == "-deb" ]
+then
   echo "Pagkaging in .deb format."
   ./gen-deb
+else
+  echo "Prefered packaging not specified."
+  echo "Use -deb or -rpm to specify prefered package format."
+  exit 1
 fi
