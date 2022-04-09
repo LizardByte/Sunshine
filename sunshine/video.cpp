@@ -327,6 +327,11 @@ public:
   session_t(ctx_t &&ctx, std::shared_ptr<platf::hwdevice_t> &&device, int inject) : ctx { std::move(ctx) }, device { std::move(device) }, inject { inject } {}
 
   session_t(session_t &&other) noexcept = default;
+  ~session_t() {
+    // Order matters here because the context relies on the hwdevice still being valid
+    ctx.reset();
+    device.reset();
+  }
 
   // Ensure objects are destroyed in the correct order
   session_t &operator=(session_t &&other) {
