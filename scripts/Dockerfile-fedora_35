@@ -23,7 +23,7 @@ RUN dnf -y update && \
         openssl-devel \
         opus-devel \
         pulseaudio-libs-devel \
-    && dnf install rpm-build
+        rpm-build \
     && dnf clean all \
     && rm -rf /var/cache/yum
 
