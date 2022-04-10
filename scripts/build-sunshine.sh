@@ -55,11 +55,11 @@ while getopts ":dpeuhc:s:n:" arg; do
 			echo "Defining package extension: $OPTARG"
 			if `list_include_item "deb rpm" $OPTARG`
 			then
-        SUNSHINE_PACKAGE_EXTENSION=$OPTARG
-      else
-        echo "Package extension not supported: $OPTARG"
-        echo "Falling back to default package extension: $SUNSHINE_PACKAGE_EXTENSION"
-      fi
+        		SUNSHINE_PACKAGE_EXTENSION=$OPTARG
+      		else
+        		echo "Package extension not supported: $OPTARG"
+        		echo "Falling back to default package extension: $SUNSHINE_PACKAGE_EXTENSION"
+      		fi
 			;;
 		s)
 			absolute_path "$OPTARG"
