@@ -1,0 +1,45 @@
+name: localize
+
+on:
+  push:
+    branches: [nightly]
+    paths:  # prevents workflow from running unless files in these directories change
+      - 'sunshine/**'  # only localizing files inside sunshine directory
+  workflow_dispatch:
+
+jobs:
+  localize:
+    name: Update Localization
+    if: ${{ github.event.pull_request.merged }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Install Python 3.9
+      uses: actions/setup-python@v3  # https://github.com/actions/setup-python
+      with:
+        python-version: '3.9'
+
+    - name: Set up Python 3.9 Dependencies
+      run: |
+        cd ./scripts
+        python -m pip install --upgrade pip setuptools
+        python -m pip install -r requirements.txt
+
+    - name: Set up xgettext
+      run: |
+        sudo apt-get update -y && \
+        sudo apt-get --reinstall install -y \
+        gettext
+
+    - name: Update Strings
+      run: |
+        python ./scripts/_locale.py --extract
+
+    - name: GitHub Commit & Push  # push changes back into nightly
+      uses: actions-js/push@v1.3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: nightly
+        message: localization updated by localize workflow
