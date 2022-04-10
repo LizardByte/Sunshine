@@ -22,6 +22,7 @@ RUN dnf -y update && \
     && dnf clean all \
     && rm -rf /var/cache/yum
 
-# Entrypoint
 COPY build-private.sh /root/build.sh
+
+
 ENTRYPOINT ["/root/build.sh -rpm"]

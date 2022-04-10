@@ -1,9 +1,9 @@
+![Sunshine icon](gamepad.png "Sunshine")
 # Introduction
 Sunshine is a Gamestream host for Moonlight
 
-[![CI](https://github.com/SunshineStream/Sunshine/actions/workflows/CI.yml/badge.svg?branch=master)](https://github.com/SunshineStream/Sunshine/actions/workflows/CI.yml)
-[![Downloads](https://img.shields.io/github/downloads/sunshinestream/sunshine/total)](https://github.com/sunshinestream/sunshine/releases)
-[![Crowdin](https://badges.crowdin.net/sunshinestream/localized.svg)](https://crowdin.com/project/sunshinestream)
+[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/cgrtw2g3fq9b0b70/branch/master?svg=true)](https://ci.appveyor.com/project/loki-47-6F-64/sunshine/branch/master)
+[![Downloads](https://img.shields.io/github/downloads/Loki-47-6F-64/sunshine/total)](https://github.com/Loki-47-6F-64/sunshine/releases)
 
 - [Building](README.md#building)
 - [Credits](README.md#credits)
@@ -198,11 +198,11 @@ All shortcuts start with CTRL + ALT + SHIFT, just like Moonlight
 - CTRL + ALT + SHIFT + F1/F13 --> Switch to different monitor for Streaming
 
 ## Credits:
-- [loki-47-6F-64/sunshine](https://github.com/loki-47-6F-64/sunshine) (For all the hard work put in to create sunshine in the first place!)
 - [Simple-Web-Server](https://gitlab.com/eidheim/Simple-Web-Server)
 - [Moonlight](https://github.com/moonlight-stream)
 - [Looking-Glass](https://github.com/gnif/LookingGlass) (For showing me how to properly capture frames on Windows, saving me a lot of time :)
 - [Eretik](http://eretik.omegahg.com/) (For creating PolicyConfig.h, allowing me to change the default audio device on Windows programmatically)
+- [Twitter emoji](https://github.com/twitter/twemoji/blob/master/LICENSE-GRAPHICS) (Sunshine's icon is made of twemoji)
 
 ## Application List:
 **Note:** You can change the Application List in the "Apps" section of the User Interface `https://xxx.xxx.xxx.xxx:47990/`
