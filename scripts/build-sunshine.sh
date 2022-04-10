@@ -34,7 +34,7 @@ CONTAINER_NAME=sunshine
 # Docker will fail if ctrl+c is passed through and the input is not a tty
 DOCKER_INTERACTIVE=-ti
 
-while getopts ":dpuhc:s:n:" arg; do
+while getopts ":dpeuhc:s:n:" arg; do
 	case ${arg} in
 		u)
 			echo "Input device is not a TTY"
