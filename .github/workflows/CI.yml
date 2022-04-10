@@ -154,9 +154,9 @@ jobs:
         package: [ -p ]
         extension: [ deb ]
         include:  # package these differently
-          - distro: fedora_33
-            package: '-p'
-            extension: rpm
+          #- distro: fedora_33
+          #  package: '-p'
+          #  extension: rpm
           - distro: fedora_35
             package: '-p'
             extension: rpm
