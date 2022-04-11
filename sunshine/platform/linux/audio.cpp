@@ -345,7 +345,8 @@ public:
     auto sink_name = get_default_sink_name();
     if(sink_name.empty()) {
       BOOST_LOG(warning) << "Couldn't find an active sink"sv;
-    } else {
+    }
+    else {
       sink.host = sink_name;
     }
 
@@ -438,13 +439,13 @@ public:
     // 1. Config sink
     // 2. Last sink swapped to (Usually virtual in this case)
     // 3. Default Sink
-    // An attempt was made to always use default to match the switching mechanic, 
-    // but this happens right after the swap so the default returned by PA was not 
+    // An attempt was made to always use default to match the switching mechanic,
+    // but this happens right after the swap so the default returned by PA was not
     // the new one just set!
     auto sink_name = config::audio.sink;
     if(sink_name.empty()) sink_name = requested_sink;
     if(sink_name.empty()) sink_name = get_default_sink_name();
-    
+
     return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
   }
 
