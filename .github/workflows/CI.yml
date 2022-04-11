@@ -130,7 +130,7 @@ jobs:
         wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./sunshine/sunshine.AppImage
     - name: Upload Artifacts
       if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: sunshine-appimage
         path: artifacts/
@@ -184,7 +184,7 @@ jobs:
           sudo mv ./sunshine-${{ matrix.distro }}-build/sunshine-${{ matrix.distro }}.${{ matrix.extension }} ../artifacts/
       - name: Upload Artifacts
         if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: sunshine-${{ matrix.distro }}
           path: artifacts/
@@ -248,7 +248,7 @@ jobs:
           move "sunshine-windows-build\sunshine-windows.zip" "artifacts"
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: sunshine-windows
           path: artifacts/
