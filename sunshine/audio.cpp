@@ -135,9 +135,14 @@ void capture(safe::mail_t mail, config_t config, void *channel_data) {
     return;
   }
 
-  std::string *sink =
-    config::audio.sink.empty() ? &ref->sink.host : &config::audio.sink;
-  if(ref->sink.null) {
+  // Order of priorty: 
+  // 1. Config
+  // 2. Virtual if available
+  // 3. Host
+  std::string *sink = &ref->sink.host;
+  if(!config::audio.sink.empty()) {
+    sink = &config::audio.sink;
+  } else if(ref->sink.null) {
     auto &null = *ref->sink.null;
     switch(stream->channelCount) {
     case 2:
