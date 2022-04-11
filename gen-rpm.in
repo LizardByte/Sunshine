@@ -8,10 +8,12 @@ export RPMSPEC=~/rpmbuild/SPECS
 export RPMBUILD=~/rpmbuild/BUILD
 
 # Check if user's rpmbuild folder is there, if so, temoprairly rename it.
-if [ -f ~/rpmbuild ]; then
+if [ -d ~/rpmbuild ]; then
 	echo "Backing up rpmbuild"
 	~/rpmbuild ~/rpmbuild.bkp
 	export RPMBUILDEXISTS=TRUE
+else
+	export RPMBUILDEXISTS=FALSE
 fi
 
 # Create rpmbuild folder structure
@@ -153,10 +155,10 @@ rpmbuild -bb $RPMSPEC/sunshine.spec
 mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc35.x86_64.rpm @CMAKE_CURRENT_BINARY_DIR@/
 
 # Clean up; delete the rpmbuild folder we created and move back the original one
-if [ $RPMBUILDEXISTS=TRUE ]; then
-	echo "Removing and replacing original rpmbuild folder."
-	rm -rf ~/rpmbuild
-	mv ~/rpmbuild.bkp ~/rpmbuild
+if [ "$RPMBUILDEXISTS" == "TRUE" ]; then
+        echo "Removing and replacing original rpmbuild folder."
+        rm -rf ~/rpmbuild
+        mv ~/rpmbuild.bkp ~/rpmbuild
 fi
 
 # Done.
