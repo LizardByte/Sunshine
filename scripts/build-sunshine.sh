@@ -5,7 +5,7 @@ usage() {
 	echo "Usage: $0"
 	echo "	-d: Generate a debug build"
 	echo "	-p: Generate a linux package"
-	echo "  -e: Extension of package... i.e. 'deb', 'rpm' --> default [deb]"
+	echo "	-e: Extension of package... i.e. 'deb', 'rpm' --> default [deb]"
 	echo "	-u: The input device is not a TTY"
 	echo "	-n name: Docker container name --> default [sunshine]"
 	echo "	-s path/to/sources/sunshine: Use local sources instead of a git repository"
@@ -34,7 +34,7 @@ CONTAINER_NAME=sunshine
 # Docker will fail if ctrl+c is passed through and the input is not a tty
 DOCKER_INTERACTIVE=-ti
 
-while getopts ":dpeuhc:s:n:" arg; do
+while getopts ":dpuhc:e:s:n:" arg; do
 	case ${arg} in
 		u)
 			echo "Input device is not a TTY"
