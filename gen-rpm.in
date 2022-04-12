@@ -164,11 +164,11 @@ elif [ "$DOCKERSTATUS" == "TRUE" ]; then
 	# Move into pickup location
 	mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc*.x86_64.rpm /root/sunshine-build/package-rpm/sunshine.rpm
 fi
+
 # Clean up; delete the rpmbuild folder we created and move back the original one
 if [ "$RPMBUILDEXISTS" == "TRUE" ]; then
         echo "Removing and replacing original rpmbuild folder."
         rm -rf ~/rpmbuild
         mv ~/rpmbuild.bkp ~/rpmbuild
 fi
-exit 0
 exit 0
