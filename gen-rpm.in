@@ -10,6 +10,8 @@ export RPMBUILD=~/rpmbuild/BUILD
 # Check for Docker switch
 if [ "$1" == "-d" ]; then
 	export DOCKERSTATUS=TRUE
+else
+	export DOCKERSTATUS=FALSE
 fi
 
 # Check if user's rpmbuild folder is there, if so, temoprairly rename it.
