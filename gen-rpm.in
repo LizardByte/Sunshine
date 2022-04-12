@@ -7,6 +7,11 @@ export RPMSRC=~/rpmbuild/SOURCES
 export RPMSPEC=~/rpmbuild/SPECS
 export RPMBUILD=~/rpmbuild/BUILD
 
+# Check for Docker switch
+if ["$1" == "-d"]; then
+	export DOCKERSTATUS=TRUE
+fi
+
 # Check if user's rpmbuild folder is there, if so, temoprairly rename it.
 if [ -d ~/rpmbuild ]; then
 	echo "Backing up rpmbuild"
@@ -151,8 +156,13 @@ cp sunshine-@PROJECT_VERSION@_bin.tar.gz ~/rpmbuild/SOURCES
 # Use rpmbuild to build the RPM package.
 rpmbuild -bb $RPMSPEC/sunshine.spec
 
-# Move the completed RPM into the cmake build folder
-mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc35.x86_64.rpm @CMAKE_CURRENT_BINARY_DIR@/
+# Check if running in a CT
+if ["DOCKERSTATUS" == "FALSE"]; then
+	# Move the completed RPM into the cmake build folder
+	mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc*.x86_64.rpm @CMAKE_CURRENT_BINARY_DIR@/
+elif ["DOCKERSTATUS" == "TRUE"]
+	# Move into pickup location
+	mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc*.x86_64.rpm /root/sunshine-build/package-rpm/sunshine.rpm
 
 # Clean up; delete the rpmbuild folder we created and move back the original one
 if [ "$RPMBUILDEXISTS" == "TRUE" ]; then
