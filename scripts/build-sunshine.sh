@@ -52,18 +52,13 @@ while getopts ":dpuhc:e:s:n:" arg; do
 			SUNSHINE_EXECUTABLE_PATH="-e SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine"
 			;;
 		e)
-			echo "Defining package extension: $OPTARG"
-			if [ "$OPTARG" == "deb" ]
+		  echo "Defining package extension: $OPTARG"
+			if `list_include_item "deb rpm" $OPTARG`
 			then
-			        echo "SUNSHINE_PACKAGE_EXTENSION=$OPTARG"
-			        echo "deb"
-			elif [ "$OPTARG" == "rpm" ]
-			then
-			        echo "SUNSHINE_PACKAGE_EXTENSION=$OPTARG"
-			        echo "rpm"
+				SUNSHINE_PACKAGE_EXTENSION=$OPTARG
 			else
-			        echo "Package extension not supported: $OPTARG"
-			        echo "Falling back to default package extension: $SUNSHINE_PACKAGE_EXTENSION"
+				echo "Package extension not supported: $OPTARG"
+				echo "Falling back to default package extension: $SUNSHINE_PACKAGE_EXTENSION"
 			fi
 			;;
 		s)
@@ -116,7 +111,7 @@ then
 	case $SUNSHINE_PACKAGE_BUILD in
 		ON)
 			echo "Downloading package to: $BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
-			docker cp $CONTAINER_NAME:/root/sunshine-build/package-deb/sunshine.$SUNSHINE_PACKAGE_EXTENSION "$BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
+			docker cp $CONTAINER_NAME:/root/sunshine-build/package-$SUNSHINE_PACKAGE_EXTENSION/sunshine.$SUNSHINE_PACKAGE_EXTENSION "$BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
 			;;
 		*)
 			echo "Downloading binary and assets to: $BUILD_DIR"
