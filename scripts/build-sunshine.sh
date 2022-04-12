@@ -116,7 +116,7 @@ then
 	case $SUNSHINE_PACKAGE_BUILD in
 		ON)
 			echo "Downloading package to: $BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
-			docker cp $CONTAINER_NAME:/root/sunshine-build/package-deb/sunshine.deb "$BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
+			docker cp $CONTAINER_NAME:/root/sunshine-build/package-deb/sunshine.$SUNSHINE_PACKAGE_EXTENSION "$BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
 			;;
 		*)
 			echo "Downloading binary and assets to: $BUILD_DIR"
