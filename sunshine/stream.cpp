@@ -895,7 +895,8 @@ void videoBroadcastThread(udp::socket &sock) {
     auto session = (session_t *)packet->channel_data;
     auto lowseq  = session->video.lowseq;
 
-    std::string_view payload { (char *)packet->data, (size_t)packet->size };
+    auto av_packet = packet->av_packet;
+    std::string_view payload { (char *)av_packet->data, (size_t)av_packet->size };
     std::vector<uint8_t> payload_new;
 
     auto nv_packet_header = "\0017charss"sv;
@@ -904,7 +905,7 @@ void videoBroadcastThread(udp::socket &sock) {
 
     payload = { (char *)payload_new.data(), payload_new.size() };
 
-    if(packet->flags & AV_PKT_FLAG_KEY) {
+    if(av_packet->flags & AV_PKT_FLAG_KEY) {
       for(auto &replacement : *packet->replacements) {
         auto frame_old = replacement.old;
         auto frame_new = replacement._new;
@@ -969,9 +970,10 @@ void videoBroadcastThread(udp::socket &sock) {
         auto packets = (current_payload.size() + (blocksize - 1)) / blocksize;
 
         for(int x = 0; x < packets; ++x) {
-          auto *inspect = (video_packet_raw_t *)&current_payload[x * blocksize];
+          auto *inspect  = (video_packet_raw_t *)&current_payload[x * blocksize];
+          auto av_packet = packet->av_packet;
 
-          inspect->packet.frameIndex        = packet->pts;
+          inspect->packet.frameIndex        = av_packet->pts;
           inspect->packet.streamPacketIndex = ((uint32_t)lowseq + x) << 8;
 
           // Match multiFecFlags with Moonlight
@@ -1002,18 +1004,18 @@ void videoBroadcastThread(udp::socket &sock) {
           inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
 
           inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
-          inspect->packet.frameIndex     = packet->pts;
+          inspect->packet.frameIndex     = av_packet->pts;
         }
 
         for(auto x = 0; x < shards.size(); ++x) {
           sock.send_to(asio::buffer(shards[x]), session->video.peer);
         }
 
-        if(packet->flags & AV_PKT_FLAG_KEY) {
-          BOOST_LOG(verbose) << "Key Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv;
+        if(av_packet->flags & AV_PKT_FLAG_KEY) {
+          BOOST_LOG(verbose) << "Key Frame ["sv << av_packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv;
         }
         else {
-          BOOST_LOG(verbose) << "Frame ["sv << packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
+          BOOST_LOG(verbose) << "Frame ["sv << av_packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
         }
 
         ++blockIndex;
