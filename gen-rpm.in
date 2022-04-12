@@ -170,5 +170,4 @@ if [ "$RPMBUILDEXISTS" == "TRUE" ]; then
         rm -rf ~/rpmbuild
         mv ~/rpmbuild.bkp ~/rpmbuild
 fi
-
-# Done.
+exit 0
