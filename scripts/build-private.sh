@@ -36,13 +36,13 @@ make -j ${nproc}
 if [ "$1" == "-rpm" ]
 then
   echo "Packaging in .rpm format."
-  ./gen-rpm -d
+  ./gen-rpm
 elif [ "$1" == "-deb" ]
 then
-  echo "Pagkaging in .deb format."
+  echo "Packaging in .deb format."
   ./gen-deb
 else
-  echo "Prefered packaging not specified."
-  echo "Use -deb or -rpm to specify prefered package format."
+  echo "Preferred packaging not specified."
+  echo "Use -deb or -rpm to specify preferred package format."
   exit 1
 fi
