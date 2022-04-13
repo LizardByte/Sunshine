@@ -162,9 +162,11 @@ rpmbuild -bb $RPMSPEC/sunshine.spec
 if [ "$DOCKERSTATUS" == "FALSE" ]; then
 	# Move the completed RPM into the cmake build folder
 	mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc*.x86_64.rpm @CMAKE_CURRENT_BINARY_DIR@/
+	echo "Moving completed RPM package into CMake build folder."
 elif [ "$DOCKERSTATUS" == "TRUE" ]; then
 	# Move into pickup location
 	mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc*.x86_64.rpm /root/sunshine-build/package-rpm/sunshine.rpm
+	echo "Moving completed RPM package for pickup."
 fi
 
 # Clean up; delete the rpmbuild folder we created and move back the original one
