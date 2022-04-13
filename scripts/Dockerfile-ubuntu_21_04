@@ -34,4 +34,4 @@ RUN apt-get update -y && \
 
 # Entrypoint
 COPY build-private.sh /root/build.sh
-ENTRYPOINT ["/root/build.sh"]
+ENTRYPOINT ["/root/build.sh", "-deb"]

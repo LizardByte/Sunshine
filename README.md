@@ -21,7 +21,7 @@ They make use of docker to handle building Sunshine automatically
 
 ### Requirements:
 
-Ubuntu 20.04:
+#### Ubuntu 20.04:
 Install the following:
 
 #### Common
@@ -52,13 +52,54 @@ On Ubuntu 20.04, the cuda compiler will fail since it's version is too old, it's
 sudo apt install nvidia-cuda-dev nvidia-cuda-toolkit
 ```
 
+#### Fedora 35:
+
+You will need some things in the RPMFusion repo, nost notably ffmpeg.
+```
+sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+```
+#### Development tools and libraries
+```
+sudo dnf install \
+        boost-devel \
+        boost-static.x86_64 \
+        cmake \
+        ffmpeg-devel \
+        gcc-c++ \
+        libevdev-devel \
+        libxcb-devel \
+        libX11-devel \
+        libXcursor-devel \
+        libXfixes-devel \
+        libXinerama-devel \
+        libXi-devel \
+        libXrandr-devel \
+        libXtst-devel \
+        mesa-libGL-devel \
+        openssl-devel \
+        opus-devel \
+        pulseaudio-libs-devel
+```
+#### If you need to build an RPM binary package:
+```
+sudo dnf install rpmbuild
+```
+
 #### Warning:
 You might require ffmpeg version >= 4.3. Check the troubleshooting section for more information.
 
 ### Compilation:
-- `git clone https://github.com/loki-47-6F-64/sunshine.git --recurse-submodules`
+
+#### Ubuntu
+- `git clone https://github.com/SunshineStream/Sunshine.git --recurse-submodules`
 - `cd sunshine && mkdir build && cd build`
 - `cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 ..`
+- `make -j ${nproc}`
+
+#### Fedora
+- `git clone https://github.com/SunshineStream/Sunshine.git --recurse-submodules`
+- `cd sunshine && mkdir build && cd build`
+- `cmake -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ..`
 - `make -j ${nproc}`
 
 ### Setup:

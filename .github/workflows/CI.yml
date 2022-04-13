@@ -153,12 +153,9 @@ jobs:
         distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]
         package: [ -p ]
         extension: [ deb ]
-        include:  # don't package these
-          - distro: fedora_33
-            package: ''
-            extension: rpm
+        include:  # package these differently
           - distro: fedora_35
-            package: ''
+            package: '-p'
             extension: rpm
 
     steps:
@@ -176,7 +173,7 @@ jobs:
       - name: Build Linux
         run: |
           cd scripts
-          sudo ./build-sunshine.sh ${{ matrix.package }} -u -n sunshine-${{ matrix.distro }} -s ..
+          sudo ./build-sunshine.sh ${{ matrix.package }} -e ${{ matrix.extension }} -u -n sunshine-${{ matrix.distro }} -s ..
       - name: Package Linux
         if: ${{ matrix.package != '' }}
         run: |

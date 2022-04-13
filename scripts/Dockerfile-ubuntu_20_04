@@ -41,4 +41,4 @@ RUN /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-m
 
 # Entrypoint
 COPY build-private.sh /root/build.sh
-ENTRYPOINT ["/root/build.sh"]
+ENTRYPOINT ["/root/build.sh", "-deb"]
