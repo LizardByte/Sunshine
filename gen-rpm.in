@@ -165,6 +165,7 @@ if [ "$DOCKERSTATUS" == "FALSE" ]; then
 	echo "Moving completed RPM package into CMake build folder."
 elif [ "$DOCKERSTATUS" == "TRUE" ]; then
 	# Move into pickup location
+	mkdir ~/root/sunshine-build/package-rpm/sunshine.rpm
 	mv ~/rpmbuild/RPMS/x86_64/sunshine-@PROJECT_VERSION@-1.fc*.x86_64.rpm /root/sunshine-build/package-rpm/sunshine.rpm
 	echo "Moving completed RPM package for pickup."
 fi
