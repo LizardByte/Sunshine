@@ -9,6 +9,9 @@ cmake-build*
 .cache
 .idea
 
+#Pyhton Environment
+/.venv
+
 # Extra FontAwesome files
 /assets/web/fonts/fontawesome-free-web/css/*.css
 !/assets/web/fonts/fontawesome-free-web/css/*min.css
