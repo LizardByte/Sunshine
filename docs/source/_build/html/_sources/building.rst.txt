@@ -1,0 +1,32 @@
+Building
+========
+
+Linux
+-----
+
+If you do not wish to clutter your PC with development files, yet you want the very latest version.
+You can use these `build scripts <https://github.com/salty2011/Sunshine/blob/nightly/scripts/README.md>`_  They make use of docker to handle building Sunshine automatically
+
+Requirements
+^^^^^^^^^^^^
+
+**Ubuntu**
+Install the following
+
+
+.. code-block:: sh
+   :caption: Common
+
+   sudo apt install \
+            cmake \
+            gcc-10 \
+            g++-10 \
+            libssl-dev \ 
+            libavdevice-dev \
+            libboost-thread-dev \
+            libboost-filesystem-dev \
+            libboost-log-dev \
+            libpulse-dev \
+            libopus-dev \
+            libevdev-dev
+
