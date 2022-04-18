@@ -9,7 +9,7 @@ Configuration
 The default location for the configuration file is ``./assets/sunshine.conf``. You can use another location if you
 choose, by passing in the full configuration file path as the first argument when you start Sunshine.
 
-** Default File Location**
+**Default File Location**
 
 .. table::
    :widths: auto

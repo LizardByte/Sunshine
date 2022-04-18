@@ -43,7 +43,7 @@ Create a `docker-compose.yml` file with the following contents (substitute your 
 ```yaml
 version: '3'
 services:
-  retroarcher:
+  sunshine:
     image: sunshinestream/sunshine
     container_name: sunshine
     restart: unless-stopped

@@ -24,14 +24,14 @@ Linux
 
 AppImage
 ^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge'
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Download and extract `sunshine-appimage.zip`
 
 Debian Packages
 ^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:debian?logo=github&style=for-the-badge'
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:debian?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Download the corresponding `.deb` file, e.g. ``sunshine-ubuntu_20_04.deb``
@@ -39,7 +39,7 @@ Debian Packages
 
 Red Hat Packages
 ^^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:fedora?logo=github&style=for-the-badge'
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:fedora?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Download the corresponding `.rpm` file, e.g. ``sunshine-fedora_35.rpm``
@@ -60,7 +60,7 @@ Red Hat Packages
 
 MacOS
 -----
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge'
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Install `MacPorts <https://www.macports.org>`_
@@ -71,10 +71,10 @@ MacOS
 
 Windows
 -------
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:10?logo=github&style=for-the-badge'
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:10?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:11?logo=github&style=for-the-badge'
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:11?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Download and extract ``sunshine-windows.zip``
