@@ -1,5 +1,7 @@
 FROM ubuntu:21.10 AS sunshine-ubuntu_21_10
 
+# Ubuntu 21.10 end of life is July 2022
+
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 
@@ -10,9 +12,9 @@ RUN apt-get update -y && \
         cmake \
         git \
         libavdevice-dev \
-        libboost-thread-dev \
         libboost-filesystem-dev \
         libboost-log-dev \
+        libboost-thread-dev \
         libcap-dev \
         libdrm-dev \
         libevdev-dev \

@@ -1,0 +1,26 @@
+# .readthedocs.yaml
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+# Required
+version: 2
+
+# Set the version of Python
+build:
+  os: ubuntu-20.04
+  tools:
+    python: "3.9"
+
+# Build documentation in the docs/ directory with Sphinx
+sphinx:
+  builder: html
+  configuration: docs/source/conf.py
+  fail_on_warning: true
+
+# Using Sphinx, build docs in additional formats
+formats: all
+
+python:
+  install:
+    - requirements: ./scripts/requirements.txt
+  system_packages: true
