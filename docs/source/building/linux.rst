@@ -6,10 +6,10 @@ Linux
 Requirements
 ------------
 .. Warning:: Installing these dependencies may break your distribution. It is recommended to build in a virtual machine
-   or to use the Dockerfile builds located in the `./scripts` directory.
+   or to use the `Dockerfile builds`_ located in the `./scripts` directory.
 
 Debian Bullseye
-"""""""""""""""
+^^^^^^^^^^^^^^^
 End of Life: TBD
 
 Install Requirements
@@ -41,7 +41,7 @@ Install Requirements
           nvidia-cuda-toolkit \  # Cuda, NvFBC
 
 Fedora 35
-"""""""""
+^^^^^^^^^
 End of Life: TBD
 
 Install Repositories
@@ -76,7 +76,7 @@ Install Requirements
           rpm-build \  # if you want to build an RPM binary package
 
 Ubuntu 18.04
-""""""""""""
+^^^^^^^^^^^^
 End of Life: April 2028
 
 Install Repositories
@@ -141,7 +141,7 @@ Install CMake
       cmake --version
 
 Ubuntu 20.04
-""""""""""""
+^^^^^^^^^^^^
 End of Life: April 2030
 
 Install Requirements
@@ -184,7 +184,7 @@ Install CuDA
       ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm ./cuda.run
 
 Ubuntu 21.10
-""""""""""""
+^^^^^^^^^^^^
 End of Life: July 2022
 
 Install Requirements
@@ -216,7 +216,7 @@ Install Requirements
           nvidia-cuda-toolkit \  # Cuda, NvFBC
 
 Ubuntu 22.04
-""""""""""""
+^^^^^^^^^^^^
 End of Life: April 2027
 
 .. Todo:: Create Ubuntu 22.04 Dockerfile and complete this documentation.
@@ -239,3 +239,62 @@ Finally
    .. code-block:: bash
 
       make -j ${nproc}
+
+Dockerfile Builds
+-----------------
+You may wish to simply build sunshine from source, without bloating your OS with development files.
+There are scripts located in the ``./scripts`` directory that will create docker images that have the necessary
+packages. As a result, removing the development files after you're done is a single command away.
+These scripts use docker under the hood, as such, they can only be used to compile the Linux version
+
+.. Todo:: Publish the Dockerfiles to Dockerhub and ghcr.
+
+Requirements
+   Install `Docker <https://docs.docker.com/engine/install/>`_
+
+Instructions
+   #. :ref:`Clone <building/build:clone>`. Sunshine.
+   #. Select the desired Dockerfile from the ``./scripts`` directory.
+
+      Available Files:
+         .. code-block:: text
+
+            Dockerfile-debian
+            Dockerfile-fedora_33  # end of life
+            Dockerfile-fedora_35
+            Dockerfile-ubuntu_18_04
+            Dockerfile-ubuntu_20_04
+            Dockerfile-ubuntu_21_04  # end of life
+            Dockerfile-ubuntu_21_10
+
+   #. Execute
+
+      .. code-block:: bash
+
+         cd scripts  # move to the scripts directory
+         ./build-container.sh -f Dockerfile-<name>  # create the container (replace the "<name>")
+         ./build-sunshine.sh -p -s ..  # compile and build sunshine
+
+   #. Updating
+
+      .. code-block:: bash
+
+         git pull  # pull the latest changes from github
+         ./build-sunshine.sh -p -s ..  # compile and build sunshine
+
+   #. Optionally, delete the container
+      .. code-block:: bash
+
+         ./build-container.sh -c delete
+
+   #. Install the resulting package
+
+      Debian
+         .. code-block:: bash
+
+            sudo apt install -f sunshine-build/sunshine.deb
+
+      Red Hat
+         .. code-block:: bash
+
+            sudo rpm -i -f sunshine-build/sunshine.rpm

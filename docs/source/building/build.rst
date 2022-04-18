@@ -17,9 +17,13 @@ Ensure `git <https://git-scm.com/>`_ is installed and run the following:
       git clone https://github.com/sunshinestream/sunshine.git --recurse-submodules
       cd sunshine && mkdir build && cd build
 
-Build
-^^^^^
+Compile
+^^^^^^^
 See the section specific to your OS.
+
+- :ref:`Linux <building/linux:linux>`
+- :ref:`MacOS <building/macos:macos>`
+- :ref:`Windows <building/windows:windows>`
 
 Remote Build
 ------------
