@@ -45,7 +45,7 @@ Red Hat Packages
 #. Download the corresponding `.rpm` file, e.g. ``sunshine-fedora_35.rpm``
 #. ``sudo rpm -i <downloaded rpm file>``, e.g. ``sudo rpm -i ./sunshine-fedora_35.rpm``
 
-.. Note:: If this is the first time installing.
+.. Hint:: If this is the first time installing.
 
       .. code-block:: bash
 

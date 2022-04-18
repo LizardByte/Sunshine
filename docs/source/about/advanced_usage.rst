@@ -29,7 +29,7 @@ Example
 
 To manually configure sunshine you may edit the `conf` file in a text editor. Use the examples as reference.
 
-.. Note:: Some settings are not available within the web ui.
+.. Hint:: Some settings are not available within the web ui.
 
 General
 -------
@@ -166,7 +166,7 @@ Description
 
    .. Tip:: See `virtual key codes <https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes>`_
 
-   .. Note:: keybindings needs to have a multiple of two elements.
+   .. Hint:: keybindings needs to have a multiple of two elements.
 
 Default
    None

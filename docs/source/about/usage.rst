@@ -5,7 +5,9 @@ Usage
 #. See the `setup`_ section for your specific OS.
 #. Run ``sunshine <directory of conf file>/sunshine.conf``.
 
-   .. Note:: The configuration file specified will be created if it doesn't exist.
+   .. Note:: You do not need to specify a config file. If no config file is entered the default location will be used.
+
+   .. Attention:: The configuration file specified will be created if it doesn't exist.
 
    .. Tip:: If using the Linux AppImage, replace ``sunshine`` with ``./sunshine.AppImage``
 
@@ -13,7 +15,7 @@ Usage
    The web ui is available on `https://localhost:47990 <https://localhost:47990>`_ by default. You may replace
    `localhost` with your internal ip address.
 
-   .. Tip:: Ignore any warning given by your browser about "insecure website".
+   .. Attention:: Ignore any warning given by your browser about "insecure website".
 
    .. Caution:: If running for the first time, make sure to note the username and password Sunshine showed to you,
       since you cannot get back later!
@@ -24,7 +26,7 @@ Usage
       .. Note:: Additionally, apps can be configured manually. `assets/apps_<os>.json` is an example of a list of
          applications that are started just before running a stream.
 
-      .. Note:: Application list is not fully supported on MacOS
+      .. Attention:: Application list is not fully supported on MacOS
 
 #. In Moonlight, you may need to add the PC manually.
 #. When Moonlight request you insert the correct pin on sunshine:
@@ -38,7 +40,7 @@ Network
 -------
 Sunshine will be available on port 47990 by default.
 
-.. Warning:: Do not expose port 47990, or the web ui, to the internet!
+.. Danger:: Do not expose port 47990, or the web ui, to the internet!
 
 Arguments
 ---------

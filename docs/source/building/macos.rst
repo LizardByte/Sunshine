@@ -28,7 +28,7 @@ Install Requirements
 
 Build
 -----
-.. Caution:: Ensure you are in the build directory created during the clone step earlier before continuing.
+.. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
    .. code-block:: bash
 

@@ -3,7 +3,7 @@
 Third Party Packages
 ====================
 
-.. Warning:: These packages are not maintained by SunshineStream. Use at your own risk.
+.. Danger:: These packages are not maintained by SunshineStream. Use at your own risk.
 
 AUR (Arch Linux User Repository)
 --------------------------------
@@ -50,6 +50,8 @@ Scoop
 
 Legacy GitHub Repo
 ------------------
+
+.. Attention:: This repo is no longer maintained. Thank you to Loki for bringing this amazing project to life!
 
 .. image:: https://img.shields.io/github/last-commit/loki-47-6F-64/sunshine?style=for-the-badge&logo=github
    :alt: GitHub last commit

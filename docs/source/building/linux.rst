@@ -5,7 +5,7 @@ Linux
 
 Requirements
 ------------
-.. Warning:: Installing these dependencies may break your distribution. It is recommended to build in a virtual machine
+.. Danger:: Installing these dependencies may break your distribution. It is recommended to build in a virtual machine
    or to use the `Dockerfile builds`_ located in the `./scripts` directory.
 
 Debian Bullseye
@@ -223,7 +223,7 @@ End of Life: April 2027
 
 Build
 -----
-.. Caution:: Ensure you are in the build directory created during the clone step earlier before continuing.
+.. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
 Debian based OSes
    .. code-block:: bash

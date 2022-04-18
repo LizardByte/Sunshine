@@ -22,7 +22,7 @@ The translations occur on
 `CrowdIn <https://crowdin.com/project/sunshinestream>`_. Feel free to contribute to localization there.
 Only elements of the API are planned to be translated.
 
-.. Note:: The rest API has not yet been implemented.
+.. Attention:: The rest API has not yet been implemented.
 
 Translations Basics
    - The brand names `SunshineStream` and `Sunshine` should never be translated.
