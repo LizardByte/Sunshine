@@ -43,7 +43,7 @@ Red Hat Packages
    :alt: GitHub issues by-label
 
 #. Download the corresponding `.rpm` file, e.g. ``sunshine-fedora_35.rpm``
-#. ``sudo rpm -i <downloaded rpm file>``, e.g. ``sudo rpm -i ./sunshine-fedora_35.rpm``
+#. ``sudo dnf install <downloaded rpm file>``, e.g. ``sudo dnf install ./sunshine-fedora_35.rpm``
 
 .. Hint:: If this is the first time installing.
 

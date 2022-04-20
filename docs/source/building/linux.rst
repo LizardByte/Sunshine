@@ -297,4 +297,4 @@ Instructions
       Red Hat
          .. code-block:: bash
 
-            sudo rpm -i -f sunshine-build/sunshine.rpm
+            sudo dnf install sunshine-build/sunshine.rpm
