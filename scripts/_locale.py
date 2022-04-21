@@ -1,4 +1,6 @@
-"""_locale.py
+"""
+..
+   _locale.py
 
 Functions related to building, initializing, updating, and compiling localization translations.
 
@@ -62,7 +64,7 @@ def x_extract():
                 commands.append(filename)
 
     print(commands)
-    proc = subprocess.run(args=commands, cwd=root_dir)
+    subprocess.check_output(args=commands, cwd=root_dir)
 
     # fix header
     body = ""
@@ -98,7 +100,7 @@ def babel_init(locale_code: str):
     ]
 
     print(commands)
-    proc = subprocess.run(args=commands, cwd=root_dir)
+    subprocess.check_output(args=commands, cwd=root_dir)
 
 
 def babel_update():
@@ -113,7 +115,7 @@ def babel_update():
     ]
 
     print(commands)
-    proc = subprocess.run(args=commands, cwd=root_dir)
+    subprocess.check_output(args=commands, cwd=root_dir)
 
 
 def babel_compile():
@@ -126,13 +128,13 @@ def babel_compile():
     ]
 
     print(commands)
-    proc = subprocess.run(args=commands, cwd=root_dir)
+    subprocess.check_output(args=commands, cwd=root_dir)
 
 
 if __name__ == '__main__':
     # Set up and gather command line arguments
     parser = argparse.ArgumentParser(
-        description='Script helps update locale_id translations. Translations must be done manually.')
+        description='Script helps update locale translations. Translations must be done manually.')
 
     parser.add_argument('--extract', action='store_true', help='Extract messages from c++ files.')
     parser.add_argument('--init', action='store_true', help='Initialize any new locales specified in target locales.')

@@ -1,5 +1,8 @@
 FROM fedora:33 AS sunshine-fedora_33
 
+# Fedora 33 end of life is November 2021
+# This file remains for reference only
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN dnf -y update && \
     dnf -y group install "Development Tools" && \

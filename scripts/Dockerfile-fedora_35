@@ -1,5 +1,7 @@
 FROM fedora:35 AS sunshine-fedora_35
 
+# Fedora 35 end of life is TBD
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN dnf -y update && \
     dnf -y group install "Development Tools" && \
@@ -11,8 +13,8 @@ RUN dnf -y update && \
         ffmpeg-devel \
         gcc-c++ \
         libevdev-devel \
-        libxcb-devel \
         libX11-devel \
+        libxcb-devel \
         libXcursor-devel \
         libXfixes-devel \
         libXinerama-devel \

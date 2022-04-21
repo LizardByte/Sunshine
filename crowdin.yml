@@ -1,6 +1,10 @@
 "base_path": "."
 "base_url": "https://api.crowdin.com"  # optional (for Crowdin Enterprise only)
 "preserve_hierarchy": false  # flatten tree on crowdin
+"pull_request_labels": [
+  "crowdin",
+  "l10n"
+]
 
 "files" : [
   {

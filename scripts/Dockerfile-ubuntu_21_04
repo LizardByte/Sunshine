@@ -1,5 +1,8 @@
 FROM ubuntu:21.04 AS sunshine-ubuntu_21_04
 
+# Ubuntu 21.04 end of life is January 2022
+# This file remains for reference only
+
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 
