@@ -58,7 +58,7 @@ if(WIN32)
 		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
-	
+
 	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
 		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
 	endif()
@@ -127,8 +127,8 @@ if(WIN32)
 elseif(APPLE)
 	add_compile_definitions(SUNSHINE_PLATFORM="macos")
 	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_mac.json")
+	link_directories(/opt/homebrew/lib/) # Default brew lib location
 	link_directories(/opt/local/lib)
-	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 
 	find_package(FFmpeg REQUIRED)
@@ -296,14 +296,14 @@ else()
 		third-party/glad/include/KHR/khrplatform.h
 		third-party/glad/include/glad/gl.h
 		third-party/glad/include/glad/egl.h)
-		
+
 	list(APPEND PLATFORM_LIBRARIES
 		dl
 		evdev
 		pulse
 		pulse-simple
 		)
-	
+
 	include_directories(
 		/usr/include/libevdev-1.0
 		third-party/nv-codec-headers/include
@@ -451,22 +451,36 @@ target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COM
 # CPACK
 ####
 
-# Add all assets dependencies 
-install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION ".")
-install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION ".")
+# Add all assets dependencies
 if(WIN32) # TODO: test
 	install(TARGETS sunshine RUNTIME DESTINATION ".")
 
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION ".")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION ".")
 	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_windows.json" DESTINATION ".")
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/directx" DESTINATION "shaders")
 endif()
 if(APPLE) # TODO: test
-	install(TARGETS sunshine RUNTIME DESTINATION ".")
 
-	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_mac.json" DESTINATION ".")
-	# TODO: info.plist ??
+	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
+	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
+
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${INSTALL_RUNTIME_DIR}")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${INSTALL_RUNTIME_DIR}")
+
+	install(TARGETS sunshine
+			BUNDLE DESTINATION . COMPONENT Runtime
+			RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR} COMPONENT Runtime)
+
+	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
+	#	set(CPACK_BUNDLE_NAME "Sunshine")
+	#	set(CPACK_BUNDLE_PLIST "${SUNSHINE_ASSETS_DIR}/info.plist")
+	#	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 endif()
 if(UNIX AND NOT APPLE)
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION ".")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION ".")
+
 	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_linux.json" DESTINATION ".")
 	install(FILES "${SUNSHINE_ASSETS_DIR}/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
 	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
@@ -474,7 +488,7 @@ if(UNIX AND NOT APPLE)
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/opengl" DESTINATION "shaders")
 
 	# Pre and post install
-	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 
+	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
 		"${SUNSHINE_ASSETS_DIR}/linux-deb/preinst;${SUNSHINE_ASSETS_DIR}/linux-deb/postinst;${SUNSHINE_ASSETS_DIR}/linux-deb/conffiles")
 	set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_ASSETS_DIR}/linux-deb/preinst")
 	set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_ASSETS_DIR}/linux-deb/postinst")
@@ -499,10 +513,8 @@ set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}_${VERSION}_${CPACK_DEBIAN_PAC
 set(CPACK_STRIP_FILES YES)
 
 # Installation destination dir
-if(NOT WIN32)
-	set(CPACK_SET_DESTDIR true)
-endif()
 if(UNIX AND NOT APPLE)
+	set(CPACK_SET_DESTDIR true)
 	set(CMAKE_INSTALL_PREFIX "/etc/sunshine")
 endif()
 
