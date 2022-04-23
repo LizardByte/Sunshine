@@ -312,8 +312,6 @@ else()
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
 		set(SUNSHINE_EXECUTABLE_PATH "sunshine")
 	endif()
-	configure_file(gen-deb.in gen-deb @ONLY)
-	configure_file(gen-rpm.in gen-rpm @ONLY)
 	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
@@ -448,3 +446,63 @@ foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
 endforeach()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)
+
+#############
+# CPACK
+####
+
+# Add all assets dependencies 
+install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION ".")
+install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION ".")
+if(WIN32) # TODO: test
+	install(TARGETS sunshine RUNTIME DESTINATION ".")
+
+	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_windows.json" DESTINATION ".")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/directx" DESTINATION "shaders")
+endif()
+if(APPLE) # TODO: test
+	install(TARGETS sunshine RUNTIME DESTINATION ".")
+
+	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_mac.json" DESTINATION ".")
+	# TODO: info.plist ??
+endif()
+if(UNIX AND NOT APPLE)
+	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_linux.json" DESTINATION ".")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
+	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/opengl" DESTINATION "shaders")
+
+	# Pre and post install
+	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 
+		"${SUNSHINE_ASSETS_DIR}/linux-deb/preinst;${SUNSHINE_ASSETS_DIR}/linux-deb/postinst;${SUNSHINE_ASSETS_DIR}/linux-deb/conffiles")
+	set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_ASSETS_DIR}/linux-deb/preinst")
+	set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_ASSETS_DIR}/linux-deb/postinst")
+endif()
+
+# Common options
+set(CPACK_PACKAGE_NAME "SunshineStream")
+set(CPACK_PACKAGE_VENDOR "CMake.org")
+set(CPACK_PACKAGE_CONTACT "https://github.com/SunshineStream/Sunshine")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/SunshineStream/Sunshine")
+set(CPACK_PACKAGE_DESCRIPTION "Gamestream host for Moonlight")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/SunshineStream/Sunshine")
+set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
+set(CPACK_PACKAGE_ICON ${PROJECT_SOURCE_DIR}/sunshine.png)
+set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}_${VERSION}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
+set(CPACK_STRIP_FILES YES)
+
+# Installation destination dir
+if(NOT WIN32)
+	set(CPACK_SET_DESTDIR true)
+endif()
+if(UNIX AND NOT APPLE)
+	set(CMAKE_INSTALL_PREFIX "/etc/sunshine")
+endif()
+
+## DEB
+set(CPACK_DEB_COMPONENT_INSTALL ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libssl1.1, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+
+include(CPack)
