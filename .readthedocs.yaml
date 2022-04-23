@@ -12,6 +12,9 @@ build:
     python: "3.9"
   apt_packages:
     - cmake
+    - libboost-filesystem-dev
+    - libboost-log-dev
+    - libboost-thread-dev
   jobs:
     pre_build:
       - cmake .
