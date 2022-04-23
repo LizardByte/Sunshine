@@ -319,6 +319,7 @@ else()
 endif()
 
 configure_file(version.h.in version.h @ONLY)
+configure_file(docs/source/conf.py.in "${CMAKE_CURRENT_SOURCE_DIR}/docs/source/conf.py" @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SUNSHINE_TARGET_FILES

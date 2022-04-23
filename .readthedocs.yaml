@@ -10,6 +10,11 @@ build:
   os: ubuntu-20.04
   tools:
     python: "3.9"
+  jobs:
+    post_system_dependencies:
+      - apt-get install cmake
+    pre_create_environment:
+      - cmake ..
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
