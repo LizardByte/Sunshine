@@ -12,6 +12,7 @@ build:
     python: "3.9"
   apt_packages:
     - cmake
+    - ffmpeg
     - libboost-filesystem-dev
     - libboost-log-dev
     - libboost-thread-dev
