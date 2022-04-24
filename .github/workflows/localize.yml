@@ -4,6 +4,7 @@ on:
   push:
     branches: [nightly]
     paths:  # prevents workflow from running unless these files change
+      - '.github/workflows/localize.yml'
       - 'sunshine/**'
       - 'locale/sunshine.po'
   workflow_dispatch:
@@ -40,15 +41,18 @@ jobs:
 
     - name: git diff
       run: |
+        # disable the pager
+        git config --global pager.diff false
+
         # print the git diff
-        git diff --exit-code locale/sunshine.po
+        git diff locale/sunshine.po
 
         # set the variable with minimal output
-        OUTPUT=$(git diff --exit-code --numstat locale/sunshine.po)
+        OUTPUT=$(git diff --numstat locale/sunshine.po)
         echo "git_diff=${OUTPUT}" >> $GITHUB_ENV
 
     - name: git reset
-      if: ${{ env.git_diff != '1	1	locale/sunshine.po' }}  # only run if more than 1 line changed
+      if: ${{ env.git_diff == '1	1	locale/sunshine.po' }}  # only run if more than 1 line changed
       run: |
         git reset --hard
 
