@@ -147,43 +147,29 @@ jobs:
     name: Linux
     runs-on: ubuntu-20.04
     needs: check_changelog
-    strategy:
-      fail-fast: true  # false to test all, true to fail entire job if any fail
-      matrix:
-        distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_10 ]
-        package: [ -p ]
-        extension: [ deb ]
-        include:  # package these differently
-          - distro: fedora_35
-            package: '-p'
-            extension: rpm
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Setup Container
+      - name: Build DEB and RPM
         run: |
+          mkdir -p build
           mkdir -p artifacts
-
-          cd scripts
-          sudo ./build-container.sh -c build -f Dockerfile-${{ matrix.distro }} -n sunshine-${{ matrix.distro }}
-      - name: Build Linux
-        run: |
-          cd scripts
-          sudo ./build-sunshine.sh ${{ matrix.package }} -e ${{ matrix.extension }} -u -n sunshine-${{ matrix.distro }} -s ..
-      - name: Package Linux
-        if: ${{ matrix.package != '' }}
-        run: |
-          cd scripts
-          sudo mv ./sunshine-${{ matrix.distro }}-build/sunshine-${{ matrix.distro }}.${{ matrix.extension }} ../artifacts/
+          cd build
+          
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_CONFIG_DIR="." ../ 
+          cpack -G DEB
+          cpack -G RPM
+          
+          cp Sunshine__.rpm ../artifacts/
+          cp Sunshine__.deb ../artifacts/
       - name: Upload Artifacts
         if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-${{ matrix.distro }}
+          name: sunshine-linux
           path: artifacts/
       - name: Create Release
         if: ${{ matrix.package == '-p' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
@@ -218,6 +204,7 @@ jobs:
             mingw-w64-x86_64-opus 
             mingw-w64-x86_64-x265
             mingw-w64-x86_64-boost 
+            mingw-w64-x86_64-nsis
             git 
             yasm 
             nasm 
@@ -226,23 +213,14 @@ jobs:
       - name: Build Windows
         shell: msys2 {0}
         run: |
+          mkdir artifacts
+          
           mkdir sunshine-windows-build && cd sunshine-windows-build
           cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
-      - name: Package Windows
-        run: |
-          cd sunshine-windows-build
-          del ..\assets\apps_linux.json
-          7z a sunshine-windows.zip ..\assets
-          7z a sunshine-windows.zip sunshine.exe
-          7z a sunshine-windows.zip tools\dxgi-info.exe
-          7z a sunshine-windows.zip tools\audio-info.exe
-          7z a sunshine-windows.zip tools\sunshinesvc.exe
-          7z a sunshine-windows.zip ..\tools\install-service.bat
-          7z a sunshine-windows.zip ..\tools\uninstall-service.bat
-          cd ..
-          mkdir artifacts
-          move "sunshine-windows-build\sunshine-windows.zip" "artifacts"
+          cpack
+          
+          cp Sunshine__.exe ../artifacts
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
