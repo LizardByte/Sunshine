@@ -451,14 +451,71 @@ target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COM
 # CPACK
 ####
 
-# Add all assets dependencies
-if(WIN32) # TODO: test
-	install(TARGETS sunshine RUNTIME DESTINATION ".")
+# Common options
+set(CPACK_PACKAGE_NAME "SunshineStream")
+set(CPACK_PACKAGE_VENDOR "CMake.org")
+set(CPACK_PACKAGE_CONTACT "https://github.com/SunshineStream/Sunshine")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/SunshineStream/Sunshine")
+set(CPACK_PACKAGE_DESCRIPTION "Gamestream host for Moonlight")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/SunshineStream/Sunshine")
+set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
+set(CPACK_PACKAGE_ICON ${PROJECT_SOURCE_DIR}/sunshine.png)
+set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}_${VERSION}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
+set(CPACK_STRIP_FILES YES)
 
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION ".")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION ".")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_windows.json" DESTINATION ".")
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/directx" DESTINATION "shaders")
+# Platform specific options
+if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
+	install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
+
+	# Adding tools
+	install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
+	install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
+	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
+
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT web)
+	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_windows.json" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
+	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/directx" DESTINATION "${SUNSHINE_CONFIG_DIR}/shaders" COMPONENT assets)
+
+	set(CPACK_PACKAGE_ICON  "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME  "${PROJECT__DIR}\\\\${PROJECT_EXE}")
+	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin") # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
+
+	# Sets permissions on the installed folder so that we can write in it
+	SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
+			"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
+    ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+    ")
+
+	# Adding an option for the start menu and PATH
+	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but then it seems I can't just run it from powershell
+	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${PROJECT_NAME}.exe")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT_NAME}.exe") # This will be shown on the installed apps Windows settings
+	set(CPACK_NSIS_CREATE_ICONS "CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${PROJECT_NAME}.lnk' '\$INSTDIR\\\\${PROJECT_NAME}.exe'")
+
+	# Checking for previous installed versions
+	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON") # TODO: doesn't work on my machine when Sunshine is already installed
+
+	# Setting components groups and dependencies
+	set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "Sunshine")
+	set(CPACK_COMPONENT_WEB_DISPLAY_NAME "Web interface")
+	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Extra assets files")
+	set(CPACK_COMPONENT_LIBRARIES_DISPLAY_NAME "Libraries")
+
+	set(CPACK_COMPONENT_APPLICATION_GROUP "Runtime")
+	set(CPACK_COMPONENT_WEB_GROUP "Runtime")
+	set(CPACK_COMPONENT_ASSETS_GROUP "Runtime")
+
+	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info.exe")
+	set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info.exe")
+	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc.exe")
+
+	set(CPACK_COMPONENT_DXGI_GROUP "Extra Tools")
+	set(CPACK_COMPONENT_AUDIO_GROUP "Extra Tools")
+	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Extra Tools")
+
+	set(CPACK_COMPONENT_APPLICATION_DEPENDS web assets)
 endif()
 if(APPLE) # TODO: test
 
@@ -478,14 +535,14 @@ if(APPLE) # TODO: test
 	#	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 endif()
 if(UNIX AND NOT APPLE)
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION ".")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION ".")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_linux.json" DESTINATION ".")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_linux.json" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 	install(FILES "${SUNSHINE_ASSETS_DIR}/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
 	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/opengl" DESTINATION "shaders")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/opengl" DESTINATION "${SUNSHINE_CONFIG_DIR}/shaders")
 
 	# Pre and post install
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
@@ -497,23 +554,9 @@ if(UNIX AND NOT APPLE)
 	set(CPACK_DEB_COMPONENT_INSTALL ON)
 	set(CPACK_DEBIAN_PACKAGE_DEPENDS "libssl1.1, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
 	set(CPACK_RPM_PACKAGE_REQUIRES "libssl==1.1, libavdevice>=58, libboost-thread>=1.67.0, libboost-filesystem>=1.67.0, libboost-log>=1.67.0, libpulse>=0, libopus>=0, libxcb-shm>=0, libxcb-xfixes>=0, libxtst>=0, libevdev>=2.0, libdrm>=2.0, libcap>=2.0")
-	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) #
-endif()
+	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
 
-# Common options
-set(CPACK_PACKAGE_NAME "SunshineStream")
-set(CPACK_PACKAGE_VENDOR "CMake.org")
-set(CPACK_PACKAGE_CONTACT "https://github.com/SunshineStream/Sunshine")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/SunshineStream/Sunshine")
-set(CPACK_PACKAGE_DESCRIPTION "Gamestream host for Moonlight")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/SunshineStream/Sunshine")
-set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
-set(CPACK_PACKAGE_ICON ${PROJECT_SOURCE_DIR}/sunshine.png)
-set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}_${VERSION}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
-set(CPACK_STRIP_FILES YES)
-
-# Installation destination dir
-if(UNIX AND NOT APPLE)
+	# Installation destination dir
 	set(CPACK_SET_DESTDIR true)
 	set(CMAKE_INSTALL_PREFIX "/etc/sunshine")
 endif()
