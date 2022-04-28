@@ -6,6 +6,8 @@
 
 # standard imports
 from datetime import datetime
+import os
+import re
 
 
 # -- Path setup --------------------------------------------------------------
@@ -13,8 +15,6 @@ from datetime import datetime
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-import os
-# import sys
 
 script_dir = os.path.dirname(os.path.abspath(__file__))  # the directory of this file
 source_dir = os.path.dirname(script_dir)  # the source folder directory
@@ -26,8 +26,16 @@ copyright = f'{datetime.now ().year}, {project}'
 author = 'ReenigneArcher'
 
 # The full version, including alpha/beta/rc tags
-# version = '0.13.0'
-
+with open(os.path.join(root_dir, 'CMakeLists.txt'), 'r') as f:
+    version = re.search(r"project\(Sunshine VERSION ((\d+)\.(\d+)\.(\d+))\)", str(f.read())).group(1)
+"""
+To use cmake method for obtaining version instead of regex,
+1. Within CMakeLists.txt add the following line without backticks:
+   ``configure_file(docs/source/conf.py.in "${CMAKE_CURRENT_SOURCE_DIR}/docs/source/conf.py" @ONLY)``
+2. Rename this file to ``conf.py.in``
+3. Uncomment the next line
+"""
+# version = '@PROJECT_VERSION@'  # use this for cmake configure_file method
 
 # -- General configuration ---------------------------------------------------
 
@@ -60,7 +68,7 @@ source_suffix = ['.rst', '.md']
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
 
-html_logo = os.path.join(root_dir, 'sunshine.ico')
+html_logo = os.path.join(root_dir, 'sunshine.png')
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.

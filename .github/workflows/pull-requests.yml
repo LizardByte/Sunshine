@@ -5,31 +5,17 @@ on:
     types: [opened, synchronize, edited, reopened]
 
 jobs:
-  check-branch:
+  check-pull-request:
     name: Check Pull Request
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Branch check
-        if: ( github.head_ref == 'repo-sync/common-repo-files/default' && github.base_ref == 'master' ) || ( github.head_ref == 'nightly' && github.base_ref == 'master' )
-        run: |
-          echo Base: "$GITHUB_BASE_REF"
-          echo Head: "$GITHUB_HEAD_REF"
-          echo "branch=True" >> $GITHUB_ENV
-
-      - name: Comment on Pull Request
-        uses: mshick/add-pr-comment@v1
-        if: github.base_ref != 'nightly' && env.branch != 'True'
+      - uses: Vankka/pr-target-branch-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          message: Pull requests must be made to the `nightly` branch. Thanks.
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          repo-token-user-login: 'github-actions[bot]'
-
-      - name: Fail Workflow
-        if: github.base_ref != 'nightly' && env.branch != 'True'
-        run: |
-          echo Base: "$GITHUB_BASE_REF"
-          echo Head: "$GITHUB_HEAD_REF"
-          exit 1
+          target: master
+          exclude: nightly # Don't prevent going from nightly -> master
+          change-to: nightly
+          comment: |
+              Your PR was set to `master`, PRs should be sent to `nightly`
+              The base branch of this PR has been automatically changed to `nightly`, please check that there are no merge conflicts
