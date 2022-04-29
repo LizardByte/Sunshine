@@ -16,17 +16,9 @@ extern "C" {
 struct AVPacket;
 namespace video {
 
-struct packet_raw_t : public AVPacket {
+struct packet_raw_t {
   void init_packet() {
-    pts             = AV_NOPTS_VALUE;
-    dts             = AV_NOPTS_VALUE;
-    pos             = -1;
-    duration        = 0;
-    flags           = 0;
-    stream_index    = 0;
-    buf             = nullptr;
-    side_data       = nullptr;
-    side_data_elems = 0;
+    this->av_packet = av_packet_alloc();
   }
 
   template<class P>
@@ -39,7 +31,7 @@ struct packet_raw_t : public AVPacket {
   }
 
   ~packet_raw_t() {
-    av_packet_unref(this);
+    av_packet_unref(this->av_packet);
   }
 
   struct replace_t {
@@ -51,8 +43,8 @@ struct packet_raw_t : public AVPacket {
     replace_t(std::string_view old, std::string_view _new) noexcept : old { std::move(old) }, _new { std::move(_new) } {}
   };
 
+  AVPacket *av_packet;
   std::vector<replace_t> *replacements;
-
   void *channel_data;
 };
 

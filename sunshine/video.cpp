@@ -776,9 +776,10 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
   }
 
   while(ret >= 0) {
-    auto packet = std::make_unique<packet_t::element_type>(nullptr);
+    auto packet    = std::make_unique<packet_t::element_type>(nullptr);
+    auto av_packet = packet.get()->av_packet;
 
-    ret = avcodec_receive_packet(ctx.get(), packet.get());
+    ret = avcodec_receive_packet(ctx.get(), av_packet);
     if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
       return 0;
     }
@@ -788,12 +789,12 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
 
     if(session.inject) {
       if(session.inject == 1) {
-        auto h264 = cbs::make_sps_h264(ctx.get(), packet.get());
+        auto h264 = cbs::make_sps_h264(ctx.get(), av_packet);
 
         sps = std::move(h264.sps);
       }
       else {
-        auto hevc = cbs::make_sps_hevc(ctx.get(), packet.get());
+        auto hevc = cbs::make_sps_hevc(ctx.get(), av_packet);
 
         sps = std::move(hevc.sps);
         vps = std::move(hevc.vps);
@@ -1470,20 +1471,21 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
     }
   }
 
-  auto packet = packets->pop();
-  if(!(packet->flags & AV_PKT_FLAG_KEY)) {
+  auto packet    = packets->pop();
+  auto av_packet = packet->av_packet;
+  if(!(av_packet->flags & AV_PKT_FLAG_KEY)) {
     BOOST_LOG(error) << "First packet type is not an IDR frame"sv;
 
     return -1;
   }
 
   int flag = 0;
-  if(cbs::validate_sps(&*packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
+  if(cbs::validate_sps(&*av_packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
     flag |= VUI_PARAMS;
   }
 
   auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
-  std::string_view payload { (char *)packet->data, (std::size_t)packet->size };
+  std::string_view payload { (char *)av_packet->data, (std::size_t)av_packet->size };
   if(std::search(std::begin(payload), std::end(payload), std::begin(nalu_prefix), std::end(nalu_prefix)) != std::end(payload)) {
     flag |= NALU_PREFIX_5b;
   }
