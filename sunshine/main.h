@@ -24,7 +24,7 @@ extern boost::log::sources::severity_logger<int> fatal;
 
 void log_flush();
 
-void print_help(const char *name);
+void print_help();
 
 std::string read_file(const char *path);
 int write_file(const char *path, const std::string_view &contents);

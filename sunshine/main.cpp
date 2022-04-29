@@ -229,7 +229,7 @@ int main(int argc, char *argv[]) {
       return 7;
     }
 
-    return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
+    return fn->second(config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
 
   task_pool.start(1);
