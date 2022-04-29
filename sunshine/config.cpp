@@ -863,7 +863,7 @@ int parse(int argc, char *argv[]) {
     auto line = argv[x];
 
     if(line == "--help"sv) {
-      print_help();
+      print_help(*argv);
       return 1;
     }
     else if(*line == '-') {
@@ -875,7 +875,7 @@ int parse(int argc, char *argv[]) {
         break;
       }
       if(apply_flags(line + 1)) {
-        print_help();
+        print_help(*argv);
         return -1;
       }
     }
@@ -889,7 +889,7 @@ int parse(int argc, char *argv[]) {
       else {
         TUPLE_EL(var, 1, parse_option(line, line_end));
         if(!var) {
-          print_help();
+          print_help(*argv);
           return -1;
         }
 
