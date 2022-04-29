@@ -51,10 +51,60 @@ jobs:
         echo Within 'CMakeLists.txt' change "project(Sunshine VERSION $cmakelists_version)" to "project(Sunshine VERSION ${{ needs.check_changelog.outputs.next_version_bare }})"
         exit 1
 
+  build_linux:
+    name: Build Sunshine on Linux
+    runs-on: ubuntu-20.04
+    needs: check_changelog
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Cache Sunshine build
+        uses: actions/cache@v2
+        with:
+          path: build
+          key: ${{ runner.os }}-sunshine-build
+
+      - name: Setup Dependencies
+        run: |
+          mkdir -p artifacts
+          
+          sudo apt-get update -y && \
+          sudo apt-get --reinstall install -y \
+          git wget gcc-10 g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+          sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && sudo chmod a+x /root/cuda.run
+          sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && sudo rm /root/cuda.run
+          sudo add-apt-repository ppa:savoury1/graphics -y
+          sudo add-apt-repository ppa:savoury1/multimedia -y
+          sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
+          sudo apt-get update -y
+          sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
+          sudo apt-get install ffmpeg -y
+
+      - name: Build Sunshine
+        run: |
+          CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
+          SUNSHINE_EXECUTABLE_PATH="${SUNSHINE_EXECUTABLE_PATH:-/usr/bin/sunshine}"
+          SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR:-sunshine.AppImage.config}"
+  
+          SUNSHINE_ENABLE_WAYLAND=${SUNSHINE_ENABLE_WAYLAND:-ON}
+          SUNSHINE_ENABLE_X11=${SUNSHINE_ENABLE_X11:-ON}
+          SUNSHINE_ENABLE_DRM=${SUNSHINE_ENABLE_DRM:-ON}
+          SUNSHINE_ENABLE_CUDA=${SUNSHINE_ENABLE_CUDA:-ON}
+  
+          mkdir -p build
+          cd build
+  
+          cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
+          make -j ${nproc} DESTDIR=AppDir
+
   build_appimage:
     name: AppImage
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: build_linux
 
     steps:
     - name: Checkout
@@ -62,38 +112,12 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Setup Dependencies AppImage
-      run: |
-        mkdir -p artifacts
+    - name: Cache Sunshine build
+      uses: actions/cache@v2
+      with:
+        path: build
+        key: ${{ runner.os }}-sunshine-build
 
-        sudo apt-get update -y && \
-        sudo apt-get --reinstall install -y \
-        git wget gcc-10 g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-        sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && sudo chmod a+x /root/cuda.run
-        sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && sudo rm /root/cuda.run
-        sudo add-apt-repository ppa:savoury1/graphics -y
-        sudo add-apt-repository ppa:savoury1/multimedia -y
-        sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
-        sudo apt-get update -y
-        sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
-        sudo apt-get install ffmpeg -y
-    - name: Build AppImage
-      run: |
-        CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
-        SUNSHINE_EXECUTABLE_PATH="${SUNSHINE_EXECUTABLE_PATH:-/usr/bin/sunshine}"
-        SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR:-sunshine.AppImage.config}"
-
-        SUNSHINE_ENABLE_WAYLAND=${SUNSHINE_ENABLE_WAYLAND:-ON}
-        SUNSHINE_ENABLE_X11=${SUNSHINE_ENABLE_X11:-ON}
-        SUNSHINE_ENABLE_DRM=${SUNSHINE_ENABLE_DRM:-ON}
-        SUNSHINE_ENABLE_CUDA=${SUNSHINE_ENABLE_CUDA:-ON}
-
-        mkdir -p appimage-build && cd appimage-build
-
-        cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
-
-        make -j ${nproc} DESTDIR=AppDir
     - name: Set AppImage Version
       if: ${{ needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version }}
       run: |
@@ -143,34 +167,44 @@ jobs:
         last_version: ${{ needs.check_changelog.outputs.last_version }}
         release_body: ${{ needs.check_changelog.outputs.release_body }}
 
-  build_linux:
-    name: Linux
+  build_deb_and_rpm:
+    name: Build DEB and RPM
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: build_linux
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
 
+      - name: Cache Sunshine build
+        uses: actions/cache@v2
+        with:
+          path: build
+          key: ${{ runner.os }}-sunshine-build
+
+      - name: Extra dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cpack
+
       - name: Build DEB and RPM
         run: |
-          mkdir -p build
-          mkdir -p artifacts
           cd build
-          
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_CONFIG_DIR="." ../ 
           cpack -G DEB
           cpack -G RPM
-          
-          cp Sunshine__.rpm ../artifacts/
-          cp Sunshine__.deb ../artifacts/
-      - name: Upload Artifacts
+      - name: Upload RPM
         if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux
-          path: artifacts/
+          name: sunshine-linux-rpm
+          path: build/Sunshine__.rpm
+      - name: Upload DEB
+        if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-linux-deb
+          path: build/Sunshine__.deb
       - name: Create Release
         if: ${{ matrix.package == '-p' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: SunshineStream/actions/create_release@master
@@ -212,21 +246,43 @@ jobs:
             make
       - name: Build Windows
         shell: msys2 {0}
-        run: |
-          mkdir artifacts
-          
-          mkdir sunshine-windows-build && cd sunshine-windows-build
+        run: |   
+          mkdir sunshine-windows-build
+          cd sunshine-windows-build
           cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
+      - name: Create packages
+        shell: msys2 {0}
+        run: |
+          cd sunshine-windows-build
           cpack
+
+          mkdir -p artifacts/standalone
+          mkdir -p artifacts/web
+          mkdir -p artifacts/shaders/directx
           
-          cp Sunshine__.exe ../artifacts
-      - name: Upload Artifacts
+          # Installers
+          mv Sunshine__.exe artifacts/sunshine-windows-installer.exe
+          
+          # Standalone
+          mv ../assets/web artifacts/web
+          mv tools artifacts/tools
+          mv ../assets/shaders/directx artifacts/shaders/directx
+          mv ../assets/apps_windows.json artifacts/apps_windows.json
+          mv ../assets/sunshine.conf artifacts/sunshine.conf
+          mv sunshine.exe artifacts/sunshine.exe
+      - name: Upload Sunshine Installer
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-windows
-          path: artifacts/
+          name: sunshine-windows-installer
+          path: artifacts/sunshine-windows-installer.exe
+      - name: Upload Sunshine executable
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-windows-standalone
+          path: artifacts/standalone
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: SunshineStream/actions/create_release@master
