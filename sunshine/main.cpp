@@ -57,11 +57,15 @@ struct NoDelete {
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
-void print_help(const char *name) {
+/** Print the help to stdout.
+
+    This function prints output to stdout.
+*/
+void print_help() {
   std::cout
-    << "Usage: "sv << name << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
+    << "Usage: "sv << PROJECT_NAME << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
     << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
-    << std:endl
+    << std::endl
     << "    Note: The configuration will be created if it doesn't exist."sv << std::endl
     << std::endl
     << "    --help                    | print help"sv << std::endl
@@ -77,15 +81,23 @@ void print_help(const char *name) {
     << std::endl;
 }
 
+/** Call the print_help function.
+
+    Calls the print_help function and then exits.
+*/
 namespace help {
-int entry(const char *name, int argc, char *argv[]) {
-  print_help(name);
+int entry(int argc, char *argv[]) {
+  print_help();
   return 0;
 }
 } // namespace help
 
+/** Print the version details to stdout.
+
+    This function prints the version details to stdout and then exits.
+*/
 namespace version {
-int entry(const char *name, int argc, char *argv[]) {
+int entry(int argc, char *argv[]) {
   std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
   return 0;
 }
@@ -108,9 +120,9 @@ void on_signal(int sig, FN &&fn) {
 }
 
 namespace gen_creds {
-int entry(const char *name, int argc, char *argv[]) {
+int entry(int argc, char *argv[]) {
   if(argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
-    print_help(name);
+    print_help();
     return 0;
   }
 
@@ -120,7 +132,7 @@ int entry(const char *name, int argc, char *argv[]) {
 }
 } // namespace gen_creds
 
-std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
+std::map<std::string_view, std::function<int(int argc, char **argv)>> cmd_to_func {
   { "creds"sv, gen_creds::entry },
   { "help"sv, help::entry },
   { "version"sv, version::entry }
