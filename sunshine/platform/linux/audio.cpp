@@ -65,7 +65,7 @@ struct mic_attr_t : public mic_t {
   }
 };
 
-std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) {
+std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
   auto mic = std::make_unique<mic_attr_t>();
 
   pa_sample_spec ss { PA_SAMPLE_S16LE, sample_rate, (std::uint8_t)channels };
@@ -81,14 +81,9 @@ std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std
 
   int status;
 
-  const char *audio_sink = "@DEFAULT_MONITOR@";
-  if(!config::audio.sink.empty()) {
-    audio_sink = config::audio.sink.c_str();
-  }
-
   mic->mic.reset(
     pa_simple_new(nullptr, "sunshine",
-      pa_stream_direction_t::PA_STREAM_RECORD, audio_sink,
+      pa_stream_direction_t::PA_STREAM_RECORD, source_name.c_str(),
       "sunshine-record", &ss, &pa_map, &pa_attr, &status));
 
   if(!mic->mic) {
@@ -127,6 +122,18 @@ using ctx_t    = util::safe_ptr<pa_context, pa_context_unref>;
 using loop_t   = util::safe_ptr<pa_mainloop, pa_mainloop_free>;
 using op_t     = util::safe_ptr<pa_operation, pa_operation_unref>;
 using string_t = util::safe_ptr<char, pa_free<char>>;
+
+template<class T>
+using cb_simple_t = std::function<void(ctx_t::pointer, add_const_t<T> i)>;
+
+template<class T>
+void cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {
+  auto &f = *(cb_simple_t<T> *)userdata;
+
+  // Cannot similarly filter on eol here. Unless reported otherwise assume
+  // we have no need for special filtering like cb?
+  f(ctx, i);
+}
 
 template<class T>
 using cb_t = std::function<void(ctx_t::pointer, add_const_t<T> i, int eol)>;
@@ -172,6 +179,7 @@ class server_t : public audio_control_t {
 public:
   loop_t loop;
   ctx_t ctx;
+  std::string requested_sink;
 
   struct {
     std::uint32_t stereo     = PA_INVALID_INDEX;
@@ -287,8 +295,6 @@ public:
 
     sink_t sink;
 
-    // If hardware sink with more channels found, set that as host
-    int channels = 0;
     // Count of all virtual sinks that are created by us
     int nullcount = 0;
 
@@ -302,11 +308,6 @@ public:
 
         alarm->ring(0);
         return;
-      }
-
-      if(sink_info->active_port != nullptr) {
-        sink.host = sink_info->name;
-        channels  = sink_info->channel_map.channels;
       }
 
       // Ensure Sunshine won't create a sink that already exists.
@@ -341,8 +342,12 @@ public:
       return std::nullopt;
     }
 
-    if(!channels) {
+    auto sink_name = get_default_sink_name();
+    if(sink_name.empty()) {
       BOOST_LOG(warning) << "Couldn't find an active sink"sv;
+    }
+    else {
+      sink.host = sink_name;
     }
 
     if(index.stereo == PA_INVALID_INDEX) {
@@ -382,13 +387,72 @@ public:
     return std::make_optional(std::move(sink));
   }
 
+  std::string get_default_sink_name() {
+    std::string sink_name = "@DEFAULT_SINK@"s;
+    auto alarm            = safe::make_alarm<int>();
+
+    cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer ctx, const pa_server_info *server_info) {
+      if(!server_info) {
+        BOOST_LOG(error) << "Couldn't get pulseaudio server info: "sv << pa_strerror(pa_context_errno(ctx));
+        alarm->ring(-1);
+      }
+
+      sink_name = server_info->default_sink_name;
+      alarm->ring(0);
+    };
+
+    op_t server_op { pa_context_get_server_info(ctx.get(), cb<pa_server_info *>, &server_f) };
+    alarm->wait();
+    // No need to check status. If it failed just return default name.
+    return sink_name;
+  }
+
+  std::string get_monitor_name(const std::string &sink_name) {
+    std::string monitor_name = "@DEFAULT_MONITOR@"s;
+    auto alarm               = safe::make_alarm<int>();
+
+    cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+      if(!sink_info) {
+        if(!eol) {
+          BOOST_LOG(error) << "Couldn't get pulseaudio sink info for ["sv << sink_name
+                           << "]: "sv << pa_strerror(pa_context_errno(ctx));
+          alarm->ring(-1);
+        }
+
+        alarm->ring(0);
+        return;
+      }
+
+      monitor_name = sink_info->monitor_source_name;
+    };
+
+    op_t sink_op { pa_context_get_sink_info_by_name(ctx.get(), sink_name.c_str(), cb<pa_sink_info *>, &sink_f) };
+
+    alarm->wait();
+    // No need to check status. If it failed just return default name.
+    BOOST_LOG(info) << "Found default monitor by name: "sv << monitor_name;
+    return monitor_name;
+  }
+
   std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
-    return ::platf::microphone(mapping, channels, sample_rate, frame_size);
+    // Sink choice priority:
+    // 1. Config sink
+    // 2. Last sink swapped to (Usually virtual in this case)
+    // 3. Default Sink
+    // An attempt was made to always use default to match the switching mechanic,
+    // but this happens right after the swap so the default returned by PA was not
+    // the new one just set!
+    auto sink_name = config::audio.sink;
+    if(sink_name.empty()) sink_name = requested_sink;
+    if(sink_name.empty()) sink_name = get_default_sink_name();
+
+    return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
   }
 
   int set_sink(const std::string &sink) override {
     auto alarm = safe::make_alarm<int>();
 
+    BOOST_LOG(info) << "Setting default sink to: ["sv << sink << "]"sv;
     op_t op {
       pa_context_set_default_sink(
         ctx.get(), sink.c_str(), success_cb, alarm.get()),
@@ -405,6 +469,8 @@ public:
 
       return -1;
     }
+
+    requested_sink = sink;
 
     return 0;
   }
