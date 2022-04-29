@@ -26,8 +26,8 @@ jobs:
             This PR was closed because it has been stalled for 5 days with no activity.
           stale-pr-label: 'stale'
           exempt-pr-labels: 'status:in-progress'
-          days-before-stale: 30
-          days-before-close: 5
+          days-before-stale: 60
+          days-before-close: 10
 
       - name: Invalid Template
         uses: actions/stale@v5

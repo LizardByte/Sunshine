@@ -1,5 +1,7 @@
 FROM ubuntu:18.04 AS sunshine-ubuntu_18_04
 
+# Ubuntu 18.04 end of life is April 2028
+
 ARG DEBIAN_FRONTEND=noninteractive 
 ARG TZ="Europe/London"
 

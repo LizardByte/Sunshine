@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
     branches: [master, nightly]
-    types: [opened, synchronize, edited, reopened]
+    types: [opened, synchronize, reopened]
   push:
     branches: [master]
   workflow_dispatch:
@@ -150,7 +150,7 @@ jobs:
     strategy:
       fail-fast: true  # false to test all, true to fail entire job if any fail
       matrix:
-        distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_04, ubuntu_21_10 ]
+        distro: [ debian, ubuntu_18_04, ubuntu_20_04, ubuntu_21_10 ]
         package: [ -p ]
         extension: [ deb ]
         include:  # package these differently

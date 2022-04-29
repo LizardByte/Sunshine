@@ -3,16 +3,12 @@ name: clang-format-lint
 on:
   pull_request:
     branches: [master, nightly]
-    types: [opened, synchronize, edited, reopened]
+    types: [opened, synchronize, reopened]
 
 jobs:
   lint:
     name: Clang Format Lint
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false  # false to test all, true to fail entire job if any fail
-      matrix:
-        inplace: [ true, false ]  # removed ubuntu_18_04 for now
 
     steps:
     - name: Checkout
@@ -25,10 +21,10 @@ jobs:
         extensions: 'cpp,h,m,mm'
         clangFormatVersion: 13
         style: file
-        inplace: ${{ matrix.inplace }}
+        inplace: false
 
     - name: Upload Artifacts
-      if: ${{ matrix.inplace == true }}
+      if: failure()
       uses: actions/upload-artifact@v3
       with:
         name: sunshine
