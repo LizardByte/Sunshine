@@ -54,6 +54,9 @@ situations. For example if a system tray icon is added it should be localized as
          #include <boost/locale.hpp>
          boost::locale::translate("Hello world!")
 
+   .. Tip:: More examples can be found in the documentation for
+      `boost locale <https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html>`_.
+
 .. Warning:: This is for information only. Contributors should never include manually updated template files, or
    manually compiled language files in Pull Requests.
 
@@ -67,7 +70,8 @@ any of the following paths are modified.
       - 'sunshine/**'
 
 When testing locally it may be desirable to manually extract, initialize, update, and compile strings. Python is
-required for this, along with the dependencies in the `./scripts/requirements.txt` file.
+required for this, along with the python dependencies in the `./scripts/requirements.txt` file. Additionally,
+`xgettext <https://www.gnu.org/software/gettext/>`_ must be installed.
 
    Extract, initialize, and update
       .. code-block:: bash
