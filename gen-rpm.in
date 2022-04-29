@@ -44,7 +44,7 @@ License:        GPLv3
 URL:            https://github.com/SunshineStream/Sunshine
 Source0:        sunshine-@PROJECT_VERSION@_bin.tar.gz
 
-Requires:       systemd
+Requires:       systemd ffmpeg rpmfusion-free-release
 
 %description
 An NVIDIA Gamestream-compatible hosting server
