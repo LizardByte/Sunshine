@@ -32,13 +32,12 @@ jobs:
   check_versions:
     name: Check Versions
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-    # base_ref for pull request check, ref for push
     steps:
     - name: Checkout
       uses: actions/checkout@v3
 
     - name: Check CMakeLists.txt Version
+      if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
       run: |
         version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+\)' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
         echo "cmakelists_version=${version}" >> $GITHUB_ENV
@@ -134,7 +133,7 @@ jobs:
 
         wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
 
-        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../appimage-build/$DESKTOP_FILE" --output appimage
+        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../build/sunshine -i "../$ICON_FILE" -d "../build/$DESKTOP_FILE" --output appimage
 
         mv sunshine*.AppImage sunshine.AppImage
         mkdir sunshine && mv sunshine.AppImage sunshine/
@@ -185,7 +184,7 @@ jobs:
       - name: Extra dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y cpack
+          sudo apt-get install -y cmake   # will install cpack
 
       - name: Build DEB and RPM
         run: |
@@ -256,32 +255,33 @@ jobs:
           cd sunshine-windows-build
           cpack
 
-          mkdir -p artifacts/standalone
-          mkdir -p artifacts/web
-          mkdir -p artifacts/shaders/directx
+          mkdir -p ../artifacts
           
           # Installers
-          mv Sunshine__.exe artifacts/sunshine-windows-installer.exe
+          mv Sunshine__.exe ../artifacts/sunshine-windows-installer.exe
           
           # Standalone
-          mv ../assets/web artifacts/web
-          mv tools artifacts/tools
-          mv ../assets/shaders/directx artifacts/shaders/directx
-          mv ../assets/apps_windows.json artifacts/apps_windows.json
-          mv ../assets/sunshine.conf artifacts/sunshine.conf
-          mv sunshine.exe artifacts/sunshine.exe
+          del ..\assets\apps_linux.json
+          7z a sunshine-windows.zip ..\assets
+          7z a sunshine-windows.zip sunshine.exe
+          7z a sunshine-windows.zip tools\dxgi-info.exe
+          7z a sunshine-windows.zip tools\audio-info.exe
+          7z a sunshine-windows.zip tools\sunshinesvc.exe
+          7z a sunshine-windows.zip ..\tools\install-service.bat
+          7z a sunshine-windows.zip ..\tools\uninstall-service.bat
+          move "sunshine-windows.zip" "../artifacts"
       - name: Upload Sunshine Installer
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-windows-installer
-          path: artifacts/sunshine-windows-installer.exe
+          name: sunshine-windows
+          path: artifacts
       - name: Upload Sunshine executable
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
           name: sunshine-windows-standalone
-          path: artifacts/standalone
+          path: sunshine-windows-build/artifacts/standalone
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: SunshineStream/actions/create_release@master
