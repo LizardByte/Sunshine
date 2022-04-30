@@ -78,11 +78,15 @@ MacOS
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Install `MacPorts <https://www.macports.org>`_
-#. Download the `Portfile <https://github.com/SunshineStream/Sunshine/blob/master/Portfile>`_ from this repository to
-   ``/tmp``
-#. In a terminal run ``cd /tmp && sudo port install``
-#. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+Disk Image File option:
+   #. Download and install ``sunshine.dmg``
+
+Portfile option:
+   #. Install `MacPorts <https://www.macports.org>`_
+   #. Download the `Portfile <https://github.com/SunshineStream/Sunshine/blob/master/Portfile>`_ from this repository
+      to ``/tmp``
+   #. In a terminal run ``cd /tmp && sudo port install``
+   #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
 
 Windows
 -------
@@ -92,7 +96,11 @@ Windows
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:11?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Download and extract ``sunshine-windows.zip``
+Installed option:
+   #. Download and install ``sunshine-windows.exe``
+
+Standalone option:
+   #. Download and extract ``sunshine-windows.zip``
 
 .. _latest release: https://github.com/SunshineStream/Sunshine/releases/latest
 .. _Dockerhub.io: https://hub.docker.com/repository/docker/sunshinestream/sunshine
