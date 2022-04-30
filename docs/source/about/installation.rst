@@ -27,6 +27,21 @@ AppImage
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
+The current compatibility of the AppImage is shown below.
+
+   - [✖] Debian oldstable (buster)
+   - [✔] Debian stable (bullseye)
+   - [✔] Debian testing (bookworm)
+   - [✔] Debian unstable (sid)
+   - [✔] Ubuntu jammy
+   - [✔] Ubuntu impish
+   - [✔] Ubuntu focal
+   - [✖] Ubuntu bionic
+   - [✖] Ubuntu xenial
+   - [✖] Ubuntu trusty
+   - [✖] CentOS 7
+
+
 #. Download and extract `sunshine-appimage.zip`
 
 Debian Packages
