@@ -102,6 +102,7 @@ jobs:
       - name: Package AppImage
         # https://docs.appimage.org/packaging-guide/index.html
         run: |
+          mkdir -p artifacts
           mkdir -p appimage_temp && cd appimage_temp
 
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
@@ -123,7 +124,6 @@ jobs:
           cp ./"$CONFIG_DIR"/apps_linux.json ./"$HOME_DIR"/.config/"$CONFIG_DIR"
           zip -r ./sunshine-appimage.zip ./sunshine/*
 
-          mkdir -p artifacts
           mv sunshine-appimage.zip ../artifacts/
 
       - name: Verify AppImage
