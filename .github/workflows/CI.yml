@@ -5,7 +5,7 @@ on:
     branches: [master, nightly]
     types: [opened, synchronize, reopened]
   push:
-    branches: [ master ]
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -32,12 +32,14 @@ jobs:
   check_versions:
     name: Check Versions
     runs-on: ubuntu-latest
+    needs: check_changelog
+    if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
+    # base_ref for pull request check, ref for push
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
       - name: Check CMakeLists.txt Version
-        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
         run: |
           version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+\)' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
           echo "cmakelists_version=${version}" >> $GITHUB_ENV
@@ -53,17 +55,15 @@ jobs:
   build_appimage:
     name: AppImage
     runs-on: ubuntu-20.04
-    needs: [ check_versions, check_changelog ]
-
+    needs: check_changelog
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Setup Dependencies
+      - name: Setup Dependencies AppImage
         run: |
-          mkdir -p artifacts
           sudo apt-get update -y && \
           sudo apt-get --reinstall install -y \
           git wget gcc-10 g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
@@ -82,11 +82,14 @@ jobs:
           CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
           SUNSHINE_EXECUTABLE_PATH="${SUNSHINE_EXECUTABLE_PATH:-/usr/bin/sunshine}"
           SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR:-sunshine.AppImage.config}"
+
           SUNSHINE_ENABLE_WAYLAND=${SUNSHINE_ENABLE_WAYLAND:-ON}
           SUNSHINE_ENABLE_X11=${SUNSHINE_ENABLE_X11:-ON}
           SUNSHINE_ENABLE_DRM=${SUNSHINE_ENABLE_DRM:-ON}
           SUNSHINE_ENABLE_CUDA=${SUNSHINE_ENABLE_CUDA:-ON}
+
           mkdir -p appimage-build && cd appimage-build
+
           cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
           make -j ${nproc} DESTDIR=AppDir
 
@@ -95,16 +98,21 @@ jobs:
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
+
       - name: Package AppImage
         # https://docs.appimage.org/packaging-guide/index.html
         run: |
           mkdir -p appimage_temp && cd appimage_temp
+
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
           ICON_FILE="${ICON_FILE:-sunshine.png}"
           CONFIG_DIR="${CONFIG_DIR:-sunshine/sunshine.AppImage.config/}"
           HOME_DIR="${HOME_DIR:-sunshine/sunshine.AppImage.home/}"
+
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
+
           ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../appimage-build/$DESKTOP_FILE" --output appimage
+
           mv sunshine*.AppImage sunshine.AppImage
           mkdir sunshine && mv sunshine.AppImage sunshine/
           ./sunshine/sunshine.AppImage --appimage-portable-config
@@ -114,6 +122,8 @@ jobs:
           mkdir -p ./"$HOME_DIR"/.config/"$CONFIG_DIR"
           cp ./"$CONFIG_DIR"/apps_linux.json ./"$HOME_DIR"/.config/"$CONFIG_DIR"
           zip -r ./sunshine-appimage.zip ./sunshine/*
+
+          mkdir -p artifacts
           mv sunshine-appimage.zip ../artifacts/
 
       - name: Verify AppImage
@@ -128,17 +138,25 @@ jobs:
           name: sunshine-appimage
           path: artifacts/
 
+      - name: Create Release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: SunshineStream/actions/create_release@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          next_version: ${{ needs.check_changelog.outputs.next_version }}
+          last_version: ${{ needs.check_changelog.outputs.last_version }}
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
+
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
-    needs: [ check_versions, check_changelog ]
+    needs: check_changelog
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
-
-      - name: Setup Dependencies
+      - name: Setup Dependencies Linux
         run: |
           mkdir -p artifacts
           sudo apt-get update -y && \
@@ -154,7 +172,7 @@ jobs:
           sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
           sudo apt-get install ffmpeg -y
 
-      - name: Build Sunshine
+      - name: Build Linux
         run: |
           CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
           SUNSHINE_EXECUTABLE_PATH="${SUNSHINE_EXECUTABLE_PATH:-/usr/bin/sunshine}"
@@ -170,36 +188,37 @@ jobs:
           cd build
           cmake "-DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE" "-DSUNSHINE_CONFIG_DIR=$SUNSHINE_CONFIG_DIR" "-DSUNSHINE_EXECUTABLE_PATH=$SUNSHINE_EXECUTABLE_PATH" "-DSUNSHINE_ASSETS_DIR=$SUNSHINE_ASSETS_DIR" "-DSUNSHINE_ENABLE_WAYLAND=$SUNSHINE_ENABLE_WAYLAND" "-DSUNSHINE_ENABLE_X11=$SUNSHINE_ENABLE_X11" "-DSUNSHINE_ENABLE_DRM=$SUNSHINE_ENABLE_DRM" "-DSUNSHINE_ENABLE_CUDA=$SUNSHINE_ENABLE_CUDA" "../" -DCMAKE_INSTALL_PREFIX=/usr
 
-      - name: Build DEB
+      - name: Package Linux
         run: |
           cd build
-          cpack -G DEB
-          mv Sunshine__.deb ../artifacts/sunshine.deb
 
-      - name: Build RPM
-        run: |
-          cd build
+          # package
+          cpack -G DEB
           cpack -G RPM
+
+          # move
+          mv Sunshine__.deb ../artifacts/sunshine.deb
           mv Sunshine__.rpm ../artifacts/sunshine.rpm
 
-      - name: Upload Sunshine DEB
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+      - name: Upload Artifacts
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'  }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine.deb
-          path: artifacts/sunshine.deb
-
-      - name: Upload Sunshine RPM
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/upload-artifact@v3
+          name: sunshine-linux
+          path: artifacts/
+      - name: Create Release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: SunshineStream/actions/create_release@master
         with:
-          name: sunshine.rpm
-          path: artifacts/sunshine.rpm
+          token: ${{ secrets.GITHUB_TOKEN }}
+          next_version: ${{ needs.check_changelog.outputs.next_version }}
+          last_version: ${{ needs.check_changelog.outputs.last_version }}
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
 
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: [ check_versions, check_changelog ]
+    needs: check_changelog
 
     steps:
       - name: Checkout
@@ -207,68 +226,54 @@ jobs:
         with:
           submodules: recursive
 
-      - name: MSYS2 Setup
+      - name: Setup Dependencies Windows
         uses: msys2/setup-msys2@v2
         with:
           update: true
           install: >-
             base-devel
+            diffutils
             git
-            mingw-w64-x86_64-binutils
-            mingw-w64-x86_64-openssl 
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-opus 
-            mingw-w64-x86_64-x265
-            mingw-w64-x86_64-boost 
-            mingw-w64-x86_64-nsis
-            git 
-            yasm 
-            nasm 
-            diffutils 
             make
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-nsis
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-x265
+            nasm
+            yasm
 
       - name: Build Windows
         shell: msys2 {0}
         run: |
-          mkdir sunshine-windows-build
-          cd sunshine-windows-build
+          mkdir build
+          cd build
           cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
-
-      - name: Create packages
+      - name: Package Windows
         shell: msys2 {0}
         run: |
-          cd sunshine-windows-build
-          
+          mkdir -p artifacts
+          cd build
+
+          # package
           cpack -G NSIS 
           cpack -G ZIP
-          
-          mkdir -p ../artifacts
-          
-          # Installers
+
+          # move
           mv Sunshine__.exe ../artifacts/sunshine-windows-installer.exe
           mv Sunshine__.zip ../artifacts/sunshine-windows-standalone.zip
 
-      - name: Upload Sunshine Windows Installer
+      - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-windows-installer
-          path: artifacts/sunshine-windows-installer.exe
+          name: sunshine-windows
+          path: artifacts/
 
-      - name: Upload Sunshine Windows Standalone
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: sunshine-windows-standalone
-          path: artifacts/sunshine-windows-standalone.zip
-
-  release:
-    name: Create Release
-    runs-on: ubuntu-20.04
-    needs: [ "build_win", "build_linux", "build_appimage" ]
-    steps:
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: SunshineStream/actions/create_release@master
