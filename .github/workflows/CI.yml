@@ -53,7 +53,7 @@ jobs:
   build_appimage:
     name: AppImage
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: [ check_versions, check_changelog ]
 
     steps:
       - name: Checkout
@@ -61,7 +61,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Dependencies AppImage
+      - name: Setup Dependencies
         run: |
           mkdir -p artifacts
           sudo apt-get update -y && \
@@ -131,14 +131,14 @@ jobs:
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: [ check_versions, check_changelog ]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
 
-      - name: Setup Dependencies AppImage
+      - name: Setup Dependencies
         run: |
           mkdir -p artifacts
           sudo apt-get update -y && \
@@ -174,20 +174,27 @@ jobs:
         run: |
           cd build
           cpack -G DEB
-          mv Sunshine__.deb ../artifacts/
+          mv Sunshine__.deb ../artifacts/sunshine.deb
 
       - name: Build RPM
         run: |
           cd build
           cpack -G RPM
-          mv Sunshine__.rpm ../artifacts/
+          mv Sunshine__.rpm ../artifacts/sunshine.rpm
 
-      - name: Upload Artifacts
-        if: ${{ matrix.package == '-p' && ( github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' ) }}
+      - name: Upload Sunshine DEB
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux
-          path: artifacts/
+          name: sunshine.deb
+          path: artifacts/sunshine.deb
+
+      - name: Upload Sunshine RPM
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine.rpm
+          path: artifacts/sunshine.rpm
 
   build_win:
     name: Windows
@@ -235,20 +242,27 @@ jobs:
           cd sunshine-windows-build
           
           cpack -G NSIS 
-          cpack -G 7Z
+          cpack -G ZIP
           
           mkdir -p ../artifacts
           
           # Installers
           mv Sunshine__.exe ../artifacts/sunshine-windows-installer.exe
-          mv Sunshine__.7z ../artifacts/sunshine-windows-standalone.7z
+          mv Sunshine__.zip ../artifacts/sunshine-windows-standalone.zip
 
-      - name: Upload Sunshine Installer
+      - name: Upload Sunshine Windows Installer
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-windows
-          path: artifacts
+          name: sunshine-windows-installer
+          path: artifacts/sunshine-windows-installer.exe
+
+      - name: Upload Sunshine Windows Standalone
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-windows-installer
+          path: artifacts/sunshine-windows-standalone.zip
 
   release:
     name: Create Release
