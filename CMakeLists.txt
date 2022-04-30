@@ -460,7 +460,7 @@ set(CPACK_PACKAGE_DESCRIPTION "Gamestream host for Moonlight")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://sunshinestream.github.io")
 set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
 set(CPACK_PACKAGE_ICON ${PROJECT_SOURCE_DIR}/sunshine.png)
-set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}_${VERSION}_${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
+set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set(CPACK_STRIP_FILES YES)
 
 # Platform specific options
@@ -479,7 +479,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 
 	set(CPACK_PACKAGE_ICON  "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME  "${PROJECT__DIR}\\\\${PROJECT_EXE}")
-	set(CPACK_PACKAGE_INSTALL_DIRECTORY "Sunshine") # The name of the directory that will be created in C:/Program files/
+	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}") # The name of the directory that will be created in C:/Program files/
 	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin") # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
 	# Sets permissions on the installed folder so that we can write in it
@@ -491,15 +491,15 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Adding an option for the start menu and PATH
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but then it seems I can't just run it from powershell
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${PROJECT_NAME}.exe")
-	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT_NAME}.exe") # This will be shown on the installed apps Windows settings
-	set(CPACK_NSIS_CREATE_ICONS "CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${PROJECT_NAME}.lnk' '\$INSTDIR\\\\${PROJECT_NAME}.exe'")
+	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe") # This will be shown on the installed apps Windows settings
+	set(CPACK_NSIS_CREATE_ICONS "CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'")
 
 	# Checking for previous installed versions
 	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON") # TODO: doesn't work on my machine when Sunshine is already installed
 
 	# Setting components groups and dependencies
-	set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "Sunshine")
+	set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
 	set(CPACK_COMPONENT_WEB_DISPLAY_NAME "Web interface")
 	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Extra assets files")
 	set(CPACK_COMPONENT_LIBRARIES_DISPLAY_NAME "Libraries")

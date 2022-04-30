@@ -197,8 +197,8 @@ jobs:
           cpack -G RPM
 
           # move
-          mv Sunshine__.deb ../artifacts/sunshine.deb
-          mv Sunshine__.rpm ../artifacts/sunshine.rpm
+          mv Sunshine.deb ../artifacts/sunshine.deb
+          mv Sunshine.rpm ../artifacts/sunshine.rpm
 
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'  }}
@@ -253,6 +253,7 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -G "MinGW Makefiles" ..
           mingw32-make -j2
+
       - name: Package Windows
         shell: msys2 {0}
         run: |
@@ -264,8 +265,8 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv Sunshine__.exe ../artifacts/sunshine-windows-installer.exe
-          mv Sunshine__.zip ../artifacts/sunshine-windows-standalone.zip
+          mv Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv Sunshine.zip ../artifacts/sunshine-windows-standalone.zip
 
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
