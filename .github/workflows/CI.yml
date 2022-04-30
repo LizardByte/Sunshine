@@ -215,6 +215,62 @@ jobs:
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
 
+  build_mac:
+    name: MacOS
+    runs-on: macos-11
+    needs: check_changelog
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Setup Dependencies MacOS
+        run: |
+          # install dependencies using homebrew
+          brew install boost cmake ffmpeg libopusenc
+
+          # fix openssl header not found
+          cd /usr/local/include
+          ln -s ../opt/openssl/include/openssl .
+
+      - name: Build MacOS
+        run: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets ..
+          make -j ${nproc}
+
+      - name: Package MacOS
+        run: |
+          mkdir -p artifacts
+          cd build
+
+          # package
+          cpack -G BUNDLE
+          cpack -G DMG
+
+          # move
+          mv Sunshine.bundle ../artifacts/sunshine-macos.bundle
+          mv Sunshine.dmg ../artifacts/sunshine-macos.dmg
+
+      - name: Upload Artifacts
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-macos
+          path: artifacts/
+
+      - name: Create Release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: SunshineStream/actions/create_release@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          next_version: ${{ needs.check_changelog.outputs.next_version }}
+          last_version: ${{ needs.check_changelog.outputs.last_version }}
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
+
   build_win:
     name: Windows
     runs-on: windows-2019

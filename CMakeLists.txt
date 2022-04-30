@@ -531,9 +531,9 @@ if(APPLE) # TODO: test
 			RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR} COMPONENT Runtime)
 
 	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
-	#	set(CPACK_BUNDLE_NAME "Sunshine")
-	#	set(CPACK_BUNDLE_PLIST "${SUNSHINE_ASSETS_DIR}/info.plist")
-	#	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
+	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
+	set(CPACK_BUNDLE_PLIST "${SUNSHINE_ASSETS_DIR}/info.plist")
+	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 endif()
 if(UNIX AND NOT APPLE)
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${SUNSHINE_CONFIG_DIR}")
