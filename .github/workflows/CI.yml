@@ -41,7 +41,7 @@ jobs:
 
       - name: Check CMakeLists.txt Version
         run: |
-          version=$(grep -o -E '^project\(Sunshine \[VERSION [0-9]+\.[0-9]+\.[0-9]+\]' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+          version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
           echo "cmakelists_version=${version}" >> $GITHUB_ENV
 
       - name: Compare CMakeList.txt Version

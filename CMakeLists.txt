@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine [VERSION 0.13.0]
-		[DESCRIPTION Sunshine is a Gamestream host for Moonlight.]
-		[HOMEPAGE_URL https://sunshinestream.github.io]
+project(Sunshine VERSION 0.13.0
+		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
+		HOMEPAGE_URL "https://sunshinestream.github.io"
 		)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
