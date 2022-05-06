@@ -471,8 +471,9 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_common/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_windows/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
 
-	set(CPACK_PACKAGE_ICON  "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
-	set(CPACK_NSIS_INSTALLED_ICON_NAME  "${PROJECT__DIR}\\\\${PROJECT_EXE}")
+	set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
+	set(CPACK_NSIS_MUI_HEADERIMAGE "${CPACK_PACKAGE_ICON}") # Header image for installer
 	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}") # The name of the directory that will be created in C:/Program files/
 	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin") # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
@@ -483,7 +484,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     ")
 
 	# Adding an option for the start menu and PATH
-	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but then it seems I can't just run it from powershell
+	set(CPACK_NSIS_MODIFY_PATH "ON") # TODO: it asks to add it to the PATH but then it seems I can't just run it from powershell
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe") # This will be shown on the installed apps Windows settings
@@ -493,22 +494,33 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON") # TODO: doesn't work on my machine when Sunshine is already installed
 
 	# Setting components groups and dependencies
+	# sunshine binary
 	set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
-	set(CPACK_COMPONENT_WEB_DISPLAY_NAME "Web interface")
-	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Extra assets files")
-	set(CPACK_COMPONENT_LIBRARIES_DISPLAY_NAME "Libraries")
+	set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "The main application.")
+	set(CPACK_COMPONENT_APPLICATION_GROUP "${CMAKE_PROJECT_NAME}")
+	set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
 
-	set(CPACK_COMPONENT_APPLICATION_GROUP "Runtime")
-	set(CPACK_COMPONENT_WEB_GROUP "Runtime")
-	set(CPACK_COMPONENT_ASSETS_GROUP "Runtime")
+	# assets
+	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Assets")
+	set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Assets include the apps and configurations, shaders, default box art, and web ui.")
+	set(CPACK_COMPONENT_ASSETS_GROUP "${CMAKE_PROJECT_NAME}")
+	set(CPACK_COMPONENT_ASSETS_DEPENDS "${CMAKE_PROJECT_NAME}")
+	set(CPACK_COMPONENT_ASSETS_REQUIRED true)
 
-	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info.exe")
+	# audio tool
 	set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info.exe")
-	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc.exe")
+	set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool that allows you to get information about sound devices.")
+	set(CPACK_COMPONENT_AUDIO_GROUP "Tools")
 
-	set(CPACK_COMPONENT_DXGI_GROUP "Extra Tools")
-	set(CPACK_COMPONENT_AUDIO_GROUP "Extra Tools")
-	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Extra Tools")
+	# display tool
+	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info.exe")
+	set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool that allows you to get information about graphics cards and displays.")
+	set(CPACK_COMPONENT_DXGI_GROUP "Tools")
+
+	# service tool
+	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc.exe")
+	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
+	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
 
 	set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 endif()
