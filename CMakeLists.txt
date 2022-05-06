@@ -449,7 +449,8 @@ target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COM
 
 # Common options
 set(CPACK_PACKAGE_NAME "SunshineStream")
-set(CPACK_PACKAGE_VENDOR "CMake.org")
+set(CPACK_PACKAGE_VENDOR "SunshineStream")
+set(CPACK_PACKAGE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cpack_artifacts)
 set(CPACK_PACKAGE_CONTACT "https://github.com/SunshineStream/Sunshine")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/SunshineStream/Sunshine")
 set(CPACK_PACKAGE_DESCRIPTION "Gamestream host for Moonlight")
@@ -486,7 +487,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     ")
 
 	# Adding an option for the start menu and PATH
-	set(CPACK_NSIS_MODIFY_PATH "ON") # TODO: it asks to add it to the PATH but then it seems I can't just run it from powershell
+	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe") # This will be shown on the installed apps Windows settings
@@ -501,12 +502,12 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "The main application.")
 	set(CPACK_COMPONENT_APPLICATION_GROUP "${CMAKE_PROJECT_NAME}")
 	set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
+	set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
 	# assets
 	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Assets")
 	set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Assets include the apps and configurations, shaders, default box art, and web ui.")
 	set(CPACK_COMPONENT_ASSETS_GROUP "${CMAKE_PROJECT_NAME}")
-	set(CPACK_COMPONENT_ASSETS_DEPENDS "${CMAKE_PROJECT_NAME}")
 	set(CPACK_COMPONENT_ASSETS_REQUIRED true)
 
 	# audio tool
@@ -523,8 +524,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc.exe")
 	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
 	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
-
-	# set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 endif()
 if(APPLE) # TODO: test
 
