@@ -66,8 +66,6 @@ if(WIN32)
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
 
-	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_windows.json")
-
 	include_directories(third-party/ViGEmClient/include)
 
 	if(NOT DEFINED SUNSHINE_ICON_PATH)
@@ -126,7 +124,6 @@ if(WIN32)
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 elseif(APPLE)
 	add_compile_definitions(SUNSHINE_PLATFORM="macos")
-	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_mac.json")
 	link_directories(/opt/local/lib)
 	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
@@ -163,10 +160,9 @@ elseif(APPLE)
 		sunshine/platform/macos/publish.cpp
 		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.c
 		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.h
-		${CMAKE_CURRENT_SOURCE_DIR}/assets/Info.plist)
+		${CMAKE_CURRENT_SOURCE_DIR}/assets/assets_mac/Info.plist)
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
-	list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps_linux.json")
 
 	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
 	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
@@ -423,6 +419,7 @@ endif()
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_CONFIG_DIR="${SUNSHINE_CONFIG_DIR}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_DEFAULT_DIR="${SUNSHINE_DEFAULT_DIR}")
+list(APPEND SUNSHINE_DEFINITIONS APPS_JSON="apps.json")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
@@ -437,7 +434,7 @@ if(NOT DEFINED CMAKE_CUDA_STANDARD)
 endif()
 
 if(APPLE)
-	target_link_options(sunshine PRIVATE LINKER:-sectcreate,__TEXT,__info_plist,${CMAKE_CURRENT_SOURCE_DIR}/assets/Info.plist)
+	target_link_options(sunshine PRIVATE LINKER:-sectcreate,__TEXT,__info_plist,${CMAKE_CURRENT_SOURCE_DIR}/assets/assets_mac/Info.plist)
 endif()
 
 foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
@@ -471,12 +468,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
 	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
 
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT web)
-	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_windows.json" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
-	install(FILES "${SUNSHINE_ASSETS_DIR}/box.png" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
-	install(FILES "${SUNSHINE_ASSETS_DIR}/steam.png" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
-	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/directx" DESTINATION "${SUNSHINE_CONFIG_DIR}/shaders" COMPONENT assets)
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_common/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_windows/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
 
 	set(CPACK_PACKAGE_ICON  "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME  "${PROJECT__DIR}\\\\${PROJECT_EXE}")
@@ -517,17 +510,15 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_AUDIO_GROUP "Extra Tools")
 	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Extra Tools")
 
-	set(CPACK_COMPONENT_APPLICATION_DEPENDS web assets)
+	set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 endif()
 if(APPLE) # TODO: test
 
 	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
 	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
 
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${INSTALL_RUNTIME_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_mac.json" DESTINATION "${INSTALL_RUNTIME_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/box.png" DESTINATION "${INSTALL_RUNTIME_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${INSTALL_RUNTIME_DIR}")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_common/" DESTINATION "${INSTALL_RUNTIME_DIR}")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_mac/" DESTINATION "${INSTALL_RUNTIME_DIR}")
 
 	install(TARGETS sunshine
 			BUNDLE DESTINATION . COMPONENT Runtime
@@ -535,23 +526,20 @@ if(APPLE) # TODO: test
 
 	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
 	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
-	set(CPACK_BUNDLE_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/assets/Info.plist")
+	set(CPACK_BUNDLE_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/assets_mac/Info.plist")
 	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 
 	# Portfile
 	configure_file(Portfile.in Portfile @ONLY)
 endif()
 if(UNIX AND NOT APPLE)
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_linux.json" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/box.png" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/steam.png" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_common/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_linux/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+
+	install(FILES "${SUNSHINE_ASSETS_DIR}/linux-misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
 
 	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
-	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/opengl" DESTINATION "${SUNSHINE_CONFIG_DIR}/shaders")
 
 	# Pre and post install
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA

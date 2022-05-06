@@ -107,29 +107,34 @@ jobs:
 
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
           ICON_FILE="${ICON_FILE:-sunshine.png}"
-          CONFIG_DIR="${CONFIG_DIR:-sunshine/sunshine.AppImage.config/}"
-          HOME_DIR="${HOME_DIR:-sunshine/sunshine.AppImage.home/}"
+          # CONFIG_DIR="${CONFIG_DIR:-sunshine/sunshine.AppImage.config/}"
+          # HOME_DIR="${HOME_DIR:-sunshine/sunshine.AppImage.home/}"
 
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
 
           ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../appimage-build/$DESKTOP_FILE" --output appimage
 
-          mv sunshine*.AppImage sunshine.AppImage
-          mkdir sunshine && mv sunshine.AppImage sunshine/
-          ./sunshine/sunshine.AppImage --appimage-portable-config
-          ./sunshine/sunshine.AppImage --appimage-portable-home
-          cp -r ../assets/* "$CONFIG_DIR"
-          rm -f "$CONFIG_DIR"/apps_windows.json
-          mkdir -p ./"$HOME_DIR"/.config/"$CONFIG_DIR"
-          cp ./"$CONFIG_DIR"/apps_linux.json ./"$HOME_DIR"/.config/"$CONFIG_DIR"
-          zip -r ./sunshine-appimage.zip ./sunshine/*
+          # mv sunshine*.AppImage sunshine.AppImage
+          # mkdir sunshine && mv sunshine.AppImage sunshine/
+          # ./sunshine/sunshine.AppImage --appimage-portable-config
+          # ./sunshine/sunshine.AppImage --appimage-portable-home
+          # cp -r ../assets/assets_common/* "$CONFIG_DIR"
+          # cp -r ../assets/assets_linux/* "$CONFIG_DIR"
 
-          mv sunshine-appimage.zip ../artifacts/
+          # mkdir -p ./"$HOME_DIR"/.config/"$CONFIG_DIR"
+          # cp ./"$CONFIG_DIR"/apps.json ./"$HOME_DIR"/.config/"$CONFIG_DIR"
+          # zip -r ./sunshine-appimage.zip ./sunshine/*
+
+          # mv sunshine-appimage.zip ../artifacts/
+
+          mv sunshine*.AppImage ../artifacts/sunshine.AppImage
+
+          # if testing succeeds, can remove commented lines
 
       - name: Verify AppImage
         run: |
-          cd appimage_temp
-          wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./sunshine/sunshine.AppImage
+          # cd appimage_temp
+          wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage && chmod +x appimagelint-x86_64.AppImage && ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
@@ -318,7 +323,7 @@ jobs:
           cd build
 
           # package
-          cpack -G NSIS 
+          cpack -G NSIS
           cpack -G ZIP
 
           # move
