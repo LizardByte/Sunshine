@@ -81,12 +81,18 @@ MacOS
 Disk Image File option:
    #. Download and install ``sunshine.dmg``
 
+   .. Warning:: The Disk Image File is experimental. Limited support will be provided.
+
 Portfile option:
    #. Install `MacPorts <https://www.macports.org>`_
-   #. Download the `Portfile <https://github.com/SunshineStream/Sunshine/blob/master/Portfile>`_ from this repository
-      to ``/tmp``
+   #. Download the ``Portfile`` to ``/tmp``
    #. In a terminal run ``cd /tmp && sudo port install``
    #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+
+Standalone option:
+   #. Download and extract ``sunshine-macos.zip``
+
+   .. Warning:: The Standalone package is experimental. Limited support will be provided.
 
 Windows
 -------

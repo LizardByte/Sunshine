@@ -5,25 +5,27 @@ PortGroup           cmake 1.1
 PortGroup           github 1.0
 PortGroup           boost 1.0
 
-github.setup        abusse sunshine macos-dev
-version             20220224
+github.setup        sunshinestream sunshine master
+version             @PROJECT_VERSION@
+revision            1
 
 categories          multimedia
+license             GPL-3
+maintainers         {sunshinestream @SunshineStream} {outlook.com:anselm.busse}
 platforms           darwin
-license             GPL-2
-maintainers         {outlook.com:anselm.busse}
 
 fetch.type          git
 post-fetch {
     system -W ${worksrcpath} "${git.cmd} submodule update --init --recursive"
 }
 
-description         Sunshine is a Gamestream host for Moonlight
-long_description    Sunshine is a Gamestream host for Moonlight
-
+description         Sunshine is a Gamestream host for Moonlight.
+long_description    {*}${description}
 homepage            https://github.com/SunshineStream/Sunshine
 
-depends_lib         port:avahi port:ffmpeg port:libopus
+depends_lib         port:avahi \
+                    port:ffmpeg \
+                    port:libopus
 
 
 boost.version       1.76

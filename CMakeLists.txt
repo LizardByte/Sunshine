@@ -312,7 +312,6 @@ else()
 	if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
 		set(SUNSHINE_EXECUTABLE_PATH "sunshine")
 	endif()
-	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
 	configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
@@ -448,7 +447,7 @@ endforeach()
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)
 
 #############
-# CPACK
+# CPACK / Packaging
 ####
 
 # Common options
@@ -474,6 +473,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT web)
 	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_windows.json" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
+	install(FILES "${SUNSHINE_ASSETS_DIR}/box.png" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
+	install(FILES "${SUNSHINE_ASSETS_DIR}/steam.png" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
 	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/directx" DESTINATION "${SUNSHINE_CONFIG_DIR}/shaders" COMPONENT assets)
 
@@ -524,6 +525,8 @@ if(APPLE) # TODO: test
 	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
 
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${INSTALL_RUNTIME_DIR}")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_mac.json" DESTINATION "${INSTALL_RUNTIME_DIR}")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/box.png" DESTINATION "${INSTALL_RUNTIME_DIR}")
 	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${INSTALL_RUNTIME_DIR}")
 
 	install(TARGETS sunshine
@@ -534,13 +537,18 @@ if(APPLE) # TODO: test
 	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
 	set(CPACK_BUNDLE_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/assets/Info.plist")
 	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
+
+	# Portfile
+	configure_file(Portfile.in Portfile @ONLY)
 endif()
 if(UNIX AND NOT APPLE)
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/web" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_linux.json" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/box.png" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	install(FILES "${SUNSHINE_ASSETS_DIR}/steam.png" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 	install(FILES "${SUNSHINE_ASSETS_DIR}/sunshine.conf" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(FILES "${SUNSHINE_ASSETS_DIR}/apps_linux.json" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-	install(FILES "${SUNSHINE_ASSETS_DIR}/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
 	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/shaders/opengl" DESTINATION "${SUNSHINE_CONFIG_DIR}/shaders")
@@ -560,6 +568,9 @@ if(UNIX AND NOT APPLE)
 	# Installation destination dir
 	set(CPACK_SET_DESTDIR true)
 	set(CMAKE_INSTALL_PREFIX "/etc/sunshine")
+
+	# AppImage desktop file
+	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
 endif()
 
 include(CPack)

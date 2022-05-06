@@ -254,6 +254,7 @@ jobs:
           # move
           mv Sunshine.dmg ../artifacts/sunshine-macos.dmg
           mv Sunshine.zip ../artifacts/sunshine-macos.zip
+          mv Portfile ../artifacts/Portfile
 
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
