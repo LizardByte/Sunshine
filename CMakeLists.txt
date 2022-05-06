@@ -471,9 +471,11 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_common/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
 	install(DIRECTORY "${SUNSHINE_ASSETS_DIR}/assets_windows/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT assets)
 
+
+	# set(CPACK_NSIS_MUI_HEADERIMAGE "") # TODO: image should be 150x57 bmp
+
 	set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
-	set(CPACK_NSIS_MUI_HEADERIMAGE "${CPACK_PACKAGE_ICON}") # Header image for installer
 	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}") # The name of the directory that will be created in C:/Program files/
 	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin") # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
