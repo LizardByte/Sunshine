@@ -524,7 +524,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
 	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
 
-	set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
+	# set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 endif()
 if(APPLE) # TODO: test
 
