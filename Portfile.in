@@ -19,9 +19,9 @@ post-fetch {
     system -W ${worksrcpath} "${git.cmd} submodule update --init --recursive"
 }
 
-description         Sunshine is a Gamestream host for Moonlight.
+description         @PROJECT_DESCRIPTION@
 long_description    {*}${description}
-homepage            https://github.com/SunshineStream/Sunshine
+homepage            @PROJECT_HOMEPAGE_URL@
 
 depends_lib         port:avahi \
                     port:ffmpeg \
@@ -37,14 +37,14 @@ cmake.out_of_source yes
 
 destroot {
     xinstall -d -m 755 ${destroot}${prefix}/etc/${name}
-    xinstall ${worksrcpath}/assets/apps_mac.json ${destroot}${prefix}/etc/${name}
-    xinstall ${worksrcpath}/assets/box.png ${destroot}${prefix}/etc/${name}
-    xinstall ${worksrcpath}/assets/sunshine.conf ${destroot}${prefix}/etc/${name}
+    xinstall ${worksrcpath}/assets/assets_mac/apps.json ${destroot}${prefix}/etc/${name}
+    xinstall ${worksrcpath}/assets/assets_common/box.png ${destroot}${prefix}/etc/${name}
+    xinstall ${worksrcpath}/assets/assets_common/sunshine.conf ${destroot}${prefix}/etc/${name}
 
     xinstall -d -m 755 ${destroot}${prefix}/etc/${name}/web
-    xinstall {*}[glob ${worksrcpath}/assets/web/*.html] ${destroot}${prefix}/etc/${name}/web
+    xinstall {*}[glob ${worksrcpath}/assets/assets_common/web/*.html] ${destroot}${prefix}/etc/${name}/web
     xinstall -d -m 755 ${destroot}${prefix}/etc/${name}/web/third_party
-    xinstall {*}[glob ${worksrcpath}/assets/web/third_party/*] ${destroot}${prefix}/etc/${name}/web/third_party
+    xinstall {*}[glob ${worksrcpath}/assets/assets_common/web/third_party/*] ${destroot}${prefix}/etc/${name}/web/third_party
 
     xinstall ${workpath}/build/${name} ${destroot}${prefix}/bin
 }

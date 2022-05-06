@@ -17,15 +17,15 @@ if [ -f /etc/sunshine/sunshine.conf.old ]; then
 	mv /etc/sunshine/sunshine.conf.old /etc/sunshine/sunshine.conf
 fi
 
-if [ -f /etc/sunshine/apps_linux.json.old ]; then
-	echo "Restoring old apps_linux.json"
-	mv /etc/sunshine/apps_linux.json.old /etc/sunshine/apps_linux.json
+if [ -f /etc/sunshine/apps.json.old ]; then
+	echo "Restoring old apps.json"
+	mv /etc/sunshine/apps.json.old /etc/sunshine/apps.json
 fi
 
 # Update permissions on config files for Web Manager
-if [ -f /etc/sunshine/apps_linux.json ]; then
-	echo "chmod 666 /etc/sunshine/apps_linux.json"
-	chmod 666 /etc/sunshine/apps_linux.json
+if [ -f /etc/sunshine/apps.json ]; then
+	echo "chmod 666 /etc/sunshine/apps.json"
+	chmod 666 /etc/sunshine/apps.json
 fi
 
 if [ -f /etc/sunshine/sunshine.conf ]; then

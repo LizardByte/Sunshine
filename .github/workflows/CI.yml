@@ -41,7 +41,7 @@ jobs:
 
       - name: Check CMakeLists.txt Version
         run: |
-          version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+\)' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+          version=$(grep -o -E '^project\(Sunshine \[VERSION [0-9]+\.[0-9]+\.[0-9]+\]' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
           echo "cmakelists_version=${version}" >> $GITHUB_ENV
 
       - name: Compare CMakeList.txt Version
@@ -49,7 +49,7 @@ jobs:
         run: |
           echo CMakeLists version: "$cmakelists_version"
           echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
-          echo Within 'CMakeLists.txt' change "project(Sunshine VERSION $cmakelists_version)" to "project(Sunshine VERSION ${{ needs.check_changelog.outputs.next_version_bare }})"
+          echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
           exit 1
 
   build_linux:
