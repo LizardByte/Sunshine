@@ -109,7 +109,7 @@ jobs:
           cpack -G RPM
 
           # move
-          mv sunshine*.AppImage ../artifacts/sunshine.AppImage
+          mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
           mv ./cpack_artifacts/Sunshine.deb ../artifacts/sunshine.deb
           mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
 
