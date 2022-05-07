@@ -111,7 +111,7 @@ jobs:
 
         wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
 
-        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../appimage-build/$DESKTOP_FILE" --output appimage
+        ./linuxdeploy-x86_64.AppImage --appdir ../AppDir -e ../appimage-build/sunshine -i "../$ICON_FILE" -d "../appimage-build/$DESKTOP_FILE" -l /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 -l /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 -l /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 --output appimage
 
         mv sunshine*.AppImage sunshine.AppImage
         mkdir sunshine && mv sunshine.AppImage sunshine/
