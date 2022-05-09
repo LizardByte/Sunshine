@@ -81,7 +81,7 @@ jobs:
           mkdir -p build
           
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_CONFIG_DIR=. -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON "../"
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_CONFIG_DIR=. -DSUNSHINE_DEFAULT_DIR=/etc/sunshine -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON "../"
           make -j ${nproc}
 
       - name: Set AppImage Version
@@ -159,7 +159,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_DEFAULT_DIR=/etc/sunshine ..
           make -j ${nproc}
 
       - name: Package MacOS
