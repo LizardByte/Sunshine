@@ -101,8 +101,17 @@ jobs:
           
           # AppImage
           # https://docs.appimage.org/packaging-guide/index.html
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && chmod +x linuxdeploy-x86_64.AppImage
-          ./linuxdeploy-x86_64.AppImage --appdir . -e ./sunshine -i "../$ICON_FILE" -d "./$DESKTOP_FILE" --output appimage
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          ./linuxdeploy-x86_64.AppImage \
+              --appdir . \
+              -e ./sunshine \
+              -i "../$ICON_FILE" \
+              -d "./$DESKTOP_FILE" \
+              -l /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
+              -l /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
+              -l /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
+              --output appimage
 
           # package
           cpack -G DEB
