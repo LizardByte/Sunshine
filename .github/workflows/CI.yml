@@ -63,18 +63,67 @@ jobs:
           submodules: recursive
       - name: Setup Dependencies Linux
         run: |
-          sudo apt-get update -y && \
-          sudo apt-get --reinstall install -y \
-          git wget gcc-10 g++-10 build-essential cmake libssl-dev libavdevice-dev libboost-thread-dev libboost-filesystem-dev libboost-log-dev libpulse-dev libopus-dev libxtst-dev libx11-dev libxrandr-dev libxfixes-dev libevdev-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev libdrm-dev libcap-dev libwayland-dev
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-          sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run && sudo chmod a+x /root/cuda.run
-          sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && sudo rm /root/cuda.run
-          sudo add-apt-repository ppa:savoury1/graphics -y
-          sudo add-apt-repository ppa:savoury1/multimedia -y
           sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
+          # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+          
           sudo apt-get update -y
-          sudo apt-get upgrade -y && sudo apt-get dist-upgrade -y
-          sudo apt-get install ffmpeg -y
+          sudo apt-get install -y \
+              build-essential \
+              cmake \
+              gcc-10 \
+              git \
+              g++-10 \
+              libavdevice-dev \
+              libboost-filesystem-dev \
+              libboost-log-dev \
+              libboost-thread-dev \
+              libcap-dev \
+              libdrm-dev \
+              libevdev-dev \
+              libpulse-dev \
+              libopus-dev \
+              libssl-dev \
+              libwayland-dev \
+              libx11-dev \
+              libxcb-shm0-dev \
+              libxcb-xfixes0-dev \
+              libxcb1-dev \
+              libxfixes-dev \
+              libxrandr-dev \
+              libxtst-dev \
+              wget
+          # # Ubuntu 20.04+ packages
+          # libboost-filesystem-dev
+          # libboost-log-dev
+          # libboost-thread-dev
+          
+          # # Ubuntu 18.04 packages
+          # libboost-filesystem1.71-dev \
+          # libboost-log1.71-dev \
+          # libboost-regex1.71-dev \
+          # libboost-thread1.71-dev \
+          
+          # clean apt cache
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          
+          # Update gcc alias
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+          
+          # Install CuDA
+          sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
+          sudo chmod a+x /root/cuda.run
+          sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
+          sudo rm /root/cuda.run
+          
+          # # Install cmake (necessary for 18.04)
+          # wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
+          # chmod +x cmake-3.22.2-linux-x86_64.sh
+          # mkdir /opt/cmake
+          # ./cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
+          # ln --force --symbolic /opt/cmake/bin/cmake /usr/local/bin/cmake
+          # cmake --version
 
       - name: Build Linux
         run: |
@@ -104,15 +153,14 @@ jobs:
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
           
-          # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
-          sudo apt-get install libgtk-3-dev librsvg2-dev -y
-          wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
-          chmod +x linuxdeploy-plugin-gtk.sh
-          export DEPLOY_GTK_VERSION=3
+          # # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
+          # sudo apt-get install libgtk-3-dev librsvg2-dev -y
+          # wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          # chmod +x linuxdeploy-plugin-gtk.sh
+          # export DEPLOY_GTK_VERSION=3
           
           ./linuxdeploy-x86_64.AppImage \
               --appdir . \
-              --plugin gtk \
               --executable ./sunshine \
               --icon-file "../$ICON_FILE" \
               --desktop-file "./$DESKTOP_FILE" \
@@ -120,6 +168,8 @@ jobs:
               --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
               --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
               --output appimage
+          # # add this argument back if using gtk plugin
+          # --plugin gtk \
 
           # package
           cpack -G DEB
@@ -134,6 +184,8 @@ jobs:
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage
+          
+          # rm -rf ~/.cache/appimagelint/
           
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
