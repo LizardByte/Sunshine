@@ -31,21 +31,19 @@ depends_lib         port:avahi \
 boost.version       1.76
 
 configure.args      -DBOOST_ROOT=[boost::install_area] \
-                    -DSUNSHINE_ASSETS_DIR=${worksrcpath}/assets
-                    -DSUNSHINE_DEFAULT_DIR=${prefix}/etc/sunshine
+                    -DSUNSHINE_ASSETS_DIR=${prefix}/usr/local/sunshine/.assets
+                    -DSUNSHINE_CONFIG_DIR=${prefix}/usr/local/sunshine/config
 
 cmake.out_of_source yes
 
 destroot {
-    xinstall -d -m 755 ${destroot}${prefix}/etc/${name}
-    xinstall ${worksrcpath}/assets/assets_mac/apps.json ${destroot}${prefix}/etc/${name}
-    xinstall ${worksrcpath}/assets/assets_common/box.png ${destroot}${prefix}/etc/${name}
-    xinstall ${worksrcpath}/assets/assets_common/sunshine.conf ${destroot}${prefix}/etc/${name}
+    xinstall -d -m 755 ${destroot}${prefix}/usr/local/${name}/.assets
+    xinstall {*}[glob ${worksrcpath}/src_assets/common/assets/*] ${destroot}${prefix}/usr/local/${name}/.assets
+    xinstall {*}[glob ${worksrcpath}/src_assets/macos/assets/*] ${destroot}${prefix}/usr/local/${name}/.assets
 
-    xinstall -d -m 755 ${destroot}${prefix}/etc/${name}/web
-    xinstall {*}[glob ${worksrcpath}/assets/assets_common/web/*.html] ${destroot}${prefix}/etc/${name}/web
-    xinstall -d -m 755 ${destroot}${prefix}/etc/${name}/web/third_party
-    xinstall {*}[glob ${worksrcpath}/assets/assets_common/web/third_party/*] ${destroot}${prefix}/etc/${name}/web/third_party
+    xinstall -d -m 755 ${destroot}${prefix}/usr/local/${name}/config
+    xinstall {*}[glob ${worksrcpath}/src_assets/common/config/*] ${destroot}${prefix}/usr/local/${name}/config
+    xinstall {*}[glob ${worksrcpath}/src_assets/macos/config/*] ${destroot}${prefix}/usr/local/${name}/config
 
     xinstall ${workpath}/build/${name} ${destroot}${prefix}/bin
 }
