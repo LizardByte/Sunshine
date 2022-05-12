@@ -54,7 +54,7 @@ jobs:
 
   build_linux:
     name: Linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-18.04
     needs: check_changelog
     steps:
       - name: Checkout
@@ -64,7 +64,7 @@ jobs:
       - name: Setup Dependencies Linux
         run: |
           sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
-          # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
+          sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           
           sudo apt-get update -y
@@ -75,9 +75,10 @@ jobs:
               git \
               g++-10 \
               libavdevice-dev \
-              libboost-filesystem-dev \
-              libboost-log-dev \
-              libboost-thread-dev \
+              libboost-filesystem1.71-dev \
+              libboost-log1.71-dev \
+              libboost-regex1.71-dev \
+              libboost-thread1.71-dev \
               libcap-dev \
               libdrm-dev \
               libevdev-dev \
@@ -117,13 +118,13 @@ jobs:
           sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
           sudo rm /root/cuda.run
           
-          # # Install cmake (necessary for 18.04)
-          # wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
-          # chmod +x cmake-3.22.2-linux-x86_64.sh
-          # mkdir /opt/cmake
-          # ./cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
-          # ln --force --symbolic /opt/cmake/bin/cmake /usr/local/bin/cmake
-          # cmake --version
+          # Install cmake (necessary for 18.04)
+          wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
+          chmod +x cmake-3.22.2-linux-x86_64.sh
+          mkdir /opt/cmake
+          ./cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
+          ln --force --symbolic /opt/cmake/bin/cmake /usr/local/bin/cmake
+          cmake --version
 
       - name: Build Linux
         run: |
@@ -188,6 +189,13 @@ jobs:
           # rm -rf ~/.cache/appimagelint/
           
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
+
+      - name: appimagelint artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: appimagelint
+          path: ~/.cache/appimagelint/
 
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'  }}
