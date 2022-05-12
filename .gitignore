@@ -10,14 +10,14 @@ cmake-build*
 .idea
 
 # Extra FontAwesome files
-/assets/web/fonts/fontawesome-free-web/css/*.css
-!/assets/web/fonts/fontawesome-free-web/css/*min.css
-/assets/web/fonts/fontawesome-free-web/js/
-/assets/web/fonts/fontawesome-free-web/less/
-/assets/web/fonts/fontawesome-free-web/metadata/
-/assets/web/fonts/fontawesome-free-web/scss/
-/assets/web/fonts/fontawesome-free-web/sprites/
-/assets/web/fonts/fontawesome-free-web/svgs/
+/src_assets/common/assets/web/fonts/fontawesome-free-web/css/*.css
+!/src_assets/common/assets/web/fonts/fontawesome-free-web/css/*min.css
+/src_assets/common/assets/web/fonts/fontawesome-free-web/js/
+/src_assets/common/assets/web/fonts/fontawesome-free-web/less/
+/src_assets/common/assets/web/fonts/fontawesome-free-web/metadata/
+/src_assets/common/assets/web/fonts/fontawesome-free-web/scss/
+/src_assets/common/assets/web/fonts/fontawesome-free-web/sprites/
+/src_assets/common/assets/web/fonts/fontawesome-free-web/svgs/
 
 # Translations
 *.mo

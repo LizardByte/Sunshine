@@ -27,7 +27,7 @@ AppImage
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-The current compatibility of the AppImage is shown below.
+The current known compatibility of the AppImage is shown below.
 
    - [✖] Debian oldstable (buster)
    - [✔] Debian stable (bullseye)
