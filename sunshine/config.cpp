@@ -20,7 +20,7 @@ using namespace std::literals;
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
 #define CERTIFICATE_FILE CA_DIR "/cacert.pem"
 
-#define APPS_JSON_PATH SUNSHINE_CONFIG_DIR "/" APPS_JSON
+#define APPS_JSON_PATH SUNSHINE_CONFIG_DIR "/apps.json"
 namespace config {
 
 namespace nv {
@@ -695,7 +695,7 @@ int apply_flags(const char *line) {
 
 void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   if(!fs::exists(stream.file_apps.c_str())) {
-    fs::copy_file(SUNSHINE_DEFAULT_DIR "/" APPS_JSON, stream.file_apps);
+    fs::copy_file(SUNSHINE_CONFIG_DIR "/apps.json", stream.file_apps);
   }
 
   for(auto &[name, val] : vars) {
@@ -906,7 +906,7 @@ int parse(int argc, char *argv[]) {
   }
 
   if(!fs::exists(sunshine.config_file)) {
-    fs::copy_file(SUNSHINE_DEFAULT_DIR "/sunshine.conf", sunshine.config_file);
+    fs::copy_file(SUNSHINE_CONFIG_DIR "/sunshine.conf", sunshine.config_file);
   }
 
   auto vars = parse_config(read_file(sunshine.config_file.c_str()));

@@ -27,7 +27,7 @@ AppImage
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-The current compatibility of the AppImage is shown below.
+The current known compatibility of the AppImage is shown below.
 
    - [✖] Debian oldstable (buster)
    - [✔] Debian stable (bullseye)
@@ -78,11 +78,21 @@ MacOS
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Install `MacPorts <https://www.macports.org>`_
-#. Download the `Portfile <https://github.com/SunshineStream/Sunshine/blob/master/Portfile>`_ from this repository to
-   ``/tmp``
-#. In a terminal run ``cd /tmp && sudo port install``
-#. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+Disk Image File option:
+   #. Download and install ``sunshine.dmg``
+
+   .. Warning:: The Disk Image File is experimental. Limited support will be provided.
+
+Portfile option:
+   #. Install `MacPorts <https://www.macports.org>`_
+   #. Download the ``Portfile`` to ``/tmp``
+   #. In a terminal run ``cd /tmp && sudo port install``
+   #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+
+Standalone option:
+   #. Download and extract ``sunshine-macos.zip``
+
+   .. Warning:: The Standalone package is experimental. Limited support will be provided.
 
 Windows
 -------
@@ -92,7 +102,11 @@ Windows
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:11?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Download and extract ``sunshine-windows.zip``
+Installed option:
+   #. Download and install ``sunshine-windows.exe``
+
+Standalone option:
+   #. Download and extract ``sunshine-windows.zip``
 
 .. _latest release: https://github.com/SunshineStream/Sunshine/releases/latest
 .. _Dockerhub.io: https://hub.docker.com/repository/docker/sunshinestream/sunshine

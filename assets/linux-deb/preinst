@@ -1,9 +1,0 @@
-#!/bin/sh
-#Store backup for old config files to prevent it from being overwritten
-if [ -f /etc/sunshine/sunshine.conf ]; then
-        cp /etc/sunshine/sunshine.conf /etc/sunshine/sunshine.conf.old
-fi
-
-if [ -f /etc/sunshine/apps_linux.json ]; then
-        cp /etc/sunshine/apps_linux.json /etc/sunshine/apps_linux.json.old
-fi

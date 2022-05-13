@@ -14,14 +14,14 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install cmake boost libopus ffmpeg
+      sudo port install cmake boost ffmpeg libopus
 
 Homebrew
 """"""""
 Install Requirements
    .. code-block:: bash
 
-      brew install boost cmake ffmpeg libopusenc
+      brew install boost cmake ffmpeg opus
       # if there are issues with an SSL header that is not found:
       cd /usr/local/include
       ln -s ../opt/openssl/include/openssl .
@@ -34,6 +34,8 @@ Build
 
       cmake ..
       make -j ${nproc}
+
+      cpack -G DragNDrop  # optionally, create a MacOS dmg package
 
 If cmake fails complaining to find Boost, try to set the path explicitly.
 
