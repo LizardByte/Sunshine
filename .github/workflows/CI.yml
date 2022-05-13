@@ -195,6 +195,7 @@ jobs:
         with:
           name: sunshine-linux
           path: artifacts/
+
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: SunshineStream/actions/create_release@master
