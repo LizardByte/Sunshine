@@ -393,7 +393,7 @@ else()
 endif()
 
 if(NOT SUNSHINE_ASSETS_DIR)
-	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_BINARY_DIR}/.assets")
+	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_BINARY_DIR}/assets")
 endif()
 
 if(NOT SUNSHINE_CONFIG_DIR)
@@ -535,13 +535,15 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
 endif()
 if(UNIX)
+	# Installation destination dir
+	set(CPACK_SET_DESTDIR true)
+	if(NOT CMAKE_INSTALL_PREFIX)
+		set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine")
+	endif()
+
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
 
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-
-	# Installation destination dir
-	set(CPACK_SET_DESTDIR true)
-	set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine/")
 endif()
 if(APPLE) # TODO: test
 
@@ -576,14 +578,14 @@ if(UNIX AND NOT APPLE)
 
 	# Pre and post install
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-		"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/preinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/postinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/conffiles")
-	set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/preinst")
-	set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/postinst")
+		"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
+	set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
+	set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 
 	# Dependencies
 	set(CPACK_DEB_COMPONENT_INSTALL ON)
 	set(CPACK_DEBIAN_PACKAGE_DEPENDS "libssl1.1 | libssl3.0, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-	set(CPACK_RPM_PACKAGE_REQUIRES "libssl==1.1, libavdevice>=58, libboost-thread>=1.67.0, libboost-filesystem>=1.67.0, libboost-log>=1.67.0, libpulse>=0, libopus>=0, libxcb-shm>=0, libxcb-xfixes>=0, libxtst>=0, libevdev>=2.0, libdrm>=2.0, libcap>=2.0")
+	set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
 	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
 
 	# AppImage desktop file

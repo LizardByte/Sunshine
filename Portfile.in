@@ -31,8 +31,8 @@ depends_lib         port:avahi \
 boost.version       1.76
 
 configure.args      -DBOOST_ROOT=[boost::install_area] \
-                    -DSUNSHINE_ASSETS_DIR=${prefix}/usr/local/sunshine/.assets
-                    -DSUNSHINE_CONFIG_DIR=${prefix}/usr/local/sunshine/config
+                    -DSUNSHINE_ASSETS_DIR=${prefix}/etc/sunshine/assets
+                    -DSUNSHINE_CONFIG_DIR=${prefix}/etc/sunshine/config
 
 cmake.out_of_source yes
 

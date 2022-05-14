@@ -56,6 +56,19 @@ jobs:
     name: Linux
     runs-on: ubuntu-20.04
     needs: check_changelog
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        include: # package these differently
+          - type: cpack
+            CMAKE_INSTALL_PREFIX: '/usr/local/sunshine'
+            SUNSHINE_ASSETS_DIR: 'assets'
+            SUNSHINE_CONFIG_DIR: 'config'
+          - type: appimage
+            CMAKE_INSTALL_PREFIX: '.'
+            SUNSHINE_ASSETS_DIR: 'usr/local/sunshine/assets'
+            SUNSHINE_CONFIG_DIR: 'usr/local/sunshine/config'
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -128,21 +141,39 @@ jobs:
       - name: Build Linux
         run: |
           mkdir -p build
+          mkdir -p artifacts
           
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=/usr/local/sunshine/.assets -DSUNSHINE_CONFIG_DIR=/usr/local/sunshine/config -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON ..
           make -j ${nproc}
 
+      - name: Package Linux - CPACK
+        if: ${{ matrix.type == 'cpack' }}
+        working-directory: build
+        run: |
+          # package
+          cpack -G DEB
+          cpack -G RPM
+
+          # move
+          mv ./cpack_artifacts/Sunshine.deb ../artifacts/sunshine.deb
+          mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
+
       - name: Set AppImage Version
-        if: ${{ needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version }}
+        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version ) }}
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
 
-      - name: Package Linux
+      - name: Package Linux - AppImage
+        if: ${{ matrix.type == 'appimage' }}
+        working-directory: build
         run: |
-          mkdir -p artifacts
-          cd build
+          # install sunshine to the DESTDIR
+          make install DESTDIR=AppDir
+          
+          # testing only
+          ls AppDir
           
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
@@ -160,7 +191,7 @@ jobs:
           # export DEPLOY_GTK_VERSION=3
           
           ./linuxdeploy-x86_64.AppImage \
-              --appdir . \
+              --appdir ./AppDir \
               --executable ./sunshine \
               --icon-file "../$ICON_FILE" \
               --desktop-file "./$DESKTOP_FILE" \
@@ -171,16 +202,11 @@ jobs:
           # # add this argument back if using gtk plugin
           # --plugin gtk \
 
-          # package
-          cpack -G DEB
-          cpack -G RPM
-
           # move
           mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
-          mv ./cpack_artifacts/Sunshine.deb ../artifacts/sunshine.deb
-          mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
 
       - name: Verify AppImage
+        if: ${{ matrix.type == 'appimage' }}
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage
@@ -193,7 +219,7 @@ jobs:
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'  }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux
+          name: sunshine-linux-${{ matrix.type }}
           path: artifacts/
 
       - name: Create Release
@@ -229,7 +255,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=/usr/local/sunshine/.assets -DSUNSHINE_CONFIG_DIR=/usr/local/sunshine/config ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=/usr/local/sunshine/assets -DSUNSHINE_CONFIG_DIR=/usr/local/sunshine/config ..
           make -j ${nproc}
 
       - name: Package MacOS
