@@ -93,7 +93,8 @@ jobs:
               libxfixes-dev \
               libxrandr-dev \
               libxtst-dev \
-              wget
+              wget \
+              zstd
           # # Ubuntu 20.04+ packages
           # libboost-filesystem-dev
           # libboost-log-dev
