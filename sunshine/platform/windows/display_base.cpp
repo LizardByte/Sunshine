@@ -20,6 +20,10 @@ capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::ch
     return capture_status;
   }
 
+  if(config::video.dwmflush) {
+    DwmFlush();
+  }
+
   auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
 
   switch(status) {

@@ -400,7 +400,18 @@
           You can select the video card you want to stream:<br />
           The appropriate values can be found using the following command:<br />
           tools\dxgi-info.exe<br />
-          <br />
+        </div>
+      </div>
+      <!--DwmFlush-->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="dwmflush" class="form-label">DwmFlush</label>
+        <select id="dwmflush" class="form-select" v-model="config.dwmflush">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Improves capture latency during mouse movement.<br />
+          Enabling this may prevent the client's FPS from exceeding the host monitor's active refresh rate.
         </div>
       </div>
       <div class="mb-3" class="config-page" v-if="platform === 'linux'">
@@ -832,6 +843,7 @@
             this.config.key_rightalt_to_key_win || "disabled";
           this.config.gamepad = this.config.gamepad || "x360";
           this.config.upnp = this.config.upnp || "disabled";
+          this.config.dwmflush = this.config.dwmflush || "disabled";
           this.config.min_log_level = this.config.min_log_level || 2;
           this.config.origin_pin_allowed =
             this.config.origin_pin_allowed || "pc";

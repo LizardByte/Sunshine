@@ -333,6 +333,25 @@ Example
         3840x1600,
       ]
 
+dwmflush
+^^^^^^^^
+
+Description
+   Invoke DwmFlush() to sync screen capture to the Windows presentation interval.
+
+   .. Caution:: Applies to Windows only. Alleviates visual stuttering during mouse movement, but causes the capture
+      rate to be limited to the host monitor's currently active refresh rate.
+
+Default
+   ``disabled``
+
+Examples
+
+   Windows
+      .. code-block:: text
+
+         dwmflush = enabled
+
 Audio
 -----
 
