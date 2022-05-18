@@ -220,6 +220,12 @@ video_t video {
     std::nullopt,
     -1 }, // amd
 
+  {
+    0,
+    0,
+    1,
+    -1 }, // vt
+
   {}, // encoder
   {}, // adapter_name
   {}, // output_name
@@ -722,11 +728,8 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   int_f(vars, "vt_coder", video.vt.coder, vt::coder_from_view);
-  video.vt.allow_sw = 0;
   int_f(vars, "vt_software", video.vt.allow_sw, vt::allow_software_from_view);
-  video.vt.require_sw = 0;
   int_f(vars, "vt_software", video.vt.require_sw, vt::force_software_from_view);
-  video.vt.realtime = 1;
   int_f(vars, "vt_realtime", video.vt.realtime, vt::rt_from_view);
 
   string_f(vars, "encoder", video.encoder);
