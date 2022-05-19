@@ -696,7 +696,7 @@
         </select>
       </div>
       <div class="mb-3">
-        <label for="amd_coder" class="form-label">AMD AMF Rate Control</label>
+        <label for="amd_coder" class="form-label">AMD AMF Coder</label>
         <select id="amd_coder" class="form-select" v-model="config.amd_coder">
           <option value="auto">auto</option>
           <option value="cabac">cabac</option>
@@ -842,6 +842,7 @@
           this.config.nv_preset = this.config.nv_preset || "default";
           this.config.nv_rc = this.config.nv_rc || "auto";
           this.config.nv_coder = this.config.nv_coder || "auto";
+          this.config.amd_coder = this.config.amd_coder || "auto"
           this.config.amd_quality = this.config.amd_quality || "default";
           this.config.amd_rc = this.config.amd_rc || "auto";
           this.config.vt_coder = this.config.vt_coder || "auto";
