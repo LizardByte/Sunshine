@@ -37,13 +37,13 @@
           class="form-select"
           v-model="config.min_log_level"
         >
-          <option :value="0">Verbose</option>
-          <option :value="1">Debug</option>
-          <option :value="2">Info</option>
-          <option :value="3">Warning</option>
-          <option :value="4">Error</option>
-          <option :value="5">Fatal</option>
-          <option :value="6">None</option>
+          <option value="0">Verbose</option>
+          <option value="1">Debug</option>
+          <option value="2">Info</option>
+          <option value="3">Warning</option>
+          <option value="4">Error</option>
+          <option value="5">Fatal</option>
+          <option value="6">None</option>
         </select>
         <div class="form-text">
           The minimum log level printed to standard out
@@ -497,7 +497,7 @@
       <div class="mb-3">
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
-          <option :value="''">Autodetect</option>
+          <option value>Autodetect</option>
           <option value="nvenc">nVidia NVENC</option>
           <option value="amdvce">AMD AMF/VCE</option>
           <option value="vaapi">VA-API</option>
