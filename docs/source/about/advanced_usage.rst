@@ -339,11 +339,12 @@ dwmflush
 Description
    Invoke DwmFlush() to sync screen capture to the Windows presentation interval.
 
-   .. Caution:: Applies to Windows only. Alleviates visual stuttering during mouse movement, but causes the capture
-      rate to be limited to the host monitor's currently active refresh rate.
+   .. Caution:: Applies to Windows only. Alleviates visual stuttering during mouse movement.
+      If enabled, this feature will automatically deactivate if the client framerate exceeds
+      the host monitor's current refresh rate.
 
 Default
-   ``disabled``
+   ``enabled``
 
 Examples
 

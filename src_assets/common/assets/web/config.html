@@ -410,8 +410,8 @@
           <option value="enabled">Enabled</option>
         </select>
         <div class="form-text">
-          Improves capture latency during mouse movement.<br />
-          Enabling this may prevent the client's FPS from exceeding the host monitor's active refresh rate.
+          Improves capture latency/smoothness during mouse movement.<br />
+          Disable if you encounter any VSync-related issues.
         </div>
       </div>
       <div class="mb-3" class="config-page" v-if="platform === 'linux'">
@@ -843,7 +843,7 @@
             this.config.key_rightalt_to_key_win || "disabled";
           this.config.gamepad = this.config.gamepad || "x360";
           this.config.upnp = this.config.upnp || "disabled";
-          this.config.dwmflush = this.config.dwmflush || "disabled";
+          this.config.dwmflush = this.config.dwmflush || "enabled";
           this.config.min_log_level = this.config.min_log_level || 2;
           this.config.origin_pin_allowed =
             this.config.origin_pin_allowed || "pc";

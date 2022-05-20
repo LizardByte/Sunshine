@@ -2,6 +2,7 @@
 // Created by loki on 1/12/20.
 //
 
+#include <cmath>
 #include <codecvt>
 
 #include "display.h"
@@ -20,7 +21,7 @@ capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::ch
     return capture_status;
   }
 
-  if(config::video.dwmflush) {
+  if(use_dwmflush) {
     DwmFlush();
   }
 
@@ -216,6 +217,21 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     << "Capture size       : "sv << width << 'x' << height << std::endl
     << "Offset             : "sv << offset_x << 'x' << offset_y << std::endl
     << "Virtual Desktop    : "sv << env_width << 'x' << env_height;
+
+  // Enable DwmFlush() only if the current refresh rate can match the client framerate.
+  auto refresh_rate = framerate;
+  DWM_TIMING_INFO timing_info;
+  timing_info.cbSize = sizeof(timing_info);
+
+  status = DwmGetCompositionTimingInfo(NULL, &timing_info);
+  if(FAILED(status)) {
+    BOOST_LOG(warning) << "Failed to detect active refresh rate.";
+  }
+  else {
+    refresh_rate = std::round((double)timing_info.rateRefresh.uiNumerator / (double)timing_info.rateRefresh.uiDenominator);
+  }
+
+  dup.use_dwmflush = config::video.dwmflush && !(framerate > refresh_rate) ? true : false;
 
   // Bump up thread priority
   {

@@ -226,10 +226,10 @@ video_t video {
     1,
     -1 }, // vt
 
-  {},   // encoder
-  {},   // adapter_name
-  {},   // output_name
-  false // dwmflush
+  {},  // encoder
+  {},  // adapter_name
+  {},  // output_name
+  true // dwmflush
 };
 
 audio_t audio {};
