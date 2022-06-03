@@ -15,7 +15,7 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Clang format lint
-      uses: DoozyX/clang-format-lint-action@v0.13
+      uses: DoozyX/clang-format-lint-action@v0.14
       with:
         source: './sunshine'
         extensions: 'cpp,h,m,mm'
