@@ -120,7 +120,7 @@ It's necessary to allow Sunshine to use KMS
 - Run `sunshine` to start the Sunshine server
 - You will be asked to grant access to screen recording and your microphone to be able to stream it
 
-### Manuel Build
+### Manual Build
 
 #### Requirements:
 macOS Big Sur and Xcode 12.5+:
