@@ -65,9 +65,9 @@ jobs:
             SUNSHINE_ASSETS_DIR: 'assets'
             SUNSHINE_CONFIG_DIR: 'config'
           - type: appimage
-            CMAKE_INSTALL_PREFIX: '.'
-            SUNSHINE_ASSETS_DIR: 'usr/local/sunshine/assets'
-            SUNSHINE_CONFIG_DIR: 'usr/local/sunshine/config'
+            CMAKE_INSTALL_PREFIX: '/usr'
+            SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
+            SUNSHINE_CONFIG_DIR: 'sunshine.AppImage.home'
 
     steps:
       - name: Checkout
@@ -172,8 +172,11 @@ jobs:
           # install sunshine to the DESTDIR
           make install DESTDIR=AppDir
           
-          # testing only
-          ls AppDir
+          # portable home and config
+          # todo - this is ugly... we should use a custom AppRun script to take care of this
+          mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
+          mkdir -p ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}
+          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
           
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
@@ -204,6 +207,9 @@ jobs:
 
           # move
           mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
+          
+          # permissions
+          chmod +x ../artifacts/sunshine.AppImage
 
       - name: Verify AppImage
         if: ${{ matrix.type == 'appimage' }}
@@ -214,6 +220,17 @@ jobs:
           # rm -rf ~/.cache/appimagelint/
           
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
+
+      - name: Archive AppImage
+        if: ${{ matrix.type == 'appimage' }}
+        working-directory: artifacts
+        run: |
+          chmod +x ./sunshine.AppImage
+          
+          zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
+          
+          # testing
+          ls
 
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'  }}
