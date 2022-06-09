@@ -61,9 +61,9 @@ jobs:
       matrix:
         include: # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: '/usr/local/sunshine'
-            SUNSHINE_ASSETS_DIR: 'assets'
-            SUNSHINE_CONFIG_DIR: 'config'
+            CMAKE_INSTALL_PREFIX: ''
+            SUNSHINE_ASSETS_DIR: '/usr/local/sunshine/assets'
+            SUNSHINE_CONFIG_DIR: '/usr/local/sunshine/config'
           - type: appimage
             CMAKE_INSTALL_PREFIX: '/usr'
             SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
