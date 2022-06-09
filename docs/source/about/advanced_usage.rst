@@ -1055,7 +1055,7 @@ Description
    by Moonlight.
 
 Default
-   OS dependent
+   OS and package dependent
 
 Example
    .. code-block:: text

@@ -46,7 +46,8 @@ extensions = [
     'm2r2',  # enable markdown files
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',  # enable to-do sections
-    'sphinx.ext.viewcode'  # add links to view source code
+    'sphinx.ext.viewcode',  # add links to view source code
+    'sphinx_copybutton',  # add a copy button to code blocks
 ]
 
 # Add any paths that contain templates here, relative to this directory.
