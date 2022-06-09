@@ -43,22 +43,24 @@ The current known compatibility of the AppImage is shown below.
 
 
 #. Download and extract `sunshine-appimage.zip`
+#. Edit ``/etc/udev/rules.d/85-sunshine-rules.rules`` and add
+   ``KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"``
 
 Debian Packages
 ^^^^^^^^^^^^^^^
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:debian?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Download the corresponding `.deb` file, e.g. ``sunshine-ubuntu_20_04.deb``
-#. ``sudo apt install -f <downloaded deb file>``, e.g. ``sudo apt install -f ./sunshine-ubuntu_20_04.deb``
+#. Download ``sunshine.deb``
+#. ``sudo apt install -f ./sunshine.deb``
 
 Red Hat Packages
 ^^^^^^^^^^^^^^^^
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:fedora?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Download the corresponding `.rpm` file, e.g. ``sunshine-fedora_35.rpm``
-#. ``sudo dnf install <downloaded rpm file>``, e.g. ``sudo dnf install ./sunshine-fedora_35.rpm``
+#. Download ``sunshine.rpm``
+#. ``sudo dnf install ./sunshine.rpm``
 
 .. Hint:: If this is the first time installing.
 
