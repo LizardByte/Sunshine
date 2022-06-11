@@ -108,13 +108,35 @@ Disk Image File option:
 
 Portfile option:
    #. Install `MacPorts <https://www.macports.org>`_
-   #. Download the ``Portfile`` to ``/tmp`` and run the following code.
+   #. Update the Macports sources.
 
       .. code-block:: bash
 
-         cd /tmp && sudo port install
+         sudo nano /opt/local/etc/macports/sources.conf
+
+      Add this line, replacing your username, below the line that starts with ``rsync``.
+
+         file://Users/<username>/ports
+
+      ``Ctrl+x``, then ``Y`` to exit and save changes.
+
+   #. Download the ``Portfile`` to ``~/Downloads`` and run the following code.
+
+      .. code-block:: bash
+
+         mkdir -p ~/ports/multimedia/sunshine
+         mv ~/Downlaods/Portfile ~/ports/multimedia/sunshine
+         cd ~/ports
+         portindex
+         sudo port install sunshine
 
    #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+   #. Try to run the following code if you get this error: `Dynamic session lookup supported but failed: launchd did
+      not provide a socket path, verify that org.freedesktop.dbus-session.plist is loaded!`
+
+         .. code-block:: bash
+
+            launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 
 Standalone option:
    #. Download and extract ``sunshine-macos.zip``

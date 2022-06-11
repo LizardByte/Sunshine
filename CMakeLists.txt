@@ -443,9 +443,7 @@ endforeach()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)
 
-#############
 # CPACK / Packaging
-####
 
 # Common options
 set(CPACK_PACKAGE_NAME "SunshineStream")
@@ -562,6 +560,7 @@ if(APPLE) # TODO: test
 	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
 	set(CPACK_BUNDLE_PLIST "${APPLE_PLIST_FILE}")
 	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
+	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
 
 	# Portfile
 	configure_file(Portfile.in Portfile @ONLY)
