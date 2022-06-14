@@ -266,8 +266,10 @@ jobs:
           ln -s ../opt/openssl/include/openssl .
           
           # update paths for macports
-          echo "/opt/local/sbin" >> $GITHUB_PATH
-          echo "/opt/local/bin" >> $GITHUB_PATH
+          # echo "/opt/local/sbin" >> $GITHUB_PATH
+          echo "/Users/runner/macports/sbin" >> $GITHUB_PATH
+          # echo "/opt/local/bin" >> $GITHUB_PATH
+          echo "/Users/runner/macports/bin" >> $GITHUB_PATH
 
       - name: Build MacOS
         run: |
@@ -317,7 +319,7 @@ jobs:
           tar xf MacPorts-2.7.2.tar.bz2
           
           cd MacPorts-2.7.2
-          ./configure
+          ./configure --prefix=/Users/runner/macports
           make
           sudo make install
           cd ../
@@ -327,10 +329,14 @@ jobs:
           sudo port -v selfupdate
           
           # use custom sources
-          sudo chmod 777 /opt/local/etc/macports/sources.conf
-          echo file://$(echo ~)/ports > /opt/local/etc/macports/sources.conf
-          echo rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default] >> /opt/local/etc/macports/sources.conf
-          sudo chmod 644 /opt/local/etc/macports/sources.conf
+          # sudo chmod 777 /opt/local/etc/macports/sources.conf
+          sudo chmod 777 /Users/runner/macports/etc/macports/sources.conf
+          # echo file://$(echo ~)/ports > /opt/local/etc/macports/sources.conf
+          echo file://$(echo ~)/ports > /Users/runner/macports/etc/macports/sources.conf
+          # echo rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default] >> /opt/local/etc/macports/sources.conf
+          echo rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default] >> /Users/runner/macports/etc/macports/sources.conf
+          # sudo chmod 644 /opt/local/etc/macports/sources.conf
+          sudo chmod 644 /Users/runner/macports/etc/macports/sources.conf
 
       - name: Package with MacPorts
         run: |
@@ -358,11 +364,11 @@ jobs:
           mv $(port work sunshine)/Sunshine*.ppkg ./artifacts/sunshine.pkg
           
           # testing only
-          ls ~/ports/multimedia/sunshine
-          cat ~/ports/multimedia/sunshine/Portfile
-          cat /opt/local/etc/macports/sources.conf
-          cat ~/ports/Portindex
-          port search sunshine
+          # ls ~/ports/multimedia/sunshine
+          # cat ~/ports/multimedia/sunshine/Portfile
+          # cat /opt/local/etc/macports/sources.conf
+          # cat ~/ports/Portindex
+          # port search sunshine
 
       - name: Upload Artifacts
         if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
