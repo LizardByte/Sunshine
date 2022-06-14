@@ -230,7 +230,6 @@ jobs:
           zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
 
       - name: Upload Artifacts
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'  }}
         uses: actions/upload-artifact@v3
         with:
           name: sunshine-linux-${{ matrix.type }}
@@ -247,7 +246,7 @@ jobs:
 
   build_mac:
     name: MacOS
-    runs-on: macos-12
+    runs-on: macos-11
     needs: check_changelog
 
     steps:
@@ -256,20 +255,20 @@ jobs:
         with:
           submodules: recursive
 
+      # this is for the macports job
+      - name: Cache Artifacts
+        uses: actions/cache@v3
+        with:
+          path: artifacts
+          key: ${{ runner.os }}-artifacts
+
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
           brew install boost cmake ffmpeg opus
 
           # fix openssl header not found
-          cd /usr/local/include
-          ln -s ../opt/openssl/include/openssl .
-          
-          # update paths for macports
-          # echo "/opt/local/sbin" >> $GITHUB_PATH
-          echo "/Users/runner/macports/sbin" >> $GITHUB_PATH
-          # echo "/opt/local/bin" >> $GITHUB_PATH
-          echo "/Users/runner/macports/bin" >> $GITHUB_PATH
+          ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
       - name: Build MacOS
         run: |
@@ -297,6 +296,10 @@ jobs:
 
       - name: Package MacOS
         run: |
+          # remove cached artifacts
+          rm -r -f ./artifacts
+          mkdir artifacts
+          
           mkdir -p artifacts
           cd build
 
@@ -313,47 +316,98 @@ jobs:
           # move
           mv Portfile ../artifacts/Portfile
 
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-macos
+          path: artifacts/
+
+      # this step can be removed after packages are fixed
+      - name: Delete experimental packages
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        working-directory: artifacts
+        run: |
+          rm -f ./sunshine-macos-experimental-dragndrop.dmg
+          rm -f ./sunshine-macos-experimental-bundle.dmg
+          rm -f ./sunshine-macos-experimental-archive.zip
+
+      - name: Create Release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: SunshineStream/actions/create_release@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          next_version: ${{ needs.check_changelog.outputs.next_version }}
+          last_version: ${{ needs.check_changelog.outputs.last_version }}
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
+
+  build_mac_port:
+    name: Macports
+    runs-on: macos-11
+    needs: [check_changelog, build_mac]
+    if: never()  # disable this job
+
+    steps:
+      - name: Cache Artifacts
+        uses: actions/cache@v3
+        with:
+          path: artifacts
+          key: ${{ runner.os }}-artifacts
+
       - name: Setup Macports
         run : |
+          # update paths for macports
+          echo "/opt/local/sbin" >> $GITHUB_PATH
+          echo "/opt/local/bin" >> $GITHUB_PATH
+                    
+          # Set OpenSSL 1.1 as default
+          # rm -rf /usr/local/opt/openssl
+          # rm -rf /usr/local/bin/openssl
+          # ln -sf /usr/local/Cellar/openssl@1.1/1.1.1o/bin/openssl /usr/local/bin/openssl
+          # ln -sf /usr/local/Cellar/openssl@1.1/1.1.1o /usr/local/opt/openssl
+          
+          # download and extract macports
           curl -O https://distfiles.macports.org/MacPorts/MacPorts-2.7.2.tar.bz2
           tar xf MacPorts-2.7.2.tar.bz2
           
+          # build macports
           cd MacPorts-2.7.2
-          ./configure --prefix=/Users/runner/macports
+          ./configure
           make
           sudo make install
           cd ../
           rm -rf MacPorts-2.7.2*
-          
+
+      - name: Configure Macports
+        run: |
           # update sources
           sudo port -v selfupdate
           
           # use custom sources
-          # sudo chmod 777 /opt/local/etc/macports/sources.conf
-          sudo chmod 777 /Users/runner/macports/etc/macports/sources.conf
-          # echo file://$(echo ~)/ports > /opt/local/etc/macports/sources.conf
-          echo file://$(echo ~)/ports > /Users/runner/macports/etc/macports/sources.conf
-          # echo rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default] >> /opt/local/etc/macports/sources.conf
-          echo rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default] >> /Users/runner/macports/etc/macports/sources.conf
-          # sudo chmod 644 /opt/local/etc/macports/sources.conf
-          sudo chmod 644 /Users/runner/macports/etc/macports/sources.conf
-
-      - name: Package with MacPorts
-        run: |
+          sudo chmod 777 /opt/local/etc/macports/sources.conf
+          echo file://$(echo ~)/ports > /opt/local/etc/macports/sources.conf
+          echo rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default] >> /opt/local/etc/macports/sources.conf
+          sudo chmod 644 /opt/local/etc/macports/sources.conf
+          
           # setup custom port
           mkdir -p ~/ports/multimedia/sunshine
           
           # copy configured Portfile
-          cp ./artifacts/Portfile ~/ports/multimedia/sunshine/
+          mv ./artifacts/Portfile ~/ports/multimedia/sunshine/
+          
+          # remove remaining cached artifacts
+          rm -r -f ./artifacts
+          mkdir artifacts
           
           # index the ports
           cd ~/ports
           portindex
-          
+
+      - name: Build
+        run: |
           # build port
-          sudo port install sunshine
-          # || cat /opt/local/var/macports/logs/_Users_runner_ports_multimedia_sunshine/Sunshine/main.log \
-          # && exit 1
+          sudo port install sunshine \
+          || cat /opt/local/var/macports/logs/_Users_runner_ports_multimedia_sunshine/Sunshine/main.log \
+          && exit 1
           
           # create packages
           sudo port dmg sunshine
@@ -371,20 +425,10 @@ jobs:
           # port search sunshine
 
       - name: Upload Artifacts
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-macos
+          name: sunshine-macports
           path: artifacts/
-
-      # this step can be removed after packages are fixed
-      - name: Delete experimental packages
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        working-directory: artifacts
-        run: |
-          rm -f ./sunshine-macos-experimental-dragndrop.dmg
-          rm -f ./sunshine-macos-experimental-bundle.dmg
-          rm -f ./sunshine-macos-experimental-archive.zip
 
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
@@ -449,7 +493,6 @@ jobs:
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows.zip
 
       - name: Upload Artifacts
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@v3
         with:
           name: sunshine-windows
