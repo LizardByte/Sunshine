@@ -6,8 +6,11 @@ Sunshine will work with the default settings for most users. In some cases you m
 
 Configuration
 -------------
-The default location for the configuration file is ``./assets/sunshine.conf``. You can use another location if you
+The default location for the configuration file is listed below. You can use another location if you
 choose, by passing in the full configuration file path as the first argument when you start Sunshine.
+
+The default location of the ``apps.json`` is the same as the configuration file. You can use a custom
+location by modifying the configuration file.
 
 **Default File Location**
 
@@ -17,9 +20,10 @@ choose, by passing in the full configuration file path as the first argument whe
    =======   ===========
    Value     Description
    =======   ===========
-   Linux     ./assets/sunshine.conf
-   MacOS     /opt/local/etc/sunshine.conf
-   Windows   ./assets/sunshine.conf
+   Docker    /config/
+   Linux     /usr/local/sunshine/config/
+   MacOS     /usr/local/sunshine/config/
+   Windows   ./config/
    =======   ===========
 
 Example
@@ -1051,7 +1055,7 @@ Description
    by Moonlight.
 
 Default
-   OS dependent
+   OS and package dependent
 
 Example
    .. code-block:: text

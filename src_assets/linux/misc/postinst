@@ -1,0 +1,41 @@
+#!/bin/sh
+
+export GROUP_INPUT=input
+
+if [ -f /etc/group ]; then
+        if ! grep -q $GROUP_INPUT /etc/group; then
+                echo "Creating group $GROUP_INPUT"
+
+                groupadd $GROUP_INPUT
+        fi
+else
+        echo "Warning: /etc/group not found"
+fi
+
+if [ -f /usr/local/sunshine/config/sunshine.conf.old ]; then
+	echo "Restoring old sunshine.conf"
+	mv /usr/local/sunshine/config/sunshine.conf.old /usr/local/sunshine/config/sunshine.conf
+fi
+
+if [ -f /usr/local/sunshine/config/apps.json.old ]; then
+	echo "Restoring old apps.json"
+	mv /usr/local/sunshine/config/apps.json.old /usr/local/sunshine/config/apps.json
+fi
+
+# Update permissions on config files for Web Manager
+if [ -f /usr/local/sunshine/config/apps.json ]; then
+	echo "chmod 666 /etc/sunshine/apps.json"
+	chmod 666 /usr/local/sunshine/config/apps.json
+fi
+
+if [ -f /usr/local/sunshine/config/sunshine.conf ]; then
+	echo "chmod 666 /etc/sunshine/sunshine.conf"
+	chmod 666 /usr/local/sunshine/config/sunshine.conf
+fi
+
+# Ensure Sunshine can grab images from KMS
+path_to_setcap=$(which setcap)
+if [ -x "$path_to_setcap" ] ; then
+  echo "$path_to_setcap cap_sys_admin+p /usr/bin/sunshine"
+	$path_to_setcap cap_sys_admin+p $(readlink -f /usr/bin/sunshine)
+fi

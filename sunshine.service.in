@@ -1,5 +1,5 @@
 [Unit]
-Description=Sunshine Gamestream Server for Moonlight
+Description=@PROJECT_DESCRIPTION@
 
 [Service]
 ExecStart=@SUNSHINE_EXECUTABLE_PATH@

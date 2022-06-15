@@ -27,7 +27,7 @@ author = 'ReenigneArcher'
 
 # The full version, including alpha/beta/rc tags
 with open(os.path.join(root_dir, 'CMakeLists.txt'), 'r') as f:
-    version = re.search(r"project\(Sunshine VERSION ((\d+)\.(\d+)\.(\d+))\)", str(f.read())).group(1)
+    version = re.search(r"project\(Sunshine VERSION ((\d+)\.(\d+)\.(\d+))", str(f.read())).group(1)
 """
 To use cmake method for obtaining version instead of regex,
 1. Within CMakeLists.txt add the following line without backticks:
@@ -46,7 +46,8 @@ extensions = [
     'm2r2',  # enable markdown files
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',  # enable to-do sections
-    'sphinx.ext.viewcode'  # add links to view source code
+    'sphinx.ext.viewcode',  # add links to view source code
+    'sphinx_copybutton',  # add a copy button to code blocks
 ]
 
 # Add any paths that contain templates here, relative to this directory.

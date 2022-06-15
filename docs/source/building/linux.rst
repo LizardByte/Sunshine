@@ -239,6 +239,8 @@ Finally
    .. code-block:: bash
 
       make -j ${nproc}
+      cpack -G DEB  # optionally, create a deb package
+      cpack -G RPM  # optionally, create a rpm package
 
 Dockerfile Builds
 -----------------

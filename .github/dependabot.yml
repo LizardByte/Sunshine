@@ -6,3 +6,10 @@ updates:
       interval: "daily"
     target-branch: "nightly"
     open-pull-requests-limit: 20
+
+  - package-ecosystem: "pip"
+    directory: "/scripts"
+    schedule:
+      interval: "daily"
+    target-branch: "nightly"
+    open-pull-requests-limit: 10

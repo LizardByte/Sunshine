@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=sunshine
+Name=@PROJECT_NAME@
 Exec=sunshine
 Version=1.0
-Comment=Host for Moonlight Streaming Client
+Comment=@PROJECT_DESCRIPTION@
 Icon=sunshine
 Categories=Utility;
 Terminal=true
