@@ -1,0 +1,21 @@
+"base_path": "."
+"base_url": "https://api.crowdin.com"  # optional (for Crowdin Enterprise only)
+"preserve_hierarchy": false  # flatten tree on crowdin
+"pull_request_labels": [
+  "crowdin",
+  "l10n"
+]
+
+"files" : [
+  {
+    "source" : "/locale/*.po",
+    "translation" : "/locale/%two_letters_code%/LC_MESSAGES/%original_file_name%",
+    "languages_mapping": {
+      "two_letters_code": {
+        # map non-two letter codes here, left side is crowdin designation, right side is babel designation
+        "en-GB": "en_GB",
+        "en-US": "en_US"
+      }
+    }
+  }
+]

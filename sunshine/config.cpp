@@ -20,7 +20,7 @@ using namespace std::literals;
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
 #define CERTIFICATE_FILE CA_DIR "/cacert.pem"
 
-#define APPS_JSON_PATH SUNSHINE_CONFIG_DIR "/" APPS_JSON
+#define APPS_JSON_PATH SUNSHINE_CONFIG_DIR "/apps.json"
 namespace config {
 
 namespace nv {
@@ -220,9 +220,16 @@ video_t video {
     std::nullopt,
     -1 }, // amd
 
-  {}, // encoder
-  {}, // adapter_name
-  {}, // output_name
+  {
+    0,
+    0,
+    1,
+    -1 }, // vt
+
+  {},  // encoder
+  {},  // adapter_name
+  {},  // output_name
+  true // dwmflush
 };
 
 audio_t audio {};
@@ -695,7 +702,7 @@ int apply_flags(const char *line) {
 
 void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   if(!fs::exists(stream.file_apps.c_str())) {
-    fs::copy_file(SUNSHINE_DEFAULT_DIR "/" APPS_JSON, stream.file_apps);
+    fs::copy_file(SUNSHINE_CONFIG_DIR "/apps.json", stream.file_apps);
   }
 
   for(auto &[name, val] : vars) {
@@ -722,16 +729,14 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   int_f(vars, "vt_coder", video.vt.coder, vt::coder_from_view);
-  video.vt.allow_sw = 0;
   int_f(vars, "vt_software", video.vt.allow_sw, vt::allow_software_from_view);
-  video.vt.require_sw = 0;
   int_f(vars, "vt_software", video.vt.require_sw, vt::force_software_from_view);
-  video.vt.realtime = 1;
   int_f(vars, "vt_realtime", video.vt.realtime, vt::rt_from_view);
 
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
+  bool_f(vars, "dwmflush", video.dwmflush);
 
   path_f(vars, "pkey", nvhttp.pkey);
   path_f(vars, "cert", nvhttp.cert);
@@ -906,7 +911,7 @@ int parse(int argc, char *argv[]) {
   }
 
   if(!fs::exists(sunshine.config_file)) {
-    fs::copy_file(SUNSHINE_DEFAULT_DIR "/sunshine.conf", sunshine.config_file);
+    fs::copy_file(SUNSHINE_CONFIG_DIR "/sunshine.conf", sunshine.config_file);
   }
 
   auto vars = parse_config(read_file(sunshine.config_file.c_str()));

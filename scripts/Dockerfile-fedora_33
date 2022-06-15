@@ -1,5 +1,8 @@
 FROM fedora:33 AS sunshine-fedora_33
 
+# Fedora 33 end of life is November 2021
+# This file remains for reference only
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN dnf -y update && \
     dnf -y group install "Development Tools" && \
@@ -18,10 +21,12 @@ RUN dnf -y update && \
         openssl-devel \
         opus-devel \
         pulseaudio-libs-devel \
+        libcap-devel \
+        libdrm-devel \
+        rpm-build \
     && dnf clean all \
     && rm -rf /var/cache/yum
 
+# Entrypoint
 COPY build-private.sh /root/build.sh
-
-
-ENTRYPOINT ["/root/build.sh"]
+ENTRYPOINT ["/root/build.sh", "-rpm"]

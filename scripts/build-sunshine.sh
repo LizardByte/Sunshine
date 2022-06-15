@@ -4,7 +4,8 @@ set -e
 usage() {
 	echo "Usage: $0"
 	echo "	-d: Generate a debug build"
-	echo "	-p: Generate a debian package"
+	echo "	-p: Generate a linux package"
+	echo "	-e: Extension of package... i.e. 'deb', 'rpm' --> default [deb]"
 	echo "	-u: The input device is not a TTY"
 	echo "	-n name: Docker container name --> default [sunshine]"
 	echo "	-s path/to/sources/sunshine: Use local sources instead of a git repository"
@@ -26,13 +27,14 @@ absolute_path() {
 
 CMAKE_BUILD_TYPE="-e CMAKE_BUILD_TYPE=Release"
 SUNSHINE_PACKAGE_BUILD=OFF
+SUNSHINE_PACKAGE_EXTENSION=deb
 SUNSHINE_GIT_URL=https://github.com/sunshinestream/sunshine.git
 CONTAINER_NAME=sunshine
 
 # Docker will fail if ctrl+c is passed through and the input is not a tty
 DOCKER_INTERACTIVE=-ti
 
-while getopts ":dpuhc:s:n:" arg; do
+while getopts ":dpuhc:e:s:n:" arg; do
 	case ${arg} in
 		u)
 			echo "Input device is not a TTY"
@@ -48,6 +50,21 @@ while getopts ":dpuhc:s:n:" arg; do
 			SUNSHINE_PACKAGE_BUILD=ON
 			SUNSHINE_ASSETS_DIR="-e SUNSHINE_ASSETS_DIR=/etc/sunshine"
 			SUNSHINE_EXECUTABLE_PATH="-e SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine"
+			;;
+		e)
+			echo "Defining package extension: $OPTARG"
+			if [ "$OPTARG" == "deb" ]
+			then
+				SUNSHINE_PACKAGE_EXTENSION=$OPTARG
+				echo "Package extension: deb"
+			elif [ "$OPTARG" == "rpm" ]
+			then
+				SUNSHINE_PACKAGE_EXTENSION=$OPTARG
+				echo "Package extension: rpm"
+			else
+				echo "Package extension not supported: $OPTARG"
+				echo "Falling back to default package extension: $SUNSHINE_PACKAGE_EXTENSION"
+			fi
 			;;
 		s)
 			absolute_path "$OPTARG"
@@ -98,8 +115,8 @@ then
 	mkdir -p $BUILD_DIR
 	case $SUNSHINE_PACKAGE_BUILD in
 		ON)
-			echo "Downloading package to: $BUILD_DIR/$CONTAINER_NAME.deb"
-			docker cp $CONTAINER_NAME:/root/sunshine-build/package-deb/sunshine.deb "$BUILD_DIR/$CONTAINER_NAME.deb"
+			echo "Downloading package to: $BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
+			docker cp $CONTAINER_NAME:/root/sunshine-build/package-$SUNSHINE_PACKAGE_EXTENSION/sunshine.$SUNSHINE_PACKAGE_EXTENSION "$BUILD_DIR/$CONTAINER_NAME.$SUNSHINE_PACKAGE_EXTENSION"
 			;;
 		*)
 			echo "Downloading binary and assets to: $BUILD_DIR"

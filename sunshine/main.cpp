@@ -57,24 +57,34 @@ struct NoDelete {
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
+/** Print the help to stdout.
+
+    This function prints output to stdout.
+*/
 void print_help(const char *name) {
   std::cout
     << "Usage: "sv << name << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
     << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
     << std::endl
+    << "    Note: The configuration will be created if it doesn't exist."sv << std::endl
+    << std::endl
     << "    --help                    | print help"sv << std::endl
-    << "    --creds username password | set user credentials for the Web manager" << std::endl
-    << "    --version                 | print the version of sunshine" << std::endl
+    << "    --creds username password | set user credentials for the Web manager"sv << std::endl
+    << "    --version                 | print the version of sunshine"sv << std::endl
     << std::endl
     << "    flags"sv << std::endl
     << "        -0 | Read PIN from stdin"sv << std::endl
     << "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl
     << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv << std::endl
-    << "        -2 | Force replacement of headers in video stream" << std::endl
-    << "        -p | Enable/Disable UPnP" << std::endl
+    << "        -2 | Force replacement of headers in video stream"sv << std::endl
+    << "        -p | Enable/Disable UPnP"sv << std::endl
     << std::endl;
 }
 
+/** Call the print_help function.
+
+    Calls the print_help function and then exits.
+*/
 namespace help {
 int entry(const char *name, int argc, char *argv[]) {
   print_help(name);
@@ -82,6 +92,10 @@ int entry(const char *name, int argc, char *argv[]) {
 }
 } // namespace help
 
+/** Print the version details to stdout.
+
+    This function prints the version details to stdout and then exits.
+*/
 namespace version {
 int entry(const char *name, int argc, char *argv[]) {
   std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;

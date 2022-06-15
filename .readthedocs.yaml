@@ -1,0 +1,44 @@
+# .readthedocs.yaml
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+# Required
+version: 2
+
+# Set the version of Python
+build:
+  os: ubuntu-20.04
+  tools:
+    python: "3.9"
+
+## apt packages required packages to run cmake on sunshine, note that additional packages are required
+#  apt_packages:
+#    - cmake
+#    - ffmpeg
+#    - libboost-filesystem-dev
+#    - libboost-log-dev
+#    - libboost-thread-dev
+
+## run cmake
+#  jobs:
+#    pre_build:
+#      - cmake .
+
+## Include the submodules, required for cmake
+#submodules:
+#  include: all
+#  recursive: true
+
+# Build documentation in the docs/ directory with Sphinx
+sphinx:
+  builder: html
+  configuration: docs/source/conf.py
+  fail_on_warning: true
+
+# Using Sphinx, build docs in additional formats
+formats: all
+
+python:
+  install:
+    - requirements: ./scripts/requirements.txt
+  system_packages: true
