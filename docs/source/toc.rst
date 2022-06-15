@@ -11,6 +11,15 @@
 
 .. toctree::
    :maxdepth: 2
+   :caption: Troubleshooting
+
+   troubleshooting/general
+   troubleshooting/linux
+   troubleshooting/macos
+   troubleshooting/windows
+
+.. toctree::
+   :maxdepth: 2
    :caption: Build
 
    building/build

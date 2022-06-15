@@ -23,25 +23,6 @@ Linux
 -----
 Follow the instructions for your preferred package type below.
 
-.. Hint:: If this is the first time installing.
-
-      .. code-block:: bash
-
-         sudo usermod -a -G input $USER
-         sudo reboot now
-
-.. Tip:: Optionally, run Sunshine in the background.
-
-      .. code-block:: bash
-
-         systemctl --user start sunshine
-
-.. Note:: If screencasting fails with Wayland, you may need to run the following to force screencasting with X11.
-
-      .. code-block:: bash
-
-         sudo setcap -r $(readlink -f $(which sunshine))
-
 AppImage
 ^^^^^^^^
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
@@ -101,12 +82,7 @@ MacOS
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-Disk Image File option:
-   #. Download and install ``sunshine.dmg``
-
-   .. Warning:: The Disk Image File is experimental. Limited support will be provided.
-
-Portfile option:
+Portfile
    #. Install `MacPorts <https://www.macports.org>`_
    #. Update the Macports sources.
 
@@ -131,17 +107,6 @@ Portfile option:
          sudo port install sunshine
 
    #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
-   #. Try to run the following code if you get this error: `Dynamic session lookup supported but failed: launchd did
-      not provide a socket path, verify that org.freedesktop.dbus-session.plist is loaded!`
-
-         .. code-block:: bash
-
-            launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
-
-Standalone option:
-   #. Download and extract ``sunshine-macos.zip``
-
-   .. Warning:: The Standalone package is experimental. Limited support will be provided.
 
 Windows
 -------

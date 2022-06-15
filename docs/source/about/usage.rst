@@ -56,33 +56,26 @@ Setup
 
 Linux
 ^^^^^
-The deb and rpm packages handle these steps automatically. The AppImage does not, and third party packages may not as
-well.
+The deb and rpm packages handle these steps automatically. The AppImage does not, third party packages may not as well.
 
 Sunshine needs access to `uinput` to create mouse and gamepad events.
 
-Add user to group `input`.
+Add user to group `input`, if this is the first time installing.
    .. code-block:: bash
 
-      usermod -a -G input $USER
-
-   .. Warning:: If the above doesn't work you can try the following. This is not an advised method as it makes the
-      current user the owner of ``/dev/uinput``. Use at your own risk.
-
-      .. code-block:: bash
-
-         sudo chown $USER /dev/uinput
+      sudo usermod -a -G input $USER
+      sudo reboot now
 
 Create `udev` rules.
    .. code-block:: bash
 
-      nano /etc/udev/rules.d/85-sunshine-input.rules
+      sudo nano /etc/udev/rules.d/85-sunshine-input.rules
 
    Input the following contents.
 
    .. code-block::
 
-      KERNEL=="uinput", GROUP="input", MODE="0660", OPTION+="static_node=uinput"
+      KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
 
    Save the file and exit:
 
@@ -99,10 +92,21 @@ Configure autostart service
          Description=Sunshine Gamestream Server for Moonlight
 
          [Service]
-         ExecStart=~/sunshine.AppImage
+         ExecStart=<see table>
 
          [Install]
          WantedBy=graphical-session.target
+
+      .. table::
+         :widths: auto
+
+         ========   ===================   ===============
+         package    ExecStart             Auto Configured
+         ========   ===================   ===============
+         deb        /usr/bin/sunshine     ✔
+         rpm        /usr/bin/sunshine     ✔
+         AppImage   ~/sunshine.AppImage   ✖
+         ========   ===================   ===============
 
    Start once
       .. code-block:: bash
@@ -137,7 +141,14 @@ select their sink as audio device in `sunshine.conf`.
 
 .. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
-.. Caution:: Gamepads are not supported.
+.. Caution:: Gamepads are not currently supported.
+
+Configure autostart service
+
+   MacPorts
+      .. code-block:: bash
+
+         sudo port load Sunshine
 
 Windows
 ^^^^^^^
