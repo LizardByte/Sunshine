@@ -37,13 +37,13 @@
           class="form-select"
           v-model="config.min_log_level"
         >
-          <option :value="0">Verbose</option>
-          <option :value="1">Debug</option>
-          <option :value="2">Info</option>
-          <option :value="3">Warning</option>
-          <option :value="4">Error</option>
-          <option :value="5">Fatal</option>
-          <option :value="6">None</option>
+          <option value="0">Verbose</option>
+          <option value="1">Debug</option>
+          <option value="2">Info</option>
+          <option value="3">Warning</option>
+          <option value="4">Error</option>
+          <option value="5">Fatal</option>
+          <option value="6">None</option>
         </select>
         <div class="form-text">
           The minimum log level printed to standard out
@@ -400,7 +400,18 @@
           You can select the video card you want to stream:<br />
           The appropriate values can be found using the following command:<br />
           tools\dxgi-info.exe<br />
-          <br />
+        </div>
+      </div>
+      <!--DwmFlush-->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="dwmflush" class="form-label">DwmFlush</label>
+        <select id="dwmflush" class="form-select" v-model="config.dwmflush">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Improves capture latency/smoothness during mouse movement.<br />
+          Disable if you encounter any VSync-related issues.
         </div>
       </div>
       <div class="mb-3" class="config-page" v-if="platform === 'linux'">
@@ -497,7 +508,7 @@
       <div class="mb-3">
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
-          <option :value="''">Autodetect</option>
+          <option value>Autodetect</option>
           <option value="nvenc">nVidia NVENC</option>
           <option value="amdvce">AMD AMF/VCE</option>
           <option value="vaapi">VA-API</option>
@@ -696,7 +707,7 @@
         </select>
       </div>
       <div class="mb-3">
-        <label for="amd_coder" class="form-label">AMD AMF Rate Control</label>
+        <label for="amd_coder" class="form-label">AMD AMF Coder</label>
         <select id="amd_coder" class="form-select" v-model="config.amd_coder">
           <option value="auto">auto</option>
           <option value="cabac">cabac</option>
@@ -832,6 +843,7 @@
             this.config.key_rightalt_to_key_win || "disabled";
           this.config.gamepad = this.config.gamepad || "x360";
           this.config.upnp = this.config.upnp || "disabled";
+          this.config.dwmflush = this.config.dwmflush || "enabled";
           this.config.min_log_level = this.config.min_log_level || 2;
           this.config.origin_pin_allowed =
             this.config.origin_pin_allowed || "pc";
@@ -842,6 +854,7 @@
           this.config.nv_preset = this.config.nv_preset || "default";
           this.config.nv_rc = this.config.nv_rc || "auto";
           this.config.nv_coder = this.config.nv_coder || "auto";
+          this.config.amd_coder = this.config.amd_coder || "auto"
           this.config.amd_quality = this.config.amd_quality || "default";
           this.config.amd_rc = this.config.amd_rc || "auto";
           this.config.vt_coder = this.config.vt_coder || "auto";

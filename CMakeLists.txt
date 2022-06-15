@@ -122,6 +122,7 @@ if(WIN32)
 		ws2_32
 		d3d11 dxgi D3DCompiler
 		setupapi
+		dwmapi
 		)
 
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
