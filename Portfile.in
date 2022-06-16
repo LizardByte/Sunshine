@@ -43,6 +43,13 @@ startupitem.location     LaunchDaemons
 startupitem.name         ${name}
 startupitem.netchange    yes
 
+platform darwin {
+    if { ${os.major} < 20 } {
+        # See: https://github.com/SunshineStream/Sunshine/discussions/117#discussioncomment-2513494
+        notes-append "Port is limited to software encoding, when used with macOS releases prior to Big Sur."
+    }
+}
+
 # is this actually necessary? this should all be handled by CMakeLists
 destroot {
     # install assets
