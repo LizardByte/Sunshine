@@ -505,3 +505,10 @@ jobs:
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
+
+      - name: Publish to Winget
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: vedantmgoyal2009/vedantmgoyal2009/winget-pkgs-automation/releaser-action@v1.0.0
+        with:
+          identifier: SunshineStream.Sunshine
+          token: ${{ secrets.WINGET_TOKEN }}
