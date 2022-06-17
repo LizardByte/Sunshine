@@ -590,8 +590,8 @@ if(UNIX AND NOT APPLE)
 
 	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
 
-	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
+	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
 	# Pre and post install
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
