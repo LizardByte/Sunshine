@@ -93,24 +93,30 @@ jobs:
           owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
           repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
           branch=${GITHUB_HEAD_REF}
+          commit=${{ github.event.pull_request.head.sha }}
           
           # check the branch variable
           if [ -z "$branch" ]
           then
               echo "This is a PUSH event"
-              branch=${GITHUB_BASE_REF}
+              branch=branch=${{ github.ref_name }}
+              commit=${{ github.sha }}
           else
               echo "This is a PR event"
           fi
           echo "Owner: ${owner}"
           echo "Repo: ${repo}"
           echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
           
           mkdir -p build
           mkdir -p artifacts
           
           cd build
           cmake -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_FLATPAK=ON -DSUNSHINE_CONFIGURE_ONLY=ON ..
+          
+          # add the commit
+          echo "        commit: ${commit}" >> ./com.github.sunshinestream.sunshine.yml
 
       - name: Build Linux Flatpak
         working-directory: build
@@ -361,18 +367,21 @@ jobs:
           owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
           repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
           branch=${GITHUB_HEAD_REF}
+          commit=${{ github.event.pull_request.head.sha }}
           
           # check the branch variable
           if [ -z "$branch" ]
           then
               echo "This is a PUSH event"
-              branch=${GITHUB_BASE_REF}
+              branch=branch=${{ github.ref_name }}
+              commit=${{ github.sha }}
           else
               echo "This is a PR event"
           fi
           echo "Owner: ${owner}"
           echo "Repo: ${repo}"
           echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
           
           mkdir build
           cd build
