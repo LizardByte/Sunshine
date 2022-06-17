@@ -191,14 +191,14 @@ modules:
   - name: sunshine
     buildsystem: cmake
     no-make-install: false
+    builddir: true
     build-options:
-      cxxflags: -I/app/include/libevdev-1.0
+      cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
-      - -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/app/bin
-      - -DCMAKE_INSTALL_PREFIX='/app'
-      - -DSUNSHINE_ASSETS_DIR=assets
-      - -DSUNSHINE_CONFIG_DIR=config
+      - -DCMAKE_INSTALL_PREFIX=/app
+      - -DSUNSHINE_ASSETS_DIR=/app/assets
+      - -DSUNSHINE_CONFIG_DIR=/app/config
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
