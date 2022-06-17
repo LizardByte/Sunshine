@@ -191,11 +191,11 @@ modules:
   - name: sunshine
     buildsystem: cmake
     no-make-install: false
+    builddir: true
     build-options:
-      cxxflags: -I/app/include/libevdev-1.0
+      cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
-      - -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/app/bin
       - -DCMAKE_INSTALL_PREFIX='/app'
       - -DSUNSHINE_ASSETS_DIR=assets
       - -DSUNSHINE_CONFIG_DIR=config
@@ -204,8 +204,6 @@ modules:
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
-    post-install:
-      - cp -f ./src_assets/linux/misc/85-sunshine-rules.rules /etc/udev/rules.d/
     sources:
       - type: git
         url: https://github.com/@GITHUB_OWNER@/@GITHUB_REPO@.git

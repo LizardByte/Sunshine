@@ -67,6 +67,12 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
 
+      - name: Cache flatpak-builder
+        uses: actions/cache@v3
+        with:
+          path: ./build/.flatpak-builder
+          key: ${{ runner.os }}-flatpak-builder
+
       - name: Checkout
         uses: actions/checkout@v3
 
@@ -137,9 +143,9 @@ jobs:
       matrix:
         include: # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: '/usr/local/sunshine'
-            SUNSHINE_ASSETS_DIR: 'assets'
-            SUNSHINE_CONFIG_DIR: 'config'
+            CMAKE_INSTALL_PREFIX: '/usr'
+            SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
+            SUNSHINE_CONFIG_DIR: 'local/sunshine/config'
             EXTRA_ARGS: ''
           - type: appimage
             CMAKE_INSTALL_PREFIX: '/usr'
@@ -370,7 +376,7 @@ jobs:
           
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local/sunshine -DSUNSHINE_ASSETS_DIR=assets -DSUNSHINE_CONFIG_DIR=config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_PORTFILE=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DSUNSHINE_ASSETS_DIR=local/sunshine/assets -DSUNSHINE_CONFIG_DIR=local/sunshine/config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_PORTFILE=ON ..
           make -j ${nproc}
 
       - name: Package MacOS

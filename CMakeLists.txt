@@ -5,6 +5,11 @@ project(Sunshine VERSION 0.14.0
 		HOMEPAGE_URL "https://sunshinestream.github.io"
 		)
 
+option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
+option(SUNSHINE_CONFIGURE_PORTFILE "Configure MacOS Portfile." OFF)
+option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
+
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
 	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
 elseif(${SUNSHINE_CONFIGURE_FLATPAK})
@@ -414,11 +419,9 @@ if(NOT SUNSHINE_CONFIG_DIR)
 	set(SUNSHINE_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/config")
 endif()
 
-if(CMAKE_INSTALL_PREFIX)
-    if(NOT ${SUNSHINE_CONFIGURE_APPIMAGE})
-        set(SUNSHINE_ASSETS_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_ASSETS_DIR}")
-        set(SUNSHINE_CONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_CONFIG_DIR}")
-    endif()
+if(UNIX AND CMAKE_INSTALL_PREFIX AND NOT ${SUNSHINE_CONFIGURE_APPIMAGE})
+	set(SUNSHINE_ASSETS_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_ASSETS_DIR}")
+	set(SUNSHINE_CONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_CONFIG_DIR}")
 endif()
 
 list(APPEND CBS_EXTERNAL_LIBRARIES
@@ -435,7 +438,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${OPENSSL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
-if (NOT WIN32)
+if(NOT WIN32)
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES Boost::log)
 endif()
 
@@ -590,8 +593,8 @@ if(UNIX AND NOT APPLE)
 
 	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
 
-	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
+	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
 	# Pre and post install
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
