@@ -20,6 +20,12 @@ AUR (Arch Linux User Repository)
 
 .. image:: https://img.shields.io/aur/maintainer/sunshine?style=for-the-badge&logo=archlinux
    :alt: AUR maintainer
+   
+Winget
+------
+.. image:: https://repology.org/badge/version-for-repo/winget/sunshine.svg?header=Winget
+   :alt: Winget Version
+   :target: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/SunshineStream/Sunshine
 
 Chocolatey
 ----------
