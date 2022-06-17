@@ -137,9 +137,9 @@ jobs:
       matrix:
         include: # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: ''
-            SUNSHINE_ASSETS_DIR: '/usr/local/sunshine/assets'
-            SUNSHINE_CONFIG_DIR: '/usr/local/sunshine/config'
+            CMAKE_INSTALL_PREFIX: '/usr/local/sunshine'
+            SUNSHINE_ASSETS_DIR: 'assets'
+            SUNSHINE_CONFIG_DIR: 'config'
             EXTRA_ARGS: ''
           - type: appimage
             CMAKE_INSTALL_PREFIX: '/usr'
@@ -370,7 +370,7 @@ jobs:
           
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=/usr/local/sunshine/assets -DSUNSHINE_CONFIG_DIR=/usr/local/sunshine/config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_PORTFILE=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local/sunshine -DSUNSHINE_ASSETS_DIR=assets -DSUNSHINE_CONFIG_DIR=config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_PORTFILE=ON ..
           make -j ${nproc}
 
       - name: Package MacOS

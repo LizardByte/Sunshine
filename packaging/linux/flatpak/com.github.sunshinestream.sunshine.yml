@@ -196,9 +196,9 @@ modules:
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=/app/bin
-      - -DCMAKE_INSTALL_PREFIX=''
-      - -DSUNSHINE_CONFIG_DIR=/app/config
-      - -DSUNSHINE_ASSETS_DIR=/app/assets
+      - -DCMAKE_INSTALL_PREFIX='/app'
+      - -DSUNSHINE_ASSETS_DIR=assets
+      - -DSUNSHINE_CONFIG_DIR=config
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
