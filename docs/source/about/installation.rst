@@ -28,7 +28,7 @@ AppImage
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-The current known compatibility of the AppImage is shown below.
+According to AppImageLint the AppImage can run on the following distros.
 
    - [✖] Debian oldstable (buster)
    - [✔] Debian stable (bullseye)
@@ -42,11 +42,11 @@ The current known compatibility of the AppImage is shown below.
    - [✖] Ubuntu trusty
    - [✖] CentOS 7
 
-#. Download and extract ``sunshine-appimage.zip`` to your home directory.
+#. Download ``sunshine-appimage.zip`` and extract the contents to your home directory.
 
-Debian Packages
-^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:debian?logo=github&style=for-the-badge
+Debian Package
+^^^^^^^^^^^^^^
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:deb?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Download ``sunshine.deb`` and run the following code.
@@ -57,9 +57,29 @@ Debian Packages
 
 .. Tip:: You can double click the deb file to see details about the package and begin installation.
 
-Red Hat Packages
-^^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:fedora?logo=github&style=for-the-badge
+Flatpak Package
+^^^^^^^^^^^^^^^
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:flatpak?logo=github&style=for-the-badge
+   :alt: GitHub issues by-label
+
+.. Todo:: This package needs to have CUDA added.
+
+#. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
+#. Download ``sunshine.flatpak`` and run the following code.
+
+   System level (recommended)
+      .. code-block:: bash
+
+         flatpak install --system sunshine.flatpak
+
+   User level
+      .. code-block:: bash
+
+         flatpak install --user sunshine.flatpak
+
+RPM Package
+^^^^^^^^^^^
+.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:rpm?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Add `rpmfusion` repositories by running the following code.

@@ -70,7 +70,7 @@ jobs:
       - name: Cache flatpak-builder
         uses: actions/cache@v3
         with:
-          path: ./build/.flatpak-builder
+          path: ./build/.flatpak-builder/build
           key: ${{ runner.os }}-flatpak-builder
 
       - name: Checkout
