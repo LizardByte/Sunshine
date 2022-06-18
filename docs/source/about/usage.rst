@@ -33,7 +33,7 @@ Usage
 #. When Moonlight request you insert the correct pin on sunshine:
 
    - Login to the web ui
-   - Go to "PIN" in the Header
+   - Go to "PIN" in the Navbar
    - Type in your PIN and press Enter, you should get a Success Message
    - In Moonlight, select one of the Applications listed
 
@@ -60,77 +60,82 @@ The deb and rpm packages handle these steps automatically. The AppImage does not
 
 Sunshine needs access to `uinput` to create mouse and gamepad events.
 
-Add user to group `input`, if this is the first time installing.
-   .. code-block:: bash
+#. Add user to group `input`, if this is the first time installing.
+      .. code-block:: bash
 
-      sudo usermod -a -G input $USER
-      sudo reboot now
+         sudo usermod -a -G input $USER
 
-Create `udev` rules.
-   .. code-block:: bash
+#. Create `udev` rules.
+      .. code-block:: bash
 
-      sudo nano /etc/udev/rules.d/85-sunshine-input.rules
+         sudo nano /etc/udev/rules.d/85-sunshine-input.rules
 
-   Input the following contents.
-
-   .. code-block::
-
-      KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
-
-   Save the file and exit:
-
-      #. ``CTRL+X`` to start exit.
-      #. ``Y`` to save modifications.
-
-Configure autostart service
-   - filename: ``~/.config/systemd/user/sunshine.service``
-   - contents:
+      Input the following contents.
 
       .. code-block::
 
-         [Unit]
-         Description=Sunshine Gamestream Server for Moonlight
+         KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
 
-         [Service]
-         ExecStart=<see table>
+      Save the file and exit:
 
-         [Install]
-         WantedBy=graphical-session.target
+         #. ``CTRL+X`` to start exit.
+         #. ``Y`` to save modifications.
 
-      .. table::
-         :widths: auto
+#. Optionally, configure autostart service
+      - filename: ``~/.config/systemd/user/sunshine.service``
+      - contents:
 
-         ========   ===================   ===============
-         package    ExecStart             Auto Configured
-         ========   ===================   ===============
-         deb        /usr/bin/sunshine     ✔
-         rpm        /usr/bin/sunshine     ✔
-         AppImage   ~/sunshine.AppImage   ✖
-         ========   ===================   ===============
+         .. code-block::
 
-   Start once
+            [Unit]
+            Description=Sunshine Gamestream Server for Moonlight
+
+            [Service]
+            ExecStart=<see table>
+
+            [Install]
+            WantedBy=graphical-session.target
+
+         .. table::
+            :widths: auto
+
+            ========   ==============================================   ===============
+            package    ExecStart                                        Auto Configured
+            ========   ==============================================   ===============
+            deb        /usr/bin/sunshine                                ✔
+            rpm        /usr/bin/sunshine                                ✔
+            AppImage   ~/sunshine.AppImage                              ✖
+            Flatpak    flatpak run com.github.sunshinestream.sunshine   ✖
+            ========   ==============================================   ===============
+
+      Start once
+         .. code-block:: bash
+
+            systemctl --user start sunshine
+
+      Start on boot
+         .. code-block:: bash
+
+            systemctl --user enable sunshine
+
+#. Additional Setup for KMS
+      .. Note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
+         allow Sunshine to use KMS.
+
+      Enable
+         .. code-block:: bash
+
+            sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
+
+      Disable
+         .. code-block:: bash
+
+            sudo setcap -r $(readlink -f $(which sunshine))
+
+#. Reboot
       .. code-block:: bash
 
-         systemctl --user start sunshine
-
-   Start on boot
-      .. code-block:: bash
-
-         systemctl --user enable sunshine
-
-Additional Setup for KMS
-   .. Note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
-      allow Sunshine to use KMS.
-
-   Enable
-      .. code-block:: bash
-
-         sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
-
-   Disable
-      .. code-block:: bash
-
-         sudo setcap -r $(readlink -f $(which sunshine))
+         sudo reboot now
 
 MacOS
 ^^^^^

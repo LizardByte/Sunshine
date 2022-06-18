@@ -52,6 +52,94 @@ jobs:
           echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
           exit 1
 
+  build_linux_flatpak:
+    name: Linux Flatpak
+    runs-on: ubuntu-18.04
+    needs: check_changelog
+
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 2048
+          swap-size-mb: 8192
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+
+      - name: Cache flatpak-builder
+        uses: actions/cache@v3
+        with:
+          path: ./build/.flatpak-builder/build
+          key: ${{ runner.os }}-flatpak-builder
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Dependencies Linux Flatpak
+        run: |
+          sudo add-apt-repository ppa:flatpak/stable -y
+          sudo apt-get update -y
+          sudo apt-get install -y \
+              cmake \
+              flatpak \
+              flatpak-builder
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install flathub org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y
+
+      - name: Configure Flatpak Manifest
+        run: |
+          # variables for manifest
+          owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
+          repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
+          branch=${GITHUB_HEAD_REF}
+          commit=${{ github.event.pull_request.head.sha }}
+          
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+              echo "This is a PUSH event"
+              branch=branch=${{ github.ref_name }}
+              commit=${{ github.sha }}
+          else
+              echo "This is a PR event"
+          fi
+          echo "Owner: ${owner}"
+          echo "Repo: ${repo}"
+          echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
+          
+          mkdir -p build
+          mkdir -p artifacts
+          
+          cd build
+          cmake -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_FLATPAK=ON -DSUNSHINE_CONFIGURE_ONLY=ON ..
+          
+          # add the commit
+          echo "        commit: ${commit}" >> ./com.github.sunshinestream.sunshine.yml
+
+      - name: Build Linux Flatpak
+        working-directory: build
+        run: |
+          sudo flatpak-builder build-dir com.github.sunshinestream.sunshine.yml
+          sudo flatpak-builder --repo=repo --force-clean build-dir com.github.sunshinestream.sunshine.yml
+          sudo flatpak build-bundle ./repo ../artifacts/sunshine.flatpak com.github.sunshinestream.sunshine
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-linux-flatpak
+          path: artifacts/
+
+      - name: Create Release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: SunshineStream/actions/create_release@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          next_version: ${{ needs.check_changelog.outputs.next_version }}
+          last_version: ${{ needs.check_changelog.outputs.last_version }}
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
+
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
@@ -61,19 +149,22 @@ jobs:
       matrix:
         include: # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: ''
-            SUNSHINE_ASSETS_DIR: '/usr/local/sunshine/assets'
-            SUNSHINE_CONFIG_DIR: '/usr/local/sunshine/config'
+            CMAKE_INSTALL_PREFIX: '/usr'
+            SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
+            SUNSHINE_CONFIG_DIR: 'local/sunshine/config'
+            EXTRA_ARGS: ''
           - type: appimage
             CMAKE_INSTALL_PREFIX: '/usr'
             SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
             SUNSHINE_CONFIG_DIR: 'sunshine.AppImage.home'
+            EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
+
       - name: Setup Dependencies Linux
         run: |
           sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
@@ -144,7 +235,7 @@ jobs:
           mkdir -p artifacts
           
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON ${{ matrix.EXTRA_ARGS }} ..
           make -j ${nproc}
 
       - name: Package Linux - CPACK
@@ -276,22 +367,25 @@ jobs:
           owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
           repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
           branch=${GITHUB_HEAD_REF}
+          commit=${{ github.event.pull_request.head.sha }}
           
           # check the branch variable
           if [ -z "$branch" ]
           then
               echo "This is a PUSH event"
-              branch=${GITHUB_BASE_REF}
+              branch=branch=${{ github.ref_name }}
+              commit=${{ github.sha }}
           else
               echo "This is a PR event"
           fi
           echo "Owner: ${owner}"
           echo "Repo: ${repo}"
           echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
           
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=/usr/local/sunshine/assets -DSUNSHINE_CONFIG_DIR=/usr/local/sunshine/config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DSUNSHINE_ASSETS_DIR=local/sunshine/assets -DSUNSHINE_CONFIG_DIR=local/sunshine/config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_PORTFILE=ON ..
           make -j ${nproc}
 
       - name: Package MacOS
