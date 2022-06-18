@@ -22,6 +22,14 @@ These are the advantages of Sunshine over GFE.
    - Supports streaming to multiple clients
    - Web UI for configuration
 
+Getting started
+--------------
+
+1. `Download <https://github.com/SunshineStream/Sunshine/releases/latest>`_ sunshine 
+2. Read the `documentation <http://sunshinestream.readthedocs.io/>`_
+3. Connect with a moonlight client
+
+
 Integrations
 ------------
 
