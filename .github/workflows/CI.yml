@@ -297,7 +297,7 @@ jobs:
       - name: Package MacOS
         run: |
           # remove cached artifacts
-          rm -r -f ./artifacts
+          rm -r -f ./artifacts/
           mkdir artifacts
           
           mkdir -p artifacts
@@ -370,6 +370,13 @@ jobs:
 
       - name: Bootstrap MacPorts
         run: |
+          # copy Portfile from artifacts to ports
+          mkdir -p ./ports/multimedia/Sunshine
+          cp -f ./artifacts/Portfile ./ports/multimedia/Sunshine/Portfile
+
+          # display the Portfile
+          cat ./ports/multimedia/Sunshine/Portfile
+
           . ports/.github/workflows/bootstrap.sh
 
       - name: Setup Macports
