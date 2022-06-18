@@ -346,13 +346,6 @@ jobs:
         with:
           submodules: recursive
 
-      # this is for the macports job
-      - name: Cache Artifacts
-        uses: actions/cache@v3
-        with:
-          path: artifacts
-          key: ${{ runner.os }}-artifacts
-
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
@@ -363,29 +356,9 @@ jobs:
 
       - name: Build MacOS
         run: |
-          # variables for Portfile
-          owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
-          repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
-          branch=${GITHUB_HEAD_REF}
-          commit=${{ github.event.pull_request.head.sha }}
-          
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
-              echo "This is a PUSH event"
-              branch=branch=${{ github.ref_name }}
-              commit=${{ github.sha }}
-          else
-              echo "This is a PR event"
-          fi
-          echo "Owner: ${owner}"
-          echo "Repo: ${repo}"
-          echo "Branch: ${branch}"
-          echo "Commit: ${commit}"
-          
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DSUNSHINE_ASSETS_DIR=local/sunshine/assets -DSUNSHINE_CONFIG_DIR=local/sunshine/config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_PORTFILE=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DSUNSHINE_ASSETS_DIR=local/sunshine/assets -DSUNSHINE_CONFIG_DIR=local/sunshine/config ..
           make -j ${nproc}
 
       - name: Package MacOS
@@ -406,9 +379,6 @@ jobs:
           
           cpack -G ZIP
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-macos-experimental-archive.zip
-
-          # move
-          mv Portfile ../artifacts/Portfile
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -436,18 +406,16 @@ jobs:
 
   build_mac_port:
     name: Macports
-    needs: [check_changelog, build_mac]
+    needs: check_changelog
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ macos-10.15, macos-11, macos-12 ]
 
     steps:
-      - name: Cache Artifacts
-        uses: actions/cache@v3
-        with:
-          path: artifacts
-          key: ${{ runner.os }}-artifacts
+      - name: Checkout
+        uses: actions/checkout@v3
 
       - name: Checkout ports
         uses: actions/checkout@v3
@@ -462,28 +430,56 @@ jobs:
           repository: macports/mpbb
           path: mpbb
 
+      - name: Setup Dependencies Macports
+        run: |
+          # install dependencies using homebrew
+          brew install cmake
+
+      - name: Configure Portfile
+        run: |
+          # variables for Portfile
+          owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
+          repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
+          branch=${GITHUB_HEAD_REF}
+          commit=${{ github.event.pull_request.head.sha }}
+          
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+              echo "This is a PUSH event"
+              branch=branch=${{ github.ref_name }}
+              commit=${{ github.sha }}
+          else
+              echo "This is a PR event"
+          fi
+          echo "Owner: ${owner}"
+          echo "Repo: ${repo}"
+          echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
+          
+          mkdir build
+          cd build
+          cmake -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_PORTFILE=ON -DSUNSHINE_CONFIGURE_ONLY=ON ..
+          
+          cd ..
+          
+          # copy Portfile to artifacts
+          mkdir -p artifacts
+          cp -f ./build/Portfile ./artifacts/
+          
+          # copy Portfile to ports
+          mkdir -p ./ports/multimedia/Sunshine
+          cp -f ./build/Portfile ./ports/multimedia/Sunshine/Portfile
+
       - name: Bootstrap MacPorts
         run: |
-          # copy Portfile from artifacts to ports
-          mkdir -p ./ports/multimedia/Sunshine
-          cp -f ./artifacts/Portfile ./ports/multimedia/Sunshine/Portfile
-
-          # display the Portfile
-          cat ./ports/multimedia/Sunshine/Portfile
-
           . ports/.github/workflows/bootstrap.sh
-
-      - name: Setup Macports
-        run : |
+          
           # Add getopt, mpbb and the MacPorts paths to $PATH for the subsequent steps.
           echo "/opt/mports/bin" >> $GITHUB_PATH
           echo "${PWD}/mpbb" >> $GITHUB_PATH
           echo "/opt/local/bin" >> $GITHUB_PATH
           echo "/opt/local/sbin" >> $GITHUB_PATH
-          
-          # copy Portfile from artifacts to ports
-          mkdir -p ./ports/multimedia/Sunshine
-          cp -f ./artifacts/Portfile ./ports/multimedia/Sunshine/Portfile
 
       - name: Determine list of subports
         id: subportlist
@@ -586,30 +582,30 @@ jobs:
 
       - name: Package
         run: |
-          # build port
-          # sudo port install sunshine \
-          # || cat /opt/local/var/macports/logs/_Users_runner_ports_multimedia_sunshine/Sunshine/main.log \
-          # && exit 1
-
           # create packages
-          sudo port dmg sunshine
           sudo port pkg sunshine
+          sudo port dmg sunshine
 
-          # move
-          mv $(port work sunshine)/Sunshine*.dmg ./artifacts/sunshine.dmg
-          mv $(port work sunshine)/Sunshine*.ppkg ./artifacts/sunshine.pkg
-
-          # testing only
-          # ls ~/ports/multimedia/sunshine
-          # cat ~/ports/multimedia/sunshine/Portfile
-          # cat /opt/local/etc/macports/sources.conf
-          # cat ~/ports/Portindex
-          # port search sunshine
+          work=$(port work sunshine)
+          echo "Sunshine port work directory: ${work}"
+          
+          # testing
+          ls ${work}
+          
+          # move components out of port work directory
+          sudo mv ${work}/Sunshine*component.pkg /tmp/
+          
+          # copy artifacts
+          sudo mv ${work}/Sunshine*.pkg ./artifacts/sunshine.pkg
+          sudo mv ${work}/Sunshine*.dmg ./artifacts/sunshine.dmg
+          
+          # move components back
+          # sudo mv /tmp/Sunshine*component.pkg ${work}/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-macports
+          name: sunshine-macports-${{ matrix.os }}
           path: artifacts/
 
       - name: Create Release
