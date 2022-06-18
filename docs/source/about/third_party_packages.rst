@@ -40,7 +40,7 @@ Scoop
 
 Winget
 ------
-.. image:: https://img.shields.io/badge/dynamic/xml?color=orange&label=Winget&style=for-the-badge&query=%2F%2Ftr%5B%40id%3D%27winget%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=microsoft
+.. image:: https://img.shields.io/badge/dynamic/xml?color=orange&label=Winget&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27winget%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=microsoft
    :alt: Winget Version
    :target: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/SunshineStream/Sunshine
 
