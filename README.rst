@@ -60,6 +60,10 @@ Downloads
    :alt: GitHub Releases
    :target: https://github.com/SunshineStream/Sunshine/releases/latest
 
+.. image:: https://img.shields.io/aur/version/sunshine-git?style=for-the-badge&logo=archlinux
+   :alt: AUR version
+   :target: https://aur.archlinux.org/packages/sunshine-git
+
 .. comment
    image:: https://img.shields.io/docker/pulls/sunshinestream/sunshine?style=for-the-badge&logo=docker
    :alt: Docker

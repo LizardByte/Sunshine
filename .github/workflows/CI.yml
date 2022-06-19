@@ -56,12 +56,6 @@ jobs:
     name: Linux AUR
     runs-on: ubuntu-latest
     needs: check_changelog
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - aur_pkg: sunshine
-          - aur_pkg: sunshine-git
 
     steps:
       - name: Checkout
@@ -75,19 +69,60 @@ jobs:
 
       - name: Configure PKGBUILD files
         run: |
+          # variables for manifest
+          owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
+          repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
+          branch=${GITHUB_HEAD_REF}
+          commit=${{ github.event.pull_request.head.sha }}
+          
+          echo "aur_publish=false" >> $GITHUB_ENV
+          aur_pkg=sunshine-dev
+          fragment=""
+          sub_version=""
+          conflicts="'sunshine'"
+          provides="'sunshine'"
+          
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+              echo "This is a PUSH event"
+              branch=branch=${{ github.ref_name }}
+              commit=${{ github.sha }}
+          
+              if [ ${{ github.ref == 'refs/heads/master' }} ]
+              then
+                  aur_pkg=sunshine-git
+                  # conflicts=""
+                  # provides=""
+          
+                  echo "aur_publish=true" >> $GITHUB_ENV
+              elif [ ${{ github.ref == 'refs/heads/nightly' }} ]
+              then
+                  aur_pkg=sunshine-nightly
+                  sub_version=".r${commit}"
+              fi
+          else
+              echo "This is a PR event"
+              sub_version=".r${commit}"
+          fi
+          
+          echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
+          
+          fragment="#commit=${commit}"
+          
+          echo "Owner: ${owner}"
+          echo "Repo: ${repo}"
+          echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
+          
           mkdir -p artifacts
           mkdir -p build
           
           cd build
-          cmake -DSUNSHINE_CONFIGURE_AUR=ON -DSUNSHINE_CONFIGURE_ONLY=ON -DSUNSHINE_AUR_PKG=${{ matrix.aur_pkg }} ..
+          cmake -DSUNSHINE_CONFIGURE_AUR=ON -DSUNSHINE_AUR_PKG=${aur_pkg} -DSUNSHINE_SUB_VERSION=${sub_version} -DSUNSHINE_AUR_CONFLICTS=${conflicts} -DSUNSHINE_AUR_PROVIDES=${provides} -DSUNSHINE_AUR_FRAGMENT=${fragment} -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DSUNSHINE_CONFIGURE_ONLY=ON ..
           cd ..
           
           mv ./build/PKGBUILD ./artifacts/
-          # mv ./build/.SRCINFO ./artifacts/
-          
-          # mv ./packaging/linux/aur/tmp/* ./artifacts/
-          
-          ls artifacts
 
       - name: Validate package
         uses: hapakaien/archlinux-package-action@v2
@@ -98,44 +133,26 @@ jobs:
           srcinfo: true
           aur: true  # workaround mirror problem
 
-      - name: Test artifacts
-        run: |
-          ls artifacts
-
-#      - name: PKGBUILD AUR
-#        uses: sunshinestream/pkgbuild-aur@sunshine-fix
-#        with:
-#          pkg-name: artifacts
-
       - name: Upload Artifacts
+        if: ${{ always() }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux-aur-${{ matrix.aur_pkg }}
+          name: sunshine-linux-aur
           path: artifacts/
 
-      - name: Setup Publish AUR Variables
-        if: ${{ github.event_name == 'push' }}
-        run: |
-          if [ ${{ github.ref == 'refs/heads/master' && matrix.aur_pkg == 'sunshine' }} ]
-          then
-              echo "aur_publish=true" >> $GITHUB_ENV        
-          elif [ ${{ github.ref == 'refs/heads/nightly' && matrix.aur_pkg == 'sunshine-git' }} ]
-          then
-              echo "aur_publish=true" >> $GITHUB_ENV
-          else
-              echo "aur_publish=false" >> $GITHUB_ENV
-          fi
-
       - name: Publish AUR package
-        if: ${{ env.aur_publish }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.2.5
+        if: ${{ env.aur_publish == 'true' }}
+        uses: KSXGitHub/github-actions-deploy-aur@master  # assets arg not in latest release
         with:
-          pkgname: ${{ env.aur_pkgname }}
+          pkgname: ${{ env.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
+          assets: |
+            ./artifacts/*
           commit_username: ${{ secrets.AUR_USERNAME }}
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: Autoupdate from GitHub
+          commit_message: Release ${{ needs.check_changelog.outputs.next_version }}
+          allow_empty_commits: false
 
   build_linux_flatpak:
     name: Linux Flatpak

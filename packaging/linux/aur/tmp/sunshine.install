@@ -1,6 +1,0 @@
-post_install() {
-    if ! getent group input > /dev/null; then
-        echo "Creating group input"
-        groupadd -r input
-    fi
-}
