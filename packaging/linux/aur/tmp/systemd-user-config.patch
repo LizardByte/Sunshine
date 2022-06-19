@@ -1,0 +1,14 @@
+diff --git a/sunshine.service.in b/sunshine.service.in
+index c0c3828..fe45460 100644
+--- a/sunshine.service.in
++++ b/sunshine.service.in
+@@ -2,7 +2,8 @@
+ Description=Sunshine Gamestream Server for Moonlight
+ 
+ [Service]
+-ExecStart=@SUNSHINE_EXECUTABLE_PATH@
++ExecStartPre=/bin/sh -c "test -e %E/sunshine || cp -r '@SUNSHINE_ASSETS_DIR@' '%E/sunshine'"
++ExecStart=@SUNSHINE_EXECUTABLE_PATH@ %E/sunshine/sunshine.conf
+ 
+ [Install]
+ WantedBy=graphical-session.target

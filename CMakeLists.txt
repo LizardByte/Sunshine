@@ -6,12 +6,16 @@ project(Sunshine VERSION 0.14.0
 		)
 
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
 option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
 option(SUNSHINE_CONFIGURE_PORTFILE "Configure MacOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
 	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+elseif(${SUNSHINE_CONFIGURE_AUR})
+	configure_file(packaging/linux/aur/${SUNSHINE_AUR_PKG}/.SRCINFO .SRCINFO @ONLY)
+	configure_file(packaging/linux/aur/${SUNSHINE_AUR_PKG}/PKGBUILD PKGBUILD @ONLY)
 elseif(${SUNSHINE_CONFIGURE_FLATPAK})
 	configure_file(packaging/linux/flatpak/com.github.sunshinestream.sunshine.yml com.github.sunshinestream.sunshine.yml @ONLY)
 elseif(${SUNSHINE_CONFIGURE_PORTFILE})
