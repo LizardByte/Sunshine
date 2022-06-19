@@ -169,13 +169,47 @@
       <!-- Image path -->
       <div class="mb-3">
         <label for="appImagePath" class="form-label">Image</label>
-        <input
-          type="text"
-          class="form-control monospace"
-          id="appImagePath"
-          aria-describedby="appImagePathHelp"
-          v-model="editForm['image-path']"
-        />
+        <div class="input-group dropup">
+          <input
+              type="text"
+              class="form-control monospace"
+              id="appImagePath"
+              aria-describedby="appImagePathHelp"
+              v-model="editForm['image-path']"
+          />
+          <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle" data-bs-toggle="dropdown"
+                  data-bs-auto-close="outside" aria-expanded="false" v-dropdown-show="showCoverFinder"
+                  ref="coverFinderDropdown">
+            Find Cover
+          </button>
+          <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
+               aria-labelledby="findCoverToggle">
+            <div class="modal-header">
+              <h4 class="modal-title">Covers Found</h4>
+              <button type="button" class="btn-close" aria-label="Close" @click="closeCoverFinder"></button>
+            </div>
+            <div class="cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
+              <div class="row">
+                <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
+                  <div class="cover-container">
+                    <div class="spinner-border" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-for="(cover,i) in coverCandidates" :key="i" class="col-12 col-sm-6 col-lg-4 mb-3"
+                     @click="useCover(cover)">
+                  <div class="cover-container result">
+                    <img class="rounded" :src="cover.url"/>
+                  </div>
+                  <label class="d-block text-nowrap text-center text-truncate">
+                    {{cover.name}}
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="appImagePathHelp" class="form-text">
           Application icon/picture/image path that will be sent to client. Image must be a PNG file.
           If not set, Sunshine will send default box image.
@@ -196,6 +230,12 @@
 </div>
 
 <script>
+  Vue.directive('dropdown-show', {
+    bind: function (el, binding) {
+      el.addEventListener('show.bs.dropdown', binding.value);
+    }
+  });
+
   new Vue({
     el: "#app",
     data() {
@@ -204,6 +244,9 @@
         showEditForm: false,
         editForm: null,
         detachedCmd: "",
+        coverSearching: false,
+        coverFinderBusy: false,
+        coverCandidates: [],
       };
     },
     created() {
@@ -253,6 +296,80 @@
           undo: "",
         });
       },
+      showCoverFinder($event) {
+        this.coverCandidates = [];
+        this.coverSearching = true;
+
+        function getSearchKey(q) {
+          const key = q.toLowerCase().replaceAll(/[^\da-z]+/g, '.');
+          if (key.endsWith('.')) {
+            return key.substring(0, key.length - 1);
+          }
+          return key;
+        }
+
+        function getSearchBucket(key) {
+          let index = key.indexOf('.');
+          if (index < 0) {
+            index = key.length;
+          }
+          const s = key.substring(0, Math.min(2, index));
+          if (!s || s === '.') return '@';
+          return s;
+        }
+
+        function searchCovers(key) {
+          let bucket = getSearchBucket(key);
+          return fetch("https://mariotaku.org/gcdb/buckets/" + bucket + ".json").then(r => {
+            if (!r.ok) throw new Error("Failed to search covers");
+            return r.json();
+          }).then(maps => {
+            let result = [];
+            for (let itemKey of Object.keys(maps)) {
+              if (itemKey.startsWith(key)) {
+                let item = maps[itemKey];
+                result.push({
+                  name: item.name,
+                  key: itemKey,
+                  url: "https://images.igdb.com/igdb/image/upload/t_cover_big/" + item.hash + ".jpg",
+                  saveUrl: "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/" + item.hash + ".png",
+                });
+              }
+            }
+            return result;
+          });
+        }
+
+        searchCovers(getSearchKey(this.editForm["name"].toString()))
+          .then(body => this.coverCandidates = body)
+          .finally(() => this.coverSearching = false);
+      },
+      closeCoverFinder() {
+        const ref = this.$refs.coverFinderDropdown;
+        if (!ref) {
+          return;
+        }
+        const dropdown = this.coverFinderDropdown = bootstrap.Dropdown.getInstance(ref);
+        if (!dropdown) {
+          return;
+        }
+        dropdown.hide();
+      },
+      useCover(cover) {
+        this.coverFinderBusy = true;
+        fetch("/api/covers/upload", {
+          method: "POST",
+          body: JSON.stringify({
+            key: cover.key,
+            url: cover.saveUrl,
+          })
+        }).then(r => {
+          if (!r.ok) throw new Error("Failed to download covers");
+          return r.json();
+        }).then(body => this.$set(this.editForm, "image-path", body.path))
+          .then(() => this.closeCoverFinder())
+          .finally(() => this.coverFinderBusy = false);
+      },
       save() {
         this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
         fetch("/api/apps", {
@@ -274,4 +391,46 @@
   .monospace {
     font-family: monospace;
   }
+
+  .cover-finder {
+  }
+
+  .cover-finder .cover-results {
+    max-height: 400px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .cover-finder .cover-results.busy * {
+    cursor: wait !important;
+    pointer-events: none;
+  }
+
+  .cover-container {
+    padding-top: 133.33%;
+    position: relative;
+  }
+
+  .cover-container.result {
+    cursor: pointer;
+  }
+
+  .spinner-border {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+  }
+
+  .cover-container img {
+    display: block;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
 </style>

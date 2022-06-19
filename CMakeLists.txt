@@ -43,6 +43,7 @@ include_directories(third-party/miniupnp)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED)
 if(NOT APPLE)
 	set(Boost_USE_STATIC_LIBS ON)
 endif()
@@ -413,6 +414,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${FFMPEG_LIBRARIES}
 		${Boost_LIBRARIES}
 		${OPENSSL_LIBRARIES}
+		${CURL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
 if (NOT WIN32)

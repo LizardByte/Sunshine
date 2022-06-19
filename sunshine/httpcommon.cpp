@@ -13,6 +13,7 @@
 #include <Simple-Web-Server/server_http.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
+#include <curl/curl.h>
 
 #include "config.h"
 #include "crypto.h"
@@ -180,4 +181,20 @@ int create_creds(const std::string &pkey, const std::string &cert) {
 
   return 0;
 }
+
+bool download_file(const std::string &url, const std::string &file) {
+  CURL *curl = curl_easy_init();
+  if (!curl) {
+    return false;
+  }
+  FILE *fp = fopen(file.c_str(), "wb");
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+  bool result = curl_easy_perform(curl) == CURLE_OK;
+  curl_easy_cleanup(curl);
+  fclose(fp);
+  return result;
+}
+
 } // namespace http

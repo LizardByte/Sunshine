@@ -14,6 +14,8 @@
 
 #include <boost/asio/ssl/context.hpp>
 
+#include <boost/filesystem.hpp>
+
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
@@ -165,9 +167,12 @@ void getAppsPage(resp_https_t response, req_https_t request) {
 
   print_req(request);
 
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
+
   std::string header  = read_file(WEB_DIR "header.html");
   std::string content = read_file(WEB_DIR "apps.html");
-  response->write(header + content);
+  response->write(header + content, headers);
 }
 
 void getClientsPage(resp_https_t response, req_https_t request) {
@@ -412,6 +417,59 @@ void deleteApp(resp_https_t response, req_https_t request) {
   proc::refresh(config::stream.file_apps);
 }
 
+void uploadCover(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+
+  std::stringstream ss;
+  std::stringstream configStream;
+  ss << request->content.rdbuf();
+  pt::ptree outputTree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    SimpleWeb::StatusCode code = SimpleWeb::StatusCode::success_ok;
+    if (outputTree.get_child_optional("error").has_value()) {
+      code = SimpleWeb::StatusCode::client_error_bad_request;
+    }
+
+    pt::write_json(data, outputTree);
+    response->write(code, data.str());
+  });
+  pt::ptree inputTree;
+  try {
+    //TODO: Input Validation
+    pt::read_json(ss, inputTree);
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "UploadCover: "sv << e.what();
+    outputTree.put("status", "false");
+    outputTree.put("error", e.what());
+    return;
+  }
+
+  auto key = inputTree.get<std::string>("key");
+  auto url = inputTree.get("url", "");
+
+  const std::string coverdir = SUNSHINE_ASSETS_DIR "/covers/";
+  if(!boost::filesystem::exists(coverdir)) {
+    boost::filesystem::create_directory(coverdir);
+  }
+
+  std::basic_string path = coverdir + key + ".png";
+  if (!url.empty()) {
+    if (!http::download_file(url, path)) {
+      outputTree.put("error", "Failed to download cover");
+      return;
+    }
+  } else {
+    auto data = SimpleWeb::Crypto::Base64::decode(inputTree.get<std::string>("data"));
+
+    std::ofstream imgfile(path);
+    imgfile.write(data.data(), (int)data.size());
+  }
+  outputTree.put("path", path);
+}
+
 void getConfig(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -617,6 +675,7 @@ void start() {
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"]                   = deleteApp;
   server.resource["^/api/clients/unpair$"]["POST"]                    = unpairAll;
   server.resource["^/api/apps/close"]["POST"]                         = closeApp;
+  server.resource["^/api/covers/upload$"]["POST"]                     = uploadCover;
   server.resource["^/images/favicon.ico$"]["GET"]                     = getFaviconImage;
   server.resource["^/images/logo-sunshine-45.png$"]["GET"]            = getSunshineLogoImage;
   server.resource["^/third_party/bootstrap.min.css$"]["GET"]          = getBootstrapCss;
