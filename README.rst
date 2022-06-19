@@ -2,6 +2,7 @@
 
 Overview
 ========
+SunshineStream has the full documentation hosted on `Read the Docs <http://sunshinestream.readthedocs.io/>`_.
 
 About
 -----
