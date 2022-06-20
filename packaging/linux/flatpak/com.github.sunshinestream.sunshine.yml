@@ -22,33 +22,34 @@ cleanup:
   - /lib/*.la
   - /lib/*.a
   - /share
-
+  - /targets
+  
 modules:
-#  - name: cuda
-#    buildsystem: simple
-#    only-arches:
-#      - x86_64
-#      - aarch64
-#    cleanup:
-#      - '*'
-#    build-commands:
-#      - chmod u+x ./cuda.run
-#      - ./cuda.run --silent --toolkit --toolkitpath=/app --no-opengl-libs --no-man-page --no-drm
-#      - rm ./cuda.run
-#      - rm -r /app/nsight-systems-2021.3.2
-#    sources:
-#      - type: file
-#        only-arches:
-#          - x86_64
-#        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
-#        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
-#        dest-filename: cuda.run
-#      - type: file
-#        only-arches:
-#          - aarch64
-#        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run
-#        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
-#        dest-filename: cuda.run
+  - name: cuda
+    buildsystem: simple
+    only-arches:
+      - x86_64
+      - aarch64
+    cleanup:
+      - '*'
+    build-commands:
+      - chmod u+x ./cuda.run
+      - ./cuda.run --silent --toolkit --toolkitpath=${FLATPAK_DEST} --no-opengl-libs --no-man-page --no-drm --tmpdir=$(pwd)
+      - rm ./cuda.run
+      - rm -r ${FLATPAK_DEST}/nsight-systems-2021.3.2
+    sources:
+      - type: file
+        only-arches:
+          - x86_64
+        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
+        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
+        dest-filename: cuda.run
+      - type: file
+        only-arches:
+          - aarch64
+        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run
+        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
+        dest-filename: cuda.run
 
   - name: boost
     buildsystem: simple
