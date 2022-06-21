@@ -22,7 +22,6 @@ cleanup:
   - /lib/*.la
   - /lib/*.a
   - /share
-  - /targets
   
 modules:
   - name: cuda
@@ -34,9 +33,9 @@ modules:
       - '*'
     build-commands:
       - chmod u+x ./cuda.run
-      - ./cuda.run --silent --toolkit --toolkitpath=${FLATPAK_DEST} --no-opengl-libs --no-man-page --no-drm --tmpdir=$(pwd)
+      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$(pwd)
+      - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
       - rm ./cuda.run
-      - rm -r ${FLATPAK_DEST}/nsight-systems-2021.3.2
     sources:
       - type: file
         only-arches:
@@ -54,7 +53,7 @@ modules:
   - name: boost
     buildsystem: simple
     build-commands:
-      - ./bootstrap.sh --prefix=/app --with-libraries=system,thread,log
+      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log
       - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS" -j $FLATPAK_BUILDER_N_JOBS
     sources:
       - type: archive
@@ -82,8 +81,9 @@ modules:
       # - --enable-nonfree
       # - --enable-cuda-nvcc
       # - --enable-libnpp
-      # - --extra-cflags=-I/app/include
-      # - --extra-ldflags=-L/app/lib64
+      # - --extra-cflags=-I${FLATPAK_DEST}/cuda/include
+      # - --extra-ldflags=-L${FLATPAK_DEST}/cuda/lib64
+      # - --nvccflags="-gencode arch=compute_52,code=sm_52 -O2"
     cleanup:
       - /share/ffmpeg/examples
     sources:
@@ -119,10 +119,10 @@ modules:
           - type: archive
             url: https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.5.tar.gz
             sha256: e70a3335cacacbba0b3a20ec6fecd6783932288ebc8163ad74bcc9606477cae8
-      - name: nv-codec-headers
+      - name: ffnvcodec
         no-autogen: true
         make-install-args:
-          - PREFIX=/app
+          - PREFIX=${FLATPAK_DEST}
         cleanup:
           - '*'
         sources:
@@ -197,7 +197,8 @@ modules:
       cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
-      - -DCMAKE_INSTALL_PREFIX='/app'
+      - -DCMAKE_INSTALL_PREFIX=/app
+      - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
       - -DSUNSHINE_ASSETS_DIR=assets
       - -DSUNSHINE_CONFIG_DIR=config
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
