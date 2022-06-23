@@ -11,7 +11,7 @@ finish-args:
   - --socket=pulseaudio
   - --share=network
   - --device=all
-  - --persist=.
+  - --persist=.config/sunshine
   - --system-talk-name=org.freedesktop.Avahi
   - --env=PULSE_PROP_media.category=Manager
 
