@@ -99,6 +99,16 @@ RPM Package
 
 MacOS
 -----
+Requirements
+   .. table::
+      :widths: auto
+
+      ===========   =============
+      requirement   reason
+      ===========   =============
+      macOS 10.8+   Video Toolbox
+      ===========   =============
+
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
