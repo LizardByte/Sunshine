@@ -22,7 +22,7 @@ cleanup:
   - /lib/*.la
   - /lib/*.a
   - /share
-  
+
 modules:
   - name: cuda
     buildsystem: simple
