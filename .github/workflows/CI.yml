@@ -418,11 +418,12 @@ jobs:
   build_mac_port:
     name: Macports
     needs: check_changelog
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ macos-10.15, macos-11, macos-12 ]
+    runs-on: macos-11
+#    runs-on: ${{ matrix.os }}
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        os: [ macos-10.15, macos-11, macos-12 ]
 
     steps:
       - name: Checkout
@@ -616,7 +617,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-macports-${{ matrix.os }}
+          name: sunshine-macports
           path: artifacts/
 
       - name: Create Release
