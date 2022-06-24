@@ -70,56 +70,48 @@ jobs:
       - name: Configure PKGBUILD files
         run: |
           # variables for manifest
-          owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
-          repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
-          branch=${GITHUB_HEAD_REF}
-          commit=${{ github.event.pull_request.head.sha }}
-          
           echo "aur_publish=false" >> $GITHUB_ENV
           aur_pkg=sunshine-dev
-          fragment=""
           sub_version=""
           conflicts="'sunshine'"
           provides="'sunshine'"
+          
+          branch=${GITHUB_HEAD_REF}
           
           # check the branch variable
           if [ -z "$branch" ]
           then
               echo "This is a PUSH event"
-              branch=branch=${{ github.ref_name }}
               commit=${{ github.sha }}
+              clone_url=${{ github.event.repository.clone_url }}
           
-              if [ ${{ github.ref == 'refs/heads/master' }} ]
-              then
+              if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
                   aur_pkg=sunshine-git
                   # conflicts=""
                   # provides=""
           
                   echo "aur_publish=true" >> $GITHUB_ENV
-              elif [ ${{ github.ref == 'refs/heads/nightly' }} ]
-              then
+              elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
                   aur_pkg=sunshine-nightly
                   sub_version=".r${commit}"
               fi
           else
               echo "This is a PR event"
+              commit=${{ github.event.pull_request.head.sha }}
+              clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+          
               sub_version=".r${commit}"
           fi
+          echo "Commit: ${commit}"
+          echo "Clone URL: ${clone_url}"
           
           echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
-          
-          fragment="#commit=${commit}"
-          
-          echo "Owner: ${owner}"
-          echo "Repo: ${repo}"
-          echo "Branch: ${branch}"
-          echo "Commit: ${commit}"
           
           mkdir -p artifacts
           mkdir -p build
           
           cd build
-          cmake -DSUNSHINE_CONFIGURE_AUR=ON -DSUNSHINE_AUR_PKG=${aur_pkg} -DSUNSHINE_SUB_VERSION=${sub_version} -DSUNSHINE_AUR_CONFLICTS=${conflicts} -DSUNSHINE_AUR_PROVIDES=${provides} -DSUNSHINE_AUR_FRAGMENT=${fragment} -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DSUNSHINE_CONFIGURE_ONLY=ON ..
+          cmake -DSUNSHINE_CONFIGURE_AUR=ON -DSUNSHINE_AUR_PKG=${aur_pkg} -DSUNSHINE_SUB_VERSION=${sub_version} -DSUNSHINE_AUR_CONFLICTS=${conflicts} -DSUNSHINE_AUR_PROVIDES=${provides} -DGITHUB_CLONE_URL=${clone_url} -DGITHUB_COMMIT=${commit} -DSUNSHINE_CONFIGURE_ONLY=ON ..
           cd ..
           
           mv ./build/PKGBUILD ./artifacts/

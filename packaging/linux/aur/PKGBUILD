@@ -16,7 +16,7 @@ optdepends=('cuda' 'libcap' 'libdrm')
 provides=(@SUNSHINE_AUR_PROVIDES@)
 conflicts=(@SUNSHINE_AUR_CONFLICTS@)
 
-source=("$pkgname::git+https://github.com/@GITHUB_OWNER@/@GITHUB_REPO@.git@SUNSHINE_AUR_FRAGMENT@")
+source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
 sha256sums=('SKIP')
 
 prepare() {
@@ -34,8 +34,8 @@ build() {
         -Wno-dev \
         -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
         -D CMAKE_INSTALL_PREFIX="/usr" \
-        -D SUNSHINE_ASSETS_DIR="local/sunshine/assets" \
-        -D SUNSHINE_CONFIG_DIR="local/sunshine/config" \
+        -D SUNSHINE_ASSETS_DIR="share/sunshine/assets" \
+        -D SUNSHINE_CONFIG_DIR="share/sunshine/config" \
         -D LIBAVCODEC_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
         -D LIBAVCODEC_LIBRARIES=/usr/lib/ffmpeg4.4/libavcodec.so \
         -D LIBAVDEVICE_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
@@ -47,7 +47,7 @@ build() {
         -D LIBSWSCALE_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
         -D LIBSWSCALE_LIBRARIES=/usr/lib/ffmpeg4.4/libswscale.so
 
-    make -C build -j ${nproc}
+    make -C build
 }
 
 package() {

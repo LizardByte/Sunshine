@@ -594,7 +594,7 @@ if(UNIX AND NOT APPLE)
 
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
+	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
 
 	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
