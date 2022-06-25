@@ -4,7 +4,7 @@ set -e
 package_name=org.macports.Sunshine
 
 echo "Removing files now..."
-FILES=$(pkgutil --files --only-files $package_name)
+FILES=$(pkgutil --files $package_name --only-files)
 
 remove_config=True
 remove_apps=True
@@ -44,12 +44,22 @@ for file in ${FILES}; do
 done
 
 echo "Removing directories now..."
-DIRECTORIES=$(pkgutil --files --only-dirs org.macports.Sunshine)
+DIRECTORIES=$(pkgutil --files org.macports.Sunshine --only-dirs)
 
 for dir in ${DIRECTORIES}; do
     dir="/$dir"
     echo "Checking if empty directory: $dir"
-    find "$dir" -type d -empty -exec rm -f -d {} \;
+
+    # check if directory is empty... could just use ${DIRECTORIES} here if pkgutils added the `/` prefix
+    empty_dir=$(find "$dir" -depth 0 -type d -empty)
+
+    # remove the directory if it is empty
+    if [[ $empty_dir != "" ]]; then  # prevent the loop from running and failing if no directories found
+        for i in "${empty_dir}"; do  # don't split words as we already know this will be a single directory
+            echo "Removing empty directory: ${i}"
+            rmdir "${i}"
+        done
+    fi
 done
 
 echo "Forgetting Sunshine..."
