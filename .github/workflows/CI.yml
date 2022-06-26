@@ -374,10 +374,6 @@ jobs:
 
       - name: Package MacOS
         run: |
-          # remove cached artifacts
-          rm -r -f ./artifacts/
-          mkdir artifacts
-          
           mkdir -p artifacts
           cd build
 
@@ -406,14 +402,15 @@ jobs:
           rm -f ./sunshine-macos-experimental-bundle.dmg
           rm -f ./sunshine-macos-experimental-archive.zip
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+      # no artifacts to release currently
+#      - name: Create Release
+#        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+#        uses: SunshineStream/actions/create_release@master
+#        with:
+#          token: ${{ secrets.GITHUB_TOKEN }}
+#          next_version: ${{ needs.check_changelog.outputs.next_version }}
+#          last_version: ${{ needs.check_changelog.outputs.last_version }}
+#          release_body: ${{ needs.check_changelog.outputs.release_body }}
 
   build_mac_port:
     name: Macports
@@ -600,9 +597,6 @@ jobs:
 
           work=$(port work sunshine)
           echo "Sunshine port work directory: ${work}"
-          
-          # testing
-          ls ${work}
           
           # move components out of port work directory
           sudo mv ${work}/Sunshine*component.pkg /tmp/
