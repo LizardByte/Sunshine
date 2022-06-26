@@ -397,7 +397,10 @@ public:
         alarm->ring(-1);
       }
 
-      sink_name = server_info->default_sink_name;
+      // pulseaudio can return NULL when no sink name is defined, see: #226
+      if(server_info->default_sink_name != nullptr) {
+        sink_name = server_info->default_sink_name;
+      }
       alarm->ring(0);
     };
 
