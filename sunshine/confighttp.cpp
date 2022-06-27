@@ -447,7 +447,11 @@ void uploadCover(resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto key = inputTree.get<std::string>("key");
+  auto key = inputTree.get("key", "");
+  if (key.empty()) {
+    outputTree.put("error", "Cover key is required");
+    return;
+  }
   auto url = inputTree.get("url", "");
 
   const std::string coverdir = SUNSHINE_ASSETS_DIR "/covers/";
@@ -455,8 +459,12 @@ void uploadCover(resp_https_t response, req_https_t request) {
     boost::filesystem::create_directory(coverdir);
   }
 
-  std::basic_string path = coverdir + key + ".png";
+  std::basic_string path = coverdir + http::url_escape(key) + ".png";
   if (!url.empty()) {
+    if (http::url_get_host(url) != "images.igdb.com") {
+      outputTree.put("error", "Only images.igdb.com is allowed");
+      return;
+    }
     if (!http::download_file(url, path)) {
       outputTree.put("error", "Failed to download cover");
       return;

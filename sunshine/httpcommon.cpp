@@ -197,4 +197,27 @@ bool download_file(const std::string &url, const std::string &file) {
   return result;
 }
 
+std::string url_escape(const std::string &url) {
+  CURL *curl = curl_easy_init();
+  char *string = curl_easy_escape(curl, url.c_str(), url.length());
+  std::string result(string);
+  curl_free(string);
+  curl_easy_cleanup(curl);
+  return result;
+}
+
+std::string url_get_host(const std::string &url) {
+  CURLU *curlu = curl_url();
+  curl_url_set(curlu, CURLUPART_URL, url.c_str(), url.length());
+  char *host;
+  if (curl_url_get(curlu, CURLUPART_HOST, &host, 0) != CURLUE_OK) {
+    curl_url_cleanup(curlu);
+    return "";
+  }
+  std::string result(host);
+  curl_free(host);
+  curl_url_cleanup(curlu);
+  return result;
+}
+
 } // namespace http

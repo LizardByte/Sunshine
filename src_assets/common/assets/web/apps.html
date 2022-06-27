@@ -188,7 +188,7 @@
               <h4 class="modal-title">Covers Found</h4>
               <button type="button" class="btn-close" aria-label="Close" @click="closeCoverFinder"></button>
             </div>
-            <div class="cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
+            <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
               <div class="row">
                 <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
                   <div class="cover-container">
@@ -320,7 +320,7 @@
 
         function searchCovers(key) {
           let bucket = getSearchBucket(key);
-          return fetch("https://mariotaku.org/gcdb/buckets/" + bucket + ".json").then(r => {
+          return fetch("https://sunshinestream.github.io/db/buckets/" + bucket + ".json").then(r => {
             if (!r.ok) throw new Error("Failed to search covers");
             return r.json();
           }).then(maps => {

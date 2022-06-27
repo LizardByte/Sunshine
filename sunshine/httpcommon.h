@@ -13,6 +13,9 @@ int save_user_creds(
 
 int reload_user_creds(const std::string &file);
 bool download_file(const std::string &url, const std::string &file);
+std::string url_escape(const std::string &url);
+std::string url_get_host(const std::string &url);
+
 extern std::string unique_id;
 extern net::net_e origin_pin_allowed;
 extern net::net_e origin_web_ui_allowed;
