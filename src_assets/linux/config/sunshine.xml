@@ -1,0 +1,12 @@
+ <?xml version="1.0" encoding="utf-8"?>
+<service>
+  <short>sunshine</short>
+  <description>Sunshine is a gamestream host for Moonlight!</description>
+  <port protocol="udp" port="29922"/>
+  <port protocol="tcp" port="47984"/>
+  <port protocol="tcp" port="47989"/>
+  <port protocol="udp" port="47998"/>
+  <port protocol="udp" port="47999"/>
+  <port protocol="udp" port="48000"/>
+  <port protocol="tcp" port="48010"/>
+</service>
