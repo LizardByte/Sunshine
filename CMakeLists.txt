@@ -334,6 +334,7 @@ else()
 		set(SUNSHINE_EXECUTABLE_PATH "sunshine")
 	endif()
 	configure_file(sunshine.service.in sunshine.service @ONLY)
+	configure_file("${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/firewall_rules.xml" sunshine.xml @ONLY)
 endif()
 
 configure_file(version.h.in version.h @ONLY)
@@ -595,6 +596,7 @@ if(UNIX AND NOT APPLE)
 
 	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.xml" DESTINATION "${CMAKE_INSTALL_LIBDIR}/firewalld/services")
 
 	# Pre and post install
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
