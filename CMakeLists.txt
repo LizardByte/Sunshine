@@ -5,6 +5,24 @@ project(Sunshine VERSION 0.14.0
 		HOMEPAGE_URL "https://sunshinestream.github.io"
 		)
 
+option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
+option(SUNSHINE_CONFIGURE_PORTFILE "Configure MacOS Portfile." OFF)
+option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
+
+if(${SUNSHINE_CONFIGURE_APPIMAGE})
+	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+elseif(${SUNSHINE_CONFIGURE_FLATPAK})
+	configure_file(packaging/linux/flatpak/com.github.sunshinestream.sunshine.yml com.github.sunshinestream.sunshine.yml @ONLY)
+elseif(${SUNSHINE_CONFIGURE_PORTFILE})
+	configure_file(packaging/macos/Portfile Portfile @ONLY)
+endif()
+
+# return if configure only is set
+if(${SUNSHINE_CONFIGURE_ONLY})
+	return()
+endif()
+
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(SUNSHINE_SOURCE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_assets")
 
@@ -401,6 +419,11 @@ if(NOT SUNSHINE_CONFIG_DIR)
 	set(SUNSHINE_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/config")
 endif()
 
+if(UNIX AND CMAKE_INSTALL_PREFIX AND NOT ${SUNSHINE_CONFIGURE_APPIMAGE})
+	set(SUNSHINE_ASSETS_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_ASSETS_DIR}")
+	set(SUNSHINE_CONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_CONFIG_DIR}")
+endif()
+
 list(APPEND CBS_EXTERNAL_LIBRARIES
 	cbs)
 
@@ -415,7 +438,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${OPENSSL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
-if (NOT WIN32)
+if(NOT WIN32)
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES Boost::log)
 endif()
 
@@ -562,9 +585,6 @@ if(APPLE) # TODO: test
 	set(CPACK_BUNDLE_PLIST "${APPLE_PLIST_FILE}")
 	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
-
-	# Portfile
-	configure_file(Portfile.in Portfile @ONLY)
 endif()
 if(UNIX AND NOT APPLE)
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
@@ -573,8 +593,8 @@ if(UNIX AND NOT APPLE)
 
 	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
 
-	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
+	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
 	# Pre and post install
 	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
@@ -587,9 +607,6 @@ if(UNIX AND NOT APPLE)
 	set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
 	set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
 	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
-
-	# AppImage desktop file
-	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
 endif()
 
 include(CPack)

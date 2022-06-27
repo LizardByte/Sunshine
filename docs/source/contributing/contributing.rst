@@ -2,6 +2,11 @@
 
 Contributing
 ============
+
+.. Tip:: If this is your first time contributing to an open source project, it is a good idea to read
+   MDN's `Basic etiquette for open source projects`_ first. There are a few best practices to adopt that will help
+   ensure that you and the other project contributors feel valued and safe, and stay productive.
+
 #. Fork the repo on GitHub
 #. Create a new branch for the feature you are adding or the issue you are fixing
 
@@ -30,3 +35,5 @@ Contributing
       - Were documentation blocks updated for new or modified components?
 
    .. Note:: Developers and maintainers will attempt to assist with challenging issues.
+
+.. _Basic etiquette for open source projects: https://developer.mozilla.org/en-US/docs/MDN/Contribute/Open_source_etiquette
