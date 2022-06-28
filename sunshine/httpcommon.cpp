@@ -184,7 +184,7 @@ int create_creds(const std::string &pkey, const std::string &cert) {
 
 bool download_file(const std::string &url, const std::string &file) {
   CURL *curl = curl_easy_init();
-  if (!curl) {
+  if(!curl) {
     return false;
   }
   FILE *fp = fopen(file.c_str(), "wb");
@@ -198,7 +198,7 @@ bool download_file(const std::string &url, const std::string &file) {
 }
 
 std::string url_escape(const std::string &url) {
-  CURL *curl = curl_easy_init();
+  CURL *curl   = curl_easy_init();
   char *string = curl_easy_escape(curl, url.c_str(), url.length());
   std::string result(string);
   curl_free(string);
@@ -210,7 +210,7 @@ std::string url_get_host(const std::string &url) {
   CURLU *curlu = curl_url();
   curl_url_set(curlu, CURLUPART_URL, url.c_str(), url.length());
   char *host;
-  if (curl_url_get(curlu, CURLUPART_HOST, &host, 0) != CURLUE_OK) {
+  if(curl_url_get(curlu, CURLUPART_HOST, &host, 0) != CURLUE_OK) {
     curl_url_cleanup(curlu);
     return "";
   }

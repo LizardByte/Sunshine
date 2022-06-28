@@ -428,7 +428,7 @@ void uploadCover(resp_https_t response, req_https_t request) {
     std::ostringstream data;
 
     SimpleWeb::StatusCode code = SimpleWeb::StatusCode::success_ok;
-    if (outputTree.get_child_optional("error").has_value()) {
+    if(outputTree.get_child_optional("error").has_value()) {
       code = SimpleWeb::StatusCode::client_error_bad_request;
     }
 
@@ -437,7 +437,6 @@ void uploadCover(resp_https_t response, req_https_t request) {
   });
   pt::ptree inputTree;
   try {
-    //TODO: Input Validation
     pt::read_json(ss, inputTree);
   }
   catch(std::exception &e) {
@@ -448,7 +447,7 @@ void uploadCover(resp_https_t response, req_https_t request) {
   }
 
   auto key = inputTree.get("key", "");
-  if (key.empty()) {
+  if(key.empty()) {
     outputTree.put("error", "Cover key is required");
     return;
   }
@@ -460,16 +459,17 @@ void uploadCover(resp_https_t response, req_https_t request) {
   }
 
   std::basic_string path = coverdir + http::url_escape(key) + ".png";
-  if (!url.empty()) {
-    if (http::url_get_host(url) != "images.igdb.com") {
+  if(!url.empty()) {
+    if(http::url_get_host(url) != "images.igdb.com") {
       outputTree.put("error", "Only images.igdb.com is allowed");
       return;
     }
-    if (!http::download_file(url, path)) {
+    if(!http::download_file(url, path)) {
       outputTree.put("error", "Failed to download cover");
       return;
     }
-  } else {
+  }
+  else {
     auto data = SimpleWeb::Crypto::Base64::decode(inputTree.get<std::string>("data"));
 
     std::ofstream imgfile(path);
