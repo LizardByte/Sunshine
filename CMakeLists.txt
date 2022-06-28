@@ -6,12 +6,12 @@ project(Sunshine VERSION 0.14.0
 		)
 
 set(PROJECT_LONG_DESCRIPTION "Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, \
-Intel, and Nvidia gpus. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. \
+Intel, and Nvidia GPUs. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. \
 Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.")
 
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
 option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
-option(SUNSHINE_CONFIGURE_PORTFILE "Configure MacOS Portfile." OFF)
+option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
