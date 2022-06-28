@@ -183,6 +183,7 @@ jobs:
               libboost-log-dev \
               libboost-thread-dev \
               libcap-dev \
+              libcurl4-openssl-dev \
               libdrm-dev \
               libevdev-dev \
               libpulse-dev \
