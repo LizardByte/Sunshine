@@ -56,20 +56,29 @@ platform darwin {
 
 # destroot not required as cmake install directive handles moving files
 
-# Rename files in `destroot`
-post-destroot {
-    file rename ${destroot}${prefix}/etc/${name}/config/sunshine.conf ${destroot}${prefix}/etc/${name}/config/sunshine.conf.sample
-    file rename ${destroot}${prefix}/etc/${name}/config/apps.json ${destroot}${prefix}/etc/${name}/config/apps.json.sample
-}
+# # Rename files in `destroot`
+# post-destroot {
+#     file rename ${destroot}${prefix}/etc/${name}/config/sunshine.conf ${destroot}${prefix}/etc/${name}/config/sunshine.conf.sample
+#     file rename ${destroot}${prefix}/etc/${name}/config/apps.json ${destroot}${prefix}/etc/${name}/config/apps.json.sample
+# }
 
-# Don't overwrite existing preference files
-post-activate {
-    if {![file exists ${prefix}/etc/${name}/config/sunshine.conf]} {
-        file copy ${destroot}${prefix}/etc/${name}/config/sunshine.conf.sample \
-            ${prefix}/etc/${name}/config/sunshine.conf
-        }
-    if {![file exists ${prefix}/etc/${name}/config/apps.json]} {
-        file copy ${destroot}${prefix}/etc/${name}/config/apps.json.sample \
-            ${prefix}/etc/${name}/config/apps.json
-        }
-}
+# # Don't overwrite existing preference files
+# post-activate {
+#     if {![file exists ${prefix}/etc/${name}/config/sunshine.conf]} {
+#         file copy ${destroot}${prefix}/etc/${name}/config/sunshine.conf.sample \
+#             ${prefix}/etc/${name}/config/sunshine.conf
+#         }
+#     if {![file exists ${prefix}/etc/${name}/config/apps.json]} {
+#         file copy ${destroot}${prefix}/etc/${name}/config/apps.json.sample \
+#             ${prefix}/etc/${name}/config/apps.json
+#         }
+# }
+
+# disabled not overwriting config files... these are the default config files required by Sunshine
+# this did not work with pkg created by macports
+# we should always install the default files and user should start sunshine like "sunshine <path to user config file>"
+# if the file doesn't exist sunshine will copy the default config to that location
+notes-append "Run @PROJECT_NAME@ by executing 'sunshine <path to user config>', e.g. 'sunshine ~/sunshine.conf' "
+notes-append "The config file will be created if it doesn't exist."
+notes-append "It is recommended to set a location for the apps file in the config."
+notes-append "See our documentation at 'https://sunshinestream.readthedocs.io/en/v@PROJECT_VERSION@/' for further info."
