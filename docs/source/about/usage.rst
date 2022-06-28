@@ -118,6 +118,23 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
             systemctl --user enable sunshine
 
+#. Optionally, configure firewall
+      .. Note:: This is not currently available for AppImage or Flatpak.
+
+      .. Warning:: This will not work if you change the family of ports.
+
+      Enable
+         .. code-block:: bash
+
+            sudo firewall-cmd --permanent --zone=public --add-service=sunshine
+            sudo firewall-cmd --reload
+
+      Disable
+         .. code-block:: bash
+
+            sudo firewall-cmd --permanent --zone=public --remove-service=sunshine
+            sudo firewall-cmd --reload
+
 #. Additional Setup for KMS
       .. Note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
          allow Sunshine to use KMS.
