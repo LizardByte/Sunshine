@@ -1,11 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: AUR Package Issue
-    url: https://aur.archlinux.org/packages/sunshine
-    about: AUR Package Issues should be discussed on the AUR
   - name: Github Discussions
     url: https://github.com/SunshineStream/Sunshine/discussions
     about: General discussion, support, feature requests and more!
   - name: Discord support
-    url: https://discord.com/invite/CGg5JxN
+    url: https://sunshinestream.github.io/discord_join
     about: Ask question about Sunshine in Discord

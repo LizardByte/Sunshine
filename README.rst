@@ -63,6 +63,10 @@ Downloads
    :alt: GitHub Releases
    :target: https://github.com/SunshineStream/Sunshine/releases/latest
 
+.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=AUR&style=for-the-badge&query=$.results.0.NumVotes&url=https%3A%2F%2Fgithub.com%2FSunshineStream%2Fservice-repo%2Freleases%2Fdownload%2Fdaily%2Faur_sunshine-git.json&logo=archlinux
+   :alt: AUR votes
+   :target: https://aur.archlinux.org/packages/sunshine-git
+
 .. comment
    image:: https://img.shields.io/docker/pulls/sunshinestream/sunshine?style=for-the-badge&logo=docker
    :alt: Docker

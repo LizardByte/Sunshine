@@ -10,12 +10,15 @@ Intel, and Nvidia GPUs. It is an open source implementation of NVIDIA's GameStre
 Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.")
 
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
 option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
 option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
 	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+elseif(${SUNSHINE_CONFIGURE_AUR})
+	configure_file(packaging/linux/aur/PKGBUILD PKGBUILD @ONLY)
 elseif(${SUNSHINE_CONFIGURE_FLATPAK})
 	configure_file(packaging/linux/flatpak/com.github.sunshinestream.sunshine.yml com.github.sunshinestream.sunshine.yml @ONLY)
 elseif(${SUNSHINE_CONFIGURE_PORTFILE})
@@ -604,7 +607,7 @@ elseif(UNIX)
 		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
 		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
+		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
 		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
 		# Pre and post install
