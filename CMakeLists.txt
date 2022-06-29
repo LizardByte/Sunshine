@@ -6,12 +6,15 @@ project(Sunshine VERSION 0.14.0
 		)
 
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
 option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
 option(SUNSHINE_CONFIGURE_PORTFILE "Configure MacOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
 	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+elseif(${SUNSHINE_CONFIGURE_AUR})
+	configure_file(packaging/linux/aur/PKGBUILD PKGBUILD @ONLY)
 elseif(${SUNSHINE_CONFIGURE_FLATPAK})
 	configure_file(packaging/linux/flatpak/com.github.sunshinestream.sunshine.yml com.github.sunshinestream.sunshine.yml @ONLY)
 elseif(${SUNSHINE_CONFIGURE_PORTFILE})
@@ -591,7 +594,7 @@ if(UNIX AND NOT APPLE)
 
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
+	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
 
 	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")

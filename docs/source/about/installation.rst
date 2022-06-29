@@ -44,6 +44,16 @@ According to AppImageLint the AppImage can run on the following distros.
 
 #. Download ``sunshine-appimage.zip`` and extract the contents to your home directory.
 
+AUR Package
+^^^^^^^^^^^
+#. Open terminal and run the following code.
+
+   .. code-block:: bash
+
+      git clone https://aur.archlinux.org/sunshine-git.git
+      cd sunshine-git
+      makepkg -fi
+
 Debian Package
 ^^^^^^^^^^^^^^
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:deb?logo=github&style=for-the-badge

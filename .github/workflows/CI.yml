@@ -52,6 +52,100 @@ jobs:
           echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
           exit 1
 
+  build_linux_aur:
+    name: Linux AUR
+    runs-on: ubuntu-latest
+    needs: check_changelog
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Dependencies Linux AUR
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+              cmake
+
+      - name: Configure PKGBUILD files
+        run: |
+          # variables for manifest
+          echo "aur_publish=false" >> $GITHUB_ENV
+          aur_pkg=sunshine-dev
+          sub_version=""
+          conflicts="'sunshine'"
+          provides="'sunshine'"
+          
+          branch=${GITHUB_HEAD_REF}
+          
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+              echo "This is a PUSH event"
+              commit=${{ github.sha }}
+              clone_url=${{ github.event.repository.clone_url }}
+          
+              if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
+                  aur_pkg=sunshine-git
+                  # conflicts=""
+                  # provides=""
+          
+                  echo "aur_publish=true" >> $GITHUB_ENV
+              elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
+                  aur_pkg=sunshine-nightly
+                  sub_version=".r${commit}"
+              fi
+          else
+              echo "This is a PR event"
+              commit=${{ github.event.pull_request.head.sha }}
+              clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+          
+              sub_version=".r${commit}"
+          fi
+          echo "Commit: ${commit}"
+          echo "Clone URL: ${clone_url}"
+          
+          echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
+          
+          mkdir -p artifacts
+          mkdir -p build
+          
+          cd build
+          cmake -DSUNSHINE_CONFIGURE_AUR=ON -DSUNSHINE_AUR_PKG=${aur_pkg} -DSUNSHINE_SUB_VERSION=${sub_version} -DSUNSHINE_AUR_CONFLICTS=${conflicts} -DSUNSHINE_AUR_PROVIDES=${provides} -DGITHUB_CLONE_URL=${clone_url} -DGITHUB_COMMIT=${commit} -DSUNSHINE_CONFIGURE_ONLY=ON ..
+          cd ..
+          
+          mv ./build/PKGBUILD ./artifacts/
+
+      - name: Validate package
+        uses: hapakaien/archlinux-package-action@v2
+        with:
+          path: artifacts
+          flags: '--syncdeps --noconfirm'
+          namcap: true
+          srcinfo: true
+          aur: true  # workaround mirror problem
+
+      - name: Upload Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-linux-aur
+          path: artifacts/
+
+      - name: Publish AUR package
+        if: ${{ env.aur_publish == 'true' }}
+        uses: KSXGitHub/github-actions-deploy-aur@v2.3.0
+        with:
+          pkgname: ${{ env.aur_pkg }}
+          pkgbuild: ./artifacts/PKGBUILD
+          assets: |
+            ./artifacts/*
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: Release ${{ needs.check_changelog.outputs.next_version }}
+          allow_empty_commits: false
+
   build_linux_flatpak:
     name: Linux Flatpak
     runs-on: ubuntu-18.04

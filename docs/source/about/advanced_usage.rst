@@ -17,14 +17,16 @@ location by modifying the configuration file.
 .. table::
    :widths: auto
 
-   =======   ===========
-   Value     Description
-   =======   ===========
-   Docker    /config/
-   Linux     /usr/local/sunshine/config/
-   MacOS     /usr/local/sunshine/config/
-   Windows   ./config/
-   =======   ===========
+   =========   ===========
+   Value       Description
+   =========   ===========
+   Docker      /config/
+   Linux-aur   /usr/share/sunshine/config/
+   Linux-deb   /usr/local/sunshine/config/
+   Linux-rpm   /usr/local/sunshine/config/
+   MacOS       /usr/local/sunshine/config/
+   Windows     ./config/
+   =========   ===========
 
 Example
    .. code-block:: bash
