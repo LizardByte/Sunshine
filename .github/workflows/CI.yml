@@ -134,7 +134,7 @@ jobs:
 
       - name: Publish AUR package
         if: ${{ env.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@master  # assets arg not in latest release
+        uses: KSXGitHub/github-actions-deploy-aur@v2.3.0
         with:
           pkgname: ${{ env.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
