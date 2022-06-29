@@ -9,8 +9,6 @@ Binaries
 Binaries of Sunshine are created for each release. They are available for Linux, and Windows.
 Binaries can be found in the `latest release`_.
 
-.. Todo:: Create binary package(s) for MacOS. See `here <https://github.com/SunshineStream/Sunshine/issues/61>`_.
-
 .. Tip:: Some third party packages also exist. See
    :ref:`Third Party Packages <about/third_party_packages:third party packages>`.
 
@@ -107,10 +105,15 @@ RPM Package
 
 .. Tip:: You can double click the rpm file to see details about the package and begin installation.
 
-MacOS
+macOS
 -----
 .. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
+
+pkg
+   .. Warning:: The `pkg` does not include runtime dependencies and should be considered experimental.
+
+   #. Download the ``sunshine.pkg`` file and install it as normal.
 
 Portfile
    #. Install `MacPorts <https://www.macports.org>`_

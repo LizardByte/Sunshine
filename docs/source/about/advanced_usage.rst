@@ -24,7 +24,7 @@ location by modifying the configuration file.
    Linux-aur   /usr/share/sunshine/config/
    Linux-deb   /usr/local/sunshine/config/
    Linux-rpm   /usr/local/sunshine/config/
-   MacOS       /usr/local/sunshine/config/
+   macOS       /usr/local/sunshine/config/
    Windows     ./config/
    =========   ===========
 
@@ -227,7 +227,7 @@ Description
          To be supported by Sunshine, it needs to have at the very minimum:
          ``VAProfileH264High   : VAEntrypointEncSlice``
 
-      .. Todo:: MacOS
+      .. Todo:: macOS
 
       Windows
          .. code-block:: batch
@@ -243,7 +243,7 @@ Examples
 
          adapter_name = /dev/dri/renderD128
 
-   .. Todo:: MacOS
+   .. Todo:: macOS
 
    Windows
       .. code-block:: text
@@ -267,7 +267,7 @@ Description
 
          You need to use the value before the colon in the output, e.g. ``0``.
 
-      .. Todo:: MacOS
+      .. Todo:: macOS
 
       Windows
          .. code-block:: batch
@@ -283,7 +283,7 @@ Examples
 
          output_name = 0
 
-   .. Todo:: MacOS
+   .. Todo:: macOS
 
    Windows
       .. code-block:: text
@@ -378,8 +378,8 @@ Description
             # in some causes you'd need to use the `Sink` device, if `Source` doesn't work, so try:
             pactl info | grep Sink
 
-      MacOS
-         Sunshine can only access microphones on MacOS due to system limitations. To stream system audio use
+      macOS
+         Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
          `Soundflower <https://github.com/mattingalls/Soundflower>`_ or
          `BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
 
@@ -397,7 +397,7 @@ Examples
 
          audio_sink = alsa_output.pci-0000_09_00.3.analog-stereo
 
-   MacOS
+   macOS
       .. code-block:: text
 
          audio_sink = BlackHole 2ch
@@ -995,7 +995,7 @@ vt_software
 Description
    Force Video Toolbox to use software encoding.
 
-   .. Note:: This option only applies when using MacOS.
+   .. Note:: This option only applies when using macOS.
 
 **Choices**
 
@@ -1025,7 +1025,7 @@ vt_realtime
 Description
    Realtime encoding.
 
-   .. Note:: This option only applies when using MacOS.
+   .. Note:: This option only applies when using macOS.
 
    .. Warning:: Disabling realtime encoding might result in a delayed frame encoding or frame drop.
 
@@ -1043,7 +1043,7 @@ vt_coder
 Description
    The entropy encoding to use.
 
-   .. Note:: This option only applies when using MacOS.
+   .. Note:: This option only applies when using macOS.
 
 **Choices**
 
