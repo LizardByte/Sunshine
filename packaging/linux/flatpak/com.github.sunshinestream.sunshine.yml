@@ -33,7 +33,7 @@ modules:
       - '*'
     build-commands:
       - chmod u+x ./cuda.run
-      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$(pwd)
+      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR
       - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
       - rm ./cuda.run
     sources:
