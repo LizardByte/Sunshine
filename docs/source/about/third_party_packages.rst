@@ -8,17 +8,14 @@ Third Party Packages
 AUR (Arch Linux User Repository)
 --------------------------------
 
-.. image:: https://img.shields.io/aur/version/sunshine?style=for-the-badge&logo=archlinux
+.. image:: https://img.shields.io/badge/dynamic/json?color=orange&label=AUR&style=for-the-badge&prefix=v&query=$.results.0.Version&url=https%3A%2F%2Fgithub.com%2FSunshineStream%2Fservice-repo%2Freleases%2Fdownload%2Fdaily%2Faur_sunshine.json&logo=archlinux
    :alt: AUR version
    :target: https://aur.archlinux.org/packages/sunshine
 
-.. image:: https://img.shields.io/aur/last-modified/sunshine?style=for-the-badge&logo=archlinux
-   :alt: AUR last modified
-
-.. image:: https://img.shields.io/aur/votes/sunshine?style=for-the-badge&logo=archlinux
+.. image:: https://img.shields.io/badge/dynamic/json?color=yellowgreen&label=votes&style=for-the-badge&query=$.results.0.NumVotes&url=https%3A%2F%2Fgithub.com%2FSunshineStream%2Fservice-repo%2Freleases%2Fdownload%2Fdaily%2Faur_sunshine.json&logo=archlinux
    :alt: AUR votes
 
-.. image:: https://img.shields.io/aur/maintainer/sunshine?style=for-the-badge&logo=archlinux
+.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=maintainer&style=for-the-badge&query=$.results.0.Maintainer&url=https%3A%2F%2Fgithub.com%2FSunshineStream%2Fservice-repo%2Freleases%2Fdownload%2Fdaily%2Faur_sunshine.json&logo=archlinux
    :alt: AUR maintainer
 
 Chocolatey

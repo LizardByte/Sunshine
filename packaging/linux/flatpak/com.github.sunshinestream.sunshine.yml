@@ -208,5 +208,6 @@ modules:
       - -DSUNSHINE_ENABLE_CUDA=ON
     sources:
       - type: git
-        url: https://github.com/@GITHUB_OWNER@/@GITHUB_REPO@.git
+        url: @GITHUB_CLONE_URL@
         branch: @GITHUB_BRANCH@
+        commit: @GITHUB_COMMIT@
