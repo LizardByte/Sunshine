@@ -27,7 +27,7 @@ Usage
          list of applications that are started just before running a stream. This is the directory within the GitHub
          repo.
 
-      .. Attention:: Application list is not fully supported on MacOS
+      .. Attention:: Application list is not fully supported on macOS
 
 #. In Moonlight, you may need to add the PC manually.
 #. When Moonlight request you insert the correct pin on sunshine:
@@ -68,7 +68,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 #. Create `udev` rules.
       .. code-block:: bash
 
-         sudo nano /etc/udev/rules.d/85-sunshine-input.rules
+         sudo nano /etc/udev/rules.d/85-sunshine.rules
 
       Input the following contents.
 
@@ -102,6 +102,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             ========   ==============================================   ===============
             package    ExecStart                                        Auto Configured
             ========   ==============================================   ===============
+            aur        /usr/bin/sunshine                                ✔
             deb        /usr/bin/sunshine                                ✔
             rpm        /usr/bin/sunshine                                ✔
             AppImage   ~/sunshine.AppImage                              ✖
@@ -154,7 +155,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
          sudo reboot now
 
-MacOS
+macOS
 ^^^^^
 Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
 `Soundflower <https://github.com/mattingalls/Soundflower>`_ or
