@@ -195,33 +195,29 @@ jobs:
       - name: Configure Flatpak Manifest
         run: |
           # variables for manifest
-          owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
-          repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
           branch=${GITHUB_HEAD_REF}
-          commit=${{ github.event.pull_request.head.sha }}
           
           # check the branch variable
           if [ -z "$branch" ]
           then
               echo "This is a PUSH event"
-              branch=branch=${{ github.ref_name }}
+              branch=${{ github.ref_name }}
               commit=${{ github.sha }}
+              clone_url=${{ github.event.repository.clone_url }}
           else
               echo "This is a PR event"
+              commit=${{ github.event.pull_request.head.sha }}
+              clone_url=${{ github.event.pull_request.head.repo.clone_url }}
           fi
-          echo "Owner: ${owner}"
-          echo "Repo: ${repo}"
           echo "Branch: ${branch}"
           echo "Commit: ${commit}"
+          echo "Clone URL: ${clone_url}"
           
           mkdir -p build
           mkdir -p artifacts
           
           cd build
-          cmake -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} -DSUNSHINE_CONFIGURE_FLATPAK=ON -DSUNSHINE_CONFIGURE_ONLY=ON ..
-          
-          # add the commit
-          echo "        commit: ${commit}" >> ./com.github.sunshinestream.sunshine.yml
+          cmake -DGITHUB_CLONE_URL=${clone_url} -DGITHUB_BRANCH=${branch} -DGITHUB_COMMIT=${commit} -DSUNSHINE_CONFIGURE_FLATPAK=ON -DSUNSHINE_CONFIGURE_ONLY=ON ..
 
       - name: Build Linux Flatpak
         working-directory: build
