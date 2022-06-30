@@ -1,0 +1,55 @@
+# Edit on github: https://github.com/SunshineStream/Sunshine/tree/nightly/packaging/linux/aur/PKGBUILD
+# Reference: https://wiki.archlinux.org/title/PKGBUILD
+
+pkgname=@SUNSHINE_AUR_PKG@
+pkgver=@PROJECT_VERSION@@SUNSHINE_SUB_VERSION@
+pkgrel=1
+pkgdesc="@PROJECT_DESCRIPTION@"
+arch=('x86_64' 'i686')
+url=@PROJECT_HOMEPAGE_URL@
+license=('GPL3')
+
+depends=('avahi' 'boost-libs' 'ffmpeg4.4' 'libevdev' 'libpulse' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'openssl' 'opus' 'udev')
+makedepends=('boost' 'cmake' 'git' 'make')
+optdepends=('cuda' 'libcap' 'libdrm')
+
+provides=(@SUNSHINE_AUR_PROVIDES@)
+conflicts=(@SUNSHINE_AUR_CONFLICTS@)
+
+source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname"
+    git submodule update --recursive --init
+}
+
+build() {
+    export CFLAGS="${CFLAGS/-Werror=format-security/}"
+    export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
+
+    cmake \
+        -S "$pkgname" \
+        -B build \
+        -Wno-dev \
+        -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
+        -D CMAKE_INSTALL_PREFIX="/usr" \
+        -D SUNSHINE_ASSETS_DIR="share/sunshine/assets" \
+        -D SUNSHINE_CONFIG_DIR="share/sunshine/config" \
+        -D LIBAVCODEC_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
+        -D LIBAVCODEC_LIBRARIES=/usr/lib/ffmpeg4.4/libavcodec.so \
+        -D LIBAVDEVICE_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
+        -D LIBAVDEVICE_LIBRARIES=/usr/lib/ffmpeg4.4/libavdevice.so \
+        -D LIBAVFORMAT_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
+        -D LIBAVFORMAT_LIBRARIES=/usr/lib/ffmpeg4.4/libavformat.so \
+        -D LIBAVUTIL_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
+        -D LIBAVUTIL_LIBRARIES=/usr/lib/ffmpeg4.4/libavutil.so \
+        -D LIBSWSCALE_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
+        -D LIBSWSCALE_LIBRARIES=/usr/lib/ffmpeg4.4/libswscale.so
+
+    make -C build
+}
+
+package() {
+    make -C build install DESTDIR="$pkgdir"
+}

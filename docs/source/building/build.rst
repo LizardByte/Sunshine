@@ -22,7 +22,7 @@ Compile
 See the section specific to your OS.
 
 - :ref:`Linux <building/linux:linux>`
-- :ref:`MacOS <building/macos:macos>`
+- :ref:`macOS <building/macos:macos>`
 - :ref:`Windows <building/windows:windows>`
 
 Remote Build
