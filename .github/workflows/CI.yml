@@ -222,8 +222,8 @@ jobs:
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo runuser -l runner -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine ${{ github.workspace }}/build/com.github.sunshinestream.sunshine.yml'
-          sudo runuser -l runner -c 'flatpak build-bundle ./repo ${{ github.workspace }}/artifacts/sunshine.flatpak com.github.sunshinestream.sunshine'
+          sudo runuser -l runner -c 'flatpak run org.flatpak.Builder --repo=/home/runner/repo --force-clean build-sunshine ${{ github.workspace }}/build/com.github.sunshinestream.sunshine.yml'
+          sudo runuser -l runner -c 'flatpak build-bundle /home/runner/repo ${{ github.workspace }}/artifacts/sunshine.flatpak com.github.sunshinestream.sunshine'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
