@@ -5,13 +5,20 @@ project(Sunshine VERSION 0.14.0
 		HOMEPAGE_URL "https://sunshinestream.github.io"
 		)
 
+set(PROJECT_LONG_DESCRIPTION "Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, \
+Intel, and Nvidia GPUs. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. \
+Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.")
+
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
 option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
-option(SUNSHINE_CONFIGURE_PORTFILE "Configure MacOS Portfile." OFF)
+option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
 	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+elseif(${SUNSHINE_CONFIGURE_AUR})
+	configure_file(packaging/linux/aur/PKGBUILD PKGBUILD @ONLY)
 elseif(${SUNSHINE_CONFIGURE_FLATPAK})
 	configure_file(packaging/linux/flatpak/com.github.sunshinestream.sunshine.yml com.github.sunshinestream.sunshine.yml @ONLY)
 elseif(${SUNSHINE_CONFIGURE_PORTFILE})
@@ -148,6 +155,9 @@ if(WIN32)
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 elseif(APPLE)
 	add_compile_definitions(SUNSHINE_PLATFORM="macos")
+
+	option(SUNSHINE_MACOS_PACKAGE "Should only be used when creating a MACOS package/dmg." OFF)
+
 	link_directories(/opt/local/lib)
 	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
@@ -558,57 +568,64 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
 	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
 endif()
-if(UNIX)
-	# Installation destination dir
-	set(CPACK_SET_DESTDIR true)
-	if(NOT CMAKE_INSTALL_PREFIX)
-		set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine")
-	endif()
-
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-endif()
-if(APPLE) # TODO: test
-
-	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
-	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
-
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-
-	install(TARGETS sunshine
-			BUNDLE DESTINATION . COMPONENT Runtime
-			RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR} COMPONENT Runtime)
-
+if(APPLE)
 	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
 	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
 	set(CPACK_BUNDLE_PLIST "${APPLE_PLIST_FILE}")
 	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
 endif()
-if(UNIX AND NOT APPLE)
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+if(APPLE AND SUNSHINE_MACOS_PACKAGE) # TODO
+	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
+	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
 
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+
+	install(TARGETS sunshine
+			BUNDLE DESTINATION . COMPONENT Runtime
+			RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR} COMPONENT Runtime)
+elseif(UNIX)
+	# Installation destination dir
+	set(CPACK_SET_DESTDIR true)
+	if(NOT CMAKE_INSTALL_PREFIX)
+		set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine")
+	endif()
 
 	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
-	# Pre and post install
-	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-		"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
-	set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
-	set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	# Dependencies
-	set(CPACK_DEB_COMPONENT_INSTALL ON)
-	set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-	set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
-	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
+	if(APPLE)
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+
+		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/misc/uninstall_pkg.sh" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	else()
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+
+		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+
+		# Pre and post install
+		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst"
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst"
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
+		set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
+		set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
+
+		# Dependencies
+		set(CPACK_DEB_COMPONENT_INSTALL ON)
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
+	endif()
 endif()
 
 include(CPack)
