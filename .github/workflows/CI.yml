@@ -189,8 +189,8 @@ jobs:
               cmake \
               flatpak \
               flatpak-builder
-          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install flathub org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y
+          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo'
+          sudo su $(whoami) -c 'flatpak install --user flathub org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
 
       - name: Configure Flatpak Manifest
         run: |
@@ -222,8 +222,8 @@ jobs:
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo runuser -l runner -c 'flatpak run org.flatpak.Builder --repo=/home/runner/repo --force-clean build-sunshine ${{ github.workspace }}/build/com.github.sunshinestream.sunshine.yml'
-          sudo runuser -l runner -c 'flatpak build-bundle /home/runner/repo ${{ github.workspace }}/artifacts/sunshine.flatpak com.github.sunshinestream.sunshine'
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine com.github.sunshinestream.sunshine.yml'
+          sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak com.github.sunshinestream.sunshine'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
