@@ -163,21 +163,6 @@ jobs:
     needs: check_changelog
 
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 2048
-          swap-size-mb: 8192
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-
-      - name: Cache flatpak-builder
-        uses: actions/cache@v3
-        with:
-          path: ./build/.flatpak-builder/build
-          key: ${{ runner.os }}-flatpak-builder
-
       - name: Checkout
         uses: actions/checkout@v3
 
