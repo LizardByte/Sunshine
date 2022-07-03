@@ -343,7 +343,7 @@ public:
     }
 
     auto sink_name = get_default_sink_name();
-    sink.host = sink_name;
+    sink.host      = sink_name;
 
     if(index.stereo == PA_INVALID_INDEX) {
       index.stereo = load_null(stereo, speaker::map_stereo, sizeof(speaker::map_stereo));
@@ -396,7 +396,7 @@ public:
         alarm->ring(-1);
       }
 
-      if (server_info->default_sink_name) {
+      if(server_info->default_sink_name) {
         sink_name = server_info->default_sink_name;
       }
       alarm->ring(0);
@@ -412,7 +412,7 @@ public:
     std::string monitor_name;
     auto alarm = safe::make_alarm<int>();
 
-    if (sink_name.empty()) {
+    if(sink_name.empty()) {
       return monitor_name;
     }
 
