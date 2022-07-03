@@ -163,11 +163,11 @@ void capture(safe::mail_t mail, config_t config, void *channel_data) {
     ref->restore_sink = !config.flags[config_t::HOST_AUDIO];
 
     // If the sink is empty (Host has no sink!), definately switch to the virtual.
-    if (ref->sink.host.empty()) {
-      if (control->set_sink(*sink)) {
+    if(ref->sink.host.empty()) {
+      if(control->set_sink(*sink)) {
         return;
       }
-    } 
+    }
     // If the client requests audio on the host, don't change the default sink
     else if(!config.flags[config_t::HOST_AUDIO] && control->set_sink(*sink)) {
       return;
