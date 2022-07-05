@@ -163,12 +163,6 @@ jobs:
     needs: check_changelog
 
     steps:
-      - name: Cache flatpak-builder
-        uses: actions/cache@v3
-        with:
-          path: build/.flatpak-builder
-          key: ${{ runner.os }}-flatpak
-          
       - name: Checkout
         uses: actions/checkout@v3
 
