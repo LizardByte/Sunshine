@@ -163,17 +163,21 @@ jobs:
     needs: check_changelog
 
     steps:
+      - name: Cache flatpak-builder
+        uses: actions/cache@v3
+        with:
+          path: ./build/.flatpak-builder
+          key: ${{ runner.os }}-flatpak
+          
       - name: Checkout
         uses: actions/checkout@v3
 
       - name: Setup Dependencies Linux Flatpak
         run: |
-          sudo add-apt-repository ppa:flatpak/stable -y
           sudo apt-get update -y
           sudo apt-get install -y \
               cmake \
-              flatpak \
-              flatpak-builder
+              flatpak
           sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo'
           sudo su $(whoami) -c 'flatpak install --user flathub org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
 
