@@ -300,48 +300,53 @@
         this.coverCandidates = [];
         this.coverSearching = true;
 
-        function getSearchKey(q) {
-          const key = q.toLowerCase().replaceAll(/[^\da-z]+/g, '.');
-          if (key.endsWith('.')) {
-            return key.substring(0, key.length - 1);
+        function getSearchBucket(name) {
+          let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
+          if (!bucket) {
+            return '@';
           }
-          return key;
+          return bucket;
         }
 
-        function getSearchBucket(key) {
-          let index = key.indexOf('.');
-          if (index < 0) {
-            index = key.length;
+        function searchCovers(name) {
+          if (!name) {
+            return Promise.resolve([]);
           }
-          const s = key.substring(0, Math.min(2, index));
-          if (!s || s === '.') return '@';
-          return s;
-        }
-
-        function searchCovers(key) {
-          let bucket = getSearchBucket(key);
-          return fetch("https://sunshinestream.github.io/db/buckets/" + bucket + ".json").then(r => {
+          let searchName = name.replaceAll(/\s+/g, '.').toLowerCase();
+          let bucket = getSearchBucket(name);
+          return fetch("https://db.lizardbyte.dev/buckets/" + bucket + ".json").then(function (r) {
             if (!r.ok) throw new Error("Failed to search covers");
             return r.json();
-          }).then(maps => {
-            let result = [];
-            for (let itemKey of Object.keys(maps)) {
-              if (itemKey.startsWith(key)) {
-                let item = maps[itemKey];
-                result.push({
-                  name: item.name,
-                  key: itemKey,
-                  url: "https://images.igdb.com/igdb/image/upload/t_cover_big/" + item.hash + ".jpg",
-                  saveUrl: "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/" + item.hash + ".png",
-                });
-              }
+          }).then(maps => Promise.all(Object.keys(maps).map(id => {
+            let item = maps[id];
+            if (item.name.replaceAll(/\s+/g, '.').toLowerCase().startsWith(searchName)) {
+              return fetch("https://db.lizardbyte.dev/games/" + id + ".json").then(function (r) {
+                return r.json();
+              }).catch(() => null);
             }
-            return result;
-          });
+            return null;
+          }).filter(item => item)))
+            .then(results => results
+              .filter(item => item && item.cover && item.cover.url)
+              .map(game => {
+                const thumb = game.cover.url;
+                const dotIndex = thumb.lastIndexOf('.');
+                const slashIndex = thumb.lastIndexOf('/');
+                if (dotIndex < 0 || slashIndex < 0) {
+                  return null;
+                }
+                const hash = thumb.substring(slashIndex + 1, dotIndex);
+                return {
+                  name: game.name,
+                  key: "igdb_" + game.id,
+                  url: "https://images.igdb.com/igdb/image/upload/t_cover_big/" + hash + ".jpg",
+                  saveUrl: "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/" + hash + ".png",
+                }
+              }).filter(item => item));
         }
 
-        searchCovers(getSearchKey(this.editForm["name"].toString()))
-          .then(body => this.coverCandidates = body)
+        searchCovers(this.editForm["name"].toString())
+          .then(list => this.coverCandidates = list)
           .finally(() => this.coverSearching = false);
       },
       closeCoverFinder() {
