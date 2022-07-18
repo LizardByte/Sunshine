@@ -19,7 +19,6 @@ docker run -d \
   -p 47999:47999 \
   -p 48000:48000 \
   -p 48002:48002 \
-  -p 48010:48010 \
   sunshinestream/sunshine
 ```
 
