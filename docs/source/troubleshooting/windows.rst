@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/troubleshooting/windows.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/troubleshooting/windows.rst
 
 Windows
 =======

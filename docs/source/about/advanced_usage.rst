@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/about/advanced_usage.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/advanced_usage.rst
 
 Advanced Usage
 ==============

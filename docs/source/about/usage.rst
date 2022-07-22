@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/about/usage.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/usage.rst
 
 Usage
 =====
@@ -106,7 +106,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             deb        /usr/bin/sunshine                                ✔
             rpm        /usr/bin/sunshine                                ✔
             AppImage   ~/sunshine.AppImage                              ✖
-            Flatpak    flatpak run com.github.sunshinestream.sunshine   ✖
+            Flatpak    flatpak run dev.lizardbyte.sunshine              ✖
             ========   ==============================================   ===============
 
       Start once

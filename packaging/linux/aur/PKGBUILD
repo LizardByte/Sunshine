@@ -1,4 +1,4 @@
-# Edit on github: https://github.com/SunshineStream/Sunshine/tree/nightly/packaging/linux/aur/PKGBUILD
+# Edit on github: https://github.com/LizardByte/Sunshine/tree/nightly/packaging/linux/aur/PKGBUILD
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
 pkgname=@SUNSHINE_AUR_PKG@

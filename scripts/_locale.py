@@ -13,7 +13,7 @@ import os
 import subprocess
 
 project_name = 'Sunshine'
-project_owner = 'SunshineStream'
+project_owner = 'LizardByte'
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(script_dir)
