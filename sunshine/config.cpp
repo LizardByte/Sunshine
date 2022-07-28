@@ -20,7 +20,7 @@ using namespace std::literals;
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
 #define CERTIFICATE_FILE CA_DIR "/cacert.pem"
 
-#define APPS_JSON_PATH SUNSHINE_CONFIG_DIR "/apps.json"
+#define APPS_JSON_PATH platf::appdata().string() "/apps.json"
 namespace config {
 
 namespace nv {
@@ -292,7 +292,7 @@ sunshine_t sunshine {
   {},                                   // Username
   {},                                   // Password
   {},                                   // Password Salt
-  SUNSHINE_CONFIG_DIR "/sunshine.conf", // config file
+  platf::appdata().string() "/sunshine.conf", // config file
   {},                                   // cmd args
   47989,
 };
