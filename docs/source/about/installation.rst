@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/about/installation.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/installation.rst
 
 Installation
 ============
@@ -23,7 +23,7 @@ Follow the instructions for your preferred package type below.
 
 AppImage
 ^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 According to AppImageLint the AppImage can run on the following distros.
@@ -54,7 +54,7 @@ AUR Package
 
 Debian Package
 ^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:deb?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:deb?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Download ``sunshine.deb`` and run the following code.
@@ -67,7 +67,7 @@ Debian Package
 
 Flatpak Package
 ^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:flatpak?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:flatpak?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 .. Todo:: This package needs to have CUDA added.
@@ -87,7 +87,7 @@ Flatpak Package
 
 RPM Package
 ^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:rpm?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:rpm?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 #. Add `rpmfusion` repositories by running the following code.
@@ -107,7 +107,7 @@ RPM Package
 
 macOS
 -----
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 pkg
@@ -143,10 +143,10 @@ Portfile
 
 Windows
 -------
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:10?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:windows:10?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:11?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:windows:11?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 Installed option:
@@ -155,6 +155,6 @@ Installed option:
 Standalone option:
    #. Download and extract ``sunshine-windows.zip``
 
-.. _latest release: https://github.com/SunshineStream/Sunshine/releases/latest
-.. _Dockerhub.io: https://hub.docker.com/repository/docker/sunshinestream/sunshine
-.. _ghcr.io: https://github.com/orgs/SunshineStream/packages?repo_name=sunshine
+.. _latest release: https://github.com/LizardByte/Sunshine/releases/latest
+.. _Dockerhub.io: https://hub.docker.com/repository/docker/lizardbyte/sunshine
+.. _ghcr.io: https://github.com/orgs/LizardByte/packages?repo_name=sunshine

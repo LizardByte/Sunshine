@@ -28,7 +28,7 @@ absolute_path() {
 CMAKE_BUILD_TYPE="-e CMAKE_BUILD_TYPE=Release"
 SUNSHINE_PACKAGE_BUILD=OFF
 SUNSHINE_PACKAGE_EXTENSION=deb
-SUNSHINE_GIT_URL=https://github.com/sunshinestream/sunshine.git
+SUNSHINE_GIT_URL=https://github.com/lizardbyte/sunshine.git
 CONTAINER_NAME=sunshine
 
 # Docker will fail if ctrl+c is passed through and the input is not a tty

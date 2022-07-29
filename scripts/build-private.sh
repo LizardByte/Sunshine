@@ -8,7 +8,7 @@ SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR:-/etc/sunshine}"
 
 SUNSHINE_ROOT="${SUNSHINE_ROOT:-/root/sunshine}"
 SUNSHINE_TAG="${SUNSHINE_TAG:-master}"
-SUNSHINE_GIT_URL="${SUNSHINE_GIT_URL:-https://github.com/sunshinestream/sunshine.git}"
+SUNSHINE_GIT_URL="${SUNSHINE_GIT_URL:-https://github.com/lizardbyte/sunshine.git}"
 
 
 SUNSHINE_ENABLE_WAYLAND=${SUNSHINE_ENABLE_WAYLAND:-ON}

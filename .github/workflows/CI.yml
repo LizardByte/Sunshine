@@ -31,7 +31,7 @@ jobs:
         id: verify_changelog
         if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
         # base_ref for pull request check, ref for push
-        uses: SunshineStream/actions/verify_changelog@master
+        uses: LizardByte/.github/actions/verify_changelog@master
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -209,8 +209,8 @@ jobs:
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine com.github.sunshinestream.sunshine.yml'
-          sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak com.github.sunshinestream.sunshine'
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak dev.lizardbyte.sunshine'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -220,9 +220,9 @@ jobs:
 
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
+        uses: LizardByte/.github/actions/create_release@master
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
@@ -415,9 +415,9 @@ jobs:
 
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
+        uses: LizardByte/.github/actions/create_release@master
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
@@ -481,9 +481,9 @@ jobs:
       # no artifacts to release currently
 #      - name: Create Release
 #        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-#        uses: SunshineStream/actions/create_release@master
+#        uses: LizardByte/.github/actions/create_release@master
 #        with:
-#          token: ${{ secrets.GITHUB_TOKEN }}
+#          token: ${{ secrets.GH_BOT_TOKEN }}
 #          next_version: ${{ needs.check_changelog.outputs.next_version }}
 #          last_version: ${{ needs.check_changelog.outputs.last_version }}
 #          release_body: ${{ needs.check_changelog.outputs.release_body }}
@@ -692,9 +692,9 @@ jobs:
 
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
+        uses: LizardByte/.github/actions/create_release@master
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
@@ -760,9 +760,9 @@ jobs:
 
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
+        uses: LizardByte/.github/actions/create_release@master
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
