@@ -269,6 +269,7 @@ jobs:
               libboost-filesystem-dev \
               libboost-log-dev \
               libboost-thread-dev \
+              libboost-locale-dev \
               libcap-dev \
               libdrm-dev \
               libevdev-dev \
