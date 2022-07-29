@@ -286,14 +286,14 @@ input_t input {
 };
 
 sunshine_t sunshine {
-  2,                                    // min_log_level
-  0,                                    // flags
-  {},                                   // User file
-  {},                                   // Username
-  {},                                   // Password
-  {},                                   // Password Salt
+  2,                                            // min_log_level
+  0,                                            // flags
+  {},                                           // User file
+  {},                                           // Username
+  {},                                           // Password
+  {},                                           // Password Salt
   platf::appdata().string() + "/sunshine.conf", // config file
-  {},                                   // cmd args
+  {},                                           // cmd args
   47989,
 };
 
