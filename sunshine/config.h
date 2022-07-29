@@ -1,14 +1,117 @@
 #ifndef SUNSHINE_CONFIG_H
 #define SUNSHINE_CONFIG_H
 
+#include <any>
 #include <bitset>
+#include <boost/property_tree/ptree.hpp>
 #include <chrono>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace config {
+namespace pt = boost::property_tree;
+
+void list_int_f(std::string val, std::vector<int> &input);
+void list_string_f(std::string string, std::vector<std::string> &input);
+void int_f(std::string val, int &input);
+
+struct ILimit {
+
+  virtual void to(pt::ptree &tree) const      = 0;
+  virtual bool check(std::string value) const = 0;
+  virtual ~ILimit() {};
+};
+
+struct limit {
+
+  template<typename LimitType>
+  limit(LimitType &&object)
+      : storage { std::forward<LimitType>(object) }, get { [](std::any &object) -> ILimit & { return std::any_cast<LimitType &>(object); } } {}
+
+  ILimit *operator->() { return &get(storage); }
+
+private:
+  std::any storage;
+  ILimit &(*get)(std::any &);
+};
+
+struct no_limit : ILimit {
+
+  void to(pt::ptree &tree) const override {
+    tree.put("type", "none");
+  }
+
+  bool check(std::string value) const override { return true; }
+};
+
+struct minmax_limit : ILimit {
+  int min;
+  int max;
+
+  void to(pt::ptree &tree) const override {
+    tree.put("type", "minmax");
+    tree.put("min", min);
+    tree.put("max", max);
+  }
+
+  bool check(std::string value) const override {
+    int val = std::numeric_limits<int>::max();
+    int_f(value, val);
+
+    return val >= this->min && val <= this->max;
+  }
+
+  minmax_limit(int min, int max) : min(min), max(max) {}
+};
+struct string_limit : ILimit {
+  std::vector<std::string_view> values;
+
+  void to(pt::ptree &tree) const override {
+    // TODO: This should be an array.
+    tree.put("type", "string");
+    for(int i = 0; i < values.size(); i++) {
+      tree.put(std::to_string(i), values[i]);
+    }
+  }
+
+  bool check(std::string value) const override {
+    std::vector<std::string> list;
+    list_string_f(value, list);
+
+    for(int i = 0; i < list.size(); i++) {
+      if(std::find(this->values.begin(), this->values.end(), list[i]) == this->values.end()) return false;
+    }
+    return true;
+  }
+
+  string_limit(std::vector<std::string_view> values) : values(values) {}
+};
+
+enum config_props : int {
+  INT,
+  INT_ARRAY,
+  STRING,
+  STRING_ARRAY,
+  BOOLEAN,
+  FILE,
+  DOUBLE
+};
+struct config_prop {
+  enum config_props prop_type;
+  std::string name;
+  std::string description;
+  bool required;
+  std::string translatedName;
+  void *value;
+  config_prop(enum config_props prop_type, std::string name, std::string description, bool required) : prop_type(prop_type), name(name), description(description), required(required), value(NULL) {}
+  config_prop(enum config_props prop_type, std::string name, std::string description, bool required, void *value) : prop_type(prop_type), name(name), description(description), required(required), value(value) {}
+};
+
+extern std::unordered_map<std::string, std::pair<config_prop, limit>> property_schema;
+
 struct video_t {
   // ffmpeg params
   int qp; // higher == more compression and less quality
@@ -107,10 +210,7 @@ struct sunshine_t {
   std::bitset<flag::FLAG_SIZE> flags;
   std::string credentials_file;
 
-  std::string username;
-  std::string password;
-  std::string salt;
-
+  std::chrono::seconds tokenLifetime;
   std::string config_file;
 
   struct cmd_t {
@@ -130,6 +230,9 @@ extern input_t input;
 extern sunshine_t sunshine;
 
 int parse(int argc, char *argv[]);
+std::string_view to_config_prop_string(config_props propType);
+void apply_config(std::unordered_map<std::string, std::string> &&vars);
+void save_config(std::unordered_map<std::string, std::string> &&vars);
 std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
 } // namespace config
 #endif

@@ -71,7 +71,7 @@ find_package(OpenSSL REQUIRED)
 if(NOT APPLE)
 	set(Boost_USE_STATIC_LIBS ON)
 endif()
-find_package(Boost COMPONENTS log filesystem REQUIRED)
+find_package(Boost COMPONENTS log filesystem locale REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 

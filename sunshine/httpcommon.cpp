@@ -24,14 +24,12 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
+#include "version.h"
 
 namespace http {
 using namespace std::literals;
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
-
-int reload_user_creds(const std::string &file);
-bool user_creds_exist(const std::string &file);
 
 std::string unique_id;
 net::net_e origin_pin_allowed;
@@ -54,76 +52,97 @@ int init() {
       return -1;
     }
   }
-  if(user_creds_exist(config::sunshine.credentials_file)) {
-    if(reload_user_creds(config::sunshine.credentials_file)) return -1;
-  }
-  else {
-    BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
+
+  if(!credentials_exists()) {
+    save_credentials("sunshine");
+    BOOST_LOG(warning) << "A credentials file with default password has been created. Change your password in the UI.";
   }
   return 0;
 }
 
-int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
+bool save_credentials(const std::string &password) {
   pt::ptree outputTree;
+  const std::string file = config::sunshine.credentials_file;
 
-  if(fs::exists(file)) {
-    try {
-      pt::read_json(file, outputTree);
-    }
-    catch(std::exception &e) {
-      BOOST_LOG(error) << "Couldn't read user credentials: "sv << e.what();
-      return -1;
-    }
-  }
+  auto passwordHash  = crypto::hash(password);
+  auto hash_hex_full = util::hex_vec(passwordHash.begin(), passwordHash.end(), true);
+  outputTree.put("hash", hash_hex_full);
+  outputTree.put("version", PROJECT_VER);
 
-  auto salt = crypto::rand_alphabet(16);
-  outputTree.put("username", username);
-  outputTree.put("salt", salt);
-  outputTree.put("password", util::hex(crypto::hash(password + salt)).to_string());
+  std::ostringstream data;
   try {
-    pt::write_json(file, outputTree);
+    pt::write_json(data, outputTree, false);
+    std::string plaintext = data.str();
+
+    auto hash_hex     = util::hex_vec(passwordHash.begin(), passwordHash.begin() + 16, true);
+    crypto::aes_t key = util::from_hex<crypto::aes_t>(hash_hex, true);
+
+    crypto::cipher::gcm_t gcm(key, true);
+    crypto::aes_t iv;
+    RAND_bytes((uint8_t *)iv.data(), iv.size());
+
+    auto cipher_len = crypto::cipher::round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size;
+    uint8_t cipher[cipher_len];
+    gcm.encrypt(plaintext, &cipher[0], &iv);
+
+    std::string cipher_output { (char *)cipher, cipher_len };
+    std::string iv_output { (char *)iv.data(), iv.size() };
+
+    write_file(file.c_str(), iv_output + cipher_output);
   }
   catch(std::exception &e) {
-    BOOST_LOG(error) << "generating user credentials: "sv << e.what();
-    return -1;
-  }
-
-  BOOST_LOG(info) << "New credentials have been created"sv;
-  return 0;
-}
-
-bool user_creds_exist(const std::string &file) {
-  if(!fs::exists(file)) {
+    BOOST_LOG(error) << "Failed to save credentials: "sv << e.what();
     return false;
   }
 
-  pt::ptree inputTree;
-  try {
-    pt::read_json(file, inputTree);
-    return inputTree.find("username") != inputTree.not_found() &&
-           inputTree.find("password") != inputTree.not_found() &&
-           inputTree.find("salt") != inputTree.not_found();
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(error) << "validating user credentials: "sv << e.what();
-  }
-
-  return false;
+  BOOST_LOG(info) << "New credentials have been created"sv;
+  return true;
+}
+int renew_credentials(const std::string &old_password, const std::string &new_password) {
+  if(credentials_exists() == false) return -3;
+  if(load_credentials(old_password) != 0) return -4;
+  return save_credentials(new_password);
 }
 
-int reload_user_creds(const std::string &file) {
+bool credentials_exists() {
+  return fs::exists(config::sunshine.credentials_file);
+}
+
+bool load_credentials(const std::string &passwordHash) {
+
   pt::ptree inputTree;
   try {
-    pt::read_json(file, inputTree);
-    config::sunshine.username = inputTree.get<std::string>("username");
-    config::sunshine.password = inputTree.get<std::string>("password");
-    config::sunshine.salt     = inputTree.get<std::string>("salt");
+    std::string credsFile = read_file(config::sunshine.credentials_file.c_str());
+    if(credsFile.size() <= 16) {
+      BOOST_LOG(error) << "Failed to load API credentials. Corrupt file: invalid length.";
+      return false;
+    }
+    std::string iv_str = credsFile.substr(0, 16);
+    std::string cipher = credsFile.substr(16);
+    crypto::aes_t iv;
+    std::copy(iv_str.begin(), iv_str.end(), iv.begin());
+
+    crypto::aes_t key = util::from_hex<std::array<uint8_t, 16>>(passwordHash.substr(0, 32), true);
+
+    crypto::cipher::gcm_t gcm(key, true);
+
+    std::vector<uint8_t> plaintext_vec;
+    gcm.decrypt(cipher, plaintext_vec, &iv);
+
+    std::string plaintext { (char *)plaintext_vec.data(), plaintext_vec.size() };
+    std::string json = plaintext.substr(0, plaintext.find_last_of('\n') + 1);
+
+    std::stringstream data;
+    data << json;
+    pt::read_json(data, inputTree);
+    auto hash = inputTree.get<std::string>("hash");
+    return passwordHash.compare(hash) == 0;
   }
   catch(std::exception &e) {
-    BOOST_LOG(error) << "loading user credentials: "sv << e.what();
-    return -1;
+    BOOST_LOG(error) << "Failed to load API credentials. Incorrect password or corrupt file.";
+    return false;
   }
-  return 0;
+  return true;
 }
 
 int create_creds(const std::string &pkey, const std::string &cert) {
@@ -151,12 +170,12 @@ int create_creds(const std::string &pkey, const std::string &cert) {
   }
 
   if(write_file(pkey.c_str(), creds.pkey)) {
-    BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.pkey << ']';
+    BOOST_LOG(error) << "Couldn't open ["sv << pkey << ']';
     return -1;
   }
 
   if(write_file(cert.c_str(), creds.x509)) {
-    BOOST_LOG(error) << "Couldn't open ["sv << config::nvhttp.cert << ']';
+    BOOST_LOG(error) << "Couldn't open ["sv << cert << ']';
     return -1;
   }
 
@@ -165,7 +184,7 @@ int create_creds(const std::string &pkey, const std::string &cert) {
     fs::perm_options::replace, err_code);
 
   if(err_code) {
-    BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
+    BOOST_LOG(error) << "Couldn't change permissions of ["sv << pkey << "] :"sv << err_code.message();
     return -1;
   }
 
@@ -174,7 +193,7 @@ int create_creds(const std::string &pkey, const std::string &cert) {
     fs::perm_options::replace, err_code);
 
   if(err_code) {
-    BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
+    BOOST_LOG(error) << "Couldn't change permissions of ["sv << cert << "] :"sv << err_code.message();
     return -1;
   }
 

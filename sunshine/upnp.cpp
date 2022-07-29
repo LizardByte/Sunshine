@@ -136,7 +136,7 @@ std::unique_ptr<platf::deinit_t> start() {
   auto control  = std::to_string(map_port(stream::CONTROL_PORT));
   auto gs_http  = std::to_string(map_port(nvhttp::PORT_HTTP));
   auto gs_https = std::to_string(map_port(nvhttp::PORT_HTTPS));
-  auto wm_http  = std::to_string(map_port(confighttp::PORT_HTTPS));
+  auto wm_http  = std::to_string(map_port(confighttp::PORT_HTTP));
 
   std::vector<mapping_t> mappings {
     { rtsp, rtsp, "RTSP setup port"s, true },
