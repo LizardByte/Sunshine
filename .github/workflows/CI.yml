@@ -97,14 +97,16 @@ jobs:
               clone_url=${{ github.event.repository.clone_url }}
           
               if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
-                  aur_pkg=sunshine-git
-                  # conflicts=""
-                  # provides=""
+                  aur_pkg=sunshine
+                  conflicts=""
+                  provides=""
           
                   echo "aur_publish=true" >> $GITHUB_ENV
               elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
-                  aur_pkg=sunshine-nightly
+                  aur_pkg=sunshine-git
                   sub_version=".r${commit}"
+          
+                  echo "aur_publish=true" >> $GITHUB_ENV
               fi
           else
               echo "This is a PR event"
@@ -128,7 +130,9 @@ jobs:
           mv ./build/PKGBUILD ./artifacts/
 
       - name: Validate package
-        uses: hapakaien/archlinux-package-action@v2
+        # uses: hapakaien/archlinux-package-action@v2
+        # the above action has an issue with the archlinux-keychain
+        uses: lizardbyte/archlinux-package-action@main
         with:
           path: artifacts
           flags: '--syncdeps --noconfirm'
@@ -154,7 +158,7 @@ jobs:
           commit_username: ${{ secrets.AUR_USERNAME }}
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: Release ${{ needs.check_changelog.outputs.next_version }}
+          commit_message: Automatic update from GitHub ${{ github.repository }} per ${{ github.ref }}
           allow_empty_commits: false
 
   build_linux_flatpak:
