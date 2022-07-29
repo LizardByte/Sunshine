@@ -1,4 +1,4 @@
-app-id: com.github.sunshinestream.sunshine
+app-id: dev.lizardbyte.sunshine
 runtime: org.freedesktop.Platform
 runtime-version: "21.08"
 sdk: org.freedesktop.Sdk

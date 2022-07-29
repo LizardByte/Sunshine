@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/contributing/localization.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/contributing/localization.rst
 
 Localization
 ============
@@ -25,7 +25,7 @@ Only elements of the API are planned to be translated.
 .. Attention:: The rest API has not yet been implemented.
 
 Translations Basics
-   - The brand names `SunshineStream` and `Sunshine` should never be translated.
+   - The brand names `LizardByte` and `Sunshine` should never be translated.
    - Other brand names should never be translated.
      Examples:
 

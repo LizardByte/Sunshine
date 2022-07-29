@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key>
-  <string>com.github.sunshinestream.sunshine</string>
+  <string>dev.lizardbyte.sunshine</string>
   <key>CFBundleName</key>
   <string>Sunshine</string>
   <key>NSMicrophoneUsageDescription</key>
