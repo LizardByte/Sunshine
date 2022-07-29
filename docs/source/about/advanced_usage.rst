@@ -510,33 +510,6 @@ Example
 
       origin_pin_allowed = pc
 
-origin_web_ui_allowed
-^^^^^^^^^^^^^^^^^^^^^
-
-Description
-   The origin of the remote endpoint address that is not denied for HTTPS Web UI.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =====     ===========
-   Value     Description
-   =====     ===========
-   pc        Only localhost may access the web ui
-   lan       Only LAN devices may access the web ui
-   wan       Anyone may access the web ui
-   =====     ===========
-
-Default
-   ``lan``
-
-Example
-   .. code-block:: text
-
-      origin_web_ui_allowed = lan
-
 upnp
 ^^^^
 

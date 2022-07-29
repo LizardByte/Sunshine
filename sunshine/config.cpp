@@ -308,7 +308,6 @@ stream_t stream {
 
 nvhttp_t nvhttp {
   "pc",  // origin_pin
-  "lan", // origin web manager
 
   PRIVATE_KEY_FILE,
   CERTIFICATE_FILE,

@@ -33,12 +33,10 @@ namespace pt = boost::property_tree;
 
 std::string unique_id;
 net::net_e origin_pin_allowed;
-net::net_e origin_web_ui_allowed;
 
 int init() {
   bool clean_slate      = config::sunshine.flags[config::flag::FRESH_STATE];
   origin_pin_allowed    = net::from_enum_string(config::nvhttp.origin_pin_allowed);
-  origin_web_ui_allowed = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
 
   if(clean_slate) {
     unique_id           = util::uuid_t::generate().string();
@@ -54,18 +52,26 @@ int init() {
   }
 
   if(!credentials_exists()) {
-    save_credentials("sunshine");
-    BOOST_LOG(warning) << "A credentials file with default password has been created. Change your password in the UI.";
+    save_credentials("", false);
   }
   return 0;
 }
 
-bool save_credentials(const std::string &password) {
+bool save_credentials(std::string password, bool isHashed) {
   pt::ptree outputTree;
   const std::string file = config::sunshine.credentials_file;
 
-  auto passwordHash  = crypto::hash(password);
-  auto hash_hex_full = util::hex_vec(passwordHash.begin(), passwordHash.end(), true);
+  if(password.empty()) {
+    password = crypto::rand_alphabet(8);
+    BOOST_LOG(warning) << "API password has been randomly generated: " << password;
+  }
+
+  std::string hash_hex_full = password;
+  if(!isHashed) {
+    auto passwordHash = crypto::hash(password);
+    hash_hex_full     = util::hex_vec(passwordHash.begin(), passwordHash.end(), true);  
+  }
+
   outputTree.put("hash", hash_hex_full);
   outputTree.put("version", PROJECT_VER);
 
@@ -74,8 +80,7 @@ bool save_credentials(const std::string &password) {
     pt::write_json(data, outputTree, false);
     std::string plaintext = data.str();
 
-    auto hash_hex     = util::hex_vec(passwordHash.begin(), passwordHash.begin() + 16, true);
-    crypto::aes_t key = util::from_hex<crypto::aes_t>(hash_hex, true);
+    crypto::aes_t key = util::from_hex<crypto::aes_t>(hash_hex_full.substr(0, 16), true);
 
     crypto::cipher::gcm_t gcm(key, true);
     crypto::aes_t iv;
@@ -98,10 +103,10 @@ bool save_credentials(const std::string &password) {
   BOOST_LOG(info) << "New credentials have been created"sv;
   return true;
 }
-int renew_credentials(const std::string &old_password, const std::string &new_password) {
+int renew_credentials(const std::string &old_password, std::string new_password) {
   if(credentials_exists() == false) return -3;
-  if(load_credentials(old_password) != 0) return -4;
-  return save_credentials(new_password);
+  if(load_credentials(old_password) == false) return -4;
+  return save_credentials(new_password, true);
 }
 
 bool credentials_exists() {
@@ -122,7 +127,7 @@ bool load_credentials(const std::string &passwordHash) {
     crypto::aes_t iv;
     std::copy(iv_str.begin(), iv_str.end(), iv.begin());
 
-    crypto::aes_t key = util::from_hex<std::array<uint8_t, 16>>(passwordHash.substr(0, 32), true);
+    crypto::aes_t key = util::from_hex<crypto::aes_t>(passwordHash.substr(0, 16), true);
 
     crypto::cipher::gcm_t gcm(key, true);
 
@@ -142,7 +147,6 @@ bool load_credentials(const std::string &passwordHash) {
     BOOST_LOG(error) << "Failed to load API credentials. Incorrect password or corrupt file.";
     return false;
   }
-  return true;
 }
 
 int create_creds(const std::string &pkey, const std::string &cert) {

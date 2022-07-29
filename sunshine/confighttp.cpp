@@ -253,6 +253,32 @@ bool request_pin() {
   return true;
 }
 
+bool change_password(pt::ptree data, pt::ptree &response) {
+  auto oldPasswordHash = data.get_optional<std::string>("oldPassword").get_value_or("");
+  auto newPasswordHash = data.get_optional<std::string>("password").get_value_or("");
+
+  if(oldPasswordHash.length() < 64 || newPasswordHash.length() < 64) {
+    response.put("error", "Invalid hash length.");
+    return false;
+  }
+
+  int result = http::renew_credentials(oldPasswordHash, newPasswordHash);
+
+  if(result == -3) {
+    response.put("error", "credentials_file_missing");
+    return false;
+  }
+  if(result == -4) {
+    response.put("error", "invalid_old_password");
+    return false;
+  }
+  if(result == 0) {
+    response.put("error", "save_credentials_failed");
+    return false;
+  }
+  return true;
+}
+
 std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree, pt::ptree &)>>> allowedRequests = {
   { "get_apps"s, { req_type::GET, get_apps } },
   { "api_version"s, { req_type::GET, get_api_version } },
@@ -261,12 +287,28 @@ std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree, pt::ptre
   { "delete_app"s, { req_type::POST, delete_app } },
   { "save_config"s, { req_type::POST, save_config } },
   { "save_pin"s, { req_type::POST, save_pin } },
+  { "change_password"s, { req_type::POST, change_password } },
   { "unpair_all"s, { req_type::POST, unpair_all } },
   { "close_app"s, { req_type::POST, close_app } },
   { "get_config_schema"s, { req_type::GET, get_config_schema } }
 };
 
+bool checkRequestOrigin(req_http_t request) {
+  auto address = request->remote_endpoint_address();
+  auto ip_type = net::from_address(address);
+
+  // Only allow HTTP requests from localhost.
+  if(ip_type > net::net_e::PC) {
+    BOOST_LOG(info) << "Web API: ["sv << address << "] -- denied"sv;
+    return false;
+  }
+
+  return true;
+}
+
 void handleApiSSE(resp_http_t response, req_http_t request) {
+  if(checkRequestOrigin(request) == false) return;
+
   std::thread work_thread([response, request] {
     response->close_connection_after_response = true;
     std::promise<bool> error;
@@ -321,13 +363,15 @@ int checkAuthentication(req_http_t request, bool tokenRequired) {
 }
 
 void handleApiAuthentication(resp_http_t response, req_http_t request) {
+  if(checkRequestOrigin(request) == false) return;
+
   int authResult = checkAuthentication(request, false);
   if(authResult == -2) {
-    response->write(SimpleWeb::StatusCode::client_error_bad_request);
+    response->write(SimpleWeb::StatusCode::client_error_bad_request, { { "Access-Control-Allow-Origin", "*" } , { "Access-Control-Allow-Headers", "Authorization" } });
     return;
   }
   else if(authResult == -1) {
-    response->write(SimpleWeb::StatusCode::client_error_unauthorized);
+    response->write(SimpleWeb::StatusCode::client_error_unauthorized, { { "Access-Control-Allow-Origin", "*" } , { "Access-Control-Allow-Headers", "Authorization" } });
     return;
   }
   auto userAgentItr = request->header.find("User-Agent");
@@ -387,6 +431,7 @@ void handleApiRequest(resp_http_t response, req_http_t request) {
 }
 
 void appasset(resp_http_t response, req_http_t request) {
+  if(checkRequestOrigin(request) == false) return;
   print_req(request);
 
   auto appid     = request->path_match[1].str();
@@ -397,7 +442,13 @@ void appasset(resp_http_t response, req_http_t request) {
 }
 
 void handleCors(resp_http_t response, req_http_t request) {
-  response->write({ { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", "Authorization" } });
+  auto corsHeaders = request->header.find("access-control-request-headers");
+
+  auto allowHeaders = "Authorization"s;
+  if (corsHeaders != request->header.end()) {
+    allowHeaders = corsHeaders->second;
+  }
+  response->write({ { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", allowHeaders } });
 }
 
 void start() {
