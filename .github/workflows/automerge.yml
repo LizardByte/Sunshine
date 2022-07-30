@@ -1,0 +1,34 @@
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: Automerge PR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: automerge-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Automerging
+        uses: pascalgn/automerge-action@v0.15.3
+        env:
+          BASE_BRANCHES: nightly
+          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          GITHUB_LOGIN: ${{ secrets.GH_BOT_NAME }}
+          MERGE_LABELS: ""
+          MERGE_METHOD: "squash"
+          MERGE_COMMIT_MESSAGE: "{pullRequest.title} (#{pullRequest.number})"
+          MERGE_DELETE_BRANCH: true
+          MERGE_ERROR_FAIL: true
+          MERGE_FILTER_AUTHOR: ${{ secrets.GH_BOT_NAME }}
+          MERGE_RETRIES: "60"  # 1 hour
+          MERGE_RETRY_SLEEP: "60000"  # 1 minute
