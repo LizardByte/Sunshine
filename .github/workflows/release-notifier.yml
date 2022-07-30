@@ -1,0 +1,80 @@
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: Release Notifications
+
+on:
+  release:
+    types: [published]
+    # https://docs.github.com/en/actions/learn-github-actions/workflow-syntax-for-github-actions#onevent_nametypes
+
+jobs:
+  discord:
+    runs-on: ubuntu-latest
+    steps:
+      - name: discord
+        uses: sarisia/actions-status-discord@v1  # https://github.com/sarisia/actions-status-discord
+        with:
+          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          nodetail: true
+          nofail: false
+          username: ${{ secrets.DISCORD_USERNAME }}
+          avatar_url: ${{ secrets.ORG_LOGO_URL }}
+          title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
+          description: ${{ github.event.release.body }}
+          color: 0xFF4500
+
+  facebook_group:
+    runs-on: ubuntu-latest
+    steps:
+      - name: facebook-post-action
+        uses: ReenigneArcher/facebook-post-action@v1  # https://github.com/ReenigneArcher/facebook-post-action
+        with:
+          page_id: ${{ secrets.FACEBOOK_GROUP_ID }}
+          access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+          message: |
+            ${{ github.event.repository.name }} ${{ github.ref_name }} Released
+            ${{ github.event.release.body }}
+          url: ${{ github.event.release.html_url }}
+
+  facebook_page:
+    runs-on: ubuntu-latest
+    steps:
+      - name: facebook-post-action
+        uses: ReenigneArcher/facebook-post-action@v1  # https://github.com/ReenigneArcher/facebook-post-action
+        with:
+          page_id: ${{ secrets.FACEBOOK_PAGE_ID }}
+          access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
+          message: |
+            ${{ github.event.repository.name }} ${{ github.ref_name }} Released
+            ${{ github.event.release.body }}
+          url: ${{ github.event.release.html_url }}
+
+  reddit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: reddit
+        uses: bluwy/release-for-reddit-action@v1  # https://github.com/bluwy/release-for-reddit-action
+        with:
+          username: ${{ secrets.REDDIT_USERNAME }}
+          password: ${{ secrets.REDDIT_PASSWORD }}
+          app-id: ${{ secrets.REDDIT_CLIENT_ID }}
+          app-secret: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          subreddit: ${{ secrets.REDDIT_SUBREDDIT }}
+          title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
+          url: ${{ github.event.release.html_url }}
+          flair-id: ${{ secrets.REDDIT_FLAIR_ID }}  # https://www.reddit.com/r/<subreddit>>/api/link_flair.json
+          comment: ${{ github.event.release.body }}
+
+  twitter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: twitter
+        uses: ethomson/send-tweet-action@v1  # https://github.com/ethomson/send-tweet-action
+        with:
+          consumer-key: ${{ secrets.TWITTER_API_KEY }}
+          consumer-secret: ${{ secrets.TWITTER_API_SECRET }}
+          access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+          status: ${{ github.event.release.html_url }}
