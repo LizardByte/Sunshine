@@ -1,0 +1,33 @@
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: Auto create PR
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - 'nightly'
+
+jobs:
+  create_pr:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Create Pull Request
+        uses: repo-sync/pull-request@v2
+        with:
+          source_branch: ""  # should be "nightly" as it's the triggering branch
+          destination_branch: "master"
+          pr_title: "Pulling ${{ github.ref }} into master"
+          pr_template: ".github/pr_release_template.md"
+          pr_assignee: "${{ secrets.GH_BOT_NAME }}"
+          pr_draft: true
+          pr_allow_empty: false
+          github_token: ${{ secrets.GH_BOT_TOKEN }}
