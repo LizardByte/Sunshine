@@ -11,7 +11,31 @@ on:
       - synchronize
 
 jobs:
+  autoapprove:
+    if: >
+      contains(fromJson('["LizardByte-bot"]'), github.event.pull_request.user.login) &&
+      contains(fromJson('["LizardByte-bot"]'), github.actor)
+    runs-on: ubuntu-latest
+    steps:
+    - name: Autoapproving
+      uses: hmarr/auto-approve-action@v2
+      with:
+        github-token: "${{ secrets.GH_BOT_TOKEN }}"
+
+    - name: Label autoapproved
+      uses: actions/github-script@v5
+      with:
+        github-token: ${{ secrets.GH_BOT_TOKEN }}
+        script: |
+          github.rest.issues.addLabels({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            labels: ['autoapproved', 'autoupdate']
+          })
+
   automerge:
+    needs: [autoapprove]
     runs-on: ubuntu-latest
     concurrency:
       group: automerge-${{ github.ref }}
@@ -30,5 +54,5 @@ jobs:
           MERGE_DELETE_BRANCH: true
           MERGE_ERROR_FAIL: true
           MERGE_FILTER_AUTHOR: ${{ secrets.GH_BOT_NAME }}
-          MERGE_RETRIES: "60"  # 1 hour
-          MERGE_RETRY_SLEEP: "60000"  # 1 minute
+          MERGE_RETRIES: "240"  # 1 hour
+          MERGE_RETRY_SLEEP: "15000"  # 15 seconds
