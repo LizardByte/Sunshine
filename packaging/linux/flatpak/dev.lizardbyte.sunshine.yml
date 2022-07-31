@@ -5,16 +5,16 @@ sdk: org.freedesktop.Sdk
 command: sunshine
 separate-locales: false
 finish-args:
-  - --socket=x11
-  - --socket=wayland
-  - --socket=pulseaudio
+  - --device=all
+  - --env=PULSE_PROP_media.category=Manager
+  - --persist=.config/sunshine
   - --share=ipc
   - --share=network
-  - --device=all
-  - --persist=.config/sunshine
+  - --socket=pulseaudio
+  - --socket=wayland
+  - --socket=x11
   - --system-talk-name=org.freedesktop.Avahi
   - --talk-name=org.freedesktop.Flatpak
-  - --env=PULSE_PROP_media.category=Manager
 
 cleanup:
   - /include
