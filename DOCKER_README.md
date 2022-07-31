@@ -11,16 +11,10 @@ docker run -d \
   -e PUID=<uid> \
   -e PGID=<gid> \
   -e TZ=<timezone> \
-  -p 47990:47990 \
-  -p 47984:47984 \
-  -p 47989:47989 \
+  -p 47984-47990:47984-47990/tcp \
   -p 48010:48010 \
-  -p 47998:47998 \
-  -p 47999:47999 \
-  -p 48000:48000 \
-  -p 48002:48002 \
-  -p 48010:48010 \
-  sunshinestream/sunshine
+  -p 47998-48000:47998-48000/udp \
+  lizardbyte/sunshine
 ```
 
 To update the container it must be removed and recreated:
@@ -31,7 +25,7 @@ docker stop sunshine
 # Remove the container
 docker rm sunshine
 # Pull the latest update
-docker pull sunshinestream/sunshine
+docker pull lizardbyte/sunshine
 # Run the container with the same parameters as before
 docker run -d ...
 ```
@@ -44,25 +38,19 @@ Create a `docker-compose.yml` file with the following contents (substitute your 
 version: '3'
 services:
   sunshine:
-    image: sunshinestream/sunshine
+    image: lizardbyte/sunshine
     container_name: sunshine
     restart: unless-stopped
     volumes:
-    - <path to data>:/config
+      - <path to data>:/config
     environment:
-    - PUID=<uid>
-    - PGID=<gid>
-    - TZ=<timezone>
+      - PUID=<uid>
+      - PGID=<gid>
+      - TZ=<timezone>
     ports:
-    - "47990:47990"
-    - "47984:47984"
-    - "47989:47989"
-    - "48010:48010"
-    - "47998:47998"
-    - "47999:47999"
-    - "48000:48000"
-    - "48002:48002"
-    - "48010:48010"
+      - 47984-47990:47984-47990/tcp
+      - 48010:48010
+      - 47998-48000:47998-48000/udp
 ```
 
 Create and start the container (run the command from the same folder as your `docker-compose.yml` file):
@@ -88,7 +76,7 @@ container.
 **Example:** `-p external:internal` - This shows the port mapping from internal to external of the container.
 Therefore `-p 47990:47990` would expose port `47990` from inside the container to be accessible from the host's IP on
 port `47990` (e.g. `http://<host_ip>:47990`). The internal port must be `47990`, but the external port may be changed
-(e.g. `-p 8080:47990`).
+(e.g. `-p 8080:47990`). All the ports listed in the `docker run` and `docker-compose` examples are required.
 
 
 | Parameter                   | Function             | Example Value       | Required |

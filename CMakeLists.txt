@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine VERSION 0.14.0
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
-		HOMEPAGE_URL "https://sunshinestream.github.io"
+		HOMEPAGE_URL "https://app.lizardbyte.dev"
 		)
 
 set(PROJECT_LONG_DESCRIPTION "Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, \
@@ -20,7 +20,7 @@ if(${SUNSHINE_CONFIGURE_APPIMAGE})
 elseif(${SUNSHINE_CONFIGURE_AUR})
 	configure_file(packaging/linux/aur/PKGBUILD PKGBUILD @ONLY)
 elseif(${SUNSHINE_CONFIGURE_FLATPAK})
-	configure_file(packaging/linux/flatpak/com.github.sunshinestream.sunshine.yml com.github.sunshinestream.sunshine.yml @ONLY)
+	configure_file(packaging/linux/flatpak/dev.lizardbyte.sunshine.yml dev.lizardbyte.sunshine.yml @ONLY)
 elseif(${SUNSHINE_CONFIGURE_PORTFILE})
 	configure_file(packaging/macos/Portfile Portfile @ONLY)
 endif()
@@ -482,11 +482,11 @@ target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COM
 # CPACK / Packaging
 
 # Common options
-set(CPACK_PACKAGE_NAME "SunshineStream")
-set(CPACK_PACKAGE_VENDOR "SunshineStream")
+set(CPACK_PACKAGE_NAME "Sunshine")
+set(CPACK_PACKAGE_VENDOR "LizardByte")
 set(CPACK_PACKAGE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cpack_artifacts)
-set(CPACK_PACKAGE_CONTACT "https://github.com/SunshineStream/Sunshine")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/SunshineStream/Sunshine")
+set(CPACK_PACKAGE_CONTACT "https://app.lizardbyte.dev")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/LizardByte")
 set(CPACK_PACKAGE_DESCRIPTION ${CMAKE_PROJECT_DESCRIPTION})
 set(CPACK_PACKAGE_HOMEPAGE_URL ${CMAKE_PROJECT_HOMEPAGE_URL})
 set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
