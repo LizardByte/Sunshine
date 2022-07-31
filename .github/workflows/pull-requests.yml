@@ -1,3 +1,7 @@
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
 name: Pull Requests
 
 on:
@@ -17,5 +21,6 @@ jobs:
           exclude: nightly # Don't prevent going from nightly -> master
           change-to: nightly
           comment: |
-              Your PR was set to `master`, PRs should be sent to `nightly`
-              The base branch of this PR has been automatically changed to `nightly`, please check that there are no merge conflicts
+            Your PR was set to `master`, PRs should be sent to `nightly`.
+            The base branch of this PR has been automatically changed to `nightly`.
+            Please check that there are no merge conflicts

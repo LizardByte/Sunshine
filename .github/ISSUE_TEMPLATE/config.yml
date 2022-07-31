@@ -1,11 +1,18 @@
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
 blank_issues_enabled: false
 contact_links:
-  - name: AUR Package Issue
-    url: https://aur.archlinux.org/packages/sunshine
-    about: AUR Package Issues should be discussed on the AUR
-  - name: Github Discussions
-    url: https://github.com/SunshineStream/Sunshine/discussions
-    about: General discussion, support, feature requests and more!
   - name: Discord support
-    url: https://discord.com/invite/CGg5JxN
-    about: Ask question about Sunshine in Discord
+    url: https://docs.lizardbyte.dev/about/support.html#discord
+    about: Ask questions in Discord
+  - name: Reddit support
+    url: https://www.reddit.com/r/LizardByte
+    about: Get community support on Reddit
+  - name: Facebook support
+    url: https://www.facebook.com/groups/lizardbyte
+    about: Get community support on Facebook
+  - name: Feature request
+    url: https://feedback.lizardbyte.dev
+    about: Share your suggestions or ideas to help us improve

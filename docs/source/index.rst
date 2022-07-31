@@ -1,6 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/index.rst
-
-SunshineStream has this documentation hosted on `Read the Docs <http://sunshinestream.readthedocs.io/>`_.
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/index.rst
 
 Table of Contents
 =================

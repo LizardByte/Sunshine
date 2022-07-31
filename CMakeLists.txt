@@ -2,8 +2,33 @@ cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine VERSION 0.14.0
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
-		HOMEPAGE_URL "https://sunshinestream.github.io"
+		HOMEPAGE_URL "https://app.lizardbyte.dev"
 		)
+
+set(PROJECT_LONG_DESCRIPTION "Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, \
+Intel, and Nvidia GPUs. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. \
+Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.")
+
+option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
+option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
+option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
+option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
+
+if(${SUNSHINE_CONFIGURE_APPIMAGE})
+	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+elseif(${SUNSHINE_CONFIGURE_AUR})
+	configure_file(packaging/linux/aur/PKGBUILD PKGBUILD @ONLY)
+elseif(${SUNSHINE_CONFIGURE_FLATPAK})
+	configure_file(packaging/linux/flatpak/dev.lizardbyte.sunshine.yml dev.lizardbyte.sunshine.yml @ONLY)
+elseif(${SUNSHINE_CONFIGURE_PORTFILE})
+	configure_file(packaging/macos/Portfile Portfile @ONLY)
+endif()
+
+# return if configure only is set
+if(${SUNSHINE_CONFIGURE_ONLY})
+	return()
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(SUNSHINE_SOURCE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_assets")
@@ -129,6 +154,9 @@ if(WIN32)
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 elseif(APPLE)
 	add_compile_definitions(SUNSHINE_PLATFORM="macos")
+
+	option(SUNSHINE_MACOS_PACKAGE "Should only be used when creating a MACOS package/dmg." OFF)
+
 	link_directories(/opt/local/lib)
 	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
@@ -401,6 +429,11 @@ if(NOT SUNSHINE_CONFIG_DIR)
 	set(SUNSHINE_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/config")
 endif()
 
+if(UNIX AND CMAKE_INSTALL_PREFIX AND NOT ${SUNSHINE_CONFIGURE_APPIMAGE})
+	set(SUNSHINE_ASSETS_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_ASSETS_DIR}")
+	set(SUNSHINE_CONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_CONFIG_DIR}")
+endif()
+
 list(APPEND CBS_EXTERNAL_LIBRARIES
 	cbs)
 
@@ -415,7 +448,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${OPENSSL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
-if (NOT WIN32)
+if(NOT WIN32)
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES Boost::log)
 endif()
 
@@ -447,11 +480,11 @@ target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COM
 # CPACK / Packaging
 
 # Common options
-set(CPACK_PACKAGE_NAME "SunshineStream")
-set(CPACK_PACKAGE_VENDOR "SunshineStream")
+set(CPACK_PACKAGE_NAME "Sunshine")
+set(CPACK_PACKAGE_VENDOR "LizardByte")
 set(CPACK_PACKAGE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cpack_artifacts)
-set(CPACK_PACKAGE_CONTACT "https://github.com/SunshineStream/Sunshine")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/SunshineStream/Sunshine")
+set(CPACK_PACKAGE_CONTACT "https://app.lizardbyte.dev")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/LizardByte")
 set(CPACK_PACKAGE_DESCRIPTION ${CMAKE_PROJECT_DESCRIPTION})
 set(CPACK_PACKAGE_HOMEPAGE_URL ${CMAKE_PROJECT_HOMEPAGE_URL})
 set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
@@ -533,63 +566,64 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
 	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
 endif()
-if(UNIX)
+if(APPLE)
+	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
+	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
+	set(CPACK_BUNDLE_PLIST "${APPLE_PLIST_FILE}")
+	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
+	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
+endif()
+if(APPLE AND SUNSHINE_MACOS_PACKAGE) # TODO
+	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
+	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
+
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+
+	install(TARGETS sunshine
+			BUNDLE DESTINATION . COMPONENT Runtime
+			RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR} COMPONENT Runtime)
+elseif(UNIX)
 	# Installation destination dir
 	set(CPACK_SET_DESTDIR true)
 	if(NOT CMAKE_INSTALL_PREFIX)
 		set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine")
 	endif()
 
+	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-endif()
-if(APPLE) # TODO: test
 
-	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
-	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
+	if(APPLE)
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/misc/uninstall_pkg.sh" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	else()
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
-	install(TARGETS sunshine
-			BUNDLE DESTINATION . COMPONENT Runtime
-			RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR} COMPONENT Runtime)
+		# Pre and post install
+		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst"
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst"
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
+		set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
+		set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 
-	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
-	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
-	set(CPACK_BUNDLE_PLIST "${APPLE_PLIST_FILE}")
-	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
-	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
-
-	# Portfile
-	configure_file(Portfile.in Portfile @ONLY)
-endif()
-if(UNIX AND NOT APPLE)
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-
-	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
-
-	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
-
-	# Pre and post install
-	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-		"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
-	set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
-	set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
-
-	# Dependencies
-	set(CPACK_DEB_COMPONENT_INSTALL ON)
-	set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-	set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
-	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
-
-	# AppImage desktop file
-	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
+		# Dependencies
+		set(CPACK_DEB_COMPONENT_INSTALL ON)
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
+	endif()
 endif()
 
 include(CPack)

@@ -76,7 +76,7 @@ jobs:
       with:
         add-paths: |
           locale/*.po
-        token: ${{ secrets.GH_PAT }}  # must trigger PR tests
+        token: ${{ secrets.GH_BOT_TOKEN }}  # must trigger PR tests
         commit-message: New localization template
         branch: localize/update
         delete-branch: true
