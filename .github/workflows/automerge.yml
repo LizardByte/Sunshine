@@ -23,7 +23,7 @@ jobs:
         github-token: "${{ secrets.GITHUB_TOKEN }}"
 
     - name: Label autoapproved
-      uses: actions/github-script@v5
+      uses: actions/github-script@v6
       with:
         github-token: ${{ secrets.GH_BOT_TOKEN }}
         script: |
