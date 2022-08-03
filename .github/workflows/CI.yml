@@ -149,7 +149,7 @@ jobs:
 
       - name: Publish AUR package
         if: ${{ env.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.3.0
+        uses: KSXGitHub/github-actions-deploy-aur@v2.4.1
         with:
           pkgname: ${{ env.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
