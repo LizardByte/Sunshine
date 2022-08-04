@@ -185,16 +185,25 @@ int create_creds(const std::string &pkey, const std::string &cert) {
 bool download_file(const std::string &url, const std::string &file) {
   CURL *curl = curl_easy_init();
   if(!curl) {
+    BOOST_LOG(error) << "Couldn't create CURL instance";
     return false;
   }
   FILE *fp = fopen(file.c_str(), "wb");
+  if(!fp) {
+    BOOST_LOG(error) << "Couldn't open ["sv << file << ']';
+    curl_easy_cleanup(curl);
+    return false;
+  }
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-  bool result = curl_easy_perform(curl) == CURLE_OK;
+  CURLcode result = curl_easy_perform(curl);
+  if(result != CURLE_OK) {
+    BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << ']';
+  }
   curl_easy_cleanup(curl);
   fclose(fp);
-  return result;
+  return result == CURLE_OK;
 }
 
 std::string url_escape(const std::string &url) {
