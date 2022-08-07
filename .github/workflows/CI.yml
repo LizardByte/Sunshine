@@ -130,9 +130,7 @@ jobs:
           mv ./build/PKGBUILD ./artifacts/
 
       - name: Validate package
-        # uses: hapakaien/archlinux-package-action@v2
-        # the above action has an issue with the archlinux-keychain
-        uses: lizardbyte/archlinux-package-action@main
+        uses: hapakaien/archlinux-package-action@v2.2.0
         with:
           path: artifacts
           flags: '--syncdeps --noconfirm'
