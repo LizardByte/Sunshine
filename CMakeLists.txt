@@ -193,8 +193,8 @@ elseif(APPLE)
 		sunshine/platform/macos/nv12_zero_device.cpp
 		sunshine/platform/macos/nv12_zero_device.h
 		sunshine/platform/macos/publish.cpp
-		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.c
-		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.h
+		third-party/TPCircularBuffer/TPCircularBuffer.c
+		third-party/TPCircularBuffer/TPCircularBuffer.h
 		${APPLE_PLIST_FILE})
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")

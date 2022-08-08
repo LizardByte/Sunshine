@@ -3,7 +3,7 @@
 
 #import <AVFoundation/AVFoundation.h>
 
-#include "sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.h"
+#include "third-party/TPCircularBuffer/TPCircularBuffer.h"
 
 #define kBufferLength 2048
 
