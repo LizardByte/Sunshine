@@ -6,7 +6,7 @@ on:
     branches: [nightly]
     paths:  # prevents workflow from running unless these files change
       - '.github/workflows/localize.yml'
-      - 'sunshine/**'
+      - 'src/**'
       - 'locale/sunshine.po'
   workflow_dispatch:
 

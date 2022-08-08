@@ -67,7 +67,7 @@ any of the following paths are modified.
 
    .. code-block:: yaml
 
-      - 'sunshine/**'
+      - 'src/**'
 
 When testing locally it may be desirable to manually extract, initialize, update, and compile strings. Python is
 required for this, along with the python dependencies in the `./scripts/requirements.txt` file. Additionally,
