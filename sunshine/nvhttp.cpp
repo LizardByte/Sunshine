@@ -832,7 +832,7 @@ void start() {
       X509_NAME_oneline(X509_get_subject_name(x509), subject_name, sizeof(subject_name));
 
 
-      BOOST_LOG(info) << subject_name << " -- "sv << (verified ? "verfied"sv : "denied"sv);
+      BOOST_LOG(info) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
     });
 
     while(add_cert->peek()) {

@@ -5,15 +5,16 @@ sdk: org.freedesktop.Sdk
 command: sunshine
 separate-locales: false
 finish-args:
-  - --share=ipc
-  - --socket=x11
-  - --socket=wayland
-  - --socket=pulseaudio
-  - --share=network
   - --device=all
-  - --persist=.config/sunshine
-  - --system-talk-name=org.freedesktop.Avahi
   - --env=PULSE_PROP_media.category=Manager
+  - --persist=.config/sunshine
+  - --share=ipc
+  - --share=network
+  - --socket=pulseaudio
+  - --socket=wayland
+  - --socket=x11
+  - --system-talk-name=org.freedesktop.Avahi
+  - --talk-name=org.freedesktop.Flatpak
 
 cleanup:
   - /include
@@ -89,7 +90,7 @@ modules:
       - /share/ffmpeg/examples
     sources:
       - type: archive
-        url: https://ffmpeg.org/releases/ffmpeg-4.4.2.tar.xz
+        url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_4.4.2.orig.tar.xz
         sha256: af419a7f88adbc56c758ab19b4c708afbcae15ef09606b82b855291f6a6faa93
     modules:
       - name: vmaf

@@ -1,0 +1,14 @@
+name: Publish to WinGet
+
+on:
+  release:
+    types: [released]
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: vedantmgoyal2009/winget-releaser@latest
+        with:
+          identifier: LizardByte.Sunshine
+          token: ${{ secrets.GH_BOT_TOKEN }}

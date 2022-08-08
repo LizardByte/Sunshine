@@ -48,7 +48,7 @@ Integrations
 Support
 ---------
 
-Our support methods are listed in our `LizardByte Docs <https:docs.lizardbyte.dev/about/support.html>`_.
+Our support methods are listed in our `LizardByte Docs <https://docs.lizardbyte.dev/en/latest/about/support.html>`_.
 
 Downloads
 ---------
@@ -60,10 +60,6 @@ Downloads
 .. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=AUR&style=for-the-badge&query=$.results.0.NumVotes&url=https%3A%2F%2Fapp.lizardbyte.dev%2Funo%2Faur%2Fsunshine.json&logo=archlinux
    :alt: AUR votes
    :target: https://aur.archlinux.org/packages/sunshine
-
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=AUR-git&style=for-the-badge&query=$.results.0.NumVotes&url=https%3A%2F%2Fapp.lizardbyte.dev%2Funo%2Faur%2Fsunshine-git.json&logo=archlinux
-   :alt: AUR-git votes
-   :target: https://aur.archlinux.org/packages/sunshine-git
 
 .. comment
    image:: https://img.shields.io/docker/pulls/lizardbyte/sunshine?style=for-the-badge&logo=docker
