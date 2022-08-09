@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.1] - 2022-08-09
+### Added
+- (Linux) Flatpak package added
+- (Linux) AUR package automated updates
+- (Windows) Winget package automated updates
+### Changed
+- (General) Moved repo to @LizardByte GitHub org
+- (WebUI) Fixed button spacing on home page
+- (WebUI) Added Discord WidgetBot Crate
+### Fixed
+- (Linux/Mac) Default config and app files now copied to user home directory
+- (Windows) Default config and app files now copied to working directory
+
 ## [0.14.0] - 2022-06-15
 ### Added
 - (Documentation) Added Sphinx documentation available at https://sunshinestream.readthedocs.io/en/latest/
