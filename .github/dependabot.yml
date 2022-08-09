@@ -1,15 +1,30 @@
+---
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "daily"
+      time: "00:00"
     target-branch: "nightly"
-    open-pull-requests-limit: 20
+    open-pull-requests-limit: 10
 
-  - package-ecosystem: "pip"
-    directory: "/scripts"
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
       interval: "daily"
+      time: "00:00"
+    target-branch: "nightly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "00:00"
     target-branch: "nightly"
     open-pull-requests-limit: 10

@@ -1,3 +1,4 @@
+---
 name: CI
 
 on:
@@ -9,6 +10,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  github_env:
+    name: GitHub Env Debug
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dump github context
+        run: echo "$GITHUB_CONTEXT"
+        shell: bash
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+
   check_changelog:
     name: Check Changelog
     runs-on: ubuntu-latest
@@ -20,7 +32,7 @@ jobs:
         id: verify_changelog
         if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
         # base_ref for pull request check, ref for push
-        uses: SunshineStream/actions/verify_changelog@master
+        uses: LizardByte/.github/actions/verify_changelog@master
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -41,7 +53,8 @@ jobs:
 
       - name: Check CMakeLists.txt Version
         run: |
-          version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+          version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | \
+            grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
           echo "cmakelists_version=${version}" >> $GITHUB_ENV
 
       - name: Compare CMakeList.txt Version
@@ -49,8 +62,187 @@ jobs:
         run: |
           echo CMakeLists version: "$cmakelists_version"
           echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
-          echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
+          echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to \
+            "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
           exit 1
+
+  build_linux_aur:
+    name: Linux AUR
+    runs-on: ubuntu-latest
+    needs: check_changelog
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup Dependencies Linux AUR
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake
+
+      - name: Configure PKGBUILD files
+        run: |
+          # variables for manifest
+          echo "aur_publish=false" >> $GITHUB_ENV
+          aur_pkg=sunshine-dev
+          sub_version=""
+          conflicts="'sunshine'"
+          provides="'sunshine'"
+
+          branch=${GITHUB_HEAD_REF}
+
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+            echo "This is a PUSH event"
+            commit=${{ github.sha }}
+            clone_url=${{ github.event.repository.clone_url }}
+
+            if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
+              aur_pkg=sunshine
+              conflicts=""
+              provides=""
+
+              echo "aur_publish=true" >> $GITHUB_ENV
+            elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
+              aur_pkg=sunshine-git
+              sub_version=".r${commit}"
+
+              echo "aur_publish=true" >> $GITHUB_ENV
+            fi
+          else
+            echo "This is a PR event"
+            commit=${{ github.event.pull_request.head.sha }}
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+
+            sub_version=".r${commit}"
+          fi
+          echo "Commit: ${commit}"
+          echo "Clone URL: ${clone_url}"
+
+          echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
+
+          mkdir -p artifacts
+          mkdir -p build
+
+          cd build
+          cmake -DSUNSHINE_CONFIGURE_AUR=ON \
+            -DSUNSHINE_AUR_PKG=${aur_pkg} \
+            -DSUNSHINE_SUB_VERSION=${sub_version} \
+            -DSUNSHINE_AUR_CONFLICTS=${conflicts} \
+            -DSUNSHINE_AUR_PROVIDES=${provides} \
+            -DGITHUB_CLONE_URL=${clone_url} \
+            -DGITHUB_COMMIT=${commit} \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
+            ..
+          cd ..
+
+          mv ./build/PKGBUILD ./artifacts/
+
+      - name: Validate package
+        uses: hapakaien/archlinux-package-action@v2.2.0
+        with:
+          path: artifacts
+          flags: '--syncdeps --noconfirm'
+          namcap: true
+          srcinfo: true
+          aur: true  # workaround mirror problem
+
+      - name: Upload Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-linux-aur
+          path: artifacts/
+
+      - name: Publish AUR package
+        if: ${{ env.aur_publish == 'true' }}
+        uses: KSXGitHub/github-actions-deploy-aur@v2.4.1
+        with:
+          pkgname: ${{ env.aur_pkg }}
+          pkgbuild: ./artifacts/PKGBUILD
+          assets: |
+            ./artifacts/*
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: Automatic update from GitHub ${{ github.repository }} per ${{ github.ref }}
+          allow_empty_commits: false
+
+  build_linux_flatpak:
+    name: Linux Flatpak
+    runs-on: ubuntu-latest
+    needs: check_changelog
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Dependencies Linux Flatpak
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            cmake \
+            flatpak
+          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo'
+          sudo su $(whoami) -c 'flatpak install --user flathub \
+            org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
+
+      - name: Configure Flatpak Manifest
+        run: |
+          # variables for manifest
+          branch=${GITHUB_HEAD_REF}
+
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+            echo "This is a PUSH event"
+            branch=${{ github.ref_name }}
+            commit=${{ github.sha }}
+            clone_url=${{ github.event.repository.clone_url }}
+          else
+            echo "This is a PR event"
+            commit=${{ github.event.pull_request.head.sha }}
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+          fi
+          echo "Branch: ${branch}"
+          echo "Commit: ${commit}"
+          echo "Clone URL: ${clone_url}"
+
+          mkdir -p build
+          mkdir -p artifacts
+
+          cd build
+          cmake -DGITHUB_CLONE_URL=${clone_url} \
+            -DGITHUB_BRANCH=${branch} \
+            -DGITHUB_COMMIT=${commit} \
+            -DSUNSHINE_CONFIGURE_FLATPAK=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
+            ..
+
+      - name: Build Linux Flatpak
+        working-directory: build
+        run: |
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine \
+            dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak dev.lizardbyte.sunshine'
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-linux-flatpak
+          path: artifacts/
+
+      - name: Create Release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: LizardByte/.github/actions/create_release@master
+        with:
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          next_version: ${{ needs.check_changelog.outputs.next_version }}
+          last_version: ${{ needs.check_changelog.outputs.last_version }}
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
 
   build_linux:
     name: Linux
@@ -59,77 +251,83 @@ jobs:
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
-        include: # package these differently
+        include:  # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: ''
-            SUNSHINE_ASSETS_DIR: '/usr/local/sunshine/assets'
-            SUNSHINE_CONFIG_DIR: '/usr/local/sunshine/config'
+            CMAKE_INSTALL_PREFIX: '/usr'
+            SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
+            SUNSHINE_CONFIG_DIR: 'local/sunshine/config'
+            EXTRA_ARGS: ''
           - type: appimage
             CMAKE_INSTALL_PREFIX: '/usr'
             SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
             SUNSHINE_CONFIG_DIR: 'sunshine.AppImage.home'
+            EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
         with:
           submodules: recursive
+
       - name: Setup Dependencies Linux
         run: |
           sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
           # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-          
+
           sudo apt-get update -y
           sudo apt-get install -y \
-              build-essential \
-              cmake \
-              gcc-10 \
-              git \
-              g++-10 \
-              libavdevice-dev \
-              libboost-filesystem-dev \
-              libboost-log-dev \
-              libboost-thread-dev \
-              libcap-dev \
-              libdrm-dev \
-              libevdev-dev \
-              libpulse-dev \
-              libopus-dev \
-              libssl-dev \
-              libwayland-dev \
-              libx11-dev \
-              libxcb-shm0-dev \
-              libxcb-xfixes0-dev \
-              libxcb1-dev \
-              libxfixes-dev \
-              libxrandr-dev \
-              libxtst-dev \
-              wget
+            build-essential \
+            cmake \
+            gcc-10 \
+            git \
+            g++-10 \
+            libavdevice-dev \
+            libboost-filesystem-dev \
+            libboost-log-dev \
+            libboost-thread-dev \
+            libcap-dev \
+            libdrm-dev \
+            libevdev-dev \
+            libpulse-dev \
+            libopus-dev \
+            libssl-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcb-shm0-dev \
+            libxcb-xfixes0-dev \
+            libxcb1-dev \
+            libxfixes-dev \
+            libxrandr-dev \
+            libxtst-dev \
+            wget
           # # Ubuntu 20.04+ packages
           # libboost-filesystem-dev
           # libboost-log-dev
           # libboost-thread-dev
-          
+
           # # Ubuntu 18.04 packages
           # libboost-filesystem1.71-dev \
           # libboost-log1.71-dev \
           # libboost-regex1.71-dev \
           # libboost-thread1.71-dev \
-          
+
           # clean apt cache
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
-          
+
           # Update gcc alias
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-          
+          sudo update-alternatives --install \
+            /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+
           # Install CuDA
-          sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
+          sudo wget \
+            https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run \
+            --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
           sudo chmod a+x /root/cuda.run
           sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
           sudo rm /root/cuda.run
-          
+
           # # Install cmake (necessary for 18.04)
           # wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
           # chmod +x cmake-3.22.2-linux-x86_64.sh
@@ -142,9 +340,19 @@ jobs:
         run: |
           mkdir -p build
           mkdir -p artifacts
-          
+
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON ..
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} \
+            -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} \
+            -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} \
+            -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
+            -DSUNSHINE_ENABLE_WAYLAND=ON \
+            -DSUNSHINE_ENABLE_X11=ON \
+            -DSUNSHINE_ENABLE_DRM=ON \
+            -DSUNSHINE_ENABLE_CUDA=ON \
+            ${{ matrix.EXTRA_ARGS }} \
+            ..
           make -j ${nproc}
 
       - name: Package Linux - CPACK
@@ -160,7 +368,7 @@ jobs:
           mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
 
       - name: Set AppImage Version
-        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version ) }}
+        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version ) }}  # yamllint disable-line rule:line-length
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
@@ -171,43 +379,44 @@ jobs:
         run: |
           # install sunshine to the DESTDIR
           make install DESTDIR=AppDir
-          
+
           # portable home and config
           # todo - this is ugly... we should use a custom AppRun script to take care of this
           mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
           mkdir -p ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}
-          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
-          
+          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json \
+            ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
+
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
           ICON_FILE="${ICON_FILE:-sunshine.png}"
-          
+
           # AppImage
           # https://docs.appimage.org/packaging-guide/index.html
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
-          
+
           # # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
           # sudo apt-get install libgtk-3-dev librsvg2-dev -y
           # wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           # chmod +x linuxdeploy-plugin-gtk.sh
           # export DEPLOY_GTK_VERSION=3
-          
+
           ./linuxdeploy-x86_64.AppImage \
-              --appdir ./AppDir \
-              --executable ./sunshine \
-              --icon-file "../$ICON_FILE" \
-              --desktop-file "./$DESKTOP_FILE" \
-              --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
-              --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
-              --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
-              --output appimage
+            --appdir ./AppDir \
+            --executable ./sunshine \
+            --icon-file "../$ICON_FILE" \
+            --desktop-file "./$DESKTOP_FILE" \
+            --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
+            --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
+            --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
+            --output appimage
           # # add this argument back if using gtk plugin
           # --plugin gtk \
 
           # move
           mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
-          
+
           # permissions
           chmod +x ../artifacts/sunshine.AppImage
 
@@ -216,9 +425,9 @@ jobs:
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage
-          
+
           # rm -rf ~/.cache/appimagelint/
-          
+
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
       - name: Archive AppImage
@@ -226,7 +435,7 @@ jobs:
         working-directory: artifacts
         run: |
           chmod +x ./sunshine.AppImage
-          
+
           zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
 
       - name: Upload Artifacts
@@ -237,9 +446,9 @@ jobs:
 
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
+        uses: LizardByte/.github/actions/create_release@master
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
@@ -255,13 +464,6 @@ jobs:
         with:
           submodules: recursive
 
-      # this is for the macports job
-      - name: Cache Artifacts
-        uses: actions/cache@v3
-        with:
-          path: artifacts
-          key: ${{ runner.os }}-artifacts
-
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
@@ -272,49 +474,29 @@ jobs:
 
       - name: Build MacOS
         run: |
-          # variables for Portfile
-          owner=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]' )
-          repo=$(echo ${GITHUB_REPOSITORY#*/} | tr '[:upper:]' '[:lower:]' )
-          branch=${GITHUB_HEAD_REF}
-          
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
-              echo "This is a PUSH event"
-              branch=${GITHUB_BASE_REF}
-          else
-              echo "This is a PR event"
-          fi
-          echo "Owner: ${owner}"
-          echo "Repo: ${repo}"
-          echo "Branch: ${branch}"
-          
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=/usr/local/sunshine/assets -DSUNSHINE_CONFIG_DIR=/usr/local/sunshine/config -DGITHUB_OWNER=${owner} -DGITHUB_REPO=${repo} -DGITHUB_BRANCH=${branch} ..
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
+            -DSUNSHINE_CONFIG_DIR=local/sunshine/config \
+            ..
           make -j ${nproc}
 
       - name: Package MacOS
         run: |
-          # remove cached artifacts
-          rm -r -f ./artifacts
-          mkdir artifacts
-          
           mkdir -p artifacts
           cd build
 
           # package
           cpack -G DragNDrop
           mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-dragndrop.dmg
-          
+
           cpack -G Bundle
           mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-bundle.dmg
-          
+
           cpack -G ZIP
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-macos-experimental-archive.zip
-
-          # move
-          mv Portfile ../artifacts/Portfile
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -331,112 +513,224 @@ jobs:
           rm -f ./sunshine-macos-experimental-bundle.dmg
           rm -f ./sunshine-macos-experimental-archive.zip
 
+      ##  no artifacts to release currently
+      # - name: Create Release
+      #   if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+      #   uses: LizardByte/.github/actions/create_release@master
+      #   with:
+      #     token: ${{ secrets.GH_BOT_TOKEN }}
+      #     next_version: ${{ needs.check_changelog.outputs.next_version }}
+      #     last_version: ${{ needs.check_changelog.outputs.last_version }}
+      #     release_body: ${{ needs.check_changelog.outputs.release_body }}
+
+  build_mac_port:
+    name: Macports
+    needs: check_changelog
+    runs-on: macos-11
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Checkout ports
+        uses: actions/checkout@v3
+        with:
+          repository: macports/macports-ports
+          fetch-depth: 64
+          path: ports
+
+      - name: Checkout mpbb
+        uses: actions/checkout@v3
+        with:
+          repository: macports/mpbb
+          path: mpbb
+
+      - name: Setup Dependencies Macports
+        run: |
+          # install dependencies using homebrew
+          brew install cmake
+
+      - name: Configure Portfile
+        run: |
+          # variables for Portfile
+          branch=${GITHUB_HEAD_REF}
+
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+            echo "This is a PUSH event"
+            commit=${{ github.sha }}
+            clone_url=${{ github.event.repository.clone_url }}
+          else
+            echo "This is a PR event"
+            commit=${{ github.event.pull_request.head.sha }}
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+          fi
+          echo "Commit: ${commit}"
+          echo "Clone URL: ${clone_url}"
+
+          mkdir build
+          cd build
+          cmake -DGITHUB_COMMIT=${commit} \
+            -DGITHUB_CLONE_URL=${clone_url} \
+            -DSUNSHINE_CONFIGURE_PORTFILE=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
+            ..
+          cd ..
+
+          # copy Portfile to artifacts
+          mkdir -p artifacts
+          cp -f ./build/Portfile ./artifacts/
+
+          # copy Portfile to ports
+          mkdir -p ./ports/multimedia/Sunshine
+          cp -f ./build/Portfile ./ports/multimedia/Sunshine/Portfile
+
+          # testing
+          cat ./artifacts/Portfile
+
+      - name: Bootstrap MacPorts
+        run: |
+          . ports/.github/workflows/bootstrap.sh
+
+          # Add getopt, mpbb and the MacPorts paths to $PATH for the subsequent steps.
+          echo "/opt/mports/bin" >> $GITHUB_PATH
+          echo "${PWD}/mpbb" >> $GITHUB_PATH
+          echo "/opt/local/bin" >> $GITHUB_PATH
+          echo "/opt/local/sbin" >> $GITHUB_PATH
+
+      - name: Determine list of subports
+        id: subportlist
+        run: |
+          set -eu
+          port=Sunshine
+          subportlist=""
+
+          echo "Listing subports for Sunshine"
+          new_subports=$(mpbb \
+            --work-dir /tmp/mpbb \
+            list-subports \
+            --archive-site= \
+            --archive-site-private= \
+            --include-deps=no \
+            "$port" \
+            | tr '\n' ' ')
+          for subport in $new_subports; do
+            echo "$subport"
+            subportlist="$subportlist $subport"
+          done
+          echo "::set-output name=subportlist::${subportlist}"
+
+      - name: Run port lint for all subports
+        run: |
+          set -eu
+          fail=0
+          for subport in $subportlist; do
+            echo "::group::${subport}"
+            path=$(port file "$subport")
+            messagetype="warning"
+            if ! messages=$(port -q lint "$subport" 2>&1); then
+              messagetype="error"
+              fail=1
+            fi
+            if [ -n "$messages" ]; then
+              echo "$messages"
+              # See https://github.com/actions/toolkit/issues/193#issuecomment-605394935
+              encoded_messages="port lint ${subport}:%0A"
+              encoded_messages+="$(echo "${messages}" | sed -E 's/$/%0A/g' | tr -d '\n')"
+              echo "::${messagetype} file=${path#${PWD}/ports/},line=1,col=1::${encoded_messages}"
+            fi
+            echo "::endgroup::"
+          done
+          exit "$fail"
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
+
+      - name: Build subports
+        run: |
+          set -eu
+          fail=0
+          for subport in $subportlist; do
+            workdir="/tmp/mpbb/$subport"
+            mkdir -p "$workdir/logs"
+            touch "$workdir/logs/dependencies-progress.txt"
+            echo "::group::Cleaning up between ports"
+            sudo mpbb --work-dir "$workdir" cleanup
+            echo "::endgroup::"
+            echo "::group::Installing dependencies for ${subport}"
+            sudo mpbb \
+              --work-dir "$workdir" \
+              install-dependencies \
+              "$subport" >"$workdir/logs/install-dependencies.log" 2>&1 &
+            deps_pid=$!
+            tail -f "$workdir/logs/dependencies-progress.txt" 2>/dev/null &
+            tail_pid=$!
+            set +e
+            wait "$deps_pid"
+            deps_exit=$?
+            set -e
+            kill "$tail_pid" || true
+            if [ "$deps_exit" -ne 0 ]; then
+              echo "::endgroup::"
+              echo "::error::Failed to install dependencies for ${subport}"
+              fail=1
+              continue
+            fi
+            echo "::endgroup::"
+            echo "::group::Installing ${subport}"
+            set +e
+            sudo mpbb \
+              --work-dir "$workdir" \
+              install-port \
+              --source \
+              "$subport"
+            install_exit=$?
+            set -e
+            if [ "$install_exit" -ne 0 ]; then
+              echo "::endgroup::"
+              echo "::error::Failed to install ${subport}"
+              fail=1
+              continue
+            fi
+            echo "::endgroup::"
+          done
+          exit "$fail"
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
+
+      - name: Package
+        run: |
+          # create packages
+          sudo port pkg sunshine
+          sudo port dmg sunshine
+
+          work=$(port work sunshine)
+          echo "Sunshine port work directory: ${work}"
+
+          # move components out of port work directory
+          sudo mv ${work}/Sunshine*component.pkg /tmp/
+
+          # copy artifacts
+          sudo mv ${work}/Sunshine*.pkg ./artifacts/sunshine.pkg
+          sudo mv ${work}/Sunshine*.dmg ./artifacts/sunshine.dmg
+
+          # move components back
+          # sudo mv /tmp/Sunshine*component.pkg ${work}/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-macports
+          path: artifacts/
+
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
+        uses: LizardByte/.github/actions/create_release@master
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
-
-#  build_mac_port:
-#    name: Macports
-#    runs-on: macos-11
-#    needs: [check_changelog, build_mac]
-#
-#    steps:
-#      - name: Cache Artifacts
-#        uses: actions/cache@v3
-#        with:
-#          path: artifacts
-#          key: ${{ runner.os }}-artifacts
-#
-#      - name: Setup Macports
-#        run : |
-#          # update paths for macports
-#          echo "/opt/local/sbin" >> $GITHUB_PATH
-#          echo "/opt/local/bin" >> $GITHUB_PATH
-#
-#          # Set OpenSSL 1.1 as default
-#          # rm -rf /usr/local/opt/openssl
-#          # rm -rf /usr/local/bin/openssl
-#          # ln -sf /usr/local/Cellar/openssl@1.1/1.1.1o/bin/openssl /usr/local/bin/openssl
-#          # ln -sf /usr/local/Cellar/openssl@1.1/1.1.1o /usr/local/opt/openssl
-#
-#          # download and extract macports
-#          curl -O https://distfiles.macports.org/MacPorts/MacPorts-2.7.2.tar.bz2
-#          tar xf MacPorts-2.7.2.tar.bz2
-#
-#          # build macports
-#          cd MacPorts-2.7.2
-#          ./configure
-#          make
-#          sudo make install
-#          cd ../
-#          rm -rf MacPorts-2.7.2*
-#
-#      - name: Configure Macports
-#        run: |
-#          # update sources
-#          sudo port -v selfupdate
-#
-#          # use custom sources
-#          sudo chmod 777 /opt/local/etc/macports/sources.conf
-#          echo file://$(echo ~)/ports > /opt/local/etc/macports/sources.conf
-#          echo rsync://rsync.macports.org/macports/release/tarballs/ports.tar [default] >> /opt/local/etc/macports/sources.conf
-#          sudo chmod 644 /opt/local/etc/macports/sources.conf
-#
-#          # setup custom port
-#          mkdir -p ~/ports/multimedia/sunshine
-#
-#          # copy configured Portfile
-#          mv ./artifacts/Portfile ~/ports/multimedia/sunshine/
-#
-#          # remove remaining cached artifacts
-#          rm -r -f ./artifacts
-#          mkdir artifacts
-#
-#          # index the ports
-#          cd ~/ports
-#          portindex
-#
-#      - name: Build
-#        run: |
-#          # build port
-#          sudo port install sunshine \
-#          || cat /opt/local/var/macports/logs/_Users_runner_ports_multimedia_sunshine/Sunshine/main.log \
-#          && exit 1
-#
-#          # create packages
-#          sudo port dmg sunshine
-#          sudo port pkg sunshine
-#
-#          # move
-#          mv $(port work sunshine)/Sunshine*.dmg ./artifacts/sunshine.dmg
-#          mv $(port work sunshine)/Sunshine*.ppkg ./artifacts/sunshine.pkg
-#
-#          # testing only
-#          # ls ~/ports/multimedia/sunshine
-#          # cat ~/ports/multimedia/sunshine/Portfile
-#          # cat /opt/local/etc/macports/sources.conf
-#          # cat ~/ports/Portindex
-#          # port search sunshine
-#
-#      - name: Upload Artifacts
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: sunshine-macports
-#          path: artifacts/
-#
-#      - name: Create Release
-#        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-#        uses: SunshineStream/actions/create_release@master
-#        with:
-#          token: ${{ secrets.GITHUB_TOKEN }}
-#          next_version: ${{ needs.check_changelog.outputs.next_version }}
-#          last_version: ${{ needs.check_changelog.outputs.last_version }}
-#          release_body: ${{ needs.check_changelog.outputs.release_body }}
 
   build_win:
     name: Windows
@@ -474,7 +768,11 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -DSUNSHINE_CONFIG_DIR=config -G "MinGW Makefiles" ..
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_CONFIG_DIR=config \
+            -G "MinGW Makefiles" \
+            ..
           mingw32-make -j2
 
       - name: Package Windows
@@ -499,9 +797,9 @@ jobs:
 
       - name: Create Release
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: SunshineStream/actions/create_release@master
+        uses: LizardByte/.github/actions/create_release@master
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}

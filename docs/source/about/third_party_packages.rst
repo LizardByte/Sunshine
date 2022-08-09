@@ -1,25 +1,9 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/about/third_party_packages.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/third_party_packages.rst
 
 Third Party Packages
 ====================
 
-.. Danger:: These packages are not maintained by SunshineStream. Use at your own risk.
-
-AUR (Arch Linux User Repository)
---------------------------------
-
-.. image:: https://img.shields.io/aur/version/sunshine?style=for-the-badge&logo=archlinux
-   :alt: AUR version
-   :target: https://aur.archlinux.org/packages/sunshine
-
-.. image:: https://img.shields.io/aur/last-modified/sunshine?style=for-the-badge&logo=archlinux
-   :alt: AUR last modified
-
-.. image:: https://img.shields.io/aur/votes/sunshine?style=for-the-badge&logo=archlinux
-   :alt: AUR votes
-
-.. image:: https://img.shields.io/aur/maintainer/sunshine?style=for-the-badge&logo=archlinux
-   :alt: AUR maintainer
+.. Danger:: These packages are not maintained by LizardByte. Use at your own risk.
 
 Chocolatey
 ----------
@@ -37,6 +21,12 @@ Scoop
 .. image:: https://img.shields.io/scoop/v/sunshine?bucket=extras&style=for-the-badge
    :alt: Scoop Version (extras bucket)
    :target: https://scoop.sh/#/apps?s=0&d=1&o=true&q=sunshine
+
+Winget
+------
+.. image:: https://img.shields.io/badge/dynamic/xml?color=orange&label=Winget&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27winget%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=microsoft
+   :alt: Winget Version
+   :target: https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LizardByte/Sunshine
 
 Legacy GitHub Repo
 ------------------

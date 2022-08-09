@@ -1,3 +1,4 @@
+---
 # .readthedocs.yaml
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
@@ -25,9 +26,9 @@ build:
 #      - cmake .
 
 ## Include the submodules, required for cmake
-#submodules:
-#  include: all
-#  recursive: true
+#  submodules:
+#    include: all
+#    recursive: true
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
