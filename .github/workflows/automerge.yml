@@ -1,3 +1,4 @@
+---
 # This action is centrally managed in https://github.com/<organization>/.github/
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
@@ -17,22 +18,22 @@ jobs:
       contains(fromJson('["LizardByte-bot"]'), github.actor)
     runs-on: ubuntu-latest
     steps:
-    - name: Autoapproving
-      uses: hmarr/auto-approve-action@v2
-      with:
-        github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Autoapproving
+        uses: hmarr/auto-approve-action@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-    - name: Label autoapproved
-      uses: actions/github-script@v5
-      with:
-        github-token: ${{ secrets.GH_BOT_TOKEN }}
-        script: |
-          github.rest.issues.addLabels({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            labels: ['autoapproved', 'autoupdate']
-          })
+      - name: Label autoapproved
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GH_BOT_TOKEN }}
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['autoapproved', 'autoupdate']
+            })
 
   automerge:
     needs: [autoapprove]

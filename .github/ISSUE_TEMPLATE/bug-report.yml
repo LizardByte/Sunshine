@@ -1,3 +1,4 @@
+---
 name: Bug Report
 description: Create a bug report to help us improve.
 body:
@@ -5,7 +6,7 @@ body:
     attributes:
       value: >
         **THIS IS NOT THE PLACE TO ASK FOR SUPPORT!**
-        Please use [Discord](https://docs.lizardbyte.dev/about/support.html#discord) for support issues.
+        Please use [Discord](https://docs.lizardbyte.dev/en/latest/about/support.html#discord) for support issues.
   - type: textarea
     id: description
     attributes:
@@ -90,9 +91,12 @@ body:
     id: logs
     attributes:
       label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      description: |
+        Please copy and paste any relevant log output. This will be automatically formatted into code,
+        so no need for backticks.
       render: Shell
   - type: markdown
     attributes:
       value: |
-        Make sure to close your issue when it's solved! If you found the solution yourself please comment so that others benefit from it.
+        Make sure to close your issue when it's solved! If you found the solution yourself please comment
+        so that others benefit from it.

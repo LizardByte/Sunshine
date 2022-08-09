@@ -1,0 +1,46 @@
+---
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: yaml lint
+
+on:
+  pull_request:
+    branches: [master, nightly]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  yaml-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: yaml lint
+        id: yaml-lint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          # https://yamllint.readthedocs.io/en/stable/configuration.html#default-configuration
+          config_data: |
+            extends: default
+            rules:
+              comments:
+                level: error
+              line-length:
+                max: 120
+              truthy:
+                allowed-values: ['true', 'false', 'on']  # GitHub uses "on" for workflow event triggers
+                check-keys: true
+                level: error
+
+      - name: Log
+        run: |
+          echo ${{ steps.yaml-lint.outputs.logfile }}
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: yamllint-logfile
+          path: ${{ steps.yaml-lint.outputs.logfile }}

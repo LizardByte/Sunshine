@@ -1,3 +1,4 @@
+---
 name: CI
 
 on:
@@ -52,7 +53,8 @@ jobs:
 
       - name: Check CMakeLists.txt Version
         run: |
-          version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
+          version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | \
+            grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
           echo "cmakelists_version=${version}" >> $GITHUB_ENV
 
       - name: Compare CMakeList.txt Version
@@ -60,7 +62,8 @@ jobs:
         run: |
           echo CMakeLists version: "$cmakelists_version"
           echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
-          echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
+          echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to \
+            "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
           exit 1
 
   build_linux_aur:
@@ -76,7 +79,7 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
-              cmake
+            cmake
 
       - name: Configure PKGBUILD files
         run: |
@@ -86,47 +89,55 @@ jobs:
           sub_version=""
           conflicts="'sunshine'"
           provides="'sunshine'"
-          
+
           branch=${GITHUB_HEAD_REF}
-          
+
           # check the branch variable
           if [ -z "$branch" ]
           then
-              echo "This is a PUSH event"
-              commit=${{ github.sha }}
-              clone_url=${{ github.event.repository.clone_url }}
-          
-              if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
-                  aur_pkg=sunshine
-                  conflicts=""
-                  provides=""
-          
-                  echo "aur_publish=true" >> $GITHUB_ENV
-              elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
-                  aur_pkg=sunshine-git
-                  sub_version=".r${commit}"
-          
-                  echo "aur_publish=true" >> $GITHUB_ENV
-              fi
-          else
-              echo "This is a PR event"
-              commit=${{ github.event.pull_request.head.sha }}
-              clone_url=${{ github.event.pull_request.head.repo.clone_url }}
-          
+            echo "This is a PUSH event"
+            commit=${{ github.sha }}
+            clone_url=${{ github.event.repository.clone_url }}
+
+            if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
+              aur_pkg=sunshine
+              conflicts=""
+              provides=""
+
+              echo "aur_publish=true" >> $GITHUB_ENV
+            elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
+              aur_pkg=sunshine-git
               sub_version=".r${commit}"
+
+              echo "aur_publish=true" >> $GITHUB_ENV
+            fi
+          else
+            echo "This is a PR event"
+            commit=${{ github.event.pull_request.head.sha }}
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+
+            sub_version=".r${commit}"
           fi
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
-          
+
           echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
-          
+
           mkdir -p artifacts
           mkdir -p build
-          
+
           cd build
-          cmake -DSUNSHINE_CONFIGURE_AUR=ON -DSUNSHINE_AUR_PKG=${aur_pkg} -DSUNSHINE_SUB_VERSION=${sub_version} -DSUNSHINE_AUR_CONFLICTS=${conflicts} -DSUNSHINE_AUR_PROVIDES=${provides} -DGITHUB_CLONE_URL=${clone_url} -DGITHUB_COMMIT=${commit} -DSUNSHINE_CONFIGURE_ONLY=ON ..
+          cmake -DSUNSHINE_CONFIGURE_AUR=ON \
+            -DSUNSHINE_AUR_PKG=${aur_pkg} \
+            -DSUNSHINE_SUB_VERSION=${sub_version} \
+            -DSUNSHINE_AUR_CONFLICTS=${conflicts} \
+            -DSUNSHINE_AUR_PROVIDES=${provides} \
+            -DGITHUB_CLONE_URL=${clone_url} \
+            -DGITHUB_COMMIT=${commit} \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
+            ..
           cd ..
-          
+
           mv ./build/PKGBUILD ./artifacts/
 
       - name: Validate package
@@ -172,42 +183,50 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
-              cmake \
-              flatpak
-          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak install --user flathub org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
+            cmake \
+            flatpak
+          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo'
+          sudo su $(whoami) -c 'flatpak install --user flathub \
+            org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
 
       - name: Configure Flatpak Manifest
         run: |
           # variables for manifest
           branch=${GITHUB_HEAD_REF}
-          
+
           # check the branch variable
           if [ -z "$branch" ]
           then
-              echo "This is a PUSH event"
-              branch=${{ github.ref_name }}
-              commit=${{ github.sha }}
-              clone_url=${{ github.event.repository.clone_url }}
+            echo "This is a PUSH event"
+            branch=${{ github.ref_name }}
+            commit=${{ github.sha }}
+            clone_url=${{ github.event.repository.clone_url }}
           else
-              echo "This is a PR event"
-              commit=${{ github.event.pull_request.head.sha }}
-              clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+            echo "This is a PR event"
+            commit=${{ github.event.pull_request.head.sha }}
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
           fi
           echo "Branch: ${branch}"
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
-          
+
           mkdir -p build
           mkdir -p artifacts
-          
+
           cd build
-          cmake -DGITHUB_CLONE_URL=${clone_url} -DGITHUB_BRANCH=${branch} -DGITHUB_COMMIT=${commit} -DSUNSHINE_CONFIGURE_FLATPAK=ON -DSUNSHINE_CONFIGURE_ONLY=ON ..
+          cmake -DGITHUB_CLONE_URL=${clone_url} \
+            -DGITHUB_BRANCH=${branch} \
+            -DGITHUB_COMMIT=${commit} \
+            -DSUNSHINE_CONFIGURE_FLATPAK=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
+            ..
 
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine \
+            dev.lizardbyte.sunshine.yml'
           sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak dev.lizardbyte.sunshine'
 
       - name: Upload Artifacts
@@ -232,7 +251,7 @@ jobs:
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
-        include: # package these differently
+        include:  # package these differently
           - type: cpack
             CMAKE_INSTALL_PREFIX: '/usr'
             SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
@@ -255,57 +274,60 @@ jobs:
           sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
           # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-          
+
           sudo apt-get update -y
           sudo apt-get install -y \
-              build-essential \
-              cmake \
-              gcc-10 \
-              git \
-              g++-10 \
-              libavdevice-dev \
-              libboost-filesystem-dev \
-              libboost-log-dev \
-              libboost-thread-dev \
-              libcap-dev \
-              libdrm-dev \
-              libevdev-dev \
-              libpulse-dev \
-              libopus-dev \
-              libssl-dev \
-              libwayland-dev \
-              libx11-dev \
-              libxcb-shm0-dev \
-              libxcb-xfixes0-dev \
-              libxcb1-dev \
-              libxfixes-dev \
-              libxrandr-dev \
-              libxtst-dev \
-              wget
+            build-essential \
+            cmake \
+            gcc-10 \
+            git \
+            g++-10 \
+            libavdevice-dev \
+            libboost-filesystem-dev \
+            libboost-log-dev \
+            libboost-thread-dev \
+            libcap-dev \
+            libdrm-dev \
+            libevdev-dev \
+            libpulse-dev \
+            libopus-dev \
+            libssl-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcb-shm0-dev \
+            libxcb-xfixes0-dev \
+            libxcb1-dev \
+            libxfixes-dev \
+            libxrandr-dev \
+            libxtst-dev \
+            wget
           # # Ubuntu 20.04+ packages
           # libboost-filesystem-dev
           # libboost-log-dev
           # libboost-thread-dev
-          
+
           # # Ubuntu 18.04 packages
           # libboost-filesystem1.71-dev \
           # libboost-log1.71-dev \
           # libboost-regex1.71-dev \
           # libboost-thread1.71-dev \
-          
+
           # clean apt cache
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
-          
+
           # Update gcc alias
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-          
+          sudo update-alternatives --install \
+            /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+
           # Install CuDA
-          sudo wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
+          sudo wget \
+            https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run \
+            --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
           sudo chmod a+x /root/cuda.run
           sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
           sudo rm /root/cuda.run
-          
+
           # # Install cmake (necessary for 18.04)
           # wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
           # chmod +x cmake-3.22.2-linux-x86_64.sh
@@ -318,9 +340,19 @@ jobs:
         run: |
           mkdir -p build
           mkdir -p artifacts
-          
+
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine -DSUNSHINE_ENABLE_WAYLAND=ON -DSUNSHINE_ENABLE_X11=ON -DSUNSHINE_ENABLE_DRM=ON -DSUNSHINE_ENABLE_CUDA=ON ${{ matrix.EXTRA_ARGS }} ..
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} \
+            -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} \
+            -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} \
+            -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
+            -DSUNSHINE_ENABLE_WAYLAND=ON \
+            -DSUNSHINE_ENABLE_X11=ON \
+            -DSUNSHINE_ENABLE_DRM=ON \
+            -DSUNSHINE_ENABLE_CUDA=ON \
+            ${{ matrix.EXTRA_ARGS }} \
+            ..
           make -j ${nproc}
 
       - name: Package Linux - CPACK
@@ -336,7 +368,7 @@ jobs:
           mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
 
       - name: Set AppImage Version
-        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version ) }}
+        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version ) }}  # yamllint disable-line rule:line-length
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
@@ -347,43 +379,44 @@ jobs:
         run: |
           # install sunshine to the DESTDIR
           make install DESTDIR=AppDir
-          
+
           # portable home and config
           # todo - this is ugly... we should use a custom AppRun script to take care of this
           mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
           mkdir -p ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}
-          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
-          
+          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json \
+            ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
+
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
           ICON_FILE="${ICON_FILE:-sunshine.png}"
-          
+
           # AppImage
           # https://docs.appimage.org/packaging-guide/index.html
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
-          
+
           # # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
           # sudo apt-get install libgtk-3-dev librsvg2-dev -y
           # wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           # chmod +x linuxdeploy-plugin-gtk.sh
           # export DEPLOY_GTK_VERSION=3
-          
+
           ./linuxdeploy-x86_64.AppImage \
-              --appdir ./AppDir \
-              --executable ./sunshine \
-              --icon-file "../$ICON_FILE" \
-              --desktop-file "./$DESKTOP_FILE" \
-              --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
-              --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
-              --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
-              --output appimage
+            --appdir ./AppDir \
+            --executable ./sunshine \
+            --icon-file "../$ICON_FILE" \
+            --desktop-file "./$DESKTOP_FILE" \
+            --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
+            --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
+            --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
+            --output appimage
           # # add this argument back if using gtk plugin
           # --plugin gtk \
 
           # move
           mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
-          
+
           # permissions
           chmod +x ../artifacts/sunshine.AppImage
 
@@ -392,9 +425,9 @@ jobs:
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage
-          
+
           # rm -rf ~/.cache/appimagelint/
-          
+
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
       - name: Archive AppImage
@@ -402,7 +435,7 @@ jobs:
         working-directory: artifacts
         run: |
           chmod +x ./sunshine.AppImage
-          
+
           zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
 
       - name: Upload Artifacts
@@ -443,7 +476,11 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DSUNSHINE_ASSETS_DIR=local/sunshine/assets -DSUNSHINE_CONFIG_DIR=local/sunshine/config ..
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
+            -DSUNSHINE_CONFIG_DIR=local/sunshine/config \
+            ..
           make -j ${nproc}
 
       - name: Package MacOS
@@ -454,10 +491,10 @@ jobs:
           # package
           cpack -G DragNDrop
           mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-dragndrop.dmg
-          
+
           cpack -G Bundle
           mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-bundle.dmg
-          
+
           cpack -G ZIP
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-macos-experimental-archive.zip
 
@@ -476,25 +513,20 @@ jobs:
           rm -f ./sunshine-macos-experimental-bundle.dmg
           rm -f ./sunshine-macos-experimental-archive.zip
 
-      # no artifacts to release currently
-#      - name: Create Release
-#        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-#        uses: LizardByte/.github/actions/create_release@master
-#        with:
-#          token: ${{ secrets.GH_BOT_TOKEN }}
-#          next_version: ${{ needs.check_changelog.outputs.next_version }}
-#          last_version: ${{ needs.check_changelog.outputs.last_version }}
-#          release_body: ${{ needs.check_changelog.outputs.release_body }}
+      ##  no artifacts to release currently
+      # - name: Create Release
+      #   if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+      #   uses: LizardByte/.github/actions/create_release@master
+      #   with:
+      #     token: ${{ secrets.GH_BOT_TOKEN }}
+      #     next_version: ${{ needs.check_changelog.outputs.next_version }}
+      #     last_version: ${{ needs.check_changelog.outputs.last_version }}
+      #     release_body: ${{ needs.check_changelog.outputs.release_body }}
 
   build_mac_port:
     name: Macports
     needs: check_changelog
     runs-on: macos-11
-#    runs-on: ${{ matrix.os }}
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        os: [ macos-10.15, macos-11, macos-12 ]
 
     steps:
       - name: Checkout
@@ -522,42 +554,45 @@ jobs:
         run: |
           # variables for Portfile
           branch=${GITHUB_HEAD_REF}
-          
+
           # check the branch variable
           if [ -z "$branch" ]
           then
-              echo "This is a PUSH event"
-              commit=${{ github.sha }}
-              clone_url=${{ github.event.repository.clone_url }}
+            echo "This is a PUSH event"
+            commit=${{ github.sha }}
+            clone_url=${{ github.event.repository.clone_url }}
           else
-              echo "This is a PR event"
-              commit=${{ github.event.pull_request.head.sha }}
-              clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+            echo "This is a PR event"
+            commit=${{ github.event.pull_request.head.sha }}
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
           fi
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
-          
+
           mkdir build
           cd build
-          cmake -DGITHUB_COMMIT=${commit} -DGITHUB_CLONE_URL=${clone_url} -DSUNSHINE_CONFIGURE_PORTFILE=ON -DSUNSHINE_CONFIGURE_ONLY=ON ..
-          
+          cmake -DGITHUB_COMMIT=${commit} \
+            -DGITHUB_CLONE_URL=${clone_url} \
+            -DSUNSHINE_CONFIGURE_PORTFILE=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
+            ..
           cd ..
-          
+
           # copy Portfile to artifacts
           mkdir -p artifacts
           cp -f ./build/Portfile ./artifacts/
-          
+
           # copy Portfile to ports
           mkdir -p ./ports/multimedia/Sunshine
           cp -f ./build/Portfile ./ports/multimedia/Sunshine/Portfile
-          
+
           # testing
           cat ./artifacts/Portfile
 
       - name: Bootstrap MacPorts
         run: |
           . ports/.github/workflows/bootstrap.sh
-          
+
           # Add getopt, mpbb and the MacPorts paths to $PATH for the subsequent steps.
           echo "/opt/mports/bin" >> $GITHUB_PATH
           echo "${PWD}/mpbb" >> $GITHUB_PATH
@@ -573,12 +608,12 @@ jobs:
 
           echo "Listing subports for Sunshine"
           new_subports=$(mpbb \
-              --work-dir /tmp/mpbb \
-              list-subports \
-              --archive-site= \
-              --archive-site-private= \
-              --include-deps=no \
-              "$port" \
+            --work-dir /tmp/mpbb \
+            list-subports \
+            --archive-site= \
+            --archive-site-private= \
+            --include-deps=no \
+            "$port" \
             | tr '\n' ' ')
           for subport in $new_subports; do
             echo "$subport"
@@ -671,14 +706,14 @@ jobs:
 
           work=$(port work sunshine)
           echo "Sunshine port work directory: ${work}"
-          
+
           # move components out of port work directory
           sudo mv ${work}/Sunshine*component.pkg /tmp/
-          
+
           # copy artifacts
           sudo mv ${work}/Sunshine*.pkg ./artifacts/sunshine.pkg
           sudo mv ${work}/Sunshine*.dmg ./artifacts/sunshine.dmg
-          
+
           # move components back
           # sudo mv /tmp/Sunshine*component.pkg ${work}/
 
@@ -733,7 +768,11 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DSUNSHINE_ASSETS_DIR=assets -DSUNSHINE_CONFIG_DIR=config -G "MinGW Makefiles" ..
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_CONFIG_DIR=config \
+            -G "MinGW Makefiles" \
+            ..
           mingw32-make -j2
 
       - name: Package Windows
