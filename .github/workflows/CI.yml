@@ -235,15 +235,6 @@ jobs:
           name: sunshine-linux-flatpak
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
-        with:
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
-
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
@@ -444,15 +435,6 @@ jobs:
           name: sunshine-linux-${{ matrix.type }}
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
-        with:
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
-
   build_mac:
     name: MacOS
     runs-on: macos-11
@@ -513,15 +495,6 @@ jobs:
           rm -f ./sunshine-macos-experimental-bundle.dmg
           rm -f ./sunshine-macos-experimental-archive.zip
 
-      ##  no artifacts to release currently
-      # - name: Create Release
-      #   if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-      #   uses: LizardByte/.github/actions/create_release@master
-      #   with:
-      #     token: ${{ secrets.GH_BOT_TOKEN }}
-      #     next_version: ${{ needs.check_changelog.outputs.next_version }}
-      #     last_version: ${{ needs.check_changelog.outputs.last_version }}
-      #     release_body: ${{ needs.check_changelog.outputs.release_body }}
 
   build_mac_port:
     name: Macports
@@ -723,15 +696,6 @@ jobs:
           name: sunshine-macports
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
-        with:
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
-
   build_win:
     name: Windows
     runs-on: windows-2019
@@ -795,11 +759,25 @@ jobs:
           name: sunshine-windows
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+  release:
+    needs: [ check_changelog, build_win, build_mac_port, build_mac, build_linux, build_linux_flatpak ]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.check_changelog.outputs.next_version != needs.check_changelog.outputs.last_version }}
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      - name: Release
+        uses: softprops/action-gh-release@v1
         with:
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          tag_name: ${{ needs.check_changelog.outputs.next_version }}
+          body: ${{ needs.check_changelog.outputs.release_body }}
+          files: |
+            artifacts/sunshine-windows/*
+            artifacts/sunshine-linux-appimage/*
+            artifacts/sunshine-linux-flatpak/*
+            artifacts/sunshine-macports/*
+          discussion_category_name: announcements
