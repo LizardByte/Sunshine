@@ -8,29 +8,28 @@ FROM sunshine-base as sunshine-build
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update -y \
      && apt-get install -y --no-install-recommends \
-        build-essential \
-        cmake \
-        git \
-        libavdevice-dev \
-        libboost-filesystem-dev \
-        libboost-log-dev \
-        libboost-thread-dev \
-        libcap-dev \
-        libdrm-dev \
-        libevdev-dev \
-        libpulse-dev \
-        libopus-dev \
-        libssl-dev \
-        libwayland-dev \
-        libx11-dev \
-        libxcb-shm0-dev \
-        libxcb-xfixes0-dev \
-        libxcb1-dev \
-        libxfixes-dev \
-        libxrandr-dev \
-        libxtst-dev \
-        nvidia-cuda-dev \
-        nvidia-cuda-toolkit \
+        build-essential=12.9* \
+        cmake=3.22.1* \
+        libavdevice-dev=7:4.4.* \
+        libboost-filesystem-dev=1.74.0* \
+        libboost-log-dev=1.74.0* \
+        libboost-thread-dev=1.74.0* \
+        libcap-dev=1:2.44* \
+        libdrm-dev=2.4.110* \
+        libevdev-dev=1.12.1* \
+        libpulse-dev=1:15.99.1* \
+        libopus-dev=1.3.1* \
+        libssl-dev=3.0.2* \
+        libwayland-dev=1.20.0* \
+        libx11-dev=2:1.7.5* \
+        libxcb-shm0-dev=1.14* \
+        libxcb-xfixes0-dev=1.14* \
+        libxcb1-dev=1.14* \
+        libxfixes-dev=1:6.0.0* \
+        libxrandr-dev=2:1.5.2* \
+        libxtst-dev=2:1.2.3* \
+        nvidia-cuda-dev=11.5.1* \
+        nvidia-cuda-toolkit=11.5.1* \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
