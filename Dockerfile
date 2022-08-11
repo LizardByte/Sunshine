@@ -31,24 +31,24 @@ RUN apt-get update -y && \
         nvidia-cuda-dev \
         nvidia-cuda-toolkit
 
-ADD . /root/sunshine/
+COPY . /root/sunshine/
 RUN /root/sunshine/scripts/build-sunshine.sh
 
 WORKDIR /root/sunshine-build
 RUN cpack -G RPM
-RUN cpack -G DEB
+# RUN cpack -G DEB
 
-#################################################
 FROM debian:bullseye-slim AS sunshine
 
 COPY --from=sunshine-build /root/sunshine-build/Sunshine.deb /Sunshine.deb
-COPY --from=sunshine-build /root/sunshine-build/Sunshine.rpm /Sunshine.rpm
+# COPY --from=sunshine-build /root/sunshine-build/Sunshine.rpm /Sunshine.rpm
 
 RUN apt-get update -y && \
     apt-get install -y -f /Sunshine.deb \
     && rm -rf /var/lib/apt/lists/*
 
-# Port configuration taken from https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide#manual-port-forwarding-advanced
+# Port configuration
+# https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide#manual-port-forwarding-advanced
 EXPOSE 47984-47990/tcp
 EXPOSE 48010
 EXPOSE 48010/udp

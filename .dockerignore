@@ -1,11 +1,12 @@
 # Remove all, we'll include only the necessary folders via !
 *
 
-!sunshine
 !cmake
-!assets
 !scripts
+!src
+!src_assets
 !third-party
 !CMakeLists.txt
 !*.in
 !LICENSE
+!NOTICE
