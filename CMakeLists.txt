@@ -1,9 +1,34 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine VERSION 0.13.0
+project(Sunshine VERSION 0.14.1
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
-		HOMEPAGE_URL "https://sunshinestream.github.io"
+		HOMEPAGE_URL "https://app.lizardbyte.dev"
 		)
+
+set(PROJECT_LONG_DESCRIPTION "Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, \
+Intel, and Nvidia GPUs. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. \
+Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.")
+
+option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
+option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
+option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
+option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
+
+if(${SUNSHINE_CONFIGURE_APPIMAGE})
+	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+elseif(${SUNSHINE_CONFIGURE_AUR})
+	configure_file(packaging/linux/aur/PKGBUILD PKGBUILD @ONLY)
+elseif(${SUNSHINE_CONFIGURE_FLATPAK})
+	configure_file(packaging/linux/flatpak/dev.lizardbyte.sunshine.yml dev.lizardbyte.sunshine.yml @ONLY)
+elseif(${SUNSHINE_CONFIGURE_PORTFILE})
+	configure_file(packaging/macos/Portfile Portfile @ONLY)
+endif()
+
+# return if configure only is set
+if(${SUNSHINE_CONFIGURE_ONLY})
+	return()
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(SUNSHINE_SOURCE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_assets")
@@ -75,18 +100,18 @@ if(WIN32)
 	if(NOT DEFINED SUNSHINE_ICON_PATH)
 		set(SUNSHINE_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/sunshine.ico")
 	endif()
-	configure_file(sunshine/platform/windows/windows.rs.in windows.rc @ONLY)
+	configure_file(src/platform/windows/windows.rs.in windows.rc @ONLY)
 	set(PLATFORM_TARGET_FILES
 		"${CMAKE_CURRENT_BINARY_DIR}/windows.rc"
-		sunshine/platform/windows/publish.cpp
-		sunshine/platform/windows/misc.h
-		sunshine/platform/windows/misc.cpp
-		sunshine/platform/windows/input.cpp
-		sunshine/platform/windows/display.h
-		sunshine/platform/windows/display_base.cpp
-		sunshine/platform/windows/display_vram.cpp
-		sunshine/platform/windows/display_ram.cpp
-		sunshine/platform/windows/audio.cpp
+		src/platform/windows/publish.cpp
+		src/platform/windows/misc.h
+		src/platform/windows/misc.cpp
+		src/platform/windows/input.cpp
+		src/platform/windows/display.h
+		src/platform/windows/display_base.cpp
+		src/platform/windows/display_vram.cpp
+		src/platform/windows/display_ram.cpp
+		src/platform/windows/audio.cpp
 		third-party/ViGEmClient/src/ViGEmClient.cpp
 		third-party/ViGEmClient/include/ViGEm/Client.h
 		third-party/ViGEmClient/include/ViGEm/Common.h
@@ -122,12 +147,16 @@ if(WIN32)
 		ws2_32
 		d3d11 dxgi D3DCompiler
 		setupapi
+		dwmapi
 		)
 
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 elseif(APPLE)
 	add_compile_definitions(SUNSHINE_PLATFORM="macos")
+
+	option(SUNSHINE_MACOS_PACKAGE "Should only be used when creating a MACOS package/dmg." OFF)
+
 	link_directories(/opt/local/lib)
 	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
@@ -151,21 +180,21 @@ elseif(APPLE)
 	set(APPLE_PLIST_FILE ${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/Info.plist)
 
 	set(PLATFORM_TARGET_FILES
-		sunshine/platform/macos/av_audio.h
-		sunshine/platform/macos/av_audio.m
-		sunshine/platform/macos/av_img_t.h
-		sunshine/platform/macos/av_video.h
-		sunshine/platform/macos/av_video.m
-		sunshine/platform/macos/display.mm
-		sunshine/platform/macos/input.cpp
-		sunshine/platform/macos/microphone.mm
-		sunshine/platform/macos/misc.cpp
-		sunshine/platform/macos/misc.h
-		sunshine/platform/macos/nv12_zero_device.cpp
-		sunshine/platform/macos/nv12_zero_device.h
-		sunshine/platform/macos/publish.cpp
-		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.c
-		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.h
+		src/platform/macos/av_audio.h
+		src/platform/macos/av_audio.m
+		src/platform/macos/av_img_t.h
+		src/platform/macos/av_video.h
+		src/platform/macos/av_video.m
+		src/platform/macos/display.mm
+		src/platform/macos/input.cpp
+		src/platform/macos/microphone.mm
+		src/platform/macos/misc.cpp
+		src/platform/macos/misc.h
+		src/platform/macos/nv12_zero_device.cpp
+		src/platform/macos/nv12_zero_device.h
+		src/platform/macos/publish.cpp
+		third-party/TPCircularBuffer/TPCircularBuffer.c
+		third-party/TPCircularBuffer/TPCircularBuffer.h
 		${APPLE_PLIST_FILE})
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
@@ -213,14 +242,14 @@ else()
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
 		include_directories(${X11_INCLUDE_DIR})
-		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/x11grab.cpp)
+		list(APPEND PLATFORM_TARGET_FILES src/platform/linux/x11grab.cpp)
 	endif()
 
 	if(CUDA_FOUND)
 		include_directories(third-party/nvfbc)
 		list(APPEND PLATFORM_TARGET_FILES
-			sunshine/platform/linux/cuda.cu
-			sunshine/platform/linux/cuda.cpp
+			src/platform/linux/cuda.cu
+			src/platform/linux/cuda.cpp
 			third-party/nvfbc/NvFBC.h)
 
 			add_compile_definitions(SUNSHINE_BUILD_CUDA)
@@ -230,7 +259,7 @@ else()
 		add_compile_definitions(SUNSHINE_BUILD_DRM)
 		include_directories(${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
 		list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES} ${LIBCAP_LIBRARIES})
-		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/kmsgrab.cpp)
+		list(APPEND PLATFORM_TARGET_FILES src/platform/linux/kmsgrab.cpp)
 		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
 	elseif(LIBDRM_FOUND)
 		message(WARNING "Found libdrm, yet there is no libcap")
@@ -272,26 +301,26 @@ else()
 
 		list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES})
 		list(APPEND PLATFORM_TARGET_FILES
-			sunshine/platform/linux/wlgrab.cpp
-			sunshine/platform/linux/wayland.cpp)
+			src/platform/linux/wlgrab.cpp
+			src/platform/linux/wayland.cpp)
 	endif()
 	if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND} AND NOT ${})
 		message(FATAL_ERROR "Couldn't find either x11, wayland, cuda or (libdrm and libcap)")
 	endif()
 
 	list(APPEND PLATFORM_TARGET_FILES
-		sunshine/platform/linux/publish.cpp
-		sunshine/platform/linux/vaapi.h
-		sunshine/platform/linux/vaapi.cpp
-		sunshine/platform/linux/cuda.h
-		sunshine/platform/linux/graphics.h
-		sunshine/platform/linux/graphics.cpp
-		sunshine/platform/linux/misc.h
-		sunshine/platform/linux/misc.cpp
-		sunshine/platform/linux/audio.cpp
-		sunshine/platform/linux/input.cpp
-		sunshine/platform/linux/x11grab.h
-		sunshine/platform/linux/wayland.h
+		src/platform/linux/publish.cpp
+		src/platform/linux/vaapi.h
+		src/platform/linux/vaapi.cpp
+		src/platform/linux/cuda.h
+		src/platform/linux/graphics.h
+		src/platform/linux/graphics.cpp
+		src/platform/linux/misc.h
+		src/platform/linux/misc.cpp
+		src/platform/linux/audio.cpp
+		src/platform/linux/input.cpp
+		src/platform/linux/x11grab.h
+		src/platform/linux/wayland.h
 		third-party/glad/src/egl.c
 		third-party/glad/src/gl.c
 		third-party/glad/include/EGL/eglplatform.h
@@ -327,47 +356,47 @@ set(SUNSHINE_TARGET_FILES
 	third-party/moonlight-common-c/src/Rtsp.h
 	third-party/moonlight-common-c/src/RtspParser.c
 	third-party/moonlight-common-c/src/Video.h
-	sunshine/upnp.cpp
-	sunshine/upnp.h
-	sunshine/cbs.cpp
-	sunshine/utility.h
-	sunshine/uuid.h
-	sunshine/config.h
-	sunshine/config.cpp
-	sunshine/main.cpp
-	sunshine/main.h
-	sunshine/crypto.cpp
-	sunshine/crypto.h
-	sunshine/nvhttp.cpp
-	sunshine/nvhttp.h
-	sunshine/httpcommon.cpp
-	sunshine/httpcommon.h
-	sunshine/confighttp.cpp
-	sunshine/confighttp.h
-	sunshine/rtsp.cpp
-	sunshine/rtsp.h
-	sunshine/stream.cpp
-	sunshine/stream.h
-	sunshine/video.cpp
-	sunshine/video.h
-	sunshine/input.cpp
-	sunshine/input.h
-	sunshine/audio.cpp
-	sunshine/audio.h
-	sunshine/platform/common.h
-	sunshine/process.cpp
-	sunshine/process.h
-	sunshine/network.cpp
-	sunshine/network.h
-	sunshine/move_by_copy.h
-	sunshine/task_pool.h
-	sunshine/thread_pool.h
-	sunshine/thread_safe.h
-	sunshine/sync.h
-	sunshine/round_robin.h
+	src/upnp.cpp
+	src/upnp.h
+	src/cbs.cpp
+	src/utility.h
+	src/uuid.h
+	src/config.h
+	src/config.cpp
+	src/main.cpp
+	src/main.h
+	src/crypto.cpp
+	src/crypto.h
+	src/nvhttp.cpp
+	src/nvhttp.h
+	src/httpcommon.cpp
+	src/httpcommon.h
+	src/confighttp.cpp
+	src/confighttp.h
+	src/rtsp.cpp
+	src/rtsp.h
+	src/stream.cpp
+	src/stream.h
+	src/video.cpp
+	src/video.h
+	src/input.cpp
+	src/input.h
+	src/audio.cpp
+	src/audio.h
+	src/platform/common.h
+	src/process.cpp
+	src/process.h
+	src/network.cpp
+	src/network.h
+	src/move_by_copy.h
+	src/task_pool.h
+	src/thread_pool.h
+	src/thread_safe.h
+	src/sync.h
+	src/round_robin.h
 	${PLATFORM_TARGET_FILES})
 
-set_source_files_properties(sunshine/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
+set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -385,7 +414,7 @@ string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -ggdb3)
 	if(WIN32)
-		set_source_files_properties(sunshine/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
+		set_source_files_properties(src/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
 	endif()
 else()
 	add_definitions(-DNDEBUG)
@@ -393,11 +422,16 @@ else()
 endif()
 
 if(NOT SUNSHINE_ASSETS_DIR)
-	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_BINARY_DIR}/.assets")
+	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_BINARY_DIR}/assets")
 endif()
 
 if(NOT SUNSHINE_CONFIG_DIR)
 	set(SUNSHINE_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/config")
+endif()
+
+if(UNIX AND CMAKE_INSTALL_PREFIX AND NOT ${SUNSHINE_CONFIGURE_APPIMAGE})
+	set(SUNSHINE_ASSETS_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_ASSETS_DIR}")
+	set(SUNSHINE_CONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_CONFIG_DIR}")
 endif()
 
 list(APPEND CBS_EXTERNAL_LIBRARIES
@@ -414,7 +448,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${OPENSSL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
-if (NOT WIN32)
+if(NOT WIN32)
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES Boost::log)
 endif()
 
@@ -443,16 +477,14 @@ endforeach()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)
 
-#############
 # CPACK / Packaging
-####
 
 # Common options
-set(CPACK_PACKAGE_NAME "SunshineStream")
-set(CPACK_PACKAGE_VENDOR "SunshineStream")
+set(CPACK_PACKAGE_NAME "Sunshine")
+set(CPACK_PACKAGE_VENDOR "LizardByte")
 set(CPACK_PACKAGE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cpack_artifacts)
-set(CPACK_PACKAGE_CONTACT "https://github.com/SunshineStream/Sunshine")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/SunshineStream/Sunshine")
+set(CPACK_PACKAGE_CONTACT "https://app.lizardbyte.dev")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "https://github.com/LizardByte")
 set(CPACK_PACKAGE_DESCRIPTION ${CMAKE_PROJECT_DESCRIPTION})
 set(CPACK_PACKAGE_HOMEPAGE_URL ${CMAKE_PROJECT_HOMEPAGE_URL})
 set(CPACK_RESOURCE_FILE_LICENSE ${PROJECT_SOURCE_DIR}/LICENSE)
@@ -534,60 +566,64 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
 	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
 endif()
-if(UNIX)
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-
-	# Installation destination dir
-	set(CPACK_SET_DESTDIR true)
-	set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine/")
+if(APPLE)
+	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
+	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
+	set(CPACK_BUNDLE_PLIST "${APPLE_PLIST_FILE}")
+	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
+	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
 endif()
-if(APPLE) # TODO: test
-
+if(APPLE AND SUNSHINE_MACOS_PACKAGE) # TODO
 	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
 	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
 
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
 	install(TARGETS sunshine
 			BUNDLE DESTINATION . COMPONENT Runtime
 			RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR} COMPONENT Runtime)
+elseif(UNIX)
+	# Installation destination dir
+	set(CPACK_SET_DESTDIR true)
+	if(NOT CMAKE_INSTALL_PREFIX)
+		set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine")
+	endif()
 
-	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
-	set(CPACK_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
-	set(CPACK_BUNDLE_PLIST "${APPLE_PLIST_FILE}")
-	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
+	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
-	# Portfile
-	configure_file(Portfile.in Portfile @ONLY)
-endif()
-if(UNIX AND NOT APPLE)
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+	if(APPLE)
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine-rules.rules" DESTINATION "/etc/udev/rules.d")
+		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/misc/uninstall_pkg.sh" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+	else()
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
-	install(TARGETS sunshine RUNTIME DESTINATION "/usr/bin")
-	install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "/usr/lib/systemd/user")
+		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
-	# Pre and post install
-	set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-		"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/preinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/postinst;${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/conffiles")
-	set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/preinst")
-	set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/deb/postinst")
+		# Pre and post install
+		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst"
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst"
+			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
+		set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
+		set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 
-	# Dependencies
-	set(CPACK_DEB_COMPONENT_INSTALL ON)
-	set(CPACK_DEBIAN_PACKAGE_DEPENDS "libssl1.1 | libssl3.0, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-	set(CPACK_RPM_PACKAGE_REQUIRES "libssl==1.1, libavdevice>=58, libboost-thread>=1.67.0, libboost-filesystem>=1.67.0, libboost-log>=1.67.0, libpulse>=0, libopus>=0, libxcb-shm>=0, libxcb-xfixes>=0, libxtst>=0, libevdev>=2.0, libdrm>=2.0, libcap>=2.0")
-	set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
-
-	# AppImage desktop file
-	configure_file(sunshine.desktop.in sunshine.desktop @ONLY)
+		# Dependencies
+		set(CPACK_DEB_COMPONENT_INSTALL ON)
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
+	endif()
 endif()
 
 include(CPack)

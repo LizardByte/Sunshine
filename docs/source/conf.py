@@ -46,7 +46,8 @@ extensions = [
     'm2r2',  # enable markdown files
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',  # enable to-do sections
-    'sphinx.ext.viewcode'  # add links to view source code
+    'sphinx.ext.viewcode',  # add links to view source code
+    'sphinx_copybutton',  # add a copy button to code blocks
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -82,7 +83,7 @@ html_theme_options = {
     'prev_next_buttons_location': 'bottom',
     'style_external_links': True,
     'vcs_pageview_mode': 'blob',
-    # 'style_nav_header_background': 'white',
+    'style_nav_header_background': '#151515',
     # Toc options
     'collapse_navigation': True,
     'sticky_navigation': True,

@@ -1,10 +1,15 @@
-name: Label Actions
+---
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: Issues
 
 on:
   issues:
     types: [labeled, unlabeled]
   discussion:
-    types: [ labeled, unlabeled ]
+    types: [labeled, unlabeled]
 
 jobs:
   label:

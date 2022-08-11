@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/about/installation.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/installation.rst
 
 Installation
 ============
@@ -8,8 +8,6 @@ Binaries
 --------
 Binaries of Sunshine are created for each release. They are available for Linux, and Windows.
 Binaries can be found in the `latest release`_.
-
-.. Todo:: Create binary package(s) for MacOS. See `here <https://github.com/SunshineStream/Sunshine/issues/61>`_.
 
 .. Tip:: Some third party packages also exist. See
    :ref:`Third Party Packages <about/third_party_packages:third party packages>`.
@@ -21,13 +19,14 @@ Docker
 
 Linux
 -----
+Follow the instructions for your preferred package type below.
 
 AppImage
 ^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/pkg:appimage?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-The current known compatibility of the AppImage is shown below.
+According to AppImageLint the AppImage can run on the following distros.
 
    - [✖] Debian oldstable (buster)
    - [✔] Debian stable (bullseye)
@@ -41,65 +40,113 @@ The current known compatibility of the AppImage is shown below.
    - [✖] Ubuntu trusty
    - [✖] CentOS 7
 
+#. Download ``sunshine-appimage.zip`` and extract the contents to your home directory.
 
-#. Download and extract `sunshine-appimage.zip`
+AUR Package
+^^^^^^^^^^^
+#. Open terminal and run the following code.
 
-Debian Packages
+   .. code-block:: bash
+
+      git clone https://aur.archlinux.org/sunshine-git.git
+      cd sunshine-git
+      makepkg -fi
+
+Debian Package
+^^^^^^^^^^^^^^
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:deb?logo=github&style=for-the-badge
+   :alt: GitHub issues by-label
+
+#. Download ``sunshine.deb`` and run the following code.
+
+   .. code-block:: bash
+
+      sudo apt install -f ./sunshine.deb
+
+.. Tip:: You can double click the deb file to see details about the package and begin installation.
+
+Flatpak Package
 ^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:debian?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:flatpak?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Download the corresponding `.deb` file, e.g. ``sunshine-ubuntu_20_04.deb``
-#. ``sudo apt install -f <downloaded deb file>``, e.g. ``sudo apt install -f ./sunshine-ubuntu_20_04.deb``
+.. Todo:: This package needs to have CUDA added.
 
-Red Hat Packages
-^^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:linux:fedora?logo=github&style=for-the-badge
+#. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
+#. Download ``sunshine.flatpak`` and run the following code.
+
+   System level (recommended)
+      .. code-block:: bash
+
+         flatpak install --system sunshine.flatpak
+
+   User level
+      .. code-block:: bash
+
+         flatpak install --user sunshine.flatpak
+
+RPM Package
+^^^^^^^^^^^
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:rpm?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Download the corresponding `.rpm` file, e.g. ``sunshine-fedora_35.rpm``
-#. ``sudo dnf install <downloaded rpm file>``, e.g. ``sudo dnf install ./sunshine-fedora_35.rpm``
+#. Add `rpmfusion` repositories by running the following code.
 
-.. Hint:: If this is the first time installing.
+   .. code-block:: bash
 
-      .. code-block:: bash
+      sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+      https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 
-         sudo usermod -a -G input $USER
-         sudo reboot now
+#. Download ``sunshine.rpm`` and run the following code.
 
-.. Tip:: Optionally, run Sunshine in the background.
+   .. code-block:: bash
 
-      .. code-block:: bash
+      sudo dnf install ./sunshine.rpm
 
-         systemctl --user start sunshine
+.. Tip:: You can double click the rpm file to see details about the package and begin installation.
 
-MacOS
+macOS
 -----
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:macos?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-Disk Image File option:
-   #. Download and install ``sunshine.dmg``
+pkg
+   .. Warning:: The `pkg` does not include runtime dependencies and should be considered experimental.
 
-   .. Warning:: The Disk Image File is experimental. Limited support will be provided.
+   #. Download the ``sunshine.pkg`` file and install it as normal.
 
-Portfile option:
+Portfile
    #. Install `MacPorts <https://www.macports.org>`_
-   #. Download the ``Portfile`` to ``/tmp``
-   #. In a terminal run ``cd /tmp && sudo port install``
+   #. Update the Macports sources.
+
+      .. code-block:: bash
+
+         sudo nano /opt/local/etc/macports/sources.conf
+
+      Add this line, replacing your username, below the line that starts with ``rsync``.
+
+         file://Users/<username>/ports
+
+      ``Ctrl+x``, then ``Y`` to exit and save changes.
+
+   #. Download the ``Portfile`` to ``~/Downloads`` and run the following code.
+
+      .. code-block:: bash
+
+         mkdir -p ~/ports/multimedia/sunshine
+         mv ~/Downlaods/Portfile ~/ports/multimedia/sunshine
+         cd ~/ports
+         portindex
+         sudo port install sunshine
+
    #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
-
-Standalone option:
-   #. Download and extract ``sunshine-macos.zip``
-
-   .. Warning:: The Standalone package is experimental. Limited support will be provided.
 
 Windows
 -------
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:10?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:windows:10?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-.. image:: https://img.shields.io/github/issues/sunshinestream/sunshine/os:windows:11?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:windows:11?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 Installed option:
@@ -108,6 +155,6 @@ Installed option:
 Standalone option:
    #. Download and extract ``sunshine-windows.zip``
 
-.. _latest release: https://github.com/SunshineStream/Sunshine/releases/latest
-.. _Dockerhub.io: https://hub.docker.com/repository/docker/sunshinestream/sunshine
-.. _ghcr.io: https://github.com/orgs/SunshineStream/packages?repo_name=sunshine
+.. _latest release: https://github.com/LizardByte/Sunshine/releases/latest
+.. _Dockerhub.io: https://hub.docker.com/repository/docker/lizardbyte/sunshine
+.. _ghcr.io: https://github.com/orgs/LizardByte/packages?repo_name=sunshine

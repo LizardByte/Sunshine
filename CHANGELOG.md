@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.14.1] - 2022-08-09
+### Added
+- (Linux) Flatpak package added
+- (Linux) AUR package automated updates
+- (Windows) Winget package automated updates
+### Changed
+- (General) Moved repo to @LizardByte GitHub org
+- (WebUI) Fixed button spacing on home page
+- (WebUI) Added Discord WidgetBot Crate
+### Fixed
+- (Linux/Mac) Default config and app files now copied to user home directory
+- (Windows) Default config and app files now copied to working directory
+
+## [0.14.0] - 2022-06-15
+### Added
+- (Documentation) Added Sphinx documentation available at https://sunshinestream.readthedocs.io/en/latest/
+- (Development) Initial support for Localization
+- (Linux) Add rpm package as release asset
+- (MacOS) Add Portfile as release asset
+- (Windows) Add DwmFlush() call  to improve capture
+- (Windows) Add Windows installer
+### Fixed
+- (AMD) Fixed hwdevice being destroyed before context
+- (Linux) Added missing dependencies to AppImage
+- (Linux) Fixed rumble events causing game to freeze
+- (Linux) Improved Pulse/Pipewire compatibility
+- (Linux) Moved to single deb package
+- (MacOS) Fixed missing TPCircularBuffer submodule
+- (Stream) Properly catch exceptions in stream broadcast handlers
+- (Stream/Video) AVPacket fix
+
 ## [0.13.0] - 2022-02-27
 ### Added
 - (MacOS) Initial support for MacOS (#40)

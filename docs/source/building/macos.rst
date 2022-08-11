@@ -1,11 +1,11 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/building/macos.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/building/macos.rst
 
-MacOS
+macOS
 =====
 
 Requirements
 ------------
-MacOS Big Sur and Xcode 12.5+
+macOS Big Sur and Xcode 12.5+
 
 Use either `MacPorts <https://www.macports.org>`_ or `Homebrew <https://brew.sh>`_
 
@@ -35,7 +35,7 @@ Build
       cmake ..
       make -j ${nproc}
 
-      cpack -G DragNDrop  # optionally, create a MacOS dmg package
+      cpack -G DragNDrop  # optionally, create a macOS dmg package
 
 If cmake fails complaining to find Boost, try to set the path explicitly.
 

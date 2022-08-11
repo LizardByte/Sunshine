@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/building/build.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/building/build.rst
 
 Build
 =====
@@ -14,7 +14,7 @@ Ensure `git <https://git-scm.com/>`_ is installed and run the following:
 
    .. code-block:: bash
 
-      git clone https://github.com/sunshinestream/sunshine.git --recurse-submodules
+      git clone https://github.com/lizardbyte/sunshine.git --recurse-submodules
       cd sunshine && mkdir build && cd build
 
 Compile
@@ -22,7 +22,7 @@ Compile
 See the section specific to your OS.
 
 - :ref:`Linux <building/linux:linux>`
-- :ref:`MacOS <building/macos:macos>`
+- :ref:`macOS <building/macos:macos>`
 - :ref:`Windows <building/windows:windows>`
 
 Remote Build

@@ -1,4 +1,4 @@
-:github_url: https://github.com/SunshineStream/Sunshine/tree/nightly/docs/source/contributing/localization.rst
+:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/contributing/localization.rst
 
 Localization
 ============
@@ -25,7 +25,7 @@ Only elements of the API are planned to be translated.
 .. Attention:: The rest API has not yet been implemented.
 
 Translations Basics
-   - The brand names `SunshineStream` and `Sunshine` should never be translated.
+   - The brand names `LizardByte` and `Sunshine` should never be translated.
    - Other brand names should never be translated.
      Examples:
 
@@ -67,7 +67,7 @@ any of the following paths are modified.
 
    .. code-block:: yaml
 
-      - 'sunshine/**'
+      - 'src/**'
 
 When testing locally it may be desirable to manually extract, initialize, update, and compile strings. Python is
 required for this, along with the python dependencies in the `./scripts/requirements.txt` file. Additionally,
