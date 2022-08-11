@@ -48,9 +48,9 @@ services:
       - PGID=<gid>
       - TZ=<timezone>
     ports:
-      - 47984-47990:47984-47990/tcp
-      - 48010:48010
-      - 47998-48000:47998-48000/udp
+      - "47984-47990:47984-47990/tcp"
+      - "48010:48010"
+      - "47998-48000:47998-48000/udp"
 ```
 
 Create and start the container (run the command from the same folder as your `docker-compose.yml` file):
@@ -79,12 +79,12 @@ port `47990` (e.g. `http://<host_ip>:47990`). The internal port must be `47990`,
 (e.g. `-p 8080:47990`). All the ports listed in the `docker run` and `docker-compose` examples are required.
 
 
-| Parameter                   | Function             | Example Value       | Required |
-| --------------------------- | -------------------- | ------------------- | -------- |
-| `-p <port>:47990`           | Web UI Port          | `47990`             | True     |
-| `-v <path to data>:/config` | Volume mapping       | `/home/sunshine`    | True     |
-| `-e PUID=<uid>`             | User ID              | `1001`              | False    |
-| `-e PGID=<gid>`             | Group ID             | `1001`              | False    |
+| Parameter                   | Function                                                                             | Example Value      | Required |
+|-----------------------------|--------------------------------------------------------------------------------------|--------------------|----------|
+| `-p <port>:47990`           | Web UI Port                                                                          | `47990`            | True     |
+| `-v <path to data>:/config` | Volume mapping                                                                       | `/home/sunshine`   | True     |
+| `-e PUID=<uid>`             | User ID                                                                              | `1001`             | False    |
+| `-e PGID=<gid>`             | Group ID                                                                             | `1001`             | False    |
 | `-e TZ=<timezone>`          | Lookup TZ value [here](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) | `America/New_York` | True     |
 
 ### User / Group Identifiers:

@@ -1,0 +1,191 @@
+---
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: CI Docker
+
+on:
+  pull_request:
+    branches: [master, nightly]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master, nightly]
+  workflow_dispatch:
+
+jobs:
+  check_dockerfile:
+    name: Check Dockerfile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Check
+        id: check
+        run: |
+          if [ -f "./Dockerfile" ]
+          then
+            FOUND=true
+          else
+            FOUND=false
+          fi
+
+          echo "::set-output name=dockerfile::${FOUND}"
+
+    outputs:
+      dockerfile: ${{ steps.check.outputs.dockerfile }}
+
+  lint_dockerfile:
+    name: Lint Dockerfile
+    needs: [check_dockerfile]
+    if: ${{ needs.check_dockerfile.outputs.dockerfile == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint Dockerfile
+        uses: actions/checkout@v3
+
+      - uses: hadolint/hadolint-action@v2.1.0
+        with:
+          dockerfile: ./Dockerfile
+
+  check_changelog:
+    name: Check Changelog
+    needs: [check_dockerfile]
+    if: ${{ needs.check_dockerfile.outputs.dockerfile == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
+        uses: actions/checkout@v3
+
+      - name: Verify Changelog
+        id: verify_changelog
+        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
+        # base_ref for pull request check, ref for push
+        uses: LizardByte/.github/actions/verify_changelog@master
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      next_version: ${{ steps.verify_changelog.outputs.changelog_parser_version }}
+
+  docker:
+    name: Docker
+    needs: [check_dockerfile, check_changelog]
+    if: ${{ needs.check_dockerfile.outputs.dockerfile == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Prepare
+        id: prepare
+        env:
+          NEXT_VERSION: ${{ needs.check_changelog.outputs.next_version }}
+        run: |
+          # get branch name
+          BRANCH=${GITHUB_HEAD_REF}
+
+          if [ -z "$BRANCH" ]
+          then
+            echo "This is a PUSH event"
+            BRANCH=${{ github.ref_name }}
+          fi
+
+          # determine to push image to dockerhub and ghcr or not
+          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+            PUSH=true
+          else
+            PUSH=false
+          fi
+
+          # setup the tags
+          REPOSITORY=${{ github.repository }}
+          BASE_TAG=$(echo $REPOSITORY | tr '[:upper:]' '[:lower:]')
+          COMMIT=${{ github.sha }}
+
+          TAGS="${BASE_TAG}:${COMMIT:0:7},ghcr.io/${BASE_TAG}:${COMMIT:0:7}"
+
+          if [[ $GITHUB_REF == refs/heads/master ]]; then
+            TAGS="${TAGS},${BASE_TAG}:latest,ghcr.io/${BASE_TAG}:latest"
+            TAGS="${TAGS},${BASE_TAG}:master,ghcr.io/${BASE_TAG}:master"
+          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
+            TAGS="${TAGS},${BASE_TAG}:nightly,ghcr.io/${BASE_TAG}:nightly"
+          else
+            TAGS="${TAGS},${BASE_TAG}:test,ghcr.io/${BASE_TAG}:test"
+          fi
+
+          if [[ ${NEXT_VERSION} != "" ]]; then
+            TAGS="${TAGS},${BASE_TAG}:${NEXT_VERSION},ghcr.io/${BASE_TAG}:${NEXT_VERSION}"
+          fi
+
+          # read the platforms from `.docker_platforms`
+          PLATFORMS=$(<.docker_platforms)
+
+          echo ::set-output name=branch::${BRANCH}
+          echo ::set-output name=build_date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          echo ::set-output name=commit::${COMMIT}
+          echo ::set-output name=platforms::${PLATFORMS}
+          echo ::set-output name=push::${PUSH}
+          echo ::set-output name=tags::${TAGS}
+
+      - name: Set Up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        id: buildx
+
+      - name: Cache Docker Layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Log in to Docker Hub
+        if: ${{ steps.prepare.outputs.push == 'true' }}  # PRs do not have access to secrets
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Log in to the Container registry
+        if: ${{ steps.prepare.outputs.push == 'true' }}  # PRs do not have access to secrets
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GH_BOT_NAME }}
+          password: ${{ secrets.GH_BOT_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: ./
+          file: ./Dockerfile
+          push: ${{ steps.prepare.outputs.push }}
+          platforms: ${{ steps.prepare.outputs.platforms }}
+          build-args: |
+            BRANCH=${{ steps.prepare.outputs.branch }}
+            COMMIT=${{ steps.prepare.outputs.commit }}
+            BUILD_DATE=${{ steps.prepare.outputs.build_date }}
+          tags: ${{ steps.prepare.outputs.tags }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+
+      - name: Update Docker Hub Description
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}  # token is not currently supported
+          repository: ${{ env.BASE_TAG }}
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ./DOCKER_README.md
