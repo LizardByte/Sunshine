@@ -6,7 +6,7 @@ ARG TZ="Europe/London"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN echo deb http://deb.debian.org/debian/ bullseye main contrib non-free | tee /etc/apt/sources.list.d/non-free.list
 RUN apt-get update -y && \
-    apt-get install -y \
+    apt-get install --no-install-recommends -y \
         build-essential \
         cmake \
         rpm \
@@ -31,12 +31,32 @@ RUN apt-get update -y && \
         nvidia-cuda-dev \
         nvidia-cuda-toolkit
 
-COPY . /root/sunshine/
-RUN /root/sunshine/scripts/build-sunshine.sh
+RUN mkdir /root/sunshine
+WORKDIR /root/sunshine
+
+COPY ./* .
+RUN mkdir /root/sunshine-build
+
+# RUN /root/sunshine/scripts/build-sunshine.sh
 
 WORKDIR /root/sunshine-build
-RUN cpack -G RPM
-# RUN cpack -G DEB
+
+RUN cmake \
+      "-DCMAKE_BUILD_TYPE=Release" \
+      "-DCMAKE_INSTALL_PREFIX=/etc" \
+      "-DSUNSHINE_ASSETS_DIR=sunshine/assets" \
+      "-DSUNSHINE_CONFIG_DIR=sunshine/config" \
+      "-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine" \
+      "-DSUNSHINE_ENABLE_WAYLAND=ON" \
+      "-DSUNSHINE_ENABLE_X11=ON" \
+      "-DSUNSHINE_ENABLE_DRM=ON" \
+      "-DSUNSHINE_ENABLE_CUDA=ON" \
+      "/root/sunshine"
+
+RUN make -j ${nproc}
+
+RUN cpack -G DEB
+# RUN cpack -G RPM
 
 FROM debian:bullseye-slim AS sunshine
 
@@ -44,7 +64,7 @@ COPY --from=sunshine-build /root/sunshine-build/Sunshine.deb /Sunshine.deb
 # COPY --from=sunshine-build /root/sunshine-build/Sunshine.rpm /Sunshine.rpm
 
 RUN apt-get update -y && \
-    apt-get install -y -f /Sunshine.deb \
+    apt-get install --no-install-recommends -y -f /Sunshine.deb \
     && rm -rf /var/lib/apt/lists/*
 
 # Port configuration
