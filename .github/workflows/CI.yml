@@ -255,12 +255,10 @@ jobs:
           - type: cpack
             CMAKE_INSTALL_PREFIX: '/usr'
             SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
-            SUNSHINE_CONFIG_DIR: 'local/sunshine/config'
             EXTRA_ARGS: ''
           - type: appimage
             CMAKE_INSTALL_PREFIX: '/usr'
             SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
-            SUNSHINE_CONFIG_DIR: 'sunshine.AppImage.home'
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
 
     steps:
@@ -345,7 +343,6 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} \
             -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} \
-            -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
@@ -383,9 +380,9 @@ jobs:
           # portable home and config
           # todo - this is ugly... we should use a custom AppRun script to take care of this
           mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
-          mkdir -p ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}
-          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json \
-            ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
+          mkdir -p ../artifacts/${{ matrix.SUNSHINE_ASSETS_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_ASSETS_DIR }}
+          cp ../artifacts/${{ matrix.SUNSHINE_ASSETS_DIR }}/apps.json \
+            ../artifacts/${{ matrix.SUNSHINE_ASSETS_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_ASSETS_DIR }}/
 
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
@@ -479,7 +476,6 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
-            -DSUNSHINE_CONFIG_DIR=local/sunshine/config \
             ..
           make -j ${nproc}
 
@@ -770,7 +766,6 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DSUNSHINE_ASSETS_DIR=assets \
-            -DSUNSHINE_CONFIG_DIR=config \
             -G "MinGW Makefiles" \
             ..
           mingw32-make -j2
