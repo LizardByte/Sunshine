@@ -377,12 +377,9 @@ jobs:
           # install sunshine to the DESTDIR
           make install DESTDIR=AppDir
 
-          # portable home and config
+          # portable config (assets directory)
           # todo - this is ugly... we should use a custom AppRun script to take care of this
           mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
-          mkdir -p ../artifacts/${{ matrix.SUNSHINE_ASSETS_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_ASSETS_DIR }}
-          cp ../artifacts/${{ matrix.SUNSHINE_ASSETS_DIR }}/apps.json \
-            ../artifacts/${{ matrix.SUNSHINE_ASSETS_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_ASSETS_DIR }}/
 
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
