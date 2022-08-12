@@ -93,7 +93,7 @@ if(WIN32)
 	endif()
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
-	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
+	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
 
 	include_directories(third-party/ViGEmClient/include)
 
@@ -421,13 +421,22 @@ else()
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)
 endif()
 
+# setup assets directory
 if(NOT SUNSHINE_ASSETS_DIR)
-	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_BINARY_DIR}/assets")
+	set(SUNSHINE_ASSETS_DIR "assets")
 endif()
-
-if(UNIX AND CMAKE_INSTALL_PREFIX AND NOT ${SUNSHINE_CONFIGURE_APPIMAGE})
+if(UNIX)
 	set(SUNSHINE_ASSETS_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_ASSETS_DIR}")
 endif()
+
+# use relative assets path for AppImage... maybe for all unix
+if(${SUNSHINE_CONFIGURE_APPIMAGE})
+	string(REPLACE "${CMAKE_INSTALL_PREFIX}" ".${CMAKE_INSTALL_PREFIX}" SUNSHINE_ASSETS_DIR_DEF ${SUNSHINE_ASSETS_DIR})
+else()
+	set(SUNSHINE_ASSETS_DIR_DEF "${SUNSHINE_ASSETS_DIR}")
+endif()
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}")
+
 
 list(APPEND CBS_EXTERNAL_LIBRARIES
 	cbs)
@@ -447,7 +456,6 @@ if(NOT WIN32)
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES Boost::log)
 endif()
 
-list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR}")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
@@ -501,8 +509,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# set(CPACK_NSIS_MUI_HEADERIMAGE "") # TODO: image should be 150x57 bmp
 	set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
-	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}") # The name of the directory that will be created in C:/Program files/
-	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin") # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
+	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")  # The name of the directory that will be created in C:/Program files/
+	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin")  # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
 	# Sets permissions on the installed folder so that we can write in it
 	SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
@@ -514,11 +522,11 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
-	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe") # This will be shown on the installed apps Windows settings
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")  # This will be shown on the installed apps Windows settings
 	set(CPACK_NSIS_CREATE_ICONS "CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'")
 
 	# Checking for previous installed versions
-	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON") # TODO: doesn't work on my machine when Sunshine is already installed
+	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")  # TODO: doesn't work on my machine when Sunshine is already installed
 
 	# Setting components groups and dependencies
 	# sunshine binary
@@ -556,7 +564,7 @@ if(APPLE)
 	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
 endif()
-if(APPLE AND SUNSHINE_MACOS_PACKAGE) # TODO
+if(APPLE AND SUNSHINE_MACOS_PACKAGE)  # TODO
 	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
 	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
 
@@ -570,7 +578,7 @@ elseif(UNIX)
 	# Installation destination dir
 	set(CPACK_SET_DESTDIR true)
 	if(NOT CMAKE_INSTALL_PREFIX)
-		set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine")
+		set(CMAKE_INSTALL_PREFIX "/usr/share/sunshine")
 	endif()
 
 	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
@@ -582,8 +590,13 @@ elseif(UNIX)
 		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/misc/uninstall_pkg.sh" DESTINATION "${SUNSHINE_ASSETS_DIR}")
 	else()
 		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
-		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+		if(${SUNSHINE_CONFIGURE_APPIMAGE})
+			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
+			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
+		else()
+			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+		endif()
 
 		# Post install
 		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
@@ -593,7 +606,7 @@ elseif(UNIX)
 		set(CPACK_DEB_COMPONENT_INSTALL ON)
 		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
 		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
-		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
+		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
 	endif()
 endif()
 

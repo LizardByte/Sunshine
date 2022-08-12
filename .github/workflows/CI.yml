@@ -253,12 +253,8 @@ jobs:
       matrix:
         include:  # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: '/usr'
-            SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
             EXTRA_ARGS: ''
           - type: appimage
-            CMAKE_INSTALL_PREFIX: '/usr'
-            SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
 
     steps:
@@ -278,7 +274,6 @@ jobs:
             build-essential \
             cmake \
             gcc-10 \
-            git \
             g++-10 \
             libavdevice-dev \
             libboost-filesystem-dev \
@@ -341,8 +336,8 @@ jobs:
 
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} \
-            -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DSUNSHINE_ASSETS_DIR=share/sunshine \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
@@ -377,9 +372,9 @@ jobs:
           # install sunshine to the DESTDIR
           make install DESTDIR=AppDir
 
-          # portable config (assets directory)
-          # todo - this is ugly... we should use a custom AppRun script to take care of this
-          mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
+          # custom AppRun file
+          cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
+          chmod +x ./AppDir/AppRun
 
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
@@ -424,13 +419,13 @@ jobs:
 
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
-      - name: Archive AppImage
-        if: ${{ matrix.type == 'appimage' }}
-        working-directory: artifacts
-        run: |
-          chmod +x ./sunshine.AppImage
-
-          zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
+#      - name: Archive AppImage
+#        if: ${{ matrix.type == 'appimage' }}
+#        working-directory: artifacts
+#        run: |
+#          chmod +x ./sunshine.AppImage
+#
+#          zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -473,6 +468,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
+            -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             ..
           make -j ${nproc}
 

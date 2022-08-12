@@ -33,8 +33,7 @@ build() {
         -B build \
         -Wno-dev \
         -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
-        -D CMAKE_INSTALL_PREFIX="/usr" \
-        -D SUNSHINE_ASSETS_DIR="share/sunshine/assets" \
+        -D SUNSHINE_ASSETS_DIR="assets" \
         -D LIBAVCODEC_INCLUDE_DIR=/usr/include/ffmpeg4.4 \
         -D LIBAVCODEC_LIBRARIES=/usr/lib/ffmpeg4.4/libavcodec.so \
         -D LIBAVDEVICE_INCLUDE_DIR=/usr/include/ffmpeg4.4 \

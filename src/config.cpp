@@ -911,7 +911,7 @@ int parse(int argc, char *argv[]) {
   }
 
   if(!fs::exists(sunshine.config_file)) {
-    fs::copy_file(SUNSHINE_ASSETS_DIR "/sunshine.conf", sunshine.config_file);
+    std::ofstream { sunshine.config_file }; // create empty config file
   }
 
   auto vars = parse_config(read_file(sunshine.config_file.c_str()));
