@@ -585,12 +585,8 @@ elseif(UNIX)
 		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
 		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
 
-		# Pre and post install
-		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst"
-			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst"
-			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
-		set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
+		# Post install
+		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 		set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 
 		# Dependencies
