@@ -20,7 +20,7 @@ location by modifying the configuration file.
    =========   ===========
    Value       Description
    =========   ===========
-   Docker      /config/
+   Docker      /etc/sunshine/config/
    Linux-aur   /usr/share/sunshine/config/
    Linux-deb   /usr/local/sunshine/config/
    Linux-rpm   /usr/local/sunshine/config/
