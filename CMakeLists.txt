@@ -548,41 +548,42 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Setting components groups and dependencies
 	# sunshine binary
 	set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
-	set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "The main application.")
-	set(CPACK_COMPONENT_APPLICATION_GROUP "${CMAKE_PROJECT_NAME}")
+	set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "${CMAKE_PROJECT_NAME} main application.")
+	set(CPACK_COMPONENT_APPLICATION_GROUP "core")
 	set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
 	set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
 	# assets
-	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Assets")
+	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "assets")
 	set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Shaders, default box art, and web ui.")
-	set(CPACK_COMPONENT_ASSETS_GROUP "${CMAKE_PROJECT_NAME}")
+	set(CPACK_COMPONENT_ASSETS_GROUP "core")
 	set(CPACK_COMPONENT_ASSETS_REQUIRED true)
 
 	# audio tool
 	set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info")
 	set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
-	set(CPACK_COMPONENT_AUDIO_GROUP "Tools")
+	set(CPACK_COMPONENT_AUDIO_GROUP "tools")
 
 	# display tool
 	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
 	set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
-	set(CPACK_COMPONENT_DXGI_GROUP "Tools")
+	set(CPACK_COMPONENT_DXGI_GROUP "tools")
 
 	# service
-	set(CPACK_COMPONENT_SERVICESVC_DISPLAY_NAME "service-service")
-	set(CPACK_COMPONENT_SERVICESVC_DESCRIPTION "Enable the Sunshine service.")
-	set(CPACK_COMPONENT_SERVICESVC_GROUP "Tools")
+	set(CPACK_COMPONENT_SERVICESVC_DISPLAY_NAME "servicesvc")
+	set(CPACK_COMPONENT_SERVICESVC_DESCRIPTION "CLI tool providing ability to enable/disable the Sunshine service.")
+	set(CPACK_COMPONENT_SERVICESVC_GROUP "tools")
 
 	# service scripts
 	set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
-	set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable or disable the service.")
-	set(CPACK_COMPONENT_SERVICE_GROUP "Tools")
+	set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable/disable the service.")
+	set(CPACK_COMPONENT_SERVICE_GROUP "scripts")
+	set(CPACK_COMPONENT_SERVICE_DEPENDS servicesvc)
 
 	# firewall scripts
 	# set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
 	# set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
-	# set(CPACK_COMPONENT_FIREWALL_GROUP "Tools")
+	# set(CPACK_COMPONENT_FIREWALL_GROUP "scripts")
 endif()
 if(APPLE)
 	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
