@@ -501,8 +501,13 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Adding tools
 	install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
 	install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
-	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
+	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT servicesvc)
 
+	# scripts
+	# install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/" DESTINATION "scripts" COMPONENT firewall)
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/" DESTINATION "scripts" COMPONENT service)
+
+	# Sunshine assets
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}" COMPONENT assets)
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}" COMPONENT assets)
 
@@ -512,11 +517,23 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")  # The name of the directory that will be created in C:/Program files/
 	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin")  # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
+	# Extra install commands
 	# Sets permissions on the installed folder so that we can write in it
+	# Install service
 	SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
 			"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
     ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+    ExecWait 'if exist ./scripts/install-service.bat ./scripts/install-service.bat'
     ")
+	# ExecWait 'if exist ./scripts/add-firewall-rule.bat ./scripts/add-firewall-rule.bat'
+
+	# Extra uninstall commands
+	# Uninstall service
+	set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
+			"${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
+	ExecWait `if exist ./scripts/uninstall-service.bat ./scripts/uninstall-service.bat`
+	")
+	# ExecWait 'if exist ./scripts/delete-firewall-rule.bat ./scripts/delete-firewall-rule.bat'
 
 	# Adding an option for the start menu and PATH
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
@@ -543,19 +560,29 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_ASSETS_REQUIRED true)
 
 	# audio tool
-	set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info.exe")
-	set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool that allows you to get information about sound devices.")
+	set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info")
+	set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
 	set(CPACK_COMPONENT_AUDIO_GROUP "Tools")
 
 	# display tool
-	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info.exe")
-	set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool that allows you to get information about graphics cards and displays.")
+	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
+	set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
 	set(CPACK_COMPONENT_DXGI_GROUP "Tools")
 
-	# service tool
-	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc.exe")
-	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
-	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
+	# service
+	set(CPACK_COMPONENT_SERVICESVC_DISPLAY_NAME "service-service")
+	set(CPACK_COMPONENT_SERVICESVC_DESCRIPTION "Enable the Sunshine service.")
+	set(CPACK_COMPONENT_SERVICESVC_GROUP "Tools")
+
+	# service scripts
+	set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
+	set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable or disable the service.")
+	set(CPACK_COMPONENT_SERVICE_GROUP "Tools")
+
+	# firewall scripts
+	# set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
+	# set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
+	# set(CPACK_COMPONENT_FIREWALL_GROUP "Tools")
 endif()
 if(APPLE)
 	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop

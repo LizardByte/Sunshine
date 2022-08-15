@@ -1,7 +1,10 @@
 @echo off
 
+rem Get sunshine root directory
+for %%I in ("%~dp0\..") do set "root_dir=%%~fI"
+
 set SERVICE_NAME=sunshinesvc
-set SERVICE_BIN="%~dp0\tools\sunshinesvc.exe"
+set SERVICE_BIN="%root_dir%\tools\sunshinesvc.exe"
 set SERVICE_START_TYPE=auto
 
 rem Check if sunshinesvc already exists
