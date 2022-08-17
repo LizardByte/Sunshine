@@ -504,7 +504,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT servicesvc)
 
 	# scripts
-	# install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/" DESTINATION "scripts" COMPONENT firewall)
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/" DESTINATION "scripts" COMPONENT firewall)
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/" DESTINATION "scripts" COMPONENT service)
 
 	# Sunshine assets
@@ -523,17 +523,17 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
 			"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
     ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+    ExecWait 'if exist ./scripts/add-firewall-rule.bat ./scripts/add-firewall-rule.bat'
     ExecWait 'if exist ./scripts/install-service.bat ./scripts/install-service.bat'
     ")
-	# ExecWait 'if exist ./scripts/add-firewall-rule.bat ./scripts/add-firewall-rule.bat'
 
 	# Extra uninstall commands
 	# Uninstall service
 	set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
 			"${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
+	ExecWait 'if exist ./scripts/delete-firewall-rule.bat ./scripts/delete-firewall-rule.bat'
 	ExecWait `if exist ./scripts/uninstall-service.bat ./scripts/uninstall-service.bat`
 	")
-	# ExecWait 'if exist ./scripts/delete-firewall-rule.bat ./scripts/delete-firewall-rule.bat'
 
 	# Adding an option for the start menu and PATH
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
@@ -581,9 +581,9 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_SERVICE_DEPENDS servicesvc)
 
 	# firewall scripts
-	# set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
-	# set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
-	# set(CPACK_COMPONENT_FIREWALL_GROUP "scripts")
+	set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
+	set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
+	set(CPACK_COMPONENT_FIREWALL_GROUP "scripts")
 endif()
 if(APPLE)
 	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
