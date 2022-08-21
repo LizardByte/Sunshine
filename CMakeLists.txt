@@ -501,7 +501,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Adding tools
 	install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
 	install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
-	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT servicesvc)
+	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
 
 	# scripts
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/" DESTINATION "scripts" COMPONENT firewall)
@@ -521,29 +521,43 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Sets permissions on the installed folder so that we can write in it
 	# Install service
 	SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
-			"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-    ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
-    ExecWait 'if exist ./scripts/add-firewall-rule.bat ./scripts/add-firewall-rule.bat'
-    ExecWait 'if exist ./scripts/install-service.bat ./scripts/install-service.bat'
-    ")
+		"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
+    	ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
+    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
+    	")
 
 	# Extra uninstall commands
 	# Uninstall service
 	set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
-			"${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
-	ExecWait 'if exist ./scripts/delete-firewall-rule.bat ./scripts/delete-firewall-rule.bat'
-	ExecWait `if exist ./scripts/uninstall-service.bat ./scripts/uninstall-service.bat`
-	")
+		"${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
+		ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
+    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
+    	MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to completely remove the directory $INSTDIR and all of its contents?' IDNO NoDelete
+      		RMDir /r \\\"$INSTDIR\\\" ; skipped if no
+    	NoDelete:
+		")
 
 	# Adding an option for the start menu and PATH
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")  # This will be shown on the installed apps Windows settings
-	set(CPACK_NSIS_CREATE_ICONS "CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'")
+	set(CPACK_NSIS_CREATE_ICONS_EXTRA
+		"${CPACK_NSIS_CREATE_ICONS_EXTRA}
+		CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
+		")
+	set(CPACK_NSIS_DELETE_ICONS_EXTRA
+		"${CPACK_NSIS_DELETE_ICONS_EXTRA}
+		Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
+		")
 
 	# Checking for previous installed versions
 	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")  # TODO: doesn't work on my machine when Sunshine is already installed
+
+	set(CPACK_NSIS_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/installation.html")
+	set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
+	set(CPACK_NSIS_CONTACT "${CMAKE_PROJECT_HOMEPAGE_URL}/support")
 
 	# Setting components groups and dependencies
 	# sunshine binary
@@ -570,15 +584,15 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_COMPONENT_DXGI_GROUP "tools")
 
 	# service
-	set(CPACK_COMPONENT_SERVICESVC_DISPLAY_NAME "servicesvc")
-	set(CPACK_COMPONENT_SERVICESVC_DESCRIPTION "CLI tool providing ability to enable/disable the Sunshine service.")
-	set(CPACK_COMPONENT_SERVICESVC_GROUP "tools")
+	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc")
+	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool providing ability to enable/disable the Sunshine service.")
+	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "tools")
 
 	# service scripts
 	set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
 	set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable/disable the service.")
 	set(CPACK_COMPONENT_SERVICE_GROUP "scripts")
-	set(CPACK_COMPONENT_SERVICE_DEPENDS servicesvc)
+	set(CPACK_COMPONENT_SERVICE_DEPENDS sunshinesvc)
 
 	# firewall scripts
 	set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")

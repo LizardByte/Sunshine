@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 
 #include "config.h"
 #include "main.h"
@@ -910,6 +911,12 @@ int parse(int argc, char *argv[]) {
     }
   }
 
+  // create appdata folder if it does not exist
+  if(!boost::filesystem::exists(platf::appdata().string())) {
+    boost::filesystem::create_directory(platf::appdata().string());
+  }
+
+  // create config file if it does not exist
   if(!fs::exists(sunshine.config_file)) {
     std::ofstream { sunshine.config_file }; // create empty config file
   }
