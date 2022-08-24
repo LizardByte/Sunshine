@@ -1,3 +1,4 @@
+---
 app-id: dev.lizardbyte.sunshine
 runtime: org.freedesktop.Platform
 runtime-version: "21.08"
@@ -35,7 +36,7 @@ modules:
       - '*'
     build-commands:
       - chmod u+x ./cuda.run
-      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR
+      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR  # yamllint disable-line rule:line-length
       - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
       - rm ./cuda.run
     sources:
@@ -48,7 +49,7 @@ modules:
       - type: file
         only-arches:
           - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run
+        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run  # yamllint disable-line rule:line-length
         sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
         dest-filename: cuda.run
 
@@ -56,7 +57,7 @@ modules:
     buildsystem: simple
     build-commands:
       - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log
-      - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS" -j $FLATPAK_BUILDER_N_JOBS
+      - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS" -j $FLATPAK_BUILDER_N_JOBS  # yamllint disable-line rule:line-length
     sources:
       - type: archive
         url: https://boostorg.jfrog.io/artifactory/main/release/1.79.0/source/boost_1_79_0.tar.bz2
@@ -170,7 +171,7 @@ modules:
           - /bin
         sources:
           - type: archive
-            url: https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz
+            url: https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz  # yamllint disable-line rule:line-length
             sha256: 92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
 
   - name: libevdev
@@ -210,6 +211,6 @@ modules:
       - -DSUNSHINE_ENABLE_CUDA=ON
     sources:
       - type: git
-        url: @GITHUB_CLONE_URL@
-        branch: @GITHUB_BRANCH@
-        commit: @GITHUB_COMMIT@
+        url: '@GITHUB_CLONE_URL@'
+        branch: '@GITHUB_BRANCH@'
+        commit: '@GITHUB_COMMIT@'

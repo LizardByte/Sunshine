@@ -13,6 +13,6 @@
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers
-[submodule "sunshine/platform/macos/TPCircularBuffer"]
-	path = sunshine/platform/macos/TPCircularBuffer
+[submodule "third-party/TPCircularBuffer"]
+	path = third-party/TPCircularBuffer
 	url = https://github.com/michaeltyson/TPCircularBuffer

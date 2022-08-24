@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine VERSION 0.14.0
+project(Sunshine VERSION 0.14.1
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
 		HOMEPAGE_URL "https://app.lizardbyte.dev"
 		)
@@ -101,18 +101,18 @@ if(WIN32)
 	if(NOT DEFINED SUNSHINE_ICON_PATH)
 		set(SUNSHINE_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/sunshine.ico")
 	endif()
-	configure_file(sunshine/platform/windows/windows.rs.in windows.rc @ONLY)
+	configure_file(src/platform/windows/windows.rs.in windows.rc @ONLY)
 	set(PLATFORM_TARGET_FILES
 		"${CMAKE_CURRENT_BINARY_DIR}/windows.rc"
-		sunshine/platform/windows/publish.cpp
-		sunshine/platform/windows/misc.h
-		sunshine/platform/windows/misc.cpp
-		sunshine/platform/windows/input.cpp
-		sunshine/platform/windows/display.h
-		sunshine/platform/windows/display_base.cpp
-		sunshine/platform/windows/display_vram.cpp
-		sunshine/platform/windows/display_ram.cpp
-		sunshine/platform/windows/audio.cpp
+		src/platform/windows/publish.cpp
+		src/platform/windows/misc.h
+		src/platform/windows/misc.cpp
+		src/platform/windows/input.cpp
+		src/platform/windows/display.h
+		src/platform/windows/display_base.cpp
+		src/platform/windows/display_vram.cpp
+		src/platform/windows/display_ram.cpp
+		src/platform/windows/audio.cpp
 		third-party/ViGEmClient/src/ViGEmClient.cpp
 		third-party/ViGEmClient/include/ViGEm/Client.h
 		third-party/ViGEmClient/include/ViGEm/Common.h
@@ -181,21 +181,21 @@ elseif(APPLE)
 	set(APPLE_PLIST_FILE ${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/Info.plist)
 
 	set(PLATFORM_TARGET_FILES
-		sunshine/platform/macos/av_audio.h
-		sunshine/platform/macos/av_audio.m
-		sunshine/platform/macos/av_img_t.h
-		sunshine/platform/macos/av_video.h
-		sunshine/platform/macos/av_video.m
-		sunshine/platform/macos/display.mm
-		sunshine/platform/macos/input.cpp
-		sunshine/platform/macos/microphone.mm
-		sunshine/platform/macos/misc.cpp
-		sunshine/platform/macos/misc.h
-		sunshine/platform/macos/nv12_zero_device.cpp
-		sunshine/platform/macos/nv12_zero_device.h
-		sunshine/platform/macos/publish.cpp
-		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.c
-		sunshine/platform/macos/TPCircularBuffer/TPCircularBuffer.h
+		src/platform/macos/av_audio.h
+		src/platform/macos/av_audio.m
+		src/platform/macos/av_img_t.h
+		src/platform/macos/av_video.h
+		src/platform/macos/av_video.m
+		src/platform/macos/display.mm
+		src/platform/macos/input.cpp
+		src/platform/macos/microphone.mm
+		src/platform/macos/misc.cpp
+		src/platform/macos/misc.h
+		src/platform/macos/nv12_zero_device.cpp
+		src/platform/macos/nv12_zero_device.h
+		src/platform/macos/publish.cpp
+		third-party/TPCircularBuffer/TPCircularBuffer.c
+		third-party/TPCircularBuffer/TPCircularBuffer.h
 		${APPLE_PLIST_FILE})
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
@@ -243,14 +243,14 @@ else()
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
 		include_directories(${X11_INCLUDE_DIR})
-		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/x11grab.cpp)
+		list(APPEND PLATFORM_TARGET_FILES src/platform/linux/x11grab.cpp)
 	endif()
 
 	if(CUDA_FOUND)
 		include_directories(third-party/nvfbc)
 		list(APPEND PLATFORM_TARGET_FILES
-			sunshine/platform/linux/cuda.cu
-			sunshine/platform/linux/cuda.cpp
+			src/platform/linux/cuda.cu
+			src/platform/linux/cuda.cpp
 			third-party/nvfbc/NvFBC.h)
 
 			add_compile_definitions(SUNSHINE_BUILD_CUDA)
@@ -260,7 +260,7 @@ else()
 		add_compile_definitions(SUNSHINE_BUILD_DRM)
 		include_directories(${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
 		list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES} ${LIBCAP_LIBRARIES})
-		list(APPEND PLATFORM_TARGET_FILES sunshine/platform/linux/kmsgrab.cpp)
+		list(APPEND PLATFORM_TARGET_FILES src/platform/linux/kmsgrab.cpp)
 		list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
 	elseif(LIBDRM_FOUND)
 		message(WARNING "Found libdrm, yet there is no libcap")
@@ -302,26 +302,26 @@ else()
 
 		list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES})
 		list(APPEND PLATFORM_TARGET_FILES
-			sunshine/platform/linux/wlgrab.cpp
-			sunshine/platform/linux/wayland.cpp)
+			src/platform/linux/wlgrab.cpp
+			src/platform/linux/wayland.cpp)
 	endif()
 	if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND} AND NOT ${})
 		message(FATAL_ERROR "Couldn't find either x11, wayland, cuda or (libdrm and libcap)")
 	endif()
 
 	list(APPEND PLATFORM_TARGET_FILES
-		sunshine/platform/linux/publish.cpp
-		sunshine/platform/linux/vaapi.h
-		sunshine/platform/linux/vaapi.cpp
-		sunshine/platform/linux/cuda.h
-		sunshine/platform/linux/graphics.h
-		sunshine/platform/linux/graphics.cpp
-		sunshine/platform/linux/misc.h
-		sunshine/platform/linux/misc.cpp
-		sunshine/platform/linux/audio.cpp
-		sunshine/platform/linux/input.cpp
-		sunshine/platform/linux/x11grab.h
-		sunshine/platform/linux/wayland.h
+		src/platform/linux/publish.cpp
+		src/platform/linux/vaapi.h
+		src/platform/linux/vaapi.cpp
+		src/platform/linux/cuda.h
+		src/platform/linux/graphics.h
+		src/platform/linux/graphics.cpp
+		src/platform/linux/misc.h
+		src/platform/linux/misc.cpp
+		src/platform/linux/audio.cpp
+		src/platform/linux/input.cpp
+		src/platform/linux/x11grab.h
+		src/platform/linux/wayland.h
 		third-party/glad/src/egl.c
 		third-party/glad/src/gl.c
 		third-party/glad/include/EGL/eglplatform.h
@@ -357,47 +357,47 @@ set(SUNSHINE_TARGET_FILES
 	third-party/moonlight-common-c/src/Rtsp.h
 	third-party/moonlight-common-c/src/RtspParser.c
 	third-party/moonlight-common-c/src/Video.h
-	sunshine/upnp.cpp
-	sunshine/upnp.h
-	sunshine/cbs.cpp
-	sunshine/utility.h
-	sunshine/uuid.h
-	sunshine/config.h
-	sunshine/config.cpp
-	sunshine/main.cpp
-	sunshine/main.h
-	sunshine/crypto.cpp
-	sunshine/crypto.h
-	sunshine/nvhttp.cpp
-	sunshine/nvhttp.h
-	sunshine/httpcommon.cpp
-	sunshine/httpcommon.h
-	sunshine/confighttp.cpp
-	sunshine/confighttp.h
-	sunshine/rtsp.cpp
-	sunshine/rtsp.h
-	sunshine/stream.cpp
-	sunshine/stream.h
-	sunshine/video.cpp
-	sunshine/video.h
-	sunshine/input.cpp
-	sunshine/input.h
-	sunshine/audio.cpp
-	sunshine/audio.h
-	sunshine/platform/common.h
-	sunshine/process.cpp
-	sunshine/process.h
-	sunshine/network.cpp
-	sunshine/network.h
-	sunshine/move_by_copy.h
-	sunshine/task_pool.h
-	sunshine/thread_pool.h
-	sunshine/thread_safe.h
-	sunshine/sync.h
-	sunshine/round_robin.h
+	src/upnp.cpp
+	src/upnp.h
+	src/cbs.cpp
+	src/utility.h
+	src/uuid.h
+	src/config.h
+	src/config.cpp
+	src/main.cpp
+	src/main.h
+	src/crypto.cpp
+	src/crypto.h
+	src/nvhttp.cpp
+	src/nvhttp.h
+	src/httpcommon.cpp
+	src/httpcommon.h
+	src/confighttp.cpp
+	src/confighttp.h
+	src/rtsp.cpp
+	src/rtsp.h
+	src/stream.cpp
+	src/stream.h
+	src/video.cpp
+	src/video.h
+	src/input.cpp
+	src/input.h
+	src/audio.cpp
+	src/audio.h
+	src/platform/common.h
+	src/process.cpp
+	src/process.h
+	src/network.cpp
+	src/network.h
+	src/move_by_copy.h
+	src/task_pool.h
+	src/thread_pool.h
+	src/thread_safe.h
+	src/sync.h
+	src/round_robin.h
 	${PLATFORM_TARGET_FILES})
 
-set_source_files_properties(sunshine/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
+set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -415,7 +415,7 @@ string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -ggdb3)
 	if(WIN32)
-		set_source_files_properties(sunshine/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
+		set_source_files_properties(src/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
 	endif()
 else()
 	add_definitions(-DNDEBUG)
