@@ -23,7 +23,7 @@ cleanup:
   - /lib/pkgconfig
   - /lib/*.la
   - /lib/*.a
-  - /share
+  - /share/man
 
 modules:
   - name: cuda
@@ -88,7 +88,7 @@ modules:
       # - --extra-ldflags=-L${FLATPAK_DEST}/cuda/lib64
       # - --nvccflags="-gencode arch=compute_52,code=sm_52 -O2"
     cleanup:
-      - /share/ffmpeg/examples
+      - /share
     sources:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_4.4.2.orig.tar.xz
@@ -137,8 +137,7 @@ modules:
     cleanup:
       - /bin
       - /lib/avahi
-      - /share/applications/*.desktop
-      - /share/avahi
+      - /share
     config-opts:
       - --with-distro=none
       - --disable-gobject
@@ -208,6 +207,7 @@ modules:
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
+      - -DSUNSHINE_CONFIGURE_FLATPAK=ON
     sources:
       - type: git
         url: '@GITHUB_CLONE_URL@'

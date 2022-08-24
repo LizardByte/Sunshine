@@ -217,7 +217,7 @@ jobs:
           cmake -DGITHUB_CLONE_URL=${clone_url} \
             -DGITHUB_BRANCH=${branch} \
             -DGITHUB_COMMIT=${commit} \
-            -DSUNSHINE_CONFIGURE_FLATPAK=ON \
+            -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
 
