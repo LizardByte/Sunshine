@@ -6,16 +6,16 @@ sdk: org.freedesktop.Sdk
 command: sunshine
 separate-locales: false
 finish-args:
-  - --device=all
-  - --env=PULSE_PROP_media.category=Manager
-  - --persist=.config/sunshine
-  - --share=ipc
-  - --share=network
-  - --socket=pulseaudio
-  - --socket=wayland
-  - --socket=x11
-  - --system-talk-name=org.freedesktop.Avahi
-  - --talk-name=org.freedesktop.Flatpak
+  - --device=all  # access all devices
+  - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
+  - --filesystem=home  # need to save files in user's home directory
+  - --share=ipc  # required for X11 shared memory extension
+  - --share=network  # access network
+  - --socket=pulseaudio  # play sounds using pulseaudio
+  - --socket=wayland  # show windows using Wayland
+  - --socket=x11  # show windows using X11
+  - --system-talk-name=org.freedesktop.Avahi  # talk to avahi on the system bus
+  - --talk-name=org.freedesktop.Flatpak  # talk to flatpak on the session bus
 
 cleanup:
   - /include
