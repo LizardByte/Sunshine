@@ -56,7 +56,8 @@ Setup
 
 Linux
 ^^^^^
-The deb and rpm packages handle these steps automatically. The AppImage does not, third party packages may not as well.
+The deb, rpm, and AppImage packages handle these steps automatically. The flatpak does not, third party packages
+also may not.
 
 Sunshine needs access to `uinput` to create mouse and gamepad events.
 
@@ -105,7 +106,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             aur        /usr/bin/sunshine                                ✔
             deb        /usr/bin/sunshine                                ✔
             rpm        /usr/bin/sunshine                                ✔
-            AppImage   ~/sunshine.AppImage                              ✖
+            AppImage   ~/sunshine.AppImage                              ✔
             Flatpak    flatpak run dev.lizardbyte.sunshine              ✖
             ========   ==============================================   ===============
 
@@ -169,9 +170,11 @@ All shortcuts start with CTRL + ALT + SHIFT, just like Moonlight
 
 Application List
 ----------------
+- Applications should be configured via the web UI.
+- A basic understanding of working directories and commands is recommended.
 - You can use Environment variables in place of values
 - ``$(HOME)`` will be replaced by the value of ``$HOME``
-- ``$$`` will be replaced by ``$``, e.g. ``$$(HOME)`` will be replaced by ``$(HOME)``
+- ``$$`` will be replaced by ``$``, e.g. ``$$(HOME)`` will be become ``$(HOME)``
 - ``env`` - Adds or overwrites Environment variables for the commands/applications run by Sunshine
 - ``"Variable name":"Variable value"``
 - ``apps`` - The list of applications
@@ -219,3 +222,4 @@ Considerations
 - When the application has been shutdown, the stream shuts down as well.
 - In addition to the apps listed, one app "Desktop" is hardcoded into Sunshine. It does not start an application,
   instead it simply starts a stream.
+- For the Linux flatpak you must prepend commands with ``flatpak-spawn --host``.

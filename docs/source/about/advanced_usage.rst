@@ -21,10 +21,8 @@ location by modifying the configuration file.
    Value       Description
    =========   ===========
    Docker      /config/
-   Linux-aur   /usr/share/sunshine/config/
-   Linux-deb   /usr/local/sunshine/config/
-   Linux-rpm   /usr/local/sunshine/config/
-   macOS       /usr/local/sunshine/config/
+   Linux       ~/.config/sunshine/
+   macOS       ~/.config/sunshine/
    Windows     ./config/
    =========   ===========
 
