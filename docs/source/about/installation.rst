@@ -188,7 +188,7 @@ Portfile
 
    Add this line, replacing your username, below the line that starts with ``rsync``.
 
-      file://Users/<username>/ports
+      ``file:///Users/<username>/ports``
 
    ``Ctrl+x``, then ``Y`` to exit and save changes.
 
@@ -197,7 +197,7 @@ Portfile
    .. code-block:: bash
 
       mkdir -p ~/ports/multimedia/sunshine
-      mv ~/Downlaods/Portfile ~/ports/multimedia/sunshine
+      mv ~/Downloads/Portfile ~/ports/multimedia/sunshine/
       cd ~/ports
       portindex
       sudo port install sunshine

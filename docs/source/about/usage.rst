@@ -39,9 +39,9 @@ Usage
 
 Network
 -------
-Sunshine will be available on port 47990 by default.
+The Sunshine user interface will be available on port 47990 by default.
 
-.. Danger:: Do not expose port 47990, or the web ui, to the internet!
+.. Warning:: Exposing ports to the internet can be dangerous. Do this at your own risk.
 
 Arguments
 ---------
