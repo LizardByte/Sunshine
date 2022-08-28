@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/6/19.
-//
 
 #include <atomic>
 #include <bitset>
@@ -225,7 +223,7 @@ public:
 
   ~swdevice_t() override {}
 
-  // Store ownsership when frame is hw_frame
+  // Store ownership when frame is hw_frame
   frame_t hw_frame;
 
   frame_t sw_frame;
@@ -239,7 +237,7 @@ public:
 enum flag_e {
   DEFAULT           = 0x00,
   PARALLEL_ENCODING = 0x01,
-  H264_ONLY         = 0x02, // When HEVC is to heavy
+  H264_ONLY         = 0x02, // When HEVC is too heavy
   LIMITED_GOP_SIZE  = 0x04, // Some encoders don't like it when you have an infinite GOP_SIZE. *cough* VAAPI *cough*
   SINGLE_SLICE_ONLY = 0x08, // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
 };
@@ -1622,12 +1620,7 @@ retry:
 }
 
 int init() {
-  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////////"sv;
-  BOOST_LOG(info) << "//                                                              //"sv;
-  BOOST_LOG(info) << "//   Testing for available encoders, this may generate errors.  //"sv;
-  BOOST_LOG(info) << "//   You can safely ignore those errors.                        //"sv;
-  BOOST_LOG(info) << "//                                                              //"sv;
-  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////////"sv;
+  BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
   KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
     if(
@@ -1643,11 +1636,7 @@ int init() {
   })
 
   BOOST_LOG(info);
-  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////"sv;
-  BOOST_LOG(info) << "//                                                          //"sv;
-  BOOST_LOG(info) << "// Ignore any errors mentioned above, they are not relevant //"sv;
-  BOOST_LOG(info) << "//                                                          //"sv;
-  BOOST_LOG(info) << "//////////////////////////////////////////////////////////////"sv;
+  BOOST_LOG(info) << "// Ignore any errors mentioned above, they are not relevant. //"sv;
   BOOST_LOG(info);
 
   if(encoders.empty()) {

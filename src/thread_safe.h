@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/10/19.
-//
 
 #ifndef SUNSHINE_THREAD_SAFE_H
 #define SUNSHINE_THREAD_SAFE_H
@@ -37,7 +35,7 @@ public:
     _cv.notify_all();
   }
 
-  // pop and view shoud not be used interchangebly
+  // pop and view shoud not be used interchangeably
   status_t pop() {
     std::unique_lock ul { _lock };
 
@@ -58,7 +56,7 @@ public:
     return val;
   }
 
-  // pop and view shoud not be used interchangebly
+  // pop and view shoud not be used interchangeably
   template<class Rep, class Period>
   status_t pop(std::chrono::duration<Rep, Period> delay) {
     std::unique_lock ul { _lock };
@@ -78,7 +76,7 @@ public:
     return val;
   }
 
-  // pop and view shoud not be used interchangebly
+  // pop and view shoud not be used interchangeably
   const status_t &view() {
     std::unique_lock ul { _lock };
 
@@ -508,4 +506,4 @@ inline void cleanup(mail_raw_t *mail) {
 }
 } // namespace safe
 
-#endif //SUNSHINE_THREAD_SAFE_H
+#endif // SUNSHINE_THREAD_SAFE_H

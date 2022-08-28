@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/5/19.
-//
 
 #include "process.h"
 
@@ -240,11 +238,10 @@ struct broadcast_ctx_t {
   udp::socket video_sock { io };
   udp::socket audio_sock { io };
 
-  // This is purely for adminitrative purposes.
-  //
-  // It's possible two instances of Moonlight are behind a NAT.
-  // From Sunshine's point of view, the ip addresses  are identical
-  // We need some way to know what ports are already used for different streams
+  // This is purely for administrative purposes.
+  //   It's possible two instances of Moonlight are behind a NAT.
+  //   From Sunshine's point of view, the ip addresses are identical
+  //   We need some way to know what ports are already used for different streams
   util::sync_t<std::vector<std::pair<std::string, std::uint16_t>>> audio_video_connections;
 
   control_server_t control_server;
@@ -767,7 +764,7 @@ void controlBroadcastThread(control_server_t *server) {
   }
 
   // Let all remaining connections know the server is shutting down
-  // reason: gracefull termination
+  // reason: graceful termination
   std::uint32_t reason = 0x80030023;
 
   control_terminate_t plaintext;
@@ -932,7 +929,7 @@ void videoBroadcastThread(udp::socket &sock) {
 
     // With a fecpercentage of 255, if payload_new is broken up into more than a 100 data_shards
     // it will generate greater than DATA_SHARDS_MAX shards.
-    // Therefore, we start breaking the data up into three seperate fec blocks.
+    // Therefore, we start breaking the data up into three separate fec blocks.
     auto multi_fec_threshold = 90 * blocksize;
 
     // We can go up to 4 fec blocks, but 3 is plenty
@@ -1331,7 +1328,7 @@ void join(session_t &session) {
   session.audioThread.join();
   BOOST_LOG(debug) << "Waiting for control to end..."sv;
   session.controlEnd.view();
-  //Reset input on session stop to avoid stuck repeated keys
+  // Reset input on session stop to avoid stuck repeated keys
   BOOST_LOG(debug) << "Resetting Input..."sv;
   input::reset(session.input);
 

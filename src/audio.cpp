@@ -75,7 +75,7 @@ auto control_shared = safe::make_shared<audio_ctx_t>(start_audio_control, stop_a
 void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
   auto packets = mail::man->queue<packet_t>(mail::audio_packets);
 
-  //FIXME: Pick correct opus_stream_config_t based on config.channels
+  // FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
   opus_t opus { opus_multistream_encoder_create(
@@ -120,7 +120,7 @@ void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
 void capture(safe::mail_t mail, config_t config, void *channel_data) {
   auto shutdown_event = mail->event<bool>(mail::shutdown);
 
-  //FIXME: Pick correct opus_stream_config_t based on config.channels
+  // FIXME: Pick correct opus_stream_config_t based on config.channels
   auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
   auto ref = control_shared.ref();
@@ -135,7 +135,7 @@ void capture(safe::mail_t mail, config_t config, void *channel_data) {
     return;
   }
 
-  // Order of priorty:
+  // Order of priority:
   // 1. Config
   // 2. Virtual if available
   // 3. Host

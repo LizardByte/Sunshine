@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/20/19.
-//
 
 // define uint32_t for <moonlight-common-c/src/Input.h>
 #include <cstdint>
@@ -89,7 +87,7 @@ struct gamepad_t {
 
   // When emulating the HOME button, we may need to artificially release the back button.
   // Afterwards, the gamepad state on sunshine won't match the state on Moonlight.
-  // To prevent Sunshine from sending erronious input data to the active application,
+  // To prevent Sunshine from sending erroneous input data to the active application,
   // Sunshine forces the button to be in a specific state until the gamepad state matches that of
   // Moonlight once more.
   button_state_e back_button_state;
@@ -316,11 +314,11 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet
   /*/
     * When Moonlight sends mouse input through absolute coordinates,
     * it's possible that BUTTON_RIGHT is pressed down immediately after releasing BUTTON_LEFT.
-    * As a result, Sunshine will left click on hyperlinks in the browser before right clicking
+    * As a result, Sunshine will left-click on hyperlinks in the browser before right-clicking
     *
     * This can be solved by delaying BUTTON_LEFT, however, any delay on input is undesirable during gaming
     * As a compromise, Sunshine will only put delays on BUTTON_LEFT when
-    * absolute mouse coordinates have been send.
+    * absolute mouse coordinates have been sent.
     *
     * Try to make sure BUTTON_RIGHT gets called before BUTTON_LEFT is released.
     *
@@ -428,7 +426,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
   if(!pressed) {
     if(!release) {
       // A new key has been pressed down, we need to check for key combo's
-      // If a keycombo has been pressed down, don't pass it through
+      // If a key-combo has been pressed down, don't pass it through
       if(input->shortcutFlags == input_t::SHORTCUT && apply_shortcut(keyCode) > 0) {
         return;
       }

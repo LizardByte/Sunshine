@@ -17,7 +17,7 @@ namespace util {
 
 class _ImplBase {
 public:
-  //_unique_base_type _this_ptr;
+  // _unique_base_type _this_ptr;
 
   inline virtual ~_ImplBase() = default;
 

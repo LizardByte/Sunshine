@@ -1,6 +1,4 @@
-//
 // Created by loki on 12/14/19.
-//
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -47,7 +45,7 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
 
 int proc_t::execute(int app_id) {
   if(!running() && _app_id != -1) {
-    // previous process exited on it's own, reset _process_handle
+    // previous process exited on its own, reset _process_handle
     _process_handle = bp::group();
 
     _app_id = -1;
@@ -73,7 +71,7 @@ int proc_t::execute(int app_id) {
   }
 
   std::error_code ec;
-  //Executed when returning from function
+  // Executed when returning from function
   auto fg = util::fail_guard([&]() {
     terminate();
   });
@@ -193,9 +191,9 @@ std::vector<ctx_t> &proc_t::get_apps() {
   return _apps;
 }
 
-/// Gets application image from application list.
-/// Returns default image if image configuration is not set.
-/// returns http content-type header compatible image type
+// Gets application image from application list.
+// Returns default image if image configuration is not set.
+// returns http content-type header compatible image type
 std::string proc_t::get_app_image(int app_id) {
   auto app_index = app_id - 1;
   if(app_index < 0 || app_index >= _apps.size()) {

@@ -105,14 +105,14 @@ enum quality_e : int {
 enum class rc_hevc_e : int {
   constqp,     /**< Constant QP mode */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
-  vbr_peak,    /**< Peak Contrained Variable Bitrate */
+  vbr_peak,    /**< Peak Constrained Variable Bitrate */
   cbr,         /**< Constant bitrate mode */
 };
 
 enum class rc_h264_e : int {
   constqp,     /**< Constant QP mode */
   cbr,         /**< Constant bitrate mode */
-  vbr_peak,    /**< Peak Contrained Variable Bitrate */
+  vbr_peak,    /**< Peak Constrained Variable Bitrate */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
 };
 

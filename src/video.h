@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/9/19.
-//
 
 #ifndef SUNSHINE_VIDEO_H
 #define SUNSHINE_VIDEO_H
@@ -84,4 +82,4 @@ void capture(
 int init();
 } // namespace video
 
-#endif //SUNSHINE_VIDEO_H
+#endif // SUNSHINE_VIDEO_H
