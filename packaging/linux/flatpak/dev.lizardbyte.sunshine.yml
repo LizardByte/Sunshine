@@ -201,7 +201,7 @@ modules:
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
-      - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
+#       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
       - -DSUNSHINE_ASSETS_DIR=assets
       - -DSUNSHINE_CONFIG_DIR=config
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
