@@ -27,7 +27,7 @@ cleanup:
 
 modules:
   - name: cuda
-    disabled: false
+    disabled: true
     buildsystem: simple
     only-arches:
       - x86_64
