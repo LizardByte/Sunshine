@@ -44,7 +44,7 @@ modules:
         only-arches:
           - x86_64
         url: https://developer.download.nvidia.com/compute/cuda/11.7.1/local_installers/cuda_11.7.1_515.65.01_linux.run
-        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
+        sha256: 52286a29706549b7d0feeb0e7e3eca1b15287c436a69fa880ad385b1be3e04db
         dest-filename: cuda.run
       - type: file
         only-arches:
