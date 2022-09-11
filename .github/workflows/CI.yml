@@ -188,7 +188,7 @@ jobs:
           sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
           sudo su $(whoami) -c 'flatpak install --user flathub \
-            org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
+            org.flatpak.Builder org.freedesktop.Platform//22.08 org.freedesktop.Sdk//22.08 -y'
 
       - name: Configure Flatpak Manifest
         run: |
