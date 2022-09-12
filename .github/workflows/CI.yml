@@ -106,7 +106,6 @@ jobs:
 
               echo "aur_publish=true" >> $GITHUB_ENV
             elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
-              aur_pkg=sunshine-git
               sub_version=".r${commit}"
 
               echo "aur_publish=true" >> $GITHUB_ENV
@@ -218,7 +217,7 @@ jobs:
           cmake -DGITHUB_CLONE_URL=${clone_url} \
             -DGITHUB_BRANCH=${branch} \
             -DGITHUB_COMMIT=${commit} \
-            -DSUNSHINE_CONFIGURE_FLATPAK=ON \
+            -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
 
@@ -253,14 +252,8 @@ jobs:
       matrix:
         include:  # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: '/usr'
-            SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
-            SUNSHINE_CONFIG_DIR: 'local/sunshine/config'
             EXTRA_ARGS: ''
           - type: appimage
-            CMAKE_INSTALL_PREFIX: '/usr'
-            SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
-            SUNSHINE_CONFIG_DIR: 'sunshine.AppImage.home'
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
 
     steps:
@@ -280,7 +273,6 @@ jobs:
             build-essential \
             cmake \
             gcc-10 \
-            git \
             g++-10 \
             libavdevice-dev \
             libboost-filesystem-dev \
@@ -343,9 +335,8 @@ jobs:
 
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} \
-            -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} \
-            -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DSUNSHINE_ASSETS_DIR=share/sunshine \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
@@ -380,12 +371,9 @@ jobs:
           # install sunshine to the DESTDIR
           make install DESTDIR=AppDir
 
-          # portable home and config
-          # todo - this is ugly... we should use a custom AppRun script to take care of this
-          mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
-          mkdir -p ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}
-          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json \
-            ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
+          # custom AppRun file
+          cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
+          chmod +x ./AppDir/AppRun
 
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
@@ -396,12 +384,6 @@ jobs:
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
-          # # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
-          # sudo apt-get install libgtk-3-dev librsvg2-dev -y
-          # wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
-          # chmod +x linuxdeploy-plugin-gtk.sh
-          # export DEPLOY_GTK_VERSION=3
-
           ./linuxdeploy-x86_64.AppImage \
             --appdir ./AppDir \
             --executable ./sunshine \
@@ -411,8 +393,6 @@ jobs:
             --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
             --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
             --output appimage
-          # # add this argument back if using gtk plugin
-          # --plugin gtk \
 
           # move
           mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
@@ -429,14 +409,6 @@ jobs:
           # rm -rf ~/.cache/appimagelint/
 
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
-
-      - name: Archive AppImage
-        if: ${{ matrix.type == 'appimage' }}
-        working-directory: artifacts
-        run: |
-          chmod +x ./sunshine.AppImage
-
-          zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -479,7 +451,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
-            -DSUNSHINE_CONFIG_DIR=local/sunshine/config \
+            -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             ..
           make -j ${nproc}
 
@@ -770,7 +742,6 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DSUNSHINE_ASSETS_DIR=assets \
-            -DSUNSHINE_CONFIG_DIR=config \
             -G "MinGW Makefiles" \
             ..
           mingw32-make -j2

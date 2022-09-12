@@ -4,9 +4,12 @@ Installation
 ============
 The recommended method for running Sunshine is to use the `binaries`_ bundled with the `latest release`_.
 
+.. Attention:: Additional setup is required after installation. See
+   :ref:`Setup <about/usage:setup>`.
+
 Binaries
 --------
-Binaries of Sunshine are created for each release. They are available for Linux, and Windows.
+Binaries of Sunshine are created for each release. They are available for Linux, macOS, and Windows.
 Binaries can be found in the `latest release`_.
 
 .. Tip:: Some third party packages also exist. See
@@ -19,7 +22,13 @@ Docker
 
 Linux
 -----
-Follow the instructions for your preferred package type below.
+First, follow the instructions for your preferred package type below.
+
+Then start sunshine with the following command, unless a start command is listed in the specified package.
+
+.. code-block:: bash
+
+   sunshine
 
 AppImage
 ^^^^^^^^
@@ -41,6 +50,23 @@ According to AppImageLint the AppImage can run on the following distros.
    - [✖] CentOS 7
 
 #. Download ``sunshine-appimage.zip`` and extract the contents to your home directory.
+#. Open terminal and run the following code.
+
+   .. code-block:: bash
+
+      ./sunshine.AppImage --install
+
+Start:
+
+   .. code-block:: bash
+
+      ./sunshine.AppImage --install && ./sunshine.AppImage
+
+Uninstall:
+
+   .. code-block:: bash
+
+      ./sunshine.AppImage --remove
 
 AUR Package
 ^^^^^^^^^^^
@@ -48,9 +74,15 @@ AUR Package
 
    .. code-block:: bash
 
-      git clone https://aur.archlinux.org/sunshine-git.git
-      cd sunshine-git
+      git clone https://aur.archlinux.org/sunshine.git
+      cd sunshine
       makepkg -fi
+
+Uninstall:
+
+   .. code-block:: bash
+
+      pacman -R sunshine
 
 Debian Package
 ^^^^^^^^^^^^^^
@@ -65,12 +97,16 @@ Debian Package
 
 .. Tip:: You can double click the deb file to see details about the package and begin installation.
 
+Uninstall:
+
+   .. code-block:: bash
+
+      sudo apt remove sunshine
+
 Flatpak Package
 ^^^^^^^^^^^^^^^
 .. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:flatpak?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
-
-.. Todo:: This package needs to have CUDA added.
 
 #. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
 #. Download ``sunshine.flatpak`` and run the following code.
@@ -84,6 +120,18 @@ Flatpak Package
       .. code-block:: bash
 
          flatpak install --user sunshine.flatpak
+
+Start:
+
+   .. code-block:: bash
+
+      flatpak run dev.lizardbyte.sunshine
+
+Uninstall:
+
+   .. code-block:: bash
+
+      flatpak uninstall --delete-data sunshine.flatpak
 
 RPM Package
 ^^^^^^^^^^^
@@ -105,41 +153,62 @@ RPM Package
 
 .. Tip:: You can double click the rpm file to see details about the package and begin installation.
 
+Uninstall:
+
+   .. code-block:: bash
+
+      sudo dnf remove sunshine
+
 macOS
 -----
 .. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:macos?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
 pkg
-   .. Warning:: The `pkg` does not include runtime dependencies and should be considered experimental.
+^^^
+.. Warning:: The `pkg` does not include runtime dependencies and should be considered experimental.
 
-   #. Download the ``sunshine.pkg`` file and install it as normal.
+#. Download the ``sunshine.pkg`` file and install it as normal.
+
+Uninstall:
+
+   .. code-block:: bash
+
+      cd /etc/sunshine/assets
+      uninstall_pkg.sh
 
 Portfile
-   #. Install `MacPorts <https://www.macports.org>`_
-   #. Update the Macports sources.
+^^^^^^^^
+#. Install `MacPorts <https://www.macports.org>`_
+#. Update the Macports sources.
 
-      .. code-block:: bash
+   .. code-block:: bash
 
-         sudo nano /opt/local/etc/macports/sources.conf
+      sudo nano /opt/local/etc/macports/sources.conf
 
-      Add this line, replacing your username, below the line that starts with ``rsync``.
+   Add this line, replacing your username, below the line that starts with ``rsync``.
 
-         file://Users/<username>/ports
+      ``file:///Users/<username>/ports``
 
-      ``Ctrl+x``, then ``Y`` to exit and save changes.
+   ``Ctrl+x``, then ``Y`` to exit and save changes.
 
-   #. Download the ``Portfile`` to ``~/Downloads`` and run the following code.
+#. Download the ``Portfile`` to ``~/Downloads`` and run the following code.
 
-      .. code-block:: bash
+   .. code-block:: bash
 
-         mkdir -p ~/ports/multimedia/sunshine
-         mv ~/Downlaods/Portfile ~/ports/multimedia/sunshine
-         cd ~/ports
-         portindex
-         sudo port install sunshine
+      mkdir -p ~/ports/multimedia/sunshine
+      mv ~/Downloads/Portfile ~/ports/multimedia/sunshine/
+      cd ~/ports
+      portindex
+      sudo port install sunshine
 
-   #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+#. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+
+Uninstall:
+
+   .. code-block:: bash
+
+      sudo port uninstall sunshine
 
 Windows
 -------
@@ -149,11 +218,18 @@ Windows
 .. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:windows:11?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-Installed option:
-   #. Download and install ``sunshine-windows.exe``
+Installer
+^^^^^^^^^
+#. Download and install ``sunshine-windows.exe``
 
-Standalone option:
-   #. Download and extract ``sunshine-windows.zip``
+To uninstall, find Sunshine in the list `here <ms-settings:installed-apps>`_ and select "Uninstall" from the overflow
+menu. Different versions of Windows may provide slightly different steps for uninstall.
+
+Standalone
+^^^^^^^^^^
+#. Download and extract ``sunshine-windows.zip``
+
+To uninstall, delete the extracted directory which contains the ``sunshine.exe`` file.
 
 .. _latest release: https://github.com/LizardByte/Sunshine/releases/latest
 .. _Dockerhub.io: https://hub.docker.com/repository/docker/lizardbyte/sunshine

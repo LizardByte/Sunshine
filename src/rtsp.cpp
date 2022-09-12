@@ -1,6 +1,4 @@
-//
 // Created by loki on 2/2/20.
-//
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -123,7 +121,7 @@ public:
       socket->read_payload();
     });
 
-    auto content_lenght = 0;
+    auto content_length = 0;
     for(auto option = req->options; option != nullptr; option = option->next) {
       if("Content-length"sv == option->option) {
         BOOST_LOG(debug) << "Found Content-Length: "sv << option->content << " bytes"sv;
@@ -133,14 +131,14 @@ public:
         std::string_view content { option->content };
         auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) { return (bool)std::isdigit(ch); });
 
-        content_lenght = util::from_chars(begin, std::end(content));
+        content_length = util::from_chars(begin, std::end(content));
         break;
       }
     }
 
-    if(end - socket->crlf >= content_lenght) {
-      if(end - socket->crlf > content_lenght) {
-        BOOST_LOG(warning) << "(end - socket->crlf) > content_lenght -- "sv << (std::size_t)(end - socket->crlf) << " > "sv << content_lenght;
+    if(end - socket->crlf >= content_length) {
+      if(end - socket->crlf > content_length) {
+        BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t)(end - socket->crlf) << " > "sv << content_length;
       }
 
       fg.disable();
@@ -271,7 +269,7 @@ public:
     if(ec) {
       BOOST_LOG(error) << "Couldn't accept incoming connections: "sv << ec.message();
 
-      //Stop server
+      // Stop server
       clear();
       return;
     }
@@ -380,7 +378,7 @@ void launch_session_raise(launch_session_t launch_session) {
 }
 
 int session_count() {
-  // Ensure session_count is up to date
+  // Ensure session_count is up-to-date
   server.clear(false);
 
   return server.session_count();
