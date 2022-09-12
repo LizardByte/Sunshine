@@ -124,9 +124,9 @@ util::buffer_t<std::uint8_t> make_sps_h264(const AVCodecContext *ctx) {
   sps.seq_parameter_set_id = 0;
   sps.chroma_format_idc    = 1;
 
-  sps.log2_max_frame_num_minus4         = 3; //4;
+  sps.log2_max_frame_num_minus4         = 3; // 4;
   sps.pic_order_cnt_type                = 0;
-  sps.log2_max_pic_order_cnt_lsb_minus4 = 0; //4;
+  sps.log2_max_pic_order_cnt_lsb_minus4 = 0; // 4;
 
   sps.max_num_ref_frames = dpb_frame;
 

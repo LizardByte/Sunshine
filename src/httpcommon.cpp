@@ -44,7 +44,7 @@ int init() {
 
   if(clean_slate) {
     unique_id           = util::uuid_t::generate().string();
-    auto dir            = std::filesystem::temp_directory_path() / "Sushine"sv;
+    auto dir            = std::filesystem::temp_directory_path() / "Sunshine"sv;
     config::nvhttp.cert = (dir / ("cert-"s + unique_id)).string();
     config::nvhttp.pkey = (dir / ("pkey-"s + unique_id)).string();
   }

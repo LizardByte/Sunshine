@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/20/19.
-//
 
 #ifndef SUNSHINE_INPUT_H
 #define SUNSHINE_INPUT_H
@@ -32,4 +30,4 @@ struct touch_port_t : public platf::touch_port_t {
 };
 } // namespace input
 
-#endif //SUNSHINE_INPUT_H
+#endif // SUNSHINE_INPUT_H

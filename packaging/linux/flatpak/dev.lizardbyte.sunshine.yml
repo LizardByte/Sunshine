@@ -6,16 +6,16 @@ sdk: org.freedesktop.Sdk
 command: sunshine
 separate-locales: false
 finish-args:
-  - --device=all
-  - --env=PULSE_PROP_media.category=Manager
-  - --persist=.config/sunshine
-  - --share=ipc
-  - --share=network
-  - --socket=pulseaudio
-  - --socket=wayland
-  - --socket=x11
-  - --system-talk-name=org.freedesktop.Avahi
-  - --talk-name=org.freedesktop.Flatpak
+  - --device=all  # access all devices
+  - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
+  - --filesystem=home  # need to save files in user's home directory
+  - --share=ipc  # required for X11 shared memory extension
+  - --share=network  # access network
+  - --socket=pulseaudio  # play sounds using pulseaudio
+  - --socket=wayland  # show windows using Wayland
+  - --socket=x11  # show windows using X11
+  - --system-talk-name=org.freedesktop.Avahi  # talk to avahi on the system bus
+  - --talk-name=org.freedesktop.Flatpak  # talk to flatpak on the session bus
 
 cleanup:
   - /include
@@ -23,7 +23,7 @@ cleanup:
   - /lib/pkgconfig
   - /lib/*.la
   - /lib/*.a
-  - /share
+  - /share/man
 
 modules:
   - name: cuda
@@ -88,7 +88,7 @@ modules:
       # - --extra-ldflags=-L${FLATPAK_DEST}/cuda/lib64
       # - --nvccflags="-gencode arch=compute_52,code=sm_52 -O2"
     cleanup:
-      - /share/ffmpeg/examples
+      - /share
     sources:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_4.4.2.orig.tar.xz
@@ -137,8 +137,7 @@ modules:
     cleanup:
       - /bin
       - /lib/avahi
-      - /share/applications/*.desktop
-      - /share/avahi
+      - /share
     config-opts:
       - --with-distro=none
       - --disable-gobject
@@ -202,13 +201,13 @@ modules:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
-      - -DSUNSHINE_ASSETS_DIR=assets
-      - -DSUNSHINE_CONFIG_DIR=config
+      - -DSUNSHINE_ASSETS_DIR=share/sunshine
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
+      - -DSUNSHINE_CONFIGURE_FLATPAK=ON
     sources:
       - type: git
         url: '@GITHUB_CLONE_URL@'
