@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/3/19.
-//
 
 #ifndef SUNSHINE_CONFIGHTTP_H
 #define SUNSHINE_CONFIGHTTP_H
@@ -18,4 +16,4 @@ constexpr auto PORT_HTTPS = 1;
 void start();
 } // namespace confighttp
 
-#endif //SUNSHINE_CONFIGHTTP_H
+#endif // SUNSHINE_CONFIGHTTP_H

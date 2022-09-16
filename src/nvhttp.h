@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/3/19.
-//
 
 #ifndef SUNSHINE_NVHTTP_H
 #define SUNSHINE_NVHTTP_H
@@ -17,4 +15,4 @@ bool pin(std::string pin);
 void erase_all_clients();
 } // namespace nvhttp
 
-#endif //SUNSHINE_NVHTTP_H
+#endif // SUNSHINE_NVHTTP_H
