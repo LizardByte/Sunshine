@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: winget releaser
-        uses: vedantmgoyal2009/winget-releaser@latest
+        uses: vedantmgoyal2009/winget-releaser@v1
         with:
           identifier: LizardByte.Sunshine
           token: ${{ secrets.GH_BOT_TOKEN }}
