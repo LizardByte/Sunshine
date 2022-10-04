@@ -259,9 +259,9 @@ jobs:
             cmake \
             qemu-user-static \
             flatpak
-          sudo su -c 'flatpak remote-add --if-not-exists flathub \
+          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su -c 'flatpak install flathub \
+          sudo su $(whoami) -c 'flatpak install --user flathub \
             org.flatpak.Builder org.freedesktop.Platform/aarch64/21.08 org.freedesktop.Sdk/aarch64/21.08 -y'
 
       - name: Configure Flatpak Manifest
