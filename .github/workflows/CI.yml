@@ -261,7 +261,7 @@ jobs:
             flatpak
           sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak install --user flathub org.flatpak.Builder'
+          sudo su $(whoami) -c 'flatpak install --user flathub org.flatpak.Builder -y'
 
       - name: Configure Flatpak Manifest
         run: |
