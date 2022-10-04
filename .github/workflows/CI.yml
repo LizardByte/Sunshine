@@ -261,7 +261,7 @@ jobs:
             flatpak
           sudo su -c 'flatpak remote-add --system --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su -c 'flatpak install flathub \
+          sudo su -c 'flatpak install --system flathub \
             org.flatpak.Builder org.freedesktop.Platform/aarch64/21.08 org.freedesktop.Sdk/aarch64/21.08 -y'
 
       - name: Configure Flatpak Manifest
