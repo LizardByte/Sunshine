@@ -262,7 +262,8 @@ jobs:
           sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
           sudo su $(whoami) -c 'flatpak install --user flathub \
-            org.flatpak.Builder org.freedesktop.Platform/aarch64/21.08 org.freedesktop.Sdk/aarch64/21.08 -y'
+            # org.flatpak.Builder org.freedesktop.Platform/aarch64/21.08 org.freedesktop.Sdk/aarch64/21.08 -y'
+            org.flatpak.Builder'
 
       - name: Configure Flatpak Manifest
         run: |
@@ -299,7 +300,7 @@ jobs:
       - name: Build Linux Flatpak Aarch64
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=aarch64 --repo=repo --force-clean build-sunshine \
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=aarch64 --install-deps-from=flathub --repo=repo --force-clean build-sunshine \
             dev.lizardbyte.sunshine.yml'
           sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine_aarch64.flatpak dev.lizardbyte.sunshine'
 
