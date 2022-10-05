@@ -1,0 +1,68 @@
+name: sunshine
+base: core22
+version: '0.14.1'
+summary: Sunshine is a Gamestream host for Moonlight.
+description: |
+  Sunshine is a Game stream host for Moonlight. Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, Intel, and Nvidia gpus. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.
+
+grade: devel
+confinement: devmode
+
+layout:
+  /usr/local/sunshine:
+    bind: $SNAP/usr/local/sunshine
+
+parts:
+  sunshine:
+    source: .
+    plugin: cmake
+    cmake-parameters:
+      - -DCMAKE_INSTALL_PREFIX='/usr'
+      - -DSUNSHINE_ASSETS_DIR='local/sunshine/assets'
+      - -DSUNSHINE_CONFIG_DIR='local/sunshine/config'
+      - -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine
+      - -DSUNSHINE_ENABLE_WAYLAND=ON
+      - -DSUNSHINE_ENABLE_X11=ON
+      - -DSUNSHINE_ENABLE_DRM=ON
+      - -DSUNSHINE_ENABLE_CUDA=ON
+    build-packages:
+      - libavdevice-dev
+      - libboost-filesystem-dev
+      - libboost-log-dev
+      - libboost-thread-dev
+      - libcap-dev
+      - libdrm-dev
+      - libevdev-dev
+      - libpulse-dev
+      - libopus-dev
+      - libssl-dev
+      - libwayland-dev
+      - libx11-dev
+      - libxcb-shm0-dev
+      - libxcb-xfixes0-dev
+      - libxcb1-dev
+      - libxfixes-dev
+      - libxrandr-dev
+      - libxtst-dev
+      - nvidia-cuda-dev
+      - nvidia-cuda-toolkit
+    stage-packages:
+      - openssl
+      - libavdevice58
+      - libboost-thread1.74.0
+      - libboost-filesystem1.74.0
+      - libboost-log1.74.0
+      - libpulse0
+      - libopus0
+      - libxcb-shm0
+      - libxcb-xfixes0
+      - libxtst6
+      - libevdev2
+      - libdrm2
+      - libcap2
+apps:
+  sunshine:
+    command: usr/bin/sunshine
+    environment:
+      LD_LIBRARY_PATH: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pulseaudio"
+
