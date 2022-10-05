@@ -242,6 +242,43 @@ jobs:
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
+  
+  build_linux_snap:
+    name: Linux Snap
+    runs-on: ubuntu-latest
+    needs: check_changelog
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+
+      - name: Setup Dependencies Linux Snap
+        run: |
+          sudo snap install snapcraft --classic
+      
+      - name: Build Linux Snap
+        run: |
+          cp ./packaging/linux/snap/snapcraft.yaml .
+          sudo lxd init --auto
+          sudo snapcraft
+          mkdir artifacts
+          cp sunshine_0.14.1_amd64.snap ./artifacts
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-linux-snap
+          path: artifacts/
+
+      - name: Create Release
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: LizardByte/.github/actions/create_release@master
+        with:
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          next_version: ${{ needs.check_changelog.outputs.next_version }}
+          last_version: ${{ needs.check_changelog.outputs.last_version }}
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
 
   build_linux:
     name: Linux
