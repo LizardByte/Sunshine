@@ -63,6 +63,4 @@ apps:
   sunshine:
     command: usr/bin/sunshine
     extensions: [gnome]
-    environment:
-      PULSE_PROP_media.category: "Manager"
 
