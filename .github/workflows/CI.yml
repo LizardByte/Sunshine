@@ -264,7 +264,7 @@ jobs:
           sudo lxd init --auto
           sudo snapcraft
           mkdir artifacts
-          cp sunshine_0.14.1_amd64.snap ./artifacts
+          cp *.snap ./artifacts
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
