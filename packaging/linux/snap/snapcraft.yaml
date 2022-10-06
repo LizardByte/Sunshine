@@ -62,5 +62,6 @@ parts:
 apps:
   sunshine:
     command: usr/bin/sunshine
-    extensions: [gnome]
+    environment:
+      LD_LIBRARY_PATH: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pulseaudio"
 
