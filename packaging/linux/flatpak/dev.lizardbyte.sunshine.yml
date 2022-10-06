@@ -162,7 +162,7 @@ modules:
       - --disable-xmltoman
     sources:
       - type: archive
-        url: https://avahi.org/download/avahi-0.8.tar.gz
+        url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
     modules:
       - name: libevent
