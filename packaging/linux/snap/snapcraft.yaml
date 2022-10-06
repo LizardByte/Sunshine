@@ -9,8 +9,8 @@ grade: devel
 confinement: devmode
 
 layout:
-  /usr/local/sunshine:
-    bind: $SNAP/usr/local/sunshine
+  /usr/share/sunshine:
+    bind: $SNAP/usr/share/sunshine
 
 parts:
   sunshine:
@@ -18,8 +18,7 @@ parts:
     plugin: cmake
     cmake-parameters:
       - -DCMAKE_INSTALL_PREFIX='/usr'
-      - -DSUNSHINE_ASSETS_DIR='local/sunshine/assets'
-      - -DSUNSHINE_CONFIG_DIR='local/sunshine/config'
+      - -DSUNSHINE_ASSETS_DIR='share/sunshine'
       - -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
@@ -63,6 +62,7 @@ parts:
 apps:
   sunshine:
     command: usr/bin/sunshine
+    extensions: [gnome]
     environment:
-      LD_LIBRARY_PATH: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pulseaudio"
+      PULSE_PROP_media.category: "Manager"
 
