@@ -1,16 +1,18 @@
+---
 name: sunshine
 base: core22
 version: '0.14.1'
 summary: Sunshine is a Gamestream host for Moonlight.
 description: |
-  Sunshine is a Game stream host for Moonlight. Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, Intel, and Nvidia gpus. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.
-
+  Sunshine is a Game stream host for Moonlight. Sunshine is a self hosted, low latency, cloud gaming solution with
+  support for AMD, Intel, and Nvidia gpus. It is an open source implementation of NVIDIA's GameStream, as used by the
+  NVIDIA Shield. Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.
 grade: devel
 confinement: devmode
 
 layout:
-  /usr/share/sunshine:
-    bind: $SNAP/usr/share/sunshine
+  /usr/local/sunshine:
+    bind: $SNAP/usr/local/sunshine
 
 parts:
   sunshine:
@@ -18,7 +20,8 @@ parts:
     plugin: cmake
     cmake-parameters:
       - -DCMAKE_INSTALL_PREFIX='/usr'
-      - -DSUNSHINE_ASSETS_DIR='share/sunshine'
+      - -DSUNSHINE_ASSETS_DIR='local/sunshine/assets'
+      - -DSUNSHINE_CONFIG_DIR='local/sunshine/config'
       - -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
@@ -64,4 +67,3 @@ apps:
     command: usr/bin/sunshine
     environment:
       LD_LIBRARY_PATH: "$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET:$SNAP/usr/lib/$CRAFT_ARCH_TRIPLET/pulseaudio"
-
