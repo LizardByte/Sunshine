@@ -242,7 +242,7 @@ jobs:
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
-  
+
   build_linux_snap:
     name: Linux Snap
     runs-on: ubuntu-latest
