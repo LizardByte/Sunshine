@@ -257,7 +257,7 @@ jobs:
       - name: Setup Dependencies Linux Snap
         run: |
           sudo snap install snapcraft --classic
-      
+
       - name: Build Linux Snap
         run: |
           cp ./packaging/linux/snap/snapcraft.yaml .
@@ -265,6 +265,7 @@ jobs:
           sudo snapcraft
           mkdir artifacts
           cp *.snap ./artifacts
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
