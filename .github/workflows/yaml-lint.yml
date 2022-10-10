@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: yaml lint
         id: yaml-lint
@@ -39,7 +39,7 @@ jobs:
           echo ${{ steps.yaml-lint.outputs.logfile }}
 
       - name: Upload logs
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: yamllint-logfile
