@@ -160,7 +160,7 @@ __global__ void RGBA_to_NV12(
   float scale, const viewport_t viewport, const video::color_t *const color_matrix) {
 
   int idX = (threadIdx.x + blockDim.x * blockIdx.x) * 2;
-  int idY = (threadIdx.y + blockDim.y * blockIdx.y);
+  int idY = (threadIdx.y + blockDim.y * blockIdx.y) * 2;
 
   if(idX >= viewport.width) return;
   if(idY >= viewport.height) return;
@@ -171,18 +171,28 @@ __global__ void RGBA_to_NV12(
   idX += viewport.offsetX;
   idY += viewport.offsetY;
 
-  dstY  = dstY + idX + idY * dstPitchY;
+  uint8_t *dstY0  = dstY + idX + idY * dstPitchY;
+  uint8_t *dstY1  = dstY + idX + (idY + 1) * dstPitchY;
   dstUV = dstUV + idX + (idY / 2 * dstPitchUV);
 
-  float3 rgb_l = bgra_to_rgb(tex2D<float4>(srcImage, x, y));
-  float3 rgb_r = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y));
+  float3 rgb_lt = bgra_to_rgb(tex2D<float4>(srcImage, x, y));
+  float3 rgb_rt = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y));
+  float3 rgb_lb = bgra_to_rgb(tex2D<float4>(srcImage, x, y + scale));
+  float3 rgb_rb = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y + scale));
 
-  float2 uv = calcUV((rgb_l + rgb_r) * 0.5f, color_matrix) * 256.0f;
+  float2 uv_lt = calcUV(rgb_lt, color_matrix) * 256.0f;
+  float2 uv_rt = calcUV(rgb_rt, color_matrix) * 256.0f;
+  float2 uv_lb = calcUV(rgb_lb, color_matrix) * 256.0f;
+  float2 uv_rb = calcUV(rgb_rb, color_matrix) * 256.0f;
+
+  float2 uv = (uv_lt + uv_lb + uv_rt + uv_rb) * 0.25f;
 
   dstUV[0] = uv.x;
   dstUV[1] = uv.y;
-  dstY[0]  = calcY(rgb_l, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
-  dstY[1]  = calcY(rgb_r, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
+  dstY0[0]  = calcY(rgb_lt, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
+  dstY0[1]  = calcY(rgb_rt, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
+  dstY1[0]  = calcY(rgb_lb, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
+  dstY1[1]  = calcY(rgb_rb, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
 }
 
 int tex_t::copy(std::uint8_t *src, int height, int pitch) {
@@ -292,7 +302,7 @@ int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std:
 
 int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport) {
   int threadsX = viewport.width / 2;
-  int threadsY = viewport.height;
+  int threadsY = viewport.height / 2;
 
   dim3 block(threadsPerBlock);
   dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
