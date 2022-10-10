@@ -54,16 +54,19 @@ modules:
         dest-filename: cuda.run
 
   - name: boost
+    disabled: false
     buildsystem: simple
     build-commands:
-      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log
+      - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
+      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log || cat bootstrap.log
       - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS" -j $FLATPAK_BUILDER_N_JOBS  # yamllint disable-line rule:line-length
     sources:
       - type: archive
-        url: https://boostorg.jfrog.io/artifactory/main/release/1.80.0/source/boost_1_80_0.tar.bz2
-        sha256: 1e19565d82e43bc59209a168f5ac899d3ba471d55c7610c677d4ccf2c9c500c0
+        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
+        sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
 
   - name: ffmpeg
+    disabled: false
     config-opts:
       - --enable-gpl
       - --disable-static
@@ -94,23 +97,15 @@ modules:
         url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_4.4.2.orig.tar.xz
         sha256: af419a7f88adbc56c758ab19b4c708afbcae15ef09606b82b855291f6a6faa93
     modules:
-      - name: vmaf
-        buildsystem: meson
-        subdir: libvmaf
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: https://github.com/Netflix/vmaf/archive/refs/tags/v2.3.1.tar.gz
-            sha256: 8d60b1ddab043ada25ff11ced821da6e0c37fd7730dd81c24f1fc12be7293ef2
       - name: x264
         config-opts:
           - --disable-cli
           - --enable-shared
         sources:
           - type: archive
-            url: https://code.videolan.org/videolan/x264/-/archive/stable/x264-stable.tar.bz2
-            sha256: 8fedb184045722d8cc39353099373a5b7350171d0964d01fff8eced21b959b29
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.163.3060+git5db6aa6.orig.tar.gz
+            sha256: 0c7a5585f1b160c91eab8114d8493e65d08d2dfdc5b5d6ae46bbe5523469df9d
+
       - name: x265
         buildsystem: cmake-ninja
         builddir: true
@@ -120,9 +115,10 @@ modules:
           - -DENABLE_CLI=OFF
         sources:
           - type: archive
-            url: https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.5.tar.gz
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_3.5.orig.tar.gz
             sha256: e70a3335cacacbba0b3a20ec6fecd6783932288ebc8163ad74bcc9606477cae8
-      - name: ffnvcodec
+
+      - name: nv-codec-headers
         no-autogen: true
         make-install-args:
           - PREFIX=${FLATPAK_DEST}
@@ -130,10 +126,11 @@ modules:
           - '*'
         sources:
           - type: archive
-            url: https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n11.1.5.1.tar.gz
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/n/nv-codec-headers/nv-codec-headers_11.1.5.1.orig.tar.gz
             sha256: d095fbd56aa93772471a323be0ebe65504a0f43f06c76a30b6d25da77b06ae9c
 
   - name: avahi
+    disabled: false
     cleanup:
       - /bin
       - /lib/avahi
@@ -162,25 +159,29 @@ modules:
       - --disable-xmltoman
     sources:
       - type: archive
-        url: https://avahi.org/download/avahi-0.8.tar.gz
+        url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
+
     modules:
       - name: libevent
         cleanup:
           - /bin
         sources:
           - type: archive
-            url: https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz  # yamllint disable-line rule:line-length
+            url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevent/libevent_2.1.12-stable.orig.tar.gz
             sha256: 92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
 
   - name: libevdev
     buildsystem: meson
+    config-opts:
+      - -Ddocumentation=disabled
     cleanup:
       - /bin
     sources:
       - type: archive
-        url: https://www.freedesktop.org/software/libevdev/libevdev-1.12.1.tar.xz
-        sha256: 1dbba41bc516d3ca7abc0da5b862efe3ea8a7018fa6e9b97ce9d39401b22426c
+        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.12.1+dfsg.orig.tar.xz
+        sha256: a9aadd9c1ac64e47ca88776555ea6d0030d678b518f593082a13354e0d8016db
+
     modules:
       - name: libcheck
         buildsystem: cmake
@@ -188,8 +189,8 @@ modules:
           - /bin
         sources:
           - type: archive
-            url: https://github.com/libcheck/check/archive/refs/tags/0.15.2.tar.gz
-            sha256: 998d355294bb94072f40584272cf4424571c396c631620ce463f6ea97aa67d2e
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/c/check/check_0.15.2.orig.tar.gz
+            sha256: 8451b68ac5d6f3157b24f22eceff575bcf566264f6d78f3852f89d4e08cf42e1
 
   - name: sunshine
     buildsystem: cmake
