@@ -157,7 +157,7 @@ jobs:
 
       - name: Publish AUR package
         if: ${{ env.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.4.1
+        uses: KSXGitHub/github-actions-deploy-aur@v2.5.0
         with:
           pkgname: ${{ env.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
@@ -171,7 +171,7 @@ jobs:
 
   build_linux_flatpak:
     name: Linux Flatpak
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: check_changelog
 
     steps:
