@@ -94,8 +94,8 @@ modules:
       - /share
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_4.4.2.orig.tar.xz
-        sha256: af419a7f88adbc56c758ab19b4c708afbcae15ef09606b82b855291f6a6faa93
+        url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_5.1.1.orig.tar.xz
+        sha256: 95bf3ff8c496511e71e958fb249e663c8c9c3de583c5bebc0f5a9745abbc0435
     modules:
       - name: x264
         config-opts:
@@ -103,8 +103,8 @@ modules:
           - --enable-shared
         sources:
           - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.163.3060+git5db6aa6.orig.tar.gz
-            sha256: 0c7a5585f1b160c91eab8114d8493e65d08d2dfdc5b5d6ae46bbe5523469df9d
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.164.3095+gitbaee400.orig.tar.gz
+            sha256: 8b237e94b08c196a1da22f2f25875f10be4cff3648df4eeff21e00da8f683fc2
 
       - name: x265
         buildsystem: cmake-ninja
@@ -179,8 +179,8 @@ modules:
       - /bin
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.12.1+dfsg.orig.tar.xz
-        sha256: a9aadd9c1ac64e47ca88776555ea6d0030d678b518f593082a13354e0d8016db
+        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
+        sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
 
     modules:
       - name: libcheck
