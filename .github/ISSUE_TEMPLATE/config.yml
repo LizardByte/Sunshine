@@ -5,15 +5,9 @@
 
 blank_issues_enabled: false
 contact_links:
-  - name: Discord support
-    url: https://docs.lizardbyte.dev/about/support.html#discord
-    about: Ask questions in Discord
-  - name: Reddit support
-    url: https://www.reddit.com/r/LizardByte
-    about: Get community support on Reddit
-  - name: Facebook support
-    url: https://www.facebook.com/groups/lizardbyte
-    about: Get community support on Facebook
+  - name: Support Center
+    url: https://app.lizardbyte.dev/support
+    about: Official LizardByte support
   - name: Feature request
-    url: https://feedback.lizardbyte.dev
+    url: https://app.lizardbyte.dev/feedback
     about: Share your suggestions or ideas to help us improve
