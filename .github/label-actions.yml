@@ -25,8 +25,8 @@ invalid:duplicate:
 invalid:support:
   comment: >
     :wave: @{issue-author}, we use the issue tracker exclusively for bug reports.
-    However, this issue appears to be a support request. Please use
-    [Discord](https://docs.lizardbyte.dev/about/support.html#discord) for support issues. Thanks.
+    However, this issue appears to be a support request. Please use our
+    [Support Center](https://app.lizardbyte.dev/support) for support issues. Thanks.
   close: true
   lock: true
   lock-reason: 'off-topic'

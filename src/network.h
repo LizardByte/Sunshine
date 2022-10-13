@@ -1,6 +1,4 @@
-//
 // Created by loki on 12/27/19.
-//
 
 #ifndef SUNSHINE_NETWORK_H
 #define SUNSHINE_NETWORK_H
@@ -32,4 +30,4 @@ net_e from_address(const std::string_view &view);
 host_t host_create(ENetAddress &addr, std::size_t peers, std::uint16_t port);
 } // namespace net
 
-#endif //SUNSHINE_NETWORK_H
+#endif // SUNSHINE_NETWORK_H

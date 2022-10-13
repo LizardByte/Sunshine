@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include <boost/asio.hpp>
+#include <boost/filesystem.hpp>
 
 #include "config.h"
 #include "main.h"
@@ -104,14 +105,14 @@ enum quality_e : int {
 enum class rc_hevc_e : int {
   constqp,     /**< Constant QP mode */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
-  vbr_peak,    /**< Peak Contrained Variable Bitrate */
+  vbr_peak,    /**< Peak Constrained Variable Bitrate */
   cbr,         /**< Constant bitrate mode */
 };
 
 enum class rc_h264_e : int {
   constqp,     /**< Constant QP mode */
   cbr,         /**< Constant bitrate mode */
-  vbr_peak,    /**< Peak Contrained Variable Bitrate */
+  vbr_peak,    /**< Peak Constrained Variable Bitrate */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
 };
 
@@ -702,7 +703,7 @@ int apply_flags(const char *line) {
 
 void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   if(!fs::exists(stream.file_apps.c_str())) {
-    fs::copy_file(SUNSHINE_CONFIG_DIR "/apps.json", stream.file_apps);
+    fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
   }
 
   for(auto &[name, val] : vars) {
@@ -910,8 +911,14 @@ int parse(int argc, char *argv[]) {
     }
   }
 
+  // create appdata folder if it does not exist
+  if(!boost::filesystem::exists(platf::appdata().string())) {
+    boost::filesystem::create_directory(platf::appdata().string());
+  }
+
+  // create config file if it does not exist
   if(!fs::exists(sunshine.config_file)) {
-    fs::copy_file(SUNSHINE_CONFIG_DIR "/sunshine.conf", sunshine.config_file);
+    std::ofstream { sunshine.config_file }; // create empty config file
   }
 
   auto vars = parse_config(read_file(sunshine.config_file.c_str()));

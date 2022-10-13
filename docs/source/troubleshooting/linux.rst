@@ -2,7 +2,7 @@
 
 Linux
 =====
-If screencasting fails with Wayland, you may need to run the following to force screencasting with X11.
+If screencasting fails with KMS, you may need to run the following to force unprivileged screencasting.
 
    .. code-block:: bash
 

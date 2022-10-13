@@ -19,4 +19,4 @@ jobs:
       - name: Label Actions
         uses: dessant/label-actions@v2
         with:
-          github-token: ${{ github.token }}
+          github-token: ${{ secrets.GH_BOT_TOKEN }}
