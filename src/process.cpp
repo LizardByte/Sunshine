@@ -202,10 +202,11 @@ std::string proc_t::get_app_image(int app_id) {
     return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
+  auto default_image  = SUNSHINE_ASSETS_DIR "/box.png";
   auto app_image_path = _apps[app_index].image_path;
   if(app_image_path.empty()) {
     // image is empty, return default box image
-    return SUNSHINE_ASSETS_DIR "/box.png";
+    return default_image;
   }
 
   // get the image extension and convert it to lowercase
@@ -214,12 +215,13 @@ std::string proc_t::get_app_image(int app_id) {
 
   // return the default box image if extension is not "png"
   if(image_extension != ".png") {
-    return SUNSHINE_ASSETS_DIR "/box.png";
+    return default_image;
   }
 
   // check if image is in assets directory
-  if(std::filesystem::exists(SUNSHINE_ASSETS_DIR + app_image_path)) {
-    return SUNSHINE_ASSETS_DIR + app_image_path;
+  auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
+  if(std::filesystem::exists(full_image_path)) {
+    return full_image_path.string();
   }
   else if(app_image_path == "./assets/steam.png") {
     // handle old default steam image definition
@@ -230,7 +232,7 @@ std::string proc_t::get_app_image(int app_id) {
   std::error_code code;
   if(!std::filesystem::exists(app_image_path, code)) {
     // return default box image if image does not exist
-    return SUNSHINE_ASSETS_DIR "/box.png";
+    return default_image;
   }
 
   // image is a png, and not in assets directory
