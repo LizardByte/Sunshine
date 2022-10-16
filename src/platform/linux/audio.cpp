@@ -343,12 +343,7 @@ public:
     }
 
     auto sink_name = get_default_sink_name();
-    if(sink_name.empty()) {
-      BOOST_LOG(warning) << "Couldn't find an active sink"sv;
-    }
-    else {
-      sink.host = sink_name;
-    }
+    sink.host      = sink_name;
 
     if(index.stereo == PA_INVALID_INDEX) {
       index.stereo = load_null(stereo, speaker::map_stereo, sizeof(speaker::map_stereo));
@@ -380,6 +375,10 @@ public:
       }
     }
 
+    if(sink_name.empty()) {
+      BOOST_LOG(warning) << "Couldn't find an active default sink. Continuing with virtual audio only."sv;
+    }
+
     if(nullcount == 3) {
       sink.null = std::make_optional(sink_t::null_t { stereo, surround51, surround71 });
     }
@@ -388,8 +387,8 @@ public:
   }
 
   std::string get_default_sink_name() {
-    std::string sink_name = "@DEFAULT_SINK@"s;
-    auto alarm            = safe::make_alarm<int>();
+    std::string sink_name;
+    auto alarm = safe::make_alarm<int>();
 
     cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer ctx, const pa_server_info *server_info) {
       if(!server_info) {
@@ -397,7 +396,9 @@ public:
         alarm->ring(-1);
       }
 
-      sink_name = server_info->default_sink_name;
+      if(server_info->default_sink_name) {
+        sink_name = server_info->default_sink_name;
+      }
       alarm->ring(0);
     };
 
@@ -408,8 +409,12 @@ public:
   }
 
   std::string get_monitor_name(const std::string &sink_name) {
-    std::string monitor_name = "@DEFAULT_MONITOR@"s;
-    auto alarm               = safe::make_alarm<int>();
+    std::string monitor_name;
+    auto alarm = safe::make_alarm<int>();
+
+    if(sink_name.empty()) {
+      return monitor_name;
+    }
 
     cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
       if(!sink_info) {
