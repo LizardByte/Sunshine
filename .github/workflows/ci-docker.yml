@@ -31,7 +31,7 @@ jobs:
             FOUND=false
           fi
 
-          echo "::set-output name=dockerfile::${FOUND}"
+          echo "dockerfile=${FOUND}" >> $GITHUB_OUTPUT
 
     outputs:
       dockerfile: ${{ steps.check.outputs.dockerfile }}
@@ -42,12 +42,23 @@ jobs:
     if: ${{ needs.check_dockerfile.outputs.dockerfile == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Lint Dockerfile
+      - name: Checkout
         uses: actions/checkout@v3
 
-      - uses: hadolint/hadolint-action@v2.1.0
+      - name: Hadolint
+        id: hadolint
+        uses: hadolint/hadolint-action@v2.1.0
         with:
           dockerfile: ./Dockerfile
+          ignore: DL3008,DL3013,DL3016,DL3018,DL3028,DL3059
+          output-file: ./hadolint.log
+          verbose: true
+
+      - name: Log
+        if: failure()
+        run: |
+          Hadolint outcome: ${{ steps.hadolint.outcome }} >> $GITHUB_STEP_SUMMARY
+          cat "./hadolint.log" >> $GITHUB_STEP_SUMMARY
 
   check_changelog:
     name: Check Changelog
@@ -128,12 +139,12 @@ jobs:
           # read the platforms from `.docker_platforms`
           PLATFORMS=$(<.docker_platforms)
 
-          echo ::set-output name=branch::${BRANCH}
-          echo ::set-output name=build_date::$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-          echo ::set-output name=commit::${COMMIT}
-          echo ::set-output name=platforms::${PLATFORMS}
-          echo ::set-output name=push::${PUSH}
-          echo ::set-output name=tags::${TAGS}
+          echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
+          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+          echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
+          echo "push=${PUSH}" >> $GITHUB_OUTPUT
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Set Up QEMU
         uses: docker/setup-qemu-action@v2
@@ -174,8 +185,9 @@ jobs:
           platforms: ${{ steps.prepare.outputs.platforms }}
           build-args: |
             BRANCH=${{ steps.prepare.outputs.branch }}
-            COMMIT=${{ steps.prepare.outputs.commit }}
             BUILD_DATE=${{ steps.prepare.outputs.build_date }}
+            BUILD_VERSION=${{ needs.check_changelog.outputs.next_version }}
+            COMMIT=${{ steps.prepare.outputs.commit }}
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache

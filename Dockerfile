@@ -1,7 +1,6 @@
 FROM ubuntu:22.04 AS sunshine-base
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG TZ="America/New_York"
 
 FROM sunshine-base as sunshine-build
 
@@ -34,19 +33,16 @@ RUN apt-get update -y \
     && rm -rf /var/lib/apt/lists/*
 
 # copy repository
-RUN mkdir /root/sunshine-build
 WORKDIR /root/sunshine-build/
 COPY . .
 
 # setup build directory
-RUN mkdir /root/sunshine-build/build
 WORKDIR /root/sunshine-build/build
 
 # cmake and cpack
 RUN cmake -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/etc \
-        -DSUNSHINE_ASSETS_DIR=sunshine/assets \
-        -DSUNSHINE_CONFIG_DIR=sunshine/config \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DSUNSHINE_ASSETS_DIR=share/sunshine \
         -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
         -DSUNSHINE_ENABLE_WAYLAND=ON \
         -DSUNSHINE_ENABLE_X11=ON \
@@ -63,7 +59,7 @@ COPY --from=sunshine-build /root/sunshine-build/build/cpack_artifacts/Sunshine.d
 
 # install sunshine
 RUN apt-get update -y \
-     && apt-get install -y --no-install-recommends -f /sunshine.deb \
+     && apt-get install -y --no-install-recommends /sunshine.deb \
      && apt-get clean \
      && rm -rf /var/lib/apt/lists/*
 
@@ -76,4 +72,4 @@ EXPOSE 47998-48000/udp
 RUN mkdir /config
 
 # entrypoint
-ENTRYPOINT ["/usr/bin/sunshine", "/config/sunshine.conf"]
+ENTRYPOINT ["/usr/bin/sunshine", "file_apps=/config/apps.json", "file_state=/config/sunshine_state.json", "credentials_file=/config/sunshine_state.json", "/config/sunshine.conf"]

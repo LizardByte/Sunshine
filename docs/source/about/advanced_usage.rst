@@ -20,7 +20,7 @@ location by modifying the configuration file.
    =========   ===========
    Value       Description
    =========   ===========
-   Docker      ~/.config/sunshine/
+   Docker      /config/
    Linux       ~/.config/sunshine/
    macOS       ~/.config/sunshine/
    Windows     ./config/
