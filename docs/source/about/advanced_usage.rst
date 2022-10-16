@@ -20,11 +20,9 @@ location by modifying the configuration file.
    =========   ===========
    Value       Description
    =========   ===========
-   Docker      /etc/sunshine/config/
-   Linux-aur   /usr/share/sunshine/config/
-   Linux-deb   /usr/local/sunshine/config/
-   Linux-rpm   /usr/local/sunshine/config/
-   macOS       /usr/local/sunshine/config/
+   Docker      ~/.config/sunshine/
+   Linux       ~/.config/sunshine/
+   macOS       ~/.config/sunshine/
    Windows     ./config/
    =========   ===========
 
@@ -445,7 +443,28 @@ port
 ^^^^
 
 Description
-   Set the family of ports used by Sunshine.
+   Set the family of ports used by Sunshine. Changing this value will offset other ports per the table below.
+
+.. table::
+   :widths: auto
+
+   ================ ============ ===========================
+   Port Description Default Port Difference from config port
+   ================ ============ ===========================
+   HTTPS            47984 TCP    -5
+   HTTP             47989 TCP    0
+   Web              47990 TCP    +1
+   RTSP             48010 TCP    +21
+   Video            47998 UDP    +9
+   Control          47999 UDP    +10
+   Audio            48000 UDP    +11
+   tbd              48002 UDP    +13
+   ================ ============ ===========================
+
+.. Attention:: Custom ports are only allowed on select Moonlight clients.
+
+.. Todo:: Determine the function of port 48002 UDP. See
+   `here <https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide#manual-port-forwarding-advanced>`_.
 
 Default
    ``47989``

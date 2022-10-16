@@ -1,6 +1,4 @@
-//
 // Created by loki on 12/14/19.
-//
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -47,7 +45,7 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
 
 int proc_t::execute(int app_id) {
   if(!running() && _app_id != -1) {
-    // previous process exited on it's own, reset _process_handle
+    // previous process exited on its own, reset _process_handle
     _process_handle = bp::group();
 
     _app_id = -1;
@@ -73,7 +71,7 @@ int proc_t::execute(int app_id) {
   }
 
   std::error_code ec;
-  //Executed when returning from function
+  // Executed when returning from function
   auto fg = util::fail_guard([&]() {
     terminate();
   });
@@ -193,9 +191,10 @@ std::vector<ctx_t> &proc_t::get_apps() {
   return _apps;
 }
 
-/// Gets application image from application list.
-/// Returns default image if image configuration is not set.
-/// returns http content-type header compatible image type
+// Gets application image from application list.
+// Returns image from assets directory if found there.
+// Returns default image if image configuration is not set.
+// Returns http content-type header compatible image type.
 std::string proc_t::get_app_image(int app_id) {
   auto app_index = app_id - 1;
   if(app_index < 0 || app_index >= _apps.size()) {
@@ -203,20 +202,41 @@ std::string proc_t::get_app_image(int app_id) {
     return SUNSHINE_ASSETS_DIR "/box.png";
   }
 
+  auto default_image  = SUNSHINE_ASSETS_DIR "/box.png";
   auto app_image_path = _apps[app_index].image_path;
   if(app_image_path.empty()) {
-    return SUNSHINE_ASSETS_DIR "/box.png";
+    // image is empty, return default box image
+    return default_image;
   }
 
+  // get the image extension and convert it to lowercase
   auto image_extension = std::filesystem::path(app_image_path).extension().string();
   boost::to_lower(image_extension);
 
-  std::error_code code;
-  if(!std::filesystem::exists(app_image_path, code) || image_extension != ".png") {
-    return SUNSHINE_ASSETS_DIR "/box.png";
+  // return the default box image if extension is not "png"
+  if(image_extension != ".png") {
+    return default_image;
   }
 
-  // return only "content-type" http header compatible image type.
+  // check if image is in assets directory
+  auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
+  if(std::filesystem::exists(full_image_path)) {
+    return full_image_path.string();
+  }
+  else if(app_image_path == "./assets/steam.png") {
+    // handle old default steam image definition
+    return SUNSHINE_ASSETS_DIR "/steam.png";
+  }
+
+  // check if specified image exists
+  std::error_code code;
+  if(!std::filesystem::exists(app_image_path, code)) {
+    // return default box image if image does not exist
+    return default_image;
+  }
+
+  // image is a png, and not in assets directory
+  // return only "content-type" http header compatible image type
   return app_image_path;
 }
 

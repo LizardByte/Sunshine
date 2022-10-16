@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# custom AppRun for Sunshine AppImage
+
+# path of the extracted AppRun
+HERE="$(dirname "$(readlink -f "${0}")")"
+SUNSHINE_PATH=/usr/bin/sunshine
+SUNSHINE_BIN_HERE=$HERE/usr/bin/sunshine
+SUNSHINE_SHARE_HERE=$HERE/usr/share/sunshine
+
+# Set APPDIR when running directly from the AppDir:
+if [ -z "$APPDIR" ]; then
+    ARGV0="AppRun"
+fi
+
+cd "$HERE" || exit 1
+
+function help() {
+echo "
+ ------------------------------
+   Sunshine AppImage package.
+ ------------------------------
+
+ sunshine.AppImage options
+ ------------------------
+
+ Usage:  $ARGV0  --help, -h
+ ------            # This message
+
+         $ARGV0  --install, -i
+                   # Install input rules sunshine.service files. Restart required.
+
+         $ARGV0  --remove, -r
+                   # Remove input rules sunshine.service files.
+
+         $ARGV0  --appimage-help
+                   # Show available AppImage options
+
+ sunshine options
+ ----------------
+"
+# print sunshine binary help, replacing the sunshine command in usage statement
+"$SUNSHINE_BIN_HERE" --help | sed -e "s#$SUNSHINE_BIN_HERE#$ARGV0#g"
+}
+
+function install() {
+  # user input rules
+  sudo usermod -a -G input $USER
+  # shellcheck disable=SC2002
+  cat "$SUNSHINE_SHARE_HERE/udev/rules.d/85-sunshine.rules" | sudo tee /etc/udev/85-sunshine.rules
+
+  # sunshine service
+  mkdir -p ~/.config/systemd/user
+  cp -r "$SUNSHINE_SHARE_HERE/systemd/user/" ~/.config/systemd/
+  # patch service executable path
+  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/sunshine.service
+
+  # setcap
+  sudo setcap cap_sys_admin+p "$(readlink -f "$SUNSHINE_BIN_HERE")"
+
+  while true
+  do
+    read -r -p "This installation requires a reboot. Do you want to reboot NOW? [y/n] " input
+
+    case $input in
+      [yY][eE][sS]|[yY])
+        echo "Yes"
+        sudo reboot now
+        ;;
+      [nN][oO]|[nN])
+        echo "No"
+        break
+        ;;
+      *)
+        echo "Invalid input..."
+        ;;
+    esac
+  done
+}
+
+function remove() {
+  # remove input rules
+  sudo rm -f /etc/udev/rules.d/85-sunshine.rules
+
+  # remove service
+  sudo rm -f ~/.config/systemd/user/sunshine.service
+}
+
+# process arguments
+if [ "x$1" == "xhelp" ] || [ "x$1" == "x--help" ] || [ "x$1" == "x-h" ] ; then
+    help
+    exit $?
+fi
+
+if [ "x$1" == "xinstall" ] || [ "x$1" == "x--install" ] || [ "x$1" == "x-i" ] ; then
+    install
+    exit $?
+fi
+
+if [ "x$1" == "xremove" ] || [ "x$1" == "x--remove" ] || [ "x$1" == "x-r" ] ; then
+    remove
+    exit $?
+fi
+
+# create config directory if it doesn't exist
+# https://github.com/LizardByte/Sunshine/issues/324
+mkdir -p ~/.config/sunshine
+
+# run sunshine
+"$SUNSHINE_BIN_HERE" $@

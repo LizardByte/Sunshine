@@ -1,5 +1,5 @@
 Babel==2.10.3
 m2r2==0.3.2
-Sphinx==5.1.1
+Sphinx==5.2.3
 sphinx-copybutton==0.5.0
 sphinx-rtd-theme==1.0.0

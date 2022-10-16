@@ -1,13 +1,11 @@
-//
 // Created by loki on 5/31/19.
-//
 
 #include "crypto.h"
 #include <openssl/pem.h>
 
 namespace crypto {
 using big_num_t = util::safe_ptr<BIGNUM, BN_free>;
-//using rsa_t = util::safe_ptr<RSA, RSA_free>;
+// using rsa_t = util::safe_ptr<RSA, RSA_free>;
 using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
 
 cert_chain_t::cert_chain_t() : _certs {}, _cert_ctx { X509_STORE_CTX_new() } {}
@@ -22,7 +20,7 @@ static int openssl_verify_cb(int ok, X509_STORE_CTX *ctx) {
   int err_code = X509_STORE_CTX_get_error(ctx);
 
   switch(err_code) {
-  //FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get mmonlight-embedded to work on the raspberry pi
+  // FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get mmonlight-embedded to work on the raspberry pi
   case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
     return 1;
 
@@ -274,7 +272,7 @@ int cbc_t::encrypt(const std::string_view &plaintext, std::uint8_t *cipher, aes_
 
   int len;
 
-  int size = plaintext.size(); //round_to_pkcs7_padded(plaintext.size());
+  int size = plaintext.size(); // round_to_pkcs7_padded(plaintext.size());
 
   // Encrypt into the caller's buffer
   if(EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &size, (const std::uint8_t *)plaintext.data(), plaintext.size()) != 1) {
