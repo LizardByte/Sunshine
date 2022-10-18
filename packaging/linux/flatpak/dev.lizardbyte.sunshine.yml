@@ -47,14 +47,18 @@ modules:
       - --disable-doc
       - --disable-programs
       - --disable-decoders
-      - --enable-libfontconfig
-      - --enable-libfreetype
-      - --enable-libopus
-      - --enable-libvorbis
-      - --enable-libvpx
-      - --enable-libx264
-      - --enable-libx265
+      - --disable-vdpau
+      - --disable-audiotoolbox
+      - --disable-videotoolbox
+      - --disable-vulkan
+      - --disable-sdl2
+      - --disable-filters
+      - --disable-avfilter
+      - --disable-postproc
+      - --disable-autodetect
       - --enable-nvenc
+      - --enable-ffnvcodec
+      - --enable-vaapi
     cleanup:
       - /share
     sources:
