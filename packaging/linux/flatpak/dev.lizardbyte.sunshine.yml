@@ -140,6 +140,7 @@ modules:
             sha256: 92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
 
   - name: libevdev
+    disabled: false
     buildsystem: meson
     config-opts:
       - -Ddocumentation=disabled
@@ -187,6 +188,7 @@ modules:
         dest-filename: cuda.run
 
   - name: sunshine
+    disabled: false
     buildsystem: cmake
     no-make-install: false
     builddir: true
