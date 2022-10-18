@@ -3,7 +3,7 @@ app-id: dev.lizardbyte.sunshine
 runtime: org.freedesktop.Platform
 runtime-version: "21.08"
 sdk: org.freedesktop.Sdk
-# command: sunshine
+command: sunshine
 separate-locales: false
 finish-args:
   - --device=all  # access all devices
@@ -27,7 +27,7 @@ cleanup:
 
 modules:
   - name: boost
-    disabled: true
+    disabled: false
     buildsystem: simple
     build-commands:
       - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
@@ -39,7 +39,7 @@ modules:
         sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
 
   - name: ffmpeg
-    disabled: true
+    disabled: false
     config-opts:
       - --enable-gpl
       - --disable-static
@@ -99,7 +99,7 @@ modules:
             sha256: d095fbd56aa93772471a323be0ebe65504a0f43f06c76a30b6d25da77b06ae9c
 
   - name: avahi
-    disabled: true
+    disabled: false
     cleanup:
       - /bin
       - /lib/avahi
@@ -140,7 +140,7 @@ modules:
             sha256: 92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
 
   - name: libevdev
-    disabled: true
+    disabled: false
     buildsystem: meson
     config-opts:
       - -Ddocumentation=disabled
@@ -161,7 +161,7 @@ modules:
             sha256: 8451b68ac5d6f3157b24f22eceff575bcf566264f6d78f3852f89d4e08cf42e1
 
   - name: cuda
-    disabled: true
+    disabled: false
     buildsystem: simple
     only-arches:
       - x86_64
@@ -188,7 +188,7 @@ modules:
         dest-filename: cuda.run
 
   - name: sunshine
-    disabled: true
+    disabled: false
     buildsystem: cmake
     no-make-install: false
     builddir: true
