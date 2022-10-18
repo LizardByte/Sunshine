@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Automerging
-        uses: pascalgn/automerge-action@v0.15.3
+        uses: pascalgn/automerge-action@v0.15.5
         env:
           BASE_BRANCHES: nightly
           GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
