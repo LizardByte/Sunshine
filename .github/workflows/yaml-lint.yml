@@ -17,6 +17,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Find additional files
+        id: find-files
+        run: |
+          # space separated list of files
+          FILES=.clang-format
+
+          # empty placeholder
+          FOUND=""
+
+          for FILE in ${FILES}; do
+            if [ -f "$FILE" ]
+            then
+              FOUND="$FOUND $FILE"
+            fi
+          done
+
+          echo "found=${FOUND}" >> $GITHUB_OUTPUT
+
       - name: yaml lint
         id: yaml-lint
         uses: ibiqlik/action-yamllint@v3
@@ -30,17 +48,14 @@ jobs:
               line-length:
                 max: 120
               truthy:
-                allowed-values: ['true', 'false', 'on']  # GitHub uses "on" for workflow event triggers
+                # GitHub uses "on" for workflow event triggers
+                # .clang-format file has options of "Yes" "No" that will be caught by this, so changed to "warning"
+                allowed-values: ['true', 'false', 'on']
                 check-keys: true
-                level: error
+                level: warning
+          file_or_dir: . ${{ steps.find-files.outputs.found }}
 
       - name: Log
-        run: |
-          echo ${{ steps.yaml-lint.outputs.logfile }}
-
-      - name: Upload logs
-        uses: actions/upload-artifact@v3
         if: failure()
-        with:
-          name: yamllint-logfile
-          path: ${{ steps.yaml-lint.outputs.logfile }}
+        run: |
+          cat "${{ steps.yaml-lint.outputs.logfile }}" >> $GITHUB_STEP_SUMMARY
