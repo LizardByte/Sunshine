@@ -68,6 +68,7 @@ modules:
         sha256: 95bf3ff8c496511e71e958fb249e663c8c9c3de583c5bebc0f5a9745abbc0435
     modules:
       - name: x264
+        disabled: true
         config-opts:
           - --disable-cli
           - --enable-shared
@@ -77,6 +78,7 @@ modules:
             sha256: 8b237e94b08c196a1da22f2f25875f10be4cff3648df4eeff21e00da8f683fc2
 
       - name: x265
+        disabled: true
         buildsystem: cmake-ninja
         builddir: true
         subdir: source
