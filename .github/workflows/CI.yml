@@ -173,6 +173,13 @@ jobs:
     name: Linux Flatpak
     runs-on: ubuntu-22.04
     needs: check_changelog
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        arch: ['x86_64', 'aarch64']
+        exclude:
+          # exclude `aarch64` on anything except a release triggering event
+          - arch: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) && '' || 'aarch64' }}
 
     steps:
       - name: Checkout
@@ -183,12 +190,14 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
+            qemu-user-static \
             flatpak
-          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
+          sudo su $(whoami) -c 'flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak install --user flathub \
-            org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
-
+          sudo su $(whoami) -c 'flatpak --user install -y flathub \
+            org.flatpak.Builder \
+            org.freedesktop.Platform/${{ matrix.arch }}/21.08 \
+            org.freedesktop.Sdk/${{ matrix.arch }}/21.08'
       - name: Configure Flatpak Manifest
         run: |
           # variables for manifest
@@ -224,14 +233,15 @@ jobs:
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine \
-            dev.lizardbyte.sunshine.yml'
-          sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak dev.lizardbyte.sunshine'
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            build-sunshine dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c 'flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
+            ../artifacts/sunshine_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux-flatpak
+          name: sunshine-linux-flatpak-${{ matrix.arch }}
           path: artifacts/
 
       - name: Create Release
