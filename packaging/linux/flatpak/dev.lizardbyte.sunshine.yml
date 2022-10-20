@@ -60,6 +60,8 @@ modules:
       - --enable-nvenc
       - --enable-ffnvcodec
       - --enable-vaapi
+      - --enable-libx264
+      - --enable-libx265
     cleanup:
       - /share
     sources:
