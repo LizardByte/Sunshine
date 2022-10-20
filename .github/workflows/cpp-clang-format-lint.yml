@@ -28,7 +28,7 @@ jobs:
             FOUND=false
           fi
 
-          echo "::set-output name=src::${FOUND}"
+          echo "src=${FOUND}" >> $GITHUB_OUTPUT
 
     outputs:
       src: ${{ steps.check.outputs.src }}
