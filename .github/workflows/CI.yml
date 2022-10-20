@@ -238,7 +238,7 @@ jobs:
           sudo su $(whoami) -c 'flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
             ../artifacts/sunshine_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine'
           sudo su $(whoami) -c 'flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
-            ../artifacts/sunshine_Debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug'
+            ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
