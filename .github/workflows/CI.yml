@@ -198,6 +198,15 @@ jobs:
             org.flatpak.Builder \
             org.freedesktop.Platform/${{ matrix.arch }}/21.08 \
             org.freedesktop.Sdk/${{ matrix.arch }}/21.08'
+
+      - name: Cache Flatpak build
+        uses: actions/cache@v3
+        with:
+          path: ./build/.flatpak-builder
+          key: flatpak-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            flatpak-${{ matrix.arch }}-
+
       - name: Configure Flatpak Manifest
         run: |
           # variables for manifest
