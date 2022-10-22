@@ -243,7 +243,12 @@ jobs:
         working-directory: build
         run: |
           sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            --stop-at=cuda build-sunshine dev.lizardbyte.sunshine.yml'
+          cp -r .flatpak-builder copy-of-flatpak-builder
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
             build-sunshine dev.lizardbyte.sunshine.yml'
+          rm -rf .flatpak-builder
+          mv copy-of-flatpak-builder .flatpak-builder
           sudo su $(whoami) -c 'flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
             ../artifacts/sunshine_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine'
           sudo su $(whoami) -c 'flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
