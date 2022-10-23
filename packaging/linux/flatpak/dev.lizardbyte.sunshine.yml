@@ -61,7 +61,6 @@ modules:
       - --enable-ffnvcodec
       - --enable-vaapi
       - --enable-libx264
-      - --enable-libx265
     cleanup:
       - /share
     sources:
@@ -77,18 +76,6 @@ modules:
           - type: archive
             url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.164.3095+gitbaee400.orig.tar.gz
             sha256: 8b237e94b08c196a1da22f2f25875f10be4cff3648df4eeff21e00da8f683fc2
-
-      - name: x265
-        buildsystem: cmake-ninja
-        builddir: true
-        subdir: source
-        config-opts:
-          - -DCMAKE_BUILD_TYPE=RelWithDebInfo
-          - -DENABLE_CLI=OFF
-        sources:
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_3.5.orig.tar.gz
-            sha256: e70a3335cacacbba0b3a20ec6fecd6783932288ebc8163ad74bcc9606477cae8
 
       - name: nv-codec-headers
         no-autogen: true
