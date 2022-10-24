@@ -61,7 +61,7 @@ modules:
       - --enable-ffnvcodec
       - --enable-vaapi
       - --enable-libx264
-      - --enable-libx265
+      # - --enable-libx265
     cleanup:
       - /share
     sources:
@@ -79,6 +79,7 @@ modules:
             sha256: 8b237e94b08c196a1da22f2f25875f10be4cff3648df4eeff21e00da8f683fc2
 
       - name: x265
+        disabled: true
         buildsystem: cmake-ninja
         builddir: true
         subdir: source
@@ -147,21 +148,13 @@ modules:
     buildsystem: meson
     config-opts:
       - -Ddocumentation=disabled
+      - -Dtests=disabled
     cleanup:
       - /bin
     sources:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
         sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
-    modules:
-      - name: libcheck
-        buildsystem: cmake
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/universe/c/check/check_0.15.2.orig.tar.gz
-            sha256: 8451b68ac5d6f3157b24f22eceff575bcf566264f6d78f3852f89d4e08cf42e1
 
   - name: cuda
     disabled: false
