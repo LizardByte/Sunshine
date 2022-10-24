@@ -61,7 +61,7 @@ modules:
       - --enable-ffnvcodec
       - --enable-vaapi
       - --enable-libx264
-      # - --enable-libx265
+      - --enable-libx265
     cleanup:
       - /share
     sources:
@@ -79,7 +79,7 @@ modules:
             sha256: 8b237e94b08c196a1da22f2f25875f10be4cff3648df4eeff21e00da8f683fc2
 
       - name: x265
-        disabled: true
+        disabled: false
         buildsystem: cmake-ninja
         builddir: true
         subdir: source
@@ -130,18 +130,11 @@ modules:
       - --disable-doxygen-html
       - --disable-manpages
       - --disable-xmltoman
+      - --disable-libevent
     sources:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
-    modules:
-      - name: libevent
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevent/libevent_2.1.12-stable.orig.tar.gz
-            sha256: 92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
 
   - name: libevdev
     disabled: false
