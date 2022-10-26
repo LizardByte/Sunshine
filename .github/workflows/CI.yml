@@ -73,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Dependencies Linux AUR
         run: |
@@ -173,6 +173,13 @@ jobs:
     name: Linux Flatpak
     runs-on: ubuntu-22.04
     needs: check_changelog
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        arch: ['x86_64', 'aarch64']
+        exclude:
+          # exclude `aarch64` on anything except a release triggering event
+          - arch: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) && '' || 'aarch64' }}
 
     steps:
       - name: Checkout
@@ -183,11 +190,22 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
+            qemu-user-static \
             flatpak
-          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
+          sudo su $(whoami) -c 'flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak install --user flathub \
-            org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
+          sudo su $(whoami) -c 'flatpak --user install -y flathub \
+            org.flatpak.Builder \
+            org.freedesktop.Platform/${{ matrix.arch }}/21.08 \
+            org.freedesktop.Sdk/${{ matrix.arch }}/21.08'
+
+      - name: Cache Flatpak build
+        uses: actions/cache@v3
+        with:
+          path: ./build/.flatpak-builder
+          key: flatpak-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            flatpak-${{ matrix.arch }}-
 
       - name: Configure Flatpak Manifest
         run: |
@@ -224,14 +242,22 @@ jobs:
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine \
-            dev.lizardbyte.sunshine.yml'
-          sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak dev.lizardbyte.sunshine'
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            --stop-at=cuda build-sunshine dev.lizardbyte.sunshine.yml'
+          cp -r .flatpak-builder copy-of-flatpak-builder
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            build-sunshine dev.lizardbyte.sunshine.yml'
+          rm -rf .flatpak-builder
+          mv copy-of-flatpak-builder .flatpak-builder
+          sudo su $(whoami) -c 'flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
+            ../artifacts/sunshine_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine'
+          sudo su $(whoami) -c 'flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
+            ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux-flatpak
+          name: sunshine-linux-flatpak-${{ matrix.arch }}
           path: artifacts/
 
       - name: Create Release
@@ -591,7 +617,7 @@ jobs:
             echo "$subport"
             subportlist="$subportlist $subport"
           done
-          echo "::set-output name=subportlist::${subportlist}"
+          echo "subportlist=${subportlist}" >> $GITHUB_OUTPUT
 
       - name: Run port lint for all subports
         run: |
