@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/5/19.
-//
 
 #ifndef SUNSHINE_STREAM_H
 #define SUNSHINE_STREAM_H
@@ -45,4 +43,4 @@ state_e state(session_t &session);
 } // namespace session
 } // namespace stream
 
-#endif //SUNSHINE_STREAM_H
+#endif // SUNSHINE_STREAM_H

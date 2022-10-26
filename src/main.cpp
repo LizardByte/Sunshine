@@ -1,6 +1,4 @@
-//
 // Created by loki on 5/30/19.
-//
 
 #include "process.h"
 
@@ -289,7 +287,7 @@ int main(int argc, char *argv[]) {
     upnp_unmap = upnp::start();
   });
 
-  //FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
+  // FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
   if(shutdown_event->peek()) {
     return 0;
   }

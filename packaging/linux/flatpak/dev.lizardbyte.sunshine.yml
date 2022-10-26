@@ -6,16 +6,16 @@ sdk: org.freedesktop.Sdk
 command: sunshine
 separate-locales: false
 finish-args:
-  - --device=all
-  - --env=PULSE_PROP_media.category=Manager
-  - --persist=.config/sunshine
-  - --share=ipc
-  - --share=network
-  - --socket=pulseaudio
-  - --socket=wayland
-  - --socket=x11
-  - --system-talk-name=org.freedesktop.Avahi
-  - --talk-name=org.freedesktop.Flatpak
+  - --device=all  # access all devices
+  - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
+  - --filesystem=home  # need to save files in user's home directory
+  - --share=ipc  # required for X11 shared memory extension
+  - --share=network  # access network
+  - --socket=pulseaudio  # play sounds using pulseaudio
+  - --socket=wayland  # show windows using Wayland
+  - --socket=x11  # show windows using X11
+  - --system-talk-name=org.freedesktop.Avahi  # talk to avahi on the system bus
+  - --talk-name=org.freedesktop.Flatpak  # talk to flatpak on the session bus
 
 cleanup:
   - /include
@@ -23,47 +23,24 @@ cleanup:
   - /lib/pkgconfig
   - /lib/*.la
   - /lib/*.a
-  - /share
+  - /share/man
 
 modules:
-  - name: cuda
+  - name: boost
     disabled: false
     buildsystem: simple
-    only-arches:
-      - x86_64
-      - aarch64
-    cleanup:
-      - '*'
     build-commands:
-      - chmod u+x ./cuda.run
-      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR  # yamllint disable-line rule:line-length
-      - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
-      - rm ./cuda.run
-    sources:
-      - type: file
-        only-arches:
-          - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
-        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
-        dest-filename: cuda.run
-      - type: file
-        only-arches:
-          - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run  # yamllint disable-line rule:line-length
-        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
-        dest-filename: cuda.run
-
-  - name: boost
-    buildsystem: simple
-    build-commands:
-      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log
-      - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS" -j $FLATPAK_BUILDER_N_JOBS  # yamllint disable-line rule:line-length
+      - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
+      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log || cat bootstrap.log
+      - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
+        -j $FLATPAK_BUILDER_N_JOBS
     sources:
       - type: archive
-        url: https://boostorg.jfrog.io/artifactory/main/release/1.79.0/source/boost_1_79_0.tar.bz2
-        sha256: 475d589d51a7f8b3ba2ba4eda022b170e562ca3b760ee922c146b6c65856ef39
+        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
+        sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
 
   - name: ffmpeg
+    disabled: false
     config-opts:
       - --enable-gpl
       - --disable-static
@@ -71,47 +48,38 @@ modules:
       - --disable-doc
       - --disable-programs
       - --disable-decoders
-      - --enable-libfontconfig
-      - --enable-libfreetype
-      - --enable-libopus
-      - --enable-libvorbis
-      - --enable-libvpx
+      - --disable-vdpau
+      - --disable-audiotoolbox
+      - --disable-videotoolbox
+      - --disable-vulkan
+      - --disable-sdl2
+      - --disable-filters
+      - --disable-avfilter
+      - --disable-postproc
+      - --disable-autodetect
+      - --enable-nvenc
+      - --enable-ffnvcodec
+      - --enable-vaapi
       - --enable-libx264
       - --enable-libx265
-      - --enable-nvenc
-      - --enable-encoder=h264_v4l2m2m
-      - --enable-encoder=hevc_v4l2m2m
-      # - --enable-nonfree
-      # - --enable-cuda-nvcc
-      # - --enable-libnpp
-      # - --extra-cflags=-I${FLATPAK_DEST}/cuda/include
-      # - --extra-ldflags=-L${FLATPAK_DEST}/cuda/lib64
-      # - --nvccflags="-gencode arch=compute_52,code=sm_52 -O2"
     cleanup:
-      - /share/ffmpeg/examples
+      - /share
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_4.4.2.orig.tar.xz
-        sha256: af419a7f88adbc56c758ab19b4c708afbcae15ef09606b82b855291f6a6faa93
+        url: http://archive.ubuntu.com/ubuntu/pool/universe/f/ffmpeg/ffmpeg_5.1.1.orig.tar.xz
+        sha256: 95bf3ff8c496511e71e958fb249e663c8c9c3de583c5bebc0f5a9745abbc0435
     modules:
-      - name: vmaf
-        buildsystem: meson
-        subdir: libvmaf
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: https://github.com/Netflix/vmaf/archive/refs/tags/v2.3.1.tar.gz
-            sha256: 8d60b1ddab043ada25ff11ced821da6e0c37fd7730dd81c24f1fc12be7293ef2
       - name: x264
         config-opts:
           - --disable-cli
           - --enable-shared
         sources:
           - type: archive
-            url: https://code.videolan.org/videolan/x264/-/archive/stable/x264-stable.tar.bz2
-            sha256: 8fedb184045722d8cc39353099373a5b7350171d0964d01fff8eced21b959b29
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x264/x264_0.164.3095+gitbaee400.orig.tar.gz
+            sha256: 8b237e94b08c196a1da22f2f25875f10be4cff3648df4eeff21e00da8f683fc2
+
       - name: x265
+        disabled: false
         buildsystem: cmake-ninja
         builddir: true
         subdir: source
@@ -120,9 +88,10 @@ modules:
           - -DENABLE_CLI=OFF
         sources:
           - type: archive
-            url: https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.5.tar.gz
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/x/x265/x265_3.5.orig.tar.gz
             sha256: e70a3335cacacbba0b3a20ec6fecd6783932288ebc8163ad74bcc9606477cae8
-      - name: ffnvcodec
+
+      - name: nv-codec-headers
         no-autogen: true
         make-install-args:
           - PREFIX=${FLATPAK_DEST}
@@ -130,15 +99,15 @@ modules:
           - '*'
         sources:
           - type: archive
-            url: https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n11.1.5.1.tar.gz
+            url: http://archive.ubuntu.com/ubuntu/pool/universe/n/nv-codec-headers/nv-codec-headers_11.1.5.1.orig.tar.gz
             sha256: d095fbd56aa93772471a323be0ebe65504a0f43f06c76a30b6d25da77b06ae9c
 
   - name: avahi
+    disabled: false
     cleanup:
       - /bin
       - /lib/avahi
-      - /share/applications/*.desktop
-      - /share/avahi
+      - /share
     config-opts:
       - --with-distro=none
       - --disable-gobject
@@ -161,38 +130,55 @@ modules:
       - --disable-doxygen-html
       - --disable-manpages
       - --disable-xmltoman
+      - --disable-libevent
     sources:
       - type: archive
-        url: https://avahi.org/download/avahi-0.8.tar.gz
+        url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
-    modules:
-      - name: libevent
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz  # yamllint disable-line rule:line-length
-            sha256: 92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
 
   - name: libevdev
+    disabled: false
     buildsystem: meson
+    config-opts:
+      - -Ddocumentation=disabled
+      - -Dtests=disabled
     cleanup:
       - /bin
     sources:
       - type: archive
-        url: https://www.freedesktop.org/software/libevdev/libevdev-1.12.1.tar.xz
-        sha256: 1dbba41bc516d3ca7abc0da5b862efe3ea8a7018fa6e9b97ce9d39401b22426c
-    modules:
-      - name: libcheck
-        buildsystem: cmake
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: https://github.com/libcheck/check/archive/refs/tags/0.15.2.tar.gz
-            sha256: 998d355294bb94072f40584272cf4424571c396c631620ce463f6ea97aa67d2e
+        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
+        sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
+
+  - name: cuda
+    disabled: false
+    buildsystem: simple
+    only-arches:
+      - x86_64
+      - aarch64
+    cleanup:
+      - '*'
+    build-commands:
+      - chmod u+x ./cuda.run
+      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm
+        --tmpdir=$FLATPAK_BUILDER_BUILDDIR
+      - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
+      - rm ./cuda.run
+    sources:
+      - type: file
+        only-arches:
+          - x86_64
+        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
+        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
+        dest-filename: cuda.run
+      - type: file
+        only-arches:
+          - aarch64
+        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run  # yamllint disable-line rule:line-length
+        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
+        dest-filename: cuda.run
 
   - name: sunshine
+    disabled: false
     buildsystem: cmake
     no-make-install: false
     builddir: true
@@ -202,13 +188,13 @@ modules:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
-      - -DSUNSHINE_ASSETS_DIR=assets
-      - -DSUNSHINE_CONFIG_DIR=config
+      - -DSUNSHINE_ASSETS_DIR=share/sunshine
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
+      - -DSUNSHINE_CONFIGURE_FLATPAK=ON
     sources:
       - type: git
         url: '@GITHUB_CLONE_URL@'
