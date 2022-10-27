@@ -57,7 +57,7 @@ jobs:
       - name: Log
         if: failure()
         run: |
-          Hadolint outcome: ${{ steps.hadolint.outcome }} >> $GITHUB_STEP_SUMMARY
+          echo "Hadolint outcome: ${{ steps.hadolint.outcome }}" >> $GITHUB_STEP_SUMMARY
           cat "./hadolint.log" >> $GITHUB_STEP_SUMMARY
 
   check_changelog:

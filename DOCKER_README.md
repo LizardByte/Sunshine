@@ -2,14 +2,14 @@
 
 ## Build your own containers
 This image provides a method for you to easily use the latest Sunshine release in your own docker projects. It is not
-intended to use as a standalone container at this point.
+intended to use as a standalone container at this point, and should be considered experimental.
 
 ```dockerfile
 FROM  lizardbyte/sunshine
 
-# install Wayland and Steam
+# install Steam, Wayland, etc.
 
-ENTRYPOINT start-wayland && start-steam && start-sunshine
+ENTRYPOINT steam && sunshine
 ```
 
 ## Where used
@@ -92,3 +92,5 @@ In this instance `PUID=1001` and `PGID=1001`. To find yours use id user as below
 $ id dockeruser
 uid=1001(dockeruser) gid=1001(dockergroup) groups=1001(dockergroup)
 ```
+
+If you want to change the PUID or PGID after the image has been built, it will require rebuilding the image.

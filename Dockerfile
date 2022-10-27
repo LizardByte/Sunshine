@@ -63,6 +63,11 @@ RUN apt-get update -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# network setup
+EXPOSE 47984-47990/tcp
+EXPOSE 48010
+EXPOSE 47998-48000/udp
+
 # setup user
 ARG PGID=1000
 ENV PGID=${PGID}
@@ -75,18 +80,13 @@ ENV UNAME=${UNAME}
 ENV HOME=/home/$UNAME
 
 RUN groupadd -f -g "${PGID}" "${UNAME}" && \
-    useradd -mk "$(mktemp -d)" -u "${PUID}" -g "${PGID}" "${UNAME}"
+    useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}" && \
+    mkdir -p ${HOME}/.config/sunshine && \
+    ln -s ${HOME}/.config/sunshine /config && \
+    chown -R ${UNAME} ${HOME}
 
 USER ${UNAME}
-
-# network setup
-EXPOSE 47984-47990/tcp
-EXPOSE 48010
-EXPOSE 47998-48000/udp
-
-# setup config directory
-RUN mkdir -p ${HOME}/.config/sunshine && \
-    ln -s ${HOME}/config /config
+WORKDIR ${HOME}
 
 # entrypoint
 ENTRYPOINT ["/usr/bin/sunshine"]
