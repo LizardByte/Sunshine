@@ -27,6 +27,9 @@ Create and run the container (substitute your `<values>`):
 docker run -d \
   --name=<image_name> \
   --restart=unless-stopped
+  -e PUID=<uid> \
+  -e PGID=<gid> \
+  -e TZ=<timezone> \
   -v <path to data>:/config \
   -p 47984-47990:47984-47990/tcp \
   -p 48010:48010 \
@@ -35,7 +38,6 @@ docker run -d \
 ```
 
 ### Using docker-compose
-
 Create a `docker-compose.yml` file with the following contents (substitute your `<values>`):
 
 ```yaml
@@ -47,6 +49,10 @@ services:
     restart: unless-stopped
     volumes:
       - <path to data>:/config
+    environment:
+      - PUID=<uid>
+      - PGID=<gid>
+      - TZ=<timezone>
     ports:
       - "47984-47990:47984-47990/tcp"
       - "48010:48010"
@@ -65,7 +71,24 @@ port `47990` (e.g. `http://<host_ip>:47990`). The internal port must be `47990`,
 (e.g. `-p 8080:47990`). All the ports listed in the `docker run` and `docker-compose` examples are required.
 
 
-| Parameter                   | Function                                                                             | Example Value      | Required |
-|-----------------------------|--------------------------------------------------------------------------------------|--------------------|----------|
-| `-p <port>:47990`           | Web UI Port                                                                          | `47990`            | True     |
-| `-v <path to data>:/config` | Volume mapping                                                                       | `/home/sunshine`   | True     |
+| Parameter                   | Function                  | Example Value      | Required |
+|-----------------------------|---------------------------|--------------------|----------|
+| `-p <port>:47990`           | Web UI Port               | `47990`            | True     |
+| `-v <path to data>:/config` | Volume mapping            | `/home/sunshine`   | True     |
+| `-e PUID=<uid>`             | User ID                   | `1001`             | False    |
+| `-e PGID=<gid>`             | Group ID                  | `1001`             | False    |
+| `-e TZ=<timezone>`          | Lookup TZ value [here][1] | `America/New_York` | False    |
+
+[1]: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+#### User / Group Identifiers:
+When using data volumes (-v flags) permissions issues can arise between the host OS and the container. To avoid this
+issue you can specify the user PUID and group PGID. Ensure the data volume directory on the host is owned by the same
+user you specify.
+
+In this instance `PUID=1001` and `PGID=1001`. To find yours use id user as below:
+
+```bash
+$ id dockeruser
+uid=1001(dockeruser) gid=1001(dockergroup) groups=1001(dockergroup)
+```

@@ -59,9 +59,25 @@ COPY --from=sunshine-build /root/sunshine-build/build/cpack_artifacts/Sunshine.d
 
 # install sunshine
 RUN apt-get update -y \
-     && apt-get install -y --no-install-recommends /sunshine.deb \
-     && apt-get clean \
-     && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends /sunshine.deb \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# setup user
+ARG PGID=1000
+ENV PGID=${PGID}
+ARG PUID=1000
+ENV PUID=${PUID}
+ENV TZ="UTC"
+ARG UNAME=lizard
+ENV UNAME=${UNAME}
+
+ENV HOME=/home/$UNAME
+
+RUN groupadd -f -g "${PGID}" "${UNAME}" && \
+    useradd -mk "$(mktemp -d)" -u "${PUID}" -g "${PGID}" "${UNAME}"
+
+USER ${UNAME}
 
 # network setup
 EXPOSE 47984-47990/tcp
@@ -69,7 +85,8 @@ EXPOSE 48010
 EXPOSE 47998-48000/udp
 
 # setup config directory
-RUN mkdir /config
+RUN mkdir -p ${HOME}/.config/sunshine && \
+    ln -s ${HOME}/config /config
 
 # entrypoint
-ENTRYPOINT ["/usr/bin/sunshine", "file_apps=/config/apps.json", "file_state=/config/sunshine_state.json", "credentials_file=/config/sunshine_state.json", "/config/sunshine.conf"]
+ENTRYPOINT ["/usr/bin/sunshine"]
