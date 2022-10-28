@@ -800,3 +800,17 @@ jobs:
           next_version: ${{ needs.check_changelog.outputs.next_version }}
           last_version: ${{ needs.check_changelog.outputs.last_version }}
           release_body: ${{ needs.check_changelog.outputs.release_body }}
+
+  release-winget:
+    name: Release to WinGet
+    needs: build_win
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    runs-on: windows-latest  # the required action can only be run on Windows
+    steps:
+      - name: Release to WinGet
+        uses: vedantmgoyal2009/winget-releaser@v1
+        with:
+          identifier: LizardByte.Sunshine
+          release-tag: ${{ needs.check_changelog.outputs.next_version }}
+          installers-regex: '\.exe$'  # only .exe files
+          token: ${{ secrets.GH_BOT_TOKEN }}
