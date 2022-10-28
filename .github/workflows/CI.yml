@@ -6,7 +6,7 @@ on:
     branches: [master, nightly]
     types: [opened, synchronize, reopened]
   push:
-    branches: [master]
+    branches: [master, nightly]
   workflow_dispatch:
 
 jobs:
@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
         uses: actions/checkout@v3
 
       - name: Verify Changelog
@@ -66,10 +67,47 @@ jobs:
             "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
           exit 1
 
+  setup_release:
+    name: Setup Release
+    needs: check_changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set release details
+        id: release_details
+        run: |
+          # determine to create a release or not
+          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+            RELEASE=true
+          else
+            RELEASE=false
+          fi
+
+          # set the release tag
+          if [[ $GITHUB_REF == refs/heads/master ]]; then
+            TAG="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_BODY="${{ needs.check_changelog.outputs.release_body }}"
+            PRE_RELEASE="false"
+          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
+            TAG="nightly"
+            RELEASE_BODY="automated nightly release\nupdated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            PRE_RELEASE="true"
+          fi
+
+          echo "create_release=${RELEASE}" >> $GITHUB_OUTPUT
+          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "release_body=${RELEASE_BODY}" >> $GITHUB_OUTPUT
+          echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
+
+    outputs:
+      create_release: ${{ steps.release_details.outputs.create_release }}
+      release_tag: ${{ steps.release_details.outputs.release_tag }}
+      release_body: ${{ steps.release_details.outputs.release_body }}
+      pre_release: ${{ steps.release_details.outputs.pre_release }}
+
   build_linux_aur:
     name: Linux AUR
     runs-on: ubuntu-latest
-    needs: check_changelog
+    needs: setup_release
 
     steps:
       - name: Checkout
@@ -172,7 +210,7 @@ jobs:
   build_linux_flatpak:
     name: Linux Flatpak
     runs-on: ubuntu-22.04
-    needs: check_changelog
+    needs: setup_release
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -260,19 +298,23 @@ jobs:
           name: sunshine-linux-flatpak-${{ matrix.arch }}
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: [check_changelog, setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -385,7 +427,7 @@ jobs:
           mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
 
       - name: Set AppImage Version
-        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version ) }}  # yamllint disable-line rule:line-length
+        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
@@ -442,19 +484,23 @@ jobs:
           name: sunshine-linux-${{ matrix.type }}
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac:
     name: MacOS
     runs-on: macos-11
-    needs: check_changelog
+    needs: setup_release
 
     steps:
       - name: Checkout
@@ -512,18 +558,22 @@ jobs:
           rm -f ./sunshine-macos-experimental-archive.zip
 
       ##  no artifacts to release currently
-      # - name: Create Release
-      #   if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-      #   uses: LizardByte/.github/actions/create_release@master
+      # - name: Create/Update GitHub Release
+      #   if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+      #   uses: ncipollo/release-action@v1
       #   with:
+      #     name: ${{ needs.setup_release.outputs.release_tag }}
+      #     tag: ${{ needs.setup_release.outputs.release_tag }}
+      #     artifacts: "*artifacts/*"
       #     token: ${{ secrets.GH_BOT_TOKEN }}
-      #     next_version: ${{ needs.check_changelog.outputs.next_version }}
-      #     last_version: ${{ needs.check_changelog.outputs.last_version }}
-      #     release_body: ${{ needs.check_changelog.outputs.release_body }}
+      #     allowUpdates: true
+      #     body: ${{ needs.setup_release.outputs.release_body }}
+      #     discussionCategory: announcements
+      #     prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac_port:
     name: Macports
-    needs: check_changelog
+    needs: setup_release
     runs-on: macos-11
 
     steps:
@@ -721,19 +771,23 @@ jobs:
           name: sunshine-macports
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: check_changelog
+    needs: setup_release
 
     steps:
       - name: Checkout
@@ -792,25 +846,29 @@ jobs:
           name: sunshine-windows
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   release-winget:
     name: Release to WinGet
     needs: build_win
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    if: ${{ needs.setup_release.outputs.create_release == 'true' && github.ref == 'refs/heads/master' }}
     runs-on: windows-latest  # the required action can only be run on Windows
     steps:
       - name: Release to WinGet
         uses: vedantmgoyal2009/winget-releaser@v1
         with:
           identifier: LizardByte.Sunshine
-          release-tag: ${{ needs.check_changelog.outputs.next_version }}
+          release-tag: ${{ needs.setup_release.outputs.release_tag }}
           installers-regex: '\.exe$'  # only .exe files
           token: ${{ secrets.GH_BOT_TOKEN }}
