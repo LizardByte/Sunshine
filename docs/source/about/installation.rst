@@ -17,8 +17,9 @@ Binaries can be found in the `latest release`_.
 
 Docker
 ------
-.. Todo:: Docker images of Sunshine are planned to be included in the future.
-   They will be available on `Dockerhub.io`_ and `ghcr.io`_.
+Docker images are available on `Dockerhub.io`_ and `ghcr.io`_.
+
+See :ref:`Docker <about/docker:docker>` for additional information.
 
 Linux
 -----

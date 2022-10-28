@@ -5,8 +5,6 @@ Linux
 
 Requirements
 ------------
-.. Danger:: Installing these dependencies may break your distribution. It is recommended to build in a virtual machine
-   or to use the `Dockerfile builds`_ located in the `./scripts` directory.
 
 Debian Bullseye
 ^^^^^^^^^^^^^^^
@@ -18,7 +16,6 @@ Install Requirements
       sudo apt update && sudo apt install \
           build-essential \
           cmake \
-          git \
           libavdevice-dev \
           libboost-filesystem-dev \
           libboost-log-dev \
@@ -97,7 +94,6 @@ Install Requirements
           build-essential \
           cmake \
           gcc-10 \
-          git \
           g++-10 \
           libavdevice-dev \
           libboost-filesystem1.71-dev \
@@ -150,7 +146,6 @@ Install Requirements
       sudo apt update && sudo apt install \
           build-essential \
           cmake \
-          git \
           g++-10 \
           libavdevice-dev \
           libboost-filesystem-dev \
@@ -183,9 +178,9 @@ Install CuDA
       wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O ./cuda.run && chmod a+x ./cuda.run
       ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm ./cuda.run
 
-Ubuntu 21.10
+Ubuntu 22.04
 ^^^^^^^^^^^^
-End of Life: July 2022
+End of Life: April 2027
 
 Install Requirements
    .. code-block:: bash
@@ -193,7 +188,6 @@ Install Requirements
       sudo apt update && sudo apt install \
           build-essential \
           cmake \
-          git \
           libavdevice-dev \
           libboost-filesystem-dev \
           libboost-log-dev \
@@ -215,12 +209,6 @@ Install Requirements
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit \  # Cuda, NvFBC
 
-Ubuntu 22.04
-^^^^^^^^^^^^
-End of Life: April 2027
-
-.. Todo:: Create Ubuntu 22.04 Dockerfile and complete this documentation.
-
 Build
 -----
 .. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
@@ -230,7 +218,7 @@ Debian based OSes
 
       cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 ..
 
-Red Hat based Oses
+Red Hat based OSes
    .. code-block:: bash
 
       cmake -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ..
@@ -241,62 +229,3 @@ Finally
       make -j ${nproc}
       cpack -G DEB  # optionally, create a deb package
       cpack -G RPM  # optionally, create a rpm package
-
-Dockerfile Builds
------------------
-You may wish to simply build sunshine from source, without bloating your OS with development files.
-There are scripts located in the ``./scripts`` directory that will create docker images that have the necessary
-packages. As a result, removing the development files after you're done is a single command away.
-These scripts use docker under the hood, as such, they can only be used to compile the Linux version
-
-.. Todo:: Publish the Dockerfiles to Dockerhub and ghcr.
-
-Requirements
-   Install `Docker <https://docs.docker.com/engine/install/>`_
-
-Instructions
-   #. :ref:`Clone <building/build:clone>`. Sunshine.
-   #. Select the desired Dockerfile from the ``./scripts`` directory.
-
-      Available Files:
-         .. code-block:: text
-
-            Dockerfile-debian
-            Dockerfile-fedora_33  # end of life
-            Dockerfile-fedora_35
-            Dockerfile-ubuntu_18_04
-            Dockerfile-ubuntu_20_04
-            Dockerfile-ubuntu_21_04  # end of life
-            Dockerfile-ubuntu_21_10
-
-   #. Execute
-
-      .. code-block:: bash
-
-         cd scripts  # move to the scripts directory
-         ./build-container.sh -f Dockerfile-<name>  # create the container (replace the "<name>")
-         ./build-sunshine.sh -p -s ..  # compile and build sunshine
-
-   #. Updating
-
-      .. code-block:: bash
-
-         git pull  # pull the latest changes from github
-         ./build-sunshine.sh -p -s ..  # compile and build sunshine
-
-   #. Optionally, delete the container
-      .. code-block:: bash
-
-         ./build-container.sh -c delete
-
-   #. Install the resulting package
-
-      Debian
-         .. code-block:: bash
-
-            sudo apt install -f sunshine-build/sunshine.deb
-
-      Red Hat
-         .. code-block:: bash
-
-            sudo dnf install sunshine-build/sunshine.rpm
