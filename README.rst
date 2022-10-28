@@ -2,7 +2,7 @@
 
 Overview
 ========
-LizardByte has the full documentation hosted on `Read the Docs <https://docs.lizardbyte.dev/projects/sunshine/>`_.
+LizardByte has the full documentation hosted on `Read the Docs <https://sunshinestream.readthedocs.io/>`_.
 
 About
 -----
@@ -48,7 +48,8 @@ Integrations
 Support
 ---------
 
-Our support methods are listed in our `LizardByte Docs <https://docs.lizardbyte.dev/en/latest/about/support.html>`_.
+Our support methods are listed in our
+`LizardByte Docs <https://lizardbyte.readthedocs.io/en/latest/about/support.html>`_.
 
 Downloads
 ---------
@@ -57,11 +58,16 @@ Downloads
    :alt: GitHub Releases
    :target: https://github.com/LizardByte/Sunshine/releases/latest
 
+.. image:: https://img.shields.io/docker/pulls/lizardbyte/sunshine?style=for-the-badge&logo=docker
+   :alt: Docker
+   :target: https://hub.docker.com/r/lizardbyte/sunshine
+
+Stats
+------
+.. image:: https://img.shields.io/github/stars/lizardbyte/sunshine?logo=github&style=for-the-badge
+   :alt: GitHub stars
+   :target: https://github.com/LizardByte/Sunshine
+
 .. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=AUR&style=for-the-badge&query=$.results.0.NumVotes&url=https%3A%2F%2Fapp.lizardbyte.dev%2Funo%2Faur%2Fsunshine.json&logo=archlinux
    :alt: AUR votes
    :target: https://aur.archlinux.org/packages/sunshine
-
-.. comment
-   image:: https://img.shields.io/docker/pulls/lizardbyte/sunshine?style=for-the-badge&logo=docker
-   :alt: Docker
-   :target: https://hub.docker.com/r/lizardbyte/sunshine
