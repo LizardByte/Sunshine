@@ -124,9 +124,15 @@ Flatpak Package
 
 Start:
 
-   .. code-block:: bash
+   X11 and NVFBC capture (X11 Only)
+      .. code-block:: bash
 
-      flatpak run dev.lizardbyte.sunshine
+         flatpak run dev.lizardbyte.sunshine
+
+   KMS capture (Wayland & X11)
+      .. code-block:: bash
+
+         sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run dev.lizardbyte.sunshine
 
 Uninstall:
 

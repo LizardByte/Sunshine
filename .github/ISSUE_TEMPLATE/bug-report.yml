@@ -6,7 +6,22 @@ body:
     attributes:
       value: >
         **THIS IS NOT THE PLACE TO ASK FOR SUPPORT!**
-        Please use [Discord](https://docs.lizardbyte.dev/en/latest/about/support.html#discord) for support issues.
+        Please use our [Support Center](https://app.lizardbyte.dev/support) for support issues.
+        Non actionable bug reports will be locked and closed!
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists for the bug you encountered.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: checkboxes
+    attributes:
+      label: Is your issue described in the documentation?
+      description: Please read our [documentation](https://docs.lizardbyte.dev/projects/sunshine)
+      options:
+        - label: I have read the documentation
+          required: true
   - type: textarea
     id: description
     attributes:
@@ -30,10 +45,11 @@ body:
       label: Host Operating System
       description: What version operating system are you running the software on?
       options:
+        - Docker
         - Linux
         - macOS
         - Windows
-        - other
+        - other, n/a
   - type: input
     id: os-version
     attributes:
@@ -41,28 +57,50 @@ body:
       description: Provide the version of the operating system. Additionally a build number would be helpful.
     validations:
       required: true
-  - type: input
+  - type: dropdown
     id: os-architecture
     attributes:
       label: Architecture
-      placeholder: e.g. 32 bit, 64 bit, arm
-    validations:
-      required: true
+      options:
+        - 32 bit
+        - 64 bit
+        - arm
+        - other, n/a
   - type: input
     id: version
     attributes:
-      label: Sunshine Version
+      label: Sunshine commit or version
       placeholder: eg. 0.14.0
     validations:
       required: true
-  - type: input
+  - type: dropdown
+    id: package_type
+    attributes:
+      label: Package
+      description: The package you installed
+      options:
+        - Linux - AppImage
+        - Linux - deb
+        - Linux - flatpak
+        - Linux - rpm
+        - macOS - dmg
+        - macOS - Portfile
+        - macOS - pkg
+        - Windows - installer
+        - Windows - portable
+        - other (not listed)
+        - other (self built)
+        - other (fork of this repo)
+  - type: dropdown
     id: graphics_type
     attributes:
       label: GPU Type
       description: The type of the installed graphics card.
-      placeholder: e.g. Intel, AMD, Nvidia
-    validations:
-      required: true
+      options:
+        - AMD
+        - Intel
+        - Nvidia
+        - none (software encoding)
   - type: input
     id: graphics_model
     attributes:
@@ -83,8 +121,8 @@ body:
     id: capture_method
     attributes:
       label: Capture Method (Linux Only)
-      description: The driver/mesa version of the installed graphics card.
-      placeholder: e.g. PipeWire/KVM/X11
+      description: If on Linux, the capture method being used.
+      placeholder: e.g. PipeWire/KVM/X11/KMS
     validations:
       required: false
   - type: textarea
