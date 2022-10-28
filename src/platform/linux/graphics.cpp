@@ -365,6 +365,7 @@ display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay
     "EGL_KHR_create_context",
     "EGL_KHR_surfaceless_context",
     "EGL_EXT_image_dma_buf_import",
+    "EGL_EXT_image_dma_buf_import_modifiers",
   };
 
   for(auto ext : extensions) {

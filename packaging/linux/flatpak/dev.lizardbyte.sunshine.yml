@@ -26,40 +26,14 @@ cleanup:
   - /share/man
 
 modules:
-  - name: cuda
-    disabled: false
-    buildsystem: simple
-    only-arches:
-      - x86_64
-      - aarch64
-    cleanup:
-      - '*'
-    build-commands:
-      - chmod u+x ./cuda.run
-      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR  # yamllint disable-line rule:line-length
-      - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
-      - rm ./cuda.run
-    sources:
-      - type: file
-        only-arches:
-          - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
-        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
-        dest-filename: cuda.run
-      - type: file
-        only-arches:
-          - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run  # yamllint disable-line rule:line-length
-        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
-        dest-filename: cuda.run
-
   - name: boost
     disabled: false
     buildsystem: simple
     build-commands:
       - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
       - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log || cat bootstrap.log
-      - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS" -j $FLATPAK_BUILDER_N_JOBS  # yamllint disable-line rule:line-length
+      - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
+        -j $FLATPAK_BUILDER_N_JOBS
     sources:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
@@ -74,22 +48,20 @@ modules:
       - --disable-doc
       - --disable-programs
       - --disable-decoders
-      - --enable-libfontconfig
-      - --enable-libfreetype
-      - --enable-libopus
-      - --enable-libvorbis
-      - --enable-libvpx
+      - --disable-vdpau
+      - --disable-audiotoolbox
+      - --disable-videotoolbox
+      - --disable-vulkan
+      - --disable-sdl2
+      - --disable-filters
+      - --disable-avfilter
+      - --disable-postproc
+      - --disable-autodetect
+      - --enable-nvenc
+      - --enable-ffnvcodec
+      - --enable-vaapi
       - --enable-libx264
       - --enable-libx265
-      - --enable-nvenc
-      - --enable-encoder=h264_v4l2m2m
-      - --enable-encoder=hevc_v4l2m2m
-      # - --enable-nonfree
-      # - --enable-cuda-nvcc
-      # - --enable-libnpp
-      # - --extra-cflags=-I${FLATPAK_DEST}/cuda/include
-      # - --extra-ldflags=-L${FLATPAK_DEST}/cuda/lib64
-      # - --nvccflags="-gencode arch=compute_52,code=sm_52 -O2"
     cleanup:
       - /share
     sources:
@@ -107,6 +79,7 @@ modules:
             sha256: 8b237e94b08c196a1da22f2f25875f10be4cff3648df4eeff21e00da8f683fc2
 
       - name: x265
+        disabled: false
         buildsystem: cmake-ninja
         builddir: true
         subdir: source
@@ -157,24 +130,18 @@ modules:
       - --disable-doxygen-html
       - --disable-manpages
       - --disable-xmltoman
+      - --disable-libevent
     sources:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
 
-    modules:
-      - name: libevent
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevent/libevent_2.1.12-stable.orig.tar.gz
-            sha256: 92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb
-
   - name: libevdev
+    disabled: false
     buildsystem: meson
     config-opts:
       - -Ddocumentation=disabled
+      - -Dtests=disabled
     cleanup:
       - /bin
     sources:
@@ -182,17 +149,36 @@ modules:
         url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
         sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
 
-    modules:
-      - name: libcheck
-        buildsystem: cmake
-        cleanup:
-          - /bin
-        sources:
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/universe/c/check/check_0.15.2.orig.tar.gz
-            sha256: 8451b68ac5d6f3157b24f22eceff575bcf566264f6d78f3852f89d4e08cf42e1
+  - name: cuda
+    disabled: false
+    buildsystem: simple
+    only-arches:
+      - x86_64
+      - aarch64
+    cleanup:
+      - '*'
+    build-commands:
+      - chmod u+x ./cuda.run
+      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm
+        --tmpdir=$FLATPAK_BUILDER_BUILDDIR
+      - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
+      - rm ./cuda.run
+    sources:
+      - type: file
+        only-arches:
+          - x86_64
+        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
+        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
+        dest-filename: cuda.run
+      - type: file
+        only-arches:
+          - aarch64
+        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run  # yamllint disable-line rule:line-length
+        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
+        dest-filename: cuda.run
 
   - name: sunshine
+    disabled: false
     buildsystem: cmake
     no-make-install: false
     builddir: true
@@ -214,3 +200,11 @@ modules:
         url: '@GITHUB_CLONE_URL@'
         branch: '@GITHUB_BRANCH@'
         commit: '@GITHUB_COMMIT@'
+    post-install:
+      # use `sed` to update apps.json with prefixes required for flatpak
+      # -r (regex)
+      # -z (handle new lines) https://linuxhint.com/sed-replace-newline-with-space
+      # `/gm` global and multiline
+      - sed -r -z -i -e
+        's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
+        /app/share/sunshine/apps.json
