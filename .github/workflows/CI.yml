@@ -83,18 +83,23 @@ jobs:
           fi
 
           # set the release tag
+          COMMIT=${{ github.sha }}
           if [[ $GITHUB_REF == refs/heads/master ]]; then
             TAG="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
             RELEASE_BODY="${{ needs.check_changelog.outputs.release_body }}"
             PRE_RELEASE="false"
           elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
-            TAG="nightly"
+            TAG="${COMMIT:0:7}"
+            RELEASE_NAME="nightly"
             RELEASE_BODY="automated nightly release\nupdated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             PRE_RELEASE="true"
           fi
 
           echo "create_release=${RELEASE}" >> $GITHUB_OUTPUT
           echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
           echo "release_body=${RELEASE_BODY}" >> $GITHUB_OUTPUT
           echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
 
@@ -217,7 +222,7 @@ jobs:
         arch: ['x86_64', 'aarch64']
         exclude:
           # exclude `aarch64` on anything except a release triggering event
-          - arch: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/master' ) && '' || 'aarch64' }}
+          - arch: ${{ needs.setup_release.outputs.create_release == 'true' && '' || 'aarch64' }}
 
     steps:
       - name: Checkout
@@ -302,8 +307,9 @@ jobs:
         if: ${{ needs.setup_release.outputs.create_release == 'true' }}
         uses: ncipollo/release-action@v1
         with:
-          name: ${{ needs.setup_release.outputs.release_tag }}
+          name: ${{ needs.setup_release.outputs.release_name }}
           tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
           artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
@@ -488,8 +494,9 @@ jobs:
         if: ${{ needs.setup_release.outputs.create_release == 'true' }}
         uses: ncipollo/release-action@v1
         with:
-          name: ${{ needs.setup_release.outputs.release_tag }}
+          name: ${{ needs.setup_release.outputs.release_name }}
           tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
           artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
@@ -557,19 +564,20 @@ jobs:
           rm -f ./sunshine-macos-experimental-bundle.dmg
           rm -f ./sunshine-macos-experimental-archive.zip
 
-      ##  no artifacts to release currently
-      # - name: Create/Update GitHub Release
-      #   if: ${{ needs.setup_release.outputs.create_release == 'true' }}
-      #   uses: ncipollo/release-action@v1
-      #   with:
-      #     name: ${{ needs.setup_release.outputs.release_tag }}
-      #     tag: ${{ needs.setup_release.outputs.release_tag }}
-      #     artifacts: "*artifacts/*"
-      #     token: ${{ secrets.GH_BOT_TOKEN }}
-      #     allowUpdates: true
-      #     body: ${{ needs.setup_release.outputs.release_body }}
-      #     discussionCategory: announcements
-      #     prerelease: ${{ needs.setup_release.outputs.pre_release }}
+#      #  no artifacts to release currently
+#      - name: Create/Update GitHub Release
+#        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+#        uses: ncipollo/release-action@v1
+#        with:
+#          name: ${{ needs.setup_release.outputs.release_name }}
+#          tag: ${{ needs.setup_release.outputs.release_tag }}
+#          commit: ${{ needs.setup_release.outputs.release_commit }}
+#          artifacts: "*artifacts/*"
+#          token: ${{ secrets.GH_BOT_TOKEN }}
+#          allowUpdates: true
+#          body: ${{ needs.setup_release.outputs.release_body }}
+#          discussionCategory: announcements
+#          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac_port:
     name: Macports
@@ -775,8 +783,9 @@ jobs:
         if: ${{ needs.setup_release.outputs.create_release == 'true' }}
         uses: ncipollo/release-action@v1
         with:
-          name: ${{ needs.setup_release.outputs.release_tag }}
+          name: ${{ needs.setup_release.outputs.release_name }}
           tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
           artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
@@ -850,8 +859,9 @@ jobs:
         if: ${{ needs.setup_release.outputs.create_release == 'true' }}
         uses: ncipollo/release-action@v1
         with:
-          name: ${{ needs.setup_release.outputs.release_tag }}
+          name: ${{ needs.setup_release.outputs.release_name }}
           tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
           artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
