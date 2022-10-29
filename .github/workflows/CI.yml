@@ -90,9 +90,9 @@ jobs:
             RELEASE_BODY="${{ needs.check_changelog.outputs.release_body }}"
             PRE_RELEASE="false"
           elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
-            TAG="${COMMIT:0:7}"
+            TAG="nightly-dev"
             RELEASE_NAME="nightly"
-            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
             PRE_RELEASE="true"
           fi
 
@@ -110,6 +110,32 @@ jobs:
       release_name: ${{ steps.release_details.outputs.release_name }}
       release_body: ${{ steps.release_details.outputs.release_body }}
       pre_release: ${{ steps.release_details.outputs.pre_release }}
+
+  setup_flatpak_matrix:
+    name: Setup Flatpak Matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set release details
+        id: flatpak_matrix
+        # https://www.cynkra.com/blog/2020-12-23-dynamic-gha
+        run: |
+          # determine which architectures to build
+          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+            matrix=$((
+              echo '{ "arch" : ["x86_64", "aarch64"] }'
+            ) | jq -c .)
+          else
+            matrix=$((
+              echo '{ "arch" : ["x86_64"] }'
+            ) | jq -c .)
+          fi
+
+          echo $matrix
+          echo $matrix | jq .
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+    outputs:
+      matrix: ${{ steps.flatpak_matrix.outputs.matrix }}
 
   build_linux_aur:
     name: Linux AUR
@@ -217,14 +243,10 @@ jobs:
   build_linux_flatpak:
     name: Linux Flatpak
     runs-on: ubuntu-22.04
-    needs: setup_release
+    needs: [setup_release, setup_flatpak_matrix]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
-      matrix:
-        arch: ['x86_64', 'aarch64']
-        exclude:
-          # exclude `aarch64` on anything except a release triggering event
-          - arch: ${{ needs.setup_release.outputs.create_release == 'true' && '' || 'aarch64' }}
+      matrix: ${{fromJson(needs.setup_flatpak_matrix.outputs.matrix)}}
 
     steps:
       - name: Checkout
