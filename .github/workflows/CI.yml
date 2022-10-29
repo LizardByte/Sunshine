@@ -92,7 +92,7 @@ jobs:
           elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
             TAG="${COMMIT:0:7}"
             RELEASE_NAME="nightly"
-            RELEASE_BODY="automated nightly release\nupdated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
             PRE_RELEASE="true"
           fi
 
@@ -106,6 +106,8 @@ jobs:
     outputs:
       create_release: ${{ steps.release_details.outputs.create_release }}
       release_tag: ${{ steps.release_details.outputs.release_tag }}
+      release_commit: ${{ steps.release_details.outputs.release_commit }}
+      release_name: ${{ steps.release_details.outputs.release_name }}
       release_body: ${{ steps.release_details.outputs.release_body }}
       pre_release: ${{ steps.release_details.outputs.pre_release }}
 
