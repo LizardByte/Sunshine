@@ -74,6 +74,8 @@ jobs:
     steps:
       - name: Set release details
         id: release_details
+        env:
+          release_body: ${{ needs.check_changelog.outputs.release_body }}
         run: |
           # determine to create a release or not
           if [[ $GITHUB_EVENT_NAME == "push" ]]; then
@@ -87,7 +89,7 @@ jobs:
           if [[ $GITHUB_REF == refs/heads/master ]]; then
             TAG="${{ needs.check_changelog.outputs.next_version }}"
             RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
-            RELEASE_BODY="${{ needs.check_changelog.outputs.release_body }}"
+            RELEASE_BODY="$release_body"
             PRE_RELEASE="false"
           elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
             TAG="nightly-dev"
