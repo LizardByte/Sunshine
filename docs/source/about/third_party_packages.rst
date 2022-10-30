@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/third_party_packages.rst
-
 Third Party Packages
 ====================
 
@@ -15,12 +13,24 @@ Chocolatey
 .. image:: https://img.shields.io/chocolatey/dt/sunshine?style=for-the-badge&logo=chocolatey
    :alt: Chocolatey
 
+nixpkgs
+-------
+.. image:: https://img.shields.io/badge/dynamic/xml?color=orange&label=nixpkgs&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27nix_unstable%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=nixos
+   :alt: nixpgs Version
+   :target: https://github.com/NixOS/nixpkgs/blob/master/pkgs/servers/sunshine/default.nix
+
 Scoop
 -----
 
 .. image:: https://img.shields.io/scoop/v/sunshine?bucket=extras&style=for-the-badge
    :alt: Scoop Version (extras bucket)
    :target: https://scoop.sh/#/apps?s=0&d=1&o=true&q=sunshine
+
+Solus
+-----
+.. image:: https://img.shields.io/badge/dynamic/xml?color=orange&label=Solus&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27solus%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=solus
+   :alt: Solus Version
+   :target: https://dev.getsol.us/source/sunshine
 
 Winget
 ------

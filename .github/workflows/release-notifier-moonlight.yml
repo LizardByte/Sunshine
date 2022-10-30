@@ -1,0 +1,22 @@
+---
+name: Release Notifications (Moonlight)
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  discord:
+    runs-on: ubuntu-latest
+    steps:
+      - name: discord
+        uses: sarisia/actions-status-discord@v1  # https://github.com/sarisia/actions-status-discord
+        with:
+          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MOONLIGHT }}
+          nodetail: true
+          nofail: false
+          username: ${{ secrets.DISCORD_USERNAME }}
+          avatar_url: ${{ secrets.ORG_LOGO_URL }}
+          title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
+          description: ${{ github.event.release.body }}
+          color: 0xFF4500

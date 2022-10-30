@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/contributing/localization.rst
-
 Localization
 ============
 Sunshine is being localized into various languages. The default language is `en` (English) and is highlighted green.
@@ -24,15 +22,15 @@ Only elements of the API are planned to be translated.
 
 .. Attention:: The rest API has not yet been implemented.
 
-Translations Basics
+**Translations Basics**
    - The brand names `LizardByte` and `Sunshine` should never be translated.
    - Other brand names should never be translated.
      Examples:
 
-       - AMD
-       - Nvidia
+     - AMD
+     - Nvidia
 
-CrowdIn Integration
+**CrowdIn Integration**
    How does it work?
 
    When a change is made to sunshine source code, a workflow generates new translation templates
@@ -47,15 +45,14 @@ Extraction
 There should be minimal cases where strings need to be extracted from source code; however it may be necessary in some
 situations. For example if a system tray icon is added it should be localized as it is user interfacing.
 
-   - Wrap the string to be extracted in a function as shown.
+- Wrap the string to be extracted in a function as shown.
+   .. code-block:: cpp
 
-      .. code-block:: cpp
+      #include <boost/locale.hpp>
+      boost::locale::translate("Hello world!")
 
-         #include <boost/locale.hpp>
-         boost::locale::translate("Hello world!")
-
-   .. Tip:: More examples can be found in the documentation for
-      `boost locale <https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html>`_.
+.. Tip:: More examples can be found in the documentation for
+   `boost locale <https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html>`_.
 
 .. Warning:: This is for information only. Contributors should never include manually updated template files, or
    manually compiled language files in Pull Requests.
@@ -65,20 +62,20 @@ used by CrowdIn to generate language specific template files. The file is genera
 `.github/workflows/localize.yml` workflow and is run on any push event into the `nightly` branch. Jobs are only run if
 any of the following paths are modified.
 
-   .. code-block:: yaml
+.. code-block:: yaml
 
-      - 'src/**'
+   - 'src/**'
 
 When testing locally it may be desirable to manually extract, initialize, update, and compile strings. Python is
 required for this, along with the python dependencies in the `./scripts/requirements.txt` file. Additionally,
 `xgettext <https://www.gnu.org/software/gettext/>`_ must be installed.
 
-   Extract, initialize, and update
-      .. code-block:: bash
+**Extract, initialize, and update**
+   .. code-block:: bash
 
-         python ./scripts/_locale.py --extract --init --update
+      python ./scripts/_locale.py --extract --init --update
 
-   Compile
-      .. code-block:: bash
+**Compile**
+   .. code-block:: bash
 
-         python ./scripts/_locale.py --compile
+      python ./scripts/_locale.py --compile

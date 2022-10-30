@@ -1,4 +1,3 @@
-//
 // Created by TheElixZammuto on 2021-05-09.
 // TODO: Authentication, better handling of routes common to nvhttp, cleanup
 
@@ -92,7 +91,7 @@ bool authenticate(resp_https_t response, req_https_t request) {
     return false;
   }
 
-  //If credentials are shown, redirect the user to a /welcome page
+  // If credentials are shown, redirect the user to a /welcome page
   if(config::sunshine.username.empty()) {
     send_redirect(response, request, "/welcome");
     return false;
@@ -314,7 +313,7 @@ void saveApp(resp_https_t response, req_https_t request) {
 
   BOOST_LOG(fatal) << config::stream.file_apps;
   try {
-    //TODO: Input Validation
+    // TODO: Input Validation
     pt::read_json(ss, inputTree);
     pt::read_json(config::stream.file_apps, fileTree);
 
@@ -335,7 +334,7 @@ void saveApp(resp_https_t response, req_https_t request) {
       apps_node.push_back(std::make_pair("", inputTree));
     }
     else {
-      //Unfortuantely Boost PT does not allow to directly edit the array, copy should do the trick
+      // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
       pt::ptree newApps;
       int i = 0;
       for(const auto &kv : apps_node) {
@@ -388,7 +387,7 @@ void deleteApp(resp_https_t response, req_https_t request) {
       return;
     }
     else {
-      //Unfortuantely Boost PT does not allow to directly edit the array, copy should do the trick
+      // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
       pt::ptree newApps;
       int i = 0;
       for(const auto &kv : apps_node) {
@@ -452,7 +451,7 @@ void saveConfig(resp_https_t response, req_https_t request) {
   });
   pt::ptree inputTree;
   try {
-    //TODO: Input Validation
+    // TODO: Input Validation
     pt::read_json(ss, inputTree);
     for(const auto &kv : inputTree) {
       std::string value = inputTree.get<std::string>(kv.first);
@@ -488,7 +487,7 @@ void savePassword(resp_https_t response, req_https_t request) {
   });
 
   try {
-    //TODO: Input Validation
+    // TODO: Input Validation
     pt::read_json(ss, inputTree);
     auto username        = inputTree.count("currentUsername") > 0 ? inputTree.get<std::string>("currentUsername") : "";
     auto newUsername     = inputTree.get<std::string>("newUsername");
@@ -544,7 +543,7 @@ void savePin(resp_https_t response, req_https_t request) {
   });
 
   try {
-    //TODO: Input Validation
+    // TODO: Input Validation
     pt::read_json(ss, inputTree);
     std::string pin = inputTree.get<std::string>("pin");
     outputTree.put("status", nvhttp::pin(pin));
