@@ -75,7 +75,7 @@ jobs:
       - name: Set release details
         id: release_details
         env:
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          RELEASE_BODY: ${{ needs.check_changelog.outputs.release_body }}
         run: |
           # determine to create a release or not
           if [[ $GITHUB_EVENT_NAME == "push" ]]; then
@@ -89,12 +89,12 @@ jobs:
           if [[ $GITHUB_REF == refs/heads/master ]]; then
             TAG="${{ needs.check_changelog.outputs.next_version }}"
             RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
-            RELEASE_BODY="$release_body"
+            NEW_RELEASE_BODY="$RELEASE_BODY"
             PRE_RELEASE="false"
           elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
             TAG="nightly-dev"
             RELEASE_NAME="nightly"
-            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
+            NEW_RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
             PRE_RELEASE="true"
           fi
 
@@ -102,7 +102,7 @@ jobs:
           echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
           echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
           echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
-          echo "release_body=${RELEASE_BODY}" >> $GITHUB_OUTPUT
+          echo "release_body=${NEW_RELEASE_BODY}" >> $GITHUB_OUTPUT
           echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
 
     outputs:
