@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/installation.rst
-
 Installation
 ============
 The recommended method for running Sunshine is to use the `binaries`_ bundled with the `latest release`_.
@@ -17,8 +15,9 @@ Binaries can be found in the `latest release`_.
 
 Docker
 ------
-.. Todo:: Docker images of Sunshine are planned to be included in the future.
-   They will be available on `Dockerhub.io`_ and `ghcr.io`_.
+Docker images are available on `Dockerhub.io`_ and `ghcr.io`_.
+
+See :ref:`Docker <about/docker:docker>` for additional information.
 
 Linux
 -----
@@ -35,19 +34,19 @@ AppImage
 .. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:appimage?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-According to AppImageLint the AppImage can run on the following distros.
+According to AppImageLint the supported distro matrix of the AppImage is below.
 
-   - [✖] Debian oldstable (buster)
-   - [✔] Debian stable (bullseye)
-   - [✔] Debian testing (bookworm)
-   - [✔] Debian unstable (sid)
-   - [✔] Ubuntu jammy
-   - [✔] Ubuntu impish
-   - [✔] Ubuntu focal
-   - [✖] Ubuntu bionic
-   - [✖] Ubuntu xenial
-   - [✖] Ubuntu trusty
-   - [✖] CentOS 7
+- [✖] Debian oldstable (buster)
+- [✔] Debian stable (bullseye)
+- [✔] Debian testing (bookworm)
+- [✔] Debian unstable (sid)
+- [✔] Ubuntu jammy
+- [✔] Ubuntu impish
+- [✔] Ubuntu focal
+- [✖] Ubuntu bionic
+- [✖] Ubuntu xenial
+- [✖] Ubuntu trusty
+- [✖] CentOS 7
 
 #. Download ``sunshine-appimage.zip`` and extract the contents to your home directory.
 #. Open terminal and run the following code.
@@ -57,13 +56,11 @@ According to AppImageLint the AppImage can run on the following distros.
       ./sunshine.AppImage --install
 
 Start:
-
    .. code-block:: bash
 
       ./sunshine.AppImage --install && ./sunshine.AppImage
 
 Uninstall:
-
    .. code-block:: bash
 
       ./sunshine.AppImage --remove
@@ -79,7 +76,6 @@ AUR Package
       makepkg -fi
 
 Uninstall:
-
    .. code-block:: bash
 
       pacman -R sunshine
@@ -98,7 +94,6 @@ Debian Package
 .. Tip:: You can double click the deb file to see details about the package and begin installation.
 
 Uninstall:
-
    .. code-block:: bash
 
       sudo apt remove sunshine
@@ -122,13 +117,17 @@ Flatpak Package
          flatpak install --user sunshine.flatpak
 
 Start:
+   X11 and NVFBC capture (X11 Only)
+      .. code-block:: bash
 
-   .. code-block:: bash
+         flatpak run dev.lizardbyte.sunshine
 
-      flatpak run dev.lizardbyte.sunshine
+   KMS capture (Wayland & X11)
+      .. code-block:: bash
+
+         sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run dev.lizardbyte.sunshine
 
 Uninstall:
-
    .. code-block:: bash
 
       flatpak uninstall --delete-data sunshine.flatpak
@@ -154,7 +153,6 @@ RPM Package
 .. Tip:: You can double click the rpm file to see details about the package and begin installation.
 
 Uninstall:
-
    .. code-block:: bash
 
       sudo dnf remove sunshine
@@ -171,7 +169,6 @@ pkg
 #. Download the ``sunshine.pkg`` file and install it as normal.
 
 Uninstall:
-
    .. code-block:: bash
 
       cd /etc/sunshine/assets
@@ -187,7 +184,6 @@ Portfile
       sudo nano /opt/local/etc/macports/sources.conf
 
    Add this line, replacing your username, below the line that starts with ``rsync``.
-
       ``file:///Users/<username>/ports``
 
    ``Ctrl+x``, then ``Y`` to exit and save changes.
@@ -205,7 +201,6 @@ Portfile
 #. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
 
 Uninstall:
-
    .. code-block:: bash
 
       sudo port uninstall sunshine

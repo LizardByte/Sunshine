@@ -200,3 +200,11 @@ modules:
         url: '@GITHUB_CLONE_URL@'
         branch: '@GITHUB_BRANCH@'
         commit: '@GITHUB_COMMIT@'
+    post-install:
+      # use `sed` to update apps.json with prefixes required for flatpak
+      # -r (regex)
+      # -z (handle new lines) https://linuxhint.com/sed-replace-newline-with-space
+      # `/gm` global and multiline
+      - sed -r -z -i -e
+        's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
+        /app/share/sunshine/apps.json

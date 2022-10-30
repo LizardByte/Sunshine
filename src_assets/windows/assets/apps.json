@@ -1,14 +1,15 @@
 {
-	"env":{
-		"PATH":"$(PATH);C:\\Program Files (x86)\\Steam"
-	},
-	"apps":[
-	{
-		"name":"Steam BigPicture",
-
-		"output":"steam.txt",
-		"detached":["steam steam://open/bigpicture"],
-		"image-path":"steam.png"
-	}
-	]
+  "env": {
+    "PATH": "$(PATH);C:\\Program Files (x86)\\Steam"
+  },
+  "apps": [
+    {
+      "name": "Steam BigPicture",
+      "output": "steam.txt",
+      "detached": [
+        "steam steam://open/bigpicture"
+      ],
+      "image-path": "steam.png"
+    }
+  ]
 }

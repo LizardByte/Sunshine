@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/usage.rst
-
 Usage
 =====
 #. See the `setup`_ section for your specific OS.
@@ -12,6 +10,7 @@ Usage
    .. Tip:: If using the Linux AppImage, replace ``sunshine`` with ``./sunshine.AppImage``
 
 #. Configure Sunshine in the web ui
+
    The web ui is available on `https://localhost:47990 <https://localhost:47990>`_ by default. You may replace
    `localhost` with your internal ip address.
 
@@ -20,14 +19,14 @@ Usage
    .. Caution:: If running for the first time, make sure to note the username and password Sunshine showed to you,
       since you cannot get back later!
 
-   Add games and applications.
-      This can be configured in the web ui.
+   **Add games and applications.**
+         This can be configured in the web ui.
 
-      .. Note:: Additionally, apps can be configured manually. `src_assets/<os>/config/apps.json` is an example of a
-         list of applications that are started just before running a stream. This is the directory within the GitHub
-         repo.
+         .. Note:: Additionally, apps can be configured manually. `src_assets/<os>/config/apps.json` is an example of a
+            list of applications that are started just before running a stream. This is the directory within the GitHub
+            repo.
 
-      .. Attention:: Application list is not fully supported on macOS
+         .. Attention:: Application list is not fully supported on macOS
 
 #. In Moonlight, you may need to add the PC manually.
 #. When Moonlight request you insert the correct pin on sunshine:
@@ -46,7 +45,6 @@ The Sunshine user interface will be available on port 47990 by default.
 Arguments
 ---------
 To get a list of available arguments run the following:
-
    .. code-block:: bash
 
       sunshine --help
@@ -56,7 +54,7 @@ Setup
 
 Linux
 ^^^^^
-The deb, rpm, and AppImage packages handle these steps automatically. The flatpak does not, third party packages
+The `deb`, `rpm`, and `AppImage` packages handle these steps automatically. The flatpak does not, third party packages
 also may not.
 
 Sunshine needs access to `uinput` to create mouse and gamepad events.
@@ -67,25 +65,15 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
          sudo usermod -a -G input $USER
 
 #. Create `udev` rules.
-      .. code-block:: bash
-
-         sudo nano /etc/udev/rules.d/85-sunshine.rules
-
-      Input the following contents.
-
       .. code-block::
 
-         KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
-
-      Save the file and exit:
-
-         #. ``CTRL+X`` to start exit.
-         #. ``Y`` to save modifications.
+         echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' | \
+         sudo tee /etc/udev/rules.d/85-sunshine-input.rules
 
 #. Optionally, configure autostart service
-      - filename: ``~/.config/systemd/user/sunshine.service``
-      - contents:
 
+   - filename: ``~/.config/systemd/user/sunshine.service``
+   - contents:
          .. code-block::
 
             [Unit]
@@ -110,12 +98,12 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             Flatpak    flatpak run dev.lizardbyte.sunshine              ✖
             ========   ==============================================   ===============
 
-      Start once
+   **Start once**
          .. code-block:: bash
 
             systemctl --user start sunshine
 
-      Start on boot
+   **Start on boot**
          .. code-block:: bash
 
             systemctl --user enable sunshine
@@ -124,12 +112,12 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
       .. Note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
          allow Sunshine to use KMS.
 
-      Enable
+      **Enable**
          .. code-block:: bash
 
             sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
 
-      Disable
+      **Disable**
          .. code-block:: bash
 
             sudo setcap -r $(readlink -f $(which sunshine))
@@ -151,8 +139,7 @@ select their sink as audio device in `sunshine.conf`.
 .. Caution:: Gamepads are not currently supported.
 
 Configure autostart service
-
-   MacPorts
+   **MacPorts**
       .. code-block:: bash
 
          sudo port load Sunshine
@@ -163,10 +150,10 @@ For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releas
 
 Shortcuts
 ---------
-All shortcuts start with CTRL + ALT + SHIFT, just like Moonlight
+All shortcuts start with ``CTRL + ALT + SHIFT``, just like Moonlight
 
-   - ``CTRL + ALT + SHIFT + N`` - Hide/Unhide the cursor (This may be useful for Remote Desktop Mode for Moonlight)
-   - ``CTRL + ALT + SHIFT + F1/F13`` - Switch to different monitor for Streaming
+- ``CTRL + ALT + SHIFT + N`` - Hide/Unhide the cursor (This may be useful for Remote Desktop Mode for Moonlight)
+- ``CTRL + ALT + SHIFT + F1/F13`` - Switch to different monitor for Streaming
 
 Application List
 ----------------
@@ -179,22 +166,21 @@ Application List
 - ``"Variable name":"Variable value"``
 - ``apps`` - The list of applications
 - Example application:
-
    .. code-block:: json
 
       {
       "name":"An App",
       "cmd":"command to open app",
       "prep-cmd":[
-      		{
-      			"do":"some-command",
-      			"undo":"undo-that-command"
-      		}
-      	],
+            {
+               "do":"some-command",
+               "undo":"undo-that-command"
+            }
+         ],
       "detached":[
-      	"some-command",
-      	"another-command"
-      	]
+         "some-command",
+         "another-command"
+         ]
       }
 
    - ``name`` - The name of the application/game
@@ -202,24 +188,28 @@ Application List
    - ``detached`` - A list of commands to be run and forgotten about
    - ``prep-cmd`` - A list of commands to be run before/after the application
 
-      - If any of the prep-commands fail, starting the application is aborted
-      - ``do`` - Run before the application
+     - If any of the prep-commands fail, starting the application is aborted
+     - ``do`` - Run before the application
 
-         - If it fails, all ``undo`` commands of the previously succeeded ``do`` commands are run
+       - If it fails, all ``undo`` commands of the previously succeeded ``do`` commands are run
 
-      - ``undo`` - Run after the application has terminated
+     - ``undo`` - Run after the application has terminated
 
-         - This should not fail considering it is supposed to undo the ``do`` commands
-         - If it fails, Sunshine is terminated
+       - This should not fail considering it is supposed to undo the ``do`` commands
+       - If it fails, Sunshine is terminated
 
-      - ``cmd`` - The main application
+     - ``cmd`` - The main application
 
-         - If not specified, a process is started that sleeps indefinitely
+       - If not specified, a process is started that sleeps indefinitely
 
 Considerations
 --------------
 - When an application is started, if there is an application already running, it will be terminated.
 - When the application has been shutdown, the stream shuts down as well.
+
+  - For example, if you attempt to run ``steam`` as a ``cmd`` instead of ``detached`` the stream will immediately fail.
+    This is due to the method in which the steam process is executed. Other applications may behave similarly.
+
 - In addition to the apps listed, one app "Desktop" is hardcoded into Sunshine. It does not start an application,
   instead it simply starts a stream.
 - For the Linux flatpak you must prepend commands with ``flatpak-spawn --host``.
