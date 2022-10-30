@@ -89,12 +89,12 @@ jobs:
           if [[ $GITHUB_REF == refs/heads/master ]]; then
             TAG="${{ needs.check_changelog.outputs.next_version }}"
             RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
-            NEW_RELEASE_BODY="$RELEASE_BODY"
+            RELEASE_BODY="$RELEASE_BODY"
             PRE_RELEASE="false"
           elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
             TAG="nightly-dev"
             RELEASE_NAME="nightly"
-            NEW_RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
+            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
             PRE_RELEASE="true"
           fi
 
@@ -102,15 +102,19 @@ jobs:
           echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
           echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
           echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
-          echo "release_body=${NEW_RELEASE_BODY}" >> $GITHUB_OUTPUT
           echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
+
+          # this is stupid but works for multiline strings
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
     outputs:
       create_release: ${{ steps.release_details.outputs.create_release }}
       release_tag: ${{ steps.release_details.outputs.release_tag }}
       release_commit: ${{ steps.release_details.outputs.release_commit }}
       release_name: ${{ steps.release_details.outputs.release_name }}
-      release_body: ${{ steps.release_details.outputs.release_body }}
+      release_body: ${{ env.RELEASE_BODY }}
       pre_release: ${{ steps.release_details.outputs.pre_release }}
 
   setup_flatpak_matrix:
