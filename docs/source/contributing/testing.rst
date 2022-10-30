@@ -1,12 +1,10 @@
-:github_url: https://github.com/RetroArcher/RetroArcher/tree/nightly/docs/source/contributing/testing.rst
-
 Testing
 =======
 
 Clang Format
 ------------
 Source code is tested against the `.clang-format` file for linting errors. The workflow file responsible for clang
-format testing is `.github/workflows/clang.yml`.
+format testing is `.github/workflows/cpp-clang-format-lint.yml`.
 
 Test clang-format locally.
    .. Todo:: This documentation needs to be improved.
@@ -17,9 +15,9 @@ Test clang-format locally.
 
 Sphinx
 ------
-Sunshine uses `Sphinx <https://www.sphinx-doc.org/en/master/>`_ for documentation building. Sphinx is included
-in the `./scripts/requirements.txt` file. Python is required to build sphinx docs. Installation and setup of python
-will not be covered here.
+Sunshine uses `Sphinx <https://www.sphinx-doc.org/en/master/>`_ for documentation building. Sphinx, along with other
+required documentation depencies are included in the `./docs/requirements.txt` file. Python is required to build
+sphinx docs. Installation and setup of python will not be covered here.
 
 The config file for Sphinx is `docs/source/conf.py`. This is already included in the repo and should not be modified.
 

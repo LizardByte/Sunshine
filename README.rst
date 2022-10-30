@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/README.rst
-
 Overview
 ========
 LizardByte has the full documentation hosted on `Read the Docs <https://sunshinestream.readthedocs.io/>`_.
@@ -13,18 +11,18 @@ Connect to Sunshine from any Moonlight client, available for nearly any device i
 
 These are the advantages of Sunshine over GeForce Experience.
 
-   - FOSS (Free and Open Source Software)
-   - Multi-platform
+- FOSS (Free and Open Source Software)
+- Multi-platform
 
-      - Linux
-      - macOS
-      - Windows
+  - Linux
+  - macOS
+  - Windows
 
-   - Pair over web ui
-   - Supports AMD, Intel, and Nvidia GPUs for encoding
-   - Supports software encoding
-   - Supports streaming to multiple clients
-   - Web UI for configuration
+- Pair over web ui
+- Supports AMD, Intel, and Nvidia GPUs for encoding
+- Supports software encoding
+- Supports streaming to multiple clients
+- Web UI for configuration
 
 Integrations
 ------------
