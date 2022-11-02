@@ -94,3 +94,15 @@ uid=1001(dockeruser) gid=1001(dockergroup) groups=1001(dockergroup)
 ```
 
 If you want to change the PUID or PGID after the image has been built, it will require rebuilding the image.
+
+## Supported Architectures
+
+Specifying `lizardbyte/sunshine:latest` or `ghcr.io/lizardbyte/sunshine:latest` should retrieve the correct
+image for your architecture.
+
+The architectures supported by this image are:
+
+| Architecture | Available |
+|:------------:|:---------:|
+|    x86-64    |     ✅     |
+|    arm64     |     ✅     |
