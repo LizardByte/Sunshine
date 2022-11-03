@@ -1,6 +1,5 @@
 #!/bin/sh
 
-cp /app/share/sunshine/udev/rules.d/85-sunshine.rules $HOME/.config/sunshine
-flatpak-spawn --host pkexec sh -c "sudo usermod -a -G input $USER && cp $HOME/.config/sunshine/85-sunshine.rules /etc/udev/rules.d"
-rm $HOME/.config/sunshine/85-sunshine.rules
+UDEV=$(cat /app/share/sunshine/udev/rules.d/85-sunshine.rules)
+flatpak-spawn --host pkexec sh -c "usermod -a -G input $USER && echo '$UDEV' > /etc/udev/rules.d/85-sunshine.rules"
 echo Restart computer for mouse permission to take effect.
