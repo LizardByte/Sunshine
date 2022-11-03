@@ -208,8 +208,4 @@ modules:
       - sed -r -z -i -e
         's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
         /app/share/sunshine/apps.json
-      - pwd
-      - printenv
-      - ls .
-      - ls $FLATPAK_BUILDER_BUILDDIR
-      - install -D packaging/linux/flatpak/scripts/* /app/bin
+      - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
