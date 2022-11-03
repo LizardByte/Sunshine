@@ -210,6 +210,6 @@ modules:
         /app/share/sunshine/apps.json
       - pwd
       - ls .
-      - install -D packaging/linux/flatpak/install-mouse /app/bin/install-mouse
-      - install -D packaging/linux/flatpak/remove-mouse /app/bin/remove-mouse
+      - install -D packaging/linux/flatpak/install-mouse.sh /app/bin/install-mouse
+      - install -D packaging/linux/flatpak/remove-mouse.sh /app/bin/remove-mouse
 
