@@ -208,6 +208,8 @@ modules:
       - sed -r -z -i -e
         's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
         /app/share/sunshine/apps.json
+      - pwd
+      - ls .
       - install -D packaging/linux/flatpak/install-mouse /app/bin/install-mouse
       - install -D packaging/linux/flatpak/remove-mouse /app/bin/remove-mouse
 
