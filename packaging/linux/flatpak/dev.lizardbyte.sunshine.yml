@@ -210,4 +210,5 @@ modules:
         /app/share/sunshine/apps.json
       - pwd
       - ls .
+      - ls $FLATPAK_BUILDER_BUILDDIR
       - install -D packaging/linux/flatpak/scripts/* /app/bin
