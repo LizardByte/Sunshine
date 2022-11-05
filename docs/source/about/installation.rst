@@ -116,7 +116,7 @@ Flatpak Package
 
          flatpak install --user sunshine.flatpak
 
-   Additional installation
+   Additional installation (required)
       .. code-block:: bash
 
          flatpak run --command=additional-install.sh dev.lizardbyte.sunshine
@@ -135,6 +135,7 @@ Start:
 Uninstall:
    .. code-block:: bash
 
+      flatpak run --command=remove-additional-install.sh dev.lizardbyte.sunshine
       flatpak uninstall --delete-data dev.lizardbyte.sunshine
 
 RPM Package
