@@ -208,6 +208,7 @@ modules:
       - sed -r -z -i -e
         's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
         /app/share/sunshine/apps.json
-      - sed -i 's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
+      - sed -i
+        's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
         /app/share/sunshine/systemd/user/sunshine.service
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
