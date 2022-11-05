@@ -116,6 +116,11 @@ Flatpak Package
 
          flatpak install --user sunshine.flatpak
 
+   Additional installation
+      .. code-block:: bash
+
+         flatpak run --command=additional-install.sh dev.lizardbyte.sunshine
+
 Start:
    X11 and NVFBC capture (X11 Only)
       .. code-block:: bash
@@ -130,7 +135,7 @@ Start:
 Uninstall:
    .. code-block:: bash
 
-      flatpak uninstall --delete-data sunshine.flatpak
+      flatpak uninstall --delete-data dev.lizardbyte.sunshine
 
 RPM Package
 ^^^^^^^^^^^
