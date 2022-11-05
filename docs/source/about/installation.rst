@@ -123,9 +123,17 @@ Flatpak Package
 
 Start:
    X11 and NVFBC capture (X11 Only)
+      Direct start
+
       .. code-block:: bash
 
          flatpak run dev.lizardbyte.sunshine
+
+      Sunshine Service
+
+      .. code-block:: bash
+
+         systemctl --user start sunshine
 
    KMS capture (Wayland & X11)
       .. code-block:: bash
