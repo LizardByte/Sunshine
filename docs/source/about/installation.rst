@@ -116,11 +116,24 @@ Flatpak Package
 
          flatpak install --user sunshine.flatpak
 
+   Additional installation (required)
+      .. code-block:: bash
+
+         flatpak run --command=additional-install.sh dev.lizardbyte.sunshine
+
 Start:
    X11 and NVFBC capture (X11 Only)
+      Direct start
+
       .. code-block:: bash
 
          flatpak run dev.lizardbyte.sunshine
+
+      Sunshine Service
+
+      .. code-block:: bash
+
+         systemctl --user start sunshine
 
    KMS capture (Wayland & X11)
       .. code-block:: bash
@@ -130,7 +143,8 @@ Start:
 Uninstall:
    .. code-block:: bash
 
-      flatpak uninstall --delete-data sunshine.flatpak
+      flatpak run --command=remove-additional-install.sh dev.lizardbyte.sunshine
+      flatpak uninstall --delete-data dev.lizardbyte.sunshine
 
 RPM Package
 ^^^^^^^^^^^
