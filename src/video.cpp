@@ -972,7 +972,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   if(video_format[encoder_t::CBR]) {
     auto bitrate        = config.bitrate * 1000;
     ctx->rc_max_rate    = bitrate;
-    ctx->rc_buffer_size = bitrate / config.framerate;
+    ctx->rc_buffer_size = bitrate / (config.framerate / 2);
     ctx->bit_rate       = bitrate;
     ctx->rc_min_rate    = bitrate;
   }
