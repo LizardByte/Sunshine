@@ -109,12 +109,12 @@ Flatpak Package
    System level (recommended)
       .. code-block:: bash
 
-         flatpak install --system  ./sunshine_x86_64.flatpak 
+         flatpak install --system ./sunshine_x86_64.flatpak
 
    User level
       .. code-block:: bash
 
-         flatpak install --user  ./sunshine_x86_64.flatpak 
+         flatpak install --user ./sunshine_x86_64.flatpak
 
    Additional installation (required)
       .. code-block:: bash
