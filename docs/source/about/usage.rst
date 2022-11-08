@@ -80,7 +80,8 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
             [Service]
             ExecStart=<see table>
-            #ExecStop=Flatpak Only
+            #Flatpak Only
+            #ExecStop=flatpak kill dev.lizardbyte.sunshine
 
             [Install]
             WantedBy=graphical-session.target
