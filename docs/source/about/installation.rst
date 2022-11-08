@@ -104,17 +104,17 @@ Flatpak Package
    :alt: GitHub issues by-label
 
 #. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
-#. Download ``sunshine.flatpak`` and run the following code.
+#. Download ``sunshine_x86_64.flatpak`` and run the following code.
 
    System level (recommended)
       .. code-block:: bash
 
-         flatpak install --system sunshine.flatpak
+         flatpak install --system ./sunshine_x86_64.flatpak
 
    User level
       .. code-block:: bash
 
-         flatpak install --user sunshine.flatpak
+         flatpak install --user ./sunshine_x86_64.flatpak
 
    Additional installation (required)
       .. code-block:: bash
@@ -123,17 +123,9 @@ Flatpak Package
 
 Start:
    X11 and NVFBC capture (X11 Only)
-      Direct start
-
       .. code-block:: bash
 
          flatpak run dev.lizardbyte.sunshine
-
-      Sunshine Service
-
-      .. code-block:: bash
-
-         systemctl --user start sunshine
 
    KMS capture (Wayland & X11)
       .. code-block:: bash
