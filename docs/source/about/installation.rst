@@ -104,17 +104,19 @@ Flatpak Package
    :alt: GitHub issues by-label
 
 #. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
-#. Download ``sunshine_x86_64.flatpak`` and run the following code.
+#. Download ``sunshine_{arch}.flatpak`` and run the following code.
+
+   .. Note:: Be sure to replace ``{arch}`` with the architecture for your operating system.
 
    System level (recommended)
       .. code-block:: bash
 
-         flatpak install --system ./sunshine_x86_64.flatpak
+         flatpak install --system ./sunshine_{arch}.flatpak
 
    User level
       .. code-block:: bash
 
-         flatpak install --user ./sunshine_x86_64.flatpak
+         flatpak install --user ./sunshine_{arch}.flatpak
 
    Additional installation (required)
       .. code-block:: bash
