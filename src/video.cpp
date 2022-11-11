@@ -71,7 +71,7 @@ util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_c
 util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
+int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format, bool amf_lowlatency);
 
 class swdevice_t : public platf::hwdevice_t {
 public:
@@ -932,7 +932,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     }
 
     hwdevice_ctx = std::move(buf_or_error.left());
-    if(hwframe_ctx(ctx, hwdevice_ctx, sw_fmt)) {
+    if(hwframe_ctx(ctx, hwdevice_ctx, sw_fmt, (encoder.name == "amdvce"sv))) {
       return std::nullopt;
     }
 
@@ -1682,7 +1682,7 @@ int init() {
   return 0;
 }
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
+int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format, bool amf_lowlatency) {
   buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice.get()) };
 
   auto frame_ctx               = (AVHWFramesContext *)frame_ref->data;
@@ -1694,6 +1694,12 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
 
   if(auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
     return err;
+  }
+
+  if(amf_lowlatency) {
+    // reduce amf encoder's hw buffers from 16 -> 2 to minimize buffered frames
+    // note: pool size is deliberately set after initialization
+    frame_ctx->initial_pool_size = 3;
   }
 
   ctx->hw_frames_ctx = av_buffer_ref(frame_ref.get());
