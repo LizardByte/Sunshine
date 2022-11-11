@@ -12,6 +12,7 @@
 
 extern util::ThreadPool task_pool;
 extern bool display_cursor;
+extern bool force_callback;
 
 extern boost::log::sources::severity_logger<int> verbose;
 extern boost::log::sources::severity_logger<int> debug;

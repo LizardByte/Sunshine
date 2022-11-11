@@ -573,14 +573,16 @@ capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<:
     }
     next_frame = now + delay;
 
-    auto status = snapshot(img.get(), 1000ms, *cursor);
+    auto status = snapshot(img.get(), force_callback ? std::chrono::duration_cast<std::chrono::milliseconds>(delay * 2) : 1000ms, *cursor);
     switch(status) {
     case platf::capture_e::reinit:
     case platf::capture_e::error:
       return status;
     case platf::capture_e::timeout:
-      std::this_thread::sleep_for(1ms);
-      continue;
+      if(!force_callback) {
+        std::this_thread::sleep_for(1ms);
+        continue;
+      }
     case platf::capture_e::ok:
       img = snapshot_cb(img);
       break;

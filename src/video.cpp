@@ -240,6 +240,7 @@ enum flag_e {
   H264_ONLY         = 0x02, // When HEVC is too heavy
   LIMITED_GOP_SIZE  = 0x04, // Some encoders don't like it when you have an infinite GOP_SIZE. *cough* VAAPI *cough*
   SINGLE_SLICE_ONLY = 0x08, // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
+  FORCE_CALLBACK    = 0x10, // Force callbacks with short timeouts for encoders that don't perform well with callback-based capture
 };
 
 struct encoder_t {
@@ -438,7 +439,7 @@ static encoder_t nvenc {
     "h264_nvenc"s,
   },
 #ifdef _WIN32
-  DEFAULT,
+  FORCE_CALLBACK,
   dxgi_make_hwdevice_ctx
 #else
   PARALLEL_ENCODING,
@@ -474,7 +475,7 @@ static encoder_t amdvce {
     std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "h264_amf"s,
   },
-  DEFAULT,
+  FORCE_CALLBACK,
   dxgi_make_hwdevice_ctx
 };
 #endif
@@ -1404,6 +1405,7 @@ void capture(
   void *channel_data) {
 
   auto idr_events = mail->event<bool>(mail::idr);
+  force_callback  = encoders.front().flags & FORCE_CALLBACK;
 
   idr_events->raise(true);
   if(encoders.front().flags & PARALLEL_ENCODING) {
