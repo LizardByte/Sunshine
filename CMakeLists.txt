@@ -68,7 +68,9 @@ include_directories(third-party/miniupnp)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(CURL REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules (CURL REQUIRED libcurl)
+
 if(NOT APPLE)
 	set(Boost_USE_STATIC_LIBS ON)
 endif()
@@ -88,6 +90,7 @@ if(WIN32)
 		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
 	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
 		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
@@ -149,6 +152,7 @@ if(WIN32)
 		d3d11 dxgi D3DCompiler
 		setupapi
 		dwmapi
+		${CURL_STATIC_LIBRARIES}
 		)
 
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
@@ -457,6 +461,11 @@ endif()
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_CONFIG_DIR="${SUNSHINE_CONFIG_DIR}")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
+
+if(WIN32)
+        set_target_properties(sunshine PROPERTIES LINK_SEARCH_START_STATIC 1)
+endif()
+
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
 set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
