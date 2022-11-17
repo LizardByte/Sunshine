@@ -1,6 +1,4 @@
-//
 // Created by loki on 16-4-19.
-//
 
 #ifndef SUNSHINE_SYNC_H
 #define SUNSHINE_SYNC_H
@@ -92,4 +90,4 @@ private:
 } // namespace util
 
 
-#endif //T_MAN_SYNC_H
+#endif // SUNSHINE_SYNC_H

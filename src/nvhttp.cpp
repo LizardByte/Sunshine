@@ -1,6 +1,4 @@
-//
 // Created by loki on 6/3/19.
-//
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -297,7 +295,7 @@ void clientpairingsecret(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cer
 
   // if hash not correct, probably MITM
   if(std::memcmp(hash.data(), sess.clienthash.data(), hash.size())) {
-    //TODO: log
+    // TODO: log
 
     map_id_sess.erase(client.uniqueID);
     tree.put("root.paired", 0);

@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Autoapproving
-        uses: hmarr/auto-approve-action@v2
+        uses: hmarr/auto-approve-action@v3
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Automerging
-        uses: pascalgn/automerge-action@v0.15.3
+        uses: pascalgn/automerge-action@v0.15.5
         env:
           BASE_BRANCHES: nightly
           GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

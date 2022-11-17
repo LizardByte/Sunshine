@@ -7,7 +7,7 @@
 namespace util {
 /*
  * Allow threads to execute unhindered
- * while keeping full controll over the threads.
+ * while keeping full control over the threads.
  */
 class ThreadPool : public TaskPool {
 public:

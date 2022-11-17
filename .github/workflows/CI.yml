@@ -6,7 +6,7 @@ on:
     branches: [master, nightly]
     types: [opened, synchronize, reopened]
   push:
-    branches: [master]
+    branches: [master, nightly]
   workflow_dispatch:
 
 jobs:
@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
         uses: actions/checkout@v3
 
       - name: Verify Changelog
@@ -66,14 +67,90 @@ jobs:
             "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
           exit 1
 
+  setup_release:
+    name: Setup Release
+    needs: check_changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set release details
+        id: release_details
+        env:
+          RELEASE_BODY: ${{ needs.check_changelog.outputs.release_body }}
+        run: |
+          # determine to create a release or not
+          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+            RELEASE=true
+          else
+            RELEASE=false
+          fi
+
+          # set the release tag
+          COMMIT=${{ github.sha }}
+          if [[ $GITHUB_REF == refs/heads/master ]]; then
+            TAG="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_BODY="$RELEASE_BODY"
+            PRE_RELEASE="false"
+          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
+            TAG="nightly-dev"
+            RELEASE_NAME="nightly"
+            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
+            PRE_RELEASE="true"
+          fi
+
+          echo "create_release=${RELEASE}" >> $GITHUB_OUTPUT
+          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
+
+          # this is stupid but works for multiline strings
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+    outputs:
+      create_release: ${{ steps.release_details.outputs.create_release }}
+      release_tag: ${{ steps.release_details.outputs.release_tag }}
+      release_commit: ${{ steps.release_details.outputs.release_commit }}
+      release_name: ${{ steps.release_details.outputs.release_name }}
+      release_body: ${{ env.RELEASE_BODY }}
+      pre_release: ${{ steps.release_details.outputs.pre_release }}
+
+  setup_flatpak_matrix:
+    name: Setup Flatpak Matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set release details
+        id: flatpak_matrix
+        # https://www.cynkra.com/blog/2020-12-23-dynamic-gha
+        run: |
+          # determine which architectures to build
+          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+            matrix=$((
+              echo '{ "arch" : ["x86_64", "aarch64"] }'
+            ) | jq -c .)
+          else
+            matrix=$((
+              echo '{ "arch" : ["x86_64"] }'
+            ) | jq -c .)
+          fi
+
+          echo $matrix
+          echo $matrix | jq .
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+    outputs:
+      matrix: ${{ steps.flatpak_matrix.outputs.matrix }}
+
   build_linux_aur:
     name: Linux AUR
     runs-on: ubuntu-latest
-    needs: check_changelog
+    needs: setup_release
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Setup Dependencies Linux AUR
         run: |
@@ -106,7 +183,6 @@ jobs:
 
               echo "aur_publish=true" >> $GITHUB_ENV
             elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
-              aur_pkg=sunshine-git
               sub_version=".r${commit}"
 
               echo "aur_publish=true" >> $GITHUB_ENV
@@ -158,7 +234,7 @@ jobs:
 
       - name: Publish AUR package
         if: ${{ env.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.4.1
+        uses: KSXGitHub/github-actions-deploy-aur@v2.5.0
         with:
           pkgname: ${{ env.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
@@ -172,8 +248,11 @@ jobs:
 
   build_linux_flatpak:
     name: Linux Flatpak
-    runs-on: ubuntu-latest
-    needs: check_changelog
+    runs-on: ubuntu-22.04
+    needs: [setup_release, setup_flatpak_matrix]
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix: ${{fromJson(needs.setup_flatpak_matrix.outputs.matrix)}}
 
     steps:
       - name: Checkout
@@ -184,11 +263,22 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
+            qemu-user-static \
             flatpak
-          sudo su $(whoami) -c 'flatpak remote-add --user --if-not-exists flathub \
+          sudo su $(whoami) -c 'flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak install --user flathub \
-            org.flatpak.Builder org.freedesktop.Platform//21.08 org.freedesktop.Sdk//21.08 -y'
+          sudo su $(whoami) -c 'flatpak --user install -y flathub \
+            org.flatpak.Builder \
+            org.freedesktop.Platform/${{ matrix.arch }}/21.08 \
+            org.freedesktop.Sdk/${{ matrix.arch }}/21.08'
+
+      - name: Cache Flatpak build
+        uses: actions/cache@v3
+        with:
+          path: ./build/.flatpak-builder
+          key: flatpak-${{ matrix.arch }}-${{ github.sha }}
+          restore-keys: |
+            flatpak-${{ matrix.arch }}-
 
       - name: Configure Flatpak Manifest
         run: |
@@ -218,49 +308,56 @@ jobs:
           cmake -DGITHUB_CLONE_URL=${clone_url} \
             -DGITHUB_BRANCH=${branch} \
             -DGITHUB_COMMIT=${commit} \
-            -DSUNSHINE_CONFIGURE_FLATPAK=ON \
+            -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
 
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --repo=repo --force-clean build-sunshine \
-            dev.lizardbyte.sunshine.yml'
-          sudo su $(whoami) -c 'flatpak build-bundle ./repo ../artifacts/sunshine.flatpak dev.lizardbyte.sunshine'
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            --stop-at=cuda build-sunshine dev.lizardbyte.sunshine.yml'
+          cp -r .flatpak-builder copy-of-flatpak-builder
+          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            build-sunshine dev.lizardbyte.sunshine.yml'
+          rm -rf .flatpak-builder
+          mv copy-of-flatpak-builder .flatpak-builder
+          sudo su $(whoami) -c 'flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
+            ../artifacts/sunshine_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine'
+          sudo su $(whoami) -c 'flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
+            ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug'
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux-flatpak
+          name: sunshine-linux-flatpak-${{ matrix.arch }}
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_linux:
     name: Linux
     runs-on: ubuntu-20.04
-    needs: check_changelog
+    needs: [check_changelog, setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
         include:  # package these differently
           - type: cpack
-            CMAKE_INSTALL_PREFIX: '/usr'
-            SUNSHINE_ASSETS_DIR: 'local/sunshine/assets'
-            SUNSHINE_CONFIG_DIR: 'local/sunshine/config'
             EXTRA_ARGS: ''
           - type: appimage
-            CMAKE_INSTALL_PREFIX: '/usr'
-            SUNSHINE_ASSETS_DIR: 'sunshine.AppImage.config'
-            SUNSHINE_CONFIG_DIR: 'sunshine.AppImage.home'
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
 
     steps:
@@ -280,7 +377,6 @@ jobs:
             build-essential \
             cmake \
             gcc-10 \
-            git \
             g++-10 \
             libavdevice-dev \
             libboost-filesystem-dev \
@@ -344,9 +440,8 @@ jobs:
 
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=${{ matrix.CMAKE_INSTALL_PREFIX }} \
-            -DSUNSHINE_ASSETS_DIR=${{ matrix.SUNSHINE_ASSETS_DIR }} \
-            -DSUNSHINE_CONFIG_DIR=${{ matrix.SUNSHINE_CONFIG_DIR }} \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DSUNSHINE_ASSETS_DIR=share/sunshine \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
@@ -369,7 +464,7 @@ jobs:
           mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
 
       - name: Set AppImage Version
-        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.latest_version ) }}  # yamllint disable-line rule:line-length
+        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
@@ -381,12 +476,9 @@ jobs:
           # install sunshine to the DESTDIR
           make install DESTDIR=AppDir
 
-          # portable home and config
-          # todo - this is ugly... we should use a custom AppRun script to take care of this
-          mv ./AppDir${{ matrix.CMAKE_INSTALL_PREFIX }}/sunshine.AppImage.* ../artifacts/
-          mkdir -p ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}
-          cp ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/apps.json \
-            ../artifacts/${{ matrix.SUNSHINE_CONFIG_DIR }}/.config/sunshine/${{ matrix.SUNSHINE_CONFIG_DIR }}/
+          # custom AppRun file
+          cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
+          chmod +x ./AppDir/AppRun
 
           # variables
           DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
@@ -397,12 +489,6 @@ jobs:
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
-          # # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
-          # sudo apt-get install libgtk-3-dev librsvg2-dev -y
-          # wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
-          # chmod +x linuxdeploy-plugin-gtk.sh
-          # export DEPLOY_GTK_VERSION=3
-
           ./linuxdeploy-x86_64.AppImage \
             --appdir ./AppDir \
             --executable ./sunshine \
@@ -412,8 +498,6 @@ jobs:
             --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
             --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
             --output appimage
-          # # add this argument back if using gtk plugin
-          # --plugin gtk \
 
           # move
           mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
@@ -431,33 +515,30 @@ jobs:
 
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
-      - name: Archive AppImage
-        if: ${{ matrix.type == 'appimage' }}
-        working-directory: artifacts
-        run: |
-          chmod +x ./sunshine.AppImage
-
-          zip --recurse-paths --move --test ./sunshine-appimage.zip ./*
-
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
           name: sunshine-linux-${{ matrix.type }}
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac:
     name: MacOS
     runs-on: macos-11
-    needs: check_changelog
+    needs: setup_release
 
     steps:
       - name: Checkout
@@ -480,7 +561,7 @@ jobs:
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
-            -DSUNSHINE_CONFIG_DIR=local/sunshine/config \
+            -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             ..
           make -j ${nproc}
 
@@ -514,19 +595,24 @@ jobs:
           rm -f ./sunshine-macos-experimental-bundle.dmg
           rm -f ./sunshine-macos-experimental-archive.zip
 
-      ##  no artifacts to release currently
-      # - name: Create Release
-      #   if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-      #   uses: LizardByte/.github/actions/create_release@master
-      #   with:
-      #     token: ${{ secrets.GH_BOT_TOKEN }}
-      #     next_version: ${{ needs.check_changelog.outputs.next_version }}
-      #     last_version: ${{ needs.check_changelog.outputs.last_version }}
-      #     release_body: ${{ needs.check_changelog.outputs.release_body }}
+#      #  no artifacts to release currently
+#      - name: Create/Update GitHub Release
+#        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+#        uses: ncipollo/release-action@v1
+#        with:
+#          name: ${{ needs.setup_release.outputs.release_name }}
+#          tag: ${{ needs.setup_release.outputs.release_tag }}
+#          commit: ${{ needs.setup_release.outputs.release_commit }}
+#          artifacts: "*artifacts/*"
+#          token: ${{ secrets.GH_BOT_TOKEN }}
+#          allowUpdates: true
+#          body: ${{ needs.setup_release.outputs.release_body }}
+#          discussionCategory: announcements
+#          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac_port:
     name: Macports
-    needs: check_changelog
+    needs: setup_release
     runs-on: macos-11
 
     steps:
@@ -620,7 +706,7 @@ jobs:
             echo "$subport"
             subportlist="$subportlist $subport"
           done
-          echo "::set-output name=subportlist::${subportlist}"
+          echo "subportlist=${subportlist}" >> $GITHUB_OUTPUT
 
       - name: Run port lint for all subports
         run: |
@@ -724,19 +810,24 @@ jobs:
           name: sunshine-macports
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: check_changelog
+    needs: setup_release
 
     steps:
       - name: Checkout
@@ -772,7 +863,6 @@ jobs:
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DSUNSHINE_ASSETS_DIR=assets \
-            -DSUNSHINE_CONFIG_DIR=config \
             -G "MinGW Makefiles" \
             ..
           mingw32-make -j2
@@ -797,11 +887,30 @@ jobs:
           name: sunshine-windows
           path: artifacts/
 
-      - name: Create Release
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: LizardByte/.github/actions/create_release@master
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
         with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          next_version: ${{ needs.check_changelog.outputs.next_version }}
-          last_version: ${{ needs.check_changelog.outputs.last_version }}
-          release_body: ${{ needs.check_changelog.outputs.release_body }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
+
+  release-winget:
+    name: Release to WinGet
+    needs: [setup_release, build_win]
+    if: ${{ needs.setup_release.outputs.create_release == 'true' && github.ref == 'refs/heads/master' }}
+    runs-on: windows-latest  # the required action can only be run on Windows
+    steps:
+      - name: Release to WinGet
+        uses: vedantmgoyal2009/winget-releaser@v1
+        with:
+          identifier: LizardByte.Sunshine
+          release-tag: ${{ needs.setup_release.outputs.release_tag }}
+          installers-regex: '\.exe$'  # only .exe files
+          token: ${{ secrets.GH_BOT_TOKEN }}

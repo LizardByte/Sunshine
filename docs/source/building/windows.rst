@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/building/windows.rst
-
 Windows
 =======
 
@@ -10,18 +8,20 @@ following packages using:
 
 .. code-block:: bash
 
-   pacman -S mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost git mingw-w64-x86_64-make cmake make gcc
+   pacman -S mingw-w64-x86_64-binutils mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake \
+   mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost \
+   git mingw-w64-x86_64-make cmake make gcc
 
 Build
 -----
 .. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      cmake -G"Unix Makefiles" ..
-      cmake -G"MinGW Makefiles" ..  # alternatively
+   cmake -G"Unix Makefiles" ..
+   cmake -G"MinGW Makefiles" ..  # alternatively
 
-      mingw32-make
+   mingw32-make
 
-      cpack -G NSIS  # optionally, create a windows installer
-      cpack -G ZIP  # optionally, create a windows standalone package
+   cpack -G NSIS  # optionally, create a windows installer
+   cpack -G ZIP  # optionally, create a windows standalone package

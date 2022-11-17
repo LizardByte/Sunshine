@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine VERSION 0.14.1
+project(Sunshine VERSION 0.15.0
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
 		HOMEPAGE_URL "https://app.lizardbyte.dev"
 		)
@@ -9,9 +9,10 @@ set(PROJECT_LONG_DESCRIPTION "Sunshine is a self hosted, low latency, cloud gami
 Intel, and Nvidia GPUs. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. \
 Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.")
 
-option(SUNSHINE_CONFIGURE_APPIMAGE "Configure files required for AppImage." OFF)
+option(SUNSHINE_CONFIGURE_APPIMAGE "Configuration specific for AppImage." OFF)
 option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
-option(SUNSHINE_CONFIGURE_FLATPAK "Configure files required for Flatpak." OFF)
+option(SUNSHINE_CONFIGURE_FLATPAK_MAN "Configure manifest file required for Flatpak build." OFF)
+option(SUNSHINE_CONFIGURE_FLATPAK "Configuration specific for Flatpak." OFF)
 option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
@@ -19,7 +20,7 @@ if(${SUNSHINE_CONFIGURE_APPIMAGE})
 	configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
 elseif(${SUNSHINE_CONFIGURE_AUR})
 	configure_file(packaging/linux/aur/PKGBUILD PKGBUILD @ONLY)
-elseif(${SUNSHINE_CONFIGURE_FLATPAK})
+elseif(${SUNSHINE_CONFIGURE_FLATPAK_MAN})
 	configure_file(packaging/linux/flatpak/dev.lizardbyte.sunshine.yml dev.lizardbyte.sunshine.yml @ONLY)
 elseif(${SUNSHINE_CONFIGURE_PORTFILE})
 	configure_file(packaging/macos/Portfile Portfile @ONLY)
@@ -97,7 +98,7 @@ if(WIN32)
 	endif()
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
-	add_subdirectory(tools) #This is temporary, only tools for Windows are needed, for now
+	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
 
 	include_directories(third-party/ViGEmClient/include)
 
@@ -426,18 +427,22 @@ else()
 	list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)
 endif()
 
+# setup assets directory
 if(NOT SUNSHINE_ASSETS_DIR)
-	set(SUNSHINE_ASSETS_DIR "${CMAKE_CURRENT_BINARY_DIR}/assets")
+	set(SUNSHINE_ASSETS_DIR "assets")
 endif()
-
-if(NOT SUNSHINE_CONFIG_DIR)
-	set(SUNSHINE_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/config")
-endif()
-
-if(UNIX AND CMAKE_INSTALL_PREFIX AND NOT ${SUNSHINE_CONFIGURE_APPIMAGE})
+if(UNIX)
 	set(SUNSHINE_ASSETS_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_ASSETS_DIR}")
-	set(SUNSHINE_CONFIG_DIR "${CMAKE_INSTALL_PREFIX}/${SUNSHINE_CONFIG_DIR}")
 endif()
+
+# use relative assets path for AppImage... maybe for all unix
+if(${SUNSHINE_CONFIGURE_APPIMAGE})
+	string(REPLACE "${CMAKE_INSTALL_PREFIX}" ".${CMAKE_INSTALL_PREFIX}" SUNSHINE_ASSETS_DIR_DEF ${SUNSHINE_ASSETS_DIR})
+else()
+	set(SUNSHINE_ASSETS_DIR_DEF "${SUNSHINE_ASSETS_DIR}")
+endif()
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}")
+
 
 list(APPEND CBS_EXTERNAL_LIBRARIES
 	cbs)
@@ -458,8 +463,6 @@ if(NOT WIN32)
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES Boost::log)
 endif()
 
-list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR}")
-list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_CONFIG_DIR="${SUNSHINE_CONFIG_DIR}")
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 
 if(WIN32)
@@ -512,70 +515,101 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
 	install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
 
+	# scripts
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/" DESTINATION "scripts" COMPONENT firewall)
+	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/" DESTINATION "scripts" COMPONENT service)
+
+	# Sunshine assets
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}" COMPONENT assets)
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}" COMPONENT assets)
 
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT config)
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}" COMPONENT config)
-
-
 	# set(CPACK_NSIS_MUI_HEADERIMAGE "") # TODO: image should be 150x57 bmp
-
 	set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
-	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}") # The name of the directory that will be created in C:/Program files/
-	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin") # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
+	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")  # The name of the directory that will be created in C:/Program files/
+	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin")  # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
+	# Extra install commands
 	# Sets permissions on the installed folder so that we can write in it
+	# Install service
 	SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
-			"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-    ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
-    ")
+		"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
+    	ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
+    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
+    	")
+
+	# Extra uninstall commands
+	# Uninstall service
+	set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
+		"${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
+		ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
+    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
+    	MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to completely remove the directory $INSTDIR and all of its contents?' IDNO NoDelete
+      		RMDir /r \\\"$INSTDIR\\\" ; skipped if no
+    	NoDelete:
+		")
 
 	# Adding an option for the start menu and PATH
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
-	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe") # This will be shown on the installed apps Windows settings
-	set(CPACK_NSIS_CREATE_ICONS "CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")  # This will be shown on the installed apps Windows settings
+	set(CPACK_NSIS_CREATE_ICONS_EXTRA
+		"${CPACK_NSIS_CREATE_ICONS_EXTRA}
+		CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
+		")
+	set(CPACK_NSIS_DELETE_ICONS_EXTRA
+		"${CPACK_NSIS_DELETE_ICONS_EXTRA}
+		Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
+		")
 
 	# Checking for previous installed versions
-	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON") # TODO: doesn't work on my machine when Sunshine is already installed
+	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")  # TODO: doesn't work on my machine when Sunshine is already installed
+
+	set(CPACK_NSIS_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/installation.html")
+	set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
+	set(CPACK_NSIS_CONTACT "${CMAKE_PROJECT_HOMEPAGE_URL}/support")
 
 	# Setting components groups and dependencies
 	# sunshine binary
 	set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
-	set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "The main application.")
-	set(CPACK_COMPONENT_APPLICATION_GROUP "${CMAKE_PROJECT_NAME}")
+	set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "${CMAKE_PROJECT_NAME} main application.")
+	set(CPACK_COMPONENT_APPLICATION_GROUP "core")
 	set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
 	set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
 	# assets
-	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Assets")
+	set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "assets")
 	set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Shaders, default box art, and web ui.")
-	set(CPACK_COMPONENT_ASSETS_GROUP "${CMAKE_PROJECT_NAME}")
+	set(CPACK_COMPONENT_ASSETS_GROUP "core")
 	set(CPACK_COMPONENT_ASSETS_REQUIRED true)
 
-	# config
-	set(CPACK_COMPONENT_CONFIG_DISPLAY_NAME "Config")
-	set(CPACK_COMPONENT_CONFIG_DESCRIPTION "Default config and apps.json files.")
-	set(CPACK_COMPONENT_CONFIG_GROUP "${CMAKE_PROJECT_NAME}")
-	set(CPACK_COMPONENT_CONFIG_REQUIRED true)
-
 	# audio tool
-	set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info.exe")
-	set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool that allows you to get information about sound devices.")
-	set(CPACK_COMPONENT_AUDIO_GROUP "Tools")
+	set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info")
+	set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
+	set(CPACK_COMPONENT_AUDIO_GROUP "tools")
 
 	# display tool
-	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info.exe")
-	set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool that allows you to get information about graphics cards and displays.")
-	set(CPACK_COMPONENT_DXGI_GROUP "Tools")
+	set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
+	set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
+	set(CPACK_COMPONENT_DXGI_GROUP "tools")
 
-	# service tool
-	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc.exe")
-	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool that allows you to enable/disable the Sunshine service.")
-	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "Tools")
+	# service
+	set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc")
+	set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool providing ability to enable/disable the Sunshine service.")
+	set(CPACK_COMPONENT_SUNSHINESVC_GROUP "tools")
+
+	# service scripts
+	set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
+	set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable/disable the service.")
+	set(CPACK_COMPONENT_SERVICE_GROUP "scripts")
+	set(CPACK_COMPONENT_SERVICE_DEPENDS sunshinesvc)
+
+	# firewall scripts
+	set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
+	set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
+	set(CPACK_COMPONENT_FIREWALL_GROUP "scripts")
 endif()
 if(APPLE)
 	# TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
@@ -584,15 +618,12 @@ if(APPLE)
 	set(CPACK_BUNDLE_ICON "${PROJECT_SOURCE_DIR}/sunshine.icns")
 	# set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
 endif()
-if(APPLE AND SUNSHINE_MACOS_PACKAGE) # TODO
+if(APPLE AND SUNSHINE_MACOS_PACKAGE)  # TODO
 	set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
 	set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
 
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
 	install(TARGETS sunshine
 			BUNDLE DESTINATION . COMPONENT Runtime
@@ -601,39 +632,35 @@ elseif(UNIX)
 	# Installation destination dir
 	set(CPACK_SET_DESTDIR true)
 	if(NOT CMAKE_INSTALL_PREFIX)
-		set(CMAKE_INSTALL_PREFIX "/usr/local/sunshine")
+		set(CMAKE_INSTALL_PREFIX "/usr/share/sunshine")
 	endif()
 
 	install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-	install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
 
 	if(APPLE)
 		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
-
 		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/misc/uninstall_pkg.sh" DESTINATION "${SUNSHINE_ASSETS_DIR}")
 	else()
 		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-		install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/config/" DESTINATION "${SUNSHINE_CONFIG_DIR}")
+		if(${SUNSHINE_CONFIGURE_APPIMAGE} OR ${SUNSHINE_CONFIGURE_FLATPAK})
+			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
+			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
+		else()
+			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+		endif()
 
-		install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
-		install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
-
-		# Pre and post install
-		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst"
-			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst"
-			"${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/conffiles")
-		set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/preinst")
+		# Post install
+		set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 		set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 
 		# Dependencies
 		set(CPACK_DEB_COMPONENT_INSTALL ON)
 		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
 		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
-		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF) # This should automatically figure out dependencies, doesn't work with the current config
+		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
 	endif()
 endif()
 

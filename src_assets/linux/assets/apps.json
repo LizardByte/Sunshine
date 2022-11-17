@@ -1,0 +1,24 @@
+{
+  "env": {
+    "PATH": "$(PATH):$(HOME)/.local/bin"
+  },
+  "apps": [
+    {
+      "name": "Low Res Desktop",
+      "prep-cmd": [
+        {
+          "do": "xrandr --output HDMI-1 --mode 1920x1080",
+          "undo": "xrandr --output HDMI-1 --mode 1920x1200"
+        }
+      ]
+    },
+    {
+      "name": "Steam BigPicture",
+      "output": "steam.txt",
+      "detached": [
+        "setsid steam steam://open/bigpicture"
+      ],
+      "image-path": "steam.png"
+    }
+  ]
+}

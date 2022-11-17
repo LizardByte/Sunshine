@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/about/advanced_usage.rst
-
 Advanced Usage
 ==============
 Sunshine will work with the default settings for most users. In some cases you may want to configure Sunshine further.
@@ -21,14 +19,12 @@ location by modifying the configuration file.
    Value       Description
    =========   ===========
    Docker      /config/
-   Linux-aur   /usr/share/sunshine/config/
-   Linux-deb   /usr/local/sunshine/config/
-   Linux-rpm   /usr/local/sunshine/config/
-   macOS       /usr/local/sunshine/config/
+   Linux       ~/.config/sunshine/
+   macOS       ~/.config/sunshine/
    Windows     ./config/
    =========   ===========
 
-Example
+**Example**
    .. code-block:: bash
 
       sunshine ~/sunshine_config.conf
@@ -43,13 +39,13 @@ General
 sunshine_name
 ^^^^^^^^^^^^^
 
-Description
+**Description**
    The name displayed by Moonlight
 
-Default
+**Default**
    PC hostname
 
-Example
+**Example**
    .. code-block:: text
 
       sunshine_name = Sunshine
@@ -57,7 +53,7 @@ Example
 min_log_level
 ^^^^^^^^^^^^^
 
-Description
+**Description**
    The minimum log level printed to standard out.
 
 **Choices**
@@ -77,10 +73,10 @@ Description
    none      no logging
    =======   ===========
 
-Default
+**Default**
    ``info``
 
-Example
+**Example**
    .. code-block:: text
 
       min_log_level = info
@@ -91,7 +87,7 @@ Controls
 gamepad
 ^^^^^^^
 
-Description
+**Description**
    The type of gamepad to emulate on the host.
 
    .. Caution:: Applies to Windows only.
@@ -108,10 +104,10 @@ Description
    ds4       dualshock controller (PS4)
    =====     ===========
 
-Default
+**Default**
    ``x360``
 
-Example
+**Example**
    .. code-block:: text
 
       gamepad = x360
@@ -119,17 +115,17 @@ Example
 back_button_timeout
 ^^^^^^^^^^^^^^^^^^^
 
-Description
+**Description**
    If, after the timeout, the back/select button is still pressed down, Home/Guide button press is emulated.
 
    On Nvidia Shield, the home and power button are not passed to Moonlight.
 
    .. Tip:: If back_button_timeout < 0, then the Home/Guide button will not be emulated.
 
-Default
+**Default**
    ``2000``
 
-Example
+**Example**
    .. code-block:: text
 
       back_button_timeout = 2000
@@ -137,13 +133,13 @@ Example
 key_repeat_delay
 ^^^^^^^^^^^^^^^^
 
-Description
+**Description**
    The initial delay in milliseconds before repeating keys. Controls how fast keys will repeat themselves.
 
-Default
+**Default**
    ``500``
 
-Example
+**Example**
    .. code-block:: text
 
       key_repeat_delay = 500
@@ -151,15 +147,15 @@ Example
 key_repeat_frequency
 ^^^^^^^^^^^^^^^^^^^^
 
-Description
+**Description**
    How often keys repeat every second.
 
    .. Tip:: This configurable option supports decimals.
 
-Default
+**Default**
    .. Todo:: Unknown
 
-Example
+**Example**
    .. code-block:: text
 
       key_repeat_frequency = 24.9
@@ -167,17 +163,17 @@ Example
 keybindings
 ^^^^^^^^^^^
 
-Description
+**Description**
    Sometimes it may be useful to map keybindings. Wayland won't allow clients to capture the Win Key for example.
 
    .. Tip:: See `virtual key codes <https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes>`_
 
    .. Hint:: keybindings needs to have a multiple of two elements.
 
-Default
+**Default**
    None
 
-Example
+**Example**
    .. code-block:: text
 
       keybindings = [
@@ -190,14 +186,14 @@ Example
 key_rightalt_to_key_win
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Description
+**Description**
    It may be possible that you cannot send the Windows Key from Moonlight directly. In those cases it may be useful to
    make Sunshine think the Right Alt key is the Windows key.
 
-Default
+**Default**
    None
 
-Example
+**Example**
    .. code-block:: text
 
       key_rightalt_to_key_win = enabled
@@ -208,12 +204,12 @@ Display
 adapter_name
 ^^^^^^^^^^^^
 
-Description
+**Description**
    Select the video card you want to stream.
 
    .. Tip:: To find the name of the appropriate values follow these instructions.
 
-      Linux + VA-API
+      **Linux + VA-API**
          Unlike with `amdvce` and `nvenc`, it doesn't matter if video encoding is done on a different GPU.
 
          .. code-block:: bash
@@ -229,23 +225,23 @@ Description
 
       .. Todo:: macOS
 
-      Windows
+      **Windows**
          .. code-block:: batch
 
             tools\dxgi-info.exe
 
-Default
+**Default**
    Sunshine will select the default video card.
 
-Examples
-   Linux
+**Examples**
+   **Linux**
       .. code-block:: text
 
          adapter_name = /dev/dri/renderD128
 
    .. Todo:: macOS
 
-   Windows
+   **Windows**
       .. code-block:: text
 
          adapter_name = Radeon RX 580 Series
@@ -253,12 +249,12 @@ Examples
 output_name
 ^^^^^^^^^^^
 
-Description
+**Description**
    Select the display number you want to stream.
 
    .. Tip:: To find the name of the appropriate values follow these instructions.
 
-      Linux
+      **Linux**
          .. code-block:: bash
 
             xrandr --listmonitors
@@ -269,23 +265,23 @@ Description
 
       .. Todo:: macOS
 
-      Windows
+      **Windows**
          .. code-block:: batch
 
             tools\dxgi-info.exe
 
-Default
+**Default**
    Sunshine will select the default display.
 
-Examples
-   Linux
+**Examples**
+   **Linux**
       .. code-block:: text
 
          output_name = 0
 
    .. Todo:: macOS
 
-   Windows
+   **Windows**
       .. code-block:: text
 
          output_name  = \\.\DISPLAY1
@@ -293,16 +289,16 @@ Examples
 fps
 ^^^
 
-Description
+**Description**
    The fps modes advertised by Sunshine.
 
    .. Note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
       fps is supported.
 
-Default
+**Default**
    .. Todo:: Unknown
 
-Example
+**Example**
    .. code-block:: text
 
       fps = [10, 30, 60, 90, 120]
@@ -310,16 +306,16 @@ Example
 resolutions
 ^^^^^^^^^^^
 
-Description
+**Description**
    The resolutions advertised by Sunshine.
 
    .. Note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
       resolution is supported.
 
-Default
+**Default**
    .. Todo:: Unknown
 
-Example
+**Example**
    .. code-block:: text
 
       resolutions = [
@@ -338,22 +334,20 @@ Example
 dwmflush
 ^^^^^^^^
 
-Description
+**Description**
    Invoke DwmFlush() to sync screen capture to the Windows presentation interval.
 
    .. Caution:: Applies to Windows only. Alleviates visual stuttering during mouse movement.
       If enabled, this feature will automatically deactivate if the client framerate exceeds
       the host monitor's current refresh rate.
 
-Default
+**Default**
    ``enabled``
 
-Examples
+**Example**
+   .. code-block:: text
 
-   Windows
-      .. code-block:: text
-
-         dwmflush = enabled
+      dwmflush = enabled
 
 Audio
 -----
@@ -361,48 +355,48 @@ Audio
 audio_sink
 ^^^^^^^^^^
 
-Description
+**Description**
    The name of the audio sink used for audio loopback.
 
    .. Tip:: To find the name of the audio sink follow these instructions.
 
-      Linux + pulseaudio
+      **Linux + pulseaudio**
          .. code-block:: bash
 
             pacmd list-sinks | grep "name:"
 
-      Linux + pipewire
+      **Linux + pipewire**
          .. code-block:: bash
 
             pactl info | grep Source
             # in some causes you'd need to use the `Sink` device, if `Source` doesn't work, so try:
             pactl info | grep Sink
 
-      macOS
+      **macOS**
          Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
          `Soundflower <https://github.com/mattingalls/Soundflower>`_ or
          `BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
 
-      Windows
+      **Windows**
          .. code-block:: batch
 
             tools\audio-info.exe
 
-Default
+**Default**
    Sunshine will select the default audio device.
 
-Examples
-   Linux
+**Examples**
+   **Linux**
       .. code-block:: text
 
          audio_sink = alsa_output.pci-0000_09_00.3.analog-stereo
 
-   macOS
+   **macOS**
       .. code-block:: text
 
          audio_sink = BlackHole 2ch
 
-   Windows
+   **Windows**
       .. code-block:: text
 
          audio_sink = {0.0.0.00000000}.{FD47D9CC-4218-4135-9CE2-0C195C87405B}
@@ -410,16 +404,16 @@ Examples
 virtual_sink
 ^^^^^^^^^^^^
 
-Description
+**Description**
    The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio, while muting
    the speakers.
 
    .. Tip:: See `audio_sink`_!
 
-Default
+**Default**
    .. Todo:: Unknown
 
-Example
+**Example**
    .. code-block:: text
 
       virtual_sink = {0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}
@@ -430,13 +424,13 @@ Network
 external_ip
 ^^^^^^^^^^^
 
-Description
+**Description**
    If no external IP address is given, Sunshine will attempt to automatically detect external ip-address.
 
-Default
+**Default**
    Automatic
 
-Example
+**Example**
    .. code-block:: text
 
       external_ip = 123.456.789.12
@@ -444,13 +438,31 @@ Example
 port
 ^^^^
 
-Description
-   Set the family of ports used by Sunshine.
+**Description**
+   Set the family of ports used by Sunshine. Changing this value will offset other ports per the table below.
 
-Default
+.. table::
+   :widths: auto
+
+   ================ ============ ===========================
+   Port Description Default Port Difference from config port
+   ================ ============ ===========================
+   HTTPS            47984 TCP    -5
+   HTTP             47989 TCP    0
+   Web              47990 TCP    +1
+   RTSP             48010 TCP    +21
+   Video            47998 UDP    +9
+   Control          47999 UDP    +10
+   Audio            48000 UDP    +11
+   Mic (unused)     48002 UDP    +13
+   ================ ============ ===========================
+
+.. Attention:: Custom ports are only allowed on select Moonlight clients.
+
+**Default**
    ``47989``
 
-Example
+**Example**
    .. code-block:: text
 
       port = 47989
@@ -458,13 +470,13 @@ Example
 pkey
 ^^^^
 
-Description
+**Description**
    The private key. This must be 2048 bits.
 
-Default
+**Default**
    .. Todo:: Unknown
 
-Example
+**Example**
    .. code-block:: text
 
       pkey = /dir/pkey.pem
@@ -472,13 +484,13 @@ Example
 cert
 ^^^^
 
-Description
+**Description**
    The certificate. Must be signed with a 2048 bit key.
 
-Default
+**Default**
    .. Todo:: Unknown
 
-Example
+**Example**
    .. code-block:: text
 
       cert = /dir/cert.pem
@@ -486,7 +498,7 @@ Example
 origin_pin_allowed
 ^^^^^^^^^^^^^^^^^^
 
-Description
+**Description**
    The origin of the remote endpoint address that is not denied for HTTP method /pin.
 
 **Choices**
@@ -502,10 +514,10 @@ Description
    wan       Anyone may access /pin
    =====     ===========
 
-Default
+**Default**
    ``pc``
 
-Example
+**Example**
    .. code-block:: text
 
       origin_pin_allowed = pc
@@ -513,7 +525,7 @@ Example
 origin_web_ui_allowed
 ^^^^^^^^^^^^^^^^^^^^^
 
-Description
+**Description**
    The origin of the remote endpoint address that is not denied for HTTPS Web UI.
 
 **Choices**
@@ -529,10 +541,10 @@ Description
    wan       Anyone may access the web ui
    =====     ===========
 
-Default
+**Default**
    ``lan``
 
-Example
+**Example**
    .. code-block:: text
 
       origin_web_ui_allowed = lan
@@ -540,7 +552,7 @@ Example
 upnp
 ^^^^
 
-Description
+**Description**
    Sunshine will attempt to open ports for streaming over the internet.
 
 **Choices**
@@ -555,10 +567,10 @@ Description
    off       disable UPnP
    =====     ===========
 
-Default
+**Default**
    ``off``
 
-Example
+**Example**
    .. code-block:: text
 
       upnp = on
@@ -566,13 +578,13 @@ Example
 ping_timeout
 ^^^^^^^^^^^^
 
-Description
+**Description**
    How long to wait in milliseconds for data from Moonlight before shutting down the stream.
 
-Default
+**Default**
    ``10000``
 
-Example
+**Example**
    .. code-block:: text
 
       ping_timeout = 10000
@@ -583,22 +595,22 @@ Encoding
 channels
 ^^^^^^^^
 
-Description
+**Description**
    This will generate distinct video streams, unlike simply broadcasting to multiple Clients.
 
    When multicasting, it could be useful to have different configurations for each connected Client.
 
    For instance:
 
-      - Clients connected through WAN and LAN have different bitrate constraints.
-      - Decoders may require different settings for color.
+   - Clients connected through WAN and LAN have different bitrate constraints.
+   - Decoders may require different settings for color.
 
    .. Warning:: CPU usage increases for each distinct video stream generated.
 
-Default
+**Default**
    ``1``
 
-Example
+**Example**
    .. code-block:: text
 
       channels = 1
@@ -606,18 +618,18 @@ Example
 fec_percentage
 ^^^^^^^^^^^^^^
 
-Description
+**Description**
    Percentage of error correcting packets per data packet in each video frame.
 
    .. Warning:: Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.
 
-Default
+**Default**
    ``20``
 
-Range
+**Range**
    ``1-255``
 
-Example
+**Example**
    .. code-block:: text
 
       fec_percentage = 20
@@ -625,15 +637,15 @@ Example
 qp
 ^^
 
-Description
+**Description**
    Quantitization Parameter. Some devices don't support Constant Bit Rate. For those devices, QP is used instead.
 
    .. Warning:: Higher value means more compression, but less quality.
 
-Default
+**Default**
    ``28``
 
-Example
+**Example**
    .. code-block:: text
 
       qp = 28
@@ -641,17 +653,17 @@ Example
 min_threads
 ^^^^^^^^^^^
 
-Description
+**Description**
    Minimum number of threads used by ffmpeg to encode the video.
 
    .. Note:: Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually worth it to gain
       the use of more CPU cores for encoding. The ideal value is the lowest value that can reliably encode at your
       desired streaming settings on your hardware.
 
-Default
+**Default**
    ``1``
 
-Example
+**Example**
    .. code-block:: text
 
       min_threads = 1
@@ -659,7 +671,7 @@ Example
 hevc_mode
 ^^^^^^^^^
 
-Description
+**Description**
    Allows the client to request HEVC Main or HEVC Main10 video streams.
 
    .. Warning:: HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software
@@ -679,10 +691,10 @@ Description
    3         advertise support for HEVC Main and Main10 (HDR) profiles
    =====     ===========
 
-Default
+**Default**
    ``0``
 
-Example
+**Example**
    .. code-block:: text
 
       hevc_mode = 2
@@ -690,7 +702,7 @@ Example
 encoder
 ^^^^^^^
 
-Description
+**Description**
    Force a specific encoder.
 
 **Choices**
@@ -706,10 +718,10 @@ Description
    software  Encoding occurs on the CPU
    ========  ===========
 
-Default
+**Default**
    Sunshine will use the first encoder that is available.
 
-Example
+**Example**
    .. code-block:: text
 
       encoder = nvenc
@@ -717,7 +729,7 @@ Example
 sw_preset
 ^^^^^^^^^
 
-Description
+**Description**
    The encoder preset to use.
 
    .. Note:: This option only applies when using software `encoder`_.
@@ -752,10 +764,10 @@ Description
    veryslow  slowest
    ========= ===========
 
-Default
+**Default**
    ``superfast``
 
-Example
+**Example**
    .. code-block:: text
 
       sw_preset  = superfast
@@ -763,7 +775,7 @@ Example
 sw_tune
 ^^^^^^^
 
-Description
+**Description**
    The tuning preset to use.
 
    .. Note:: This option only applies when using software `encoder`_.
@@ -788,10 +800,10 @@ Description
    zerolatency good for fast encoding and low-latency streaming
    =========== ===========
 
-Default
+**Default**
    ``zerolatency``
 
-Example
+**Example**
    .. code-block:: text
 
       sw_tune    = zerolatency
@@ -799,7 +811,7 @@ Example
 nv_preset
 ^^^^^^^^^
 
-Description
+**Description**
    The encoder preset to use.
 
    .. Note:: This option only applies when using nvenc `encoder`_.
@@ -826,10 +838,10 @@ Description
    losslesshp lossless, high performance
    ========== ===========
 
-Default
+**Default**
    ``llhq``
 
-Example
+**Example**
    .. code-block:: text
 
       nv_preset = llhq
@@ -837,7 +849,7 @@ Example
 nv_rc
 ^^^^^
 
-Description
+**Description**
    The encoder rate control.
 
    .. Note:: This option only applies when using nvenc `encoder`_.
@@ -861,10 +873,10 @@ Description
    vbr_hq     variable bitrate, high quality
    ========== ===========
 
-Default
+**Default**
    ``auto``
 
-Example
+**Example**
    .. code-block:: text
 
       nv_rc = auto
@@ -872,7 +884,7 @@ Example
 nv_coder
 ^^^^^^^^
 
-Description
+**Description**
    The entropy encoding to use.
 
    .. Note:: This option only applies when using nvenc `encoder`_.
@@ -890,10 +902,10 @@ Description
    cavlc
    ========== ===========
 
-Default
+**Default**
    ``auto``
 
-Example
+**Example**
    .. code-block:: text
 
       nv_coder = auto
@@ -901,7 +913,7 @@ Example
 amd_quality
 ^^^^^^^^^^^
 
-Description
+**Description**
    The encoder preset to use.
 
    .. Note:: This option only applies when using amdvce `encoder`_.
@@ -919,10 +931,10 @@ Description
    balanced   balance performance and speed
    ========== ===========
 
-Default
+**Default**
    ``balanced``
 
-Example
+**Example**
    .. code-block:: text
 
       amd_quality = balanced
@@ -930,7 +942,7 @@ Example
 amd_rc
 ^^^^^^
 
-Description
+**Description**
    The encoder rate control.
 
    .. Note:: This option only applies when using amdvce `encoder`_.
@@ -952,10 +964,10 @@ Description
    vbr_peak    variable bitrate, peak constrained
    =========== ===========
 
-Default
+**Default**
    ``auto``
 
-Example
+**Example**
    .. code-block:: text
 
       amd_rc = auto
@@ -963,7 +975,7 @@ Example
 amd_coder
 ^^^^^^^^^
 
-Description
+**Description**
    The entropy encoding to use.
 
    .. Note:: This option only applies when using nvenc `encoder`_.
@@ -981,10 +993,10 @@ Description
    cavlc
    ========== ===========
 
-Default
+**Default**
    ``auto``
 
-Example
+**Example**
    .. code-block:: text
 
       amd_coder = auto
@@ -992,7 +1004,7 @@ Example
 vt_software
 ^^^^^^^^^^^
 
-Description
+**Description**
    Force Video Toolbox to use software encoding.
 
    .. Note:: This option only applies when using macOS.
@@ -1011,10 +1023,10 @@ Description
    forced     force software encoding
    ========== ===========
 
-Default
+**Default**
    ``auto``
 
-Example
+**Example**
    .. code-block:: text
 
       vt_software = auto
@@ -1022,17 +1034,17 @@ Example
 vt_realtime
 ^^^^^^^^^^^
 
-Description
+**Description**
    Realtime encoding.
 
    .. Note:: This option only applies when using macOS.
 
    .. Warning:: Disabling realtime encoding might result in a delayed frame encoding or frame drop.
 
-Default
+**Default**
    ``enabled``
 
-Example
+**Example**
    .. code-block:: text
 
       vt_realtime = enabled
@@ -1040,7 +1052,7 @@ Example
 vt_coder
 ^^^^^^^^
 
-Description
+**Description**
    The entropy encoding to use.
 
    .. Note:: This option only applies when using macOS.
@@ -1058,10 +1070,10 @@ Description
    cavlc
    ========== ===========
 
-Default
+**Default**
    ``auto``
 
-Example
+**Example**
    .. code-block:: text
 
       vt_coder = auto
@@ -1072,14 +1084,14 @@ Advanced
 file_apps
 ^^^^^^^^^
 
-Description
+**Description**
    The application configuration file path. The file contains a json formatted list of applications that can be started
    by Moonlight.
 
-Default
+**Default**
    OS and package dependent
 
-Example
+**Example**
    .. code-block:: text
 
       file_apps = apps.json
@@ -1087,13 +1099,13 @@ Example
 file_state
 ^^^^^^^^^^
 
-Description
+**Description**
    The file where current state of Sunshine is stored.
 
-Default
+**Default**
    ``sunshine_state.json``
 
-Example
+**Example**
    .. code-block:: text
 
       file_state = sunshine_state.json
@@ -1101,13 +1113,13 @@ Example
 credentials_file
 ^^^^^^^^^^^^^^^^
 
-Description
+**Description**
    The file where user credentials for the UI are stored.
 
-Default
+**Default**
    ``sunshine_state.json``
 
-Example
+**Example**
    .. code-block:: text
 
       credentials_file = sunshine_state.json

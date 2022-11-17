@@ -1,5 +1,3 @@
-:github_url: https://github.com/LizardByte/Sunshine/tree/nightly/docs/source/building/build.rst
-
 Build
 =====
 Sunshine binaries are built using `CMake <https://cmake.org/>`_. Cross compilation is not
@@ -11,7 +9,6 @@ Building Locally
 Clone
 ^^^^^
 Ensure `git <https://git-scm.com/>`_ is installed and run the following:
-
    .. code-block:: bash
 
       git clone https://github.com/lizardbyte/sunshine.git --recurse-submodules

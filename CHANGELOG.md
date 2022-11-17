@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.0] - 2022-10-30
+### Added
+- (Windows) Add firewall rules scripts
+- (Windows) Automatically add and remove firewall rules at install/uninstall
+- (Windows) Automatically add and remove service at install/uninstall
+- (Docker) Official image added
+- (Linux) Add aarch64 flatpak package
+### Changed
+- (Windows/Linux/MacOS) - Move default config and apps file to assets directory
+- (MacOS) Bump boost to 1.80 for macport builds
+- (Linux) Remove backup and restore of config files
+### Fixed
+- (Linux) - Create sunshine config directory if it doesn't exist
+- (Linux) Remove portable home and config directories for AppImage
+- (Windows) Include service install and uninstall scripts again
+- (Windows) Automatically delete start menu entry upon uninstall
+- (Windows) Automatically delete program install directory upon uninstall, with user prompt
+- (Linux) Handle the case of no default audio sink
+- (Windows/Linux/MacOS) Fix default image paths
+- (Linux) Fix CUDA RGBA to NV12 conversion
+
 ## [0.14.1] - 2022-08-09
 ### Added
 - (Linux) Flatpak package added
