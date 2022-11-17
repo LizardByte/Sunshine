@@ -452,7 +452,7 @@ void uploadCover(resp_https_t response, req_https_t request) {
   }
   auto url = inputTree.get("url", "");
 
-  const std::string coverdir = platf::appdata().string() +  "/covers/";
+  const std::string coverdir = platf::appdata().string() + "/covers/";
   if(!boost::filesystem::exists(coverdir)) {
     boost::filesystem::create_directory(coverdir);
   }
