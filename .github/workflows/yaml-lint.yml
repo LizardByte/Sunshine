@@ -56,6 +56,5 @@ jobs:
           file_or_dir: . ${{ steps.find-files.outputs.found }}
 
       - name: Log
-        if: failure()
         run: |
           cat "${{ steps.yaml-lint.outputs.logfile }}" >> $GITHUB_STEP_SUMMARY
