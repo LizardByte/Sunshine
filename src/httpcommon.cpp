@@ -197,6 +197,9 @@ bool download_file(const std::string &url, const std::string &file) {
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+#ifdef _WIN32
+  curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
   CURLcode result = curl_easy_perform(curl);
   if(result != CURLE_OK) {
     BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << ']';
