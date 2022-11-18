@@ -47,7 +47,7 @@ jobs:
 
       - name: Hadolint
         id: hadolint
-        uses: hadolint/hadolint-action@v2.1.0
+        uses: hadolint/hadolint-action@v3.0.0
         with:
           dockerfile: ./Dockerfile
           ignore: DL3008,DL3013,DL3016,DL3018,DL3028,DL3059
