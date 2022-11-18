@@ -14,6 +14,7 @@ RUN apt-get update -y \
         libboost-log-dev=1.74.0* \
         libboost-thread-dev=1.74.0* \
         libcap-dev=1:2.44* \
+        libcurl4-openssl-dev=7.81.0* \
         libdrm-dev=2.4.110* \
         libevdev-dev=1.12.1* \
         libpulse-dev=1:15.99.1* \

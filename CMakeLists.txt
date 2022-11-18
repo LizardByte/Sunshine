@@ -69,6 +69,9 @@ include_directories(third-party/miniupnp)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules (CURL REQUIRED libcurl)
+
 if(NOT APPLE)
 	set(Boost_USE_STATIC_LIBS ON)
 endif()
@@ -88,6 +91,7 @@ if(WIN32)
 		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
 	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
 		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
@@ -149,6 +153,7 @@ if(WIN32)
 		d3d11 dxgi D3DCompiler
 		setupapi
 		dwmapi
+		${CURL_STATIC_LIBRARIES}
 		)
 
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
@@ -451,6 +456,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${FFMPEG_LIBRARIES}
 		${Boost_LIBRARIES}
 		${OPENSSL_LIBRARIES}
+		${CURL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
 if(NOT WIN32)
@@ -458,6 +464,11 @@ if(NOT WIN32)
 endif()
 
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
+
+if(WIN32)
+        set_target_properties(sunshine PROPERTIES LINK_SEARCH_START_STATIC 1)
+endif()
+
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
 set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
@@ -647,8 +658,8 @@ elseif(UNIX)
 
 		# Dependencies
 		set(CPACK_DEB_COMPONENT_INSTALL ON)
-		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
 		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
 	endif()
 endif()

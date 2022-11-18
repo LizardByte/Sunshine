@@ -32,6 +32,7 @@ post-fetch {
 }
 
 depends_lib              port:avahi \
+                         port:curl \
                          port:ffmpeg \
                          port:libopus
 
