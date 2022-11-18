@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2002-2004 Michael Niedermayer <michaelni@gmx.at>
+ *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -16,21 +18,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVCODEC_CBS_H2645_H
-#define AVCODEC_CBS_H2645_H
+#ifndef AVUTIL_REVERSE_H
+#define AVUTIL_REVERSE_H
 
-#include "h2645_parse.h"
+#include <stdint.h>
 
+extern const uint8_t ff_reverse[256];
 
-typedef struct CodedBitstreamH2645Context {
-    // If set, the stream being read is in MP4 (AVCC/HVCC) format.  If not
-    // set, the stream is assumed to be in annex B format.
-    int mp4;
-    // Size in bytes of the NAL length field for MP4 format.
-    int nal_length_size;
-    // Packet reader.
-    H2645Packet read_packet;
-} CodedBitstreamH2645Context;
-
-
-#endif /* AVCODEC_CBS_H2645_H */
+#endif /* AVUTIL_REVERSE_H */
