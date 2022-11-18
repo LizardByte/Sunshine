@@ -383,6 +383,7 @@ jobs:
             libboost-log-dev \
             libboost-thread-dev \
             libcap-dev \
+            libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
             libpulse-dev \
@@ -548,7 +549,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake ffmpeg opus
+          brew install boost cmake curl ffmpeg opus
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
@@ -846,6 +847,7 @@ jobs:
             mingw-w64-x86_64-binutils
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-curl
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus

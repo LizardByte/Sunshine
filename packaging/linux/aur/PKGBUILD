@@ -9,7 +9,7 @@ arch=('x86_64' 'i686')
 url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
 
-depends=('avahi' 'boost-libs' 'ffmpeg4.4' 'libevdev' 'libpulse' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'openssl' 'opus' 'udev')
+depends=('avahi' 'boost-libs' 'curl' 'ffmpeg4.4' 'libevdev' 'libpulse' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'openssl' 'opus' 'udev')
 makedepends=('boost' 'cmake' 'git' 'make')
 optdepends=('cuda' 'libcap' 'libdrm')
 
