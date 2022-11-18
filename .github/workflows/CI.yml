@@ -260,17 +260,21 @@ jobs:
 
       - name: Setup Dependencies Linux Flatpak
         run: |
+          PLATFORM_VERSION=21.08
+
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
             qemu-user-static \
             flatpak
-          sudo su $(whoami) -c 'flatpak --user remote-add --if-not-exists flathub \
-            https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak --user install -y flathub \
+          sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo"
+          sudo su $(whoami) -c "flatpak --user install -y flathub \
             org.flatpak.Builder \
-            org.freedesktop.Platform/${{ matrix.arch }}/21.08 \
-            org.freedesktop.Sdk/${{ matrix.arch }}/21.08'
+            org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            "
 
       - name: Cache Flatpak build
         uses: actions/cache@v3
@@ -438,6 +442,10 @@ jobs:
           mkdir -p build
           mkdir -p artifacts
 
+          pushd "./src_assets/common/assets/web"
+          npm install
+          popd
+
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
@@ -549,13 +557,17 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl ffmpeg opus
+          brew install boost cmake curl ffmpeg node opus
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
       - name: Build MacOS
         run: |
+          pushd "./src_assets/common/assets/web"
+          npm install
+          popd
+
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -855,6 +867,11 @@ jobs:
             mingw-w64-x86_64-x265
             nasm
             yasm
+
+      - name: Install npm packages
+        working-directory: src_assets/common/assets/web
+        run: |
+          npm install
 
       - name: Build Windows
         shell: msys2 {0}

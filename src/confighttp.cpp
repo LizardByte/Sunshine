@@ -11,6 +11,8 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 
+#include <boost/algorithm/string.hpp>
+
 #include <boost/asio/ssl/context.hpp>
 
 #include <boost/filesystem.hpp>
@@ -243,50 +245,24 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
-void getFontAwesomeCss(resp_https_t response, req_https_t request) {
+void getNodeModules(resp_https_t response, req_https_t request) {
   print_req(request);
 
-  std::string content = read_file(WEB_DIR "fonts/fontawesome-free-web/css/all.min.css");
-  response->write(content);
-}
-
-void getFontAwesomeBrands(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::ifstream in(WEB_DIR "fonts/fontawesome-free-web/webfonts/fa-brands-400.ttf", std::ios::binary);
   SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", "font/ttf");
-  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-}
-
-void getFontAwesomeSolid(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::ifstream in(WEB_DIR "fonts/fontawesome-free-web/webfonts/fa-solid-900.ttf", std::ios::binary);
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", "font/ttf");
-  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-}
-
-void getBootstrapCss(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::string content = read_file(WEB_DIR "third_party/bootstrap.min.css");
-  response->write(content);
-}
-
-void getBootstrapJs(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::string content = read_file(WEB_DIR "third_party/bootstrap.bundle.min.js");
-  response->write(content);
-}
-
-void getVueJs(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::string content = read_file(WEB_DIR "third_party/vue.js");
-  response->write(content);
+  if(boost::algorithm::iends_with(request->path, ".ttf") == 1) {
+    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
+    headers.emplace("Content-Type", "font/ttf");
+    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  }
+  else if(boost::algorithm::iends_with(request->path, ".woff2") == 1) {
+    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
+    headers.emplace("Content-Type", "font/woff2");
+    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  }
+  else {
+    std::string content = read_file((WEB_DIR + request->path).c_str());
+    response->write(content);
+  }
 }
 
 void getApps(resp_https_t response, req_https_t request) {
@@ -664,36 +640,31 @@ void start() {
   ctx->use_certificate_chain_file(config::nvhttp.cert);
   ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
   https_server_t server { ctx, 0 };
-  server.default_resource                                             = not_found;
-  server.resource["^/$"]["GET"]                                       = getIndexPage;
-  server.resource["^/pin$"]["GET"]                                    = getPinPage;
-  server.resource["^/apps$"]["GET"]                                   = getAppsPage;
-  server.resource["^/clients$"]["GET"]                                = getClientsPage;
-  server.resource["^/config$"]["GET"]                                 = getConfigPage;
-  server.resource["^/password$"]["GET"]                               = getPasswordPage;
-  server.resource["^/welcome$"]["GET"]                                = getWelcomePage;
-  server.resource["^/troubleshooting$"]["GET"]                        = getTroubleshootingPage;
-  server.resource["^/api/pin"]["POST"]                                = savePin;
-  server.resource["^/api/apps$"]["GET"]                               = getApps;
-  server.resource["^/api/apps$"]["POST"]                              = saveApp;
-  server.resource["^/api/config$"]["GET"]                             = getConfig;
-  server.resource["^/api/config$"]["POST"]                            = saveConfig;
-  server.resource["^/api/password$"]["POST"]                          = savePassword;
-  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]                   = deleteApp;
-  server.resource["^/api/clients/unpair$"]["POST"]                    = unpairAll;
-  server.resource["^/api/apps/close"]["POST"]                         = closeApp;
-  server.resource["^/api/covers/upload$"]["POST"]                     = uploadCover;
-  server.resource["^/images/favicon.ico$"]["GET"]                     = getFaviconImage;
-  server.resource["^/images/logo-sunshine-45.png$"]["GET"]            = getSunshineLogoImage;
-  server.resource["^/third_party/bootstrap.min.css$"]["GET"]          = getBootstrapCss;
-  server.resource["^/third_party/bootstrap.bundle.min.js$"]["GET"]    = getBootstrapJs;
-  server.resource["^/fontawesome/css/all.min.css$"]["GET"]            = getFontAwesomeCss;
-  server.resource["^/fontawesome/webfonts/fa-brands-400.ttf$"]["GET"] = getFontAwesomeBrands;
-  server.resource["^/fontawesome/webfonts/fa-solid-900.ttf$"]["GET"]  = getFontAwesomeSolid;
-  server.resource["^/third_party/vue.js$"]["GET"]                     = getVueJs;
-  server.config.reuse_address                                         = true;
-  server.config.address                                               = "0.0.0.0"s;
-  server.config.port                                                  = port_https;
+  server.default_resource                                  = not_found;
+  server.resource["^/$"]["GET"]                            = getIndexPage;
+  server.resource["^/pin$"]["GET"]                         = getPinPage;
+  server.resource["^/apps$"]["GET"]                        = getAppsPage;
+  server.resource["^/clients$"]["GET"]                     = getClientsPage;
+  server.resource["^/config$"]["GET"]                      = getConfigPage;
+  server.resource["^/password$"]["GET"]                    = getPasswordPage;
+  server.resource["^/welcome$"]["GET"]                     = getWelcomePage;
+  server.resource["^/troubleshooting$"]["GET"]             = getTroubleshootingPage;
+  server.resource["^/api/pin$"]["POST"]                    = savePin;
+  server.resource["^/api/apps$"]["GET"]                    = getApps;
+  server.resource["^/api/apps$"]["POST"]                   = saveApp;
+  server.resource["^/api/config$"]["GET"]                  = getConfig;
+  server.resource["^/api/config$"]["POST"]                 = saveConfig;
+  server.resource["^/api/password$"]["POST"]               = savePassword;
+  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]        = deleteApp;
+  server.resource["^/api/clients/unpair$"]["POST"]         = unpairAll;
+  server.resource["^/api/apps/close$"]["POST"]             = closeApp;
+  server.resource["^/api/covers/upload$"]["POST"]          = uploadCover;
+  server.resource["^/images/favicon.ico$"]["GET"]          = getFaviconImage;
+  server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
+  server.resource["^/node_modules\\/.+$"]["GET"]           = getNodeModules;
+  server.config.reuse_address                              = true;
+  server.config.address                                    = "0.0.0.0"s;
+  server.config.port                                       = port_https;
 
   try {
     server.bind();

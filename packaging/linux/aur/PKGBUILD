@@ -10,7 +10,7 @@ url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
 
 depends=('avahi' 'boost-libs' 'curl' 'ffmpeg4.4' 'libevdev' 'libpulse' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'openssl' 'opus' 'udev')
-makedepends=('boost' 'cmake' 'git' 'make')
+makedepends=('boost' 'cmake' 'git' 'make' 'nodejs' 'npm')
 optdepends=('cuda' 'libcap' 'libdrm')
 
 provides=(@SUNSHINE_AUR_PROVIDES@)
@@ -25,6 +25,10 @@ prepare() {
 }
 
 build() {
+    pushd "$pkgname/src_assets/common/assets/web"
+    npm install
+    popd
+
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
 

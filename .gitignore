@@ -9,15 +9,9 @@ cmake-build*
 .cache
 .idea
 
-# Extra FontAwesome files
-/src_assets/common/assets/web/fonts/fontawesome-free-web/css/*.css
-!/src_assets/common/assets/web/fonts/fontawesome-free-web/css/*min.css
-/src_assets/common/assets/web/fonts/fontawesome-free-web/js/
-/src_assets/common/assets/web/fonts/fontawesome-free-web/less/
-/src_assets/common/assets/web/fonts/fontawesome-free-web/metadata/
-/src_assets/common/assets/web/fonts/fontawesome-free-web/scss/
-/src_assets/common/assets/web/fonts/fontawesome-free-web/sprites/
-/src_assets/common/assets/web/fonts/fontawesome-free-web/svgs/
+# npm
+node_modules/
+package-lock.json
 
 # Translations
 *.mo
