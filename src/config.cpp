@@ -41,7 +41,7 @@ enum preset_e : int {
 };
 
 enum rc_e : int {
-  cqp   = 0x0,  /**< Constant QP mode */
+  cqp       = 0x0,  /**< Constant QP mode */
   vbr       = 0x1,  /**< Variable bitrate mode */
   cbr       = 0x2,  /**< Constant bitrate mode */
   cbr_ld_hq = 0x8,  /**< low-delay CBR, high quality */
@@ -103,14 +103,14 @@ enum quality_e : int {
 };
 
 enum class rc_hevc_e : int {
-  cqp,     /**< Constant QP mode */
+  cqp,         /**< Constant QP mode */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
   vbr_peak,    /**< Peak Constrained Variable Bitrate */
   cbr,         /**< Constant bitrate mode */
 };
 
 enum class rc_h264_e : int {
-  cqp,     /**< Constant QP mode */
+  cqp,         /**< Constant QP mode */
   cbr,         /**< Constant bitrate mode */
   vbr_peak,    /**< Peak Constrained Variable Bitrate */
   vbr_latency, /**< Latency Constrained Variable Bitrate */
