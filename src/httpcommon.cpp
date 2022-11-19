@@ -1,9 +1,5 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
-#ifdef _WIN32
-#define CURL_STATICLIB
-#endif
-
 #include "process.h"
 
 #include <filesystem>
