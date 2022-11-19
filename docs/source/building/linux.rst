@@ -32,6 +32,8 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
+          nodejs \
+          npm \
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit \  # Cuda, NvFBC
 
@@ -65,6 +67,8 @@ Install Requirements
           libXrandr-devel \  # X11
           libXtst-devel \  # X11
           mesa-libGL-devel \
+          nodejs \
+          npm \
           openssl-devel \
           opus-devel \
           pulseaudio-libs-devel \
@@ -112,6 +116,8 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
+          nodejs \
+          npm \
           wget \
 
 Update gcc alias
@@ -163,6 +169,8 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
+          nodejs \
+          npm \
           wget \
 
 Update gcc alias
@@ -204,8 +212,19 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
+          nodejs \
+          npm \
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit \  # Cuda, NvFBC
+
+npm dependencies
+----------------
+Install npm dependencies.
+   .. code-block:: bash
+
+      pushd ./src_assets/common/assets/web
+      npm install
+      popd
 
 Build
 -----

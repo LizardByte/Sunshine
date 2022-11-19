@@ -12,6 +12,17 @@ following packages using:
    mingw-w64-x86_64-toolchain mingw-w64-x86_64-opus mingw-w64-x86_64-x265 mingw-w64-x86_64-boost \
    git mingw-w64-x86_64-make cmake make gcc
 
+npm dependencies
+----------------
+Install nodejs and npm. Downloads available `here <https://nodejs.org/en/download/>`_.
+
+Install npm dependencies.
+   .. code-block:: bash
+
+      pushd ./src_assets/common/assets/web
+      npm install
+      popd
+
 Build
 -----
 .. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
