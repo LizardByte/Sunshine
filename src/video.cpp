@@ -418,6 +418,7 @@ static encoder_t nvenc {
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
+      { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
       { "preset"s, &config::video.nv.preset },
@@ -428,6 +429,7 @@ static encoder_t nvenc {
   },
   {
     {
+      { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
       { "preset"s, &config::video.nv.preset },
