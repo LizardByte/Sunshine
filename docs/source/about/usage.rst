@@ -54,8 +54,7 @@ Setup
 
 Linux
 ^^^^^
-The `deb`, `rpm`, and `AppImage` packages handle these steps automatically. The flatpak does not, third party packages
-also may not.
+The `deb`, `rpm`, `Flatpak` and `AppImage` packages handle these steps automatically. Third party packages may not.
 
 Sunshine needs access to `uinput` to create mouse and gamepad events.
 
@@ -81,6 +80,8 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
             [Service]
             ExecStart=<see table>
+            #Flatpak Only
+            #ExecStop=flatpak kill dev.lizardbyte.sunshine
 
             [Install]
             WantedBy=graphical-session.target
@@ -95,7 +96,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             deb        /usr/bin/sunshine                                ✔
             rpm        /usr/bin/sunshine                                ✔
             AppImage   ~/sunshine.AppImage                              ✔
-            Flatpak    flatpak run dev.lizardbyte.sunshine              ✖
+            Flatpak    flatpak run dev.lizardbyte.sunshine              ✔
             ========   ==============================================   ===============
 
    **Start once**
