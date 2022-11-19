@@ -244,7 +244,7 @@ else()
 	endif()
 
 	file(
-		DOWNLOAD "https://github.com/SunshineStream/Sunshine-Windows-Prebuilt/releases/download/v1/pre-compiled-debian.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DOWNLOAD "https://github.com/LizardByte/ffmpeg-prebuilt/releases/download/v1/pre-compiled-debian.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		TIMEOUT 60
 		EXPECTED_HASH SHA256=baa26844f4bf25bad4e4de6e74026f3f083edb018e950bc09983210bb46a6a7d)
 
@@ -269,7 +269,6 @@ else()
 		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
 		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
 		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
 		z lzma bcrypt libiconv.a)
 
 	if(X11_FOUND)
