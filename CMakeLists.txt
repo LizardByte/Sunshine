@@ -83,18 +83,18 @@ if(WIN32)
 	enable_language(RC)
 	set(CMAKE_RC_COMPILER windres)
 	file(
-		DOWNLOAD "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2022-06-30-12-32/ffmpeg-n5.0.1-7-g7389a49fd3-win64-gpl-5.0.zip" "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
+		DOWNLOAD "https://github.com/LizardByte/ffmpeg-prebuilt/releases/download/v1/pre-compiled-windows.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
 		TIMEOUT 60
-		EXPECTED_HASH SHA256=371cc1f31369a6ab689a2ad45389e605a36e305b660dbca7d1cf630311179fb8)
+		EXPECTED_HASH SHA256=8a22fe3ada8a00a8cb931d46e1900fecda2ce627cd5138758156251a0d056155)
 
 	file(ARCHIVE_EXTRACT
-		INPUT "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
-		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/ffmpeg)
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
-	if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
-		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg")
+	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled")
 	endif()
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
