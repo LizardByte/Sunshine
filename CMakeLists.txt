@@ -83,18 +83,18 @@ if(WIN32)
 	enable_language(RC)
 	set(CMAKE_RC_COMPILER windres)
 	file(
-		DOWNLOAD "https://github.com/SunshineStream/Sunshine-Windows-Prebuilt/releases/download/v1/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DOWNLOAD "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2022-06-30-12-32/ffmpeg-n5.0.1-7-g7389a49fd3-win64-gpl-5.0.zip" "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
 		TIMEOUT 60
-		EXPECTED_HASH SHA256=e0bd75cc9cd98e1c22b8c6805afd9126ce141d46837405bdc10c4458437590a2)
+		EXPECTED_HASH SHA256=371cc1f31369a6ab689a2ad45389e605a36e305b660dbca7d1cf630311179fb8)
 
 	file(ARCHIVE_EXTRACT
-		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
 		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
-	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
+	if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
+		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg")
 	endif()
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
@@ -128,19 +128,19 @@ if(WIN32)
 		libcrypto.a)
 
 	set(FFMPEG_INCLUDE_DIRS
-		${SUNSHINE_PREPARED_BINARIES}/include)
+		${FFMPEG_PREPARED_BINARIES}/include)
 	set(FFMPEG_LIBRARIES
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libavdevice.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libavfilter.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libavformat.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libpostproc.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libswresample.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libx264.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libx265.a
+		${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a
 		z lzma bcrypt libiconv.a)
 
 	list(PREPEND PLATFORM_LIBRARIES
@@ -243,7 +243,34 @@ else()
 		set(WAYLAND_FOUND OFF)
 	endif()
 
-	find_package(FFMPEG REQUIRED)
+	# file(
+	# 	DOWNLOAD "https://github.com/SunshineStream/Sunshine-Windows-Prebuilt/releases/download/v1/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+	# 	TIMEOUT 60
+	# 	EXPECTED_HASH SHA256=e0bd75cc9cd98e1c22b8c6805afd9126ce141d46837405bdc10c4458437590a2)
+
+	# file(ARCHIVE_EXTRACT
+	# 	INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+	# 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+
+	# if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+	# 	set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
+	# endif()
+
+	# set(FFMPEG_INCLUDE_DIRS
+	# 	${SUNSHINE_PREPARED_BINARIES}/include)
+	# set(FFMPEG_LIBRARIES
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
+	# 	z lzma bcrypt libiconv.a)
 
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
