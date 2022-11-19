@@ -94,7 +94,7 @@ if(WIN32)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
 	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled")
+		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
 	endif()
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
@@ -128,19 +128,19 @@ if(WIN32)
 		libcrypto.a)
 
 	set(FFMPEG_INCLUDE_DIRS
-		${FFMPEG_PREPARED_BINARIES}/include)
+		${SUNSHINE_PREPARED_BINARIES}/include)
 	set(FFMPEG_LIBRARIES
-		${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libavdevice.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libavfilter.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libavformat.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libpostproc.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libswresample.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libx264.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libx265.a
-		${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
 		z lzma bcrypt libiconv.a)
 
 	list(PREPEND PLATFORM_LIBRARIES
@@ -243,34 +243,34 @@ else()
 		set(WAYLAND_FOUND OFF)
 	endif()
 
-	# file(
-	# 	DOWNLOAD "https://github.com/SunshineStream/Sunshine-Windows-Prebuilt/releases/download/v1/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-	# 	TIMEOUT 60
-	# 	EXPECTED_HASH SHA256=e0bd75cc9cd98e1c22b8c6805afd9126ce141d46837405bdc10c4458437590a2)
+	file(
+		DOWNLOAD "https://github.com/SunshineStream/Sunshine-Windows-Prebuilt/releases/download/v1/pre-compiled-debian.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		TIMEOUT 60
+		EXPECTED_HASH SHA256=baa26844f4bf25bad4e4de6e74026f3f083edb018e950bc09983210bb46a6a7d)
 
-	# file(ARCHIVE_EXTRACT
-	# 	INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-	# 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+	file(ARCHIVE_EXTRACT
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 
-	# if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-	# 	set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
-	# endif()
+	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled")
+	endif()
 
-	# set(FFMPEG_INCLUDE_DIRS
-	# 	${SUNSHINE_PREPARED_BINARIES}/include)
-	# set(FFMPEG_LIBRARIES
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-	# 	${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
-	# 	z lzma bcrypt libiconv.a)
+	set(FFMPEG_INCLUDE_DIRS
+		${SUNSHINE_PREPARED_BINARIES}/include)
+	set(FFMPEG_LIBRARIES
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
+		z lzma bcrypt libiconv.a)
 
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
