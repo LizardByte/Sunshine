@@ -33,7 +33,7 @@ post-fetch {
 
 depends_lib              port:avahi \
                          port:curl \
-                         port:ffmpeg \
+                         port:ffmpeg-upstream \
                          port:libopus
 
 boost.version            1.80
