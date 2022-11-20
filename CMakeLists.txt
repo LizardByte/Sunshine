@@ -268,8 +268,7 @@ else()
 		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
 		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
 		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-		z lzma bcrypt libiconv.a)
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a)
 
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
