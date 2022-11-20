@@ -28,6 +28,8 @@ RUN apt-get update -y \
         libxfixes-dev=1:6.0.0* \
         libxrandr-dev=2:1.5.2* \
         libxtst-dev=2:1.2.3* \
+        nodejs=12.22.9* \
+        npm=8.5.1* \
         nvidia-cuda-dev=11.5.1* \
         nvidia-cuda-toolkit=11.5.1* \
     && apt-get clean \
@@ -36,6 +38,10 @@ RUN apt-get update -y \
 # copy repository
 WORKDIR /root/sunshine-build/
 COPY . .
+
+# setup npm and dependencies
+WORKDIR /root/sunshine-build/src_assets/common/assets/web
+RUN npm install
 
 # setup build directory
 WORKDIR /root/sunshine-build/build

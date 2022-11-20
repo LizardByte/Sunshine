@@ -3,6 +3,8 @@ app-id: dev.lizardbyte.sunshine
 runtime: org.freedesktop.Platform
 runtime-version: "21.08"
 sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node18
 command: sunshine
 separate-locales: false
 finish-args:
@@ -183,7 +185,16 @@ modules:
     no-make-install: false
     builddir: true
     build-options:
+      append-path: /usr/lib/sdk/node18/bin
+      build-args:
+        - --share=network
       cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
+      env:
+        npm_config_nodedir: /usr/lib/sdk/node18
+        NPM_CONFIG_LOGLEVEL: info
+    build-commands:
+      # Install npm dependencies
+      - cd ${FLATPAK_BUILDER_BUILDDIR}/src_assets/common/assets/web && npm install
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app

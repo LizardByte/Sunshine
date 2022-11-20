@@ -34,7 +34,8 @@ post-fetch {
 depends_lib              port:avahi \
                          port:curl \
                          port:ffmpeg \
-                         port:libopus
+                         port:libopus \
+                         port:npm9
 
 boost.version            1.80
 
@@ -52,6 +53,10 @@ platform darwin {
         # See: https://github.com/LizardByte/Sunshine/discussions/117#discussioncomment-2513494
         notes-append "Port is limited to software encoding, when used with macOS releases prior to Big Sur."
     }
+}
+
+pre-build {
+    system -W ${worksrcpath}/src_assets/common/assets/web "npm install"
 }
 
 notes-append "Run @PROJECT_NAME@ by executing 'sunshine <path to user config>', e.g. 'sunshine ~/sunshine.conf' "
