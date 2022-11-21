@@ -1,4 +1,6 @@
 /*
+ * Copyright (c) 2003-2012 Michael Niedermayer <michaelni@gmx.at>
+ *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -15,22 +17,17 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
+// [manual] Copied from libavutil
 
-#ifndef AVCODEC_CBS_H2645_H
-#define AVCODEC_CBS_H2645_H
+#include <stdint.h>
 
-#include "h2645_parse.h"
-
-
-typedef struct CodedBitstreamH2645Context {
-    // If set, the stream being read is in MP4 (AVCC/HVCC) format.  If not
-    // set, the stream is assumed to be in annex B format.
-    int mp4;
-    // Size in bytes of the NAL length field for MP4 format.
-    int nal_length_size;
-    // Packet reader.
-    H2645Packet read_packet;
-} CodedBitstreamH2645Context;
-
-
-#endif /* AVCODEC_CBS_H2645_H */
+const uint8_t ff_log2_tab[256]={
+        0,0,1,1,2,2,2,2,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
+        5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+        6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+        6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+        7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+        7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+        7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+        7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7
+};

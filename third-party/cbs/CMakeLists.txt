@@ -14,11 +14,20 @@ include/cbs/cbs_jpeg.h
 include/cbs/cbs_mpeg2.h
 include/cbs/cbs_sei.h
 include/cbs/cbs_vp9.h
+include/cbs/codec_desc.h
+include/cbs/codec_id.h
+include/cbs/codec_par.h
+include/cbs/config.h
+include/cbs/defs.h
+include/cbs/get_bits.h
+include/cbs/h264_levels.h
 include/cbs/h2645_parse.h
 include/cbs/h264.h
 include/cbs/hevc.h
+include/cbs/mathops.h
+include/cbs/packet.h
 include/cbs/sei.h
-include/cbs/video_levels.h
+include/cbs/vlc.h
 
 cbs.c
 cbs_h2645.c
@@ -27,21 +36,19 @@ cbs_vp9.c
 cbs_mpeg2.c
 cbs_jpeg.c
 cbs_sei.c
+h264_levels.c
 h2645_parse.c
-video_levels.c
 
+avcodec.h
 bytestream.h
 cbs_internal.h
-defs.h
-get_bits.h
+codec.h
 h264_ps.h
 h264_sei.h
 hevc_sei.h
 intmath.h
-mathops.h
 put_bits.h
-vlc.h
-config.h
+version_major.h
 )
 
 include_directories(include)

@@ -16,21 +16,21 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVCODEC_CBS_H2645_H
-#define AVCODEC_CBS_H2645_H
+/**
+ * @file
+ * Accelerated start code search function for start codes common to
+ * MPEG-1/2/4 video, VC-1, H.264/5
+ */
 
-#include "h2645_parse.h"
+#ifndef AVCODEC_STARTCODE_H
+#define AVCODEC_STARTCODE_H
 
+#include <stdint.h>
 
-typedef struct CodedBitstreamH2645Context {
-    // If set, the stream being read is in MP4 (AVCC/HVCC) format.  If not
-    // set, the stream is assumed to be in annex B format.
-    int mp4;
-    // Size in bytes of the NAL length field for MP4 format.
-    int nal_length_size;
-    // Packet reader.
-    H2645Packet read_packet;
-} CodedBitstreamH2645Context;
+const uint8_t *avpriv_find_start_code(const uint8_t *p,
+                                      const uint8_t *end,
+                                      uint32_t *state);
 
+int ff_startcode_find_candidate_c(const uint8_t *buf, int size);
 
-#endif /* AVCODEC_CBS_H2645_H */
+#endif /* AVCODEC_STARTCODE_H */

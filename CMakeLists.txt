@@ -214,6 +214,37 @@ else()
 		set(WAYLAND_FOUND OFF)
 	endif()
 
+<<<<<<< HEAD
+=======
+	file(
+		DOWNLOAD "https://github.com/LizardByte/ffmpeg-prebuilt/releases/download/v1/pre-compiled-debian.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		TIMEOUT 60
+		EXPECTED_HASH SHA256=baa26844f4bf25bad4e4de6e74026f3f083edb018e950bc09983210bb46a6a7d)
+
+	file(ARCHIVE_EXTRACT
+		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+
+	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled")
+	endif()
+
+	set(FFMPEG_INCLUDE_DIRS
+		${SUNSHINE_PREPARED_BINARIES}/include)
+	set(FFMPEG_LIBRARIES
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+		z lzma)
+
+>>>>>>> 5aeccc2 (Update ffmpeg, preserving existing cbs build pattern)
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
 		include_directories(${X11_INCLUDE_DIR})
