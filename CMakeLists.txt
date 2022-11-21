@@ -340,6 +340,9 @@ else()
 		numa
 		pulse
 		pulse-simple
+		va
+		va-drm
+		va-x11
 		)
 
 	include_directories(
