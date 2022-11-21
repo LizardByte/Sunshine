@@ -327,8 +327,9 @@ static inline int get_xbits(GetBitContext *s, int n)
 
     return ((((uint32_t)(sign ^ cache)) >> (32 - n)) ^ sign) - sign;
 #else
-    register int sign;
-    register int32_t cache;
+    // [manual] Removed register specifier, incompatible with C++17
+    int sign;
+    int32_t cache;
     OPEN_READER(re, s);
     av_assert2(n>0 && n<=25);
     UPDATE_CACHE(re, s);
@@ -343,8 +344,9 @@ static inline int get_xbits(GetBitContext *s, int n)
 #if !CACHED_BITSTREAM_READER
 static inline int get_xbits_le(GetBitContext *s, int n)
 {
-    register int sign;
-    register int32_t cache;
+    // [manual] Removed register specifier, incompatible with C++17
+    int sign;
+    int32_t cache;
     OPEN_READER(re, s);
     av_assert2(n>0 && n<=25);
     UPDATE_CACHE_LE(re, s);
@@ -358,7 +360,8 @@ static inline int get_xbits_le(GetBitContext *s, int n)
 
 static inline int get_sbits(GetBitContext *s, int n)
 {
-    register int tmp;
+    // [manual] Removed register specifier, incompatible with C++17
+    int tmp;
 #if CACHED_BITSTREAM_READER
     av_assert2(n>0 && n<=25);
     tmp = sign_extend(get_bits(s, n), n);
@@ -378,7 +381,8 @@ static inline int get_sbits(GetBitContext *s, int n)
  */
 static inline unsigned int get_bits(GetBitContext *s, int n)
 {
-    register unsigned int tmp;
+    // [manual] Removed register specifier, incompatible with C++17
+    unsigned int tmp;
 #if CACHED_BITSTREAM_READER
 
     av_assert2(n>0 && n<=32);
@@ -429,7 +433,8 @@ static inline unsigned int get_bits_le(GetBitContext *s, int n)
 
     return get_val(s, n, 1);
 #else
-    register int tmp;
+    // [manual] Removed register specifier, incompatible with C++17
+    int tmp;
     OPEN_READER(re, s);
     av_assert2(n>0 && n<=25);
     UPDATE_CACHE_LE(re, s);
@@ -445,7 +450,8 @@ static inline unsigned int get_bits_le(GetBitContext *s, int n)
  */
 static inline unsigned int show_bits(GetBitContext *s, int n)
 {
-    register unsigned int tmp;
+    // [manual] Removed register specifier, incompatible with C++17
+    unsigned int tmp;
 #if CACHED_BITSTREAM_READER
     if (n > s->bits_left)
 #ifdef BITSTREAM_READER_LE
