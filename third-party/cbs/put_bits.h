@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/config.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/avassert.h"

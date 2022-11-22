@@ -24,7 +24,7 @@
 #include "libavutil/buffer.h"
 #include "libavutil/log.h"
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/cbs.h"
 #include "cbs/codec_id.h"
 #include "cbs/get_bits.h"

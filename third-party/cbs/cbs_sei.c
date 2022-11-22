@@ -16,7 +16,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/cbs.h"
 #include "cbs_internal.h"
 #include "cbs/cbs_h264.h"

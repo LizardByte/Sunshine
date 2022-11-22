@@ -1,4 +1,4 @@
-// [manual] Copied, generated file
+// [sunshine] Copied, generated file
 #ifndef CBS_CONFIG_H
 #define CBS_CONFIG_H
 

@@ -17,13 +17,12 @@
  * License along with FFmpeg; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
-// [manual] copied from libavutil
 #ifndef AVUTIL_INTMATH_H
 #define AVUTIL_INTMATH_H
 
 #include <stdint.h>
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/config.h"
 #include "cbs/attributes.h"
 

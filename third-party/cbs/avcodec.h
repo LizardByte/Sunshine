@@ -37,7 +37,7 @@
 #include "libavutil/pixfmt.h"
 #include "libavutil/rational.h"
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/codec.h"
 #include "cbs/codec_desc.h"
 #include "cbs/codec_par.h"

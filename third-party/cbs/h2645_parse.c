@@ -20,14 +20,14 @@
 
 #include <string.h>
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/config.h"
 
 #include "intmath.h"
 #include "libavutil/intreadwrite.h"
 #include "libavutil/mem.h"
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "bytestream.h"
 #include "cbs/hevc.h"
 #include "cbs/h264.h"

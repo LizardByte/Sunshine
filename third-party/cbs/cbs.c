@@ -18,7 +18,7 @@
 
 #include <string.h>
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/config.h"
 
 #include "libavutil/avassert.h"
@@ -27,7 +27,7 @@
 #include "libavutil/opt.h"
 
 #include "avcodec.h"
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/cbs.h"
 #include "cbs_internal.h"
 

@@ -18,7 +18,7 @@
 
 #include "libavutil/avassert.h"
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/cbs.h"
 #include "cbs_internal.h"
 #include "cbs/cbs_mpeg2.h"

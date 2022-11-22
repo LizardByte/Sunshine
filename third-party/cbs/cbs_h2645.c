@@ -19,7 +19,7 @@
 #include "libavutil/attributes.h"
 #include "libavutil/avassert.h"
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "bytestream.h"
 #include "cbs/cbs.h"
 #include "cbs_internal.h"
@@ -29,7 +29,7 @@
 #include "cbs/h2645_parse.h"
 #include "cbs/hevc.h"
 
-// [manual] Added to resolve missing symbols
+// [sunshine] Added to resolve missing symbols
 #include "intmath.h"
 #include "log2_tab.c"
 

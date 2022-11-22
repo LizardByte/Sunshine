@@ -20,7 +20,7 @@
 #include "libavutil/opt.h"
 #include "libavutil/pixfmt.h"
 
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "avcodec.h"
 #include "cbs/cbs.h"
 #include "cbs_internal.h"

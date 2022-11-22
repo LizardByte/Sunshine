@@ -18,7 +18,7 @@
 
 #include <stddef.h>
 #include "libavutil/macros.h"
-// [manual] Changed include path
+// [sunshine] Changed include path
 #include "cbs/h264_levels.h"
 
 // H.264 table A-1.
