@@ -420,37 +420,40 @@ list(APPEND CBS_EXTERNAL_LIBRARIES
 
 # Download, extract binaries
 if(WIN32)
-	set(SUNSHINE_PREPARED_BINARIES_URL "https://github.com/LizardByte/build-deps/suites/9449504214/artifacts/447066791")
-	set(SUNSHINE_PREPARED_BINARIES_HASH 2f2a40f8fc781ee44077d6ae9dcd8bd20289ab2b4c96b4156d5f243642359288)
+	set(FFMPEG_BINARIES_URL "https://github.com/LizardByte/build-deps/archive/refs/heads/ffmpeg-windows-x86_64.zip")
+	set(FFMPEG_BINARIES_HASH 1ff4a83627e902f47db0c8ffdce48315705ed7bafa721df6a0957e2fef4d5cf5)
+	# TODO - verify which are needed here
+	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
 elseif(APPLE)
-	set(SUNSHINE_PREPARED_BINARIES_URL "https://github.com/LizardByte/build-deps/suites/9449504214/artifacts/447066788")
-	set(SUNSHINE_PREPARED_BINARIES_HASH 808bbdec33466b645fffdf53d243c8617257f25c4324ad1868be14b952884a04)
+	set(FFMPEG_BINARIES_URL "https://github.com/LizardByte/build-deps/archive/refs/heads/ffmpeg-macos-x86_64.zip")
+	set(FFMPEG_BINARIES_HASH 0eddb0759ced5b0d51c96418db76ea5dbd1a90f20eb59d2ce46bf714842a114c)
 else()
-	set(SUNSHINE_PREPARED_BINARIES_URL "https://github.com/LizardByte/build-deps/suites/9449504214/artifacts/447066785")
-	set(SUNSHINE_PREPARED_BINARIES_HASH e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+	set(FFMPEG_BINARIES_URL "https://github.com/LizardByte/build-deps/archive/refs/heads/ffmpeg-linux-x86_64.zip")
+	set(FFMPEG_BINARIES_HASH 9b0ad9ef0984d2de4e5dc97a8ff28c2483d7796daf4b726c780a1c35e0bed691)
 endif()
 file(
-	DOWNLOAD "${SUNSHINE_PREPARED_BINARIES_URL}" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
+	DOWNLOAD "${FFMPEG_BINARIES_URL}" "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
 	TIMEOUT 60
-	EXPECTED_HASH SHA256=${SUNSHINE_PREPARED_BINARIES_HASH})
+	EXPECTED_HASH SHA256=${FFMPEG_BINARIES_HASH})
 file(ARCHIVE_EXTRACT
-	INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
+	INPUT "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
+	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/ffmpeg)
 
 # Includes, library links
-if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-	set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled")
+if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
+	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg")
 endif()
 set(FFMPEG_INCLUDE_DIRS
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/include)
+	${FFMPEG_PREPARED_BINARIES}/include)
 set(FFMPEG_LIBRARIES
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/lib/libavcodec.a
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/lib/libavutil.a
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/lib/libpostproc.a
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/lib/libswresample.a
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/lib/libx264.a
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/lib/libx265.a
-	${SUNSHINE_PREPARED_BINARIES}/ffmpeg/lib/libhdr10plus.a)
+	${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libpostproc.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libswresample.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libx264.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libx265.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a
+	${FFMPEG_PLATFORM_LIBRARIES})
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		libminiupnpc-static
