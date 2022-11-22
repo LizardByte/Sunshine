@@ -55,7 +55,6 @@ Install Requirements
           boost-devel \
           boost-static.x86_64 \
           cmake \
-          ffmpeg-devel \
           gcc-c++ \
           libevdev-devel \
           libX11-devel \  # X11
@@ -85,7 +84,6 @@ Install Repositories
           software-properties-common \
       && add-apt-repository ppa:savoury1/graphics && \
       add-apt-repository ppa:savoury1/multimedia && \
-      add-apt-repository ppa:savoury1/ffmpeg4 && \
       add-apt-repository ppa:savoury1/boost-defaults-1.71 && \
       add-apt-repository ppa:ubuntu-toolchain-r/test && \
 

@@ -372,7 +372,6 @@ jobs:
 
       - name: Setup Dependencies Linux
         run: |
-          sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
           # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
@@ -557,7 +556,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl ffmpeg node opus
+          brew install boost cmake curl node opus
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
