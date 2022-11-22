@@ -75,10 +75,6 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninit
 if(WIN32)
 	enable_language(RC)
 	set(CMAKE_RC_COMPILER windres)
-	file(
-		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-		TIMEOUT 60
-		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
 
 	file(ARCHIVE_EXTRACT
 		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
@@ -88,10 +84,6 @@ if(WIN32)
 
 	# Restrict Boost WinAPI version to work around 1.80 linker errors
 	ADD_DEFINITIONS(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WIN7)
-
-	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
-	endif()
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
@@ -123,22 +115,6 @@ if(WIN32)
 		libssl.a
 		libcrypto.a)
 
-	set(FFMPEG_INCLUDE_DIRS
-		${SUNSHINE_PREPARED_BINARIES}/include)
-	set(FFMPEG_LIBRARIES
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
-		z lzma bcrypt libiconv.a)
-
 	list(PREPEND PLATFORM_LIBRARIES
 		libstdc++.a
 		libwinpthread.a
@@ -163,7 +139,6 @@ elseif(APPLE)
 	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 
-	find_package(FFmpeg REQUIRED)
 	FIND_LIBRARY(APP_SERVICES_LIBRARY ApplicationServices )
 	FIND_LIBRARY(AV_FOUNDATION_LIBRARY AVFoundation )
 	FIND_LIBRARY(CORE_MEDIA_LIBRARY CoreMedia )
@@ -238,8 +213,6 @@ else()
 	else()
 		set(WAYLAND_FOUND OFF)
 	endif()
-
-	find_package(FFMPEG REQUIRED)
 
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
@@ -442,6 +415,43 @@ list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}
 
 list(APPEND CBS_EXTERNAL_LIBRARIES
 	cbs)
+
+if(WIN32)
+	set(FFMPEG_PREBUILT_URL "https://github.com/LizardByte/build-deps/suites/9449504214/artifacts/447066791")
+	set(FFMPEG_PREBUILT_HASH "2f2a40f8fc781ee44077d6ae9dcd8bd20289ab2b4c96b4156d5f243642359288")
+elseif(APPLE)
+	set(FFMPEG_PREBUILT_URL "https://github.com/LizardByte/build-deps/suites/9449504214/artifacts/447066788")
+	set(FFMPEG_PREBUILT_HASH "808bbdec33466b645fffdf53d243c8617257f25c4324ad1868be14b952884a04")
+else()
+	set(FFMPEG_PREBUILT_URL "https://github.com/LizardByte/build-deps/suites/9449504214/artifacts/447066785")
+	set(FFMPEG_PREBUILT_HASH "7654eccb037da90156c8693d3d908840ff76f471191f65c5f836c16c10896d77")
+endif()
+
+file(
+	DOWNLOAD "${FFMPEG_PREBUILT_URL}" "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
+	TIMEOUT 60
+	EXPECTED_HASH SHA256="${FFMPEG_PREBUILT_HASH}")
+
+file(ARCHIVE_EXTRACT
+	INPUT "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg.zip"
+	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/ffmpeg)
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
+
+if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
+	set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg")
+endif()
+
+set(FFMPEG_INCLUDE_DIRS
+	${SUNSHINE_PREPARED_BINARIES}/include)
+set(FFMPEG_LIBRARIES
+	${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
+	${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
+	${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
+	${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
+	${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
+	${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
+	${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a)
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		libminiupnpc-static
