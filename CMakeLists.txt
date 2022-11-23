@@ -172,9 +172,6 @@ elseif(APPLE)
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
 
-	set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-	set(THREADS_PREFER_PTHREAD_FLAG TRUE)
-
 	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
 	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
 	option(SUNSHINE_ENABLE_WAYLAND "Enable building wayland specific code" ON)
@@ -307,7 +304,6 @@ else()
 		evdev
 		pulse
 		pulse-simple
-		Threads::Threads
 		)
 
 	include_directories(
@@ -381,7 +377,7 @@ elseif(APPLE)
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
 else()
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
-	set(FFMPEG_PLATFORM_LIBRARIES mvec va va-drm va-x11 vdpau X11)
+	set(FFMPEG_PLATFORM_LIBRARIES m mvec va va-drm va-x11 vdpau X11)
 endif()
 set(FFMPEG_INCLUDE_DIRS
 	${FFMPEG_PREPARED_BINARIES}/include)

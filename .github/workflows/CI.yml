@@ -353,7 +353,7 @@ jobs:
 
   build_linux:
     name: Linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [check_changelog, setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
