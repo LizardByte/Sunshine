@@ -197,6 +197,14 @@ void print(PNV_KEYBOARD_PACKET packet) {
     << "--end keyboard packet--"sv;
 }
 
+void print(PNV_UNICODE_PACKET packet) {
+  std::string text(packet->text, util::endian::big(packet->header.size) - sizeof(packet->header.magic));
+  BOOST_LOG(debug)
+    << "--begin unicode packet--"sv << std::endl
+    << "text ["sv << text << ']' << std::endl
+    << "--end unicode packet--"sv;
+}
+
 void print(PNV_MULTI_CONTROLLER_PACKET packet) {
   // Moonlight spams controller packet even when not necessary
   BOOST_LOG(verbose)
@@ -233,6 +241,9 @@ void print(void *payload) {
   case KEY_DOWN_EVENT_MAGIC:
   case KEY_UP_EVENT_MAGIC:
     print((PNV_KEYBOARD_PACKET)payload);
+    break;
+  case UTF8_TEXT_EVENT_MAGIC:
+    print((PNV_UNICODE_PACKET)payload);
     break;
   case MULTI_CONTROLLER_MAGIC_GEN5:
     print((PNV_MULTI_CONTROLLER_PACKET)payload);
@@ -448,6 +459,11 @@ void passthrough(PNV_SCROLL_PACKET packet) {
   platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
 }
 
+void passthrough(PNV_UNICODE_PACKET packet) {
+  auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
+  platf::unicode(platf_input, packet->text, size);
+}
+
 int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std::int16_t new_state, const platf::rumble_queue_t &rumble_queue) {
   auto xorGamepadMask = old_state ^ new_state;
   if(!xorGamepadMask) {
@@ -608,6 +624,9 @@ void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t
   case KEY_DOWN_EVENT_MAGIC:
   case KEY_UP_EVENT_MAGIC:
     passthrough(input, (PNV_KEYBOARD_PACKET)payload);
+    break;
+  case UTF8_TEXT_EVENT_MAGIC:
+    passthrough((PNV_UNICODE_PACKET)payload);
     break;
   case MULTI_CONTROLLER_MAGIC_GEN5:
     passthrough(input, (PNV_MULTI_CONTROLLER_PACKET)payload);
