@@ -372,12 +372,12 @@ set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 # Pre-compiled binaries
 if(WIN32)
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-windows-x86_64")
-	# TODO - verify which are needed here
 	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
 elseif(APPLE)
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
 else()
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
+	set(FFMPEG_PLATFORM_LIBRARIES X11 va va-drm va-x11 vdpau)
 endif()
 set(FFMPEG_INCLUDE_DIRS
 	${FFMPEG_PREPARED_BINARIES}/include)
