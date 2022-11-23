@@ -16,15 +16,15 @@
 [submodule "third-party/TPCircularBuffer"]
 	path = third-party/TPCircularBuffer
 	url = https://github.com/michaeltyson/TPCircularBuffer
-[submodule "third-party/ffmpeg-windows-x86_64"]
+[submodule "ffmpeg-windows-x86_64"]
 	path = third-party/ffmpeg-windows-x86_64
-	url = git@github.com:LizardByte/build-deps.git
+	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-windows-x86_64
-[submodule "third-party/ffmpeg-macos-x86_64"]
+[submodule "ffmpeg-macos-x86_64"]
 	path = third-party/ffmpeg-macos-x86_64
-	url = git@github.com:LizardByte/build-deps.git
+	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-macos-x86_64
-[submodule "third-party/ffmpeg-linux-x86_64"]
+[submodule "ffmpeg-linux-x86_64"]
 	path = third-party/ffmpeg-linux-x86_64
-	url = git@github.com:LizardByte/build-deps.git
+	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-linux-x86_64
