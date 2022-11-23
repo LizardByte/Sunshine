@@ -21,7 +21,7 @@ RUN apt-get update -y \
         libopus-dev=1.3.1* \
         libssl-dev=3.0.2* \
         libva-dev=2.14.0* \
-        libvdpau-dev=1.1.1* \
+        libvdpau-dev=1.4* \
         libwayland-dev=1.20.0* \
         libx11-dev=2:1.7.5* \
         libxcb-shm0-dev=1.14* \
