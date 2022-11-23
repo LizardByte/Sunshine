@@ -353,7 +353,7 @@ jobs:
 
   build_linux:
     name: Linux
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     needs: [check_changelog, setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
@@ -379,8 +379,8 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             cmake \
-            gcc-10 \
-            g++-10 \
+            gcc-11 \
+            g++-11 \
             libavdevice-dev \
             libboost-filesystem-dev \
             libboost-log-dev \
@@ -421,7 +421,7 @@ jobs:
 
           # Update gcc alias
           sudo update-alternatives --install \
-            /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+            /usr/bin/gcc gcc /usr/bin/gcc-11 110 --slave /usr/bin/g++ g++ /usr/bin/g++-11
 
           # Install CuDA
           sudo wget \
