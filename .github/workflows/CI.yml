@@ -559,7 +559,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl libiconv node opus
+          brew install boost cmake curl node opus
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
@@ -649,7 +649,7 @@ jobs:
       - name: Setup Dependencies Macports
         run: |
           # install dependencies using homebrew
-          brew install cmake libiconv
+          brew install cmake
 
       - name: Configure Portfile
         run: |
