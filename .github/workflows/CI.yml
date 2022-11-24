@@ -421,7 +421,7 @@ jobs:
 
           # Update gcc alias
           sudo update-alternatives --install \
-            /usr/bin/gcc gcc /usr/bin/gcc-11 110 --slave /usr/bin/g++ g++ /usr/bin/g++-11
+            /usr/bin/gcc gcc /usr/bin/gcc-11 100 --slave /usr/bin/g++ g++ /usr/bin/g++-11
 
           # Install CuDA
           sudo wget \
@@ -669,6 +669,9 @@ jobs:
           fi
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
+
+          find /usr/local -name *iconv.*
+          find /opt/local -name *iconv.*
 
           mkdir build
           cd build
