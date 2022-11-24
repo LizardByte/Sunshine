@@ -650,7 +650,7 @@ jobs:
         run: |
           # install dependencies using homebrew
           brew install cmake libiconv
-          
+
           # Checking library paths
           find / -name iconv.*
           find / -name libiconv.*
