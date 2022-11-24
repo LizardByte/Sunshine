@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.1)
 
 project(Sunshine VERSION 0.15.0
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
@@ -60,7 +60,10 @@ set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniup
 add_subdirectory(third-party/miniupnp/miniupnpc)
 include_directories(third-party/miniupnp)
 
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
+
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules (CURL REQUIRED libcurl)
@@ -306,6 +309,7 @@ else()
 		evdev
 		pulse
 		pulse-simple
+		Threads::Threads
 		)
 
 	include_directories(
@@ -377,7 +381,7 @@ if(WIN32)
 	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
 elseif(APPLE)
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
-	find_library(FFMPEG_PLATFORM_LIBRARIES NAMES iconv libiconv)
+	find_library(FFMPEG_PLATFORM_LIBRARIES NAMES iconv libiconv NAMES_PER_DIR PATH_SUFFIXES lib)
 else()
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
 	set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
