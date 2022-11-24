@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine VERSION 0.15.0
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
@@ -139,8 +139,8 @@ elseif(APPLE)
 	FIND_LIBRARY(AV_FOUNDATION_LIBRARY AVFoundation )
 	FIND_LIBRARY(CORE_MEDIA_LIBRARY CoreMedia )
 	FIND_LIBRARY(CORE_VIDEO_LIBRARY CoreVideo )
-	FIND_LIBRARY(FOUNDATION_LIBRARY Foundation )
 	FIND_LIBRARY(VIDEO_TOOLBOX_LIBRARY VideoToolbox )
+	FIND_LIBRARY(FOUNDATION_LIBRARY Foundation )
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${APP_SERVICES_LIBRARY}
 		${AV_FOUNDATION_LIBRARY}
@@ -173,9 +173,6 @@ elseif(APPLE)
 		${APPLE_PLIST_FILE})
 else()
 	add_compile_definitions(SUNSHINE_PLATFORM="linux")
-
-	set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-	set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 
 	option(SUNSHINE_ENABLE_DRM "Enable KMS grab if available" ON)
 	option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
@@ -309,7 +306,6 @@ else()
 		evdev
 		pulse
 		pulse-simple
-		Threads::Threads
 		)
 
 	include_directories(
@@ -381,9 +377,10 @@ if(WIN32)
 	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
 elseif(APPLE)
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
+	find_library(FFMPEG_PLATFORM_LIBRARIES NAMES iconv libiconv)
 else()
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
-	set(FFMPEG_PLATFORM_LIBRARIES mvec m va va-drm va-x11 vdpau X11)
+	set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
 endif()
 set(FFMPEG_INCLUDE_DIRS
 	${FFMPEG_PREPARED_BINARIES}/include)
