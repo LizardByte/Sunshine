@@ -561,10 +561,6 @@ jobs:
           # install dependencies using homebrew
           brew install boost cmake curl libiconv node opus
 
-          # Checking library paths
-          find / -name iconv.*
-          find / -name libiconv.*
-
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
@@ -653,7 +649,11 @@ jobs:
       - name: Setup Dependencies Macports
         run: |
           # install dependencies using homebrew
-          brew install cmake
+          brew install cmake libiconv
+          
+          # Checking library paths
+          find / -name iconv.*
+          find / -name libiconv.*
 
       - name: Configure Portfile
         run: |
@@ -805,6 +805,10 @@ jobs:
 
       - name: Package
         run: |
+          # Checking library paths
+          find / -name iconv.*
+          find / -name libiconv.*
+
           # create packages
           sudo port pkg sunshine
           sudo port dmg sunshine
