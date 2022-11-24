@@ -561,6 +561,10 @@ jobs:
           # install dependencies using homebrew
           brew install boost cmake curl libiconv node opus
 
+          # Checking library paths
+          find / -name iconv.*
+          find / -name libiconv.*
+
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
