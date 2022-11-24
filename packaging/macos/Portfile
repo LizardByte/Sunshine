@@ -41,7 +41,7 @@ boost.version            1.80
 
 configure.args           -DCMAKE_INSTALL_PREFIX=${prefix} \
                          -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets \
-                         --with-iconv=/opt/homebrew/opt/libiconv
+                         --with-iconv=/usr/local/opt/libiconv
 
 startupitem.create       yes
 startupitem.executable   "${prefix}/bin/{$name}"

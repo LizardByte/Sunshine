@@ -670,9 +670,6 @@ jobs:
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
 
-          find /usr/local -name *iconv.*
-          find /opt/homebrew -name *iconv.*
-
           mkdir build
           cd build
           cmake -DGITHUB_COMMIT=${commit} \
