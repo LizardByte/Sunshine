@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine VERSION 0.15.0
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
@@ -60,10 +60,7 @@ set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniup
 add_subdirectory(third-party/miniupnp/miniupnpc)
 include_directories(third-party/miniupnp)
 
-set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
-
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules (CURL REQUIRED libcurl)
@@ -144,16 +141,13 @@ elseif(APPLE)
 	FIND_LIBRARY(CORE_VIDEO_LIBRARY CoreVideo )
 	FIND_LIBRARY(VIDEO_TOOLBOX_LIBRARY VideoToolbox )
 	FIND_LIBRARY(FOUNDATION_LIBRARY Foundation )
-	FIND_LIBRARY(ICONV_LIBRARY iconv )
-	MESSAGE(${ICONV_LIBRARY})
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${APP_SERVICES_LIBRARY}
 		${AV_FOUNDATION_LIBRARY}
 		${CORE_MEDIA_LIBRARY}
 		${CORE_VIDEO_LIBRARY}
 		${VIDEO_TOOLBOX_LIBRARY}
-		${FOUNDATION_LIBRARY}
-		${ICONV_LIBRARY})
+		${FOUNDATION_LIBRARY})
 
 	set(PLATFORM_INCLUDE_DIRS
 		${Boost_INCLUDE_DIR})
@@ -312,7 +306,6 @@ else()
 		evdev
 		pulse
 		pulse-simple
-		Threads::Threads
 		)
 
 	include_directories(
@@ -384,7 +377,6 @@ if(WIN32)
 	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
 elseif(APPLE)
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
-	# find_library(FFMPEG_PLATFORM_LIBRARIES NAMES iconv libiconv NAMES_PER_DIR PATH_SUFFIXES lib)
 else()
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
 	set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
@@ -438,6 +430,7 @@ else()
 	set(SUNSHINE_ASSETS_DIR_DEF "${SUNSHINE_ASSETS_DIR}")
 endif()
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}")
+
 
 list(APPEND CBS_EXTERNAL_LIBRARIES
 	cbs)
