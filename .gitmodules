@@ -3,7 +3,7 @@
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
 [submodule "Simple-Web-Server"]
 	path = third-party/Simple-Web-Server
-	url = https://github.com/loki-47-6F-64/Simple-Web-Server.git
+	url = https://gitlab.com/eidheim/Simple-Web-Server.git
 [submodule "ViGEmClient"]
 	path = third-party/ViGEmClient
 	url = https://github.com/ViGEm/ViGEmClient
