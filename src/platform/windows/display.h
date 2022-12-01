@@ -31,6 +31,7 @@ using device_ctx_t          = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11
 using adapter_t             = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
 using output_t              = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
 using output1_t             = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
+using output5_t             = util::safe_ptr<IDXGIOutput5, Release<IDXGIOutput5>>;
 using dup_t                 = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
 using texture2d_t           = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
 using texture1d_t           = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;

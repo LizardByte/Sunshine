@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <codecvt>
+#include <initguid.h>
 
 #include "display.h"
 #include "misc.h"
@@ -79,22 +80,21 @@ duplication_t::~duplication_t() {
 }
 
 int display_base_t::init(int framerate, const std::string &display_name) {
-  /* Uncomment when use of IDXGIOutput5 is implemented
+  std::once_flag windows_cpp_once_flag;
+
   std::call_once(windows_cpp_once_flag, []() {
     DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
-    const auto DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ((DPI_AWARENESS_CONTEXT)-4);
 
     typedef BOOL (*User32_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
 
     auto user32 = LoadLibraryA("user32.dll");
-    auto f = (User32_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+    auto f      = (User32_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
     if(f) {
       f(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
 
     FreeLibrary(user32);
   });
-*/
 
   // Ensure we can duplicate the current display
   syncThreadDesktop();
@@ -291,18 +291,31 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   }
 
   //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
-  //TODO: Use IDXGIOutput5 for improved performance
   {
+    const DXGI_FORMAT DesktopFormats[] = {
+      DXGI_FORMAT_R8G8B8A8_UNORM,
+      DXGI_FORMAT_B8G8R8A8_UNORM,
+      DXGI_FORMAT_R16G16B16A16_FLOAT,
+      DXGI_FORMAT_R10G10B10A2_UNORM,
+    };
+    const unsigned DesktopFormatsCounts = sizeof(DesktopFormats) / sizeof(DesktopFormats[0]);
     dxgi::output1_t output1 {};
-    status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
+    dxgi::output5_t output5 {};
+
+    status = output->QueryInterface(IID_IDXGIOutput5, (void **)&output5);
     if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
-      return -1;
+      BOOST_LOG(warning) << "Failed to query IDXGIOutput5 from the output"sv;
+
+      status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+        return -1;
+      }
     }
 
     // We try this twice, in case we still get an error on reinitialization
     for(int x = 0; x < 2; ++x) {
-      status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
+      status = output5->DuplicateOutput1((IUnknown *)device.get(), 0, DesktopFormatsCounts, DesktopFormats, &dup.dup);
       if(SUCCEEDED(status)) {
         break;
       }
@@ -310,8 +323,19 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     }
 
     if(FAILED(status)) {
-      BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+      BOOST_LOG(warning) << "DuplicateOutput1 Failed [0x"sv << util::hex(status).to_string_view() << ']';
+      for(int x = 0; x < 2; ++x) {
+        status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
+        if(SUCCEEDED(status)) {
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
+      }
+
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
   }
 
