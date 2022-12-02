@@ -28,3 +28,7 @@
 	path = third-party/ffmpeg-linux-x86_64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-linux-x86_64
+[submodule "ffmpeg-linux-aarch64"]
+	path = third-party/ffmpeg-linux-aarch64
+	url = https://github.com/LizardByte/build-deps
+	branch = ffmpeg-linux-aarch64
