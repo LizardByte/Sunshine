@@ -390,8 +390,9 @@ jobs:
             libdrm-dev \
             libevdev-dev \
             libfuse2 \
-            libpulse-dev \
+            libnuma-dev \
             libopus-dev \
+            libpulse-dev \
             libssl-dev \
             libva-dev \
             libvdpau-dev \
