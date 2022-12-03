@@ -217,7 +217,7 @@ jobs:
           mv ./build/PKGBUILD ./artifacts/
 
       - name: Validate package
-        uses: hapakaien/archlinux-package-action@v2.2.0
+        uses: LizardByte/archlinux-package-action@master
         with:
           path: artifacts
           flags: '--syncdeps --noconfirm'
