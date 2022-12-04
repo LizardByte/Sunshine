@@ -116,6 +116,17 @@ modules:
         sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
         dest-filename: cuda.run
 
+  - name: numactl
+    buildsystem: autotools
+    make-args:
+      - install
+    sources:
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14.orig.tar.gz
+        sha256: 1ee27abd07ff6ba140aaf9bc6379b37825e54496e01d6f7343330cf1a4487035
+    cleanup:
+      - "/bin"
+
   - name: sunshine
     disabled: false
     buildsystem: cmake

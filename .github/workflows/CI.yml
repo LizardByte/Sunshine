@@ -266,7 +266,6 @@ jobs:
           sudo apt-get install -y \
             cmake \
             flatpak \
-            libnuma-dev \
             qemu-user-static
           sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo"
