@@ -905,6 +905,7 @@ void recvThread(broadcast_ctx_t &ctx) {
 void videoBroadcastThread(udp::socket &sock) {
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   auto packets        = mail::man->queue<video::packet_t>(mail::video_packets);
+  auto timebase       = boost::posix_time::microsec_clock::universal_time();
 
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
@@ -1017,6 +1018,10 @@ void videoBroadcastThread(udp::socket &sock) {
         for(auto x = 0; x < shards.size(); ++x) {
           auto *inspect = (video_packet_raw_t *)shards.data(x);
 
+          // RTP video timestamps use a 90 KHz clock
+          auto now       = boost::posix_time::microsec_clock::universal_time();
+          auto timestamp = (now - timebase).total_microseconds() / (1000 / 90);
+
           inspect->packet.fecInfo =
             (x << 12 |
               shards.data_shards << 22 |
@@ -1024,12 +1029,11 @@ void videoBroadcastThread(udp::socket &sock) {
 
           inspect->rtp.header         = 0x80 | FLAG_EXTENSION;
           inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
+          inspect->rtp.timestamp      = util::endian::big<uint32_t>(timestamp);
 
           inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
           inspect->packet.frameIndex     = av_packet->pts;
-        }
 
-        for(auto x = 0; x < shards.size(); ++x) {
           sock.send_to(asio::buffer(shards[x]), session->video.peer);
         }
 
