@@ -34,13 +34,6 @@ endif()
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(SUNSHINE_SOURCE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_assets")
 
-if(WIN32)
-	# Ugly hack to compile with #include <qos2.h>
-	add_compile_definitions(
-		QOS_FLOWID=UINT32
-		PQOS_FLOWID=UINT32*
-		QOS_NON_ADAPTIVE_FLOW=2)
-endif()
 if(APPLE)
 	macro(ADD_FRAMEWORK fwname appname)
     find_library(FRAMEWORK_${fwname}
