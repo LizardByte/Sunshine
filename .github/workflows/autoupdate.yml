@@ -17,7 +17,7 @@ on:
       - 'nightly'
 
 jobs:
-  autoupdate-for-bot:
+  autoupdate:
     name: Autoupdate autoapproved PR created in the upstream
     if: startsWith(github.repository, 'LizardByte/')
     runs-on: ubuntu-latest
@@ -25,8 +25,19 @@ jobs:
       - name: Update
         uses: docker://chinthakagodawita/autoupdate-action:v1
         env:
+          EXCLUDED_LABELS: "central_dependency,dependencies"
           GITHUB_TOKEN: '${{ secrets.GH_BOT_TOKEN }}'
           PR_FILTER: "labelled"
           PR_LABELS: "autoupdate"
-          PR_READY_STATE: "ready_for_review"
-          MERGE_CONFLICT_ACTION: "ignore"
+          PR_READY_STATE: "all"
+          MERGE_CONFLICT_ACTION: "fail"
+
+  dependabot-rebase:
+    name: Dependabot Rebase
+    if: startsWith(github.repository, 'LizardByte/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: rebase
+        uses: "bbeesley/gha-auto-dependabot-rebase@v1.2.0"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
