@@ -12,6 +12,7 @@ on:
 
 jobs:
   create_pr:
+    if: startsWith(github.repository, 'LizardByte/')
     runs-on: ubuntu-latest
 
     steps:
