@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: reddit
-        uses: bluwy/release-for-reddit-action@v1  # https://github.com/bluwy/release-for-reddit-action
+        uses: bluwy/release-for-reddit-action@v2  # https://github.com/bluwy/release-for-reddit-action
         with:
           username: ${{ secrets.REDDIT_USERNAME }}
           password: ${{ secrets.REDDIT_PASSWORD }}
