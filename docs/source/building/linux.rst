@@ -21,7 +21,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
-          libfuse2-dev \
+          libfuse-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -108,7 +108,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
-          libfuse2-dev \
+          libfuse-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -212,7 +212,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
-          libfuse2-dev \
+          libfuse-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
