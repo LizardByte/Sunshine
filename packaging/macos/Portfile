@@ -33,9 +33,9 @@ post-fetch {
 
 depends_lib              port:avahi \
                          port:curl \
-                         port:ffmpeg \
                          port:libopus \
-                         port:npm9
+                         port:npm9 \
+                         port:pkgconfig
 
 boost.version            1.80
 

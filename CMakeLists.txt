@@ -75,23 +75,11 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninit
 if(WIN32)
 	enable_language(RC)
 	set(CMAKE_RC_COMPILER windres)
-	file(
-		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-		TIMEOUT 60
-		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
-
-	file(ARCHIVE_EXTRACT
-		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
 	# Restrict Boost WinAPI version to work around 1.80 linker errors
 	ADD_DEFINITIONS(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WIN7)
-
-	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
-	endif()
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
@@ -123,22 +111,6 @@ if(WIN32)
 		libssl.a
 		libcrypto.a)
 
-	set(FFMPEG_INCLUDE_DIRS
-		${SUNSHINE_PREPARED_BINARIES}/include)
-	set(FFMPEG_LIBRARIES
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
-		z lzma bcrypt libiconv.a)
-
 	list(PREPEND PLATFORM_LIBRARIES
 		libstdc++.a
 		libwinpthread.a
@@ -163,17 +135,18 @@ elseif(APPLE)
 	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 
-	find_package(FFmpeg REQUIRED)
 	FIND_LIBRARY(APP_SERVICES_LIBRARY ApplicationServices )
 	FIND_LIBRARY(AV_FOUNDATION_LIBRARY AVFoundation )
 	FIND_LIBRARY(CORE_MEDIA_LIBRARY CoreMedia )
 	FIND_LIBRARY(CORE_VIDEO_LIBRARY CoreVideo )
+	FIND_LIBRARY(VIDEO_TOOLBOX_LIBRARY VideoToolbox )
 	FIND_LIBRARY(FOUNDATION_LIBRARY Foundation )
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${APP_SERVICES_LIBRARY}
 		${AV_FOUNDATION_LIBRARY}
 		${CORE_MEDIA_LIBRARY}
 		${CORE_VIDEO_LIBRARY}
+		${VIDEO_TOOLBOX_LIBRARY}
 		${FOUNDATION_LIBRARY})
 
 	set(PLATFORM_INCLUDE_DIRS
@@ -238,8 +211,6 @@ else()
 	else()
 		set(WAYLAND_FOUND OFF)
 	endif()
-
-	find_package(FFMPEG REQUIRED)
 
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
@@ -333,6 +304,7 @@ else()
 	list(APPEND PLATFORM_LIBRARIES
 		dl
 		evdev
+		numa
 		pulse
 		pulse-simple
 		)
@@ -399,6 +371,35 @@ set(SUNSHINE_TARGET_FILES
 	${PLATFORM_TARGET_FILES})
 
 set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
+
+# Pre-compiled binaries
+if(WIN32)
+	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-windows-x86_64")
+	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
+elseif(APPLE)
+	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
+else()
+	if (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-aarch64")
+	else()
+		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
+	endif()
+	set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
+endif()
+set(FFMPEG_INCLUDE_DIRS
+	${FFMPEG_PREPARED_BINARIES}/include)
+if(EXISTS ${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a)
+	set(HDR10_PLUS_LIBRARY
+		${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a)
+endif()
+set(FFMPEG_LIBRARIES
+	${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libx264.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libx265.a
+	${HDR10_PLUS_LIBRARY}
+	${FFMPEG_PLATFORM_LIBRARIES})
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -654,8 +655,8 @@ elseif(UNIX)
 
 		# Dependencies
 		set(CPACK_DEB_COMPONENT_INSTALL ON)
-		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
 		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
 	endif()
 endif()

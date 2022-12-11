@@ -265,8 +265,8 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
-            qemu-user-static \
-            flatpak
+            flatpak \
+            qemu-user-static
           sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo"
           sudo su $(whoami) -c "flatpak --user install -y flathub \
@@ -372,8 +372,6 @@ jobs:
 
       - name: Setup Dependencies Linux
         run: |
-          sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
-          # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
           sudo apt-get update -y
@@ -390,9 +388,12 @@ jobs:
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
-            libpulse-dev \
+            libnuma-dev \
             libopus-dev \
+            libpulse-dev \
             libssl-dev \
+            libva-dev \
+            libvdpau-dev \
             libwayland-dev \
             libx11-dev \
             libxcb-shm0-dev \
@@ -557,7 +558,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl ffmpeg node opus
+          brew install boost cmake curl node opus
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
