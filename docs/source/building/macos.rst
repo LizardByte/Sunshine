@@ -12,7 +12,7 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install cmake boost libopus npm9
+      sudo port install boost cmake libopus npm9
 
 Homebrew
 """"""""

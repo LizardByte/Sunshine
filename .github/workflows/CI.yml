@@ -372,7 +372,6 @@ jobs:
 
       - name: Setup Dependencies Linux
         run: |
-          # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
           sudo apt-get update -y
@@ -389,7 +388,7 @@ jobs:
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
-            libfuse2 \
+            libfuse2-dev \
             libnuma-dev \
             libopus-dev \
             libpulse-dev \
