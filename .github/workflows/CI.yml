@@ -388,7 +388,6 @@ jobs:
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
-            libfuse-dev \
             libnuma-dev \
             libopus-dev \
             libpulse-dev \
