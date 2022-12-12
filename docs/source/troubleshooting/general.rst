@@ -3,7 +3,7 @@ General
 If you forgot your credentials to the web UI, try this.
    .. code-block:: bash
 
-      sunshine -creds <new username> <new password>
+      sunshine --creds <new username> <new password>
 
 Can't access the web UI?
    #. Check firewall rules.

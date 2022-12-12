@@ -107,17 +107,24 @@ Flatpak Package
    :alt: GitHub issues by-label
 
 #. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
-#. Download ``sunshine.flatpak`` and run the following code.
+#. Download ``sunshine_{arch}.flatpak`` and run the following code.
+
+   .. Note:: Be sure to replace ``{arch}`` with the architecture for your operating system.
 
    System level (recommended)
       .. code-block:: bash
 
-         flatpak install --system sunshine.flatpak
+         flatpak install --system ./sunshine_{arch}.flatpak
 
    User level
       .. code-block:: bash
 
-         flatpak install --user sunshine.flatpak
+         flatpak install --user ./sunshine_{arch}.flatpak
+
+   Additional installation (required)
+      .. code-block:: bash
+
+         flatpak run --command=additional-install.sh dev.lizardbyte.sunshine
 
 Start:
    X11 and NVFBC capture (X11 Only)
@@ -133,7 +140,8 @@ Start:
 Uninstall:
    .. code-block:: bash
 
-      flatpak uninstall --delete-data sunshine.flatpak
+      flatpak run --command=remove-additional-install.sh dev.lizardbyte.sunshine
+      flatpak uninstall --delete-data dev.lizardbyte.sunshine
 
 RPM Package
 ^^^^^^^^^^^

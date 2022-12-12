@@ -21,9 +21,12 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
-          libpulse-dev \
+          libnuma-dev \
           libopus-dev \
+          libpulse-dev \
           libssl-dev \
+          libva-dev \
+          libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
           libxcb-shm0-dev \  # X11
@@ -32,8 +35,10 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
+          nodejs \
+          npm \
           nvidia-cuda-dev \  # Cuda, NvFBC
-          nvidia-cuda-toolkit \  # Cuda, NvFBC
+          nvidia-cuda-toolkit  # Cuda, NvFBC
 
 Fedora 35
 ^^^^^^^^^
@@ -53,9 +58,10 @@ Install Requirements
           boost-devel \
           boost-static.x86_64 \
           cmake \
-          ffmpeg-devel \
           gcc-c++ \
           libevdev-devel \
+          libva-devel \
+          libvdpau-devel \
           libX11-devel \  # X11
           libxcb-devel \  # X11
           libXcursor-devel \  # X11
@@ -65,10 +71,13 @@ Install Requirements
           libXrandr-devel \  # X11
           libXtst-devel \  # X11
           mesa-libGL-devel \
+          nodejs \
+          npm \
+          numactl-devel \
           openssl-devel \
           opus-devel \
           pulseaudio-libs-devel \
-          rpm-build \  # if you want to build an RPM binary package
+          rpm-build  # if you want to build an RPM binary package
 
 Ubuntu 18.04
 ^^^^^^^^^^^^
@@ -79,10 +88,7 @@ Install Repositories
 
       sudo apt update && sudo apt install \
           software-properties-common \
-      && add-apt-repository ppa:savoury1/graphics && \
-      add-apt-repository ppa:savoury1/multimedia && \
-      add-apt-repository ppa:savoury1/ffmpeg4 && \
-      add-apt-repository ppa:savoury1/boost-defaults-1.71 && \
+      && add-apt-repository ppa:savoury1/boost-defaults-1.71 && \
       add-apt-repository ppa:ubuntu-toolchain-r/test && \
 
 Install Requirements
@@ -101,9 +107,12 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
-          libpulse-dev \
+          libnuma-dev \
           libopus-dev \
+          libpulse-dev \
           libssl-dev \
+          libva-dev \
+          libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
           libxcb-shm0-dev \  # X11
@@ -112,7 +121,9 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
-          wget \
+          nodejs \
+          npm \
+          wget
 
 Update gcc alias
    .. code-block:: bash
@@ -152,9 +163,12 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
-          libpulse-dev \
+          libnuma-dev \
           libopus-dev \
+          libpulse-dev \
           libssl-dev \
+          libva-dev \
+          libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
           libxcb-shm0-dev \  # X11
@@ -163,7 +177,9 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
-          wget \
+          nodejs \
+          npm \
+          wget
 
 Update gcc alias
    .. code-block:: bash
@@ -193,8 +209,9 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
-          libpulse-dev \
+          libnuma-dev \
           libopus-dev \
+          libpulse-dev \
           libssl-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
@@ -204,8 +221,19 @@ Install Requirements
           libxfixes-dev \  # X11
           libxrandr-dev \  # X11
           libxtst-dev \  # X11
+          nodejs \
+          npm \
           nvidia-cuda-dev \  # Cuda, NvFBC
-          nvidia-cuda-toolkit \  # Cuda, NvFBC
+          nvidia-cuda-toolkit  # Cuda, NvFBC
+
+npm dependencies
+----------------
+Install npm dependencies.
+   .. code-block:: bash
+
+      pushd ./src_assets/common/assets/web
+      npm install
+      popd
 
 Build
 -----

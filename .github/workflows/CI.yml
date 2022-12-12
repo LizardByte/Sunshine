@@ -217,7 +217,7 @@ jobs:
           mv ./build/PKGBUILD ./artifacts/
 
       - name: Validate package
-        uses: hapakaien/archlinux-package-action@v2.2.0
+        uses: LizardByte/archlinux-package-action@master
         with:
           path: artifacts
           flags: '--syncdeps --noconfirm'
@@ -234,7 +234,7 @@ jobs:
 
       - name: Publish AUR package
         if: ${{ env.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.5.0
+        uses: KSXGitHub/github-actions-deploy-aur@v2.6.0
         with:
           pkgname: ${{ env.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
@@ -260,17 +260,21 @@ jobs:
 
       - name: Setup Dependencies Linux Flatpak
         run: |
+          PLATFORM_VERSION=21.08
+
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
-            qemu-user-static \
-            flatpak
-          sudo su $(whoami) -c 'flatpak --user remote-add --if-not-exists flathub \
-            https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak --user install -y flathub \
+            flatpak \
+            qemu-user-static
+          sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo"
+          sudo su $(whoami) -c "flatpak --user install -y flathub \
             org.flatpak.Builder \
-            org.freedesktop.Platform/${{ matrix.arch }}/21.08 \
-            org.freedesktop.Sdk/${{ matrix.arch }}/21.08'
+            org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            "
 
       - name: Cache Flatpak build
         uses: actions/cache@v3
@@ -373,7 +377,6 @@ jobs:
 
       - name: Setup Dependencies Linux
         run: |
-          sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
           if [[ ${{ matrix.dist }} == "18.04" ]]; then
@@ -418,11 +421,15 @@ jobs:
             g++-10 \
             libavdevice-dev \
             libcap-dev \
+            libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
-            libpulse-dev \
+            libnuma-dev \
             libopus-dev \
+            libpulse-dev \
             libssl-dev \
+            libva-dev \
+            libvdpau-dev \
             libwayland-dev \
             libx11-dev \
             libxcb-shm0-dev \
@@ -458,6 +465,10 @@ jobs:
         run: |
           mkdir -p build
           mkdir -p artifacts
+
+          pushd "./src_assets/common/assets/web"
+          npm install
+          popd
 
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -570,13 +581,17 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake ffmpeg opus
+          brew install boost cmake curl node opus
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
       - name: Build MacOS
         run: |
+          pushd "./src_assets/common/assets/web"
+          npm install
+          popd
+
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -868,6 +883,7 @@ jobs:
             mingw-w64-x86_64-binutils
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-curl
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
@@ -875,6 +891,11 @@ jobs:
             mingw-w64-x86_64-x265
             nasm
             yasm
+
+      - name: Install npm packages
+        working-directory: src_assets/common/assets/web
+        run: |
+          npm install
 
       - name: Build Windows
         shell: msys2 {0}
@@ -923,7 +944,7 @@ jobs:
 
   release-winget:
     name: Release to WinGet
-    needs: build_win
+    needs: [setup_release, build_win]
     if: ${{ needs.setup_release.outputs.create_release == 'true' && github.ref == 'refs/heads/master' }}
     runs-on: windows-latest  # the required action can only be run on Windows
     steps:

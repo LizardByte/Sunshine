@@ -12,17 +12,26 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install cmake boost ffmpeg libopus
+      sudo port install boost cmake libopus npm9
 
 Homebrew
 """"""""
 Install Requirements
    .. code-block:: bash
 
-      brew install boost cmake ffmpeg opus
+      brew install boost cmake node opus
       # if there are issues with an SSL header that is not found:
       cd /usr/local/include
       ln -s ../opt/openssl/include/openssl .
+
+npm dependencies
+----------------
+Install npm dependencies.
+   .. code-block:: bash
+
+      pushd ./src_assets/common/assets/web
+      npm install
+      popd
 
 Build
 -----
