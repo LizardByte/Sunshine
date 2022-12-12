@@ -367,7 +367,7 @@ jobs:
             dist: 22.04
           - type: appimage
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
-            dist: 18.04
+            dist: 20.04
 
     steps:
       - name: Checkout
@@ -532,10 +532,10 @@ jobs:
             --output appimage
 
           # move
-          mv Sunshine*.AppImage ../artifacts/sunshine-${{ matrix.dist }}.AppImage
+          mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
 
           # permissions
-          chmod +x ../artifacts/sunshine-${{ matrix.dist }}.AppImage
+          chmod +x ../artifacts/sunshine.AppImage
 
       - name: Verify AppImage
         if: ${{ matrix.type == 'appimage' }}
@@ -545,7 +545,7 @@ jobs:
 
           # rm -rf ~/.cache/appimagelint/
 
-          ./appimagelint-x86_64.AppImage ./artifacts/sunshine-${{ matrix.dist }}.AppImage
+          ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
