@@ -3,8 +3,9 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# This workflow is designed to work with:
-# - automerge workflows
+# This workflow is designed to work with the following workflows:
+# - automerge
+# - autoupdate-labeler
 
 # It uses GitHub Action that auto-updates pull requests branches, when changes are pushed to their destination branch.
 # Auto-updating to the latest destination branch works only in the context of upstream repo and not forks.
@@ -34,7 +35,9 @@ jobs:
 
   dependabot-rebase:
     name: Dependabot Rebase
-    if: startsWith(github.repository, 'LizardByte/')
+    if: >-
+      startsWith(github.repository, 'LizardByte/') &&
+      contains(github.event.pull_request.labels.*.name, 'central_dependency') == false
     runs-on: ubuntu-latest
     steps:
       - name: rebase
