@@ -645,8 +645,8 @@ elseif(UNIX)
 			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
 			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
 		else()
-			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
-			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d")
+			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
 		endif()
 
 		# Post install

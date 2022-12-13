@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.16.0] - 2022-12-12
+## [0.16.0] - 2022-12-13
 ### Added
 - Add cover finder
 - (Docker) Add arm64 docker image
@@ -8,6 +8,7 @@
 - (Windows) Add support for Unicode input messages
 ### Fixed
 - (Linux) Reintroduce Ubuntu 20.04 and 22.04 specific deb packages
+- (Linux) Fixed udev and systemd file locations
 ### Dependencies
 - Bump babel from 2.10.3 to 2.11.0
 - Bump sphinx-copybutton from 0.5.0 to 0.5.1
