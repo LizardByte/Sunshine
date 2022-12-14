@@ -4,6 +4,7 @@
 #include <cstdint>
 extern "C" {
 #include <moonlight-common-c/src/Input.h>
+#include <moonlight-common-c/src/Limelight.h>
 }
 
 #include <bitset>
@@ -175,7 +176,7 @@ void print(PNV_ABS_MOUSE_MOVE_PACKET packet) {
 void print(PNV_MOUSE_BUTTON_PACKET packet) {
   BOOST_LOG(debug)
     << "--begin mouse button packet--"sv << std::endl
-    << "action ["sv << util::hex(packet->action).to_string_view() << ']' << std::endl
+    << "action ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
     << "button ["sv << util::hex(packet->button).to_string_view() << ']' << std::endl
     << "--end mouse button packet--"sv;
 }
@@ -190,10 +191,18 @@ void print(PNV_SCROLL_PACKET packet) {
 void print(PNV_KEYBOARD_PACKET packet) {
   BOOST_LOG(debug)
     << "--begin keyboard packet--"sv << std::endl
-    << "keyAction ["sv << util::hex(packet->keyAction).to_string_view() << ']' << std::endl
+    << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
     << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl
     << "modifiers ["sv << util::hex(packet->modifiers).to_string_view() << ']' << std::endl
     << "--end keyboard packet--"sv;
+}
+
+void print(PNV_UNICODE_PACKET packet) {
+  std::string text(packet->text, util::endian::big(packet->header.size) - sizeof(packet->header.magic));
+  BOOST_LOG(debug)
+    << "--begin unicode packet--"sv << std::endl
+    << "text ["sv << text << ']' << std::endl
+    << "--end unicode packet--"sv;
 }
 
 void print(PNV_MULTI_CONTROLLER_PACKET packet) {
@@ -212,33 +221,32 @@ void print(PNV_MULTI_CONTROLLER_PACKET packet) {
     << "--end controller packet--"sv;
 }
 
-constexpr int PACKET_TYPE_SCROLL_OR_KEYBOARD = PACKET_TYPE_SCROLL;
-void print(void *input) {
-  int input_type = util::endian::big(*(int *)input);
+void print(void *payload) {
+  auto header = (PNV_INPUT_HEADER)payload;
 
-  switch(input_type) {
-  case PACKET_TYPE_REL_MOUSE_MOVE:
-    print((PNV_REL_MOUSE_MOVE_PACKET)input);
+  switch(util::endian::little(header->magic)) {
+  case MOUSE_MOVE_REL_MAGIC_GEN5:
+    print((PNV_REL_MOUSE_MOVE_PACKET)payload);
     break;
-  case PACKET_TYPE_ABS_MOUSE_MOVE:
-    print((PNV_ABS_MOUSE_MOVE_PACKET)input);
+  case MOUSE_MOVE_ABS_MAGIC:
+    print((PNV_ABS_MOUSE_MOVE_PACKET)payload);
     break;
-  case PACKET_TYPE_MOUSE_BUTTON:
-    print((PNV_MOUSE_BUTTON_PACKET)input);
+  case MOUSE_BUTTON_DOWN_EVENT_MAGIC_GEN5:
+  case MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5:
+    print((PNV_MOUSE_BUTTON_PACKET)payload);
     break;
-  case PACKET_TYPE_SCROLL_OR_KEYBOARD: {
-    char *tmp_input = (char *)input + 4;
-    if(tmp_input[0] == 0x0A) {
-      print((PNV_SCROLL_PACKET)input);
-    }
-    else {
-      print((PNV_KEYBOARD_PACKET)input);
-    }
-
+  case SCROLL_MAGIC_GEN5:
+    print((PNV_SCROLL_PACKET)payload);
     break;
-  }
-  case PACKET_TYPE_MULTI_CONTROLLER:
-    print((PNV_MULTI_CONTROLLER_PACKET)input);
+  case KEY_DOWN_EVENT_MAGIC:
+  case KEY_UP_EVENT_MAGIC:
+    print((PNV_KEYBOARD_PACKET)payload);
+    break;
+  case UTF8_TEXT_EVENT_MAGIC:
+    print((PNV_UNICODE_PACKET)payload);
+    break;
+  case MULTI_CONTROLLER_MAGIC_GEN5:
+    print((PNV_MULTI_CONTROLLER_PACKET)payload);
     break;
   }
 }
@@ -294,14 +302,8 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
-  auto constexpr BUTTON_RELEASED = 0x09;
-
-  auto constexpr BUTTON_LEFT  = 0x01;
-  auto constexpr BUTTON_RIGHT = 0x03;
-
-  auto release = packet->action == BUTTON_RELEASED;
-
-  auto button = util::endian::big(packet->button);
+  auto release = util::endian::little(packet->header.magic) == MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5;
+  auto button  = util::endian::big(packet->button);
   if(button > 0 && button < mouse_press.size()) {
     if(mouse_press[button] != release) {
       // button state is already what we want
@@ -417,9 +419,7 @@ void repeat_key(short key_code) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
-  auto constexpr BUTTON_RELEASED = 0x04;
-
-  auto release = packet->keyAction == BUTTON_RELEASED;
+  auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
   auto keyCode = packet->keyCode & 0x00FF;
 
   auto &pressed = key_press[keyCode];
@@ -457,6 +457,11 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
 
 void passthrough(PNV_SCROLL_PACKET packet) {
   platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
+}
+
+void passthrough(PNV_UNICODE_PACKET packet) {
+  auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
+  platf::unicode(platf_input, packet->text, size);
 }
 
 int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std::int16_t new_state, const platf::rumble_queue_t &rumble_queue) {
@@ -600,31 +605,30 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET pa
 
 void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t> &&input_data) {
   void *payload = input_data.data();
+  auto header   = (PNV_INPUT_HEADER)payload;
 
-  int input_type = util::endian::big(*(int *)payload);
-
-  switch(input_type) {
-  case PACKET_TYPE_REL_MOUSE_MOVE:
+  switch(util::endian::little(header->magic)) {
+  case MOUSE_MOVE_REL_MAGIC_GEN5:
     passthrough(input, (PNV_REL_MOUSE_MOVE_PACKET)payload);
     break;
-  case PACKET_TYPE_ABS_MOUSE_MOVE:
+  case MOUSE_MOVE_ABS_MAGIC:
     passthrough(input, (PNV_ABS_MOUSE_MOVE_PACKET)payload);
     break;
-  case PACKET_TYPE_MOUSE_BUTTON:
+  case MOUSE_BUTTON_DOWN_EVENT_MAGIC_GEN5:
+  case MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5:
     passthrough(input, (PNV_MOUSE_BUTTON_PACKET)payload);
     break;
-  case PACKET_TYPE_SCROLL_OR_KEYBOARD: {
-    char *tmp_input = (char *)payload + 4;
-    if(tmp_input[0] == 0x0A) {
-      passthrough((PNV_SCROLL_PACKET)payload);
-    }
-    else {
-      passthrough(input, (PNV_KEYBOARD_PACKET)payload);
-    }
-
+  case SCROLL_MAGIC_GEN5:
+    passthrough((PNV_SCROLL_PACKET)payload);
     break;
-  }
-  case PACKET_TYPE_MULTI_CONTROLLER:
+  case KEY_DOWN_EVENT_MAGIC:
+  case KEY_UP_EVENT_MAGIC:
+    passthrough(input, (PNV_KEYBOARD_PACKET)payload);
+    break;
+  case UTF8_TEXT_EVENT_MAGIC:
+    passthrough((PNV_UNICODE_PACKET)payload);
+    break;
+  case MULTI_CONTROLLER_MAGIC_GEN5:
     passthrough(input, (PNV_MULTI_CONTROLLER_PACKET)payload);
     break;
   }

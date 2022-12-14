@@ -277,6 +277,10 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   CGEventPost(kCGHIDEventTap, event);
 }
 
+void unicode(input_t &input, char *utf8, int size) {
+  BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
+}
+
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
   return -1;

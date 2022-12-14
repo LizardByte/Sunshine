@@ -217,7 +217,7 @@ jobs:
           mv ./build/PKGBUILD ./artifacts/
 
       - name: Validate package
-        uses: hapakaien/archlinux-package-action@v2.2.0
+        uses: LizardByte/archlinux-package-action@master
         with:
           path: artifacts
           flags: '--syncdeps --noconfirm'
@@ -234,7 +234,7 @@ jobs:
 
       - name: Publish AUR package
         if: ${{ env.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.5.0
+        uses: KSXGitHub/github-actions-deploy-aur@v2.6.0
         with:
           pkgname: ${{ env.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
@@ -260,17 +260,21 @@ jobs:
 
       - name: Setup Dependencies Linux Flatpak
         run: |
+          PLATFORM_VERSION=21.08
+
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
-            qemu-user-static \
-            flatpak
-          sudo su $(whoami) -c 'flatpak --user remote-add --if-not-exists flathub \
-            https://flathub.org/repo/flathub.flatpakrepo'
-          sudo su $(whoami) -c 'flatpak --user install -y flathub \
+            flatpak \
+            qemu-user-static
+          sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo"
+          sudo su $(whoami) -c "flatpak --user install -y flathub \
             org.flatpak.Builder \
-            org.freedesktop.Platform/${{ matrix.arch }}/21.08 \
-            org.freedesktop.Sdk/${{ matrix.arch }}/21.08'
+            org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            "
 
       - name: Cache Flatpak build
         uses: actions/cache@v3
@@ -349,7 +353,7 @@ jobs:
 
   build_linux:
     name: Linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-${{ matrix.dist }}
     needs: [check_changelog, setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
@@ -357,8 +361,13 @@ jobs:
         include:  # package these differently
           - type: cpack
             EXTRA_ARGS: ''
+            dist: 20.04
+          - type: cpack
+            EXTRA_ARGS: ''
+            dist: 22.04
           - type: appimage
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
+            dist: 20.04
 
     steps:
       - name: Checkout
@@ -368,26 +377,59 @@ jobs:
 
       - name: Setup Dependencies Linux
         run: |
-          sudo add-apt-repository ppa:savoury1/ffmpeg4 -y
-          # sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
-          sudo apt-get update -y
+          if [[ ${{ matrix.dist }} == "18.04" ]]; then
+            # Ubuntu 18.04 packages
+            sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
+
+            sudo apt-get update -y
+            sudo apt-get install -y \
+              libboost-filesystem1.71-dev \
+              libboost-log1.71-dev \
+              libboost-regex1.71-dev \
+              libboost-thread1.71-dev
+
+            # Install cmake
+            wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
+            chmod +x cmake-3.22.2-linux-x86_64.sh
+            mkdir /opt/cmake
+            ./cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
+            ln --force --symbolic /opt/cmake/bin/cmake /usr/local/bin/cmake
+            cmake --version
+
+            # install newer tar from focal... appimagelint fails on 18.04 without this
+            echo "original tar version"
+            tar --version
+            wget -O tar.deb http://security.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.30+dfsg-7ubuntu0.20.04.2_amd64.deb
+            sudo apt-get -y install -f ./tar.deb
+            echo "new tar version"
+            tar --version
+          else
+            # Ubuntu 20.04+ packages
+            sudo apt-get update -y
+            sudo apt-get install -y \
+              cmake \
+              libboost-filesystem-dev \
+              libboost-log-dev \
+              libboost-thread-dev
+          fi
+
           sudo apt-get install -y \
             build-essential \
-            cmake \
             gcc-10 \
             g++-10 \
             libavdevice-dev \
-            libboost-filesystem-dev \
-            libboost-log-dev \
-            libboost-thread-dev \
             libcap-dev \
+            libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
-            libpulse-dev \
+            libnuma-dev \
             libopus-dev \
+            libpulse-dev \
             libssl-dev \
+            libva-dev \
+            libvdpau-dev \
             libwayland-dev \
             libx11-dev \
             libxcb-shm0-dev \
@@ -397,24 +439,19 @@ jobs:
             libxrandr-dev \
             libxtst-dev \
             wget
-          # # Ubuntu 20.04+ packages
-          # libboost-filesystem-dev
-          # libboost-log-dev
-          # libboost-thread-dev
-
-          # # Ubuntu 18.04 packages
-          # libboost-filesystem1.71-dev \
-          # libboost-log1.71-dev \
-          # libboost-regex1.71-dev \
-          # libboost-thread1.71-dev \
 
           # clean apt cache
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
 
           # Update gcc alias
+          # https://stackoverflow.com/a/70653945/11214013
           sudo update-alternatives --install \
-            /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
+            /usr/bin/gcc gcc /usr/bin/gcc-10 100 \
+            --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
+            --slave /usr/bin/gcov gcov /usr/bin/gcov-10 \
+            --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
+            --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
           # Install CuDA
           sudo wget \
@@ -424,18 +461,14 @@ jobs:
           sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
           sudo rm /root/cuda.run
 
-          # # Install cmake (necessary for 18.04)
-          # wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
-          # chmod +x cmake-3.22.2-linux-x86_64.sh
-          # mkdir /opt/cmake
-          # ./cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
-          # ln --force --symbolic /opt/cmake/bin/cmake /usr/local/bin/cmake
-          # cmake --version
-
       - name: Build Linux
         run: |
           mkdir -p build
           mkdir -p artifacts
+
+          pushd "./src_assets/common/assets/web"
+          npm install
+          popd
 
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -454,13 +487,13 @@ jobs:
         if: ${{ matrix.type == 'cpack' }}
         working-directory: build
         run: |
-          # package
           cpack -G DEB
-          cpack -G RPM
+          mv ./cpack_artifacts/Sunshine.deb ../artifacts/sunshine-${{ matrix.dist }}.deb
 
-          # move
-          mv ./cpack_artifacts/Sunshine.deb ../artifacts/sunshine.deb
-          mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
+          if [[ ${{ matrix.dist }} == "20.04" ]]; then
+            cpack -G RPM
+            mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
+          fi
 
       - name: Set AppImage Version
         if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
@@ -517,7 +550,7 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine-linux-${{ matrix.type }}
+          name: sunshine-linux-${{ matrix.type }}-${{ matrix.dist }}
           path: artifacts/
 
       - name: Create/Update GitHub Release
@@ -548,13 +581,17 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake ffmpeg opus
+          brew install boost cmake curl node opus
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
       - name: Build MacOS
         run: |
+          pushd "./src_assets/common/assets/web"
+          npm install
+          popd
+
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -846,6 +883,7 @@ jobs:
             mingw-w64-x86_64-binutils
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-curl
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
@@ -853,6 +891,11 @@ jobs:
             mingw-w64-x86_64-x265
             nasm
             yasm
+
+      - name: Install npm packages
+        working-directory: src_assets/common/assets/web
+        run: |
+          npm install
 
       - name: Build Windows
         shell: msys2 {0}
@@ -901,7 +944,7 @@ jobs:
 
   release-winget:
     name: Release to WinGet
-    needs: build_win
+    needs: [setup_release, build_win]
     if: ${{ needs.setup_release.outputs.create_release == 'true' && github.ref == 'refs/heads/master' }}
     runs-on: windows-latest  # the required action can only be run on Windows
     steps:

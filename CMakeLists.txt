@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine VERSION 0.15.0
+project(Sunshine VERSION 0.16.0
 		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
 		HOMEPAGE_URL "https://app.lizardbyte.dev"
 		)
@@ -34,13 +34,6 @@ endif()
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(SUNSHINE_SOURCE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_assets")
 
-if(WIN32)
-	# Ugly hack to compile with #include <qos2.h>
-	add_compile_definitions(
-		QOS_FLOWID=UINT32
-		PQOS_FLOWID=UINT32*
-		QOS_NON_ADAPTIVE_FLOW=2)
-endif()
 if(APPLE)
 	macro(ADD_FRAMEWORK fwname appname)
     find_library(FRAMEWORK_${fwname}
@@ -69,6 +62,9 @@ include_directories(third-party/miniupnp)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules (CURL REQUIRED libcurl)
+
 if(NOT APPLE)
 	set(Boost_USE_STATIC_LIBS ON)
 endif()
@@ -79,19 +75,11 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninit
 if(WIN32)
 	enable_language(RC)
 	set(CMAKE_RC_COMPILER windres)
-	file(
-		DOWNLOAD "https://github.com/TheElixZammuto/sunshine-prebuilt/releases/download/1.0.0/pre-compiled.zip" "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-		TIMEOUT 60
-		EXPECTED_HASH SHA256=5d59986bd7f619eaaf82b2dd56b5127b747c9cbe8db61e3b898ff6b485298ed6)
-
-	file(ARCHIVE_EXTRACT
-		INPUT "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled.zip"
-		DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/pre-compiled)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
-	if(NOT DEFINED SUNSHINE_PREPARED_BINARIES)
-		set(SUNSHINE_PREPARED_BINARIES "${CMAKE_CURRENT_BINARY_DIR}/pre-compiled/windows")
-	endif()
+	# Restrict Boost WinAPI version to work around 1.80 linker errors
+	ADD_DEFINITIONS(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WIN7)
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
@@ -123,22 +111,6 @@ if(WIN32)
 		libssl.a
 		libcrypto.a)
 
-	set(FFMPEG_INCLUDE_DIRS
-		${SUNSHINE_PREPARED_BINARIES}/include)
-	set(FFMPEG_LIBRARIES
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavcodec.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavdevice.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavfilter.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavformat.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libavutil.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libpostproc.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswresample.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libswscale.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx264.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libx265.a
-		${SUNSHINE_PREPARED_BINARIES}/lib/libhdr10plus.a
-		z lzma bcrypt libiconv.a)
-
 	list(PREPEND PLATFORM_LIBRARIES
 		libstdc++.a
 		libwinpthread.a
@@ -149,6 +121,7 @@ if(WIN32)
 		d3d11 dxgi D3DCompiler
 		setupapi
 		dwmapi
+		${CURL_STATIC_LIBRARIES}
 		)
 
 	set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
@@ -162,17 +135,18 @@ elseif(APPLE)
 	link_directories(/usr/local/lib)
 	ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 
-	find_package(FFmpeg REQUIRED)
 	FIND_LIBRARY(APP_SERVICES_LIBRARY ApplicationServices )
 	FIND_LIBRARY(AV_FOUNDATION_LIBRARY AVFoundation )
 	FIND_LIBRARY(CORE_MEDIA_LIBRARY CoreMedia )
 	FIND_LIBRARY(CORE_VIDEO_LIBRARY CoreVideo )
+	FIND_LIBRARY(VIDEO_TOOLBOX_LIBRARY VideoToolbox )
 	FIND_LIBRARY(FOUNDATION_LIBRARY Foundation )
 	list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${APP_SERVICES_LIBRARY}
 		${AV_FOUNDATION_LIBRARY}
 		${CORE_MEDIA_LIBRARY}
 		${CORE_VIDEO_LIBRARY}
+		${VIDEO_TOOLBOX_LIBRARY}
 		${FOUNDATION_LIBRARY})
 
 	set(PLATFORM_INCLUDE_DIRS
@@ -237,8 +211,6 @@ else()
 	else()
 		set(WAYLAND_FOUND OFF)
 	endif()
-
-	find_package(FFMPEG REQUIRED)
 
 	if(X11_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_X11)
@@ -332,6 +304,7 @@ else()
 	list(APPEND PLATFORM_LIBRARIES
 		dl
 		evdev
+		numa
 		pulse
 		pulse-simple
 		)
@@ -399,6 +372,35 @@ set(SUNSHINE_TARGET_FILES
 
 set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
+# Pre-compiled binaries
+if(WIN32)
+	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-windows-x86_64")
+	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
+elseif(APPLE)
+	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
+else()
+	if (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-aarch64")
+	else()
+		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
+	endif()
+	set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
+endif()
+set(FFMPEG_INCLUDE_DIRS
+	${FFMPEG_PREPARED_BINARIES}/include)
+if(EXISTS ${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a)
+	set(HDR10_PLUS_LIBRARY
+		${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a)
+endif()
+set(FFMPEG_LIBRARIES
+	${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libx264.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libx265.a
+	${HDR10_PLUS_LIBRARY}
+	${FFMPEG_PLATFORM_LIBRARIES})
+
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party
@@ -451,6 +453,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		${FFMPEG_LIBRARIES}
 		${Boost_LIBRARIES}
 		${OPENSSL_LIBRARIES}
+		${CURL_LIBRARIES}
 		${PLATFORM_LIBRARIES})
 
 if(NOT WIN32)
@@ -458,6 +461,11 @@ if(NOT WIN32)
 endif()
 
 add_executable(sunshine ${SUNSHINE_TARGET_FILES})
+
+if(WIN32)
+        set_target_properties(sunshine PROPERTIES LINK_SEARCH_START_STATIC 1)
+endif()
+
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
 set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
@@ -637,8 +645,8 @@ elseif(UNIX)
 			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
 			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
 		else()
-			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
-			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+			install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d")
+			install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
 		endif()
 
 		# Post install
@@ -647,8 +655,8 @@ elseif(UNIX)
 
 		# Dependencies
 		set(CPACK_DEB_COMPONENT_INSTALL ON)
-		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libavdevice58, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, libavdevice >= 4.3, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
 		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
 	endif()
 endif()

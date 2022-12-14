@@ -40,15 +40,15 @@ According to AppImageLint the supported distro matrix of the AppImage is below.
 - [✔] Debian stable (bullseye)
 - [✔] Debian testing (bookworm)
 - [✔] Debian unstable (sid)
+- [✔] Ubuntu kinetic
 - [✔] Ubuntu jammy
-- [✔] Ubuntu impish
 - [✔] Ubuntu focal
 - [✖] Ubuntu bionic
 - [✖] Ubuntu xenial
 - [✖] Ubuntu trusty
 - [✖] CentOS 7
 
-#. Download ``sunshine-appimage.zip`` and extract the contents to your home directory.
+#. Download ``sunshine.AppImage`` to your home directory.
 #. Open terminal and run the following code.
 
    .. code-block:: bash
@@ -85,11 +85,14 @@ Debian Package
 .. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:deb?logo=github&style=for-the-badge
    :alt: GitHub issues by-label
 
-#. Download ``sunshine.deb`` and run the following code.
+#. Download ``sunshine-{ubuntu-version}.deb`` and run the following code.
 
    .. code-block:: bash
 
-      sudo apt install -f ./sunshine.deb
+      sudo apt install -f ./sunshine-{ubuntu-version}.deb
+
+.. Note:: The ``{ubuntu-version}`` is the version of ubuntu we built the package on. If you are not using Ubuntu and
+   have an issue with one package, you can try another.
 
 .. Tip:: You can double click the deb file to see details about the package and begin installation.
 
@@ -104,17 +107,24 @@ Flatpak Package
    :alt: GitHub issues by-label
 
 #. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
-#. Download ``sunshine.flatpak`` and run the following code.
+#. Download ``sunshine_{arch}.flatpak`` and run the following code.
+
+   .. Note:: Be sure to replace ``{arch}`` with the architecture for your operating system.
 
    System level (recommended)
       .. code-block:: bash
 
-         flatpak install --system sunshine.flatpak
+         flatpak install --system ./sunshine_{arch}.flatpak
 
    User level
       .. code-block:: bash
 
-         flatpak install --user sunshine.flatpak
+         flatpak install --user ./sunshine_{arch}.flatpak
+
+   Additional installation (required)
+      .. code-block:: bash
+
+         flatpak run --command=additional-install.sh dev.lizardbyte.sunshine
 
 Start:
    X11 and NVFBC capture (X11 Only)
@@ -130,7 +140,8 @@ Start:
 Uninstall:
    .. code-block:: bash
 
-      flatpak uninstall --delete-data sunshine.flatpak
+      flatpak run --command=remove-additional-install.sh dev.lizardbyte.sunshine
+      flatpak uninstall --delete-data dev.lizardbyte.sunshine
 
 RPM Package
 ^^^^^^^^^^^

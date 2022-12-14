@@ -14,11 +14,15 @@ RUN apt-get update -y \
         libboost-log-dev=1.74.0* \
         libboost-thread-dev=1.74.0* \
         libcap-dev=1:2.44* \
+        libcurl4-openssl-dev=7.81.0* \
         libdrm-dev=2.4.110* \
         libevdev-dev=1.12.1* \
-        libpulse-dev=1:15.99.1* \
+        libnuma-dev=2.0.14* \
         libopus-dev=1.3.1* \
+        libpulse-dev=1:15.99.1* \
         libssl-dev=3.0.2* \
+        libva-dev=2.14.0* \
+        libvdpau-dev=1.4* \
         libwayland-dev=1.20.0* \
         libx11-dev=2:1.7.5* \
         libxcb-shm0-dev=1.14* \
@@ -27,6 +31,8 @@ RUN apt-get update -y \
         libxfixes-dev=1:6.0.0* \
         libxrandr-dev=2:1.5.2* \
         libxtst-dev=2:1.2.3* \
+        nodejs=12.22.9* \
+        npm=8.5.1* \
         nvidia-cuda-dev=11.5.1* \
         nvidia-cuda-toolkit=11.5.1* \
     && apt-get clean \
@@ -35,6 +41,10 @@ RUN apt-get update -y \
 # copy repository
 WORKDIR /root/sunshine-build/
 COPY . .
+
+# setup npm and dependencies
+WORKDIR /root/sunshine-build/src_assets/common/assets/web
+RUN npm install
 
 # setup build directory
 WORKDIR /root/sunshine-build/build

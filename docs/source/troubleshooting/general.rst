@@ -3,10 +3,10 @@ General
 If you forgot your credentials to the web UI, try this.
    .. code-block:: bash
 
-      sunshine -creds <new username> <new password>
+      sunshine --creds <new username> <new password>
 
 Can't access the web UI?
-   #. Check firefall rules.
+   #. Check firewall rules.
 
 NvFBC, NvENC, or general issues with Nvidia graphics card.
   - Consumer grade Nvidia cards are software limited to a specific number of encodes. See
