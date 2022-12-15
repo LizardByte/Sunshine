@@ -58,7 +58,7 @@ set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
 set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "Don't build samples for miniupnpc")
 set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniupnpc")
 add_subdirectory(third-party/miniupnp/miniupnpc)
-include_directories(third-party/miniupnp)
+include_directories(third-party/miniupnp/miniupnpc/include)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
