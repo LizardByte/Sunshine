@@ -12,6 +12,7 @@ on:
 jobs:
   stale:
     name: Check Stale Issues / PRs
+    if: startsWith(github.repository, 'LizardByte/')
     runs-on: ubuntu-latest
     steps:
       - name: Stale

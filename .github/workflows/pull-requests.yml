@@ -12,6 +12,7 @@ on:
 jobs:
   check-pull-request:
     name: Check Pull Request
+    if: startsWith(github.repository, 'LizardByte/')
     runs-on: ubuntu-latest
     steps:
       - uses: Vankka/pr-target-branch-action@v2
