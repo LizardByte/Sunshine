@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.16.0] - 2022-12-13
+### Added
+- Add cover finder
+- (Docker) Add arm64 docker image
+- (Flatpak) Add installation helper scripts
+- (Windows) Add support for Unicode input messages
+### Fixed
+- (Linux) Reintroduce Ubuntu 20.04 and 22.04 specific deb packages
+- (Linux) Fixed udev and systemd file locations
+### Dependencies
+- Bump babel from 2.10.3 to 2.11.0
+- Bump sphinx-copybutton from 0.5.0 to 0.5.1
+- Bump KSXGitHub/github-actions-deploy-aur from 2.5.0 to 2.6.0
+- Use npm for web dependencies (breaking change for third-party package maintainers)
+- Update moonlight-common-c
+- Use pre-built ffmpeg from LizardByte/build-deps for all sunshine builds (breaking change for third-party package maintainers)
+- Bump furo from 2022.9.29 to 2022.12.7
+### Misc
+- Misc org level workflow updates
+- Fix misc typos in docs
+- Fix winget release
+
 ## [0.15.0] - 2022-10-30
 ### Added
 - (Windows) Add firewall rules scripts

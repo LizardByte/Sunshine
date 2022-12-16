@@ -418,6 +418,7 @@ static encoder_t nvenc {
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
+      { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
       { "preset"s, &config::video.nv.preset },
@@ -428,6 +429,7 @@ static encoder_t nvenc {
   },
   {
     {
+      { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
       { "preset"s, &config::video.nv.preset },
@@ -455,21 +457,29 @@ static encoder_t amdvce {
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
     {
+      { "enforce_hrd"s, true },
+      { "gops_per_idr"s, 1 },
       { "header_insertion_mode"s, "idr"s },
-      { "gops_per_idr"s, 30 },
-      { "usage"s, "ultralowlatency"s },
+      { "qmax"s, 51 },
+      { "qmin"s, 0 },
       { "quality"s, &config::video.amd.quality },
       { "rc"s, &config::video.amd.rc_hevc },
+      { "usage"s, "ultralowlatency"s },
+      { "vbaq"s, true },
     },
     std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "hevc_amf"s,
   },
   {
     {
-      { "usage"s, "ultralowlatency"s },
+      { "enforce_hrd"s, true },
+      { "log_to_dbg"s, "1"s },
+      { "qmax"s, 51 },
+      { "qmin"s, 0 },
       { "quality"s, &config::video.amd.quality },
       { "rc"s, &config::video.amd.rc_h264 },
-      { "log_to_dbg"s, "1"s },
+      { "usage"s, "ultralowlatency"s },
+      { "vbaq"s, true },
     },
     std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "h264_amf"s,
@@ -521,6 +531,7 @@ static encoder_t vaapi {
   AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P10,
   {
     {
+      { "async_depth"s, 1 },
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
@@ -529,6 +540,7 @@ static encoder_t vaapi {
   },
   {
     {
+      { "async_depth"s, 1 },
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
@@ -970,9 +982,9 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   }
 
   if(video_format[encoder_t::CBR]) {
-    auto bitrate        = config.bitrate * (hardware ? 1000 : 800); // software bitrate overshoots by ~20%
+    auto bitrate        = config.bitrate * 1000;
     ctx->rc_max_rate    = bitrate;
-    ctx->rc_buffer_size = bitrate / 10;
+    ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
     ctx->bit_rate       = bitrate;
     ctx->rc_min_rate    = bitrate;
   }

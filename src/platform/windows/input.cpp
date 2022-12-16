@@ -326,6 +326,34 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   send_input(i);
 }
 
+void unicode(input_t &input, char *utf8, int size) {
+  // We can do no worse than one UTF-16 character per byte of UTF-8
+  WCHAR wide[size];
+
+  int chars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, size, wide, size);
+  if(chars <= 0) {
+    return;
+  }
+
+  // Send all key down events
+  for(int i = 0; i < chars; i++) {
+    INPUT input {};
+    input.type       = INPUT_KEYBOARD;
+    input.ki.wScan   = wide[i];
+    input.ki.dwFlags = KEYEVENTF_UNICODE;
+    send_input(input);
+  }
+
+  // Send all key up events
+  for(int i = 0; i < chars; i++) {
+    INPUT input {};
+    input.type       = INPUT_KEYBOARD;
+    input.ki.wScan   = wide[i];
+    input.ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+    send_input(input);
+  }
+}
+
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   if(!input) {
     return 0;

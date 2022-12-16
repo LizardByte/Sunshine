@@ -15,7 +15,6 @@ build:
 ## apt packages required packages to run cmake on sunshine, note that additional packages are required
 #  apt_packages:
 #    - cmake
-#    - ffmpeg
 #    - libboost-filesystem-dev
 #    - libboost-log-dev
 #    - libboost-thread-dev

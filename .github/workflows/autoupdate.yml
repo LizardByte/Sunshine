@@ -3,8 +3,9 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# This workflow is designed to work with:
-# - automerge workflows
+# This workflow is designed to work with the following workflows:
+# - automerge
+# - autoupdate-labeler
 
 # It uses GitHub Action that auto-updates pull requests branches, when changes are pushed to their destination branch.
 # Auto-updating to the latest destination branch works only in the context of upstream repo and not forks.
@@ -17,7 +18,7 @@ on:
       - 'nightly'
 
 jobs:
-  autoupdate-for-bot:
+  autoupdate:
     name: Autoupdate autoapproved PR created in the upstream
     if: startsWith(github.repository, 'LizardByte/')
     runs-on: ubuntu-latest
@@ -25,8 +26,21 @@ jobs:
       - name: Update
         uses: docker://chinthakagodawita/autoupdate-action:v1
         env:
+          EXCLUDED_LABELS: "central_dependency,dependencies"
           GITHUB_TOKEN: '${{ secrets.GH_BOT_TOKEN }}'
           PR_FILTER: "labelled"
           PR_LABELS: "autoupdate"
-          PR_READY_STATE: "ready_for_review"
-          MERGE_CONFLICT_ACTION: "ignore"
+          PR_READY_STATE: "all"
+          MERGE_CONFLICT_ACTION: "fail"
+
+  dependabot-rebase:
+    name: Dependabot Rebase
+    if: >-
+      startsWith(github.repository, 'LizardByte/') &&
+      contains(github.event.pull_request.labels.*.name, 'central_dependency') == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: rebase
+        uses: "bbeesley/gha-auto-dependabot-rebase@v1.2.0"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

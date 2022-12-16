@@ -22,6 +22,13 @@ body:
       options:
         - label: I have read the documentation
           required: true
+  - type: checkboxes
+    attributes:
+      label: Is your issue present in the nightly release?
+      description: Please test the [nightly](https://github.com/LizardByte/Sunshine/releases/tag/nightly-dev) release
+      options:
+        - label: This issue is present in the nightly release
+          required: true
   - type: textarea
     id: description
     attributes:
@@ -70,7 +77,7 @@ body:
     id: version
     attributes:
       label: Sunshine commit or version
-      placeholder: eg. 0.14.0
+      placeholder: eg. 0.16.0
     validations:
       required: true
   - type: dropdown
@@ -80,7 +87,10 @@ body:
       description: The package you installed
       options:
         - Linux - AppImage
-        - Linux - deb
+        - Linux - AUR
+        - Linux - 20.04-deb
+        - Linux - 22.04-deb
+        - Linux - Docker
         - Linux - flatpak
         - Linux - rpm
         - macOS - dmg

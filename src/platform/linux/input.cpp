@@ -994,6 +994,10 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   keycode.pressed = 1;
 }
 
+void unicode(input_t &input, char *utf8, int size) {
+  BOOST_LOG(info) << "unicode: Unicode input not yet implemented for Linux."sv;
+}
+
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   return ((input_raw_t *)input.get())->alloc_gamepad(nr, std::move(rumble_queue));
 }
