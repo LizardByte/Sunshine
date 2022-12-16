@@ -1,21 +1,27 @@
 [submodule "moonlight-common-c"]
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
+	branch = master
 [submodule "Simple-Web-Server"]
 	path = third-party/Simple-Web-Server
-	url = https://github.com/loki-47-6F-64/Simple-Web-Server.git
+	url = https://gitlab.com/eidheim/Simple-Web-Server.git
+	branch = master
 [submodule "ViGEmClient"]
 	path = third-party/ViGEmClient
 	url = https://github.com/ViGEm/ViGEmClient
-[submodule "third-party/miniupnp"]
+	branch = master
+[submodule "miniupnp"]
 	path = third-party/miniupnp
 	url = https://github.com/miniupnp/miniupnp
-[submodule "third-party/nv-codec-headers"]
+	branch = master
+[submodule "nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers
-[submodule "third-party/TPCircularBuffer"]
+	branch = sdk/11.1
+[submodule "TPCircularBuffer"]
 	path = third-party/TPCircularBuffer
 	url = https://github.com/michaeltyson/TPCircularBuffer
+	branch = master
 [submodule "ffmpeg-windows-x86_64"]
 	path = third-party/ffmpeg-windows-x86_64
 	url = https://github.com/LizardByte/build-deps

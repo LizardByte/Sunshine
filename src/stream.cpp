@@ -65,6 +65,28 @@ enum class socket_e : int {
 
 #pragma pack(push, 1)
 
+struct video_short_frame_header_t {
+  uint8_t *payload() {
+    return (uint8_t *)(this + 1);
+  }
+
+  std::uint8_t headerType; // Always 0x01 for short headers
+  std::uint8_t unknown[2];
+
+  // Currently known values:
+  // 1 = Normal P-frame
+  // 2 = IDR-frame
+  // 4 = P-frame with intra-refresh blocks
+  // 5 = P-frame after reference frame invalidation
+  std::uint8_t frameType;
+
+  std::uint8_t unknown2[4];
+};
+
+static_assert(
+  sizeof(video_short_frame_header_t) == 8,
+  "Short frame header must be 8 bytes");
+
 struct video_packet_raw_t {
   uint8_t *payload() {
     return (uint8_t *)(this + 1);
@@ -883,6 +905,7 @@ void recvThread(broadcast_ctx_t &ctx) {
 void videoBroadcastThread(udp::socket &sock) {
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   auto packets        = mail::man->queue<video::packet_t>(mail::video_packets);
+  auto timebase       = boost::posix_time::microsec_clock::universal_time();
 
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
@@ -896,8 +919,11 @@ void videoBroadcastThread(udp::socket &sock) {
     std::string_view payload { (char *)av_packet->data, (size_t)av_packet->size };
     std::vector<uint8_t> payload_new;
 
-    auto nv_packet_header = "\0017charss"sv;
-    std::copy(std::begin(nv_packet_header), std::end(nv_packet_header), std::back_inserter(payload_new));
+    video_short_frame_header_t frame_header = {};
+    frame_header.headerType                 = 0x01; // Short header type
+    frame_header.frameType                  = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
+
+    std::copy_n((uint8_t *)&frame_header, sizeof(frame_header), std::back_inserter(payload_new));
     std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
 
     payload = { (char *)payload_new.data(), payload_new.size() };
@@ -992,6 +1018,10 @@ void videoBroadcastThread(udp::socket &sock) {
         for(auto x = 0; x < shards.size(); ++x) {
           auto *inspect = (video_packet_raw_t *)shards.data(x);
 
+          // RTP video timestamps use a 90 KHz clock
+          auto now       = boost::posix_time::microsec_clock::universal_time();
+          auto timestamp = (now - timebase).total_microseconds() / (1000 / 90);
+
           inspect->packet.fecInfo =
             (x << 12 |
               shards.data_shards << 22 |
@@ -999,12 +1029,11 @@ void videoBroadcastThread(udp::socket &sock) {
 
           inspect->rtp.header         = 0x80 | FLAG_EXTENSION;
           inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
+          inspect->rtp.timestamp      = util::endian::big<uint32_t>(timestamp);
 
           inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
           inspect->packet.frameIndex     = av_packet->pts;
-        }
 
-        for(auto x = 0; x < shards.size(); ++x) {
           sock.send_to(asio::buffer(shards[x]), session->video.peer);
         }
 
