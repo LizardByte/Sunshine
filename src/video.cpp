@@ -531,6 +531,7 @@ static encoder_t vaapi {
   AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P10,
   {
     {
+      { "async_depth"s, 1 },
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
@@ -539,6 +540,7 @@ static encoder_t vaapi {
   },
   {
     {
+      { "async_depth"s, 1 },
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
