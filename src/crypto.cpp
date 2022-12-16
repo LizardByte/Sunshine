@@ -4,8 +4,6 @@
 #include <openssl/pem.h>
 
 namespace crypto {
-using big_num_t = util::safe_ptr<BIGNUM, BN_free>;
-// using rsa_t = util::safe_ptr<RSA, RSA_free>;
 using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
 
 cert_chain_t::cert_chain_t() : _certs {}, _cert_ctx { X509_STORE_CTX_new() } {}
@@ -315,12 +313,7 @@ aes_t gen_aes_key(const std::array<uint8_t, 16> &salt, const std::string_view &p
 
 sha256_t hash(const std::string_view &plaintext) {
   sha256_t hsh;
-
-  SHA256_CTX sha256;
-  SHA256_Init(&sha256);
-  SHA256_Update(&sha256, plaintext.data(), plaintext.size());
-  SHA256_Final(hsh.data(), &sha256);
-
+  EVP_Digest(plaintext.data(), plaintext.size(), hsh.data(), nullptr, EVP_sha256(), nullptr);
   return hsh;
 }
 
@@ -409,14 +402,12 @@ std::vector<uint8_t> sign(const pkey_t &pkey, const std::string_view &data, cons
 
 creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits) {
   x509_t x509 { X509_new() };
-  pkey_t pkey { EVP_PKEY_new() };
+  pkey_ctx_t ctx { EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr) };
+  pkey_t pkey;
 
-  big_num_t big_num { BN_new() };
-  BN_set_word(big_num.get(), RSA_F4);
-
-  auto rsa = RSA_new();
-  RSA_generate_key_ex(rsa, key_bits, big_num.get(), nullptr);
-  EVP_PKEY_assign_RSA(pkey.get(), rsa);
+  EVP_PKEY_keygen_init(ctx.get());
+  EVP_PKEY_CTX_set_rsa_keygen_bits(ctx.get(), key_bits);
+  EVP_PKEY_keygen(ctx.get(), &pkey);
 
   X509_set_version(x509.get(), 2);
   ASN1_INTEGER_set(X509_get_serialNumber(x509.get()), 0);
