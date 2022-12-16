@@ -1,5 +1,5 @@
-#include <miniupnpc/miniupnpc.h>
-#include <miniupnpc/upnpcommands.h>
+#include <miniupnpc.h>
+#include <upnpcommands.h>
 
 #include "config.h"
 #include "confighttp.h"
