@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine VERSION 0.16.0
-		DESCRIPTION "Sunshine is a Gamestream host for Moonlight."
+		DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
 		HOMEPAGE_URL "https://app.lizardbyte.dev"
 		)
 
-set(PROJECT_LONG_DESCRIPTION "Sunshine is a self hosted, low latency, cloud gaming solution with support for AMD, \
-Intel, and Nvidia GPUs. It is an open source implementation of NVIDIA's GameStream, as used by the NVIDIA Shield. \
-Connect to Sunshine from any Moonlight client, available for nearly any device imaginable.")
+set(PROJECT_LONG_DESCRIPTION "Offering low latency, cloud gaming server capabilities with support for AMD, Intel, \
+and Nvidia GPUs for hardware encoding. Software encoding is also available. You can connect to Sunshine from any \
+Moonlight client on a variety of devices. A web UI is provided to allow configuration, and client pairing, from \
+your favorite web browser. Pair from the local server or any mobile device.")
 
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configuration specific for AppImage." OFF)
 option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
@@ -241,7 +242,7 @@ else()
 	if(WAYLAND_FOUND)
 		add_compile_definitions(SUNSHINE_BUILD_WAYLAND)
 		macro(genWayland FILENAME)
-			make_directory(${CMAKE_BINARY_DIR}/generated-src)
+			file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated-src)
 
 			message("wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c")
 			message("wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h")
@@ -528,11 +529,15 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Sets permissions on the installed folder so that we can write in it
 	# Install service
 	SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
-		"${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-    	ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
-    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
-    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-    	")
+        "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
+        ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://sunshinestream.readthedocs.io/\\\"'
+        ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+        ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
+        ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
+        MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to add/update ViGEmBus (virtual controller support)?' IDNO NoController
+            ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://github.com/ViGEm/ViGEmBus/releases/latest\\\"' ; skipped if no
+        NoController:
+        ")
 
 	# Extra uninstall commands
 	# Uninstall service
@@ -562,9 +567,15 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Checking for previous installed versions
 	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")  # TODO: doesn't work on my machine when Sunshine is already installed
 
-	set(CPACK_NSIS_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/installation.html")
+	set(CPACK_NSIS_HELP_LINK "https://sunshinestream.readthedocs.io/about/installation.html")
 	set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
 	set(CPACK_NSIS_CONTACT "${CMAKE_PROJECT_HOMEPAGE_URL}/support")
+
+	set(CPACK_NSIS_MENU_LINKS
+		"https://sunshinestream.readthedocs.io" "Sunshine documentation"
+		"https://app.lizardbyte.dev" "LizardByte Web Site"
+		"https://app.lizardbyte.dev/support" "LizardByte Support"
+		)
 
 	# Setting components groups and dependencies
 	# sunshine binary

@@ -888,7 +888,6 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-x265
             nasm
             yasm
 
@@ -906,7 +905,7 @@ jobs:
             -DSUNSHINE_ASSETS_DIR=assets \
             -G "MinGW Makefiles" \
             ..
-          mingw32-make -j2
+          mingw32-make -j$(nproc)
 
       - name: Package Windows
         shell: msys2 {0}

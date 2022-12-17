@@ -45,5 +45,4 @@ Build
    cpack -G DragNDrop  # optionally, create a macOS dmg package
 
 If cmake fails complaining to find Boost, try to set the path explicitly.
-  ``cmake -DBOOST_ROOT=[boost path] ..``, e.g., ``cmake -DBOOST_ROOT=/opt/local/libexec/boost/1.76 ..``
-
+  ``cmake -DBOOST_ROOT=[boost path] ..``, e.g., ``cmake -DBOOST_ROOT=/opt/local/libexec/boost/1.80 ..``

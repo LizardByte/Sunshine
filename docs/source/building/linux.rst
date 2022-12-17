@@ -40,7 +40,7 @@ Install Requirements
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit  # Cuda, NvFBC
 
-Fedora 35
+Fedora 36
 ^^^^^^^^^
 End of Life: TBD
 
@@ -78,72 +78,6 @@ Install Requirements
           opus-devel \
           pulseaudio-libs-devel \
           rpm-build  # if you want to build an RPM binary package
-
-Ubuntu 18.04
-^^^^^^^^^^^^
-End of Life: April 2028
-
-Install Repositories
-   .. code-block:: bash
-
-      sudo apt update && sudo apt install \
-          software-properties-common \
-      && add-apt-repository ppa:savoury1/boost-defaults-1.71 && \
-      add-apt-repository ppa:ubuntu-toolchain-r/test && \
-
-Install Requirements
-   .. code-block:: bash
-
-      sudo apt install \
-          build-essential \
-          cmake \
-          gcc-10 \
-          g++-10 \
-          libavdevice-dev \
-          libboost-filesystem1.71-dev \
-          libboost-log1.71-dev \
-          libboost-regex1.71-dev \
-          libboost-thread1.71-dev \
-          libcap-dev \  # KMS
-          libdrm-dev \  # KMS
-          libevdev-dev \
-          libnuma-dev \
-          libopus-dev \
-          libpulse-dev \
-          libssl-dev \
-          libva-dev \
-          libvdpau-dev \
-          libwayland-dev \  # Wayland
-          libx11-dev \  # X11
-          libxcb-shm0-dev \  # X11
-          libxcb-xfixes0-dev \  # X11
-          libxcb1-dev \  # X11
-          libxfixes-dev \  # X11
-          libxrandr-dev \  # X11
-          libxtst-dev \  # X11
-          nodejs \
-          npm \
-          wget
-
-Update gcc alias
-   .. code-block:: bash
-
-      update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-
-Install CuDA
-   .. code-block:: bash
-
-      wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O ./cuda.run && chmod a+x ./cuda.run
-      ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm ./cuda.run
-
-Install CMake
-   .. code-block:: bash
-
-      wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
-      mkdir /opt/cmake
-      sh /cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
-      ln -s /opt/cmake/bin/cmake /usr/local/bin/cmake
-      cmake --version
 
 Ubuntu 20.04
 ^^^^^^^^^^^^
@@ -239,19 +173,10 @@ Build
 -----
 .. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
-Debian based OSes
-   .. code-block:: bash
+.. code-block:: bash
 
-      cmake -DCMAKE_C_COMPILER=gcc-10 -DCMAKE_CXX_COMPILER=g++-10 ..
+   cmake ..
+   make -j ${nproc}
 
-Red Hat based OSes
-   .. code-block:: bash
-
-      cmake -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ..
-
-Finally
-   .. code-block:: bash
-
-      make -j ${nproc}
-      cpack -G DEB  # optionally, create a deb package
-      cpack -G RPM  # optionally, create a rpm package
+   cpack -G DEB  # optionally, create a deb package
+   cpack -G RPM  # optionally, create a rpm package
