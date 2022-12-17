@@ -78,9 +78,6 @@ if(WIN32)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
-	# Restrict Boost WinAPI version to work around 1.80 linker errors
-	ADD_DEFINITIONS(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WIN7)
-
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
 
@@ -121,6 +118,7 @@ if(WIN32)
 		d3d11 dxgi D3DCompiler
 		setupapi
 		dwmapi
+		synchronization.lib
 		${CURL_STATIC_LIBRARIES}
 		)
 
