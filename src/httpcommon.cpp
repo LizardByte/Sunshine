@@ -13,6 +13,9 @@
 #include <Simple-Web-Server/server_http.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
+
+// https://stackoverflow.com/a/54588428/11214013
+#define CURL_STATICLIB
 #include <curl/curl.h>
 
 #include "config.h"
