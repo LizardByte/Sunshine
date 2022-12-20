@@ -588,7 +588,12 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl node opus
+          if [[ ${{ matrix.arch }} == "arm64" ]]; then
+            arch -arm64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            arch -arm64 brew install boost cmake curl node opus
+          else
+            brew install boost cmake curl node opus
+          fi 
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
