@@ -571,6 +571,13 @@ jobs:
     name: MacOS
     runs-on: macos-11
     needs: setup_release
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        include:
+          - arch: x86_64
+          - arch: arm64
+            target: arm64-apple-macosx
 
     steps:
       - name: Checkout
@@ -594,6 +601,14 @@ jobs:
 
           mkdir build
           cd build
+          if [[ ${{ matrix.arch }} == "arm64" ]]; then
+            export CC="clang"
+            export CFLAGS="-arch ${{ matrix.arch }} -target ${{ matrix.target }} -march=armv8-a -mcpu=generic"
+            export CXX="clang++"
+            export CXXFLAGS="-std=c++11 ${CFLAGS}"
+            export LDFLAGS="-arch ${{ matrix.arch }} -march=armv8-a -target ${{ matrix.target }}"
+            export CMAKE_OSX_ARCHITECTURES="arm64"
+          fi
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \

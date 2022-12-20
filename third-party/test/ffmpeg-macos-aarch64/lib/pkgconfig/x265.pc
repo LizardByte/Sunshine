@@ -1,0 +1,11 @@
+prefix=/Users/runner/work/build-deps/build-deps/ffmpeg_build
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: x265
+Description: H.265/HEVC video encoder
+Version: 3.5
+Libs: -L${libdir} -lx265
+Libs.private: -lc++ -ldl
+Cflags: -I${includedir}

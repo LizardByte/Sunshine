@@ -1,0 +1,11 @@
+prefix=/Users/runner/work/build-deps/build-deps/ffmpeg_build
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: x264
+Description: H.264 (MPEG4 AVC) encoder library
+Version: 0.164.x
+Libs: -L${exec_prefix}/lib -lx264 -lpthread -lm -ldl
+Libs.private: 
+Cflags: -I${prefix}/include 

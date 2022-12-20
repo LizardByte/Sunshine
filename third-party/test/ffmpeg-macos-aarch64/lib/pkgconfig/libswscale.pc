@@ -1,0 +1,14 @@
+prefix=/Users/runner/work/build-deps/build-deps/ffmpeg_build
+exec_prefix=${prefix}
+libdir=/Users/runner/work/build-deps/build-deps/ffmpeg_build/lib
+includedir=/Users/runner/work/build-deps/build-deps/ffmpeg_build/include
+
+Name: libswscale
+Description: FFmpeg image rescaling library
+Version: 5.9.100
+Requires: libavutil >= 56.70.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lswscale -lm
+Libs.private: 
+Cflags: -I${includedir}
