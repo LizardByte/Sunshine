@@ -38,3 +38,7 @@
 	path = third-party/ffmpeg-linux-aarch64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-linux-aarch64
+[submodule "ffmpeg-macos-aarch64"]
+	path = third-party/ffmpeg-macos-aarch64
+	url = https://github.com/LizardByte/build-deps
+	branch = ffmpeg-macos-aarch64
