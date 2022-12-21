@@ -279,8 +279,21 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
         ss.write(pos, (dollar - pos));
         auto var_begin = next + 1;
         auto var_end   = find_match(next, std::end(val_raw));
+        auto var_name  = std::string { var_begin, var_end };
 
-        ss << env[std::string { var_begin, var_end }].to_string();
+#ifdef _WIN32
+        // Windows treats environment variable names in a case-insensitive manner,
+        // so we look for a case-insensitive match here. This is critical for
+        // correctly appending to PATH on Windows.
+        auto itr = std::find_if(env.cbegin(), env.cend(),
+          [&](const auto &e) { return boost::iequals(e.get_name(), var_name); });
+        if(itr != env.cend()) {
+          // Use an existing case-insensitive match
+          var_name = itr->get_name();
+        }
+#endif
+
+        ss << env[var_name].to_string();
 
         pos  = var_end + 1;
         next = var_end;
