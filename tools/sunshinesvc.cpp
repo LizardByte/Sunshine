@@ -80,29 +80,44 @@ HANDLE OpenLogFileHandle() {
 }
 
 VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
-  stop_event = CreateEventA(NULL, TRUE, FALSE, NULL);
-  if(stop_event == NULL) {
+  service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, NULL);
+  if(service_status_handle == NULL) {
+    // Nothing we can really do here but terminate ourselves
+    ExitProcess(GetLastError());
     return;
   }
 
-  service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, NULL);
-  if(service_status_handle == NULL) {
+  // Tell SCM we're starting
+  service_status.dwServiceType             = SERVICE_WIN32_OWN_PROCESS;
+  service_status.dwServiceSpecificExitCode = 0;
+  service_status.dwWin32ExitCode           = NO_ERROR;
+  service_status.dwWaitHint                = 0;
+  service_status.dwControlsAccepted        = 0;
+  service_status.dwCheckPoint              = 0;
+  service_status.dwCurrentState            = SERVICE_START_PENDING;
+  SetServiceStatus(service_status_handle, &service_status);
+
+  stop_event = CreateEventA(NULL, TRUE, FALSE, NULL);
+  if(stop_event == NULL) {
+    // Tell SCM we failed to start
+    service_status.dwWin32ExitCode = GetLastError();
+    service_status.dwCurrentState  = SERVICE_STOPPED;
+    SetServiceStatus(service_status_handle, &service_status);
     return;
   }
 
   auto log_file_handle = OpenLogFileHandle();
   if(log_file_handle == INVALID_HANDLE_VALUE) {
+    // Tell SCM we failed to start
+    service_status.dwWin32ExitCode = GetLastError();
+    service_status.dwCurrentState  = SERVICE_STOPPED;
+    SetServiceStatus(service_status_handle, &service_status);
     return;
   }
 
-  // Tell SCM we're running
-  service_status.dwServiceType             = SERVICE_WIN32_OWN_PROCESS;
-  service_status.dwServiceSpecificExitCode = 0;
-  service_status.dwWin32ExitCode           = NO_ERROR;
-  service_status.dwWaitHint                = 0;
-  service_status.dwControlsAccepted        = SERVICE_ACCEPT_STOP;
-  service_status.dwCheckPoint              = 0;
-  service_status.dwCurrentState            = SERVICE_RUNNING;
+  // Tell SCM we're running (and stoppable now)
+  service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+  service_status.dwCurrentState     = SERVICE_RUNNING;
   SetServiceStatus(service_status_handle, &service_status);
 
   // Loop every 3 seconds until the stop event is set or Sunshine.exe is running
