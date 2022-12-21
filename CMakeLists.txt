@@ -68,7 +68,7 @@ pkg_check_modules (CURL REQUIRED libcurl)
 if(NOT APPLE)
 	set(Boost_USE_STATIC_LIBS ON)
 endif()
-find_package(Boost COMPONENTS log filesystem REQUIRED)
+find_package(Boost COMPONENTS log filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
@@ -122,6 +122,7 @@ if(WIN32)
 		d3d11 dxgi D3DCompiler
 		setupapi
 		dwmapi
+		userenv
 		synchronization.lib
 		${CURL_STATIC_LIBRARIES}
 		)
@@ -658,8 +659,8 @@ elseif(UNIX)
 
 		# Dependencies
 		set(CPACK_DEB_COMPONENT_INSTALL ON)
-		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, boost-program-options >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
 		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
 	endif()
 endif()

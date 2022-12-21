@@ -18,6 +18,7 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-log-dev \
           libboost-thread-dev \
+          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -104,6 +105,7 @@ Install Requirements
           libboost-log1.71-dev \
           libboost-regex1.71-dev \
           libboost-thread1.71-dev \
+          libboost-program-options1.71-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -160,6 +162,7 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-log-dev \
           libboost-thread-dev \
+          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -206,6 +209,7 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-log-dev \
           libboost-thread-dev \
+          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \

@@ -388,7 +388,8 @@ jobs:
               libboost-filesystem1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
-              libboost-thread1.71-dev
+              libboost-thread1.71-dev \
+              libboost-program-options1.71-dev
 
             # Install cmake
             wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
@@ -412,7 +413,8 @@ jobs:
               cmake \
               libboost-filesystem-dev \
               libboost-log-dev \
-              libboost-thread-dev
+              libboost-thread-dev \
+              libboost-program-options-dev
           fi
 
           sudo apt-get install -y \
