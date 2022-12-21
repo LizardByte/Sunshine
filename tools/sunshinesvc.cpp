@@ -71,12 +71,12 @@ HANDLE OpenLogFileHandle() {
 
   // Overwrite the old sunshine.log
   return CreateFileW(log_file_name,
-                     GENERIC_WRITE,
-                     FILE_SHARE_READ,
-                     &security_attributes,
-                     CREATE_ALWAYS,
-                     0,
-                     NULL);
+    GENERIC_WRITE,
+    FILE_SHARE_READ,
+    &security_attributes,
+    CREATE_ALWAYS,
+    0,
+    NULL);
 }
 
 VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
@@ -91,7 +91,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   }
 
   auto log_file_handle = OpenLogFileHandle();
-  if (log_file_handle == INVALID_HANDLE_VALUE) {
+  if(log_file_handle == INVALID_HANDLE_VALUE) {
     return;
   }
 
@@ -113,25 +113,25 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     }
 
     STARTUPINFOW startup_info = {};
-    startup_info.cb         = sizeof(startup_info);
-    startup_info.lpDesktop  = (LPWSTR)L"winsta0\\default";
-    startup_info.dwFlags    = STARTF_USESTDHANDLES;
-    startup_info.hStdInput  = INVALID_HANDLE_VALUE;
-    startup_info.hStdOutput = log_file_handle;
-    startup_info.hStdError  = log_file_handle;
+    startup_info.cb           = sizeof(startup_info);
+    startup_info.lpDesktop    = (LPWSTR)L"winsta0\\default";
+    startup_info.dwFlags      = STARTF_USESTDHANDLES;
+    startup_info.hStdInput    = INVALID_HANDLE_VALUE;
+    startup_info.hStdOutput   = log_file_handle;
+    startup_info.hStdError    = log_file_handle;
 
     PROCESS_INFORMATION process_info;
     if(!CreateProcessAsUserW(console_token,
-                             L"Sunshine.exe",
-                             NULL,
-                             NULL,
-                             NULL,
-                             TRUE,
-                             ABOVE_NORMAL_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
-                             NULL,
-                             NULL,
-                             &startup_info,
-                             &process_info)) {
+         L"Sunshine.exe",
+         NULL,
+         NULL,
+         NULL,
+         TRUE,
+         ABOVE_NORMAL_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
+         NULL,
+         NULL,
+         &startup_info,
+         &process_info)) {
       CloseHandle(console_token);
       continue;
     }
@@ -162,8 +162,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   SetServiceStatus(service_status_handle, &service_status);
 }
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char *argv[]) {
   static const SERVICE_TABLE_ENTRY service_table[] = {
     { (LPSTR)SERVICE_NAME, ServiceMain },
     { NULL, NULL }
