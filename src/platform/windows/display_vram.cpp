@@ -434,6 +434,7 @@ public:
 
     this->device_ctx_p = device_ctx_p;
 
+    DXGI_FORMAT src_format = format;
     format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
     status = device_p->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
     if(status) {
@@ -490,7 +491,7 @@ public:
     }
 
     D3D11_SHADER_RESOURCE_VIEW_DESC desc {
-      DXGI_FORMAT_B8G8R8A8_UNORM,
+      src_format,
       D3D11_SRV_DIMENSION_TEXTURE2D
     };
     desc.Texture2D.MipLevels = 1;
