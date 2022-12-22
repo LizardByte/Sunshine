@@ -877,10 +877,8 @@ void recvThread(broadcast_ctx_t &ctx) {
       }
 
       if(ec || !bytes) {
-        BOOST_LOG(fatal) << "Couldn't receive data from udp socket: "sv << ec.message();
-
-        log_flush();
-        std::abort();
+        BOOST_LOG(error) << "Couldn't receive data from udp socket: "sv << ec.message();
+        return;
       }
 
       auto it = peer_to_session.find(peer.address());

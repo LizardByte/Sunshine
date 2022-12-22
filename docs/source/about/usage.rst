@@ -241,8 +241,7 @@ Application List
 
      - ``undo`` - Run after the application has terminated
 
-       - This should not fail considering it is supposed to undo the ``do`` commands
-       - If it fails, Sunshine is terminated
+       - Failures of ``undo`` commands are ignored
 
    - ``working-dir`` - The working directory to use. If not specified, Sunshine will use the application directory.
 

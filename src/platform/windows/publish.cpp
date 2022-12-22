@@ -151,7 +151,8 @@ class deinit_t : public ::platf::deinit_t {
 public:
   ~deinit_t() override {
     if(service(false)) {
-      std::abort();
+      BOOST_LOG(error) << "Unable to unregister mDNS service"sv;
+      return;
     }
 
     BOOST_LOG(info) << "Unregistered Sunshine Gamestream service"sv;
