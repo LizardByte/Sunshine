@@ -37,6 +37,12 @@ struct video_t {
   } amd;
 
   struct {
+    std::optional<int> preset;
+    std::optional<int> cavlc;
+    std::string child_device;
+  } qsv;
+
+  struct {
     int allow_sw;
     int require_sw;
     int realtime;

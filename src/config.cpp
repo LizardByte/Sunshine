@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <charconv>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <string>
 #include <unordered_map>
 
 #include <boost/asio.hpp>
@@ -200,6 +202,26 @@ int coder_from_view(const std::string_view &coder) {
 }
 } // namespace amd
 
+namespace qsv {
+enum preset_e : int {
+  _default = 4,
+  veryslow = 1,
+  slower   = 2,
+  slow     = 3,
+  medium   = 4,
+  fast     = 5,
+  faster   = 6,
+  veryfast = 7
+};
+
+enum cavlc_e : int {
+  _auto    = false,
+  enabled  = true,
+  disabled = false
+};
+
+} // namespace qsv
+
 namespace vt {
 
 enum coder_e : int {
@@ -261,6 +283,11 @@ video_t video {
     (int)amd::rc_hevc_e::vbr_latency,   // rate control (hevc)
     (int)amd::coder_e::_auto,           // coder
   },                                    // amd
+  {
+    qsv::medium,
+    0,
+    "" }, // qsv
+
   {
     0,
     0,
@@ -775,6 +802,10 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     video.amd.rc_h264 = amd::rc_from_view(rc, 1);
     video.amd.rc_hevc = amd::rc_from_view(rc, 0);
   }
+
+  int_f(vars, "qsv_preset", video.qsv.preset);
+  int_f(vars, "qsv_cavlc", video.qsv.cavlc);
+  string_f(vars, "qsv_child_device", video.qsv.child_device);
 
   int_f(vars, "vt_coder", video.vt.coder, vt::coder_from_view);
   int_f(vars, "vt_software", video.vt.allow_sw, vt::allow_software_from_view);
