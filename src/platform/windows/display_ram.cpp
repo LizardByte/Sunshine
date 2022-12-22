@@ -285,6 +285,7 @@ std::shared_ptr<platf::img_t> display_ram_t::alloc_img() {
   img->width       = width;
   img->height      = height;
   img->data        = new std::uint8_t[img->row_pitch * height];
+  img->is_bgr      = (format == DXGI_FORMAT_B8G8R8A8_UNORM ? true : false);
 
   return img;
 }

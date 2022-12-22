@@ -153,6 +153,7 @@ public:
   std::int32_t height {};
   std::int32_t pixel_pitch {};
   std::int32_t row_pitch {};
+  bool is_bgr = true;
 
   virtual ~img_t() = default;
 };
