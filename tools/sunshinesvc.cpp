@@ -2,6 +2,11 @@
 #include <Windows.h>
 #include <wtsapi32.h>
 
+// PROC_THREAD_ATTRIBUTE_JOB_LIST is currently missing from MinGW headers
+#ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
+#define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(13, FALSE, TRUE, FALSE)
+#endif
+
 SERVICE_STATUS_HANDLE service_status_handle;
 SERVICE_STATUS service_status;
 HANDLE stop_event;
@@ -27,6 +32,47 @@ DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, L
   default:
     return NO_ERROR;
   }
+}
+
+HANDLE CreateJobObjectForChildProcess() {
+  HANDLE job_handle = CreateJobObjectW(NULL, NULL);
+  if(!job_handle) {
+    return NULL;
+  }
+
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_limit_info = {};
+
+  // Kill Sunshine.exe when the final job object handle is closed (which will happen if we terminate unexpectedly).
+  // This ensures we don't leave an orphaned Sunshine.exe running with an inherited handle to our log file.
+  job_limit_info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+  // Allow Sunshine.exe to use CREATE_BREAKAWAY_FROM_JOB when spawning processes to ensure they can to live beyond
+  // the lifetime of SunshineSvc.exe. This avoids unexpected user data loss if we crash or are killed.
+  job_limit_info.BasicLimitInformation.LimitFlags |= JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+
+  if(!SetInformationJobObject(job_handle, JobObjectExtendedLimitInformation, &job_limit_info, sizeof(job_limit_info))) {
+    CloseHandle(job_handle);
+    return NULL;
+  }
+
+  return job_handle;
+}
+
+LPPROC_THREAD_ATTRIBUTE_LIST AllocateProcThreadAttributeList(DWORD attribute_count) {
+  SIZE_T size;
+  InitializeProcThreadAttributeList(NULL, attribute_count, 0, &size);
+
+  auto list = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), 0, size);
+  if(list == NULL) {
+    return NULL;
+  }
+
+  if(!InitializeProcThreadAttributeList(list, attribute_count, 0, &size)) {
+    HeapFree(GetProcessHeap(), 0, list);
+    return NULL;
+  }
+
+  return list;
 }
 
 HANDLE DuplicateTokenForConsoleSession() {
@@ -115,6 +161,52 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     return;
   }
 
+  auto job_handle = CreateJobObjectForChildProcess();
+  if(job_handle == NULL) {
+    // Tell SCM we failed to start
+    service_status.dwWin32ExitCode = GetLastError();
+    service_status.dwCurrentState  = SERVICE_STOPPED;
+    SetServiceStatus(service_status_handle, &service_status);
+    return;
+  }
+
+  // We can use a single STARTUPINFOEXW for all the processes that we launch
+  STARTUPINFOEXW startup_info         = {};
+  startup_info.StartupInfo.cb         = sizeof(startup_info);
+  startup_info.StartupInfo.lpDesktop  = (LPWSTR)L"winsta0\\default";
+  startup_info.StartupInfo.dwFlags    = STARTF_USESTDHANDLES;
+  startup_info.StartupInfo.hStdInput  = NULL;
+  startup_info.StartupInfo.hStdOutput = log_file_handle;
+  startup_info.StartupInfo.hStdError  = log_file_handle;
+
+  // Allocate an attribute list with space for 2 entries
+  startup_info.lpAttributeList = AllocateProcThreadAttributeList(2);
+  if(startup_info.lpAttributeList == NULL) {
+    // Tell SCM we failed to start
+    service_status.dwWin32ExitCode = GetLastError();
+    service_status.dwCurrentState  = SERVICE_STOPPED;
+    SetServiceStatus(service_status_handle, &service_status);
+    return;
+  }
+
+  // Only allow Sunshine.exe to inherit the log file handle, not all inheritable handles
+  UpdateProcThreadAttribute(startup_info.lpAttributeList,
+    0,
+    PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+    &log_file_handle,
+    sizeof(log_file_handle),
+    NULL,
+    NULL);
+
+  // Start Sunshine.exe inside our job object
+  UpdateProcThreadAttribute(startup_info.lpAttributeList,
+    0,
+    PROC_THREAD_ATTRIBUTE_JOB_LIST,
+    &job_handle,
+    sizeof(job_handle),
+    NULL,
+    NULL);
+
   // Tell SCM we're running (and stoppable now)
   service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
   service_status.dwCurrentState     = SERVICE_RUNNING;
@@ -127,14 +219,6 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
       continue;
     }
 
-    STARTUPINFOW startup_info = {};
-    startup_info.cb           = sizeof(startup_info);
-    startup_info.lpDesktop    = (LPWSTR)L"winsta0\\default";
-    startup_info.dwFlags      = STARTF_USESTDHANDLES;
-    startup_info.hStdInput    = INVALID_HANDLE_VALUE;
-    startup_info.hStdOutput   = log_file_handle;
-    startup_info.hStdError    = log_file_handle;
-
     PROCESS_INFORMATION process_info;
     if(!CreateProcessAsUserW(console_token,
          L"Sunshine.exe",
@@ -142,10 +226,10 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
          NULL,
          NULL,
          TRUE,
-         ABOVE_NORMAL_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
+         ABOVE_NORMAL_PRIORITY_CLASS | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT,
          NULL,
          NULL,
-         &startup_info,
+         (LPSTARTUPINFOW)&startup_info,
          &process_info)) {
       CloseHandle(console_token);
       continue;
