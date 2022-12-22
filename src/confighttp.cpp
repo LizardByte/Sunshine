@@ -1,3 +1,4 @@
+//
 // Created by TheElixZammuto on 2021-05-09.
 // TODO: Authentication, better handling of routes common to nvhttp, cleanup
 
@@ -9,17 +10,12 @@
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/xml_parser.hpp>
-
-#include <boost/algorithm/string.hpp>
 
 #include <boost/asio/ssl/context.hpp>
-
 #include <boost/filesystem.hpp>
 
 #include <Simple-Web-Server/crypto.hpp>
-#include <Simple-Web-Server/server_https.hpp>
-#include <boost/asio/ssl/context_base.hpp>
+#include <Simple-Web-Server/server_http.hpp>
 
 #include "config.h"
 #include "confighttp.h"
@@ -29,9 +25,9 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
-#include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
+#include "version.h"
 
 using namespace std::literals;
 
@@ -39,18 +35,29 @@ namespace confighttp {
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
-using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
+using http_server_t = SimpleWeb::Server<SimpleWeb::HTTP>;
 
 using args_t       = SimpleWeb::CaseInsensitiveMultimap;
-using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
-using req_https_t  = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+using resp_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>;
+using req_http_t  = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request>;
 
-enum class op_e {
-  ADD,
-  REMOVE
+class token_info {
+public:
+  std::string userAgent;
+  time_t expiresIn;
 };
 
-void print_req(const req_https_t &request) {
+enum class req_type {
+  POST,
+  GET
+};
+
+std::mutex mtx;
+std::condition_variable sse_event_awaiter;
+std::string last_sse_event;
+std::map<std::string, token_info> accessTokens;
+
+void print_req(const req_http_t &request) {
   BOOST_LOG(debug) << "METHOD :: "sv << request->method;
   BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
 
@@ -66,56 +73,271 @@ void print_req(const req_https_t &request) {
 
   BOOST_LOG(debug) << " [--] "sv;
 }
-
-void send_unauthorized(resp_https_t response, req_https_t request) {
-  auto address = request->remote_endpoint().address().to_string();
-  BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
-  const SimpleWeb::CaseInsensitiveMultimap headers {
-    { "WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")" }
-  };
-  response->write(SimpleWeb::StatusCode::client_error_unauthorized, headers);
+bool get_apps(pt::ptree data, pt::ptree &response) {
+  std::string content = read_file(config::stream.file_apps.c_str());
+  response.put("content", content);
+  return true;
 }
 
-void send_redirect(resp_https_t response, req_https_t request, const char *path) {
-  auto address = request->remote_endpoint().address().to_string();
-  BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
-  const SimpleWeb::CaseInsensitiveMultimap headers {
-    { "Location", path }
-  };
-  response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
+bool save_app(pt::ptree data, pt::ptree &response) {
+  pt::ptree fileTree;
+
+  try {
+    pt::read_json(config::stream.file_apps, fileTree);
+
+    auto &apps_node = fileTree.get_child("apps"s);
+    auto id         = data.get<std::string>("id");
+
+    pt::ptree newApps;
+    bool newNode = true;
+    for(const auto &kv : apps_node) {
+      if(kv.second.get<std::string>("id") == id) {
+        newApps.push_back(std::make_pair("", data));
+        newNode = false;
+      }
+      else {
+        newApps.push_back(std::make_pair("", kv.second));
+      }
+    }
+    if(newNode) {
+      newApps.push_back(std::make_pair("", data));
+    }
+    fileTree.erase("apps");
+    fileTree.push_back(std::make_pair("apps", newApps));
+
+    pt::write_json(config::stream.file_apps, fileTree);
+    proc::refresh(config::stream.file_apps);
+    return true;
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "SaveApp: "sv << e.what();
+    response.put("error", "Invalid Input JSON");
+    return false;
+  }
 }
 
-bool authenticate(resp_https_t response, req_https_t request) {
+bool delete_app(pt::ptree data, pt::ptree &response) {
+  pt::ptree fileTree;
+  try {
+    pt::read_json(config::stream.file_apps, fileTree);
+    auto &apps_node = fileTree.get_child("apps"s);
+    auto id         = data.get<std::string>("id");
+
+    pt::ptree newApps;
+    bool success = false;
+    for(const auto &kv : apps_node) {
+      if(id == kv.second.get<std::string>("id")) {
+        success = true;
+      }
+      else {
+        newApps.push_back(std::make_pair("", kv.second));
+      }
+    }
+    if(!success) {
+      response.put("error", "No such app ID");
+      return false;
+    }
+    fileTree.erase("apps");
+    fileTree.push_back(std::make_pair("apps", newApps));
+    pt::write_json(config::stream.file_apps, fileTree);
+    proc::refresh(config::stream.file_apps);
+    return true;
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
+    response.put("error", "Invalid File JSON");
+    return false;
+  }
+}
+
+bool get_config(pt::ptree data, pt::ptree &response) {
+  response.put("platform", SUNSHINE_PLATFORM);
+
+  auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
+
+  for(auto &[name, value] : vars) {
+    response.put(std::move(name), std::move(value));
+  }
+  return true;
+}
+
+bool get_api_version(pt::ptree data, pt::ptree &response) {
+  response.put("version", PROJECT_VER);
+  return true;
+}
+
+bool get_config_schema(pt::ptree data, pt::ptree &response) {
+
+  for(auto &[name, val] : config::property_schema) {
+    pt::ptree prop_info, limits;
+    try {
+      config::config_prop any_prop = val.first;
+      prop_info.put("name", any_prop.name);
+      prop_info.put("translated_name", any_prop.name);
+      prop_info.put("description", any_prop.description);
+      val.second->to(limits);
+      prop_info.push_back(std::make_pair("limits", limits));
+      prop_info.put("translated_description", any_prop.description);
+      prop_info.put("required", any_prop.required);
+      prop_info.put("type", config::to_config_prop_string(any_prop.prop_type));
+    }
+    catch(const std::exception &e) {
+      response.put("error", e.what());
+      return false;
+    }
+    response.push_back(std::make_pair(name, prop_info));
+  }
+  return true;
+}
+
+bool save_config(pt::ptree data, pt::ptree &response) {
+  std::stringstream contentStream, configStream;
+  contentStream << data.get<std::string>("config");
+  try {
+    pt::ptree inputTree;
+    pt::read_json(contentStream, inputTree);
+
+    std::unordered_map<std::string, std::string> vars;
+    for(const auto &kv : inputTree) {
+      auto value = inputTree.get<std::string>(kv.first);
+      if(value.length() == 0 || value.compare("null") == 0) continue;
+
+      vars[kv.first] = value;
+    }
+    config::save_config(std::move(vars));
+    return true;
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
+    response.put("error", "exception");
+    response.put("exception", e.what());
+  }
+  return false;
+}
+
+bool save_pin(pt::ptree data, pt::ptree &response) {
+  try {
+    auto pin = data.get<std::string>("pin");
+    response.put("status", nvhttp::pin(pin));
+    return true;
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "SavePin: "sv << e.what();
+    response.put("error", "exception");
+    response.put("exception", e.what());
+  }
+  return false;
+}
+
+bool unpair_all(pt::ptree data, pt::ptree &response) {
+  nvhttp::erase_all_clients();
+  return true;
+}
+
+bool close_app(pt::ptree data, pt::ptree &response) {
+  proc::proc.terminate();
+  return true;
+}
+
+bool request_pin() {
+  pt::ptree output;
+  output.put("type", "request_pin");
+
+  std::ostringstream data;
+  pt::write_json(data, output, false);
+  last_sse_event = data.str();
+  sse_event_awaiter.notify_all();
+  return true;
+}
+
+
+bool update_credentials(pt::ptree data, pt::ptree &response) {
+  auto newUsername = data.get_optional<std::string>("newUsername").get_value_or("");
+  auto newPassword = data.get_optional<std::string>("newPassword").get_value_or("");
+
+  if(newUsername.length() < 4) {
+    response.put("error", "Your username should have at least 4 characters.");
+    return false;
+  }
+  if(newPassword.length() < 4) {
+    response.put("error", "Your password should have at least 4 characters.");
+    return false;
+  }
+
+  http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
+  http::reload_user_creds(config::sunshine.credentials_file);
+
+  return true;
+}
+
+std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree, pt::ptree &)>>> allowedRequests = {
+  { "get_apps"s, { req_type::GET, get_apps } },
+  { "api_version"s, { req_type::GET, get_api_version } },
+  { "get_config"s, { req_type::GET, get_config } },
+  { "save_app"s, { req_type::POST, save_app } },
+  { "delete_app"s, { req_type::POST, delete_app } },
+  { "save_config"s, { req_type::POST, save_config } },
+  { "save_pin"s, { req_type::POST, save_pin } },
+  { "update_credentials"s, { req_type::POST, update_credentials } },
+  { "unpair_all"s, { req_type::POST, unpair_all } },
+  { "close_app"s, { req_type::POST, close_app } },
+  { "get_config_schema"s, { req_type::GET, get_config_schema } }
+};
+
+bool checkRequestOrigin(req_http_t request) {
   auto address = request->remote_endpoint().address().to_string();
   auto ip_type = net::from_address(address);
 
-  if(ip_type > http::origin_web_ui_allowed) {
-    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
-    response->write(SimpleWeb::StatusCode::client_error_forbidden);
+  // Only allow HTTP requests from localhost.
+  if(ip_type > net::net_e::PC) {
+    BOOST_LOG(info) << "Web API: ["sv << address << "] -- denied"sv;
     return false;
   }
 
-  // If credentials are shown, redirect the user to a /welcome page
-  if(config::sunshine.username.empty()) {
-    send_redirect(response, request, "/welcome");
-    return false;
-  }
+  return true;
+}
 
-  auto fg = util::fail_guard([&]() {
-    send_unauthorized(response, request);
+void handleApiSSE(resp_http_t response, req_http_t request) {
+  if(!checkRequestOrigin(request)) return;
+
+  std::thread work_thread([response, request] {
+    response->close_connection_after_response = true;
+    std::promise<bool> error;
+    response->write({ { "Content-Type", "text/event-stream" }, { "Access-Control-Allow-Origin", "*" } });
+    response->send([&error](const SimpleWeb::error_code &ec) {
+      error.set_value(static_cast<bool>(ec));
+    });
+    if(error.get_future().get())
+      return; // return if error on sending headers
+    while(true) {
+      std::promise<bool> responseError;
+      std::unique_lock<std::mutex> lck(mtx);
+      if(sse_event_awaiter.wait_for(lck, std::chrono::minutes(2)) == std::cv_status::timeout) {
+        *response << "event: ping\r\n\r\n";
+      }
+      else {
+        *response << "data: " << last_sse_event << "\r\n\r\n";
+      }
+      response->send([&responseError](const SimpleWeb::error_code &ec) {
+        responseError.set_value(static_cast<bool>(ec));
+      });
+      if(responseError.get_future().get()) // If ec above indicates responseError
+        break;
+    }
   });
+  work_thread.detach();
+}
 
-  auto auth = request->header.find("authorization");
-  if(auth == request->header.end()) {
-    return false;
+int checkAuthentication(req_http_t request, bool tokenRequired) {
+  auto authorizationItr = request->header.find("Authorization");
+  if(authorizationItr == request->header.end()) {
+    return -2;
   }
 
-  auto &rawAuth = auth->second;
-  auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
-
+  auto authData        = SimpleWeb::Crypto::Base64::decode(authorizationItr->second.substr("Basic "sv.length()));
   int index = authData.find(':');
   if(index >= authData.size() - 1) {
-    return false;
+    return -2;
   }
 
   auto username = authData.substr(0, index);
@@ -123,288 +345,70 @@ bool authenticate(resp_https_t response, req_https_t request) {
   auto hash     = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
 
   if(username != config::sunshine.username || hash != config::sunshine.password) {
-    return false;
+    return -1;
   }
 
-  fg.disable();
-  return true;
+  return 0;
 }
 
-void not_found(resp_https_t response, req_https_t request) {
-  pt::ptree tree;
-  tree.put("root.<xmlattr>.status_code", 404);
-
-  std::ostringstream data;
-
-  pt::write_xml(data, tree);
-  response->write(data.str());
-
-  *response << "HTTP/1.1 404 NOT FOUND\r\n"
-            << data.str();
-}
-
-void getIndexPage(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
+void handleApiRequest(resp_http_t response, req_http_t request) {
   print_req(request);
-
-  std::string header  = read_file(WEB_DIR "header.html");
-  std::string content = read_file(WEB_DIR "index.html");
-  response->write(header + content);
-}
-
-void getPinPage(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::string header  = read_file(WEB_DIR "header.html");
-  std::string content = read_file(WEB_DIR "pin.html");
-  response->write(header + content);
-}
-
-void getAppsPage(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
-
-  std::string header  = read_file(WEB_DIR "header.html");
-  std::string content = read_file(WEB_DIR "apps.html");
-  response->write(header + content, headers);
-}
-
-void getClientsPage(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::string header  = read_file(WEB_DIR "header.html");
-  std::string content = read_file(WEB_DIR "clients.html");
-  response->write(header + content);
-}
-
-void getConfigPage(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::string header  = read_file(WEB_DIR "header.html");
-  std::string content = read_file(WEB_DIR "config.html");
-  response->write(header + content);
-}
-
-void getPasswordPage(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::string header  = read_file(WEB_DIR "header.html");
-  std::string content = read_file(WEB_DIR "password.html");
-  response->write(header + content);
-}
-
-void getWelcomePage(resp_https_t response, req_https_t request) {
-  print_req(request);
-  if(!config::sunshine.username.empty()) {
-    send_redirect(response, request, "/");
-    return;
-  }
-  std::string header  = read_file(WEB_DIR "header-no-nav.html");
-  std::string content = read_file(WEB_DIR "welcome.html");
-  response->write(header + content);
-}
-
-void getTroubleshootingPage(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::string header  = read_file(WEB_DIR "header.html");
-  std::string content = read_file(WEB_DIR "troubleshooting.html");
-  response->write(header + content);
-}
-
-void getFaviconImage(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::ifstream in(WEB_DIR "images/favicon.ico", std::ios::binary);
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", "image/x-icon");
-  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-}
-
-void getSunshineLogoImage(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", "image/png");
-  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-}
-
-void getNodeModules(resp_https_t response, req_https_t request) {
-  print_req(request);
-
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  if(boost::algorithm::iends_with(request->path, ".ttf") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/ttf");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-  else if(boost::algorithm::iends_with(request->path, ".woff2") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/woff2");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-  else {
-    std::string content = read_file((WEB_DIR + request->path).c_str());
-    response->write(content);
-  }
-}
-
-void getApps(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::string content = read_file(config::stream.file_apps.c_str());
-  response->write(content);
-}
-
-void getLogs(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::string content = read_file(config::sunshine.log_file.c_str());
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", "text/plain");
-  response->write(SimpleWeb::StatusCode::success_ok, content, headers);
-}
-
-void saveApp(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::stringstream ss;
-  ss << request->content.rdbuf();
-
-  pt::ptree outputTree;
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-
-  pt::ptree inputTree, fileTree;
-
-  BOOST_LOG(fatal) << config::stream.file_apps;
-  try {
-    // TODO: Input Validation
-    pt::read_json(ss, inputTree);
-    pt::read_json(config::stream.file_apps, fileTree);
-
-    if(inputTree.get_child("prep-cmd").empty()) {
-      inputTree.erase("prep-cmd");
-    }
-
-    if(inputTree.get_child("detached").empty()) {
-      inputTree.erase("detached");
-    }
-
-    auto &apps_node = fileTree.get_child("apps"s);
-    int index       = inputTree.get<int>("index");
-
-    inputTree.erase("index");
-
-    if(index == -1) {
-      apps_node.push_back(std::make_pair("", inputTree));
-    }
-    else {
-      // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
-      pt::ptree newApps;
-      int i = 0;
-      for(const auto &kv : apps_node) {
-        if(i == index) {
-          newApps.push_back(std::make_pair("", inputTree));
-        }
-        else {
-          newApps.push_back(std::make_pair("", kv.second));
-        }
-        i++;
-      }
-      fileTree.erase("apps");
-      fileTree.push_back(std::make_pair("apps", newApps));
-    }
-    pt::write_json(config::stream.file_apps, fileTree);
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "SaveApp: "sv << e.what();
-
-    outputTree.put("status", "false");
-    outputTree.put("error", "Invalid Input JSON");
-    return;
-  }
-
-  outputTree.put("status", "true");
-  proc::refresh(config::stream.file_apps);
-}
-
-void deleteApp(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  pt::ptree outputTree;
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-  pt::ptree fileTree;
-  try {
-    pt::read_json(config::stream.file_apps, fileTree);
-    auto &apps_node = fileTree.get_child("apps"s);
-    int index       = stoi(request->path_match[1]);
-
-    if(index < 0) {
-      outputTree.put("status", "false");
-      outputTree.put("error", "Invalid Index");
+  auto locale     = request->path_match[1].str(); // TODO: Should be used with boost::locale.
+  auto req_name   = request->path_match[2].str();
+  auto authResult = checkAuthentication(request, true);
+  if(req_name != "api_version"s && (req_name == "update_credentials" && http::creds_file_exists())) {
+    if(authResult == -2) {
+      response->write(SimpleWeb::StatusCode::client_error_bad_request);
       return;
     }
-    else {
-      // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
-      pt::ptree newApps;
-      int i = 0;
-      for(const auto &kv : apps_node) {
-        if(i++ != index) {
-          newApps.push_back(std::make_pair("", kv.second));
-        }
-      }
-      fileTree.erase("apps");
-      fileTree.push_back(std::make_pair("apps", newApps));
+    else if(authResult != 0) {
+      response->write(SimpleWeb::StatusCode::client_error_unauthorized);
+      return;
     }
-    pt::write_json(config::stream.file_apps, fileTree);
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
-    outputTree.put("status", "false");
-    outputTree.put("error", "Invalid File JSON");
-    return;
   }
 
-  outputTree.put("status", "true");
-  proc::refresh(config::stream.file_apps);
+  req_type requestMethod = req_type::GET;
+  if(request->method == "POST"s) {
+    requestMethod = req_type::POST;
+  }
+
+  pt::ptree inputTree, outputTree;
+  std::stringstream contentStream;
+  bool result = false;
+  contentStream << request->content.string();
+  try {
+    pt::read_json(contentStream, inputTree);
+  }
+  catch(...) {
+  }
+
+  auto req = allowedRequests.find(req_name);
+  if(req != allowedRequests.end()) {
+    if(req->second.first == requestMethod) {
+      result = req->second.second(inputTree, outputTree);
+    }
+    else {
+      outputTree.put("error", "Invalid request method");
+    }
+  }
+  outputTree.put("result", result);
+  outputTree.put("authenticated", authResult == 0);
+  std::ostringstream data;
+  pt::write_json(data, outputTree, false);
+  response->write(data.str(), { { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", "Authorization" } });
 }
 
-void uploadCover(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
+void uploadCover(resp_http_t response, req_http_t request) {
+  if(!checkRequestOrigin(request)) return;
+  auto authResult = checkAuthentication(request, true);
+  if(authResult == -2) {
+    response->write(SimpleWeb::StatusCode::client_error_bad_request);
+    return;
+  }
+  else if(authResult != 0) {
+    response->write(SimpleWeb::StatusCode::client_error_unauthorized);
+    return;
+  }
 
   std::stringstream ss;
   std::stringstream configStream;
@@ -464,221 +468,48 @@ void uploadCover(resp_https_t response, req_https_t request) {
   outputTree.put("path", path);
 }
 
-void getConfig(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
+void appasset(resp_http_t response, req_http_t request) {
+  if(!checkRequestOrigin(request)) return;
   print_req(request);
 
-  pt::ptree outputTree;
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
+  auto appid     = request->path_match[1].str();
+  auto app_image = proc::proc.get_app_image(util::from_view(appid));
 
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-
-  outputTree.put("status", "true");
-  outputTree.put("platform", SUNSHINE_PLATFORM);
-
-  auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
-
-  for(auto &[name, value] : vars) {
-    outputTree.put(std::move(name), std::move(value));
-  }
+  std::ifstream in(app_image, std::ios::binary);
+  response->write(SimpleWeb::StatusCode::success_ok, in, { { "Content-Type", "image/png" } });
 }
 
-void saveConfig(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
+void handleCors(resp_http_t response, req_http_t request) {
+  auto corsHeaders = request->header.find("access-control-request-headers");
 
-  print_req(request);
-
-  std::stringstream ss;
-  std::stringstream configStream;
-  ss << request->content.rdbuf();
-  pt::ptree outputTree;
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-  pt::ptree inputTree;
-  try {
-    // TODO: Input Validation
-    pt::read_json(ss, inputTree);
-    for(const auto &kv : inputTree) {
-      std::string value = inputTree.get<std::string>(kv.first);
-      if(value.length() == 0 || value.compare("null") == 0) continue;
-
-      configStream << kv.first << " = " << value << std::endl;
-    }
-    write_file(config::sunshine.config_file.c_str(), configStream.str());
+  auto allowHeaders = "Authorization"s;
+  if (corsHeaders != request->header.end()) {
+    allowHeaders = corsHeaders->second;
   }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
-    outputTree.put("status", "false");
-    outputTree.put("error", e.what());
-    return;
-  }
-}
-
-void savePassword(resp_https_t response, req_https_t request) {
-  if(!config::sunshine.username.empty() && !authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::stringstream ss;
-  std::stringstream configStream;
-  ss << request->content.rdbuf();
-
-  pt::ptree inputTree, outputTree;
-
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-
-  try {
-    // TODO: Input Validation
-    pt::read_json(ss, inputTree);
-    auto username        = inputTree.count("currentUsername") > 0 ? inputTree.get<std::string>("currentUsername") : "";
-    auto newUsername     = inputTree.get<std::string>("newUsername");
-    auto password        = inputTree.count("currentPassword") > 0 ? inputTree.get<std::string>("currentPassword") : "";
-    auto newPassword     = inputTree.count("newPassword") > 0 ? inputTree.get<std::string>("newPassword") : "";
-    auto confirmPassword = inputTree.count("confirmNewPassword") > 0 ? inputTree.get<std::string>("confirmNewPassword") : "";
-    if(newUsername.length() == 0) newUsername = username;
-    if(newUsername.length() == 0) {
-      outputTree.put("status", false);
-      outputTree.put("error", "Invalid Username");
-    }
-    else {
-      auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-      if(config::sunshine.username.empty() || (username == config::sunshine.username && hash == config::sunshine.password)) {
-        if(newPassword.empty() || newPassword != confirmPassword) {
-          outputTree.put("status", false);
-          outputTree.put("error", "Password Mismatch");
-        }
-        else {
-          http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
-          http::reload_user_creds(config::sunshine.credentials_file);
-          outputTree.put("status", true);
-        }
-      }
-      else {
-        outputTree.put("status", false);
-        outputTree.put("error", "Invalid Current Credentials");
-      }
-    }
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "SavePassword: "sv << e.what();
-    outputTree.put("status", false);
-    outputTree.put("error", e.what());
-    return;
-  }
-}
-
-void savePin(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::stringstream ss;
-  ss << request->content.rdbuf();
-
-  pt::ptree inputTree, outputTree;
-
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-
-  try {
-    // TODO: Input Validation
-    pt::read_json(ss, inputTree);
-    std::string pin = inputTree.get<std::string>("pin");
-    outputTree.put("status", nvhttp::pin(pin));
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "SavePin: "sv << e.what();
-    outputTree.put("status", false);
-    outputTree.put("error", e.what());
-    return;
-  }
-}
-
-void unpairAll(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  pt::ptree outputTree;
-
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-  nvhttp::erase_all_clients();
-  outputTree.put("status", true);
-}
-
-void closeApp(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  pt::ptree outputTree;
-
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-
-  proc::proc.terminate();
-  outputTree.put("status", true);
+  response->write({ { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", allowHeaders } });
 }
 
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
-  auto port_https = map_port(PORT_HTTPS);
+  auto port_http = map_port(PORT_HTTP);
 
-  https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
-  server.default_resource["GET"]                           = not_found;
-  server.resource["^/$"]["GET"]                            = getIndexPage;
-  server.resource["^/pin$"]["GET"]                         = getPinPage;
-  server.resource["^/apps$"]["GET"]                        = getAppsPage;
-  server.resource["^/clients$"]["GET"]                     = getClientsPage;
-  server.resource["^/config$"]["GET"]                      = getConfigPage;
-  server.resource["^/password$"]["GET"]                    = getPasswordPage;
-  server.resource["^/welcome$"]["GET"]                     = getWelcomePage;
-  server.resource["^/troubleshooting$"]["GET"]             = getTroubleshootingPage;
-  server.resource["^/api/pin$"]["POST"]                    = savePin;
-  server.resource["^/api/apps$"]["GET"]                    = getApps;
-  server.resource["^/api/logs$"]["GET"]                    = getLogs;
-  server.resource["^/api/apps$"]["POST"]                   = saveApp;
-  server.resource["^/api/config$"]["GET"]                  = getConfig;
-  server.resource["^/api/config$"]["POST"]                 = saveConfig;
-  server.resource["^/api/password$"]["POST"]               = savePassword;
-  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]        = deleteApp;
-  server.resource["^/api/clients/unpair$"]["POST"]         = unpairAll;
-  server.resource["^/api/apps/close$"]["POST"]             = closeApp;
+  http_server_t server;
+  server.resource["^/api/events$"]["GET"]                  = handleApiSSE;
   server.resource["^/api/covers/upload$"]["POST"]          = uploadCover;
-  server.resource["^/images/favicon.ico$"]["GET"]          = getFaviconImage;
-  server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-  server.resource["^/node_modules\\/.+$"]["GET"]           = getNodeModules;
+  server.resource["^/api/([a-z_]+)/([a-z_]+)$"]["OPTIONS"] = handleCors;
+  server.resource["^/api/([a-z_]+)/([a-z_]+)$"]["POST"]    = handleApiRequest;
+  server.resource["^/api/([a-z_]+)/([a-z_]+)$"]["GET"]     = handleApiRequest;
+  server.resource["^/appasset/([0-9]+)$"]["GET"]           = appasset;
   server.config.reuse_address                              = true;
   server.config.address                                    = "0.0.0.0"s;
-  server.config.port                                       = port_https;
+  server.config.port                                       = port_http;
+  server.config.timeout_content                            = 0;
 
   auto accept_and_run = [&](auto *server) {
     try {
       server->start([](unsigned short port) {
-        BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
+        BOOST_LOG(info) << "Configuration API available at [http://localhost:"sv << port << "]";
       });
     }
     catch(boost::system::system_error &err) {
@@ -687,7 +518,7 @@ void start() {
         return;
       }
 
-      BOOST_LOG(fatal) << "Couldn't start Configuration HTTPS server on port ["sv << port_https << "]: "sv << err.what();
+      BOOST_LOG(fatal) << "Couldn't start Configuration HTTP server on port ["sv << port_http << "]: "sv << err.what();
       shutdown_event->raise(true);
       return;
     }

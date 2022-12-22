@@ -136,7 +136,7 @@ std::unique_ptr<platf::deinit_t> start() {
   auto control  = std::to_string(map_port(stream::CONTROL_PORT));
   auto gs_http  = std::to_string(map_port(nvhttp::PORT_HTTP));
   auto gs_https = std::to_string(map_port(nvhttp::PORT_HTTPS));
-  auto wm_http  = std::to_string(map_port(confighttp::PORT_HTTPS));
+  auto wm_http  = std::to_string(map_port(confighttp::PORT_HTTP));
 
   std::vector<mapping_t> mappings {
     { rtsp, rtsp, "RTSP setup port"s, true },
@@ -146,11 +146,6 @@ std::unique_ptr<platf::deinit_t> start() {
     { gs_http, gs_http, "Gamestream http port"s, true },
     { gs_https, gs_https, "Gamestream https port"s, true },
   };
-
-  // Only map port for the Web Manager if it is configured to accept connection from WAN
-  if(net::from_enum_string(config::nvhttp.origin_web_ui_allowed) > net::LAN) {
-    mappings.emplace_back(mapping_t { wm_http, wm_http, "Sunshine Web UI port"s, true });
-  }
 
   auto it = std::begin(mappings);
 

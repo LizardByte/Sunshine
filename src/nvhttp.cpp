@@ -16,7 +16,7 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
-
+#include "confighttp.h"
 #include "config.h"
 #include "crypto.h"
 #include "httpcommon.h"
@@ -488,6 +488,7 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
       else {
         ptr->second.async_insert_pin.response = std::move(response);
 
+        confighttp::request_pin();
         fg.disable();
         return;
       }

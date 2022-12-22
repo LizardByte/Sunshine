@@ -24,6 +24,69 @@ using namespace std::literals;
 #define APPS_JSON_PATH platf::appdata().string() + "/apps.json"
 namespace config {
 
+std::string_view to_config_prop_string(config_props propType) {
+  switch(propType) {
+  case INT:
+    return "int"sv;
+  case DOUBLE:
+    return "double"sv;
+  case STRING:
+    return "string"sv;
+  case INT_ARRAY:
+    return "int_array"sv;
+  case STRING_ARRAY:
+    return "string_array"sv;
+  case FILE:
+    return "file"sv;
+  case BOOLEAN:
+    return "boolean"sv;
+  }
+
+  // avoid warning
+  return "custom"sv;
+}
+
+std::unordered_map<std::string, std::pair<config_prop, limit>> property_schema = {
+  { "qp"s, { config_prop(INT, "qp"s, ""s, true, &video.qp), no_limit() } },
+  { "min_threads"s, { config_prop(INT, "min_threads"s, "Minimum number of threads used by ffmpeg to encode the video."s, true, &video.min_threads), no_limit() } },
+  { "hevc_mode"s, { config_prop(INT, "hevc_mode"s, "Allows the client to request HEVC Main or HEVC Main10 video streams."s, true, &video.hevc_mode), string_limit({ "0", "1", "2", "3" }) } },
+  { "sw_preset"s, { config_prop(STRING, "sw_preset"s, "Software encoding preset"s, true, &video.sw.preset), no_limit() } },
+  { "sw_tune"s, { config_prop(STRING, "sw_tune"s, "Software encoding tuning parameters"s, true, &video.sw.tune), no_limit() } },
+  { "nv_preset"s, { config_prop(INT, "nv_preset"s, "NVENC preset"s, true), no_limit() } },
+  { "nv_rc"s, { config_prop(INT, "nv_rc"s, "NVENC rate control"s, true), no_limit() } },
+  { "nv_coder"s, { config_prop(INT, "nv_coder"s, "NVENC Coder"s, true, &video.nv.coder), string_limit({ "auto", "cabac", "cavlc" }) } },
+  { "amd_quality"s, { config_prop(INT, "amd_quality"s, "AMD AMF quality"s, true, &video.amd.quality), string_limit({ "default", "speed", "balanced" }) } },
+  { "amd_rc"s, { config_prop(STRING, "amd_rc"s, "AMD AMF rate control"s, true), string_limit({ "constqp", "vbr_latency", "vbr_peak", "cbr" }) } },
+  { "amd_coder"s, { config_prop(INT, "amd_coder"s, ""s, true, &video.amd.coder), string_limit({ "auto", "cabac", "cavlc" }) } },
+  { "encoder"s, { config_prop(STRING, "encoder"s, "Force a specific encoder"s, true, &video.encoder), string_limit({ "nvenc", "amdvce", "vaapi", "software" }) } },
+  { "adapter_name"s, { config_prop(STRING, "adapter_name"s, "Select the video card you want to stream with."s, true, &video.adapter_name), no_limit() } },
+  { "output_name"s, { config_prop(STRING, "output_name"s, "Select the display output you want to stream."s, true, &video.output_name), no_limit() } },
+  { "pkey"s, { config_prop(FILE, "pkey"s, "Path to the private key file. The private key must be 2048 bits."s, true, &nvhttp.pkey), no_limit() } },
+  { "cert"s, { config_prop(STRING, "cert"s, "Path to the certificate file. The certificate must be signed with a 2048 bit key!"s, true, &nvhttp.cert), no_limit() } },
+  { "sunshine_name"s, { config_prop(STRING, "sunshine_name"s, "The name displayed by Moonlight. If not specified, the PC's hostname is used"s, true, &nvhttp.sunshine_name), no_limit() } },
+  { "file_state"s, { config_prop(FILE, "file_state"s, "The file where current state of Sunshine is stored."s, true, &nvhttp.file_state), no_limit() } },
+  { "external_ip"s, { config_prop(STRING, "external_ip"s, ""s, true, &nvhttp.external_ip), no_limit() } },
+  { "resolutions"s, { config_prop(STRING_ARRAY, "resolutions"s, "Display resolutions reported by Sunshine as supported."s, true, &nvhttp.resolutions), no_limit() } },
+  { "fps"s, { config_prop(INT_ARRAY, "fps"s, "Supported FPS reported to clients"s, true, &nvhttp.fps), no_limit() } },
+  { "audio_sink"s, { config_prop(STRING, "audio_sink"s, "The name of the audio sink used for Audio Loopback."s, true, &audio.sink), no_limit() } },
+  { "virtual_sink"s, { config_prop(STRING, "virtual_sink"s, "Virtual audio device name (like Steam Streaming Speakers)\r\nAllows Sunshine to stream audio with muted speakers."s, true, &audio.virtual_sink), no_limit() } },
+  { "origin_pin_allowed"s, { config_prop(STRING, "origin_pin_allowed"s, ""s, true, &nvhttp.origin_pin_allowed), no_limit() } },
+  { "ping_timeout"s, { config_prop(INT, "ping_timeout"s, "How long to wait (in milliseconds) for data from Moonlight clients before shutting down the stream"s, true, &stream.ping_timeout), no_limit() } },
+  { "channels"s, { config_prop(INT, "channels"s, ""s, true, &video.qp), minmax_limit(1, 24) } },
+  { "file_apps"s, { config_prop(FILE, "file_apps"s, "Path to apps.json which contains all the necessary configuration for running apps in Sunshine."s, true, &stream.file_apps), no_limit() } },
+  { "fec_percentage"s, { config_prop(INT, "fec_percentage"s, "Percentage of error correcting packets per data packet in each video frame."s, true, &stream.fec_percentage), no_limit() } },
+  { "keybindings"s, { config_prop(STRING_ARRAY, "keybindings"s, ""s, true), no_limit() } },
+  { "key_rightalt_to_key_win"s, { config_prop(BOOLEAN, "key_rightalt_to_key_win"s, "It may be possible that you cannot send the Windows key from Moonlight directly. \r\n Allows using Right Alt key as the Windows key."s, true), no_limit() } },
+  { "back_button_timeout"s, { config_prop(INT, "back_button_timeout"s, "Emulate back/select button press on the controller."s, true, &input.back_button_timeout), minmax_limit(-1, std::numeric_limits<int>::max()) } },
+  { "key_repeat_frequency"s, { config_prop(DOUBLE, "key_repeat_frequency"s, "How often keys repeat every second after delay.\r\nThis configurable option supports decimals"s, true), no_limit() } },
+  { "key_repeat_delay"s, { config_prop(INT, "key_repeat_delay"s, "Controls how fast keys will repeat themselves after holding\r\nThe initial delay in milliseconds before repeating keys."s, true, &input.key_repeat_delay), minmax_limit(-1, std::numeric_limits<int>::max()) } },
+  { "gamepad"s, { config_prop(STRING, "gamepad"s, "Default gamepad used"s, true, &input.gamepad), string_limit(platf::supported_gamepads()) } },
+  { "port"s, { config_prop(INT, "port"s, ""s, true), minmax_limit(1024, 49151) } },
+  { "upnp"s, { config_prop(BOOLEAN, "upnp"s, "Automatically configure port forwarding"s, true), no_limit() } },
+  { "dwmflush"s, { config_prop(BOOLEAN, "dwmflush"s, "Improves capture latency during mouse movement.\r\nEnabling this may prevent the client's FPS from exceeding the host monitor's active refresh rate."s, false, &video.dwmflush), no_limit() } },
+  { "min_log_level"s, { config_prop(STRING, "min_log_level"s, "The minimum log level printed to standard out"s, true), string_limit({ "verbose", "debug", "info", "warning", "error", "fatal", "none", "0", "1", "2", "3", "4", "5", "6" }) } },
+};
+
 namespace nv {
 #ifdef __APPLE__
 // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
@@ -286,7 +349,6 @@ stream_t stream {
 
 nvhttp_t nvhttp {
   "pc",  // origin_pin
-  "lan", // origin web manager
 
   PRIVATE_KEY_FILE,
   CERTIFICATE_FILE,
@@ -336,7 +398,6 @@ sunshine_t sunshine {
   platf::appdata().string() + "/sunshine.conf", // config file
   {},                                           // cmd args
   47989,
-  platf::appdata().string() + "/sunshine.log", // log file
 };
 
 bool endline(char ch) {
@@ -444,45 +505,17 @@ std::unordered_map<std::string, std::string> parse_config(const std::string_view
   return vars;
 }
 
-void string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
-  auto it = vars.find(name);
-  if(it == std::end(vars)) {
-    return;
-  }
-
-  input = std::move(it->second);
-
-  vars.erase(it);
-}
-
-void string_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input, const std::vector<std::string_view> &allowed_vals) {
-  std::string temp;
-  string_f(vars, name, temp);
-
-  for(auto &allowed_val : allowed_vals) {
-    if(temp == allowed_val) {
-      input = std::move(temp);
-      return;
-    }
-  }
-}
-
-void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
+void path_f(std::string input, fs::path &value) {
   // appdata needs to be retrieved once only
   static auto appdata = platf::appdata();
 
-  std::string temp;
-  string_f(vars, name, temp);
+  value = input;
 
-  if(!temp.empty()) {
-    input = temp;
+  if(value.is_relative()) {
+    value = appdata / input;
   }
 
-  if(input.is_relative()) {
-    input = appdata / input;
-  }
-
-  auto dir = input;
+  auto dir = value;
   dir.remove_filename();
 
   // Ensure the directories exists
@@ -491,22 +524,15 @@ void path_f(std::unordered_map<std::string, std::string> &vars, const std::strin
   }
 }
 
-void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+void path_f(std::string value, std::string &input) {
   fs::path temp = input;
 
-  path_f(vars, name, temp);
+  path_f(value, temp);
 
   input = temp.string();
 }
 
-void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
-  auto it = vars.find(name);
-
-  if(it == std::end(vars)) {
-    return;
-  }
-
-  std::string_view val = it->second;
+void int_f(std::string val, int &input) {
 
   // If value is something like: "756" instead of 756
   if(val.size() >= 2 && val[0] == '"') {
@@ -519,62 +545,6 @@ void int_f(std::unordered_map<std::string, std::string> &vars, const std::string
   }
   else {
     input = util::from_view(val);
-  }
-
-  vars.erase(it);
-}
-
-void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input) {
-  auto it = vars.find(name);
-
-  if(it == std::end(vars)) {
-    return;
-  }
-
-  std::string_view val = it->second;
-
-  // If value is something like: "756" instead of 756
-  if(val.size() >= 2 && val[0] == '"') {
-    val = val.substr(1, val.size() - 2);
-  }
-
-  // If that integer is in hexadecimal
-  if(val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
-    input = util::from_hex<int>(val.substr(2));
-  }
-  else {
-    input = util::from_view(val);
-  }
-
-  vars.erase(it);
-}
-
-template<class F>
-void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, F &&f) {
-  std::string tmp;
-  string_f(vars, name, tmp);
-  if(!tmp.empty()) {
-    input = f(tmp);
-  }
-}
-
-template<class F>
-void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input, F &&f) {
-  std::string tmp;
-  string_f(vars, name, tmp);
-  if(!tmp.empty()) {
-    input = f(tmp);
-  }
-}
-
-void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
-  int temp = input;
-
-  int_f(vars, name, temp);
-
-  TUPLE_2D_REF(lower, upper, range);
-  if(temp >= lower && temp <= upper) {
-    input = temp;
   }
 }
 
@@ -589,39 +559,29 @@ bool to_bool(std::string &boolean) {
          (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
 }
 
-void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, bool &input) {
-  std::string tmp;
-  string_f(vars, name, tmp);
-
-  if(tmp.empty()) {
-    return;
-  }
-
-  input = to_bool(tmp);
+void bool_f(std::string input, bool &value) {
+  value = to_bool(input);
 }
 
-void double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
-  std::string tmp;
-  string_f(vars, name, tmp);
-
-  if(tmp.empty()) {
+void double_f(std::string input, double &value) {
+  if(input.empty()) {
     return;
   }
 
   char *c_str_p;
-  auto val = std::strtod(tmp.c_str(), &c_str_p);
+  auto val = std::strtod(input.c_str(), &c_str_p);
 
-  if(c_str_p == tmp.c_str()) {
+  if(c_str_p == input.c_str()) {
     return;
   }
 
-  input = val;
+  value = val;
 }
 
-void double_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input, const std::pair<double, double> &range) {
+void double_between_f(std::string inputValue, double &input, const std::pair<double, double> &range) {
   double temp = input;
 
-  double_f(vars, name, temp);
+  double_f(inputValue, temp);
 
   TUPLE_2D_REF(lower, upper, range);
   if(temp >= lower && temp <= upper) {
@@ -629,37 +589,34 @@ void double_between_f(std::unordered_map<std::string, std::string> &vars, const 
   }
 }
 
-void list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
-  std::string string;
-  string_f(vars, name, string);
-
-  if(string.empty()) {
+void list_string_f(std::string input, std::vector<std::string> &value) {
+  if(input.empty()) {
     return;
   }
 
-  input.clear();
+  value.clear();
 
-  auto begin = std::cbegin(string);
+  auto begin = std::cbegin(input);
   if(*begin == '[') {
     ++begin;
   }
 
-  begin = std::find_if_not(begin, std::cend(string), whitespace);
-  if(begin == std::cend(string)) {
+  begin = std::find_if_not(begin, std::cend(input), whitespace);
+  if(begin == std::cend(input)) {
     return;
   }
 
   auto pos = begin;
-  while(pos < std::cend(string)) {
+  while(pos < std::cend(input)) {
     if(*pos == '[') {
-      pos = skip_list(pos + 1, std::cend(string)) + 1;
+      pos = skip_list(pos + 1, std::cend(input)) + 1;
     }
     else if(*pos == ']') {
       break;
     }
     else if(*pos == ',') {
-      input.emplace_back(begin, pos);
-      pos = begin = std::find_if_not(pos + 1, std::cend(string), whitespace);
+      value.emplace_back(begin, pos);
+      pos = begin = std::find_if_not(pos + 1, std::cend(input), whitespace);
     }
     else {
       ++pos;
@@ -667,13 +624,13 @@ void list_string_f(std::unordered_map<std::string, std::string> &vars, const std
   }
 
   if(pos != begin) {
-    input.emplace_back(begin, pos);
+    value.emplace_back(begin, pos);
   }
 }
 
-void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
+void list_int_f(std::string input, std::vector<int> &value) {
   std::vector<std::string> list;
-  list_string_f(vars, name, list);
+  list_string_f(std::move(input), list);
 
   for(auto &el : list) {
     std::string_view val = el;
@@ -692,17 +649,16 @@ void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::s
     else {
       tmp = util::from_view(val);
     }
-    input.emplace_back(tmp);
+    value.emplace_back(tmp);
   }
 }
 
-void map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::unordered_map<int, int> &input) {
+void map_int_int_f(std::string &input, std::unordered_map<int, int> &value) {
   std::vector<int> list;
-  list_int_f(vars, name, list);
+  list_int_f(input, list);
 
   // The list needs to be a multiple of 2
   if(list.size() % 2) {
-    std::cout << "Warning: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size() << std::endl;
     return;
   }
 
@@ -711,7 +667,7 @@ void map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std
     auto key = list[x++];
     auto val = list[x++];
 
-    input.emplace(key, val);
+    value.emplace(key, val);
   }
 }
 
@@ -742,128 +698,77 @@ int apply_flags(const char *line) {
   return ret;
 }
 
-void apply_config(std::unordered_map<std::string, std::string> &&vars) {
-  if(!fs::exists(stream.file_apps.c_str())) {
-    fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
-  }
+void save_config(std::unordered_map<std::string, std::string> &&vars) {
+  std::stringstream configStream;
 
   for(auto &[name, val] : vars) {
-    std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
+    auto it = property_schema.find(name);
+    if(it == property_schema.end()) {
+      BOOST_LOG(warning) << "Tried to set property " << name << " but property doesn\'t exist.";
+      continue;
+    }
+    if(val.empty()) {
+      BOOST_LOG(warning) << "Property" << name << "has empty value. Skipping.";
+      continue;
+    }
+
+    config_prop any_prop = it->second.first;
+
+    bool isValidValue = it->second.second->check(val);
+    if(!isValidValue) {
+      BOOST_LOG(error) << "Property" << name << "has invalid value. Skipping.";
+      continue;
+    }
+    switch(any_prop.prop_type) {
+    case STRING:
+      isValidValue = true;
+      break;
+    case FILE: {
+      std::string temp_file;
+      path_f(val, temp_file);
+      isValidValue = !temp_file.empty();
+      break;
+    }
+    case INT: {
+      int temp_int = std::numeric_limits<int>::max();
+      int_f(val, temp_int);
+      isValidValue = temp_int != std::numeric_limits<int>::max();
+      break;
+    }
+    case INT_ARRAY: {
+      std::vector<int> temp_int_vec;
+      list_int_f(val, temp_int_vec);
+      isValidValue = !temp_int_vec.empty();
+      break;
+    }
+    case STRING_ARRAY: {
+      std::vector<std::string> temp_str_vec;
+      list_string_f(val, temp_str_vec);
+      isValidValue = !temp_str_vec.empty();
+      break;
+    }
+    case BOOLEAN: {
+      bool temp_bool = false;
+      bool_f(val, temp_bool);
+      isValidValue = temp_bool;
+      break;
+    }
+    case DOUBLE: {
+      double temp_double = std::numeric_limits<double>::max();
+      double_f(val, temp_double);
+      isValidValue = temp_double != std::numeric_limits<double>::max();
+      break;
+    }
+    }
+    if(isValidValue) {
+      configStream << name << " = " << val << std::endl;
+    }
   }
 
-  int_f(vars, "qp", video.qp);
-  int_f(vars, "min_threads", video.min_threads);
-  int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
-  string_f(vars, "sw_preset", video.sw.preset);
-  string_f(vars, "sw_tune", video.sw.tune);
-  int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
-  int_f(vars, "nv_tune", video.nv.tune, nv::tune_from_view);
-  int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
-  int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+  write_file(config::sunshine.config_file.c_str(), configStream.str());
+}
 
-  std::string quality;
-  string_f(vars, "amd_quality", quality);
-  if(!quality.empty()) {
-    video.amd.quality_h264 = amd::quality_from_view(quality, 1);
-    video.amd.quality_hevc = amd::quality_from_view(quality, 0);
-  }
-
-  std::string rc;
-  string_f(vars, "amd_rc", rc);
-  int_f(vars, "amd_coder", video.amd.coder, amd::coder_from_view);
-  if(!rc.empty()) {
-    video.amd.rc_h264 = amd::rc_from_view(rc, 1);
-    video.amd.rc_hevc = amd::rc_from_view(rc, 0);
-  }
-
-  int_f(vars, "vt_coder", video.vt.coder, vt::coder_from_view);
-  int_f(vars, "vt_software", video.vt.allow_sw, vt::allow_software_from_view);
-  int_f(vars, "vt_software", video.vt.require_sw, vt::force_software_from_view);
-  int_f(vars, "vt_realtime", video.vt.realtime, vt::rt_from_view);
-
-  string_f(vars, "encoder", video.encoder);
-  string_f(vars, "adapter_name", video.adapter_name);
-  string_f(vars, "output_name", video.output_name);
-  bool_f(vars, "dwmflush", video.dwmflush);
-
-  path_f(vars, "pkey", nvhttp.pkey);
-  path_f(vars, "cert", nvhttp.cert);
-  string_f(vars, "sunshine_name", nvhttp.sunshine_name);
-  path_f(vars, "log_path", config::sunshine.log_file);
-  path_f(vars, "file_state", nvhttp.file_state);
-
-  // Must be run after "file_state"
-  config::sunshine.credentials_file = config::nvhttp.file_state;
-  path_f(vars, "credentials_file", config::sunshine.credentials_file);
-
-  string_f(vars, "external_ip", nvhttp.external_ip);
-  list_string_f(vars, "resolutions"s, nvhttp.resolutions);
-  list_int_f(vars, "fps"s, nvhttp.fps);
-
-  string_f(vars, "audio_sink", audio.sink);
-  string_f(vars, "virtual_sink", audio.virtual_sink);
-
-  string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, { "pc"sv, "lan"sv, "wan"sv });
-  string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, { "pc"sv, "lan"sv, "wan"sv });
-
-  int to = -1;
-  int_between_f(vars, "ping_timeout", to, { -1, std::numeric_limits<int>::max() });
-  if(to != -1) {
-    stream.ping_timeout = std::chrono::milliseconds(to);
-  }
-
-  int_between_f(vars, "channels", stream.channels, { 1, std::numeric_limits<int>::max() });
-
-  path_f(vars, "file_apps", stream.file_apps);
-  int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 255 });
-
-  map_int_int_f(vars, "keybindings"s, input.keybindings);
-
-  // This config option will only be used by the UI
-  // When editing in the config file itself, use "keybindings"
-  bool map_rightalt_to_win = false;
-  bool_f(vars, "key_rightalt_to_key_win", map_rightalt_to_win);
-
-  if(map_rightalt_to_win) {
-    input.keybindings.emplace(0xA5, 0x5B);
-  }
-
-  to = std::numeric_limits<int>::min();
-  int_f(vars, "back_button_timeout", to);
-
-  if(to > std::numeric_limits<int>::min()) {
-    input.back_button_timeout = std::chrono::milliseconds { to };
-  }
-
-  double repeat_frequency { 0 };
-  double_between_f(vars, "key_repeat_frequency", repeat_frequency, { 0, std::numeric_limits<double>::max() });
-
-  if(repeat_frequency > 0) {
-    config::input.key_repeat_period = std::chrono::duration<double> { 1 / repeat_frequency };
-  }
-
-  to = -1;
-  int_f(vars, "key_repeat_delay", to);
-  if(to >= 0) {
-    input.key_repeat_delay = std::chrono::milliseconds { to };
-  }
-
-  string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
-
-  int port = sunshine.port;
-  int_f(vars, "port"s, port);
-  sunshine.port = (std::uint16_t)port;
-
-  bool upnp = false;
-  bool_f(vars, "upnp"s, upnp);
-
-  if(upnp) {
-    config::sunshine.flags[config::flag::UPNP].flip();
-  }
-
-  std::string log_level_string;
-  string_f(vars, "min_log_level", log_level_string);
-
+void set_min_log_level(std::string log_level_string) {
   if(!log_level_string.empty()) {
     if(log_level_string == "verbose"sv) {
       sunshine.min_log_level = 0;
@@ -894,18 +799,100 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
       }
     }
   }
+}
 
+void handle_custom_config_prop(const config_prop& prop, std::string val) {
+  if(prop.name == "min_log_level") {
+    set_min_log_level(val);
+  }
+  else if(prop.name == "amd_rc") {
+    video.amd.rc_h264 = amd::rc_h264_from_view(val);
+    video.amd.rc_hevc = amd::rc_hevc_from_view(val);
+  }
+  else if(prop.name == "keybindings") {
+    map_int_int_f(val, input.keybindings);
+  }
+  else if(prop.name == "key_repeat_frequency") {
+    double repeat_frequency { 0 };
+    double_between_f(val, repeat_frequency, { 0, std::numeric_limits<double>::max() });
+
+    if(repeat_frequency > 0) {
+      config::input.key_repeat_period = std::chrono::duration<double> { 1 / repeat_frequency };
+    }
+  }
+  else if(prop.name == "key_rightalt_to_key_win") {
+    bool map_rightalt_to_win = false;
+    bool_f(val, map_rightalt_to_win);
+
+    if(map_rightalt_to_win) {
+      input.keybindings.emplace(0xA5, 0x5B);
+    }
+  }
+  else if(prop.name == "port") {
+    int port = sunshine.port;
+    int_f(val, port);
+    sunshine.port = (std::uint16_t)port;
+  }
+  else if(prop.name == "upnp") {
+    bool upnp = false;
+    bool_f(val, upnp);
+
+    if(upnp) {
+      config::sunshine.flags[config::flag::UPNP].flip();
+    }
+  }
+}
+
+void apply_config(std::unordered_map<std::string, std::string> &&vars) {
+  if(!fs::exists(stream.file_apps.c_str())) {
+    fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
+  }
+
+  for(auto &[name, val] : vars) {
+    std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
+    auto it = property_schema.find(name);
+    if(it == property_schema.end()) {
+      BOOST_LOG(warning) << "Tried to set property " << name << " but property doesn\'t exist.";
+      continue;
+    }
+    if(val.empty()) {
+      BOOST_LOG(warning) << "Property" << name << "has empty value. Skipping.";
+      continue;
+    }
+
+    config_prop any_prop = it->second.first;
+    if(any_prop.value != nullptr) {
+      switch(any_prop.prop_type) {
+      case STRING:
+        *reinterpret_cast<std::string *>(any_prop.value) = val;
+        break;
+      case FILE:
+        path_f(val, *reinterpret_cast<std::string *>(any_prop.value));
+        break;
+      case INT:
+        int_f(val, *reinterpret_cast<int *>(any_prop.value));
+        break;
+      case INT_ARRAY:
+        list_int_f(val, *reinterpret_cast<std::vector<int> *>(any_prop.value));
+        break;
+      case STRING_ARRAY:
+        list_string_f(val, *reinterpret_cast<std::vector<std::string> *>(any_prop.value));
+        break;
+      case BOOLEAN:
+        bool_f(val, *reinterpret_cast<bool *>(any_prop.value));
+        break;
+      case DOUBLE:
+        double_f(val, *reinterpret_cast<double *>(any_prop.value));
+        break;
+      }
+    }
+    else {
+      handle_custom_config_prop(any_prop, val);
+    }
+  }
   auto it = vars.find("flags"s);
   if(it != std::end(vars)) {
     apply_flags(it->second.c_str());
-
-    vars.erase(it);
-  }
-
-  if(sunshine.min_log_level <= 3) {
-    for(auto &[var, _] : vars) {
-      std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
-    }
   }
 }
 
@@ -971,7 +958,7 @@ int parse(int argc, char *argv[]) {
   auto vars = parse_config(read_file(sunshine.config_file.c_str()));
 
   for(auto &[name, value] : cmd_vars) {
-    vars.insert_or_assign(std::move(name), std::move(value));
+    vars.insert_or_assign(name, std::move(value));
   }
 
   apply_config(std::move(vars));
