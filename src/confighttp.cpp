@@ -163,6 +163,7 @@ bool get_config(pt::ptree data, pt::ptree &response) {
 
 bool get_api_version(pt::ptree data, pt::ptree &response) {
   response.put("version", PROJECT_VER);
+  response.put("setup_required", !http::creds_file_exists());
   return true;
 }
 
@@ -356,7 +357,8 @@ void handleApiRequest(resp_http_t response, req_http_t request) {
   auto locale     = request->path_match[1].str(); // TODO: Should be used with boost::locale.
   auto req_name   = request->path_match[2].str();
   auto authResult = checkAuthentication(request, true);
-  if(req_name != "api_version"s && (req_name == "update_credentials" && http::creds_file_exists())) {
+
+  if(req_name != "update_credentials"s && req_name != "api_version"s) {
     if(authResult == -2) {
       response->write(SimpleWeb::StatusCode::client_error_bad_request);
       return;
