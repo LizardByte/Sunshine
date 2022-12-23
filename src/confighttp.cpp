@@ -8,11 +8,9 @@
 
 #include <filesystem>
 
+#include <boost/filesystem.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-
-#include <boost/asio/ssl/context.hpp>
-#include <boost/filesystem.hpp>
 
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_http.hpp>
@@ -37,15 +35,8 @@ namespace pt = boost::property_tree;
 
 using http_server_t = SimpleWeb::Server<SimpleWeb::HTTP>;
 
-using args_t       = SimpleWeb::CaseInsensitiveMultimap;
 using resp_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>;
 using req_http_t  = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request>;
-
-class token_info {
-public:
-  std::string userAgent;
-  time_t expiresIn;
-};
 
 enum class req_type {
   POST,
@@ -55,7 +46,6 @@ enum class req_type {
 std::mutex mtx;
 std::condition_variable sse_event_awaiter;
 std::string last_sse_event;
-std::map<std::string, token_info> accessTokens;
 
 void print_req(const req_http_t &request) {
   BOOST_LOG(debug) << "METHOD :: "sv << request->method;
@@ -73,13 +63,13 @@ void print_req(const req_http_t &request) {
 
   BOOST_LOG(debug) << " [--] "sv;
 }
-bool get_apps(pt::ptree data, pt::ptree &response) {
+bool get_apps(const pt::ptree &data, pt::ptree &response) {
   std::string content = read_file(config::stream.file_apps.c_str());
   response.put("content", content);
   return true;
 }
 
-bool save_app(pt::ptree data, pt::ptree &response) {
+bool save_app(const pt::ptree &data, pt::ptree &response) {
   pt::ptree fileTree;
 
   try {
@@ -116,7 +106,7 @@ bool save_app(pt::ptree data, pt::ptree &response) {
   }
 }
 
-bool delete_app(pt::ptree data, pt::ptree &response) {
+bool delete_app(const pt::ptree &data, pt::ptree &response) {
   pt::ptree fileTree;
   try {
     pt::read_json(config::stream.file_apps, fileTree);
@@ -150,24 +140,24 @@ bool delete_app(pt::ptree data, pt::ptree &response) {
   }
 }
 
-bool get_config(pt::ptree data, pt::ptree &response) {
+bool get_config(const pt::ptree &data, pt::ptree &response) {
   response.put("platform", SUNSHINE_PLATFORM);
 
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
   for(auto &[name, value] : vars) {
-    response.put(std::move(name), std::move(value));
+    response.put(name, value);
   }
   return true;
 }
 
-bool get_api_version(pt::ptree data, pt::ptree &response) {
+bool get_api_version(const pt::ptree &data, pt::ptree &response) {
   response.put("version", PROJECT_VER);
   response.put("setup_required", !http::creds_file_exists());
   return true;
 }
 
-bool get_config_schema(pt::ptree data, pt::ptree &response) {
+bool get_config_schema(const pt::ptree &data, pt::ptree &response) {
 
   for(auto &[name, val] : config::property_schema) {
     pt::ptree prop_info, limits;
@@ -191,7 +181,7 @@ bool get_config_schema(pt::ptree data, pt::ptree &response) {
   return true;
 }
 
-bool save_config(pt::ptree data, pt::ptree &response) {
+bool save_config(pt::ptree &data, pt::ptree &response) {
   std::stringstream contentStream, configStream;
   contentStream << data.get<std::string>("config");
   try {
@@ -201,7 +191,7 @@ bool save_config(pt::ptree data, pt::ptree &response) {
     std::unordered_map<std::string, std::string> vars;
     for(const auto &kv : inputTree) {
       auto value = inputTree.get<std::string>(kv.first);
-      if(value.length() == 0 || value.compare("null") == 0) continue;
+      if(value.length() == 0 || value == "null") continue;
 
       vars[kv.first] = value;
     }
@@ -216,7 +206,7 @@ bool save_config(pt::ptree data, pt::ptree &response) {
   return false;
 }
 
-bool save_pin(pt::ptree data, pt::ptree &response) {
+bool save_pin(pt::ptree &data, pt::ptree &response) {
   try {
     auto pin = data.get<std::string>("pin");
     response.put("status", nvhttp::pin(pin));
@@ -230,12 +220,12 @@ bool save_pin(pt::ptree data, pt::ptree &response) {
   return false;
 }
 
-bool unpair_all(pt::ptree data, pt::ptree &response) {
+bool unpair_all(pt::ptree &data, pt::ptree &response) {
   nvhttp::erase_all_clients();
   return true;
 }
 
-bool close_app(pt::ptree data, pt::ptree &response) {
+bool close_app(pt::ptree &data, pt::ptree &response) {
   proc::proc.terminate();
   return true;
 }
@@ -252,7 +242,7 @@ bool request_pin() {
 }
 
 
-bool update_credentials(pt::ptree data, pt::ptree &response) {
+bool update_credentials(pt::ptree &data, pt::ptree &response) {
   auto newUsername = data.get_optional<std::string>("newUsername").get_value_or("");
   auto newPassword = data.get_optional<std::string>("newPassword").get_value_or("");
 
@@ -271,7 +261,7 @@ bool update_credentials(pt::ptree data, pt::ptree &response) {
   return true;
 }
 
-std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree, pt::ptree &)>>> allowedRequests = {
+std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree &, pt::ptree &)>>> allowedRequests = {
   { "get_apps"s, { req_type::GET, get_apps } },
   { "api_version"s, { req_type::GET, get_api_version } },
   { "get_config"s, { req_type::GET, get_config } },
@@ -285,7 +275,7 @@ std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree, pt::ptre
   { "get_config_schema"s, { req_type::GET, get_config_schema } }
 };
 
-bool checkRequestOrigin(req_http_t request) {
+bool checkRequestOrigin(const req_http_t &request) {
   auto address = request->remote_endpoint().address().to_string();
   auto ip_type = net::from_address(address);
 
@@ -298,7 +288,7 @@ bool checkRequestOrigin(req_http_t request) {
   return true;
 }
 
-void handleApiSSE(resp_http_t response, req_http_t request) {
+void handleApiSSE(resp_http_t response, const req_http_t &request) {
   if(!checkRequestOrigin(request)) return;
 
   std::thread work_thread([response, request] {
@@ -329,14 +319,14 @@ void handleApiSSE(resp_http_t response, req_http_t request) {
   work_thread.detach();
 }
 
-int checkAuthentication(req_http_t request, bool tokenRequired) {
+int checkAuthentication(const req_http_t &request) {
   auto authorizationItr = request->header.find("Authorization");
   if(authorizationItr == request->header.end()) {
     return -2;
   }
 
-  auto authData        = SimpleWeb::Crypto::Base64::decode(authorizationItr->second.substr("Basic "sv.length()));
-  int index = authData.find(':');
+  auto authData = SimpleWeb::Crypto::Base64::decode(authorizationItr->second.substr("Basic "sv.length()));
+  auto index    = authData.find(':');
   if(index >= authData.size() - 1) {
     return -2;
   }
@@ -352,11 +342,11 @@ int checkAuthentication(req_http_t request, bool tokenRequired) {
   return 0;
 }
 
-void handleApiRequest(resp_http_t response, req_http_t request) {
+void handleApiRequest(resp_http_t response, const req_http_t &request) {
   print_req(request);
   auto locale     = request->path_match[1].str(); // TODO: Should be used with boost::locale.
   auto req_name   = request->path_match[2].str();
-  auto authResult = checkAuthentication(request, true);
+  auto authResult = checkAuthentication(request);
 
   if(req_name != "update_credentials"s && req_name != "api_version"s) {
     if(authResult == -2) {
@@ -400,9 +390,9 @@ void handleApiRequest(resp_http_t response, req_http_t request) {
   response->write(data.str(), { { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", "Authorization" } });
 }
 
-void uploadCover(resp_http_t response, req_http_t request) {
+void uploadCover(resp_http_t response, const req_http_t &request) {
   if(!checkRequestOrigin(request)) return;
-  auto authResult = checkAuthentication(request, true);
+  auto authResult = checkAuthentication(request);
   if(authResult == -2) {
     response->write(SimpleWeb::StatusCode::client_error_bad_request);
     return;
@@ -470,7 +460,7 @@ void uploadCover(resp_http_t response, req_http_t request) {
   outputTree.put("path", path);
 }
 
-void appasset(resp_http_t response, req_http_t request) {
+void appasset(resp_http_t response, const req_http_t &request) {
   if(!checkRequestOrigin(request)) return;
   print_req(request);
 
@@ -481,11 +471,11 @@ void appasset(resp_http_t response, req_http_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, { { "Content-Type", "image/png" } });
 }
 
-void handleCors(resp_http_t response, req_http_t request) {
+void handleCors(resp_http_t response, const req_http_t &request) {
   auto corsHeaders = request->header.find("access-control-request-headers");
 
   auto allowHeaders = "Authorization"s;
-  if (corsHeaders != request->header.end()) {
+  if(corsHeaders != request->header.end()) {
     allowHeaders = corsHeaders->second;
   }
   response->write({ { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", allowHeaders } });

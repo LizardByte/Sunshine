@@ -348,7 +348,7 @@ stream_t stream {
 };
 
 nvhttp_t nvhttp {
-  "pc",  // origin_pin
+  "pc", // origin_pin
 
   PRIVATE_KEY_FILE,
   CERTIFICATE_FILE,
@@ -389,14 +389,14 @@ input_t input {
 };
 
 sunshine_t sunshine {
-  2,                                                 // min_log_level
-  0,                                                 // flags
-  platf::appdata().string() + "/sunshine_state.json",                                         // User file
-  {},                                                // username
-  {},                                                // password
-  {},                                                // salt
-  platf::appdata().string() + "/sunshine.conf",      // config file
-  {},                                                // cmd args
+  2,                                                  // min_log_level
+  0,                                                  // flags
+  platf::appdata().string() + "/sunshine_state.json", // User file
+  {},                                                 // username
+  {},                                                 // password
+  {},                                                 // salt
+  platf::appdata().string() + "/sunshine.conf",       // config file
+  {},                                                 // cmd args
   47989,
 };
 
@@ -801,7 +801,7 @@ void set_min_log_level(std::string log_level_string) {
   }
 }
 
-void handle_custom_config_prop(const config_prop& prop, std::string val) {
+void handle_custom_config_prop(const config_prop &prop, std::string val) {
   if(prop.name == "min_log_level") {
     set_min_log_level(val);
   }

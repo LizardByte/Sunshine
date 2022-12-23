@@ -1,15 +1,15 @@
 #ifndef SUNSHINE_CONFIG_H
 #define SUNSHINE_CONFIG_H
 
+#include <any>
 #include <bitset>
+#include <boost/property_tree/ptree.hpp>
 #include <chrono>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <boost/property_tree/ptree.hpp>
-#include <any>
 
 namespace config {
 namespace pt = boost::property_tree;
@@ -22,7 +22,7 @@ struct ILimit {
 
   virtual void to(pt::ptree &tree) const      = 0;
   virtual bool check(std::string value) const = 0;
-  virtual ~ILimit() = default;
+  virtual ~ILimit()                           = default;
 };
 
 struct limit {
@@ -81,7 +81,7 @@ struct string_limit : ILimit {
     std::vector<std::string> list;
     list_string_f(value, list);
 
-    for(const auto & i : list) {
+    for(const auto &i : list) {
       if(std::find(this->values.begin(), this->values.end(), i) == this->values.end()) return false;
     }
     return true;
