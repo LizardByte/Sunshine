@@ -280,7 +280,7 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
 std::shared_ptr<platf::img_t> display_ram_t::alloc_img() {
   auto img = std::make_shared<img_t>();
 
-  img->pixel_pitch = 4;
+  img->pixel_pitch = get_pixel_pitch();
   img->row_pitch   = img_info.RowPitch;
   img->width       = width;
   img->height      = height;

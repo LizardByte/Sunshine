@@ -757,7 +757,7 @@ int display_vram_t::init(int framerate, const std::string &display_name) {
 std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   auto img = std::make_shared<img_d3d_t>();
 
-  img->pixel_pitch = 4;
+  img->pixel_pitch = get_pixel_pitch();
   img->row_pitch   = img->pixel_pitch * width;
   img->width       = width;
   img->height      = height;
@@ -802,13 +802,14 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
     return 0;
   }
 
-  img->row_pitch  = width * 4;
-  auto dummy_data = std::make_unique<int[]>(width * height);
+  img->pixel_pitch = get_pixel_pitch();
+  img->row_pitch   = img->pixel_pitch * width;
+  auto dummy_data  = std::make_unique<uint8_t[]>(img->row_pitch * height);
   D3D11_SUBRESOURCE_DATA data {
     dummy_data.get(),
     (UINT)img->row_pitch
   };
-  std::fill_n(dummy_data.get(), width * height, 0);
+  std::fill_n(dummy_data.get(), img->row_pitch * height, 0);
 
   D3D11_TEXTURE2D_DESC t {};
   t.Width            = width;
