@@ -232,6 +232,14 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   }
 
   dup.use_dwmflush = config::video.dwmflush && !(framerate > refresh_rate) ? true : false;
+  
+  ID3D10Multithread *pMultithread;
+  
+  status = device->QueryInterface(IID_ID3D10Multithread, (void **)&pMultithread);
+  if(SUCCEEDED(status)) {
+    pMultithread->SetMultithreadProtected(TRUE);
+    Release(pMultithread);
+  }
 
   // Bump up thread priority
   {

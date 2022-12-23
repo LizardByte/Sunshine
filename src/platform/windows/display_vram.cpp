@@ -410,6 +410,10 @@ public:
     frame->height = img.height;
     frame->width  = img.width;
 
+    AVFrame* qsv_frame = av_frame_alloc();
+    qsv_frame->format = AV_PIX_FMT_QSV;
+    av_hwframe_map(qsv_frame, frame, AV_HWFRAME_MAP_READ);
+
     return 0;
   }
 

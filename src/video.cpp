@@ -1089,9 +1089,6 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   if(!video_format[encoder_t::NALU_PREFIX_5b]) {
     auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
 
-    session.replacements.emplace_back("\000\000\000\001\'"sv, "\000\000\000\001g"sv); //sps
-    session.replacements.emplace_back("\000\000\000\001("sv, "\000\000\000\001h"sv);  //pps
-    session.replacements.emplace_back("\000\000\001%"sv, "\000\000\001e"sv);          //idr
     session.replacements.emplace_back(nalu_prefix.substr(1), nalu_prefix);
   }
 
@@ -1498,30 +1495,25 @@ enum validate_flag_e {
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
   reset_display(disp, encoder.dev_type, config::video.output_name, config.framerate);
   if(!disp) {
-    BOOST_LOG(verbose) << "Failed to reset display";
     return -1;
   }
 
   auto pix_fmt  = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
   auto hwdevice = disp->make_hwdevice(pix_fmt);
   if(!hwdevice) {
-    BOOST_LOG(verbose) << "Failed to make hwdevice";
     return -1;
   }
 
   auto session = make_session(encoder, config, disp->width, disp->height, std::move(hwdevice));
   if(!session) {
-    BOOST_LOG(verbose) << "Failed to make session";
     return -1;
   }
 
   auto img = disp->alloc_img();
   if(!img || disp->dummy_img(img.get())) {
-    BOOST_LOG(verbose) << "Failed to create dummy image";
     return -1;
   }
   if(session->device->convert(*img)) {
-    BOOST_LOG(verbose) << "Failed to convert image";
     return -1;
   }
 
@@ -1579,9 +1571,7 @@ bool validate_encoder(encoder_t &encoder) {
   config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
 
 retry:
-  BOOST_LOG(verbose) << "Validating max ref frames config";
   auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
-  BOOST_LOG(verbose) << "Validating autoselect config";
   auto autoselect_h264     = validate_config(disp, encoder, config_autoselect);
 
   if(max_ref_frames_h264 < 0 && autoselect_h264 < 0) {
@@ -1591,7 +1581,6 @@ retry:
       encoder.h264[encoder_t::CBR] = false;
       goto retry;
     }
-    BOOST_LOG(verbose) << "Failed after disabling CBR";
     return false;
   }
 
@@ -1601,7 +1590,6 @@ retry:
   };
 
   for(auto [validate_flag, encoder_flag] : packet_deficiencies) {
-   BOOST_LOG(verbose) << "Validating: " << validate_flag << " | " << encoder_flag;
     encoder.h264[encoder_flag] = (max_ref_frames_h264 & validate_flag && autoselect_h264 & validate_flag);
   }
 
@@ -1855,7 +1843,15 @@ util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ct
     av_dict_set(&child_device_opts, "child_device", config::video.qsv.child_device.data(), 0);
   }
 
-  auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, NULL, child_device_opts, 0);
+  auto buf_or_error = dxgi_make_hwdevice_ctx(hwdevice_ctx);
+  if(buf_or_error.has_right()) {
+    return buf_or_error.right();
+  }
+
+  auto dxgi_hwdevice_ctx = std::move(buf_or_error.left().get());
+
+  // auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, NULL, child_device_opts, 0);
+  auto err = av_hwdevice_ctx_create_derived(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, dxgi_hwdevice_ctx, 0);
 
   if(err) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };

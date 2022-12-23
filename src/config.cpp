@@ -285,7 +285,7 @@ video_t video {
   },                                    // amd
   {
     qsv::medium,
-    0,
+    qsv::disabled,
     "" }, // qsv
 
   {
