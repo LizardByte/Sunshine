@@ -36,11 +36,17 @@ jobs:
   dependabot-rebase:
     name: Dependabot Rebase
     if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      contains(github.event.pull_request.labels.*.name, 'central_dependency') == false
+      startsWith(github.repository, 'LizardByte/')
     runs-on: ubuntu-latest
     steps:
+      - name: check labels
+        id: label
+        run: |
+          echo "central_dep=${{ contains(github.event.pull_request.labels.*.name, 'central_dependency') }}" \
+            >> $GITHUB_OUTPUT
+
       - name: rebase
+        if: ${{ steps.label.outputs.central_dep == false }}
         uses: "bbeesley/gha-auto-dependabot-rebase@v1.2.0"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
