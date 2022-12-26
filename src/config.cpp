@@ -41,7 +41,7 @@ enum preset_e : int {
 };
 
 enum rc_e : int {
-  cqp       = 0x0,  /**< Constant QP mode */
+  constqp   = 0x0,  /**< Constant QP mode */
   vbr       = 0x1,  /**< Variable bitrate mode */
   cbr       = 0x2,  /**< Constant bitrate mode */
   cbr_ld_hq = 0x8,  /**< low-delay CBR, high quality */
@@ -76,7 +76,7 @@ std::optional<preset_e> preset_from_view(const std::string_view &preset) {
 std::optional<rc_e> rc_from_view(const std::string_view &rc) {
 #define _CONVERT_(x) \
   if(rc == #x##sv) return x
-  _CONVERT_(cqp);
+  _CONVERT_(constqp);
   _CONVERT_(vbr);
   _CONVERT_(cbr);
   _CONVERT_(cbr_hq);
