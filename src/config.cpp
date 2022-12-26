@@ -25,50 +25,71 @@ using namespace std::literals;
 namespace config {
 
 namespace nv {
+#ifdef __APPLE__
+// values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
+#define NV_ENC_TUNING_INFO_HIGH_QUALITY 1
+#define NV_ENC_TUNING_INFO_LOW_LATENCY 2
+#define NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY 3
+#define NV_ENC_TUNING_INFO_LOSSLESS 4
+#define NV_ENC_PARAMS_RC_CONSTQP 0x0
+#define NV_ENC_PARAMS_RC_VBR 0x1
+#define NV_ENC_PARAMS_RC_CBR 0x2
+#define NV_ENC_H264_ENTROPY_CODING_MODE_CABAC 1
+#define NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC 2
+#else
+#include <ffnvcodec/nvEncodeAPI.h>
+#endif
+
 enum preset_e : int {
-  _default = 0,
-  slow,
-  medium,
-  fast,
-  hp,
-  hq,
-  bd,
-  ll_default,
-  llhq,
-  llhp,
-  lossless_default, // lossless presets must be the last ones
-  lossless_hp,
+  p1 = 12, // PRESET_P1, // must be kept in sync with <libavcodec/nvenc.h>
+  p2,      // PRESET_P2,
+  p3,      // PRESET_P3,
+  p4,      // PRESET_P4,
+  p5,      // PRESET_P5,
+  p6,      // PRESET_P6,
+  p7       // PRESET_P7
+};
+
+enum tune_e : int {
+  hq       = NV_ENC_TUNING_INFO_HIGH_QUALITY,
+  ll       = NV_ENC_TUNING_INFO_LOW_LATENCY,
+  ull      = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY,
+  lossless = NV_ENC_TUNING_INFO_LOSSLESS
 };
 
 enum rc_e : int {
-  constqp   = 0x0,  /**< Constant QP mode */
-  vbr       = 0x1,  /**< Variable bitrate mode */
-  cbr       = 0x2,  /**< Constant bitrate mode */
-  cbr_ld_hq = 0x8,  /**< low-delay CBR, high quality */
-  cbr_hq    = 0x10, /**< CBR, high quality (slower) */
-  vbr_hq    = 0x20  /**< VBR, high quality (slower) */
+  constqp = NV_ENC_PARAMS_RC_CONSTQP, /**< Constant QP mode */
+  vbr     = NV_ENC_PARAMS_RC_VBR,     /**< Variable bitrate mode */
+  cbr     = NV_ENC_PARAMS_RC_CBR      /**< Constant bitrate mode */
 };
 
 enum coder_e : int {
   _auto = 0,
-  cabac,
-  cavlc
+  cabac = NV_ENC_H264_ENTROPY_CODING_MODE_CABAC,
+  cavlc = NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC,
 };
 
 std::optional<preset_e> preset_from_view(const std::string_view &preset) {
 #define _CONVERT_(x) \
   if(preset == #x##sv) return x
-  _CONVERT_(slow);
-  _CONVERT_(medium);
-  _CONVERT_(fast);
-  _CONVERT_(hp);
-  _CONVERT_(bd);
-  _CONVERT_(ll_default);
-  _CONVERT_(llhq);
-  _CONVERT_(llhp);
-  _CONVERT_(lossless_default);
-  _CONVERT_(lossless_hp);
-  if(preset == "default"sv) return _default;
+  _CONVERT_(p1);
+  _CONVERT_(p2);
+  _CONVERT_(p3);
+  _CONVERT_(p4);
+  _CONVERT_(p5);
+  _CONVERT_(p6);
+  _CONVERT_(p7);
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+std::optional<tune_e> tune_from_view(const std::string_view &tune) {
+#define _CONVERT_(x) \
+  if(tune == #x##sv) return x
+  _CONVERT_(hq);
+  _CONVERT_(ll);
+  _CONVERT_(ull);
+  _CONVERT_(lossless);
 #undef _CONVERT_
   return std::nullopt;
 }
@@ -79,9 +100,6 @@ std::optional<rc_e> rc_from_view(const std::string_view &rc) {
   _CONVERT_(constqp);
   _CONVERT_(vbr);
   _CONVERT_(cbr);
-  _CONVERT_(cbr_hq);
-  _CONVERT_(vbr_hq);
-  _CONVERT_(cbr_ld_hq);
 #undef _CONVERT_
   return std::nullopt;
 }
@@ -211,9 +229,11 @@ video_t video {
   },                // software
 
   {
-    nv::llhq,
-    std::nullopt,
-    -1 }, // nv
+    nv::p4,   // preset
+    nv::ull,  // tune
+    nv::cbr,  // rc
+    nv::_auto // coder
+  },          // nv
 
   {
     amd::balanced,
@@ -716,6 +736,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "sw_preset", video.sw.preset);
   string_f(vars, "sw_tune", video.sw.tune);
   int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
+  int_f(vars, "nv_tune", video.nv.tune, nv::tune_from_view);
   int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
   int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
 

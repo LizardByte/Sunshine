@@ -23,6 +23,7 @@ struct video_t {
 
   struct {
     std::optional<int> preset;
+    std::optional<int> tune;
     std::optional<int> rc;
     int coder;
   } nv;
