@@ -18,6 +18,11 @@
 #include "platform/common.h"
 #include "utility.h"
 
+#ifdef _WIN32
+// _SH constants for _wfsopen()
+#include <share.h>
+#endif
+
 namespace proc {
 using namespace std::literals;
 namespace bp = boost::process;
@@ -92,7 +97,19 @@ int proc_t::execute(int app_id) {
   _undo_it    = _undo_begin;
 
   if(!proc.output.empty() && proc.output != "null"sv) {
+#ifdef _WIN32
+    // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
+    // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+    auto woutput = converter.from_bytes(proc.output);
+
+    // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
+    // still open from a previous execution. This is required to handle the case of a
+    // detached process executing again while the previous process is still running.
+    _pipe.reset(_wfsopen(woutput.c_str(), L"a", _SH_DENYNO));
+#else
     _pipe.reset(fopen(proc.output.c_str(), "a"));
+#endif
   }
 
   std::error_code ec;
