@@ -466,9 +466,7 @@ jobs:
           mkdir -p build
           mkdir -p artifacts
 
-          pushd "./src_assets/common/assets/web"
           npm install
-          popd
 
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -588,9 +586,7 @@ jobs:
 
       - name: Build MacOS
         run: |
-          pushd "./src_assets/common/assets/web"
           npm install
-          popd
 
           mkdir build
           cd build
@@ -893,7 +889,6 @@ jobs:
             yasm
 
       - name: Install npm packages
-        working-directory: src_assets/common/assets/web
         run: |
           npm install
 

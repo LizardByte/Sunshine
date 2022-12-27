@@ -231,9 +231,7 @@ npm dependencies
 Install npm dependencies.
    .. code-block:: bash
 
-      pushd ./src_assets/common/assets/web
       npm install
-      popd
 
 Build
 -----

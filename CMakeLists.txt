@@ -503,6 +503,9 @@ set(CPACK_PACKAGE_ICON ${PROJECT_SOURCE_DIR}/sunshine.png)
 set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set(CPACK_STRIP_FILES YES)
 
+# install npm modules
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/node_modules/" DESTINATION "${SUNSHINE_ASSETS_DIR}/web/")
+
 # Platform specific options
 if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
 	install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
