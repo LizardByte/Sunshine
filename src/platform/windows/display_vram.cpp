@@ -326,6 +326,7 @@ public:
       return;
     }
 
+    device_ctx_p->VSSetConstantBuffers(0, 1, &info_scene);
     device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix);
     this->color_matrix = std::move(color_matrix);
   }
@@ -376,10 +377,10 @@ public:
     img.row_pitch   = out_width * 4;
     img.pixel_pitch = 4;
 
-    float info_in[16 / sizeof(float)] { 1.0f / (float)out_width }; //aligned to 16-byte
+    float info_in[16 / sizeof(float)] { 1.0f / (float)out_width_f }; //aligned to 16-byte
     info_scene = make_buffer(device_p, info_in);
 
-    if(!info_in) {
+    if(!info_scene) {
       BOOST_LOG(error) << "Failed to create info scene buffer"sv;
       return -1;
     }
