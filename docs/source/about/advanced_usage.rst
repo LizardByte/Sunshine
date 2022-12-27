@@ -958,7 +958,7 @@ amd_rc
    Value       Description
    =========== ===========
    auto        let ffmpeg decide
-   constqp     constant QP mode
+   cqp         constant QP mode
    cbr         constant bitrate
    vbr_latency variable bitrate, latency constrained
    vbr_peak    variable bitrate, peak constrained

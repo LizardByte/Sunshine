@@ -32,7 +32,6 @@ post-fetch {
 }
 
 depends_lib              port:avahi \
-                         port:boost180 \
                          port:curl \
                          port:libopus \
                          port:npm9 \
