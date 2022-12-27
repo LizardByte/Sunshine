@@ -57,7 +57,7 @@ platform darwin {
 }
 
 pre-build {
-    system -W ${worksrcpath}/src_assets/common/assets/web "npm install"
+    system -W ${worksrcpath} "npm install"
 }
 
 notes-append "Run @PROJECT_NAME@ by executing 'sunshine <path to user config>', e.g. 'sunshine ~/sunshine.conf' "

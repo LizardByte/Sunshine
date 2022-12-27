@@ -19,9 +19,7 @@ Install nodejs and npm. Downloads available `here <https://nodejs.org/en/downloa
 Install npm dependencies.
    .. code-block:: bash
 
-      pushd ./src_assets/common/assets/web
       npm install
-      popd
 
 Build
 -----
