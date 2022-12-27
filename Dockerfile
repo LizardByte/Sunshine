@@ -43,7 +43,6 @@ WORKDIR /root/sunshine-build/
 COPY . .
 
 # setup npm and dependencies
-WORKDIR /root/sunshine-build/src_assets/common/assets/web
 RUN npm install
 
 # setup build directory

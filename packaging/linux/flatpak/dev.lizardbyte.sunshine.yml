@@ -142,7 +142,7 @@ modules:
         NPM_CONFIG_LOGLEVEL: info
     build-commands:
       # Install npm dependencies
-      - cd ${FLATPAK_BUILDER_BUILDDIR}/src_assets/common/assets/web && npm install
+      - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
