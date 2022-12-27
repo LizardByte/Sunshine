@@ -78,6 +78,10 @@ if(WIN32)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
 
+        # WORKAROUND: /mingw64/include/_mingw.h r186 defines _WIN32_WINNT=0x601, but boost
+        #             is built against version 0x603 (BOOST_WINAPI_VERSION_WINBLUE) from r157 header.
+        ADD_DEFINITIONS(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WINBLUE)
+
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
 
