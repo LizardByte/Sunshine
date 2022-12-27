@@ -401,6 +401,8 @@ endif()
 set(FFMPEG_LIBRARIES
 	${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libcbs.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libSvtAv1Enc.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libx264.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libx265.a
@@ -410,14 +412,11 @@ set(FFMPEG_LIBRARIES
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party
-  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cbs/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/reedsolomon
   ${FFMPEG_INCLUDE_DIRS}
   ${PLATFORM_INCLUDE_DIRS}
 )
-
-add_subdirectory(third-party/cbs)
 
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
@@ -446,13 +445,8 @@ else()
 endif()
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}")
 
-
-list(APPEND CBS_EXTERNAL_LIBRARIES
-	cbs)
-
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		libminiupnpc-static
-		${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 		enet
 		opus
