@@ -141,8 +141,6 @@ bool delete_app(const pt::ptree &data, pt::ptree &response) {
 }
 
 bool get_config(const pt::ptree &data, pt::ptree &response) {
-  response.put("platform", SUNSHINE_PLATFORM);
-
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
   for(auto &[name, value] : vars) {
@@ -154,6 +152,7 @@ bool get_config(const pt::ptree &data, pt::ptree &response) {
 bool get_api_version(const pt::ptree &data, pt::ptree &response) {
   response.put("version", PROJECT_VER);
   response.put("setup_required", !http::creds_file_exists());
+  response.put("platform", SUNSHINE_PLATFORM);
   return true;
 }
 
@@ -261,6 +260,42 @@ bool update_credentials(pt::ptree &data, pt::ptree &response) {
   return true;
 }
 
+bool upload_cover(pt::ptree &data, pt::ptree &response) {
+
+  auto key = data.get("key", "");
+  if(key.empty()) {
+    response.put("error", "Cover key is required");
+    return false;
+  }
+  auto url = data.get("url", "");
+
+  const std::string coverdir = platf::appdata().string() + "/covers/";
+  if(!boost::filesystem::exists(coverdir)) {
+    boost::filesystem::create_directory(coverdir);
+  }
+
+  std::basic_string path = coverdir + http::url_escape(key) + ".png";
+  if(!url.empty()) {
+    if(http::url_get_host(url) != "images.igdb.com") {
+      response.put("error", "Only images.igdb.com is allowed");
+      return false;
+    }
+    if(!http::download_file(url, path)) {
+      response.put("error", "Failed to download cover");
+      return false;
+    }
+  }
+  else {
+    auto binaryImage = SimpleWeb::Crypto::Base64::decode(data.get<std::string>("data"));
+
+    std::ofstream imgfile(path);
+    imgfile.write(binaryImage.data(), (int)data.size());
+  }
+  response.put("path", path);
+
+  return true;
+}
+
 std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree &, pt::ptree &)>>> allowedRequests = {
   { "get_apps"s, { req_type::GET, get_apps } },
   { "api_version"s, { req_type::GET, get_api_version } },
@@ -272,6 +307,7 @@ std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree &, pt::pt
   { "update_credentials"s, { req_type::POST, update_credentials } },
   { "unpair_all"s, { req_type::POST, unpair_all } },
   { "close_app"s, { req_type::POST, close_app } },
+  { "upload_cover"s, { req_type::POST, upload_cover } },
   { "get_config_schema"s, { req_type::GET, get_config_schema } }
 };
 
@@ -344,8 +380,7 @@ int checkAuthentication(const req_http_t &request) {
 
 void handleApiRequest(resp_http_t response, const req_http_t &request) {
   print_req(request);
-  auto locale     = request->path_match[1].str(); // TODO: Should be used with boost::locale.
-  auto req_name   = request->path_match[2].str();
+  auto req_name   = request->path_match[1].str();
   auto authResult = checkAuthentication(request);
 
   if(req_name != "update_credentials"s && req_name != "api_version"s) {
@@ -390,76 +425,6 @@ void handleApiRequest(resp_http_t response, const req_http_t &request) {
   response->write(data.str(), { { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", "Authorization" } });
 }
 
-void uploadCover(resp_http_t response, const req_http_t &request) {
-  if(!checkRequestOrigin(request)) return;
-  auto authResult = checkAuthentication(request);
-  if(authResult == -2) {
-    response->write(SimpleWeb::StatusCode::client_error_bad_request);
-    return;
-  }
-  else if(authResult != 0) {
-    response->write(SimpleWeb::StatusCode::client_error_unauthorized);
-    return;
-  }
-
-  std::stringstream ss;
-  std::stringstream configStream;
-  ss << request->content.rdbuf();
-  pt::ptree outputTree;
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-
-    SimpleWeb::StatusCode code = SimpleWeb::StatusCode::success_ok;
-    if(outputTree.get_child_optional("error").has_value()) {
-      code = SimpleWeb::StatusCode::client_error_bad_request;
-    }
-
-    pt::write_json(data, outputTree);
-    response->write(code, data.str());
-  });
-  pt::ptree inputTree;
-  try {
-    pt::read_json(ss, inputTree);
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "UploadCover: "sv << e.what();
-    outputTree.put("status", "false");
-    outputTree.put("error", e.what());
-    return;
-  }
-
-  auto key = inputTree.get("key", "");
-  if(key.empty()) {
-    outputTree.put("error", "Cover key is required");
-    return;
-  }
-  auto url = inputTree.get("url", "");
-
-  const std::string coverdir = platf::appdata().string() + "/covers/";
-  if(!boost::filesystem::exists(coverdir)) {
-    boost::filesystem::create_directory(coverdir);
-  }
-
-  std::basic_string path = coverdir + http::url_escape(key) + ".png";
-  if(!url.empty()) {
-    if(http::url_get_host(url) != "images.igdb.com") {
-      outputTree.put("error", "Only images.igdb.com is allowed");
-      return;
-    }
-    if(!http::download_file(url, path)) {
-      outputTree.put("error", "Failed to download cover");
-      return;
-    }
-  }
-  else {
-    auto data = SimpleWeb::Crypto::Base64::decode(inputTree.get<std::string>("data"));
-
-    std::ofstream imgfile(path);
-    imgfile.write(data.data(), (int)data.size());
-  }
-  outputTree.put("path", path);
-}
-
 void appasset(resp_http_t response, const req_http_t &request) {
   if(!checkRequestOrigin(request)) return;
   print_req(request);
@@ -487,16 +452,15 @@ void start() {
   auto port_http = map_port(PORT_HTTP);
 
   http_server_t server;
-  server.resource["^/api/events$"]["GET"]                  = handleApiSSE;
-  server.resource["^/api/covers/upload$"]["POST"]          = uploadCover;
-  server.resource["^/api/([a-z_]+)/([a-z_]+)$"]["OPTIONS"] = handleCors;
-  server.resource["^/api/([a-z_]+)/([a-z_]+)$"]["POST"]    = handleApiRequest;
-  server.resource["^/api/([a-z_]+)/([a-z_]+)$"]["GET"]     = handleApiRequest;
-  server.resource["^/appasset/([0-9]+)$"]["GET"]           = appasset;
-  server.config.reuse_address                              = true;
-  server.config.address                                    = "0.0.0.0"s;
-  server.config.port                                       = port_http;
-  server.config.timeout_content                            = 0;
+  server.resource["^/api/([a-z_]+)$"]["OPTIONS"] = handleCors;
+  server.resource["^/api/([a-z_]+)$"]["POST"]    = handleApiRequest;
+  server.resource["^/api/([a-z_]+)$"]["GET"]     = handleApiRequest;
+  server.resource["^/api/events$"]["GET"]        = handleApiSSE;
+  server.resource["^/appasset/([0-9]+)$"]["GET"] = appasset;
+  server.config.reuse_address                    = true;
+  server.config.address                          = "0.0.0.0"s;
+  server.config.port                             = port_http;
+  server.config.timeout_content                  = 0;
 
   auto accept_and_run = [&](auto *server) {
     try {

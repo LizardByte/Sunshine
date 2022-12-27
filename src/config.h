@@ -70,11 +70,13 @@ struct string_limit : ILimit {
   std::vector<std::string_view> values;
 
   void to(pt::ptree &tree) const override {
-    // TODO: This should be an array.
     tree.put("type", "string");
-    for(int i = 0; i < values.size(); i++) {
-      tree.put(std::to_string(i), values[i]);
+
+    pt::ptree array;
+    for(auto &str : values) {
+      array.push_back(pt::ptree::value_type("", str.data()));
     }
+    tree.put_child("values", array);
   }
 
   bool check(std::string value) const override {
