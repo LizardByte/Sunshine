@@ -13,6 +13,7 @@ RUN apt-get update -y \
         libboost-filesystem-dev=1.74.0* \
         libboost-log-dev=1.74.0* \
         libboost-thread-dev=1.74.0* \
+        libboost-program-options-dev=1.74.0* \
         libcap-dev=1:2.44* \
         libcurl4-openssl-dev=7.81.0* \
         libdrm-dev=2.4.110* \
