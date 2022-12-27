@@ -4,6 +4,7 @@
 #define SUNSHINE_MAIN_H
 
 #include <string_view>
+#include <filesystem>
 
 #include "thread_pool.h"
 #include "thread_safe.h"
@@ -51,5 +52,7 @@ MAIL(rumble);
 #undef MAIL
 } // namespace mail
 
-
+namespace logging {
+  std::filesystem::path get_log_path();
+} // namespace logging
 #endif // SUNSHINE_MAIN_H

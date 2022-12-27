@@ -274,6 +274,17 @@ void getApps(resp_https_t response, req_https_t request) {
   response->write(content);
 }
 
+void getLogs(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+
+  print_req(request);
+
+  std::string content = read_file(logging::get_log_path().string().c_str());
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "text/plain");
+  response->write(SimpleWeb::StatusCode::success_ok, content, headers);
+}
+
 void saveApp(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -648,6 +659,7 @@ void start() {
   server.resource["^/troubleshooting$"]["GET"]             = getTroubleshootingPage;
   server.resource["^/api/pin$"]["POST"]                    = savePin;
   server.resource["^/api/apps$"]["GET"]                    = getApps;
+  server.resource["^/api/logs$"]["GET"]                    = getLogs;
   server.resource["^/api/apps$"]["POST"]                   = saveApp;
   server.resource["^/api/config$"]["GET"]                  = getConfig;
   server.resource["^/api/config$"]["POST"]                 = saveConfig;
