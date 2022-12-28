@@ -2,6 +2,18 @@ Advanced Usage
 ==============
 Sunshine will work with the default settings for most users. In some cases you may want to configure Sunshine further.
 
+Performance Tips
+----------------
+
+AMD
+^^^
+In Windows, enabling `Enahanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
+applies to `amfenc` and `libx264`.
+
+Nvidia
+^^^^^^
+Enabling `Fast Sync` in Nvidia settings may help reduce latency.
+
 Configuration
 -------------
 The default location for the configuration file is listed below. You can use another location if you
@@ -340,6 +352,9 @@ dwmflush
    .. Caution:: Applies to Windows only. Alleviates visual stuttering during mouse movement.
       If enabled, this feature will automatically deactivate if the client framerate exceeds
       the host monitor's current refresh rate.
+
+   .. Note:: If you disable this option, you may see video stuttering during mouse movement in certain scenarios.
+      It is recommended to leave enabled when possible.
 
 **Default**
    ``enabled``

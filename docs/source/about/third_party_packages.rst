@@ -52,6 +52,3 @@ Legacy GitHub Repo
 
 .. image:: https://img.shields.io/github/release-date/loki-47-6F-64/sunshine?style=for-the-badge&logo=github
    :alt: GitHub Release Date
-
-.. image:: https://img.shields.io/github/downloads/loki-47-6F-64/sunshine/total?style=for-the-badge&logo=github
-   :alt: GitHub Releases
