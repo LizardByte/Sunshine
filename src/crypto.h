@@ -31,6 +31,7 @@ using md_ctx_t         = util::safe_ptr<EVP_MD_CTX, md_ctx_destroy>;
 using bio_t            = util::safe_ptr<BIO, BIO_free_all>;
 using pkey_t           = util::safe_ptr<EVP_PKEY, EVP_PKEY_free>;
 using pkey_ctx_t       = util::safe_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
+using bignum_t         = util::safe_ptr<BIGNUM, BN_free>;
 
 sha256_t hash(const std::string_view &plaintext);
 
