@@ -26,19 +26,19 @@ namespace config {
 
 std::string_view to_config_prop_string(config_props propType) {
   switch(propType) {
-  case INT:
+  case TYPE_INT:
     return "int"sv;
-  case DOUBLE:
+  case TYPE_DOUBLE:
     return "double"sv;
-  case STRING:
+  case TYPE_STRING:
     return "string"sv;
-  case INT_ARRAY:
+  case TYPE_INT_ARRAY:
     return "int_array"sv;
-  case STRING_ARRAY:
+  case TYPE_STRING_ARRAY:
     return "string_array"sv;
-  case FILE:
+  case TYPE_FILE:
     return "file"sv;
-  case BOOLEAN:
+  case TYPE_BOOLEAN:
     return "boolean"sv;
   }
 
@@ -47,44 +47,45 @@ std::string_view to_config_prop_string(config_props propType) {
 }
 
 std::unordered_map<std::string, std::pair<config_prop, limit>> property_schema = {
-  { "qp"s, { config_prop(INT, "qp"s, ""s, true, &video.qp), no_limit() } },
-  { "min_threads"s, { config_prop(INT, "min_threads"s, "Minimum number of threads used by ffmpeg to encode the video."s, true, &video.min_threads), no_limit() } },
-  { "hevc_mode"s, { config_prop(INT, "hevc_mode"s, "Allows the client to request HEVC Main or HEVC Main10 video streams."s, true, &video.hevc_mode), string_limit({ "0", "1", "2", "3" }) } },
-  { "sw_preset"s, { config_prop(STRING, "sw_preset"s, "Software encoding preset"s, true, &video.sw.preset), no_limit() } },
-  { "sw_tune"s, { config_prop(STRING, "sw_tune"s, "Software encoding tuning parameters"s, true, &video.sw.tune), no_limit() } },
-  { "nv_preset"s, { config_prop(INT, "nv_preset"s, "NVENC preset"s, true), no_limit() } },
-  { "nv_rc"s, { config_prop(INT, "nv_rc"s, "NVENC rate control"s, true), no_limit() } },
-  { "nv_coder"s, { config_prop(INT, "nv_coder"s, "NVENC Coder"s, true, &video.nv.coder), string_limit({ "auto", "cabac", "cavlc" }) } },
-  { "amd_quality"s, { config_prop(INT, "amd_quality"s, "AMD AMF quality"s, true, &video.amd.quality), string_limit({ "default", "speed", "balanced" }) } },
-  { "amd_rc"s, { config_prop(STRING, "amd_rc"s, "AMD AMF rate control"s, true), string_limit({ "constqp", "vbr_latency", "vbr_peak", "cbr" }) } },
-  { "amd_coder"s, { config_prop(INT, "amd_coder"s, ""s, true, &video.amd.coder), string_limit({ "auto", "cabac", "cavlc" }) } },
-  { "encoder"s, { config_prop(STRING, "encoder"s, "Force a specific encoder"s, true, &video.encoder), string_limit({ "nvenc", "amdvce", "vaapi", "software" }) } },
-  { "adapter_name"s, { config_prop(STRING, "adapter_name"s, "Select the video card you want to stream with."s, true, &video.adapter_name), video_devices_limit(video_devices_limit_type::ADAPTER) } },
-  { "output_name"s, { config_prop(STRING, "output_name"s, "Select the display output you want to stream."s, true, &video.output_name), video_devices_limit(video_devices_limit_type::OUTPUT) } },
-  { "pkey"s, { config_prop(FILE, "pkey"s, "Path to the private key file. The private key must be 2048 bits."s, true, &nvhttp.pkey), no_limit() } },
-  { "cert"s, { config_prop(STRING, "cert"s, "Path to the certificate file. The certificate must be signed with a 2048 bit key!"s, true, &nvhttp.cert), no_limit() } },
-  { "sunshine_name"s, { config_prop(STRING, "sunshine_name"s, "The name displayed by Moonlight. If not specified, the PC's hostname is used"s, true, &nvhttp.sunshine_name), no_limit() } },
-  { "file_state"s, { config_prop(FILE, "file_state"s, "The file where current state of Sunshine is stored."s, true, &nvhttp.file_state), no_limit() } },
-  { "external_ip"s, { config_prop(STRING, "external_ip"s, ""s, true, &nvhttp.external_ip), no_limit() } },
-  { "resolutions"s, { config_prop(STRING_ARRAY, "resolutions"s, "Display resolutions reported by Sunshine as supported."s, true, &nvhttp.resolutions), no_limit() } },
-  { "fps"s, { config_prop(INT_ARRAY, "fps"s, "Supported FPS reported to clients"s, true, &nvhttp.fps), no_limit() } },
-  { "audio_sink"s, { config_prop(STRING, "audio_sink"s, "The name of the audio sink used for Audio Loopback."s, true, &audio.sink), audio_devices_limit() } },
-  { "virtual_sink"s, { config_prop(STRING, "virtual_sink"s, "Virtual audio device name (like Steam Streaming Speakers)\r\nAllows Sunshine to stream audio with muted speakers."s, true, &audio.virtual_sink), audio_devices_limit() } },
-  { "origin_pin_allowed"s, { config_prop(STRING, "origin_pin_allowed"s, ""s, true, &nvhttp.origin_pin_allowed), no_limit() } },
-  { "ping_timeout"s, { config_prop(INT, "ping_timeout"s, "How long to wait (in milliseconds) for data from Moonlight clients before shutting down the stream"s, true, &stream.ping_timeout), no_limit() } },
-  { "channels"s, { config_prop(INT, "channels"s, ""s, true, &video.qp), minmax_limit(1, 24) } },
-  { "file_apps"s, { config_prop(FILE, "file_apps"s, "Path to apps.json which contains all the necessary configuration for running apps in Sunshine."s, true, &stream.file_apps), no_limit() } },
-  { "fec_percentage"s, { config_prop(INT, "fec_percentage"s, "Percentage of error correcting packets per data packet in each video frame."s, true, &stream.fec_percentage), no_limit() } },
-  { "keybindings"s, { config_prop(STRING_ARRAY, "keybindings"s, ""s, true), no_limit() } },
-  { "key_rightalt_to_key_win"s, { config_prop(BOOLEAN, "key_rightalt_to_key_win"s, "It may be possible that you cannot send the Windows key from Moonlight directly. \r\n Allows using Right Alt key as the Windows key."s, true), no_limit() } },
-  { "back_button_timeout"s, { config_prop(INT, "back_button_timeout"s, "Emulate back/select button press on the controller."s, true, &input.back_button_timeout), minmax_limit(-1, std::numeric_limits<int>::max()) } },
-  { "key_repeat_frequency"s, { config_prop(DOUBLE, "key_repeat_frequency"s, "How often keys repeat every second after delay.\r\nThis configurable option supports decimals"s, true), no_limit() } },
-  { "key_repeat_delay"s, { config_prop(INT, "key_repeat_delay"s, "Controls how fast keys will repeat themselves after holding\r\nThe initial delay in milliseconds before repeating keys."s, true, &input.key_repeat_delay), minmax_limit(-1, std::numeric_limits<int>::max()) } },
-  { "gamepad"s, { config_prop(STRING, "gamepad"s, "Default gamepad used"s, true, &input.gamepad), string_limit(platf::supported_gamepads()) } },
-  { "port"s, { config_prop(INT, "port"s, ""s, true), minmax_limit(1024, 49151) } },
-  { "upnp"s, { config_prop(BOOLEAN, "upnp"s, "Automatically configure port forwarding"s, true), no_limit() } },
-  { "dwmflush"s, { config_prop(BOOLEAN, "dwmflush"s, "Improves capture latency during mouse movement.\r\nEnabling this may prevent the client's FPS from exceeding the host monitor's active refresh rate."s, false, &video.dwmflush), no_limit() } },
-  { "min_log_level"s, { config_prop(STRING, "min_log_level"s, "The minimum log level printed to standard out"s, true), string_limit({ "verbose", "debug", "info", "warning", "error", "fatal", "none", "0", "1", "2", "3", "4", "5", "6" }) } },
+  { "qp"s, { config_prop(TYPE_INT, "qp"s, ""s, true, &video.qp), no_limit() } },
+  { "min_threads"s, { config_prop(TYPE_INT, "min_threads"s, "Minimum number of threads used by ffmpeg to encode the video."s, true, &video.min_threads), minmax_limit(1, std::thread::hardware_concurrency()) } },
+  { "hevc_mode"s, { config_prop(TYPE_INT, "hevc_mode"s, "Allows the client to request HEVC Main or HEVC Main10 video streams."s, true, &video.hevc_mode), string_limit({ "0", "1", "2", "3" }) } },
+  { "sw_preset"s, { config_prop(TYPE_STRING, "sw_preset"s, "Software encoding preset"s, true, &video.sw.preset), no_limit() } },
+  { "sw_tune"s, { config_prop(TYPE_STRING, "sw_tune"s, "Software encoding tuning parameters"s, true, &video.sw.tune), no_limit() } },
+  { "nv_preset"s, { config_prop(TYPE_STRING, "nv_preset"s, "NVENC preset"s, true), string_limit({ "p1", "p2", "p3", "p4", "p5", "p6", "p7" }) } },
+  { "nv_tune"s, { config_prop(TYPE_STRING, "nv_tune"s, "NVENC tune"s, true), string_limit({ "hq", "ul", "ull", "lossless" }) } },
+  { "nv_rc"s, { config_prop(TYPE_STRING, "nv_rc"s, "NVENC rate control"s, true), string_limit({ "constqp", "cbr", "vbr" }) } },
+  { "nv_coder"s, { config_prop(TYPE_STRING, "nv_coder"s, "NVENC Coder"s, true), string_limit({ "auto", "cabac", "cavlc" }) } },
+  { "amd_quality"s, { config_prop(TYPE_STRING, "amd_quality"s, "AMD AMF quality"s, true), string_limit({ "default", "speed", "balanced" }) } },
+  { "amd_rc"s, { config_prop(TYPE_STRING, "amd_rc"s, "AMD AMF rate control"s, true), string_limit({ "cqp", "vbr_latency", "vbr_peak", "cbr" }) } },
+  { "amd_coder"s, { config_prop(TYPE_INT, "amd_coder"s, ""s, true), string_limit({ "auto", "cabac", "cavlc" }) } },
+  { "encoder"s, { config_prop(TYPE_STRING, "encoder"s, "Force a specific encoder"s, true, &video.encoder), string_limit({ "nvenc", "amdvce", "vaapi", "software" }) } },
+  { "adapter_name"s, { config_prop(TYPE_STRING, "adapter_name"s, "Select the video card you want to stream with."s, true, &video.adapter_name), video_devices_limit(video_devices_limit_type::ADAPTER) } },
+  { "output_name"s, { config_prop(TYPE_STRING, "output_name"s, "Select the display output you want to stream."s, true, &video.output_name), video_devices_limit(video_devices_limit_type::OUTPUT) } },
+  { "pkey"s, { config_prop(TYPE_FILE, "pkey"s, "Path to the private key file. The private key must be 2048 bits."s, true, &nvhttp.pkey), no_limit() } },
+  { "cert"s, { config_prop(TYPE_STRING, "cert"s, "Path to the certificate file. The certificate must be signed with a 2048 bit key!"s, true, &nvhttp.cert), no_limit() } },
+  { "sunshine_name"s, { config_prop(TYPE_STRING, "sunshine_name"s, "The name displayed by Moonlight. If not specified, the PC's hostname is used"s, true, &nvhttp.sunshine_name), no_limit() } },
+  { "file_state"s, { config_prop(TYPE_FILE, "file_state"s, "The file where current state of Sunshine is stored."s, true, &nvhttp.file_state), no_limit() } },
+  { "external_ip"s, { config_prop(TYPE_STRING, "external_ip"s, ""s, true, &nvhttp.external_ip), no_limit() } },
+  { "resolutions"s, { config_prop(TYPE_STRING_ARRAY, "resolutions"s, "Display resolutions reported by Sunshine as supported."s, true, &nvhttp.resolutions), no_limit() } },
+  { "fps"s, { config_prop(TYPE_INT_ARRAY, "fps"s, "Supported FPS reported to clients"s, true, &nvhttp.fps), no_limit() } },
+  { "audio_sink"s, { config_prop(TYPE_STRING, "audio_sink"s, "The name of the audio sink used for Audio Loopback."s, true, &audio.sink), audio_devices_limit() } },
+  { "virtual_sink"s, { config_prop(TYPE_STRING, "virtual_sink"s, "Virtual audio device name (like Steam Streaming Speakers)\r\nAllows Sunshine to stream audio with muted speakers."s, true, &audio.virtual_sink), audio_devices_limit() } },
+  { "origin_pin_allowed"s, { config_prop(TYPE_STRING, "origin_pin_allowed"s, ""s, true, &nvhttp.origin_pin_allowed), no_limit() } },
+  { "ping_timeout"s, { config_prop(TYPE_INT, "ping_timeout"s, "How long to wait (in milliseconds) for data from Moonlight clients before shutting down the stream"s, true, &stream.ping_timeout), minmax_limit(0, std::numeric_limits<int>::max()) } },
+  { "channels"s, { config_prop(TYPE_INT, "channels"s, ""s, true, &video.qp), minmax_limit(1, 24) } },
+  { "file_apps"s, { config_prop(TYPE_FILE, "file_apps"s, "Path to apps.json which contains all the necessary configuration for running apps in Sunshine."s, true, &stream.file_apps), no_limit() } },
+  { "fec_percentage"s, { config_prop(TYPE_INT, "fec_percentage"s, "Percentage of error correcting packets per data packet in each video frame."s, true, &stream.fec_percentage), no_limit() } },
+  { "keybindings"s, { config_prop(TYPE_STRING_ARRAY, "keybindings"s, ""s, true), no_limit() } },
+  { "key_rightalt_to_key_win"s, { config_prop(TYPE_BOOLEAN, "key_rightalt_to_key_win"s, "It may be possible that you cannot send the Windows key from Moonlight directly. \r\n Allows using Right Alt key as the Windows key."s, true), no_limit() } },
+  { "back_button_timeout"s, { config_prop(TYPE_INT, "back_button_timeout"s, "Emulate back/select button press on the controller."s, true, &input.back_button_timeout), minmax_limit(-1, std::numeric_limits<int>::max()) } },
+  { "key_repeat_frequency"s, { config_prop(TYPE_DOUBLE, "key_repeat_frequency"s, "How often keys repeat every second after delay.\r\nThis configurable option supports decimals"s, true), no_limit() } },
+  { "key_repeat_delay"s, { config_prop(TYPE_INT, "key_repeat_delay"s, "Controls how fast keys will repeat themselves after holding\r\nThe initial delay in milliseconds before repeating keys."s, true, &input.key_repeat_delay), minmax_limit(-1, std::numeric_limits<int>::max()) } },
+  { "gamepad"s, { config_prop(TYPE_STRING, "gamepad"s, "Default gamepad used"s, true, &input.gamepad), string_limit(platf::supported_gamepads()) } },
+  { "port"s, { config_prop(TYPE_INT, "port"s, ""s, true), minmax_limit(1024, 49151) } },
+  { "upnp"s, { config_prop(TYPE_BOOLEAN, "upnp"s, "Automatically configure port forwarding"s, true), no_limit() } },
+  { "dwmflush"s, { config_prop(TYPE_BOOLEAN, "dwmflush"s, "Improves capture latency during mouse movement.\r\nEnabling this may prevent the client's FPS from exceeding the host monitor's active refresh rate."s, false, &video.dwmflush), no_limit() } },
+  { "min_log_level"s, { config_prop(TYPE_STRING, "min_log_level"s, "The minimum log level printed to standard out"s, true), string_limit({ "verbose", "debug", "info", "warning", "error", "fatal", "none", "0", "1", "2", "3", "4", "5", "6" }) } },
 };
 
 namespace nv {
@@ -720,40 +721,40 @@ void save_config(std::unordered_map<std::string, std::string> &&vars) {
       continue;
     }
     switch(any_prop.prop_type) {
-    case STRING:
+    case TYPE_STRING:
       isValidValue = true;
       break;
-    case FILE: {
+    case TYPE_FILE: {
       std::string temp_file;
       path_f(val, temp_file);
       isValidValue = !temp_file.empty();
       break;
     }
-    case INT: {
+    case TYPE_INT: {
       int temp_int = std::numeric_limits<int>::max();
       int_f(val, temp_int);
       isValidValue = temp_int != std::numeric_limits<int>::max();
       break;
     }
-    case INT_ARRAY: {
+    case TYPE_INT_ARRAY: {
       std::vector<int> temp_int_vec;
       list_int_f(val, temp_int_vec);
       isValidValue = !temp_int_vec.empty();
       break;
     }
-    case STRING_ARRAY: {
+    case TYPE_STRING_ARRAY: {
       std::vector<std::string> temp_str_vec;
       list_string_f(val, temp_str_vec);
       isValidValue = !temp_str_vec.empty();
       break;
     }
-    case BOOLEAN: {
+    case TYPE_BOOLEAN: {
       bool temp_bool = false;
       bool_f(val, temp_bool);
       isValidValue = temp_bool;
       break;
     }
-    case DOUBLE: {
+    case TYPE_DOUBLE: {
       double temp_double = std::numeric_limits<double>::max();
       double_f(val, temp_double);
       isValidValue = temp_double != std::numeric_limits<double>::max();
@@ -805,9 +806,28 @@ void handle_custom_config_prop(const config_prop &prop, std::string val) {
   if(prop.name == "min_log_level") {
     set_min_log_level(val);
   }
+  else if(prop.name == "nv_rc") {
+    video.nv.rc = nv::rc_from_view(val);
+  }
+  else if(prop.name == "nv_preset") {
+    video.nv.preset = nv::preset_from_view(val);
+  }
+  else if(prop.name == "nv_tune") {
+    video.nv.tune = nv::tune_from_view(val);
+  }
+  else if(prop.name == "nv_coder") {
+    video.nv.coder = nv::coder_from_view(val);
+  }
   else if(prop.name == "amd_rc") {
-    video.amd.rc_h264 = amd::rc_h264_from_view(val);
-    video.amd.rc_hevc = amd::rc_hevc_from_view(val);
+    video.amd.rc_h264 = amd::rc_from_view(val, 1);
+    video.amd.rc_hevc = amd::rc_from_view(val, 0);
+  }
+  else if(prop.name == "amd_quality") {
+    video.amd.quality_h264 = amd::quality_from_view(val, 1);
+    video.amd.quality_hevc = amd::quality_from_view(val, 0);
+  }
+  else if(prop.name == "amd_coder") {
+    video.amd.coder = amd::coder_from_view(val);
   }
   else if(prop.name == "keybindings") {
     map_int_int_f(val, input.keybindings);
@@ -863,25 +883,25 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     config_prop any_prop = it->second.first;
     if(any_prop.value != nullptr) {
       switch(any_prop.prop_type) {
-      case STRING:
+      case TYPE_STRING:
         *reinterpret_cast<std::string *>(any_prop.value) = val;
         break;
-      case FILE:
+      case TYPE_FILE:
         path_f(val, *reinterpret_cast<std::string *>(any_prop.value));
         break;
-      case INT:
+      case TYPE_INT:
         int_f(val, *reinterpret_cast<int *>(any_prop.value));
         break;
-      case INT_ARRAY:
+      case TYPE_INT_ARRAY:
         list_int_f(val, *reinterpret_cast<std::vector<int> *>(any_prop.value));
         break;
-      case STRING_ARRAY:
+      case TYPE_STRING_ARRAY:
         list_string_f(val, *reinterpret_cast<std::vector<std::string> *>(any_prop.value));
         break;
-      case BOOLEAN:
+      case TYPE_BOOLEAN:
         bool_f(val, *reinterpret_cast<bool *>(any_prop.value));
         break;
-      case DOUBLE:
+      case TYPE_DOUBLE:
         double_f(val, *reinterpret_cast<double *>(any_prop.value));
         break;
       }

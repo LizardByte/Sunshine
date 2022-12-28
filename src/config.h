@@ -170,13 +170,13 @@ struct string_limit : ILimit {
 };
 
 enum config_props : int {
-  INT,
-  INT_ARRAY,
-  STRING,
-  STRING_ARRAY,
-  BOOLEAN,
-  FILE,
-  DOUBLE
+  TYPE_INT,
+  TYPE_INT_ARRAY,
+  TYPE_STRING,
+  TYPE_STRING_ARRAY,
+  TYPE_BOOLEAN,
+  TYPE_FILE,
+  TYPE_DOUBLE
 };
 struct config_prop {
   enum config_props prop_type;
