@@ -679,8 +679,7 @@ public:
       audio::device_t device;
       collection->Item(x, &device);
 
-      auto type = validate_device(device, SAMPLE_RATE);
-      if(type == format_t::none) {
+      if(!validate_device(device)) {
         continue;
       }
 
