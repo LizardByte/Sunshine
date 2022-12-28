@@ -208,15 +208,6 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     return;
   }
 
-  auto job_handle = CreateJobObjectForChildProcess();
-  if(job_handle == NULL) {
-    // Tell SCM we failed to start
-    service_status.dwWin32ExitCode = GetLastError();
-    service_status.dwCurrentState  = SERVICE_STOPPED;
-    SetServiceStatus(service_status_handle, &service_status);
-    return;
-  }
-
   // We can use a single STARTUPINFOEXW for all the processes that we launch
   STARTUPINFOEXW startup_info         = {};
   startup_info.StartupInfo.cb         = sizeof(startup_info);
@@ -245,15 +236,6 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     NULL,
     NULL);
 
-  // Start Sunshine.exe inside our job object
-  UpdateProcThreadAttribute(startup_info.lpAttributeList,
-    0,
-    PROC_THREAD_ATTRIBUTE_JOB_LIST,
-    &job_handle,
-    sizeof(job_handle),
-    NULL,
-    NULL);
-
   // Tell SCM we're running (and stoppable now)
   service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PRESHUTDOWN;
   service_status.dwCurrentState     = SERVICE_RUNNING;
@@ -265,6 +247,22 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     if(console_token == NULL) {
       continue;
     }
+
+    // Job objects cannot span sessions, so we must create one for each process
+    auto job_handle = CreateJobObjectForChildProcess();
+    if(job_handle == NULL) {
+      CloseHandle(console_token);
+      continue;
+    }
+
+    // Start Sunshine.exe inside our job object
+    UpdateProcThreadAttribute(startup_info.lpAttributeList,
+      0,
+      PROC_THREAD_ATTRIBUTE_JOB_LIST,
+      &job_handle,
+      sizeof(job_handle),
+      NULL,
+      NULL);
 
     PROCESS_INFORMATION process_info;
     if(!CreateProcessAsUserW(console_token,
@@ -279,6 +277,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
          (LPSTARTUPINFOW)&startup_info,
          &process_info)) {
       CloseHandle(console_token);
+      CloseHandle(job_handle);
       continue;
     }
 
@@ -303,6 +302,7 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     CloseHandle(process_info.hThread);
     CloseHandle(process_info.hProcess);
     CloseHandle(console_token);
+    CloseHandle(job_handle);
   }
 
   // Let SCM know we've stopped
