@@ -508,6 +508,49 @@ std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &
   return nullptr;
 }
 
+std::vector<display_device_t> available_outputs() {
+  std::vector<display_device_t> display_devices;
+
+  HRESULT status;
+  std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+
+  dxgi::factory1_t factory;
+  status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+    return {};
+  }
+
+
+  dxgi::adapter_t::pointer adapter_p {};
+  for(int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+    dxgi::adapter_t adapter { adapter_p };
+
+    display_device_t displayDevice;
+
+    DXGI_ADAPTER_DESC1 adapter_desc;
+    adapter->GetDesc1(&adapter_desc);
+    displayDevice.adapterName = converter.to_bytes(adapter_desc.Description);
+
+    std::vector<std::string> adapter_outputs;
+
+    dxgi::output_t::pointer output_p {};
+    for(int y = 0; adapter->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+      dxgi::output_t output { output_p };
+      DXGI_OUTPUT_DESC desc;
+      output->GetDesc(&desc);
+
+      auto output_name = converter.to_bytes(desc.DeviceName);
+      adapter_outputs.push_back(output_name);
+    }
+    displayDevice.outputNames = adapter_outputs;
+
+    display_devices.push_back(displayDevice);
+  }
+
+  return display_devices;
+}
+
 std::vector<std::string> display_names(mem_type_e) {
   std::vector<std::string> display_names;
 

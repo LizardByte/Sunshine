@@ -1,6 +1,7 @@
 #ifndef SUNSHINE_CONFIG_H
 #define SUNSHINE_CONFIG_H
 
+#include "src/platform/common.h"
 #include <any>
 #include <bitset>
 #include <boost/property_tree/ptree.hpp>
@@ -66,6 +67,82 @@ struct minmax_limit : ILimit {
 
   minmax_limit(int min, int max) : min(min), max(max) {}
 };
+
+struct audio_devices_limit : ILimit {
+
+  void to(pt::ptree &tree) const override {
+    tree.put("type", "audio_device_list");
+    std::vector<platf::audio_device_t> devices = platf::audio_control()->available_audio_devices();
+
+    pt::ptree array;
+    for(auto &device : devices) {
+      pt::ptree element;
+      element.put("id", device.id);
+      element.put("name", device.name);
+      array.push_back(pt::ptree::value_type("", element));
+    }
+    tree.put_child("devices", array);
+  }
+
+  bool check(std::string value) const override {
+    std::vector<platf::audio_device_t> devices = platf::audio_control()->available_audio_devices();
+
+    for(auto &device : devices) {
+      if(device.id == value)
+        return true;
+    }
+    return false;
+  }
+
+  audio_devices_limit() = default;
+};
+
+enum video_devices_limit_type {
+  ADAPTER,
+  OUTPUT
+};
+
+struct video_devices_limit : ILimit {
+
+  video_devices_limit_type type;
+
+  void to(pt::ptree &tree) const override {
+    tree.put("type", "video_devices_list");
+    std::vector<platf::display_device_t> devices = platf::available_outputs();
+
+    pt::ptree array;
+    for(const auto &device : devices) {
+      pt::ptree device_tree, outputArray;
+      device_tree.put("name", device.adapterName);
+      for(const auto &outputName : device.outputNames) {
+        outputArray.push_back(pt::ptree::value_type("", outputName));
+      }
+      device_tree.put_child("outputs", outputArray);
+
+      array.push_back(pt::ptree::value_type("", device_tree));
+    }
+    tree.put_child("devices", array);
+  }
+
+  bool check(std::string value) const override {
+    std::vector<platf::display_device_t> devices = platf::available_outputs();
+
+    for(auto &device : devices) {
+      if(type == video_devices_limit_type::OUTPUT) {
+        for(auto &output : device.outputNames) {
+          if(output == value)
+            return true;
+        }
+      }
+      else if(device.adapterName == value && type == video_devices_limit_type::ADAPTER)
+        return true;
+    }
+    return false;
+  }
+
+  explicit video_devices_limit(video_devices_limit_type type) : type(type) {};
+};
+
 struct string_limit : ILimit {
   std::vector<std::string_view> values;
 

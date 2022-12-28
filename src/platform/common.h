@@ -158,9 +158,9 @@ struct img_t {
 public:
   img_t() = default;
 
-  img_t(img_t &&)      = delete;
-  img_t(const img_t &) = delete;
-  img_t &operator=(img_t &&) = delete;
+  img_t(img_t &&)                 = delete;
+  img_t(const img_t &)            = delete;
+  img_t &operator=(img_t &&)      = delete;
   img_t &operator=(const img_t &) = delete;
 
   std::uint8_t *data {};
@@ -170,6 +170,16 @@ public:
   std::int32_t row_pitch {};
 
   virtual ~img_t() = default;
+};
+
+struct display_device_t {
+  std::string adapterName;
+  std::vector<std::string> outputNames;
+};
+
+struct audio_device_t {
+  std::string id;
+  std::string name;
 };
 
 struct sink_t {
@@ -274,6 +284,8 @@ public:
 
   virtual std::optional<sink_t> sink_info() = 0;
 
+  virtual std::vector<audio_device_t> available_audio_devices() = 0;
+
   virtual ~audio_control_t() = default;
 };
 
@@ -303,6 +315,8 @@ std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &
 
 // A list of names of displays accepted as display_name with the mem_type_e
 std::vector<std::string> display_names(mem_type_e hwdevice_type);
+
+std::vector<display_device_t> available_outputs();
 
 boost::process::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec);
 

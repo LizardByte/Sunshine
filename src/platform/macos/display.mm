@@ -180,6 +180,12 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::s
   return display;
 }
 
+std::vector<display_device_t> available_outputs() {
+  BOOST_LOG(warning) << "platf::available_outputs() not implemented"sv;
+
+  return {};
+}
+
 std::vector<std::string> display_names(mem_type_e hwdevice_type) {
   __block std::vector<std::string> display_names;
 

@@ -647,6 +647,61 @@ public:
     return failure;
   }
 
+  std::vector<audio_device_t> available_audio_devices() override {
+    std::vector<audio_device_t> output;
+    sink_t sink;
+
+    audio::device_enum_t device_enum;
+    auto status = CoCreateInstance(
+      CLSID_MMDeviceEnumerator,
+      nullptr,
+      CLSCTX_ALL,
+      IID_IMMDeviceEnumerator,
+      (void **)&device_enum);
+
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
+
+      return output;
+    }
+
+    collection_t collection;
+    status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']';
+
+      return output;
+    }
+
+    UINT count;
+    collection->GetCount(&count);
+    for(auto x = 0; x < count; ++x) {
+      audio::device_t device;
+      collection->Item(x, &device);
+
+      auto type = validate_device(device, SAMPLE_RATE);
+      if(type == format_t::none) {
+        continue;
+      }
+
+      audio::wstring_t wstring;
+      device->GetId(&wstring);
+
+      audio::prop_t prop;
+      prop_var_t device_friendly_name;
+
+      device->OpenPropertyStore(STGM_READ, &prop);
+      prop->GetValue(PKEY_Device_FriendlyName, &device_friendly_name.prop);
+
+      audio_device_t audio_device;
+      audio_device.id   = converter.to_bytes(wstring.get());
+      audio_device.name = converter.to_bytes(no_null((LPWSTR)device_friendly_name.prop.pszVal));
+      output.push_back(audio_device);
+    }
+
+    return output;
+  }
+
   int init() {
     auto status = CoCreateInstance(
       CLSID_CPolicyConfigClient,
@@ -664,7 +719,7 @@ public:
     return 0;
   }
 
-  ~audio_control_t() override {}
+  ~audio_control_t() override = default;
 
   policy_t policy;
 };

@@ -476,6 +476,11 @@ public:
     return 0;
   }
 
+  std::vector<audio_device_t> available_audio_devices() override {
+    BOOST_LOG(warning) << "audio_control_t::available_audio_devices() unimplemented"sv;
+    return {};
+  }
+
   ~server_t() override {
     unload_null(index.stereo);
     unload_null(index.surround51);

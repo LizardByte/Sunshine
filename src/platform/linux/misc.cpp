@@ -209,6 +209,11 @@ bool verify_x11() {
 }
 #endif
 
+std::vector<display_device_t> available_outputs() {
+  BOOST_LOG(warning) << "platf::available_outputs() unimplemented"sv;
+  return {};
+}
+
 std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
   // display using NvFBC only supports mem_type_e::cuda
