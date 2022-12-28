@@ -378,10 +378,15 @@ int checkAuthentication(const req_http_t &request) {
   return 0;
 }
 
-void handleApiRequest(resp_http_t response, const req_http_t &request) {
+void handleApiRequest(const resp_http_t &response, const req_http_t &request) {
   print_req(request);
   auto req_name   = request->path_match[1].str();
   auto authResult = checkAuthentication(request);
+
+  if(req_name == "events") {
+    handleApiSSE(response, request);
+    return;
+  }
 
   if(req_name != "update_credentials"s && req_name != "api_version"s) {
     if(authResult == -2) {
@@ -437,12 +442,7 @@ void appasset(resp_http_t response, const req_http_t &request) {
 }
 
 void handleCors(resp_http_t response, const req_http_t &request) {
-  auto corsHeaders = request->header.find("access-control-request-headers");
-
   auto allowHeaders = "Authorization"s;
-  if(corsHeaders != request->header.end()) {
-    allowHeaders = corsHeaders->second;
-  }
   response->write({ { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", allowHeaders } });
 }
 
@@ -455,7 +455,6 @@ void start() {
   server.resource["^/api/([a-z_]+)$"]["OPTIONS"] = handleCors;
   server.resource["^/api/([a-z_]+)$"]["POST"]    = handleApiRequest;
   server.resource["^/api/([a-z_]+)$"]["GET"]     = handleApiRequest;
-  server.resource["^/api/events$"]["GET"]        = handleApiSSE;
   server.resource["^/appasset/([0-9]+)$"]["GET"] = appasset;
   server.config.reuse_address                    = true;
   server.config.address                          = "0.0.0.0"s;
