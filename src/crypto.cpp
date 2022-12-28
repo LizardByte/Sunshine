@@ -410,7 +410,12 @@ creds_t gen_creds(const std::string_view &cn, std::uint32_t key_bits) {
   EVP_PKEY_keygen(ctx.get(), &pkey);
 
   X509_set_version(x509.get(), 2);
-  ASN1_INTEGER_set(X509_get_serialNumber(x509.get()), 0);
+
+  // Generate a real serial number to avoid SEC_ERROR_REUSED_ISSUER_AND_SERIAL with Firefox
+  bignum_t serial { BN_new() };
+  BN_rand(serial.get(), 159, BN_RAND_TOP_ANY, BN_RAND_BOTTOM_ANY); // 159 bits to fit in 20 bytes in DER format
+  BN_set_negative(serial.get(), 0);                                // Serial numbers must be positive
+  BN_to_ASN1_INTEGER(serial.get(), X509_get_serialNumber(x509.get()));
 
   constexpr auto year = 60 * 60 * 24 * 365;
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
