@@ -528,7 +528,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
 	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")  # The name of the directory that will be created in C:/Program files/
-	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin")  # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
 	# Extra install commands
 	# Sets permissions on the installed folder so that we can write in it
@@ -546,7 +545,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 		"${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
 		ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
     	ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
-    	MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to completely remove the directory $INSTDIR and all of its contents?' IDNO NoDelete
+	MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' /SD IDNO IDNO NoDelete
       		RMDir /r \\\"$INSTDIR\\\" ; skipped if no
     	NoDelete:
 		")
@@ -554,7 +553,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Adding an option for the start menu and PATH
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")  # This will be shown on the installed apps Windows settings
 	set(CPACK_NSIS_CREATE_ICONS_EXTRA
 		"${CPACK_NSIS_CREATE_ICONS_EXTRA}
@@ -566,7 +564,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 		")
 
 	# Checking for previous installed versions
-	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")  # TODO: doesn't work on my machine when Sunshine is already installed
+	set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
 
 	set(CPACK_NSIS_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/installation.html")
 	set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
