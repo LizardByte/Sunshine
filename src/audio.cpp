@@ -39,6 +39,15 @@ opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
     1,
     1,
     platf::speaker::map_stereo,
+    96000,
+  },
+  {
+    SAMPLE_RATE,
+    2,
+    1,
+    1,
+    platf::speaker::map_stereo,
+    512000,
   },
   {
     SAMPLE_RATE,
@@ -46,6 +55,7 @@ opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
     4,
     2,
     platf::speaker::map_surround51,
+    256000,
   },
   {
     SAMPLE_RATE,
@@ -53,6 +63,7 @@ opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
     6,
     0,
     platf::speaker::map_surround51,
+    1536000,
   },
   {
     SAMPLE_RATE,
@@ -60,6 +71,7 @@ opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
     5,
     3,
     platf::speaker::map_surround71,
+    450000,
   },
   {
     SAMPLE_RATE,
@@ -67,6 +79,7 @@ opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
     8,
     0,
     platf::speaker::map_surround71,
+    2048000,
   },
 };
 
@@ -74,9 +87,7 @@ auto control_shared = safe::make_shared<audio_ctx_t>(start_audio_control, stop_a
 
 void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
   auto packets = mail::man->queue<packet_t>(mail::audio_packets);
-
-  // FIXME: Pick correct opus_stream_config_t based on config.channels
-  auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
+  auto stream  = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
   opus_t opus { opus_multistream_encoder_create(
     stream->sampleRate,
@@ -84,17 +95,15 @@ void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
     stream->streams,
     stream->coupledStreams,
     stream->mapping,
-    OPUS_APPLICATION_AUDIO,
+    OPUS_APPLICATION_RESTRICTED_LOWDELAY,
     nullptr) };
 
-  // For some reason, audio is crackling when the encoder is set to constant bitstream.
-  // We simulate a constant bitstream with OPUS_SET_BITRATE(OPUS_BITRATE_MAX) -->
-  // which tries to occupy as much space as possible in the packet
-  opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(OPUS_BITRATE_MAX));
+  opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(stream->bitrate));
+  opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
 
   auto frame_size = config.packetDuration * stream->sampleRate / 1000;
   while(auto sample = samples->pop()) {
-    buffer_t packet { 1400 }; // 1KB
+    buffer_t packet { 1400 };
 
     int bytes = opus_multistream_encode(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
     if(bytes < 0) {
@@ -104,14 +113,6 @@ void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
       return;
     }
 
-    // Even with OPUS_SET_BITRATE(OPUS_BITRATE_MAX), silent packets are smaller than the rest
-    // Drop silent packets to ensure Moonlight won't complain
-    // A packet size of 128 seems a reasonable enough threshold
-    if(bytes < 128) {
-      BOOST_LOG(verbose) << "Dropped silent packet"sv;
-      continue;
-    }
-
     packet.fake_resize(bytes);
     packets->raise(channel_data, std::move(packet));
   }
@@ -119,9 +120,7 @@ void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
 
 void capture(safe::mail_t mail, config_t config, void *channel_data) {
   auto shutdown_event = mail->event<bool>(mail::shutdown);
-
-  // FIXME: Pick correct opus_stream_config_t based on config.channels
-  auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
+  auto stream         = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
   auto ref = control_shared.ref();
   if(!ref) {
@@ -225,7 +224,7 @@ int map_stream(int channels, bool quality) {
   int shift = quality ? 1 : 0;
   switch(channels) {
   case 2:
-    return STEREO;
+    return STEREO + shift;
   case 6:
     return SURROUND51 + shift;
   case 8:

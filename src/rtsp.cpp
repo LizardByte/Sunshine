@@ -646,6 +646,19 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
     return;
   }
 
+  // When using stereo audio, the audio quality is (strangely) indicated by whether the Host field
+  // in the RTSP message matches a local interface's IP address. Fortunately, Moonlight always sends
+  // 0.0.0.0 when it wants low quality, so it is easy to check without enumerating interfaces.
+  if(config.audio.channels == 2) {
+    for(auto option = req->options; option != nullptr; option = option->next) {
+      if("Host"sv == option->option) {
+        std::string_view content { option->content };
+        BOOST_LOG(debug) << "Found Host: "sv << content;
+        config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
+      }
+    }
+  }
+
   if(config.monitor.videoFormat != 0 && config::video.hevc_mode == 1) {
     BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
