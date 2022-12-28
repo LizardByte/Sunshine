@@ -18,6 +18,7 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-log-dev \
           libboost-thread-dev \
+          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -94,6 +95,7 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-log-dev \
           libboost-thread-dev \
+          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -140,6 +142,7 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-log-dev \
           libboost-thread-dev \
+          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -165,9 +168,7 @@ npm dependencies
 Install npm dependencies.
    .. code-block:: bash
 
-      pushd ./src_assets/common/assets/web
       npm install
-      popd
 
 Build
 -----

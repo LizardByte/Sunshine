@@ -10,11 +10,8 @@ on:
     types:
       - edited
       - opened
+      - reopened
       - synchronize
-  pull_request_review:
-    types:
-      - edited
-      - submitted
 
 jobs:
   label_pr:
@@ -40,11 +37,7 @@ jobs:
           steps.org_member.outputs.result == 'true' &&
           contains(github.event.pull_request.labels.*.name, 'autoupdate') == false &&
           contains(github.event.pull_request.body,
-            fromJSON('"\n- [x] I want maintainers to keep my branch updated"')) == true &&
-          (
-            (github.event_name == 'pull_request_review' && github.event.review.state == 'approved') ||
-            (github.event_name == 'pull_request')
-          )
+            fromJSON('"\n- [x] I want maintainers to keep my branch updated"')) == true
 
         uses: actions/github-script@v6
         with:
@@ -60,7 +53,6 @@ jobs:
       - name: Unlabel autoupdate
         if: >-
           contains(github.event.pull_request.labels.*.name, 'autoupdate') &&
-          github.event_name == 'pull_request' &&
           (
             (github.event.action == 'synchronize' && steps.org_member.outputs.result == 'false') ||
             (contains(github.event.pull_request.body,

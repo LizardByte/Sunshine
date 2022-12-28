@@ -839,27 +839,52 @@ nv_preset
    ========== ===========
    Value      Description
    ========== ===========
-   default    let ffmpeg decide
-   hp         high performance
-   hq         high quality
-   slow       high quality, 2 passes
-   medium     high quality, 1 pass
-   fast       high performance, 1 pass
-   bd
-   ll         low latency
-   llhq       low latency, high quality
-   llhp       low latency, high performance
-   lossless   lossless
-   losslesshp lossless, high performance
+   p1         fastest (lowest quality)
+   p2         faster (lower quality)
+   p3         fast (low quality)
+   p4         medium (default)
+   p5         slow (good quality)
+   p6         slower (better quality)
+   p7         slowest (best quality)
    ========== ===========
 
 **Default**
-   ``llhq``
+   ``p4``
 
 **Example**
    .. code-block:: text
 
-      nv_preset = llhq
+      nv_preset = p4
+
+nv_tune
+^^^^^^^
+
+**Description**
+   The encoder tuning profile.
+
+   .. Note:: This option only applies when using nvenc `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   hq         high quality
+   ll         low latency
+   ull        ultra low latency
+   lossless   lossless
+   ========== ===========
+
+**Default**
+   ``ull``
+
+**Example**
+   .. code-block:: text
+
+      nv_tune = ull
 
 nv_rc
 ^^^^^
@@ -869,8 +894,6 @@ nv_rc
 
    .. Note:: This option only applies when using nvenc `encoder`_.
 
-   .. Note:: Moonlight does not currently support variable bitrate, although it can still be selected here.
-
 **Choices**
 
 .. table::
@@ -879,22 +902,18 @@ nv_rc
    ========== ===========
    Value      Description
    ========== ===========
-   auto       let ffmpeg decide
    constqp    constant QP mode
-   cbr        constant bitrate
-   cbr_hq     constant bitrate, high quality
-   cbr_ld_hq  constant bitrate, low delay, high quality
    vbr        variable bitrate
-   vbr_hq     variable bitrate, high quality
+   cbr        constant bitrate
    ========== ===========
 
 **Default**
-   ``auto``
+   ``cbr``
 
 **Example**
    .. code-block:: text
 
-      nv_rc = auto
+      nv_rc = cbr
 
 nv_coder
 ^^^^^^^^
@@ -902,7 +921,7 @@ nv_coder
 **Description**
    The entropy encoding to use.
 
-   .. Note:: This option only applies when using nvenc `encoder`_.
+   .. Note:: This option only applies when using H264 with nvenc `encoder`_.
 
 **Choices**
 
@@ -913,8 +932,8 @@ nv_coder
    Value      Description
    ========== ===========
    auto       let ffmpeg decide
-   cabac
-   cavlc
+   cabac      context adaptive binary arithmetic coding - higher quality
+   cavlc      context adaptive variable-length coding - faster decode
    ========== ===========
 
 **Default**
@@ -941,9 +960,9 @@ amd_quality
    ========== ===========
    Value      Description
    ========== ===========
-   default    let ffmpeg decide
-   speed      fast
-   balanced   balance performance and speed
+   speed      prefer speed
+   balanced   balanced
+   quality    prefer quality
    ========== ===========
 
 **Default**
@@ -962,8 +981,6 @@ amd_rc
 
    .. Note:: This option only applies when using amdvce `encoder`_.
 
-   .. Note:: Moonlight does not currently support variable bitrate, although it can still be selected here.
-
 **Choices**
 
 .. table::
@@ -972,20 +989,19 @@ amd_rc
    =========== ===========
    Value       Description
    =========== ===========
-   auto        let ffmpeg decide
-   constqp     constant QP mode
+   cqp         constant qp mode
    cbr         constant bitrate
    vbr_latency variable bitrate, latency constrained
    vbr_peak    variable bitrate, peak constrained
    =========== ===========
 
 **Default**
-   ``auto``
+   ``vbr_latency``
 
 **Example**
    .. code-block:: text
 
-      amd_rc = auto
+      amd_rc = vbr_latency
 
 amd_coder
 ^^^^^^^^^
@@ -993,7 +1009,7 @@ amd_coder
 **Description**
    The entropy encoding to use.
 
-   .. Note:: This option only applies when using nvenc `encoder`_.
+   .. Note:: This option only applies when using H264 with amdvce `encoder`_.
 
 **Choices**
 
@@ -1004,8 +1020,8 @@ amd_coder
    Value      Description
    ========== ===========
    auto       let ffmpeg decide
-   cabac
-   cavlc
+   cabac      context adaptive variable-length coding - higher quality
+   cavlc      context adaptive binary arithmetic coding - faster decode
    ========== ===========
 
 **Default**

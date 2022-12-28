@@ -318,9 +318,17 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   DXGI_OUTDUPL_DESC dup_desc;
   dup.dup->GetDesc(&dup_desc);
 
-  format = dup_desc.ModeDesc.Format;
+  BOOST_LOG(info) << "Desktop resolution ["sv << dup_desc.ModeDesc.Width << 'x' << dup_desc.ModeDesc.Height << ']';
+  BOOST_LOG(info) << "Desktop format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
 
-  BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
+  // For IDXGIOutput1::DuplicateOutput(), the format of the desktop image we receive from AcquireNextFrame() is
+  // converted to DXGI_FORMAT_B8G8R8A8_UNORM, even if the current mode (as returned in dup_desc) differs.
+  // See https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/desktop-dup-api for details.
+  //
+  // TODO: When we implement IDXGIOutput5, we will need to actually call AcquireNextFrame(), then call GetDesc()
+  // on the the texture we receive to determine which format in our list that it has decided to use.
+  format = DXGI_FORMAT_B8G8R8A8_UNORM;
+  BOOST_LOG(info) << "Capture format ["sv << format_str[format] << ']';
 
   return 0;
 }

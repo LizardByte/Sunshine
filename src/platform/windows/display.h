@@ -131,6 +131,11 @@ public:
   } D3DKMT_SCHEDULINGPRIORITYCLASS;
 
   typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+
+protected:
+  int get_pixel_pitch() {
+    return (format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
+  }
 };
 
 class display_ram_t : public display_base_t {

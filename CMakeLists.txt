@@ -69,7 +69,7 @@ pkg_check_modules (CURL REQUIRED libcurl)
 if(NOT APPLE)
 	set(Boost_USE_STATIC_LIBS ON)
 endif()
-find_package(Boost COMPONENTS log filesystem REQUIRED)
+find_package(Boost COMPONENTS log filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
@@ -78,6 +78,10 @@ if(WIN32)
 	set(CMAKE_RC_COMPILER windres)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
+
+        # WORKAROUND: /mingw64/include/_mingw.h r186 defines _WIN32_WINNT=0x601, but boost
+        #             is built against version 0x603 (BOOST_WINAPI_VERSION_WINBLUE) from r157 header.
+        ADD_DEFINITIONS(-DBOOST_USE_WINAPI_VERSION=BOOST_WINAPI_VERSION_WINBLUE)
 
 	add_compile_definitions(SUNSHINE_PLATFORM="windows")
 	add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
@@ -119,6 +123,7 @@ if(WIN32)
 		d3d11 dxgi D3DCompiler
 		setupapi
 		dwmapi
+		userenv
 		synchronization.lib
 		${CURL_STATIC_LIBRARIES}
 		)
@@ -376,7 +381,11 @@ if(WIN32)
 	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-windows-x86_64")
 	set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
 elseif(APPLE)
-	set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
+	if (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-aarch64")
+	else()
+		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
+	endif()
 else()
 	if (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 		set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-aarch64")
@@ -394,6 +403,8 @@ endif()
 set(FFMPEG_LIBRARIES
 	${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libcbs.a
+	${FFMPEG_PREPARED_BINARIES}/lib/libSvtAv1Enc.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libx264.a
 	${FFMPEG_PREPARED_BINARIES}/lib/libx265.a
@@ -403,14 +414,11 @@ set(FFMPEG_LIBRARIES
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party
-  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/cbs/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
   ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/reedsolomon
   ${FFMPEG_INCLUDE_DIRS}
   ${PLATFORM_INCLUDE_DIRS}
 )
-
-add_subdirectory(third-party/cbs)
 
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
@@ -439,13 +447,8 @@ else()
 endif()
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}")
 
-
-list(APPEND CBS_EXTERNAL_LIBRARIES
-	cbs)
-
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 		libminiupnpc-static
-		${CBS_EXTERNAL_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 		enet
 		opus
@@ -502,6 +505,9 @@ set(CPACK_PACKAGE_ICON ${PROJECT_SOURCE_DIR}/sunshine.png)
 set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set(CPACK_STRIP_FILES YES)
 
+# install npm modules
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/node_modules" DESTINATION "${SUNSHINE_ASSETS_DIR}/web")
+
 # Platform specific options
 if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
 	install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
@@ -523,7 +529,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
 	set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")  # The name of the directory that will be created in C:/Program files/
-	string(APPEND CPACK_NSIS_DEFINES "\n  RequestExecutionLevel admin")  # TODO: Not sure if this is needed but it took me a while to figure out where to put this option so I'm leaving it here
 
 	# Extra install commands
 	# Sets permissions on the installed folder so that we can write in it
@@ -545,7 +550,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 		"${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
 		ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
     	ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
-    	MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to completely remove the directory $INSTDIR and all of its contents?' IDNO NoDelete
+	MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' /SD IDNO IDNO NoDelete
       		RMDir /r \\\"$INSTDIR\\\" ; skipped if no
     	NoDelete:
 		")
@@ -553,7 +558,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 	# Adding an option for the start menu and PATH
 	set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
 	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-	set(CPACK_NSIS_MUI_FINISHPAGE_RUN "${CMAKE_PROJECT_NAME}.exe")
 	set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")  # This will be shown on the installed apps Windows settings
 	set(CPACK_NSIS_CREATE_ICONS_EXTRA
 		"${CPACK_NSIS_CREATE_ICONS_EXTRA}
@@ -565,7 +569,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 		")
 
 	# Checking for previous installed versions
-	# set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")  # TODO: doesn't work on my machine when Sunshine is already installed
+	set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
 
 	set(CPACK_NSIS_HELP_LINK "https://sunshinestream.readthedocs.io/about/installation.html")
 	set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
@@ -664,8 +668,8 @@ elseif(UNIX)
 
 		# Dependencies
 		set(CPACK_DEB_COMPONENT_INSTALL ON)
-		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
+		set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
+		set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, boost-program-options >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
 		set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
 	endif()
 endif()

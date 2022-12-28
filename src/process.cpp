@@ -10,11 +10,18 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
 #include "main.h"
+#include "platform/common.h"
 #include "utility.h"
+
+#ifdef _WIN32
+// _SH constants for _wfsopen()
+#include <share.h>
+#endif
 
 namespace proc {
 using namespace std::literals;
@@ -35,7 +42,7 @@ void process_end(bp::child &proc, bp::group &proc_handle) {
   proc.wait();
 }
 
-int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
+int exe_with_full_privs(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
   if(!file) {
     return bp::system(cmd, env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
@@ -43,22 +50,45 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
   return bp::system(cmd, env, bp::std_out > file.get(), bp::std_err > file.get(), ec);
 }
 
-int proc_t::execute(int app_id) {
-  if(!running() && _app_id != -1) {
-    // previous process exited on its own, reset _process_handle
-    _process_handle = bp::group();
-
-    _app_id = -1;
+boost::filesystem::path find_working_directory(const std::string &cmd, bp::environment &env) {
+  // Parse the raw command string into parts to get the actual command portion
+#ifdef _WIN32
+  auto parts = boost::program_options::split_winmain(cmd);
+#else
+  auto parts = boost::program_options::split_unix(cmd);
+#endif
+  if(parts.empty()) {
+    BOOST_LOG(error) << "Unable to parse command: "sv << cmd;
+    return boost::filesystem::path();
   }
+
+  BOOST_LOG(debug) << "Parsed executable ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
+
+  // If the cmd path is not a complete path, resolve it using our PATH variable
+  boost::filesystem::path cmd_path(parts.at(0));
+  if(!cmd_path.is_complete()) {
+    cmd_path = boost::process::search_path(parts.at(0));
+    if(cmd_path.empty()) {
+      BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
+      return boost::filesystem::path();
+    }
+  }
+
+  BOOST_LOG(debug) << "Resolved executable ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
+
+  // Now that we have a complete path, we can just use parent_path()
+  return cmd_path.parent_path();
+}
+
+int proc_t::execute(int app_id) {
+  // Ensure starting from a clean slate
+  terminate();
 
   if(app_id < 0 || app_id >= _apps.size()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
 
     return 404;
   }
-
-  // Ensure starting from a clean slate
-  terminate();
 
   _app_id    = app_id;
   auto &proc = _apps[app_id];
@@ -67,7 +97,19 @@ int proc_t::execute(int app_id) {
   _undo_it    = _undo_begin;
 
   if(!proc.output.empty() && proc.output != "null"sv) {
+#ifdef _WIN32
+    // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
+    // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+    auto woutput = converter.from_bytes(proc.output);
+
+    // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
+    // still open from a previous execution. This is required to handle the case of a
+    // detached process executing again while the previous process is still running.
+    _pipe.reset(_wfsopen(woutput.c_str(), L"a", _SH_DENYNO));
+#else
     _pipe.reset(fopen(proc.output.c_str(), "a"));
+#endif
   }
 
   std::error_code ec;
@@ -80,7 +122,7 @@ int proc_t::execute(int app_id) {
     auto &cmd = _undo_it->do_cmd;
 
     BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
-    auto ret = exe(cmd, _env, _pipe, ec);
+    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
 
     if(ec) {
       BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
@@ -94,16 +136,16 @@ int proc_t::execute(int app_id) {
   }
 
   for(auto &cmd : proc.detached) {
-    BOOST_LOG(info) << "Spawning ["sv << cmd << ']';
-    if(proc.output.empty() || proc.output == "null"sv) {
-      bp::spawn(cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
-    }
-    else {
-      bp::spawn(cmd, _env, bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
-    }
-
+    boost::filesystem::path working_dir = proc.working_dir.empty() ?
+                                            find_working_directory(cmd, _env) :
+                                            boost::filesystem::path(proc.working_dir);
+    BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
+    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec);
     if(ec) {
       BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
+    }
+    else {
+      child.detach();
     }
   }
 
@@ -113,21 +155,16 @@ int proc_t::execute(int app_id) {
   }
   else {
     boost::filesystem::path working_dir = proc.working_dir.empty() ?
-                                            boost::filesystem::path(proc.cmd).parent_path() :
+                                            find_working_directory(proc.cmd, _env) :
                                             boost::filesystem::path(proc.working_dir);
-    if(proc.output.empty() || proc.output == "null"sv) {
-      BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
-      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
+    BOOST_LOG(info) << "Executing: ["sv << proc.cmd << "] in ["sv << working_dir << ']';
+    _process = platf::run_unprivileged(proc.cmd, working_dir, _env, _pipe.get(), ec);
+    if(ec) {
+      BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
+      return -1;
     }
-    else {
-      BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
-      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(working_dir), bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
-    }
-  }
 
-  if(ec) {
-    BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
-    return -1;
+    _process_handle.add(_process);
   }
 
   fg.disable();
@@ -140,6 +177,11 @@ int proc_t::running() {
     return _app_id;
   }
 
+  // Perform cleanup actions now if needed
+  if(_process) {
+    terminate();
+  }
+
   return -1;
 }
 
@@ -149,7 +191,9 @@ void proc_t::terminate() {
   // Ensure child process is terminated
   placebo = false;
   process_end(_process, _process_handle);
-  _app_id = -1;
+  _process        = bp::child();
+  _process_handle = bp::group();
+  _app_id         = -1;
 
   if(ec) {
     BOOST_LOG(fatal) << "System: "sv << ec.message();
@@ -166,7 +210,7 @@ void proc_t::terminate() {
 
     BOOST_LOG(debug) << "Executing: ["sv << cmd << ']';
 
-    auto ret = exe(cmd, _env, _pipe, ec);
+    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
 
     if(ec) {
       BOOST_LOG(fatal) << "System: "sv << ec.message();
@@ -279,8 +323,21 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
         ss.write(pos, (dollar - pos));
         auto var_begin = next + 1;
         auto var_end   = find_match(next, std::end(val_raw));
+        auto var_name  = std::string { var_begin, var_end };
 
-        ss << env[std::string { var_begin, var_end }].to_string();
+#ifdef _WIN32
+        // Windows treats environment variable names in a case-insensitive manner,
+        // so we look for a case-insensitive match here. This is critical for
+        // correctly appending to PATH on Windows.
+        auto itr = std::find_if(env.cbegin(), env.cend(),
+          [&](const auto &e) { return boost::iequals(e.get_name(), var_name); });
+        if(itr != env.cend()) {
+          // Use an existing case-insensitive match
+          var_name = itr->get_name();
+        }
+#endif
+
+        ss << env[var_name].to_string();
 
         pos  = var_end + 1;
         next = var_end;

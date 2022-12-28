@@ -51,7 +51,7 @@ jobs:
           BASE_BRANCHES: nightly
           GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
           GITHUB_LOGIN: ${{ secrets.GH_BOT_NAME }}
-          MERGE_LABELS: ""
+          MERGE_LABELS: "!dependencies"
           MERGE_METHOD: "squash"
           MERGE_COMMIT_MESSAGE: "{pullRequest.title} (#{pullRequest.number})"
           MERGE_DELETE_BRANCH: true

@@ -1,7 +1,7 @@
 extern "C" {
 #include <cbs/cbs_h264.h>
 #include <cbs/cbs_h265.h>
-#include <cbs/video_levels.h>
+#include <cbs/h264_levels.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/pixdesc.h>
 }

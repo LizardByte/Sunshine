@@ -6,6 +6,7 @@
 namespace audio {
 enum stream_config_e : int {
   STEREO,
+  HIGH_STEREO,
   SURROUND51,
   HIGH_SURROUND51,
   SURROUND71,
@@ -19,6 +20,7 @@ struct opus_stream_config_t {
   int streams;
   int coupledStreams;
   const std::uint8_t *mapping;
+  int bitrate;
 };
 
 extern opus_stream_config_t stream_configs[MAX_STREAM_CONFIG];

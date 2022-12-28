@@ -644,40 +644,40 @@
     <div v-if="currentTab === 'nv'" class="config-page">
       <!--NVENC SETTINGS-->
       <div class="mb-3">
-        <label for="nv_preset" class="form-label">NVEnc Preset</label>
+        <label for="nv_preset" class="form-label">NVENC Preset</label>
         <select id="nv_preset" class="form-select" v-model="config.nv_preset">
-          <option value="default">Default</option>
-          <option value="hp">High Performance</option>
-          <option value="hq">High Quality</option>
-          <option value="slow">Slow - hq 2 passes</option>
-          <option value="medium">medium -- hq 1 pass</option>
-          <option value="fast">fast -- hp 1 pass</option>
-          <option value="bd">bd</option>
+          <option value="p1">p1 -- fastest (lowest quality)</option>
+          <option value="p2">p2 -- faster (lower quality)</option>
+          <option value="p3">p3 -- fast (low quality)</option>
+          <option value="p4">p4 -- medium (default)</option>
+          <option value="p5">p5 -- slow (good quality)</option>
+          <option value="p6">p6 -- slower (better quality)</option>
+          <option value="p7">p7 -- slowest (best quality)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="nv_tune" class="form-label">NVENC Tune</label>
+        <select id="nv_tune" class="form-select" v-model="config.nv_tune">
+          <option value="hq">hq -- high quality</option>
           <option value="ll">ll -- low latency</option>
-          <option value="llhq">llhq</option>
-          <option value="llhp">llhp</option>
-          <option value="lossless">lossless</option>
-          <option value="losslesshp">losslesshp</option>
+          <option value="ull">ull -- ultra low latency (default)</option>
+          <option value="lossless">lossless -- lossless</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="nv_rc" class="form-label">NVEnc Rate Control</label>
+        <label for="nv_rc" class="form-label">NVENC Rate Control</label>
         <select id="nv_rc" class="form-select" v-model="config.nv_rc">
-          <option value="auto">auto -- let ffmpeg decide rate control</option>
-          <option value="constqp">constqp -- constant QP mode</option>
+          <option value="constqp">constqp -- constant qp mode</option>
           <option value="vbr">vbr -- variable bitrate</option>
-          <option value="cbr">cbr -- constant bitrate</option>
-          <option value="cbr_hq">cbr_hq -- cbr high quality</option>
-          <option value="cbr_ld_hq">cbr_ld_hq -- cbr low delay high quality</option>
-          <option value="vbr_hq">vbr_hq -- vbr high quality</option>
+          <option value="cbr">cbr -- constant bitrate (default)</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="nv_coder" class="form-label">NVEnc Coder</label>
+        <label for="nv_coder" class="form-label">NVENC Coder (H264)</label>
         <select id="nv_coder" class="form-select" v-model="config.nv_coder">
-          <option value="auto">auto</option>
-          <option value="cabac">cabac</option>
-          <option value="cavlc">cavlc</option>
+          <option value="auto">auto -- let ffmpeg decide (default)</option>
+          <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
+          <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
         </select>
       </div>
     </div>
@@ -685,33 +685,31 @@
     <div v-if="currentTab === 'amd'" class="config-page">
       <!--Presets-->
       <div class="mb-3">
-        <label for="amd_quality" class="form-label">AMD AMF Quality</label>
+        <label for="amd_quality" class="form-label">AMF Quality</label>
         <select
           id="amd_quality"
           class="form-select"
-          v-model="config.amd_quality"
-        >
-          <option value="default">Default</option>
-          <option value="speed">Speed</option>
-          <option value="balanced">Balanced</option>
+          v-model="config.amd_quality">
+          <option value="speed">speed -- prefer speed</option>
+          <option value="balanced">balanced -- balanced (default)</option>
+          <option value="quality">quality -- prefer quality</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="amd_rc" class="form-label">AMD AMF Rate Control</label>
+        <label for="amd_rc" class="form-label">AMF Rate Control</label>
         <select id="amd_rc" class="form-select" v-model="config.amd_rc">
-          <option value="auto">auto -- let ffmpeg decide rate control</option>
-          <option value="constqp">constqp -- constant QP mode</option>
-          <option value="vbr_latency">vbr_latency -- Latency Constrained Variable Bitrate</option>
-          <option value="vbr_peak">vbr_peak -- Peak Contrained Variable Bitrate</option>
+          <option value="cqp">cqp -- constant qp mode</option>
+          <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
+          <option value="vbr_peak">vbr_peak -- peak contrained variable bitrate</option>
           <option value="cbr">cbr -- constant bitrate</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="amd_coder" class="form-label">AMD AMF Coder</label>
+        <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
         <select id="amd_coder" class="form-select" v-model="config.amd_coder">
-          <option value="auto">auto</option>
-          <option value="cabac">cabac</option>
-          <option value="cavlc">cavlc</option>
+          <option value="auto">auto -- let ffmpeg decide (default)</option>
+          <option value="cabac">cabac -- context adaptive variable-length coding - higher quality</option>
+          <option value="cavlc">cavlc -- context adaptive binary arithmetic coding - faster decode</option>
         </select>
       </div>
     </div>
@@ -851,12 +849,13 @@
             this.config.origin_web_manager_allowed || "lan";
           this.config.hevc_mode = this.config.hevc_mode || 0;
           this.config.encoder = this.config.encoder || "";
-          this.config.nv_preset = this.config.nv_preset || "default";
-          this.config.nv_rc = this.config.nv_rc || "auto";
+          this.config.nv_preset = this.config.nv_preset || "p4";
+          this.config.nv_tune = this.config.nv_tune || "ull";
           this.config.nv_coder = this.config.nv_coder || "auto";
+          this.config.nv_rc = this.config.nv_rc || "cbr";
           this.config.amd_coder = this.config.amd_coder || "auto"
-          this.config.amd_quality = this.config.amd_quality || "default";
-          this.config.amd_rc = this.config.amd_rc || "auto";
+          this.config.amd_quality = this.config.amd_quality || "balanced";
+          this.config.amd_rc = this.config.amd_rc || "vbr_latency";
           this.config.vt_coder = this.config.vt_coder || "auto";
           this.config.vt_software = this.config.vt_software || "auto";
           this.config.vt_realtime = this.config.vt_realtime || "enabled";
