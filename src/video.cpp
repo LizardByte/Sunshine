@@ -20,7 +20,6 @@ extern "C" {
 #ifdef _WIN32
 extern "C" {
 #include <libavutil/hwcontext_d3d11va.h>
-#include <libavutil/hwcontext_qsv.h>
 }
 #endif
 
@@ -1835,9 +1834,8 @@ util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_c
 
 util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
 
-  AVBufferRef *hw_device_ctx = NULL;
-
-  AVDictionary *child_device_opts = NULL;
+  AVBufferRef *hw_device_ctx = nullptr;
+  AVDictionary *child_device_opts = nullptr;
 
   if(!config::video.qsv.child_device.empty()) {
     av_dict_set(&child_device_opts, "child_device", config::video.qsv.child_device.data(), 0);
@@ -1848,10 +1846,8 @@ util::Either<buffer_t, int> qsv_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ct
     return buf_or_error.right();
   }
 
-  auto dxgi_hwdevice_ctx = std::move(buf_or_error.left().get());
-
-  // auto err = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, NULL, child_device_opts, 0);
-  auto err = av_hwdevice_ctx_create_derived(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, dxgi_hwdevice_ctx, 0);
+  auto dxgi_hwdevice_ctx = buf_or_error.left().get();
+  auto err = av_hwdevice_ctx_create_derived_opts(&hw_device_ctx, AV_HWDEVICE_TYPE_QSV, dxgi_hwdevice_ctx, child_device_opts, 0);
 
   if(err) {
     char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };

@@ -410,6 +410,12 @@ public:
     frame->height = img.height;
     frame->width  = img.width;
 
+    // This resets the frame and produces bad output but does allow us to pass encoder checks
+//    if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
+//      BOOST_LOG(error) << "Couldn't get hwframe for QSV"sv;
+//      return -1;
+//    }
+
     AVFrame* qsv_frame = av_frame_alloc();
     qsv_frame->format = AV_PIX_FMT_QSV;
     av_hwframe_map(qsv_frame, frame, AV_HWFRAME_MAP_READ);
