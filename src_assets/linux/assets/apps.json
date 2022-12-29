@@ -4,7 +4,12 @@
   },
   "apps": [
     {
+      "name": "Desktop",
+      "image-path": "desktop.png"
+    },
+    {
       "name": "Low Res Desktop",
+      "image-path": "desktop.png",
       "prep-cmd": [
         {
           "do": "xrandr --output HDMI-1 --mode 1920x1080",

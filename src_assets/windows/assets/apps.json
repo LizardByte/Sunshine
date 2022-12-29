@@ -4,6 +4,10 @@
   },
   "apps": [
     {
+      "name": "Desktop",
+      "image-path": "desktop.png"
+    },
+    {
       "name": "Steam BigPicture",
       "output": "steam.txt",
       "detached": [
