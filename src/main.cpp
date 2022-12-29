@@ -136,15 +136,85 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
   { "version"sv, version::entry }
 };
 
+#ifdef _WIN32
+LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+  switch(uMsg) {
+  case WM_ENDSESSION: {
+    // Raise a SIGINT to trigger our cleanup logic and terminate ourselves
+    std::cout << "Received WM_ENDSESSION"sv << std::endl;
+    std::raise(SIGINT);
+
+    // The signal handling is asynchronous, so we will wait here to be terminated.
+    // If for some reason we don't terminate in a few seconds, Windows will kill us.
+    SuspendThread(GetCurrentThread());
+    return 0;
+  }
+  default:
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+  }
+}
+#endif
+
 int main(int argc, char *argv[]) {
   util::TaskPool::task_id_t force_shutdown = nullptr;
 
   bool shutdown_by_interrupt = false;
 
+#ifdef _WIN32
+  // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
+  SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
+
+  // We must create a hidden window to receive shutdown notifications since we load gdi32.dll
+  std::thread window_thread([]() {
+    WNDCLASSA wnd_class {};
+    wnd_class.lpszClassName = "SunshineSessionMonitorClass";
+    wnd_class.lpfnWndProc   = SessionMonitorWindowProc;
+    if(!RegisterClassA(&wnd_class)) {
+      std::cout << "Failed to register session monitor window class"sv << std::endl;
+      return;
+    }
+
+    auto wnd = CreateWindowExA(
+      0,
+      wnd_class.lpszClassName,
+      "Sunshine Session Monitor Window",
+      0,
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr);
+    if(!wnd) {
+      std::cout << "Failed to create session monitor window"sv << std::endl;
+      return;
+    }
+
+    ShowWindow(wnd, SW_HIDE);
+
+    // Run the message loop for our window
+    MSG msg {};
+    while(GetMessage(&msg, nullptr, 0, 0) > 0) {
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
+    }
+  });
+  window_thread.detach();
+#endif
+
   auto exit_guard = util::fail_guard([&shutdown_by_interrupt, &force_shutdown]() {
     if(!shutdown_by_interrupt) {
       return;
     }
+
+#ifdef _WIN32
+    // If this is running from a service with no console window, don't wait for user input to exit
+    if(GetConsoleWindow() == NULL) {
+      return;
+    }
+#endif
 
     task_pool.cancel(force_shutdown);
 

@@ -2,6 +2,8 @@
 #include <Windows.h>
 #include <wtsapi32.h>
 
+#include <string>
+
 // PROC_THREAD_ATTRIBUTE_JOB_LIST is currently missing from MinGW headers
 #ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
 #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(13, FALSE, TRUE, FALSE)
@@ -18,6 +20,8 @@ DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, L
   case SERVICE_CONTROL_INTERROGATE:
     return NO_ERROR;
 
+  case SERVICE_CONTROL_PRESHUTDOWN:
+    // The system is shutting down
   case SERVICE_CONTROL_STOP:
     // Let SCM know we're stopping in up to 30 seconds
     service_status.dwCurrentState     = SERVICE_STOP_PENDING;
@@ -125,6 +129,49 @@ HANDLE OpenLogFileHandle() {
     NULL);
 }
 
+bool RunTerminationHelper(HANDLE console_token, DWORD pid) {
+  WCHAR module_path[MAX_PATH];
+  GetModuleFileNameW(NULL, module_path, _countof(module_path));
+  std::wstring command { module_path };
+
+  command += L" --terminate " + std::to_wstring(pid);
+
+  STARTUPINFOW startup_info = {};
+  startup_info.cb           = sizeof(startup_info);
+  startup_info.lpDesktop    = (LPWSTR)L"winsta0\\default";
+
+  // Execute ourselves as a detached process in the user session with the --terminate argument.
+  // This will allow us to attach to Sunshine's console and send it a Ctrl-C event.
+  PROCESS_INFORMATION process_info;
+  if(!CreateProcessAsUserW(console_token,
+       NULL,
+       (LPWSTR)command.c_str(),
+       NULL,
+       NULL,
+       FALSE,
+       CREATE_UNICODE_ENVIRONMENT | DETACHED_PROCESS,
+       NULL,
+       NULL,
+       &startup_info,
+       &process_info)) {
+    return false;
+  }
+
+  // Wait for the termination helper to complete
+  WaitForSingleObject(process_info.hProcess, INFINITE);
+
+  // Check the exit status of the helper process
+  DWORD exit_code;
+  GetExitCodeProcess(process_info.hProcess, &exit_code);
+
+  // Cleanup handles
+  CloseHandle(process_info.hProcess);
+  CloseHandle(process_info.hThread);
+
+  // If the helper process returned 0, it succeeded
+  return exit_code == 0;
+}
+
 VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   service_status_handle = RegisterServiceCtrlHandlerEx(SERVICE_NAME, HandlerEx, NULL);
   if(service_status_handle == NULL) {
@@ -161,15 +208,6 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     return;
   }
 
-  auto job_handle = CreateJobObjectForChildProcess();
-  if(job_handle == NULL) {
-    // Tell SCM we failed to start
-    service_status.dwWin32ExitCode = GetLastError();
-    service_status.dwCurrentState  = SERVICE_STOPPED;
-    SetServiceStatus(service_status_handle, &service_status);
-    return;
-  }
-
   // We can use a single STARTUPINFOEXW for all the processes that we launch
   STARTUPINFOEXW startup_info         = {};
   startup_info.StartupInfo.cb         = sizeof(startup_info);
@@ -198,17 +236,8 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     NULL,
     NULL);
 
-  // Start Sunshine.exe inside our job object
-  UpdateProcThreadAttribute(startup_info.lpAttributeList,
-    0,
-    PROC_THREAD_ATTRIBUTE_JOB_LIST,
-    &job_handle,
-    sizeof(job_handle),
-    NULL,
-    NULL);
-
   // Tell SCM we're running (and stoppable now)
-  service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+  service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PRESHUTDOWN;
   service_status.dwCurrentState     = SERVICE_RUNNING;
   SetServiceStatus(service_status_handle, &service_status);
 
@@ -218,6 +247,22 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     if(console_token == NULL) {
       continue;
     }
+
+    // Job objects cannot span sessions, so we must create one for each process
+    auto job_handle = CreateJobObjectForChildProcess();
+    if(job_handle == NULL) {
+      CloseHandle(console_token);
+      continue;
+    }
+
+    // Start Sunshine.exe inside our job object
+    UpdateProcThreadAttribute(startup_info.lpAttributeList,
+      0,
+      PROC_THREAD_ATTRIBUTE_JOB_LIST,
+      &job_handle,
+      sizeof(job_handle),
+      NULL,
+      NULL);
 
     PROCESS_INFORMATION process_info;
     if(!CreateProcessAsUserW(console_token,
@@ -232,20 +277,21 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
          (LPSTARTUPINFOW)&startup_info,
          &process_info)) {
       CloseHandle(console_token);
+      CloseHandle(job_handle);
       continue;
     }
-
-    // Close handles that are no longer needed
-    CloseHandle(console_token);
-    CloseHandle(process_info.hThread);
 
     // Wait for either the stop event to be set or Sunshine.exe to terminate
     const HANDLE wait_objects[] = { stop_event, process_info.hProcess };
     switch(WaitForMultipleObjects(_countof(wait_objects), wait_objects, FALSE, INFINITE)) {
     case WAIT_OBJECT_0:
-      // The service is shutting down, so terminate Sunshine.exe.
-      // TODO: Send a graceful exit request and only terminate forcefully as a last resort.
-      TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
+      // The service is shutting down, so try to gracefully terminate Sunshine.exe.
+      // If it doesn't terminate in 20 seconds, we will forcefully terminate it.
+      if(!RunTerminationHelper(console_token, process_info.dwProcessId) ||
+         WaitForSingleObject(process_info.hProcess, 20000) != WAIT_OBJECT_0) {
+        // If it won't terminate gracefully, kill it now
+        TerminateProcess(process_info.hProcess, ERROR_PROCESS_ABORTED);
+      }
       break;
 
     case WAIT_OBJECT_0 + 1:
@@ -253,7 +299,10 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
       break;
     }
 
+    CloseHandle(process_info.hThread);
     CloseHandle(process_info.hProcess);
+    CloseHandle(console_token);
+    CloseHandle(job_handle);
   }
 
   // Let SCM know we've stopped
@@ -261,11 +310,34 @@ VOID WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
   SetServiceStatus(service_status_handle, &service_status);
 }
 
+// This will run in a child process in the user session
+int DoGracefulTermination(DWORD pid) {
+  // Attach to Sunshine's console
+  if(!AttachConsole(pid)) {
+    return GetLastError();
+  }
+
+  // Disable our own Ctrl-C handling
+  SetConsoleCtrlHandler(NULL, TRUE);
+
+  // Send a Ctrl-C event to Sunshine
+  if(!GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)) {
+    return GetLastError();
+  }
+
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   static const SERVICE_TABLE_ENTRY service_table[] = {
     { (LPSTR)SERVICE_NAME, ServiceMain },
     { NULL, NULL }
   };
+
+  // Check if this is a reinvocation of ourselves to send Ctrl-C to Sunshine.exe
+  if(argc == 3 && strcmp(argv[1], "--terminate") == 0) {
+    return DoGracefulTermination(atol(argv[2]));
+  }
 
   // By default, services have their current directory set to %SYSTEMROOT%\System32.
   // We want to use the directory where Sunshine.exe is located instead of system32.
