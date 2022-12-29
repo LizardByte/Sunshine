@@ -258,12 +258,12 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.c")
 ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml \
 ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             execute_process(
-                    COMMAND "wayland-scanner private-code \
-${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml \
-${CMAKE_BINARY_DIR}/generated-src/${filename}.c"
-                    COMMAND "wayland-scanner client-header \
-${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml \
-${CMAKE_BINARY_DIR}/generated-src/${filename}.h"
+                    COMMAND wayland-scanner private-code
+                        ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml
+                        ${CMAKE_BINARY_DIR}/generated-src/${filename}.c
+                    COMMAND wayland-scanner client-header
+                        ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml
+                        ${CMAKE_BINARY_DIR}/generated-src/${filename}.h
 
                     RESULT_VARIABLE EXIT_INT
             )
@@ -273,8 +273,8 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h"
             endif()
 
             list(APPEND PLATFORM_TARGET_FILES
-                    ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c
-                    ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h)
+                    ${CMAKE_BINARY_DIR}/generated-src/${filename}.c
+                    ${CMAKE_BINARY_DIR}/generated-src/${filename}.h)
         endmacro()
 
         GEN_WAYLAND(xdg-output-unstable-v1)
@@ -495,8 +495,7 @@ foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
     list(APPEND SUNSHINE_COMPILE_OPTIONS_CUDA "$<$<COMPILE_LANGUAGE:CUDA>:--compiler-options=${flag}>")
 endforeach()
 
-target_compile_options(sunshine PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:\
-${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>")
+target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 
 # CPACK / Packaging
 
