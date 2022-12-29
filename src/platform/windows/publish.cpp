@@ -25,8 +25,9 @@ using namespace std::literals;
 #define SV(quote) __SV(quote)
 
 extern "C" {
+constexpr auto DNS_REQUEST_PENDING = 9506L;
+
 #ifndef __MINGW32__
-constexpr auto DNS_REQUEST_PENDING        = 9506L;
 constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
 constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
 #endif
@@ -88,26 +89,17 @@ _FN(_DnsServiceRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _I
 
 namespace platf::publish {
 VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {
-  auto alarm = (safe::alarm_t<DNS_STATUS>::element_type *)pQueryContext;
-
-  auto fg = util::fail_guard([&]() {
-    if(pInstance) {
-      _DnsServiceFreeInstance(pInstance);
-    }
-  });
+  auto alarm = (safe::alarm_t<PDNS_SERVICE_INSTANCE>::element_type *)pQueryContext;
 
   if(status) {
     print_status("register_cb()"sv, status);
-    alarm->ring(-1);
-
-    return;
   }
 
-  alarm->ring(0);
+  alarm->ring(pInstance);
 }
 
-static int service(bool enable) {
-  auto alarm = safe::make_alarm<DNS_STATUS>();
+static int service(bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
+  auto alarm = safe::make_alarm<PDNS_SERVICE_INSTANCE>();
 
   std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
@@ -124,39 +116,66 @@ static int service(bool enable) {
   DNS_SERVICE_REGISTER_REQUEST req {};
   req.Version                     = DNS_QUERY_REQUEST_VERSION1;
   req.pQueryContext               = alarm.get();
-  req.pServiceInstance            = &instance;
+  req.pServiceInstance            = enable ? &instance : existing_instance;
   req.pRegisterCompletionCallback = register_cb;
 
   DNS_STATUS status {};
 
   if(enable) {
     status = _DnsServiceRegister(&req, nullptr);
+    if(status != DNS_REQUEST_PENDING) {
+      print_status("DnsServiceRegister()"sv, status);
+      return -1;
+    }
   }
   else {
     status = _DnsServiceDeRegister(&req, nullptr);
+    if(status != DNS_REQUEST_PENDING) {
+      print_status("DnsServiceDeRegister()"sv, status);
+      return -1;
+    }
   }
 
   alarm->wait();
 
-  status = *alarm->status();
-  if(status) {
-    BOOST_LOG(error) << "No mDNS service"sv;
-    return -1;
+  auto registered_instance = alarm->status();
+  if(enable) {
+    // Store this instance for later deregistration
+    existing_instance = registered_instance;
+  }
+  else if(registered_instance) {
+    // Deregistration was successful
+    _DnsServiceFreeInstance(registered_instance);
+    existing_instance = nullptr;
   }
 
-  return 0;
+  return registered_instance ? 0 : -1;
 }
 
-class deinit_t : public ::platf::deinit_t {
+class mdns_registration_t : public ::platf::deinit_t {
 public:
-  ~deinit_t() override {
-    if(service(false)) {
-      BOOST_LOG(error) << "Unable to unregister mDNS service"sv;
+  mdns_registration_t() : existing_instance(nullptr) {
+    if(service(true, existing_instance)) {
+      BOOST_LOG(error) << "Unable to register Sunshine mDNS service"sv;
       return;
     }
 
-    BOOST_LOG(info) << "Unregistered Sunshine Gamestream service"sv;
+    BOOST_LOG(info) << "Registered Sunshine mDNS service"sv;
   }
+
+  ~mdns_registration_t() override {
+    if(existing_instance) {
+      if(service(false, existing_instance)) {
+        BOOST_LOG(error) << "Unable to unregister Sunshine mDNS service"sv;
+        return;
+      }
+
+      BOOST_LOG(info) << "Unregistered Sunshine mDNS service"sv;
+    }
+  }
+
+private:
+  PDNS_SERVICE_INSTANCE existing_instance;
 };
 
 int load_funcs(HMODULE handle) {
@@ -185,12 +204,6 @@ std::unique_ptr<::platf::deinit_t> start() {
     return nullptr;
   }
 
-  if(service(true)) {
-    return nullptr;
-  }
-
-  BOOST_LOG(info) << "Registered Sunshine Gamestream service"sv;
-
-  return std::make_unique<deinit_t>();
+  return std::make_unique<mdns_registration_t>();
 }
 } // namespace platf::publish
