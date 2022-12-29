@@ -89,9 +89,7 @@ std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std
   if(!mic->mic) {
     auto err_str = pa_strerror(status);
     BOOST_LOG(error) << "pa_simple_new() failed: "sv << err_str;
-
-    log_flush();
-    std::abort();
+    return nullptr;
   }
 
   return mic;
@@ -232,10 +230,8 @@ public:
         auto status = pa_mainloop_run(loop, &retval);
 
         if(status < 0) {
-          BOOST_LOG(fatal) << "Couldn't run pulseaudio main loop"sv;
-
-          log_flush();
-          std::abort();
+          BOOST_LOG(error) << "Couldn't run pulseaudio main loop"sv;
+          return;
         }
       },
       loop.get()

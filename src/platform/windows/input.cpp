@@ -495,10 +495,7 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   }
 
   if(!VIGEM_SUCCESS(status)) {
-    BOOST_LOG(fatal) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-
-    log_flush();
-    std::abort();
+    BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
   }
 }
 

@@ -195,12 +195,6 @@ void proc_t::terminate() {
   _process_handle = bp::group();
   _app_id         = -1;
 
-  if(ec) {
-    BOOST_LOG(fatal) << "System: "sv << ec.message();
-    log_flush();
-    std::abort();
-  }
-
   for(; _undo_it != _undo_begin; --_undo_it) {
     auto &cmd = (_undo_it - 1)->undo_cmd;
 
@@ -213,15 +207,11 @@ void proc_t::terminate() {
     auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
 
     if(ec) {
-      BOOST_LOG(fatal) << "System: "sv << ec.message();
-      log_flush();
-      std::abort();
+      BOOST_LOG(warning) << "System: "sv << ec.message();
     }
 
     if(ret != 0) {
-      BOOST_LOG(fatal) << "Return code ["sv << ret << ']';
-      log_flush();
-      std::abort();
+      BOOST_LOG(warning) << "Return code ["sv << ret << ']';
     }
   }
 

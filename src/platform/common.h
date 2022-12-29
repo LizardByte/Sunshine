@@ -11,6 +11,7 @@
 #include <mutex>
 #include <string>
 
+#include "src/main.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
 
@@ -197,7 +198,7 @@ struct hwdevice_t {
    * implementations must take ownership of 'frame'
    */
   virtual int set_frame(AVFrame *frame) {
-    std::abort(); // ^ This function must never be called
+    BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
     return -1;
   };
 

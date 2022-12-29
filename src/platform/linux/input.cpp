@@ -902,6 +902,9 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
 
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   auto touchscreen = ((input_raw_t *)input.get())->touch_input.get();
+  if(!touchscreen) {
+    return;
+  }
 
   auto scaled_x = (int)std::lround((x + touch_port.offset_x) * ((float)target_touch_port.width / (float)touch_port.width));
   auto scaled_y = (int)std::lround((y + touch_port.offset_y) * ((float)target_touch_port.height / (float)touch_port.height));
@@ -916,6 +919,9 @@ void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y)
 
 void move_mouse(input_t &input, int deltaX, int deltaY) {
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
+  if(!mouse) {
+    return;
+  }
 
   if(deltaX) {
     libevdev_uinput_write_event(mouse, EV_REL, REL_X, deltaX);
@@ -954,6 +960,10 @@ void button_mouse(input_t &input, int button, bool release) {
   }
 
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
+  if(!mouse) {
+    return;
+  }
+
   libevdev_uinput_write_event(mouse, EV_MSC, MSC_SCAN, scan);
   libevdev_uinput_write_event(mouse, EV_KEY, btn_type, release ? 0 : 1);
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
@@ -963,6 +973,10 @@ void scroll(input_t &input, int high_res_distance) {
   int distance = high_res_distance / 120;
 
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
+  if(!mouse) {
+    return;
+  }
+
   libevdev_uinput_write_event(mouse, EV_REL, REL_WHEEL, distance);
   libevdev_uinput_write_event(mouse, EV_REL, REL_WHEEL_HI_RES, high_res_distance);
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
@@ -978,6 +992,9 @@ static keycode_t keysym(std::uint16_t modcode) {
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
   auto keyboard = ((input_raw_t *)input.get())->keyboard_input.get();
+  if(!keyboard) {
+    return;
+  }
 
   auto keycode = keysym(modcode);
   if(keycode.keycode == UNKNOWN) {
@@ -1255,10 +1272,13 @@ input_t input() {
   gp.mouse_dev    = mouse();
   gp.gamepad_dev  = x360();
 
-  // If we do not have a keyboard, gamepad or mouse, no input is possible and we should abort
-  if(gp.create_mouse() || gp.create_touchscreen() || gp.create_keyboard()) {
-    log_flush();
-    std::abort();
+  gp.create_mouse();
+  gp.create_touchscreen();
+  gp.create_keyboard();
+
+  // If we do not have a keyboard, touchscreen, or mouse, no input is possible
+  if(!gp.mouse_input && !gp.touch_input && !gp.keyboard_input) {
+    BOOST_LOG(error) << "Unable to create any input devices! Are you a member of the 'input' group?"sv;
   }
 
   return result;
