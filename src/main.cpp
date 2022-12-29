@@ -158,8 +158,6 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 int main(int argc, char *argv[]) {
   util::TaskPool::task_id_t force_shutdown = nullptr;
 
-  bool shutdown_by_interrupt = false;
-
 #ifdef _WIN32
   // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
   SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
@@ -203,26 +201,6 @@ int main(int argc, char *argv[]) {
   });
   window_thread.detach();
 #endif
-
-  auto exit_guard = util::fail_guard([&shutdown_by_interrupt, &force_shutdown]() {
-    if(!shutdown_by_interrupt) {
-      return;
-    }
-
-#ifdef _WIN32
-    // If this is running from a service with no console window, don't wait for user input to exit
-    if(GetConsoleWindow() == NULL) {
-      return;
-    }
-#endif
-
-    task_pool.cancel(force_shutdown);
-
-    std::cout << "Sunshine exited: Press enter to continue"sv << std::endl;
-
-    std::string _;
-    std::getline(std::cin, _);
-  });
 
   mail::man = std::make_shared<safe::mail_raw_t>();
 
@@ -304,7 +282,7 @@ int main(int argc, char *argv[]) {
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-  on_signal(SIGINT, [&shutdown_by_interrupt, &force_shutdown, shutdown_event]() {
+  on_signal(SIGINT, [&force_shutdown, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
 
     auto task = []() {
@@ -314,7 +292,6 @@ int main(int argc, char *argv[]) {
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
-    shutdown_by_interrupt = true;
     shutdown_event->raise(true);
   });
 

@@ -150,7 +150,7 @@ int proc_t::execute(int app_id) {
   }
 
   if(proc.cmd.empty()) {
-    BOOST_LOG(debug) << "Executing [Desktop]"sv;
+    BOOST_LOG(info) << "Executing [Desktop]"sv;
     placebo = true;
   }
   else {
@@ -202,7 +202,7 @@ void proc_t::terminate() {
       continue;
     }
 
-    BOOST_LOG(debug) << "Executing: ["sv << cmd << ']';
+    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
 
     auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
 
