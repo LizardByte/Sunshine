@@ -209,6 +209,13 @@ int main(int argc, char *argv[]) {
       return;
     }
 
+#ifdef _WIN32
+    // If this is running from a service with no console window, don't wait for user input to exit
+    if(GetConsoleWindow() == NULL) {
+      return;
+    }
+#endif
+
     task_pool.cancel(force_shutdown);
 
     std::cout << "Sunshine exited: Press enter to continue"sv << std::endl;
