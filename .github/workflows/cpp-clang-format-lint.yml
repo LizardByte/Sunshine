@@ -88,4 +88,4 @@ jobs:
 
       - name: Test with cmake-lint
         run: |
-          cmake-lint ${{ steps.cmake_files.outputs.cmake_files }}
+          cmake-lint --line-width 120 --tab-size 4 ${{ steps.cmake_files.outputs.cmake_files }}

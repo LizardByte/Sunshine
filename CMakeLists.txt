@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(Sunshine VERSION 0.16.0
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
-        HOMEPAGE_URL "https://app.lizardbyte.dev"
-        )
+        HOMEPAGE_URL "https://app.lizardbyte.dev")
 
 set(PROJECT_LONG_DESCRIPTION "Offering low latency, cloud gaming server capabilities with support for AMD, Intel, \
 and Nvidia GPUs for hardware encoding. Software encoding is also available. You can connect to Sunshine from any \
@@ -36,6 +35,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(SUNSHINE_SOURCE_ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src_assets")
 
 if(APPLE)
+    # ADD_FRAMEWORK: args = `fwname`, `appname`
     macro(ADD_FRAMEWORK fwname appname)
         find_library(FRAMEWORK_${fwname}
                 NAMES ${fwname}
@@ -67,7 +67,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules (CURL REQUIRED libcurl)
 
 if(NOT APPLE)
-    set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
 endif()
 find_package(Boost COMPONENTS log filesystem program_options REQUIRED)
 
@@ -125,11 +125,12 @@ if(WIN32)
             dwmapi
             userenv
             synchronization.lib
-            ${CURL_STATIC_LIBRARIES}
-            )
+            ${CURL_STATIC_LIBRARIES})
 
-    set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
-    set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
+    set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp
+            PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
+    set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp
+            PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
 elseif(APPLE)
     add_compile_definitions(SUNSHINE_PLATFORM="macos")
 
@@ -246,14 +247,23 @@ else()
 
     if(WAYLAND_FOUND)
         add_compile_definitions(SUNSHINE_BUILD_WAYLAND)
-        macro(genWayland FILENAME)
+        # GEN_WAYLAND: args = `filename`
+        macro(GEN_WAYLAND filename)
             file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated-src)
 
-            message("wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c")
-            message("wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h")
+            message("wayland-scanner private-code \
+${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml \
+${CMAKE_BINARY_DIR}/generated-src/${filename}.c")
+            message("wayland-scanner client-header \
+${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml \
+${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             execute_process(
-                    COMMAND wayland-scanner private-code ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c
-                    COMMAND wayland-scanner client-header ${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${FILENAME}.xml ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h
+                    COMMAND "wayland-scanner private-code \
+${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml \
+${CMAKE_BINARY_DIR}/generated-src/${filename}.c"
+                    COMMAND "wayland-scanner client-header \
+${CMAKE_SOURCE_DIR}/third-party/wayland-protocols/${filename}.xml \
+${CMAKE_BINARY_DIR}/generated-src/${filename}.h"
 
                     RESULT_VARIABLE EXIT_INT
             )
@@ -264,12 +274,11 @@ else()
 
             list(APPEND PLATFORM_TARGET_FILES
                     ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.c
-                    ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h
-                    )
+                    ${CMAKE_BINARY_DIR}/generated-src/${FILENAME}.h)
         endmacro()
 
-        genWayland(xdg-output-unstable-v1)
-        genWayland(wlr-export-dmabuf-unstable-v1)
+        GEN_WAYLAND(xdg-output-unstable-v1)
+        GEN_WAYLAND(wlr-export-dmabuf-unstable-v1)
 
         include_directories(
                 ${WAYLAND_INCLUDE_DIRS}
@@ -310,8 +319,7 @@ else()
             evdev
             numa
             pulse
-            pulse-simple
-            )
+            pulse-simple)
 
     include_directories(
             /usr/include/libevdev-1.0
@@ -472,8 +480,7 @@ target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
 set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
         VERSION ${PROJECT_VERSION}
-        SOVERSION ${PROJECT_VERSION_MAJOR}
-        )
+        SOVERSION ${PROJECT_VERSION_MAJOR})
 
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
     set(CMAKE_CUDA_STANDARD 17)
@@ -488,7 +495,8 @@ foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
     list(APPEND SUNSHINE_COMPILE_OPTIONS_CUDA "$<$<COMPILE_LANGUAGE:CUDA>:--compiler-options=${flag}>")
 endforeach()
 
-target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)
+target_compile_options(sunshine PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:\
+${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>")
 
 # CPACK / Packaging
 
@@ -506,7 +514,8 @@ set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set(CPACK_STRIP_FILES YES)
 
 # install npm modules
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/node_modules" DESTINATION "${SUNSHINE_ASSETS_DIR}/web")
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/node_modules"
+        DESTINATION "${SUNSHINE_ASSETS_DIR}/web")
 
 # Platform specific options
 if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
@@ -518,17 +527,26 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
 
     # scripts
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/" DESTINATION "scripts" COMPONENT firewall)
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/" DESTINATION "scripts" COMPONENT service)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
+            DESTINATION "scripts"
+            COMPONENT firewall)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
+            DESTINATION "scripts"
+            COMPONENT service)
 
     # Sunshine assets
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}" COMPONENT assets)
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}" COMPONENT assets)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
+            DESTINATION "${SUNSHINE_ASSETS_DIR}"
+            COMPONENT assets)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
+            DESTINATION "${SUNSHINE_ASSETS_DIR}"
+            COMPONENT assets)
 
     # set(CPACK_NSIS_MUI_HEADERIMAGE "") # TODO: image should be 150x57 bmp
     set(CPACK_PACKAGE_ICON "${CMAKE_CURRENT_SOURCE_DIR}\\\\sunshine.ico")
     set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
-    set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")  # The name of the directory that will be created in C:/Program files/
+    # The name of the directory that will be created in C:/Program files/
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")
 
     # Extra install commands
     # Sets permissions on the installed folder so that we can write in it
@@ -539,34 +557,41 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to add/update ViGEmBus (virtual controller support)?' IDNO NoController
-            ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://github.com/ViGEm/ViGEmBus/releases/latest\\\"' ; skipped if no
+        MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to add/update ViGEmBus (virtual controller support)?' \
+            IDNO NoController
+            ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://github.com/ViGEm/ViGEmBus/releases/latest\\\"'; \
+                skipped if no
         NoController:
         ")
 
     # Extra uninstall commands
     # Uninstall service
     set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
-            "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
-		ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
-    	ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
-	MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' /SD IDNO IDNO NoDelete
-      		RMDir /r \\\"$INSTDIR\\\" ; skipped if no
-    	NoDelete:
-		")
+        "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
+        ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
+        ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
+        MessageBox MB_YESNO|MB_ICONQUESTION \
+            'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
+            /SD IDNO IDNO NoDelete
+            RMDir /r \\\"$INSTDIR\\\"; skipped if no
+        NoDelete:
+        ")
 
     # Adding an option for the start menu and PATH
-    set(CPACK_NSIS_MODIFY_PATH "OFF") # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
+    # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
+    set(CPACK_NSIS_MODIFY_PATH "OFF")
     set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-    set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")  # This will be shown on the installed apps Windows settings
+    # This will be shown on the installed apps Windows settings
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
     set(CPACK_NSIS_CREATE_ICONS_EXTRA
-            "${CPACK_NSIS_CREATE_ICONS_EXTRA}
-		CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
-		")
+        "${CPACK_NSIS_CREATE_ICONS_EXTRA}
+        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' \
+            '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
+        ")
     set(CPACK_NSIS_DELETE_ICONS_EXTRA
-            "${CPACK_NSIS_DELETE_ICONS_EXTRA}
-		Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
-		")
+        "${CPACK_NSIS_DELETE_ICONS_EXTRA}
+        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
+        ")
 
     # Checking for previous installed versions
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
@@ -578,8 +603,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_NSIS_MENU_LINKS
             "https://sunshinestream.readthedocs.io" "Sunshine documentation"
             "https://app.lizardbyte.dev" "LizardByte Web Site"
-            "https://app.lizardbyte.dev/support" "LizardByte Support"
-            )
+            "https://app.lizardbyte.dev/support" "LizardByte Support")
 
     # Setting components groups and dependencies
     # sunshine binary
@@ -629,11 +653,13 @@ if(APPLE)
     # set(CPACK_BUNDLE_STARTUP_COMMAND "${INSTALL_RUNTIME_DIR}/sunshine")
 endif()
 if(APPLE AND SUNSHINE_MACOS_PACKAGE)  # TODO
-    set(prefix "${CMAKE_PROJECT_NAME}.app/Contents")
-    set(INSTALL_RUNTIME_DIR "${prefix}/MacOS")
+    set(MAC_PREFIX "${CMAKE_PROJECT_NAME}.app/Contents")
+    set(INSTALL_RUNTIME_DIR "${MAC_PREFIX}/MacOS")
 
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
+            DESTINATION "${SUNSHINE_ASSETS_DIR}")
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/"
+            DESTINATION "${SUNSHINE_ASSETS_DIR}")
 
     install(TARGETS sunshine
             BUNDLE DESTINATION . COMPONENT Runtime
@@ -647,19 +673,27 @@ elseif(UNIX)
 
     install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
+            DESTINATION "${SUNSHINE_ASSETS_DIR}")
 
     if(APPLE)
-        install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
-        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/misc/uninstall_pkg.sh" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+        install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/"
+                DESTINATION "${SUNSHINE_ASSETS_DIR}")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/misc/uninstall_pkg.sh"
+                DESTINATION "${SUNSHINE_ASSETS_DIR}")
     else()
-        install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/" DESTINATION "${SUNSHINE_ASSETS_DIR}")
+        install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
+                DESTINATION "${SUNSHINE_ASSETS_DIR}")
         if(${SUNSHINE_CONFIGURE_APPIMAGE} OR ${SUNSHINE_CONFIGURE_FLATPAK})
-            install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
-            install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
+            install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules"
+                    DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
+            install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
+                    DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
         else()
-            install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules" DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d")
-            install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service" DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
+            install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules"
+                    DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d")
+            install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
+                    DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
         endif()
 
         # Post install
@@ -668,9 +702,37 @@ elseif(UNIX)
 
         # Dependencies
         set(CPACK_DEB_COMPONENT_INSTALL ON)
-        set(CPACK_DEBIAN_PACKAGE_DEPENDS "openssl, libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, libcurl4, libpulse0, libopus0, libxcb-shm0, libxcb-xfixes0, libxtst6, libevdev2, libdrm2, libcap2")
-        set(CPACK_RPM_PACKAGE_REQUIRES "openssl >= 1.1, boost-thread >= 1.67.0, boost-filesystem >= 1.67.0, boost-log >= 1.67.0, boost-program-options >= 1.67.0, libcurl >= 7.0, pulseaudio-libs >= 10.0, libopusenc >= 0.2.1, libxcb >= 1.13, libXtst >= 1.2.3, libevdev >= 1.5.6, libdrm >= 2.4.97, libcap >= 2.22")
-        set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)  # This should automatically figure out dependencies, doesn't work with the current config
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, \
+                libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, \
+                libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, \
+                libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, \
+                libcap2, \
+                libcurl4, \
+                libdrm2, \
+                libevdev2, \
+                libopus0, \
+                libpulse0, \
+                libxcb-shm0, \
+                libxcb-xfixes0, \
+                libxtst6, \
+                openssl")
+        set(CPACK_RPM_PACKAGE_REQUIRES "\
+                boost-filesystem >= 1.67.0, \
+                boost-log >= 1.67.0, \
+                boost-program-options >= 1.67.0, \
+                boost-thread >= 1.67.0, \
+                libcap >= 2.22, \
+                libcurl >= 7.0, \
+                libdrm >= 2.4.97, \
+                libevdev >= 1.5.6, \
+                libopusenc >= 0.2.1, \
+                libxcb >= 1.13, \
+                libXtst >= 1.2.3, \
+                openssl >= 1.1, \
+                pulseaudio-libs >= 10.0")
+        # This should automatically figure out dependencies, doesn't work with the current config
+        set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
     endif()
 endif()
 
