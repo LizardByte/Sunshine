@@ -3,7 +3,7 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-name: Clang Format Lint
+name: C++ Lint
 
 on:
   pull_request:
@@ -60,7 +60,7 @@ jobs:
           path: src/
 
   cmake-lint:
-    name: CMake lint
+    name: CMake Lint
     runs-on: ubuntu-latest
 
     steps:
