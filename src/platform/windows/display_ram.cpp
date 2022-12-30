@@ -210,6 +210,14 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     return capture_status;
   }
 
+  const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
+  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0 || !img_info.pData;
+  const bool update_flag       = mouse_update_flag || frame_update_flag;
+
+  if(!update_flag) {
+    return capture_e::timeout;
+  }
+
   if(frame_info.PointerShapeBufferSize > 0) {
     auto &img_data = cursor.img_data;
 
@@ -230,8 +238,7 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     cursor.visible = frame_info.PointerPosition.Visible;
   }
 
-  // If frame has been updated
-  if(frame_info.LastPresentTime.QuadPart != 0) {
+  if(frame_update_flag) {
     {
       texture2d_t src {};
       status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
@@ -284,16 +291,6 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     }
   }
 
-  const bool mouse_update =
-    (frame_info.LastMouseUpdateTime.QuadPart || frame_info.PointerShapeBufferSize > 0) &&
-    (cursor_visible && cursor.visible);
-
-  const bool update_flag = frame_info.LastPresentTime.QuadPart != 0 || mouse_update;
-
-  if(!update_flag) {
-    return capture_e::timeout;
-  }
-
   // Now that we know the capture format, we can finish creating the image
   if(complete_img(img, false)) {
     return capture_e::error;
@@ -327,6 +324,11 @@ int display_ram_t::complete_img(platf::img_t *img, bool dummy) {
 
   img->pixel_pitch = get_pixel_pitch();
 
+  if(dummy && !img->row_pitch) {
+    // Assume our dummy image will have no padding
+    img->row_pitch = img->pixel_pitch * img->width;
+  }
+
   // Reallocate the image buffer if the pitch changes
   if(!dummy && img->row_pitch != img_info.RowPitch) {
     img->row_pitch = img_info.RowPitch;
@@ -342,11 +344,6 @@ int display_ram_t::complete_img(platf::img_t *img, bool dummy) {
 }
 
 int display_ram_t::dummy_img(platf::img_t *img) {
-  if(!img->row_pitch) {
-    // Assume our dummy image will have no padding
-    img->row_pitch = 4 * img->width;
-  }
-
   return complete_img(img, true);
 }
 
