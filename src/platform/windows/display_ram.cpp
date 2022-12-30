@@ -241,6 +241,32 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
         return capture_e::error;
       }
 
+      // If we don't know the capture format yet, grab it from this texture and create the staging texture
+      if(capture_format == DXGI_FORMAT_UNKNOWN) {
+        D3D11_TEXTURE2D_DESC desc;
+        src->GetDesc(&desc);
+
+        capture_format = desc.Format;
+        BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
+
+        D3D11_TEXTURE2D_DESC t {};
+        t.Width            = width;
+        t.Height           = height;
+        t.MipLevels        = 1;
+        t.ArraySize        = 1;
+        t.SampleDesc.Count = 1;
+        t.Usage            = D3D11_USAGE_STAGING;
+        t.Format           = capture_format;
+        t.CPUAccessFlags   = D3D11_CPU_ACCESS_READ;
+
+        auto status = device->CreateTexture2D(&t, nullptr, &texture);
+
+        if(FAILED(status)) {
+          BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
+          return capture_e::error;
+        }
+      }
+
       //Copy from GPU to CPU
       device_ctx->CopyResource(texture.get(), src.get());
     }
@@ -268,6 +294,11 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     return capture_e::timeout;
   }
 
+  // Now that we know the capture format, we can finish creating the image
+  if(complete_img(img, false)) {
+    return capture_e::error;
+  }
+
   std::copy_n((std::uint8_t *)img_info.pData, height * img_info.RowPitch, (std::uint8_t *)img->data);
 
   if(cursor_visible && cursor.visible) {
@@ -280,45 +311,47 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
 std::shared_ptr<platf::img_t> display_ram_t::alloc_img() {
   auto img = std::make_shared<img_t>();
 
-  img->pixel_pitch = get_pixel_pitch();
-  img->row_pitch   = img_info.RowPitch;
-  img->width       = width;
-  img->height      = height;
-  img->data        = new std::uint8_t[img->row_pitch * height];
+  // Initialize fields that are format-independent
+  img->width  = width;
+  img->height = height;
 
   return img;
 }
 
-int display_ram_t::dummy_img(platf::img_t *img) {
+int display_ram_t::complete_img(platf::img_t *img, bool dummy) {
+  // If this is not a dummy image, we must know the format by now
+  if(!dummy && capture_format == DXGI_FORMAT_UNKNOWN) {
+    BOOST_LOG(error) << "display_ram_t::complete_img() called with unknown capture format!";
+    return -1;
+  }
+
+  img->pixel_pitch = get_pixel_pitch();
+
+  // Reallocate the image buffer if the pitch changes
+  if(!dummy && img->row_pitch != img_info.RowPitch) {
+    img->row_pitch = img_info.RowPitch;
+    delete img->data;
+    img->data = nullptr;
+  }
+
+  if(!img->data) {
+    img->data = new std::uint8_t[img->row_pitch * height];
+  }
+
   return 0;
+}
+
+int display_ram_t::dummy_img(platf::img_t *img) {
+  if(!img->row_pitch) {
+    // Assume our dummy image will have no padding
+    img->row_pitch = 4 * img->width;
+  }
+
+  return complete_img(img, true);
 }
 
 int display_ram_t::init(int framerate, const std::string &display_name) {
   if(display_base_t::init(framerate, display_name)) {
-    return -1;
-  }
-
-  D3D11_TEXTURE2D_DESC t {};
-  t.Width            = width;
-  t.Height           = height;
-  t.MipLevels        = 1;
-  t.ArraySize        = 1;
-  t.SampleDesc.Count = 1;
-  t.Usage            = D3D11_USAGE_STAGING;
-  t.Format           = format;
-  t.CPUAccessFlags   = D3D11_CPU_ACCESS_READ;
-
-  auto status = device->CreateTexture2D(&t, nullptr, &texture);
-
-  if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
-    return -1;
-  }
-
-  // map the texture simply to get the pitch and stride
-  status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
-  if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
   }
 

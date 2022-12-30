@@ -118,7 +118,7 @@ public:
   device_ctx_t device_ctx;
   duplication_t dup;
 
-  DXGI_FORMAT format;
+  DXGI_FORMAT capture_format;
   D3D_FEATURE_LEVEL feature_level;
 
   typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
@@ -134,8 +134,12 @@ public:
 
 protected:
   int get_pixel_pitch() {
-    return (format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
+    return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
   }
+
+  const char *dxgi_format_to_string(DXGI_FORMAT format);
+
+  virtual int complete_img(img_t *img, bool dummy) = 0;
 };
 
 class display_ram_t : public display_base_t {
@@ -146,6 +150,7 @@ public:
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img) override;
+  int complete_img(img_t *img, bool dummy) override;
 
   int init(int framerate, const std::string &display_name);
 
@@ -161,6 +166,7 @@ public:
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;
+  int complete_img(img_t *img_base, bool dummy) override;
 
   int init(int framerate, const std::string &display_name);
 
