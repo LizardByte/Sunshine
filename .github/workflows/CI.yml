@@ -9,6 +9,10 @@ on:
     branches: [master, nightly]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   github_env:
     name: GitHub Env Debug
