@@ -341,7 +341,7 @@ void saveApp(resp_https_t response, req_https_t request) {
   }
 
   outputTree.put("status", "true");
-  proc::parse(config::stream.file_apps);
+  proc::refresh(config::stream.file_apps);
 }
 
 void deleteApp(resp_https_t response, req_https_t request) {
@@ -389,7 +389,7 @@ void deleteApp(resp_https_t response, req_https_t request) {
   }
 
   outputTree.put("status", "true");
-  proc::parse(config::stream.file_apps);
+  proc::refresh(config::stream.file_apps);
 }
 
 void uploadCover(resp_https_t response, req_https_t request) {

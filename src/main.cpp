@@ -308,7 +308,7 @@ int main(int argc, char *argv[]) {
     shutdown_event->raise(true);
   });
 
-  proc::parse(config::stream.file_apps);
+  proc::refresh(config::stream.file_apps);
 
   auto deinit_guard = platf::init();
   if(!deinit_guard) {

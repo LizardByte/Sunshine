@@ -441,4 +441,12 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
   return std::nullopt;
 }
+
+void refresh(const std::string &file_name) {
+  auto proc_opt = proc::parse(file_name);
+
+  if(proc_opt) {
+    proc = std::move(*proc_opt);
+  }
+}
 } // namespace proc

@@ -11,7 +11,7 @@
       "name": "Steam BigPicture",
       "output": "steam.txt",
       "detached": [
-        "steam steam://open/bigpicture"
+        "open steam://open/bigpicture"
       ],
       "image-path": "steam.png"
     }
