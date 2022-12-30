@@ -292,38 +292,44 @@ int display_base_t::init(int framerate, const std::string &display_name) {
 
   //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
   {
-    const DXGI_FORMAT DesktopFormats[] = {
-      DXGI_FORMAT_R8G8B8A8_UNORM,
-      DXGI_FORMAT_B8G8R8A8_UNORM,
-      DXGI_FORMAT_R16G16B16A16_FLOAT,
-      DXGI_FORMAT_R10G10B10A2_UNORM,
-    };
-    const unsigned DesktopFormatsCounts = sizeof(DesktopFormats) / sizeof(DesktopFormats[0]);
     dxgi::output1_t output1 {};
     dxgi::output5_t output5 {};
 
+    // IDXGIOutput5 is optional, but can provide improved performance and wide color support
     status = output->QueryInterface(IID_IDXGIOutput5, (void **)&output5);
     if(FAILED(status)) {
       BOOST_LOG(warning) << "Failed to query IDXGIOutput5 from the output"sv;
+    }
 
-      status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
-      if(FAILED(status)) {
-        BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+    status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+      return -1;
+    }
+
+    if(output5) {
+      // Ask the display implementation which formats it supports
+      auto supported_formats = get_supported_sdr_capture_formats();
+      if(supported_formats.empty()) {
+        BOOST_LOG(warning) << "No compatible capture formats for this encoder"sv;
         return -1;
       }
-    }
 
-    // We try this twice, in case we still get an error on reinitialization
-    for(int x = 0; x < 2; ++x) {
-      status = output5->DuplicateOutput1((IUnknown *)device.get(), 0, DesktopFormatsCounts, DesktopFormats, &dup.dup);
-      if(SUCCEEDED(status)) {
-        break;
+      // We try this twice, in case we still get an error on reinitialization
+      for(int x = 0; x < 2; ++x) {
+        status = output5->DuplicateOutput1((IUnknown *)device.get(), 0, supported_formats.size(), supported_formats.data(), &dup.dup);
+        if(SUCCEEDED(status)) {
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
       }
-      std::this_thread::sleep_for(200ms);
+
+      if(FAILED(status)) {
+        BOOST_LOG(warning) << "DuplicateOutput1 Failed [0x"sv << util::hex(status).to_string_view() << ']';
+      }
     }
 
-    if(FAILED(status)) {
-      BOOST_LOG(warning) << "DuplicateOutput1 Failed [0x"sv << util::hex(status).to_string_view() << ']';
+    if(!output5 || FAILED(status)) {
       for(int x = 0; x < 2; ++x) {
         status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
         if(SUCCEEDED(status)) {

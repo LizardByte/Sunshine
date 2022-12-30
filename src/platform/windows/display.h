@@ -140,7 +140,8 @@ protected:
 
   const char *dxgi_format_to_string(DXGI_FORMAT format);
 
-  virtual int complete_img(img_t *img, bool dummy) = 0;
+  virtual int complete_img(img_t *img, bool dummy)                     = 0;
+  virtual std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() = 0;
 };
 
 class display_ram_t : public display_base_t {
@@ -152,6 +153,7 @@ public:
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img) override;
   int complete_img(img_t *img, bool dummy) override;
+  std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() override;
 
   int init(int framerate, const std::string &display_name);
 
@@ -168,6 +170,7 @@ public:
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;
   int complete_img(img_t *img_base, bool dummy) override;
+  std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() override;
 
   int init(int framerate, const std::string &display_name);
 

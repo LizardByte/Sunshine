@@ -791,6 +791,10 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
   return complete_img(img_base, true);
 }
 
+std::vector<DXGI_FORMAT> display_vram_t::get_supported_sdr_capture_formats() {
+  return std::vector { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
+}
+
 std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_fmt) {
   if(pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
     BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
