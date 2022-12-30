@@ -49,6 +49,20 @@
           The minimum log level printed to standard out
         </div>
       </div>
+      <!--Log Path-->
+      <div class="mb-3">
+        <label for="log_path" class="form-label">Logfile Path</label>
+        <input
+          type="text"
+          class="form-control"
+          id="log_ppath"
+          placeholder="sunshine.log"
+          v-model="config.log_path"
+        />
+        <div class="form-text">
+          The file where the current logs of Sunshine are stored.
+        </div>
+      </div>
       <!--Origin Web UI Allowed-->
       <div class="mb-3">
         <label for="origin_web_ui_allowed" class="form-label"

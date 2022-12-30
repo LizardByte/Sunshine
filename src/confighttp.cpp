@@ -279,7 +279,7 @@ void getLogs(resp_https_t response, req_https_t request) {
 
   print_req(request);
 
-  std::string content = read_file(logging::get_log_path().string().c_str());
+  std::string content = read_file(config::sunshine.log_file.c_str());
   SimpleWeb::CaseInsensitiveMultimap headers;
   headers.emplace("Content-Type", "text/plain");
   response->write(SimpleWeb::StatusCode::success_ok, content, headers);

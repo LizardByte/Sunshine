@@ -336,6 +336,7 @@ sunshine_t sunshine {
   platf::appdata().string() + "/sunshine.conf", // config file
   {},                                           // cmd args
   47989,
+  platf::appdata().string() + "/sunshine.log", // log file
 };
 
 bool endline(char ch) {
@@ -788,7 +789,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   path_f(vars, "pkey", nvhttp.pkey);
   path_f(vars, "cert", nvhttp.cert);
   string_f(vars, "sunshine_name", nvhttp.sunshine_name);
-
+  path_f(vars, "log_path", config::sunshine.log_file);
   path_f(vars, "file_state", nvhttp.file_state);
 
   // Must be run after "file_state"

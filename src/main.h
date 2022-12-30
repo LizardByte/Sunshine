@@ -51,8 +51,4 @@ MAIL(idr);
 MAIL(rumble);
 #undef MAIL
 } // namespace mail
-
-namespace logging {
-std::filesystem::path get_log_path();
-} // namespace logging
 #endif // SUNSHINE_MAIN_H
