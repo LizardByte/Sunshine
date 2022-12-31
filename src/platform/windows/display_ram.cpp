@@ -248,11 +248,11 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
         return capture_e::error;
       }
 
+      D3D11_TEXTURE2D_DESC desc;
+      src->GetDesc(&desc);
+
       // If we don't know the capture format yet, grab it from this texture and create the staging texture
       if(capture_format == DXGI_FORMAT_UNKNOWN) {
-        D3D11_TEXTURE2D_DESC desc;
-        src->GetDesc(&desc);
-
         capture_format = desc.Format;
         BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
 
@@ -272,6 +272,20 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
           BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
           return capture_e::error;
         }
+      }
+
+      // It's possible for our display enumeration to race with mode changes and result in
+      // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
+      if(desc.Width != width || desc.Height != height) {
+        BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
+        return capture_e::reinit;
+      }
+
+      // It's also possible for the capture format to change on the fly. If that happens,
+      // reinitialize capture to try format detection again and create new images.
+      if(capture_format != desc.Format) {
+        BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
+        return capture_e::reinit;
       }
 
       //Copy from GPU to CPU
