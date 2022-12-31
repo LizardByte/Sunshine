@@ -298,6 +298,13 @@ void saveApp(resp_https_t response, req_https_t request) {
     pt::read_json(ss, inputTree);
     pt::read_json(config::stream.file_apps, fileTree);
 
+    // Moonlight checks the id of an item to determine if an item was changed
+    // Add a property named "id" to the inputTree with a value of the current timestamp
+    // Time is in seconds because some Moonlight clients cannot accept more than a 32-bit integer
+    // Milliseconds would be a better option
+    time_t id = time(nullptr);
+    inputTree.put("id", id);
+
     if(inputTree.get_child("prep-cmd").empty()) {
       inputTree.erase("prep-cmd");
     }
