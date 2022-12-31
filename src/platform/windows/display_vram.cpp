@@ -567,7 +567,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
   }
 
   const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
-  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0 || !src;
+  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0 || capture_format == DXGI_FORMAT_UNKNOWN;
   const bool update_flag       = mouse_update_flag || frame_update_flag;
 
   if(!update_flag) {
@@ -628,10 +628,11 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
   }
 
-  if(frame_update_flag) {
-    src.reset();
-    status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
+  {
+    texture2d_t src {};
 
+    // Get the texture object from this frame
+    status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
       return capture_e::error;
@@ -644,14 +645,16 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       capture_format = desc.Format;
       BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
     }
+
+    // Now that we know the capture format, we can finish creating the image
+    if(complete_img(img, false)) {
+      return capture_e::error;
+    }
+
+    // Copy the texture into this image
+    device_ctx->CopyResource(img->texture.get(), src.get());
   }
 
-  // Now that we know the capture format, we can finish creating the image
-  if(complete_img(img, false)) {
-    return capture_e::error;
-  }
-
-  device_ctx->CopyResource(img->texture.get(), src.get());
   if(cursor.visible && cursor_visible) {
     D3D11_VIEWPORT view {
       0.0f, 0.0f,

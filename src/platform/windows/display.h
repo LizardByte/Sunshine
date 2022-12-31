@@ -184,7 +184,6 @@ public:
   ps_t scene_ps;
   vs_t scene_vs;
 
-  texture2d_t src;
   gpu_cursor_t cursor;
 };
 } // namespace platf::dxgi
