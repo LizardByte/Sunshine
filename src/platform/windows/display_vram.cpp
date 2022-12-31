@@ -92,6 +92,7 @@ struct img_d3d_t : public platf::img_t {
   render_target_t scene_rt;
 
   texture2d_t texture;
+  bool dummy = false;
 
   ~img_d3d_t() override = default;
 };
@@ -215,53 +216,20 @@ blob_t compile_vertex_shader(LPCSTR file) {
   return compile_shader(file, "main_vs", "vs_5_0");
 }
 
-int init_rt(device_t::pointer device, shader_res_t &shader_res, render_target_t &render_target, int width, int height, DXGI_FORMAT format, texture2d_t::pointer tex) {
-  D3D11_SHADER_RESOURCE_VIEW_DESC shader_resource_desc {
-    format,
-    D3D11_SRV_DIMENSION_TEXTURE2D
-  };
-  shader_resource_desc.Texture2D.MipLevels = 1;
-
-  auto status = device->CreateShaderResourceView(tex, &shader_resource_desc, &shader_res);
+int init_rt(device_t::pointer device, shader_res_t &shader_res, render_target_t &render_target, int width, int height, texture2d_t::pointer tex) {
+  auto status = device->CreateShaderResourceView(tex, nullptr, &shader_res);
   if(status) {
-    BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
+    BOOST_LOG(error) << "Failed to create shader resource view for luma [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
   }
 
-  D3D11_RENDER_TARGET_VIEW_DESC render_target_desc {
-    format,
-    D3D11_RTV_DIMENSION_TEXTURE2D
-  };
-
-  status = device->CreateRenderTargetView(tex, &render_target_desc, &render_target);
+  status = device->CreateRenderTargetView(tex, nullptr, &render_target);
   if(status) {
     BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
   }
 
   return 0;
-}
-
-int init_rt(device_t::pointer device, shader_res_t &shader_res, render_target_t &render_target, int width, int height, DXGI_FORMAT format) {
-  D3D11_TEXTURE2D_DESC desc {};
-
-  desc.Width            = width;
-  desc.Height           = height;
-  desc.Format           = format;
-  desc.Usage            = D3D11_USAGE_DEFAULT;
-  desc.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-  desc.MipLevels        = 1;
-  desc.ArraySize        = 1;
-  desc.SampleDesc.Count = 1;
-
-  texture2d_t tex;
-  auto status = device->CreateTexture2D(&desc, nullptr, &tex);
-  if(status) {
-    BOOST_LOG(error) << "Failed to create render target texture for luma [0x"sv << util::hex(status).to_string_view() << ']';
-    return -1;
-  }
-
-  return init_rt(device, shader_res, render_target, width, height, format, tex.get());
 }
 
 class hwdevice_t : public platf::hwdevice_t {
@@ -275,7 +243,7 @@ public:
     device_ctx_p->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
     device_ctx_p->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx_p->PSSetShader(convert_Y_ps.get(), nullptr, 0);
-    device_ctx_p->PSSetShaderResources(0, 1, &back_img.input_res);
+    device_ctx_p->PSSetShaderResources(0, 1, &((img_d3d_t *)back_img.get())->input_res);
     device_ctx_p->Draw(3, 0);
 
     device_ctx_p->RSSetViewports(1, &outY_view);
@@ -290,7 +258,7 @@ public:
     device_ctx_p->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
     device_ctx_p->VSSetShader(convert_UV_vs.get(), nullptr, 0);
     device_ctx_p->PSSetShader(convert_UV_ps.get(), nullptr, 0);
-    device_ctx_p->PSSetShaderResources(0, 1, &back_img.input_res);
+    device_ctx_p->PSSetShaderResources(0, 1, &((img_d3d_t *)back_img.get())->input_res);
     device_ctx_p->Draw(3, 0);
 
     device_ctx_p->RSSetViewports(1, &outUV_view);
@@ -386,7 +354,7 @@ public:
     }
 
     D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
-      DXGI_FORMAT_R8_UNORM,
+      format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
       D3D11_RTV_DIMENSION_TEXTURE2D
     };
 
@@ -396,7 +364,7 @@ public:
       return -1;
     }
 
-    nv12_rt_desc.Format = DXGI_FORMAT_R8G8_UNORM;
+    nv12_rt_desc.Format = (format == DXGI_FORMAT_P010) ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
 
     status = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_UV_rt);
     if(FAILED(status)) {
@@ -485,20 +453,9 @@ public:
 
     // Color the background black, so that the padding for keeping the aspect ratio
     // is black
-    if(img.display->dummy_img(&back_img)) {
+    back_img = img.display->alloc_img();
+    if(img.display->dummy_img(back_img.get())) {
       BOOST_LOG(warning) << "Couldn't create an image to set background color to black"sv;
-      return -1;
-    }
-
-    D3D11_SHADER_RESOURCE_VIEW_DESC desc {
-      DXGI_FORMAT_B8G8R8A8_UNORM,
-      D3D11_SRV_DIMENSION_TEXTURE2D
-    };
-    desc.Texture2D.MipLevels = 1;
-
-    status = device_p->CreateShaderResourceView(back_img.texture.get(), &desc, &back_img.input_res);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create input shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -548,7 +505,7 @@ public:
   img_d3d_t img;
 
   // Clear nv12 render target to black
-  img_d3d_t back_img;
+  std::shared_ptr<img_t> back_img;
 
   vs_t convert_UV_vs;
   ps_t convert_UV_ps;
@@ -656,15 +613,9 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       return capture_e::error;
     }
 
-    D3D11_SHADER_RESOURCE_VIEW_DESC desc {
-      DXGI_FORMAT_B8G8R8A8_UNORM,
-      D3D11_SRV_DIMENSION_TEXTURE2D
-    };
-    desc.Texture2D.MipLevels = 1;
-
     // Free resources before allocating on the next line.
     cursor.input_res.reset();
-    status = device->CreateShaderResourceView(texture.get(), &desc, &cursor.input_res);
+    status = device->CreateShaderResourceView(texture.get(), nullptr, &cursor.input_res);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create cursor shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
       return capture_e::error;
@@ -674,21 +625,60 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
   }
 
   if(frame_info.LastMouseUpdateTime.QuadPart) {
-    cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible && cursor_visible);
+    cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
   }
 
-  if(frame_update_flag) {
-    src.reset();
-    status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
+  if(capture_format != DXGI_FORMAT_UNKNOWN || frame_update_flag) {
+    texture2d_t src {};
 
+    // Get the texture object from this frame
+    status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Couldn't query interface [0x"sv << util::hex(status).to_string_view() << ']';
       return capture_e::error;
     }
+
+    D3D11_TEXTURE2D_DESC desc;
+    src->GetDesc(&desc);
+
+    // If we don't know the capture format yet, grab it from this texture
+    if(capture_format == DXGI_FORMAT_UNKNOWN) {
+      capture_format = desc.Format;
+      BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
+    }
+
+    // It's possible for our display enumeration to race with mode changes and result in
+    // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
+    if(desc.Width != width || desc.Height != height) {
+      BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
+      return capture_e::reinit;
+    }
+
+    // It's also possible for the capture format to change on the fly. If that happens,
+    // reinitialize capture to try format detection again and create new images.
+    if(capture_format != desc.Format) {
+      BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
+      return capture_e::reinit;
+    }
+
+    // Now that we know the capture format, we can finish creating the image
+    if(complete_img(img, false)) {
+      return capture_e::error;
+    }
+
+    // Copy the texture into this image
+    device_ctx->CopyResource(img->texture.get(), src.get());
+  }
+  else {
+    // We don't know the final capture format yet, so we will encode a dummy image
+    BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
+
+    if(dummy_img(img)) {
+      return capture_e::error;
+    }
   }
 
-  device_ctx->CopyResource(img->texture.get(), src.get());
-  if(cursor.visible) {
+  if(cursor.visible && cursor_visible) {
     D3D11_VIEWPORT view {
       0.0f, 0.0f,
       (float)width, (float)height,
@@ -698,8 +688,8 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(scene_ps.get(), nullptr, 0);
     device_ctx->RSSetViewports(1, &view);
-    device_ctx->OMSetRenderTargets(1, &img->scene_rt, nullptr);
     device_ctx->PSSetShaderResources(0, 1, &cursor.input_res);
+    device_ctx->OMSetRenderTargets(1, &img->scene_rt, nullptr);
     device_ctx->OMSetBlendState(blend_enable.get(), nullptr, 0xFFFFFFFFu);
     device_ctx->RSSetViewports(1, &cursor.cursor_view);
     device_ctx->Draw(3, 0);
@@ -758,85 +748,84 @@ int display_vram_t::init(int framerate, const std::string &display_name) {
 std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   auto img = std::make_shared<img_d3d_t>();
 
-  img->pixel_pitch = get_pixel_pitch();
-  img->row_pitch   = img->pixel_pitch * width;
-  img->width       = width;
-  img->height      = height;
-  img->display     = shared_from_this();
+  // Initialize format-independent fields
+  img->width   = width;
+  img->height  = height;
+  img->display = shared_from_this();
 
-  auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * height);
-  D3D11_SUBRESOURCE_DATA data {
-    dummy_data.get(),
-    (UINT)img->row_pitch
-  };
-  std::fill_n(dummy_data.get(), img->row_pitch * height, 0);
+  return img;
+}
+
+int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
+  auto img = (img_d3d_t *)img_base;
+
+  // If this already has a texture and it's not switching dummy state, nothing to do
+  if(img->texture && img->dummy == dummy) {
+    return 0;
+  }
+
+  // If this is not a dummy image, we must know the format by now
+  if(!dummy && capture_format == DXGI_FORMAT_UNKNOWN) {
+    BOOST_LOG(error) << "display_vram_t::complete_img() called with unknown capture format!";
+    return -1;
+  }
+
+  // Reset the image (in case this was previously a dummy)
+  img->texture.reset();
+  img->input_res.reset();
+  img->scene_rt.reset();
+  img->data = nullptr;
+
+  // Initialize format-dependent fields
+  img->pixel_pitch = get_pixel_pitch();
+  img->row_pitch   = img->pixel_pitch * img->width;
+  img->dummy       = dummy;
 
   D3D11_TEXTURE2D_DESC t {};
-  t.Width            = width;
-  t.Height           = height;
+  t.Width            = img->width;
+  t.Height           = img->height;
   t.MipLevels        = 1;
   t.ArraySize        = 1;
   t.SampleDesc.Count = 1;
   t.Usage            = D3D11_USAGE_DEFAULT;
-  t.Format           = format;
+  t.Format           = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;
   t.BindFlags        = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 
-  auto status = device->CreateTexture2D(&t, &data, &img->texture);
+  auto status = device->CreateTexture2D(&t, nullptr, &img->texture);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create img buf texture [0x"sv << util::hex(status).to_string_view() << ']';
-    return nullptr;
+    return -1;
   }
 
-  if(init_rt(device.get(), img->input_res, img->scene_rt, width, height, format, img->texture.get())) {
-    return nullptr;
+  if(init_rt(device.get(), img->input_res, img->scene_rt, img->width, img->height, img->texture.get())) {
+    return -1;
   }
 
   img->data = (std::uint8_t *)img->texture.get();
 
-  return img;
+  return 0;
 }
 
 int display_vram_t::dummy_img(platf::img_t *img_base) {
   auto img = (img_d3d_t *)img_base;
 
-  if(img->texture) {
-    return 0;
-  }
-
-  img->pixel_pitch = get_pixel_pitch();
-  img->row_pitch   = img->pixel_pitch * width;
-  auto dummy_data  = std::make_unique<uint8_t[]>(img->row_pitch * height);
-  D3D11_SUBRESOURCE_DATA data {
-    dummy_data.get(),
-    (UINT)img->row_pitch
-  };
-  std::fill_n(dummy_data.get(), img->row_pitch * height, 0);
-
-  D3D11_TEXTURE2D_DESC t {};
-  t.Width            = width;
-  t.Height           = height;
-  t.MipLevels        = 1;
-  t.ArraySize        = 1;
-  t.SampleDesc.Count = 1;
-  t.Usage            = D3D11_USAGE_DEFAULT;
-  t.Format           = format;
-  t.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
-
-  dxgi::texture2d_t tex;
-  auto status = device->CreateTexture2D(&t, &data, &tex);
-  if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to create dummy texture [0x"sv << util::hex(status).to_string_view() << ']';
+  if(complete_img(img, true)) {
     return -1;
   }
 
-  img->texture = std::move(tex);
-  img->data    = (std::uint8_t *)img->texture.get();
+  auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
+  std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
 
+  device_ctx->UpdateSubresource(img->texture.get(), 0, nullptr, dummy_data.get(), img->row_pitch, 0);
   return 0;
 }
 
+std::vector<DXGI_FORMAT> display_vram_t::get_supported_sdr_capture_formats() {
+  return std::vector { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
+}
+
 std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_fmt) {
-  if(pix_fmt != platf::pix_fmt_e::nv12) {
+  if(pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
     BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
 
     return nullptr;

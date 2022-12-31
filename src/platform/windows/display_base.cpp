@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <codecvt>
+#include <initguid.h>
 
 #include "display.h"
 #include "misc.h"
@@ -79,22 +80,21 @@ duplication_t::~duplication_t() {
 }
 
 int display_base_t::init(int framerate, const std::string &display_name) {
-  /* Uncomment when use of IDXGIOutput5 is implemented
+  std::once_flag windows_cpp_once_flag;
+
   std::call_once(windows_cpp_once_flag, []() {
     DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
-    const auto DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ((DPI_AWARENESS_CONTEXT)-4);
 
     typedef BOOL (*User32_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
 
     auto user32 = LoadLibraryA("user32.dll");
-    auto f = (User32_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+    auto f      = (User32_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
     if(f) {
       f(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
 
     FreeLibrary(user32);
   });
-*/
 
   // Ensure we can duplicate the current display
   syncThreadDesktop();
@@ -291,27 +291,57 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   }
 
   //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
-  //TODO: Use IDXGIOutput5 for improved performance
   {
     dxgi::output1_t output1 {};
+    dxgi::output5_t output5 {};
+
+    // IDXGIOutput5 is optional, but can provide improved performance and wide color support
+    status = output->QueryInterface(IID_IDXGIOutput5, (void **)&output5);
+    if(FAILED(status)) {
+      BOOST_LOG(warning) << "Failed to query IDXGIOutput5 from the output"sv;
+    }
+
     status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
       return -1;
     }
 
-    // We try this twice, in case we still get an error on reinitialization
-    for(int x = 0; x < 2; ++x) {
-      status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
-      if(SUCCEEDED(status)) {
-        break;
+    if(output5) {
+      // Ask the display implementation which formats it supports
+      auto supported_formats = get_supported_sdr_capture_formats();
+      if(supported_formats.empty()) {
+        BOOST_LOG(warning) << "No compatible capture formats for this encoder"sv;
+        return -1;
       }
-      std::this_thread::sleep_for(200ms);
+
+      // We try this twice, in case we still get an error on reinitialization
+      for(int x = 0; x < 2; ++x) {
+        status = output5->DuplicateOutput1((IUnknown *)device.get(), 0, supported_formats.size(), supported_formats.data(), &dup.dup);
+        if(SUCCEEDED(status)) {
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
+      }
+
+      if(FAILED(status)) {
+        BOOST_LOG(warning) << "DuplicateOutput1 Failed [0x"sv << util::hex(status).to_string_view() << ']';
+      }
     }
 
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+    if(!output5 || FAILED(status)) {
+      for(int x = 0; x < 2; ++x) {
+        status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
+        if(SUCCEEDED(status)) {
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
+      }
+
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
   }
 
@@ -319,16 +349,10 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   dup.dup->GetDesc(&dup_desc);
 
   BOOST_LOG(info) << "Desktop resolution ["sv << dup_desc.ModeDesc.Width << 'x' << dup_desc.ModeDesc.Height << ']';
-  BOOST_LOG(info) << "Desktop format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
+  BOOST_LOG(info) << "Desktop format ["sv << dxgi_format_to_string(dup_desc.ModeDesc.Format) << ']';
 
-  // For IDXGIOutput1::DuplicateOutput(), the format of the desktop image we receive from AcquireNextFrame() is
-  // converted to DXGI_FORMAT_B8G8R8A8_UNORM, even if the current mode (as returned in dup_desc) differs.
-  // See https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/desktop-dup-api for details.
-  //
-  // TODO: When we implement IDXGIOutput5, we will need to actually call AcquireNextFrame(), then call GetDesc()
-  // on the the texture we receive to determine which format in our list that it has decided to use.
-  format = DXGI_FORMAT_B8G8R8A8_UNORM;
-  BOOST_LOG(info) << "Capture format ["sv << format_str[format] << ']';
+  // Capture format will be determined from the first call to AcquireNextFrame()
+  capture_format = DXGI_FORMAT_UNKNOWN;
 
   return 0;
 }
@@ -457,6 +481,10 @@ const char *format_str[] = {
   "DXGI_FORMAT_V208",
   "DXGI_FORMAT_V408"
 };
+
+const char *display_base_t::dxgi_format_to_string(DXGI_FORMAT format) {
+  return format_str[format];
+}
 
 } // namespace platf::dxgi
 
