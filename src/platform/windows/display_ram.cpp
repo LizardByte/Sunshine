@@ -211,7 +211,7 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
   }
 
   const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
-  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0 || capture_format == DXGI_FORMAT_UNKNOWN;
+  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
   const bool update_flag       = mouse_update_flag || frame_update_flag;
 
   if(!update_flag) {
@@ -293,26 +293,36 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     }
   }
 
-  // Map the staging texture for CPU access (making it inaccessible for the GPU)
-  status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
-  if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
+  // If we don't know the final capture format yet, encode a dummy image
+  if(capture_format == DXGI_FORMAT_UNKNOWN) {
+    BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
 
-    return capture_e::error;
+    if(dummy_img(img)) {
+      return capture_e::error;
+    }
   }
+  else {
+    // Map the staging texture for CPU access (making it inaccessible for the GPU)
+    status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
-  // Now that we know the capture format, we can finish creating the image
-  if(complete_img(img, false)) {
+      return capture_e::error;
+    }
+
+    // Now that we know the capture format, we can finish creating the image
+    if(complete_img(img, false)) {
+      device_ctx->Unmap(texture.get(), 0);
+      img_info.pData = nullptr;
+      return capture_e::error;
+    }
+
+    std::copy_n((std::uint8_t *)img_info.pData, height * img_info.RowPitch, (std::uint8_t *)img->data);
+
+    // Unmap the staging texture to allow GPU access again
     device_ctx->Unmap(texture.get(), 0);
     img_info.pData = nullptr;
-    return capture_e::error;
   }
-
-  std::copy_n((std::uint8_t *)img_info.pData, height * img_info.RowPitch, (std::uint8_t *)img->data);
-
-  // Unmap the staging texture to allow GPU access again
-  device_ctx->Unmap(texture.get(), 0);
-  img_info.pData = nullptr;
 
   if(cursor_visible && cursor.visible) {
     blend_cursor(cursor, *img);
@@ -360,7 +370,12 @@ int display_ram_t::complete_img(platf::img_t *img, bool dummy) {
 }
 
 int display_ram_t::dummy_img(platf::img_t *img) {
-  return complete_img(img, true);
+  if(complete_img(img, true)) {
+    return -1;
+  }
+
+  std::fill_n((std::uint8_t *)img->data, height * img->row_pitch, 0);
+  return 0;
 }
 
 std::vector<DXGI_FORMAT> display_ram_t::get_supported_sdr_capture_formats() {

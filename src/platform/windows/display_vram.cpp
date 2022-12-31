@@ -567,7 +567,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
   }
 
   const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
-  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0 || capture_format == DXGI_FORMAT_UNKNOWN;
+  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
   const bool update_flag       = mouse_update_flag || frame_update_flag;
 
   if(!update_flag) {
@@ -628,7 +628,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
   }
 
-  {
+  if(capture_format != DXGI_FORMAT_UNKNOWN || frame_update_flag) {
     texture2d_t src {};
 
     // Get the texture object from this frame
@@ -668,6 +668,14 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
 
     // Copy the texture into this image
     device_ctx->CopyResource(img->texture.get(), src.get());
+  }
+  else {
+    // We don't know the final capture format yet, so we will encode a dummy image
+    BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
+
+    if(dummy_img(img)) {
+      return capture_e::error;
+    }
   }
 
   if(cursor.visible && cursor_visible) {
@@ -783,14 +791,7 @@ int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
   t.Format           = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;
   t.BindFlags        = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 
-  auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
-  D3D11_SUBRESOURCE_DATA data {
-    dummy_data.get(),
-    (UINT)img->row_pitch
-  };
-  std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
-
-  auto status = device->CreateTexture2D(&t, dummy ? &data : nullptr, &img->texture);
+  auto status = device->CreateTexture2D(&t, nullptr, &img->texture);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create img buf texture [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
@@ -806,7 +807,17 @@ int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
 }
 
 int display_vram_t::dummy_img(platf::img_t *img_base) {
-  return complete_img(img_base, true);
+  auto img = (img_d3d_t *)img_base;
+
+  if(complete_img(img, true)) {
+    return -1;
+  }
+
+  auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
+  std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
+
+  device_ctx->UpdateSubresource(img->texture.get(), 0, nullptr, dummy_data.get(), img->row_pitch, 0);
+  return 0;
 }
 
 std::vector<DXGI_FORMAT> display_vram_t::get_supported_sdr_capture_formats() {
