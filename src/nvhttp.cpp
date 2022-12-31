@@ -687,9 +687,18 @@ void applist(resp_https_t response, req_https_t request) {
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
+    // Check if the "id" field is empty
+    if(!proc.id.empty()) {
+      // Use the "id" field if it is not empty
+      app.put("ID", proc.id);
+    }
+    else {
+      // Otherwise, use the "x" counter to set the ID
+      app.put("ID", ++x);
+    }
+
     app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
-    app.put("ID"s, ++x);
 
     apps.push_back(std::make_pair("App", std::move(app)));
   }
