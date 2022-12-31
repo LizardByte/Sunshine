@@ -51,7 +51,9 @@
         <input type="text" class="form-control" v-model="logFilter" placeholder="Find..." style="width: 300px">
       </div>
       <div>
-        <div class="troubleshooting-logs">{{actualLogs}}</div>
+        <div class="troubleshooting-logs">
+          <button class="copy-icon"><i class="fas fa-copy " @click="copyLogs"></i></button>{{actualLogs}}
+        </div>
       </div>
     </div>
   </div>
@@ -120,6 +122,9 @@
             }, 5000);
           });
       },
+      copyLogs(){
+        navigator.clipboard.writeText(this.actualLogs);
+      }
     },
   });
 </script>
@@ -132,5 +137,25 @@
     max-height: 500px;
     min-height: 500px;
     font-size: 16px;
+    position: relative;
+  }
+
+  .copy-icon {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 8px;
+    cursor: pointer;
+    color: rgba(0,0,0,1);
+    appearance: none;
+    border: none;
+    background: none;
+  }
+
+  .copy-icon:hover {
+    color: rgba(0,0,0,0.75);
+  }
+  .copy-icon:active {
+    color: rgba(0,0,0,1);
   }
 </style>
