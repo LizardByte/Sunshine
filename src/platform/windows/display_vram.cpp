@@ -665,8 +665,8 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(scene_ps.get(), nullptr, 0);
     device_ctx->RSSetViewports(1, &view);
-    device_ctx->OMSetRenderTargets(1, &img->scene_rt, nullptr);
     device_ctx->PSSetShaderResources(0, 1, &cursor.input_res);
+    device_ctx->OMSetRenderTargets(1, &img->scene_rt, nullptr);
     device_ctx->OMSetBlendState(blend_enable.get(), nullptr, 0xFFFFFFFFu);
     device_ctx->RSSetViewports(1, &cursor.cursor_view);
     device_ctx->Draw(3, 0);
