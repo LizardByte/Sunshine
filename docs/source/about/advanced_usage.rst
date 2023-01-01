@@ -93,6 +93,20 @@ min_log_level
 
       min_log_level = info
 
+log_path
+^^^^^^^^
+
+**Description**
+   The path where the sunshine log is stored.
+
+**Default**
+   ``sunshine.log``
+
+**Example**
+   .. code-block:: text
+
+      log_path = sunshine.log
+
 Controls
 --------
 

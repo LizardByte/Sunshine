@@ -101,6 +101,7 @@ int entry(const char *name, int argc, char *argv[]) {
 }
 } // namespace version
 
+
 void log_flush() {
   sink->flush();
 }
@@ -219,6 +220,7 @@ int main(int argc, char *argv[]) {
 
   boost::shared_ptr<std::ostream> stream { &std::cout, NoDelete {} };
   sink->locked_backend()->add_stream(stream);
+  sink->locked_backend()->add_stream(boost::make_shared<std::ofstream>(config::sunshine.log_file));
   sink->set_filter(severity >= config::sunshine.min_log_level);
 
   sink->set_formatter([message = "Message"s, severity = "Severity"s](const bl::record_view &view, bl::formatting_ostream &os) {

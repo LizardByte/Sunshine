@@ -122,6 +122,7 @@ struct sunshine_t {
   } cmd;
 
   std::uint16_t port;
+  std::string log_file;
 };
 
 extern video_t video;

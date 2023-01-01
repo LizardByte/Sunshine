@@ -3,6 +3,7 @@
 #ifndef SUNSHINE_MAIN_H
 #define SUNSHINE_MAIN_H
 
+#include <filesystem>
 #include <string_view>
 
 #include "thread_pool.h"
@@ -50,6 +51,4 @@ MAIL(idr);
 MAIL(rumble);
 #undef MAIL
 } // namespace mail
-
-
 #endif // SUNSHINE_MAIN_H
