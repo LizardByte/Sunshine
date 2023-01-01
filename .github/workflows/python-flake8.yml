@@ -3,12 +3,18 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
+# Lint python files with flake8.
+
 name: flake8
 
 on:
   pull_request:
     branches: [master, nightly]
     types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   flake8:
@@ -24,7 +30,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip setuptools flake8
+          # pin flake8 before v6.0.0 due to removal of support for type comments (required for Python 2.7 type hints)
+          python -m pip install --upgrade pip setuptools "flake8<6"
 
       - name: Test with flake8
         run: |
