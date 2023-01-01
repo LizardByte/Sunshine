@@ -9,6 +9,7 @@
 #include <chrono>
 #include <fstream>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/json.hpp>
 
@@ -431,6 +432,53 @@ void handleCors(const resp_http_t &response, const req_http_t &request) {
   response->write({ { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", allowHeaders } });
 }
 
+void serveUI(const resp_http_t &response, const req_http_t &request) {
+  print_req(request);
+
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  std::ios::openmode fileOpenMode;
+
+  std::string path = WEB_DIR + request->path;
+  if(request->path == "/") {
+    path = WEB_DIR "/index.html";
+  }
+  else if(boost::algorithm::iends_with(request->path, ".ttf")) {
+    fileOpenMode = std::ios::binary;
+    headers.emplace("Content-Type", "font/ttf");
+  }
+  else if(boost::algorithm::iends_with(request->path, ".woff2")) {
+    fileOpenMode = std::ios::binary;
+    headers.emplace("Content-Type", "font/woff2");
+  }
+  else if(boost::algorithm::iends_with(request->path, ".jpg")) {
+    fileOpenMode = std::ios::binary;
+    headers.emplace("Content-Type", "image/jpeg");
+  }
+  else if(boost::algorithm::iends_with(request->path, ".svg")) {
+    headers.emplace("Content-Type", "image/svg+xml");
+  }
+  else if(boost::algorithm::iends_with(request->path, ".js")) {
+    headers.emplace("Content-Type", "application/javascript");
+  }
+  else if(boost::algorithm::iends_with(request->path, ".css")) {
+    headers.emplace("Content-Type", "text/css");
+  }
+  else {
+    path = path + ".html";
+  }
+
+  std::string relative = std::filesystem::relative(path, WEB_DIR).string();
+  if((relative.size() == 1 || (relative[0] != '.' && relative[1] != '.')) &&
+     std::filesystem::exists(path) &&
+     !std::filesystem::is_directory(path)) {
+    std::ifstream in(path.c_str(), fileOpenMode);
+    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  }
+  else {
+    response->write(SimpleWeb::StatusCode::client_error_not_found);
+  }
+}
+
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -441,6 +489,7 @@ void start() {
   server.resource["^/api/([a-z_]+)$"]["POST"]    = handleApiRequest;
   server.resource["^/api/([a-z_]+)$"]["GET"]     = handleApiRequest;
   server.resource["^/appasset/([0-9]+)$"]["GET"] = appasset;
+  server.default_resource["GET"]                 = serveUI;
   server.config.reuse_address                    = true;
   server.config.address                          = "0.0.0.0"s;
   server.config.port                             = port_http;
