@@ -15,6 +15,10 @@
 #include "src/thread_safe.h"
 #include "src/utility.h"
 
+extern "C" {
+#include <moonlight-common-c/src/Limelight.h>
+}
+
 struct sockaddr;
 struct AVFrame;
 struct AVBufferRef;
@@ -271,6 +275,15 @@ public:
 
   virtual std::shared_ptr<hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) {
     return std::make_shared<hwdevice_t>();
+  }
+
+  virtual bool is_hdr() {
+    return false;
+  }
+
+  virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
+    std::memset(&metadata, 0, sizeof(metadata));
+    return false;
   }
 
   virtual ~display_t() = default;

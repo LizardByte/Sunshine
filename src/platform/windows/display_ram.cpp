@@ -349,7 +349,12 @@ int display_ram_t::dummy_img(platf::img_t *img) {
 }
 
 std::vector<DXGI_FORMAT> display_ram_t::get_supported_sdr_capture_formats() {
-  return std::vector { DXGI_FORMAT_B8G8R8A8_UNORM };
+  return { DXGI_FORMAT_B8G8R8A8_UNORM };
+}
+
+std::vector<DXGI_FORMAT> display_ram_t::get_supported_hdr_capture_formats() {
+  // HDR is unsupported
+  return {};
 }
 
 int display_ram_t::init(const ::video::config_t &config, const std::string &display_name) {

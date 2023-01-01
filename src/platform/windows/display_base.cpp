@@ -107,10 +107,16 @@ capture_e display_base_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<:
   });
 
   while(img) {
-    auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
+    // This will return false if the HDR state changes or for any number of other
+    // display or GPU changes. We should reinit to examine the updated state of
+    // the display subsystem. It is recommended to call this once per frame.
+    if(!factory->IsCurrent()) {
+      return platf::capture_e::reinit;
+    }
 
     // If the wait time is between 1 us and 1 second, wait the specified time
     // and offset the next frame time from the exact current frame time target.
+    auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
     if(wait_time_us > 0 && wait_time_us < 1000000) {
       LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
       SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
@@ -503,7 +509,7 @@ int display_base_t::init(const ::video::config_t &config, const std::string &dis
     status = output->QueryInterface(IID_IDXGIOutput5, (void **)&output5);
     if(SUCCEEDED(status)) {
       // Ask the display implementation which formats it supports
-      auto supported_formats = get_supported_sdr_capture_formats();
+      auto supported_formats = config.dynamicRange ? get_supported_hdr_capture_formats() : get_supported_sdr_capture_formats();
       if(supported_formats.empty()) {
         BOOST_LOG(warning) << "No compatible capture formats for this encoder"sv;
         return -1;
@@ -561,6 +567,57 @@ int display_base_t::init(const ::video::config_t &config, const std::string &dis
   capture_format = DXGI_FORMAT_UNKNOWN;
 
   return 0;
+}
+
+bool display_base_t::is_hdr() {
+  dxgi::output6_t output6 {};
+
+  auto status = output->QueryInterface(IID_IDXGIOutput6, (void **)&output6);
+  if(FAILED(status)) {
+    BOOST_LOG(warning) << "Failed to query IDXGIOutput6 from the output"sv;
+    return false;
+  }
+
+  DXGI_OUTPUT_DESC1 desc1;
+  output6->GetDesc1(&desc1);
+
+  return desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
+}
+
+bool display_base_t::get_hdr_metadata(SS_HDR_METADATA &metadata) {
+  dxgi::output6_t output6 {};
+
+  std::memset(&metadata, 0, sizeof(metadata));
+
+  auto status = output->QueryInterface(IID_IDXGIOutput6, (void **)&output6);
+  if(FAILED(status)) {
+    BOOST_LOG(warning) << "Failed to query IDXGIOutput6 from the output"sv;
+    return false;
+  }
+
+  DXGI_OUTPUT_DESC1 desc1;
+  output6->GetDesc1(&desc1);
+
+  metadata.displayPrimaries[0].x = desc1.RedPrimary[0] * 50000;
+  metadata.displayPrimaries[0].y = desc1.RedPrimary[1] * 50000;
+  metadata.displayPrimaries[1].x = desc1.GreenPrimary[0] * 50000;
+  metadata.displayPrimaries[1].y = desc1.GreenPrimary[1] * 50000;
+  metadata.displayPrimaries[2].x = desc1.BluePrimary[0] * 50000;
+  metadata.displayPrimaries[2].y = desc1.BluePrimary[1] * 50000;
+
+  metadata.whitePoint.x = desc1.WhitePoint[0] * 50000;
+  metadata.whitePoint.y = desc1.WhitePoint[1] * 50000;
+
+  metadata.maxDisplayLuminance = desc1.MaxLuminance;
+  metadata.minDisplayLuminance = desc1.MinLuminance * 10000;
+
+  // These are content-specific metadata parameters that this interface doesn't give us
+  metadata.maxContentLightLevel      = 0;
+  metadata.maxFrameAverageLightLevel = 0;
+
+  metadata.maxFullFrameLuminance = desc1.MaxFullFrameLuminance;
+
+  return true;
 }
 
 const char *format_str[] = {
