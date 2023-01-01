@@ -3,6 +3,8 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
+# Label PRs with `autoupdate` if various conditions are met, otherwise, remove the label.
+
 name: Label PR autoupdate
 
 on:
@@ -38,7 +40,6 @@ jobs:
           contains(github.event.pull_request.labels.*.name, 'autoupdate') == false &&
           contains(github.event.pull_request.body,
             fromJSON('"\n- [x] I want maintainers to keep my branch updated"')) == true
-
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GH_BOT_TOKEN }}

@@ -3,6 +3,8 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
+# Label and un-label actions using `../label-actions.yml`.
+
 name: Issues
 
 on:
