@@ -1334,7 +1334,7 @@ void captureThreadSync() {
       ctx.shutdown_event->raise(true);
       ctx.join_event->raise(true);
     }
-    });
+  });
 
   while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
@@ -1350,7 +1350,7 @@ void capture_async(
   auto lg     = util::fail_guard([&]() {
     images->stop();
     shutdown_event->raise(true);
-      });
+  });
 
   auto ref = capture_thread_async.ref();
   if(!ref) {
