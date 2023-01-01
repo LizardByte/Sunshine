@@ -39,6 +39,9 @@ class basic_environment;
 typedef basic_environment<char> environment;
 } // namespace process
 } // namespace boost
+namespace video {
+struct config_t;
+}
 
 namespace platf {
 constexpr auto MAX_GAMEPADS = 32;
@@ -315,11 +318,11 @@ std::unique_ptr<audio_control_t> audio_control();
  *    If display_name is empty --> Use the first monitor that's compatible you can find
  *    If you require to use this parameter in a seperate thread --> make a copy of it.
  * 
- * framerate --> The peak number of images per second
+ * config --> Stream configuration
  * 
  * Returns display_t based on hwdevice_type
  */
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
 // A list of names of displays accepted as display_name with the mem_type_e
 std::vector<std::string> display_names(mem_type_e hwdevice_type);

@@ -17,6 +17,7 @@ typedef long NTSTATUS;
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
+#include "src/video.h"
 
 namespace platf {
 using namespace std::literals;
@@ -276,7 +277,7 @@ bool test_dxgi_duplication(adapter_t &adapter, output_t &output) {
   return false;
 }
 
-int display_base_t::init(int framerate, const std::string &display_name) {
+int display_base_t::init(const ::video::config_t &config, const std::string &display_name) {
   std::once_flag windows_cpp_once_flag;
 
   std::call_once(windows_cpp_once_flag, []() {
@@ -296,7 +297,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   // Ensure we can duplicate the current display
   syncThreadDesktop();
 
-  delay = std::chrono::nanoseconds { 1s } / framerate;
+  delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
   // Get rectangle of full desktop for absolute mouse coordinates
   env_width  = GetSystemMetrics(SM_CXVIRTUALSCREEN);
@@ -421,7 +422,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     << "Virtual Desktop    : "sv << env_width << 'x' << env_height;
 
   // Enable DwmFlush() only if the current refresh rate can match the client framerate.
-  auto refresh_rate = framerate;
+  auto refresh_rate = config.framerate;
   DWM_TIMING_INFO timing_info;
   timing_info.cbSize = sizeof(timing_info);
 
@@ -433,7 +434,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     refresh_rate = std::round((double)timing_info.rateRefresh.uiNumerator / (double)timing_info.rateRefresh.uiDenominator);
   }
 
-  dup.use_dwmflush = config::video.dwmflush && !(framerate > refresh_rate) ? true : false;
+  dup.use_dwmflush = config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false;
 
   // Bump up thread priority
   {
@@ -694,18 +695,18 @@ const char *display_base_t::dxgi_format_to_string(DXGI_FORMAT format) {
 } // namespace platf::dxgi
 
 namespace platf {
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
   if(hwdevice_type == mem_type_e::dxgi) {
     auto disp = std::make_shared<dxgi::display_vram_t>();
 
-    if(!disp->init(framerate, display_name)) {
+    if(!disp->init(config, display_name)) {
       return disp;
     }
   }
   else if(hwdevice_type == mem_type_e::system) {
     auto disp = std::make_shared<dxgi::display_ram_t>();
 
-    if(!disp->init(framerate, display_name)) {
+    if(!disp->init(config, display_name)) {
       return disp;
     }
   }

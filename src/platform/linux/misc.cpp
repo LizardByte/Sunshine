@@ -418,7 +418,7 @@ static std::bitset<source::MAX_FLAGS> sources;
 
 #ifdef SUNSHINE_BUILD_CUDA
 std::vector<std::string> nvfbc_display_names();
-std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
 bool verify_nvfbc() {
   return !nvfbc_display_names().empty();
@@ -427,7 +427,7 @@ bool verify_nvfbc() {
 
 #ifdef SUNSHINE_BUILD_WAYLAND
 std::vector<std::string> wl_display_names();
-std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
 bool verify_wl() {
   return window_system == window_system_e::WAYLAND && !wl_display_names().empty();
@@ -436,7 +436,7 @@ bool verify_wl() {
 
 #ifdef SUNSHINE_BUILD_DRM
 std::vector<std::string> kms_display_names();
-std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
 bool verify_kms() {
   return !kms_display_names().empty();
@@ -445,7 +445,7 @@ bool verify_kms() {
 
 #ifdef SUNSHINE_BUILD_X11
 std::vector<std::string> x11_display_names();
-std::shared_ptr<display_t> x11_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::shared_ptr<display_t> x11_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
 bool verify_x11() {
   return window_system == window_system_e::X11 && !x11_display_names().empty();
@@ -469,29 +469,29 @@ std::vector<std::string> display_names(mem_type_e hwdevice_type) {
   return {};
 }
 
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
 #ifdef SUNSHINE_BUILD_CUDA
   if(sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
     BOOST_LOG(info) << "Screencasting with NvFBC"sv;
-    return nvfbc_display(hwdevice_type, display_name, framerate);
+    return nvfbc_display(hwdevice_type, display_name, config);
   }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
   if(sources[source::WAYLAND]) {
     BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;
-    return wl_display(hwdevice_type, display_name, framerate);
+    return wl_display(hwdevice_type, display_name, config);
   }
 #endif
 #ifdef SUNSHINE_BUILD_DRM
   if(sources[source::KMS]) {
     BOOST_LOG(info) << "Screencasting with KMS"sv;
-    return kms_display(hwdevice_type, display_name, framerate);
+    return kms_display(hwdevice_type, display_name, config);
   }
 #endif
 #ifdef SUNSHINE_BUILD_X11
   if(sources[source::X11]) {
     BOOST_LOG(info) << "Screencasting with X11"sv;
-    return x11_display(hwdevice_type, display_name, framerate);
+    return x11_display(hwdevice_type, display_name, config);
   }
 #endif
 
