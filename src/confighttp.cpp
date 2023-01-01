@@ -1,6 +1,6 @@
 //
 // Created by TheElixZammuto on 2021-05-09.
-// TODO: Authentication, better handling of routes common to nvhttp, cleanup
+//
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -123,9 +123,7 @@ bool delete_app(json::object &data, json::object &response) {
 bool get_config(json::object &data, json::object &response) {
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
-  for(auto &[name, value] : vars) {
-    response[name] = value;
-  }
+  response = config::config_to_json(std::move(vars));
   return true;
 }
 

@@ -701,6 +701,57 @@ int apply_flags(const char *line) {
   return ret;
 }
 
+json::object config_to_json(std::unordered_map<std::string, std::string> &&vars) {
+  json::object config;
+
+  for(auto &[name, val] : vars) {
+    auto it = property_schema.find(name);
+    if(it == property_schema.end()) {
+      continue;
+    }
+
+    config_prop any_prop = it->second.first;
+    switch(any_prop.prop_type) {
+    case TYPE_STRING:
+    case TYPE_FILE:
+      config[name] = val;
+      break;
+    case TYPE_INT: {
+      int temp;
+      int_f(val, temp);
+      config[name] = temp;
+      break;
+    }
+    case TYPE_INT_ARRAY: {
+      std::vector<int> v = {};
+      list_int_f(val, v);
+      config[name] = json::array(v.begin(), v.end());
+      break;
+    }
+    case TYPE_STRING_ARRAY: {
+      std::vector<std::string> strVec;
+      list_string_f(val, strVec);
+      config[name] = json::array(strVec.begin(), strVec.end());
+      break;
+    }
+    case TYPE_BOOLEAN: {
+      bool tempBool;
+      bool_f(val, tempBool);
+      config[name] = tempBool;
+      break;
+    }
+    case TYPE_DOUBLE: {
+      double tempDouble;
+      double_f(val, tempDouble);
+      config[name] = tempDouble;
+      break;
+    }
+    }
+  }
+
+  return config;
+}
+
 void save_config(json::object configJson) {
   std::stringstream configStream;
 
@@ -780,13 +831,12 @@ void save_config(json::object configJson) {
       break;
     }
     }
-
     bool isValidValue = it->second.second->check(valueToSave);
-    if(isValidValue) {
-      configStream << name << " = " << val << std::endl;
+    if(isValidValue && !valueToSave.empty()) {
+      configStream << name << " = " << valueToSave << std::endl;
     }
     else {
-      BOOST_LOG(error) << "Property" << name << "has invalid value. Skipping.";
+      BOOST_LOG(error) << "Property " << name << " has invalid value. Skipping.";
       continue;
     }
   }

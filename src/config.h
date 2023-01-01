@@ -299,5 +299,6 @@ std::string_view to_config_prop_string(config_props propType);
 void apply_config(std::unordered_map<std::string, std::string> &&vars);
 void save_config(json::object configJson);
 std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
+json::object config_to_json(std::unordered_map<std::string, std::string> &&vars);
 } // namespace config
 #endif
