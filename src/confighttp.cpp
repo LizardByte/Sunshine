@@ -6,7 +6,6 @@
 
 #include "process.h"
 
-#include <chrono>
 #include <fstream>
 
 #include <boost/algorithm/string/predicate.hpp>
@@ -27,10 +26,6 @@
 #include "utility.h"
 #include "uuid.h"
 #include "version.h"
-
-
-using std::chrono::duration_cast;
-using std::chrono::system_clock;
 
 using namespace std::literals;
 
@@ -86,13 +81,14 @@ bool save_app(const json::object &data, json::object &response) {
     return false;
   }
   try {
-    auto id      = data.at("id").as_int64();
+    auto id      = (int)data.at("id").as_int64();
     auto new_app = json::value_to<proc::ctx_t>(json::value(data));
-    new_app.id   = duration_cast<std::chrono::milliseconds>(system_clock::now().time_since_epoch()).count();
+    new_app.id   = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     proc::proc.add_app(id, new_app);
-    proc::save(config::sunshine.config_file);
+    proc::save(config::stream.file_apps);
 
+    response["app_id"] = new_app.id;
     return true;
   }
   catch(std::exception &e) {
@@ -111,7 +107,7 @@ bool delete_app(json::object &data, json::object &response) {
   try {
     auto id = data.at("id").as_int64();
     proc::proc.remove_app(id);
-    proc::save(config::sunshine.config_file);
+    proc::save(config::stream.file_apps);
   }
   catch(std::exception &e) {
     BOOST_LOG(warning) << "Failed to remove an app: " << e.what();

@@ -389,13 +389,21 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
 }
 
 bool save(const std::string &fileName) {
-  json::array apps;
-  for(auto &app : proc.get_apps()) {
-    json::value appJson;
-    apps.push_back(json::value_from(app));
+  try {
+    auto currentApps = json::parse(read_file(fileName.c_str()));
+    json::array apps;
+    for(auto &app : proc.get_apps()) {
+      json::value appJson;
+      apps.push_back(json::value_from(app));
+    }
+    currentApps.at("apps") = apps;
+    write_file(fileName.c_str(), json::serialize(currentApps));
+    return true;
+  } catch (std::exception &e) {
+    BOOST_LOG(error) << "Failed to save apps.json; file is corrupted.";
+    return false;
   }
-  write_file(fileName.c_str(), json::serialize(apps));
-  return true;
+
 }
 
 void parse(const std::string &fileName) {
