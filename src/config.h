@@ -4,7 +4,7 @@
 #include "src/platform/common.h"
 #include <any>
 #include <bitset>
-#include <boost/property_tree/ptree.hpp>
+#include <boost/json.hpp>
 #include <chrono>
 #include <optional>
 #include <string>
@@ -13,7 +13,7 @@
 #include <vector>
 
 namespace config {
-namespace pt = boost::property_tree;
+namespace json = boost::json;
 
 void list_int_f(std::string val, std::vector<int> &input);
 void list_string_f(std::string string, std::vector<std::string> &input);
@@ -21,7 +21,7 @@ void int_f(std::string val, int &input);
 
 struct ILimit {
 
-  virtual void to(pt::ptree &tree) const      = 0;
+  virtual void to(json::object &tree) const   = 0;
   virtual bool check(std::string value) const = 0;
   virtual ~ILimit()                           = default;
 };
@@ -41,8 +41,8 @@ private:
 
 struct no_limit : ILimit {
 
-  void to(pt::ptree &tree) const override {
-    tree.put("type", "none");
+  void to(json::object &obj) const override {
+    obj["type"] = "none";
   }
 
   bool check(std::string value) const override { return true; }
@@ -52,10 +52,10 @@ struct minmax_limit : ILimit {
   int min;
   int max;
 
-  void to(pt::ptree &tree) const override {
-    tree.put("type", "minmax");
-    tree.put("min", min);
-    tree.put("max", max);
+  void to(json::object &obj) const override {
+    obj["type"] = "minmax";
+    obj["min"]  = min;
+    obj["max"]  = max;
   }
 
   bool check(std::string value) const override {
@@ -70,28 +70,21 @@ struct minmax_limit : ILimit {
 
 struct audio_devices_limit : ILimit {
 
-  void to(pt::ptree &tree) const override {
-    tree.put("type", "audio_device_list");
+  void to(json::object &obj) const override {
+    obj["type"]                                = "audio_device_list";
     std::vector<platf::audio_device_t> devices = platf::audio_control()->available_audio_devices();
 
-    pt::ptree array;
+    json::array array;
     for(auto &device : devices) {
-      pt::ptree element;
-      element.put("id", device.id);
-      element.put("name", device.name);
-      array.push_back(pt::ptree::value_type("", element));
+      array.push_back({ { "id", device.id }, { "name", device.name } });
     }
-    tree.put_child("devices", array);
+    obj["devices"] = array;
   }
 
   bool check(std::string value) const override {
     std::vector<platf::audio_device_t> devices = platf::audio_control()->available_audio_devices();
 
-    for(auto &device : devices) {
-      if(device.id == value)
-        return true;
-    }
-    return false;
+    return std::any_of(devices.begin(), devices.end(), [value](auto device) -> bool { return device.id == value; });
   }
 
   audio_devices_limit() = default;
@@ -106,22 +99,15 @@ struct video_devices_limit : ILimit {
 
   video_devices_limit_type type;
 
-  void to(pt::ptree &tree) const override {
-    tree.put("type", "video_devices_list");
+  void to(json::object &obj) const override {
+    obj["type"]                                  = "video_devices_list";
     std::vector<platf::display_device_t> devices = platf::available_outputs();
 
-    pt::ptree array;
+    json::array array;
     for(const auto &device : devices) {
-      pt::ptree device_tree, outputArray;
-      device_tree.put("name", device.adapterName);
-      for(const auto &outputName : device.outputNames) {
-        outputArray.push_back(pt::ptree::value_type("", outputName));
-      }
-      device_tree.put_child("outputs", outputArray);
-
-      array.push_back(pt::ptree::value_type("", device_tree));
+      array.push_back({ { "name", device.adapterName }, { "outputs", json::array(device.outputNames.begin(), device.outputNames.end()) } });
     }
-    tree.put_child("devices", array);
+    obj["devices"] = array;
   }
 
   bool check(std::string value) const override {
@@ -146,14 +132,9 @@ struct video_devices_limit : ILimit {
 struct string_limit : ILimit {
   std::vector<std::string_view> values;
 
-  void to(pt::ptree &tree) const override {
-    tree.put("type", "string");
-
-    pt::ptree array;
-    for(auto &str : values) {
-      array.push_back(pt::ptree::value_type("", str.data()));
-    }
-    tree.put_child("values", array);
+  void to(json::object &obj) const override {
+    obj["type"]   = "string";
+    obj["values"] = json::array(values.begin(), values.end());
   }
 
   bool check(std::string value) const override {
@@ -316,7 +297,7 @@ extern sunshine_t sunshine;
 int parse(int argc, char *argv[]);
 std::string_view to_config_prop_string(config_props propType);
 void apply_config(std::unordered_map<std::string, std::string> &&vars);
-void save_config(std::unordered_map<std::string, std::string> &&vars);
+void save_config(json::object configJson);
 std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
 } // namespace config
 #endif

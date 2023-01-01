@@ -69,7 +69,7 @@ pkg_check_modules (CURL REQUIRED libcurl)
 if(NOT APPLE)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
 endif()
-find_package(Boost COMPONENTS log filesystem program_options REQUIRED)
+find_package(Boost COMPONENTS log json filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 

@@ -6,11 +6,11 @@
 
 #include "process.h"
 
-#include <filesystem>
+#include <chrono>
+#include <fstream>
 
 #include <boost/filesystem.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
+#include <boost/json.hpp>
 
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_http.hpp>
@@ -30,8 +30,8 @@
 using namespace std::literals;
 
 namespace confighttp {
-namespace fs = std::filesystem;
-namespace pt = boost::property_tree;
+namespace fs   = std::filesystem;
+namespace json = boost::json;
 
 using http_server_t = SimpleWeb::Server<SimpleWeb::HTTP>;
 
@@ -63,211 +63,187 @@ void print_req(const req_http_t &request) {
 
   BOOST_LOG(debug) << " [--] "sv;
 }
-bool get_apps(const pt::ptree &data, pt::ptree &response) {
-  std::string content = read_file(config::stream.file_apps.c_str());
-  response.put("content", content);
+bool get_apps(const json::object &data, json::object &response) {
+
+  json::array apps;
+  for(auto &app : proc::proc.get_apps()) {
+    apps.push_back(json::value_from(app));
+  }
+
+  response.emplace("apps", apps);
   return true;
 }
 
-bool save_app(const pt::ptree &data, pt::ptree &response) {
-  pt::ptree fileTree;
-
+bool save_app(const json::object &data, json::object &response) {
+  if(!data.contains("id") ||
+     !data.contains("name")) {
+    response["error"] = "Provided app has missing fields.";
+    return false;
+  }
   try {
-    pt::read_json(config::stream.file_apps, fileTree);
+    auto id      = data.at("id").as_int64();
+    auto new_app = json::value_to<proc::ctx_t>(json::value(data));
+    new_app.id   = duration_cast<std::chrono::milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    auto &apps_node = fileTree.get_child("apps"s);
-    auto id         = data.get<std::string>("id");
+    proc::proc.add_app(id, new_app);
+    proc::save(config::sunshine.config_file);
 
-    pt::ptree newApps;
-    bool newNode = true;
-    for(const auto &kv : apps_node) {
-      if(kv.second.get<std::string>("id") == id) {
-        newApps.push_back(std::make_pair("", data));
-        newNode = false;
-      }
-      else {
-        newApps.push_back(std::make_pair("", kv.second));
-      }
-    }
-    if(newNode) {
-      newApps.push_back(std::make_pair("", data));
-    }
-    fileTree.erase("apps");
-    fileTree.push_back(std::make_pair("apps", newApps));
-
-    pt::write_json(config::stream.file_apps, fileTree);
-    proc::refresh(config::stream.file_apps);
     return true;
   }
   catch(std::exception &e) {
-    BOOST_LOG(warning) << "SaveApp: "sv << e.what();
-    response.put("error", "Invalid Input JSON");
+    BOOST_LOG(warning) << "Failed to save a new app: " << e.what();
+    response["error"] = "Failed to save a new app.";
     return false;
   }
 }
 
-bool delete_app(const pt::ptree &data, pt::ptree &response) {
-  pt::ptree fileTree;
-  try {
-    pt::read_json(config::stream.file_apps, fileTree);
-    auto &apps_node = fileTree.get_child("apps"s);
-    auto id         = data.get<std::string>("id");
-
-    pt::ptree newApps;
-    bool success = false;
-    for(const auto &kv : apps_node) {
-      if(id == kv.second.get<std::string>("id")) {
-        success = true;
-      }
-      else {
-        newApps.push_back(std::make_pair("", kv.second));
-      }
-    }
-    if(!success) {
-      response.put("error", "No such app ID");
-      return false;
-    }
-    fileTree.erase("apps");
-    fileTree.push_back(std::make_pair("apps", newApps));
-    pt::write_json(config::stream.file_apps, fileTree);
-    proc::refresh(config::stream.file_apps);
-    return true;
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
-    response.put("error", "Invalid File JSON");
+bool delete_app(json::object &data, json::object &response) {
+  if(!data.at("id").is_int64()) {
+    response["error"] = "Invalid app id";
     return false;
   }
+
+  try {
+    auto id = data.at("id").as_int64();
+    proc::proc.remove_app(id);
+    proc::save(config::sunshine.config_file);
+  }
+  catch(std::exception &e) {
+    BOOST_LOG(warning) << "Failed to remove an app: " << e.what();
+    response["error"] = "Failed to save an app.";
+    return false;
+  }
+  return true;
 }
 
-bool get_config(const pt::ptree &data, pt::ptree &response) {
+bool get_config(json::object &data, json::object &response) {
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
   for(auto &[name, value] : vars) {
-    response.put(name, value);
+    response[name] = value;
   }
   return true;
 }
 
-bool get_api_version(const pt::ptree &data, pt::ptree &response) {
-  response.put("version", PROJECT_VER);
-  response.put("setup_required", !http::creds_file_exists());
-  response.put("platform", SUNSHINE_PLATFORM);
+bool get_api_version(json::object &data, json::object &response) {
+  response["version"]        = PROJECT_VER;
+  response["setup_required"] = !http::creds_file_exists();
+  response["platform"]       = SUNSHINE_PLATFORM;
   return true;
 }
 
-bool get_config_schema(const pt::ptree &data, pt::ptree &response) {
+bool get_config_schema(json::object &data, json::object &response) {
 
   for(auto &[name, val] : config::property_schema) {
-    pt::ptree prop_info, limits;
+    json::object prop_info, limits;
     try {
       config::config_prop any_prop = val.first;
-      prop_info.put("name", any_prop.name);
-      prop_info.put("translated_name", any_prop.name);
-      prop_info.put("description", any_prop.description);
+      prop_info["name"]            = any_prop.name;
+      prop_info["description"]     = any_prop.description;
+      prop_info["required"]        = any_prop.required;
+      prop_info["type"]            = config::to_config_prop_string(any_prop.prop_type);
+
       val.second->to(limits);
-      prop_info.push_back(std::make_pair("limits", limits));
-      prop_info.put("translated_description", any_prop.description);
-      prop_info.put("required", any_prop.required);
-      prop_info.put("type", config::to_config_prop_string(any_prop.prop_type));
+      prop_info["limits"] = limits;
     }
     catch(const std::exception &e) {
-      response.put("error", e.what());
+      response["error"] = e.what();
       return false;
     }
-    response.push_back(std::make_pair(name, prop_info));
+    response[name] = prop_info;
   }
   return true;
 }
 
-bool save_config(pt::ptree &data, pt::ptree &response) {
-  std::stringstream contentStream, configStream;
-  contentStream << data.get<std::string>("config");
+bool save_config(json::object &data, json::object &response) {
+  if(!data.at("config").is_string()) {
+    response["error"] = "Config should be a valid JSON string";
+    return false;
+  }
+
   try {
-    pt::ptree inputTree;
-    pt::read_json(contentStream, inputTree);
-
-    std::unordered_map<std::string, std::string> vars;
-    for(const auto &kv : inputTree) {
-      auto value = inputTree.get<std::string>(kv.first);
-      if(value.length() == 0 || value == "null") continue;
-
-      vars[kv.first] = value;
-    }
-    config::save_config(std::move(vars));
+    json::object config = json::parse(data.at("config").as_string()).as_object();
+    config::save_config(std::move(config));
     return true;
   }
   catch(std::exception &e) {
     BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
-    response.put("error", "exception");
-    response.put("exception", e.what());
+    response["error"]     = "Failed to save config";
+    response["exception"] = e.what();
   }
   return false;
 }
 
-bool save_pin(pt::ptree &data, pt::ptree &response) {
+bool save_pin(json::object &data, json::object &response) {
   try {
-    auto pin = data.get<std::string>("pin");
-    response.put("status", nvhttp::pin(pin));
+    auto pin           = std::string { data.at("pin").as_string() };
+    response["status"] = nvhttp::pin(pin);
     return true;
   }
   catch(std::exception &e) {
     BOOST_LOG(warning) << "SavePin: "sv << e.what();
-    response.put("error", "exception");
-    response.put("exception", e.what());
+    response["error"]     = "Failed to input pin";
+    response["exception"] = e.what();
   }
   return false;
 }
 
-bool unpair_all(pt::ptree &data, pt::ptree &response) {
+bool unpair_all(json::object &data, json::object &response) {
   nvhttp::erase_all_clients();
   return true;
 }
 
-bool close_app(pt::ptree &data, pt::ptree &response) {
+bool close_app(json::object &data, json::object &response) {
   proc::proc.terminate();
   return true;
 }
 
 bool request_pin() {
-  pt::ptree output;
-  output.put("type", "request_pin");
+  json::value v { { "type", "request_pin" } };
 
-  std::ostringstream data;
-  pt::write_json(data, output, false);
-  last_sse_event = data.str();
+  last_sse_event = json::serialize(v);
   sse_event_awaiter.notify_all();
   return true;
 }
 
 
-bool update_credentials(pt::ptree &data, pt::ptree &response) {
-  auto newUsername = data.get_optional<std::string>("newUsername").get_value_or("");
-  auto newPassword = data.get_optional<std::string>("newPassword").get_value_or("");
+bool update_credentials(json::object &data, json::object &response) {
 
-  if(newUsername.length() < 4) {
-    response.put("error", "Your username should have at least 4 characters.");
+  try {
+    auto newUsername = std::string { data.at("newUsername").as_string() };
+    auto newPassword = std::string { data.at("newPassword").as_string() };
+
+    if(newUsername.length() < 4) {
+      response["error"] = "Your username should have at least 4 characters.";
+      return false;
+    }
+    if(newPassword.length() < 4) {
+      response["error"] = "Your password should have at least 4 characters.";
+      return false;
+    }
+
+    http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
+    http::reload_user_creds(config::sunshine.credentials_file);
+
+    return true;
+  }
+  catch(std::exception &e) {
+    response["error"] = "Invalid input JSON";
     return false;
   }
-  if(newPassword.length() < 4) {
-    response.put("error", "Your password should have at least 4 characters.");
-    return false;
-  }
-
-  http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
-  http::reload_user_creds(config::sunshine.credentials_file);
-
-  return true;
 }
 
-bool upload_cover(pt::ptree &data, pt::ptree &response) {
+bool upload_cover(json::object &data, json::object &response) {
 
-  auto key = data.get("key", "");
-  if(key.empty()) {
-    response.put("error", "Cover key is required");
+  if(!data.contains("key") || !data.at("key").is_string()) {
+    response["error"] = "Cover key is required";
     return false;
   }
-  auto url = data.get("url", "");
+  auto key = std::string { data.at("key").as_string() };
+
+  std::string url;
+  if(data.contains("url") &&
+     data.at("url").is_string()) url = std::string { data.at("url").as_string() };
 
   const std::string coverdir = platf::appdata().string() + "/covers/";
   if(!boost::filesystem::exists(coverdir)) {
@@ -277,26 +253,32 @@ bool upload_cover(pt::ptree &data, pt::ptree &response) {
   std::basic_string path = coverdir + http::url_escape(key) + ".png";
   if(!url.empty()) {
     if(http::url_get_host(url) != "images.igdb.com") {
-      response.put("error", "Only images.igdb.com is allowed");
+      response["error"] = "Only images.igdb.com is allowed";
       return false;
     }
     if(!http::download_file(url, path)) {
-      response.put("error", "Failed to download cover");
+      response["error"] = "Failed to download cover";
       return false;
     }
   }
   else {
-    auto binaryImage = SimpleWeb::Crypto::Base64::decode(data.get<std::string>("data"));
-
-    std::ofstream imgfile(path);
-    imgfile.write(binaryImage.data(), (int)data.size());
+    if(data.contains("data") && data.at("data").is_string()) {
+      std::string binaryStr = std::string { data.at("data").as_string() };
+      auto binaryImage      = SimpleWeb::Crypto::Base64::decode(binaryStr);
+      std::ofstream imgfile(path);
+      imgfile.write(binaryImage.data(), (int)binaryStr.size());
+    }
+    else {
+      response["error"] = "Data needs to be a binary string";
+      return false;
+    }
   }
-  response.put("path", path);
 
+  response["path"] = path;
   return true;
 }
 
-std::map<std::string, std::pair<req_type, std::function<bool(pt::ptree &, pt::ptree &)>>> allowedRequests = {
+std::map<std::string, std::pair<req_type, std::function<bool(json::object &, json::object &)>>> allowedRequests = {
   { "get_apps"s, { req_type::GET, get_apps } },
   { "api_version"s, { req_type::GET, get_api_version } },
   { "get_config"s, { req_type::GET, get_config } },
@@ -324,7 +306,7 @@ bool checkRequestOrigin(const req_http_t &request) {
   return true;
 }
 
-void handleApiSSE(resp_http_t response, const req_http_t &request) {
+void handleApiSSE(const resp_http_t &response, const req_http_t &request) {
   if(!checkRequestOrigin(request)) return;
 
   std::thread work_thread([response, request] {
@@ -404,33 +386,34 @@ void handleApiRequest(const resp_http_t &response, const req_http_t &request) {
     requestMethod = req_type::POST;
   }
 
-  pt::ptree inputTree, outputTree;
-  std::stringstream contentStream;
+  json::object input;
+  json::object outputJson;
   bool result = false;
-  contentStream << request->content.string();
   try {
-    pt::read_json(contentStream, inputTree);
+    if(request->content.size() > 0) {
+      input = json::parse(request->content.string()).as_object();
+    }
   }
-  catch(...) {
+  catch(std::exception &e) {
+    BOOST_LOG(info) << "Web API: Invalid input JSON\n";
   }
 
   auto req = allowedRequests.find(req_name);
   if(req != allowedRequests.end()) {
     if(req->second.first == requestMethod) {
-      result = req->second.second(inputTree, outputTree);
+      result = req->second.second(input, outputJson);
     }
     else {
-      outputTree.put("error", "Invalid request method");
+      outputJson["error"] = "Invalid request method";
     }
   }
-  outputTree.put("result", result);
-  outputTree.put("authenticated", authResult == 0);
-  std::ostringstream data;
-  pt::write_json(data, outputTree, false);
-  response->write(data.str(), { { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", "Authorization" } });
+
+  outputJson["result"]        = result;
+  outputJson["authenticated"] = authResult == 0;
+  response->write(json::serialize(outputJson), { { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", "Authorization" } });
 }
 
-void appasset(resp_http_t response, const req_http_t &request) {
+void appasset(const resp_http_t &response, const req_http_t &request) {
   if(!checkRequestOrigin(request)) return;
   print_req(request);
 
@@ -441,7 +424,7 @@ void appasset(resp_http_t response, const req_http_t &request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, { { "Content-Type", "image/png" } });
 }
 
-void handleCors(resp_http_t response, const req_http_t &request) {
+void handleCors(const resp_http_t &response, const req_http_t &request) {
   auto allowHeaders = "Authorization"s;
   response->write({ { "Access-Control-Allow-Origin", "*" }, { "Access-Control-Allow-Headers", allowHeaders } });
 }

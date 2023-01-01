@@ -7,6 +7,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/json.hpp>
 
 #include "config.h"
 #include "main.h"
@@ -14,7 +15,8 @@
 
 #include "platform/common.h"
 
-namespace fs = std::filesystem;
+namespace fs   = std::filesystem;
+namespace json = boost::json;
 using namespace std::literals;
 
 #define CA_DIR "credentials"
@@ -528,7 +530,7 @@ void path_f(std::string input, fs::path &value) {
 void path_f(std::string value, std::string &input) {
   fs::path temp = input;
 
-  path_f(value, temp);
+  path_f(std::move(value), temp);
 
   input = temp.string();
 }
@@ -699,70 +701,93 @@ int apply_flags(const char *line) {
   return ret;
 }
 
-void save_config(std::unordered_map<std::string, std::string> &&vars) {
+void save_config(json::object configJson) {
   std::stringstream configStream;
 
-  for(auto &[name, val] : vars) {
+  for(auto &[name, val] : configJson) {
     auto it = property_schema.find(name);
     if(it == property_schema.end()) {
       BOOST_LOG(warning) << "Tried to set property " << name << " but property doesn\'t exist.";
       continue;
     }
-    if(val.empty()) {
-      BOOST_LOG(warning) << "Property" << name << "has empty value. Skipping.";
+    if(val.is_null()) {
+      BOOST_LOG(warning) << "Property" << name << "has no value. Skipping.";
       continue;
     }
 
     config_prop any_prop = it->second.first;
-
-    bool isValidValue = it->second.second->check(val);
-    if(!isValidValue) {
-      BOOST_LOG(error) << "Property" << name << "has invalid value. Skipping.";
-      continue;
-    }
+    std::string valueToSave;
     switch(any_prop.prop_type) {
     case TYPE_STRING:
-      isValidValue = true;
+      if(val.is_string()) {
+        valueToSave = std::string { val.as_string() };
+      }
       break;
     case TYPE_FILE: {
-      std::string temp_file;
-      path_f(val, temp_file);
-      isValidValue = !temp_file.empty();
+      if(val.is_string()) {
+        path_f(std::string { val.as_string() }, valueToSave);
+      }
       break;
     }
     case TYPE_INT: {
-      int temp_int = std::numeric_limits<int>::max();
-      int_f(val, temp_int);
-      isValidValue = temp_int != std::numeric_limits<int>::max();
+      if(val.is_int64()) {
+        valueToSave = std::to_string(val.as_int64());
+      }
       break;
     }
     case TYPE_INT_ARRAY: {
-      std::vector<int> temp_int_vec;
-      list_int_f(val, temp_int_vec);
-      isValidValue = !temp_int_vec.empty();
+      if(val.is_array()) {
+        auto arr          = val.as_array();
+        bool isValidValue = true;
+        for(auto &element : arr) {
+          if(!element.is_int64()) {
+            isValidValue = false;
+            break;
+          }
+        }
+        if(isValidValue) {
+          valueToSave = json::serialize(val);
+        }
+      }
       break;
     }
     case TYPE_STRING_ARRAY: {
-      std::vector<std::string> temp_str_vec;
-      list_string_f(val, temp_str_vec);
-      isValidValue = !temp_str_vec.empty();
+      if(val.is_array()) {
+        auto arr          = val.as_array();
+        bool isValidValue = true;
+        for(auto &element : arr) {
+          if(!element.is_string()) {
+            isValidValue = false;
+            break;
+          }
+        }
+        if(isValidValue) {
+          valueToSave = json::serialize(val);
+        }
+      }
       break;
     }
     case TYPE_BOOLEAN: {
-      bool temp_bool = false;
-      bool_f(val, temp_bool);
-      isValidValue = temp_bool;
+      if(val.is_bool()) {
+        valueToSave = val.as_bool() ? "true" : "false";
+      }
       break;
     }
     case TYPE_DOUBLE: {
-      double temp_double = std::numeric_limits<double>::max();
-      double_f(val, temp_double);
-      isValidValue = temp_double != std::numeric_limits<double>::max();
+      if(val.is_double()) {
+        valueToSave = std::to_string(val.as_double());
+      }
       break;
     }
     }
+
+    bool isValidValue = it->second.second->check(valueToSave);
     if(isValidValue) {
       configStream << name << " = " << val << std::endl;
+    }
+    else {
+      BOOST_LOG(error) << "Property" << name << "has invalid value. Skipping.";
+      continue;
     }
   }
 

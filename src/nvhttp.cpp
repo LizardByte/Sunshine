@@ -684,13 +684,12 @@ void applist(resp_https_t response, req_https_t request) {
 
   apps.put("<xmlattr>.status_code", 200);
 
-  int x = 0;
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
     app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
-    app.put("ID"s, ++x);
+    app.put("ID"s, proc.id);
 
     apps.push_back(std::make_pair("App", std::move(app)));
   }

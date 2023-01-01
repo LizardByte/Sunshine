@@ -10,9 +10,8 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/json.hpp>
 #include <boost/program_options/parsers.hpp>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
 
 #include "main.h"
 #include "platform/common.h"
@@ -25,13 +24,13 @@
 
 namespace proc {
 using namespace std::literals;
-namespace bp = boost::process;
-namespace pt = boost::property_tree;
+namespace bp   = boost::process;
+namespace json = boost::json;
 
 proc_t proc;
 
-void process_end(bp::child &proc, bp::group &proc_handle) {
-  if(!proc.running()) {
+void process_end(bp::child &process, bp::group &proc_handle) {
+  if(!process.running()) {
     return;
   }
 
@@ -39,7 +38,7 @@ void process_end(bp::child &proc, bp::group &proc_handle) {
   proc_handle.terminate();
 
   // avoid zombie process
-  proc.wait();
+  process.wait();
 }
 
 int exe_with_full_privs(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
@@ -59,18 +58,18 @@ boost::filesystem::path find_working_directory(const std::string &cmd, bp::envir
 #endif
   if(parts.empty()) {
     BOOST_LOG(error) << "Unable to parse command: "sv << cmd;
-    return boost::filesystem::path();
+    return {};
   }
 
   BOOST_LOG(debug) << "Parsed executable ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
 
   // If the cmd path is not a complete path, resolve it using our PATH variable
   boost::filesystem::path cmd_path(parts.at(0));
-  if(!cmd_path.is_complete()) {
+  if(!cmd_path.is_absolute()) {
     cmd_path = boost::process::search_path(parts.at(0));
     if(cmd_path.empty()) {
       BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
-      return boost::filesystem::path();
+      return {};
     }
   }
 
@@ -150,7 +149,7 @@ int proc_t::execute(int app_id) {
   }
 
   if(proc.cmd.empty()) {
-    BOOST_LOG(info) << "Executing [Desktop]"sv;
+    BOOST_LOG(debug) << "Executing [Desktop]"sv;
     placebo = true;
   }
   else {
@@ -195,6 +194,12 @@ void proc_t::terminate() {
   _process_handle = bp::group();
   _app_id         = -1;
 
+  if(ec) {
+    BOOST_LOG(fatal) << "System: "sv << ec.message();
+    log_flush();
+    std::abort();
+  }
+
   for(; _undo_it != _undo_begin; --_undo_it) {
     auto &cmd = (_undo_it - 1)->undo_cmd;
 
@@ -202,27 +207,53 @@ void proc_t::terminate() {
       continue;
     }
 
-    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
+    BOOST_LOG(debug) << "Executing: ["sv << cmd << ']';
 
     auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
 
     if(ec) {
-      BOOST_LOG(warning) << "System: "sv << ec.message();
+      BOOST_LOG(fatal) << "System: "sv << ec.message();
+      log_flush();
+      std::abort();
     }
 
     if(ret != 0) {
-      BOOST_LOG(warning) << "Return code ["sv << ret << ']';
+      BOOST_LOG(fatal) << "Return code ["sv << ret << ']';
+      log_flush();
+      std::abort();
     }
   }
 
   _pipe.reset();
 }
-
 const std::vector<ctx_t> &proc_t::get_apps() const {
   return _apps;
 }
-std::vector<ctx_t> &proc_t::get_apps() {
-  return _apps;
+
+void proc_t::add_app(int id, ctx_t app) {
+  bool newApp = true;
+  for(auto &_app : _apps) {
+    if(_app.id == id) {
+      _app   = app;
+      newApp = false;
+      break;
+    }
+  }
+
+  if(newApp) {
+    _apps.push_back(app);
+  }
+}
+
+bool proc_t::remove_app(int id) {
+
+  for(int i = 0; i < _apps.size(); i++) {
+    if(_apps[i].id == id) {
+      _apps.erase(_apps.begin() + i);
+      return true;
+    }
+  }
+  return false;
 }
 
 // Gets application image from application list.
@@ -230,14 +261,18 @@ std::vector<ctx_t> &proc_t::get_apps() {
 // Returns default image if image configuration is not set.
 // Returns http content-type header compatible image type.
 std::string proc_t::get_app_image(int app_id) {
-  auto app_index = app_id - 1;
-  if(app_index < 0 || app_index >= _apps.size()) {
-    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-    return SUNSHINE_ASSETS_DIR "/box.png";
-  }
 
-  auto default_image  = SUNSHINE_ASSETS_DIR "/box.png";
-  auto app_image_path = _apps[app_index].image_path;
+  auto default_image = SUNSHINE_ASSETS_DIR "/box.png";
+
+  std::string app_image_path;
+  for(int i = 0; i < _apps.size(); i++) {
+    if(_apps[i].id == app_id) {
+      if(!_apps[i].image_path.empty()) {
+        app_image_path = _apps[i].image_path;
+      }
+      break;
+    }
+  }
   if(app_image_path.empty()) {
     // image is empty, return default box image
     return default_image;
@@ -353,100 +388,41 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
   return ss.str();
 }
 
-std::optional<proc::proc_t> parse(const std::string &file_name) {
-  pt::ptree tree;
+bool save(const std::string &fileName) {
+  json::array apps;
+  for(auto &app : proc.get_apps()) {
+    json::value appJson;
+    apps.push_back(json::value_from(app));
+  }
+  write_file(fileName.c_str(), json::serialize(apps));
+  return true;
+}
+
+void parse(const std::string &fileName) {
 
   try {
-    pt::read_json(file_name, tree);
+    auto tree = json::parse(read_file(fileName.c_str()));
 
-    auto &apps_node = tree.get_child("apps"s);
-    auto &env_vars  = tree.get_child("env"s);
+    auto &apps_node = tree.at("apps"s).as_array();
+    auto &env_vars  = tree.at("env"s).as_object();
 
     auto this_env = boost::this_process::environment();
 
     for(auto &[name, val] : env_vars) {
-      this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
+      this_env[name] = parse_env_val(this_env, val.as_string());
     }
 
     std::vector<proc::ctx_t> apps;
-    for(auto &[_, app_node] : apps_node) {
-      proc::ctx_t ctx;
-
-      auto prep_nodes_opt     = app_node.get_child_optional("prep-cmd"s);
-      auto detached_nodes_opt = app_node.get_child_optional("detached"s);
-      auto output             = app_node.get_optional<std::string>("output"s);
-      auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
-      auto cmd                = app_node.get_optional<std::string>("cmd"s);
-      auto image_path         = app_node.get_optional<std::string>("image-path"s);
-      auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
-
-      std::vector<proc::cmd_t> prep_cmds;
-      if(prep_nodes_opt) {
-        auto &prep_nodes = *prep_nodes_opt;
-
-        prep_cmds.reserve(prep_nodes.size());
-        for(auto &[_, prep_node] : prep_nodes) {
-          auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
-          auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
-
-          if(undo_cmd) {
-            prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
-          }
-          else {
-            prep_cmds.emplace_back(std::move(do_cmd));
-          }
-        }
-      }
-
-      std::vector<std::string> detached;
-      if(detached_nodes_opt) {
-        auto &detached_nodes = *detached_nodes_opt;
-
-        detached.reserve(detached_nodes.size());
-        for(auto &[_, detached_val] : detached_nodes) {
-          detached.emplace_back(parse_env_val(this_env, detached_val.get_value<std::string>()));
-        }
-      }
-
-      if(output) {
-        ctx.output = parse_env_val(this_env, *output);
-      }
-
-      if(cmd) {
-        ctx.cmd = parse_env_val(this_env, *cmd);
-      }
-
-      if(working_dir) {
-        ctx.working_dir = parse_env_val(this_env, *working_dir);
-      }
-
-      if(image_path) {
-        ctx.image_path = parse_env_val(this_env, *image_path);
-      }
-
-      ctx.name      = std::move(name);
-      ctx.prep_cmds = std::move(prep_cmds);
-      ctx.detached  = std::move(detached);
-
-      apps.emplace_back(std::move(ctx));
+    for(auto &app_node : apps_node) {
+      apps.emplace_back(json::value_to<proc::ctx_t>(app_node));
     }
 
-    return proc::proc_t {
-      std::move(this_env), std::move(apps)
-    };
+    proc = proc::proc_t { this_env, std::move(apps) };
   }
   catch(std::exception &e) {
     BOOST_LOG(error) << e.what();
   }
-
-  return std::nullopt;
 }
 
-void refresh(const std::string &file_name) {
-  auto proc_opt = proc::parse(file_name);
 
-  if(proc_opt) {
-    proc = std::move(*proc_opt);
-  }
-}
 } // namespace proc
