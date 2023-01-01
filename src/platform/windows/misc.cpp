@@ -188,6 +188,61 @@ HANDLE duplicate_shell_token() {
   return new_token;
 }
 
+PTOKEN_USER get_token_user(HANDLE token) {
+  DWORD return_length;
+  if(GetTokenInformation(token, TokenUser, NULL, 0, &return_length) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+    auto winerr = GetLastError();
+    BOOST_LOG(error) << "Failed to get token information size: "sv << winerr;
+    return nullptr;
+  }
+
+  auto user = (PTOKEN_USER)HeapAlloc(GetProcessHeap(), 0, return_length);
+  if(!user) {
+    return nullptr;
+  }
+
+  if(!GetTokenInformation(token, TokenUser, user, return_length, &return_length)) {
+    auto winerr = GetLastError();
+    BOOST_LOG(error) << "Failed to get token information: "sv << winerr;
+    HeapFree(GetProcessHeap(), 0, user);
+    return nullptr;
+  }
+
+  return user;
+}
+
+void free_token_user(PTOKEN_USER user) {
+  HeapFree(GetProcessHeap(), 0, user);
+}
+
+bool is_token_same_user_as_process(HANDLE other_token) {
+  HANDLE process_token;
+  if(!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &process_token)) {
+    auto winerr = GetLastError();
+    BOOST_LOG(error) << "Failed to open process token: "sv << winerr;
+    return false;
+  }
+
+  auto process_user = get_token_user(process_token);
+  CloseHandle(process_token);
+  if(!process_user) {
+    return false;
+  }
+
+  auto token_user = get_token_user(other_token);
+  if(!token_user) {
+    free_token_user(process_user);
+    return false;
+  }
+
+  bool ret = EqualSid(process_user->User.Sid, token_user->User.Sid);
+
+  free_token_user(process_user);
+  free_token_user(token_user);
+
+  return ret;
+}
+
 bool merge_user_environment_block(bp::environment &env, HANDLE shell_token) {
   // Get the target user's environment block
   PVOID env_block;
@@ -339,40 +394,57 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
       NULL);
   }
 
-  // Impersonate the user when launching the process. This will ensure that appropriate access
-  // checks are done against the user token, not our SYSTEM token. It will also allow network
-  // shares and mapped network drives to be used as launch targets, since those credentials
-  // are stored per-user.
-  if(!ImpersonateLoggedOnUser(shell_token)) {
-    auto winerror = GetLastError();
-    BOOST_LOG(error) << "Failed to impersonate user: "sv << winerror;
-    ec = std::make_error_code(std::errc::permission_denied);
-    return bp::child();
-  }
-
-  // Launch the process with the duplicated shell token.
-  // Set CREATE_BREAKAWAY_FROM_JOB to avoid the child being killed if SunshineSvc.exe is terminated.
-  // Set CREATE_NEW_CONSOLE to avoid writing stdout to Sunshine's log if 'file' is not specified.
+  // If we're running with the same user account as the shell, just use CreateProcess().
+  // This will launch the child process elevated if Sunshine is elevated.
   PROCESS_INFORMATION process_info;
-  BOOL ret = CreateProcessAsUserW(shell_token,
-    NULL,
-    (LPWSTR)wcmd.c_str(),
-    NULL,
-    NULL,
-    !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-    EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-    env_block.data(),
-    start_dir.empty() ? NULL : start_dir.c_str(),
-    (LPSTARTUPINFOW)&startup_info,
-    &process_info);
+  BOOL ret;
+  if(!is_token_same_user_as_process(shell_token)) {
+    // Impersonate the user when launching the process. This will ensure that appropriate access
+    // checks are done against the user token, not our SYSTEM token. It will also allow network
+    // shares and mapped network drives to be used as launch targets, since those credentials
+    // are stored per-user.
+    if(!ImpersonateLoggedOnUser(shell_token)) {
+      auto winerror = GetLastError();
+      BOOST_LOG(error) << "Failed to impersonate user: "sv << winerror;
+      ec = std::make_error_code(std::errc::permission_denied);
+      return bp::child();
+    }
 
-  // End impersonation of the logged on user. If this fails (which is extremely unlikely),
-  // we will be running with an unknown user token. The only safe thing to do in that case
-  // is terminate ourselves.
-  if(!RevertToSelf()) {
-    auto winerror = GetLastError();
-    BOOST_LOG(fatal) << "Failed to revert to self after impersonation: "sv << winerror;
-    std::abort();
+    // Launch the process with the duplicated shell token.
+    // Set CREATE_BREAKAWAY_FROM_JOB to avoid the child being killed if SunshineSvc.exe is terminated.
+    // Set CREATE_NEW_CONSOLE to avoid writing stdout to Sunshine's log if 'file' is not specified.
+    ret = CreateProcessAsUserW(shell_token,
+      NULL,
+      (LPWSTR)wcmd.c_str(),
+      NULL,
+      NULL,
+      !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+      EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+      env_block.data(),
+      start_dir.empty() ? NULL : start_dir.c_str(),
+      (LPSTARTUPINFOW)&startup_info,
+      &process_info);
+
+    // End impersonation of the logged on user. If this fails (which is extremely unlikely),
+    // we will be running with an unknown user token. The only safe thing to do in that case
+    // is terminate ourselves.
+    if(!RevertToSelf()) {
+      auto winerror = GetLastError();
+      BOOST_LOG(fatal) << "Failed to revert to self after impersonation: "sv << winerror;
+      std::abort();
+    }
+  }
+  else {
+    ret = CreateProcessW(NULL,
+      (LPWSTR)wcmd.c_str(),
+      NULL,
+      NULL,
+      !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+      EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+      env_block.data(),
+      start_dir.empty() ? NULL : start_dir.c_str(),
+      (LPSTARTUPINFOW)&startup_info,
+      &process_info);
   }
 
   if(ret) {
