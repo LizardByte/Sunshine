@@ -544,8 +544,9 @@ std::vector<display_device_t> available_outputs() {
       adapter_outputs.push_back(output_name);
     }
     displayDevice.outputNames = adapter_outputs;
-
-    display_devices.push_back(displayDevice);
+    if (!adapter_outputs.empty()) {
+      display_devices.push_back(displayDevice);
+    }
   }
 
   return display_devices;
