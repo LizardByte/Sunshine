@@ -3,6 +3,10 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
+# This workflow is intended to work with all our organization Docker projects. Docker platforms/architectures should be
+# listed in a file named `.docker_platforms`, comma separated list with no spaces. A readme named `DOCKER_README.md`
+# will be used to update the description on Docker hub.
+
 name: CI Docker
 
 on:
@@ -12,6 +16,10 @@ on:
   push:
     branches: [master, nightly]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check_dockerfile:
