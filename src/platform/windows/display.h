@@ -36,7 +36,7 @@ using dup_t                 = util::safe_ptr<IDXGIOutputDuplication, Release<IDX
 using texture2d_t           = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
 using texture1d_t           = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;
 using resource_t            = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
-using multithread_t         = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
+using multithread_t         = util::safe_ptr<ID3D10Multithread, Release<ID3D10Multithread>>;
 using vs_t                  = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
 using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
 using blend_t               = util::safe_ptr<ID3D11BlendState, Release<ID3D11BlendState>>;
@@ -175,6 +175,8 @@ public:
   int init(int framerate, const std::string &display_name);
 
   std::shared_ptr<platf::hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override;
+
+  multithread_t multithread;
 
   sampler_state_t sampler_linear;
 

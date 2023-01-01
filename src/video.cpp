@@ -442,7 +442,7 @@ static encoder_t nvenc {
     "h264_nvenc"s,
   },
 #ifdef _WIN32
-  DEFAULT,
+  PARALLEL_ENCODING,
   dxgi_make_hwdevice_ctx
 #else
   PARALLEL_ENCODING,
@@ -486,7 +486,7 @@ static encoder_t amdvce {
     std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "h264_amf"s,
   },
-  DEFAULT,
+  PARALLEL_ENCODING,
   dxgi_make_hwdevice_ctx
 };
 #endif
@@ -1334,7 +1334,7 @@ void captureThreadSync() {
       ctx.shutdown_event->raise(true);
       ctx.join_event->raise(true);
     }
-    });
+  });
 
   while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
@@ -1350,7 +1350,7 @@ void capture_async(
   auto lg     = util::fail_guard([&]() {
     images->stop();
     shutdown_event->raise(true);
-      });
+  });
 
   auto ref = capture_thread_async.ref();
   if(!ref) {
@@ -1756,7 +1756,15 @@ util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *base) {
 #ifdef _WIN32
 }
 
-void do_nothing(void *) {}
+void enter_multithread(void *ctx) {
+  auto mt = (ID3D10Multithread *)ctx;
+  mt->Enter();
+}
+
+void leave_multithread(void *ctx) {
+  auto mt = (ID3D10Multithread *)ctx;
+  mt->Leave();
+}
 
 namespace video {
 util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx) {
@@ -1765,14 +1773,14 @@ util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_c
 
   std::fill_n((std::uint8_t *)ctx, sizeof(AVD3D11VADeviceContext), 0);
 
-  auto device = (ID3D11Device *)hwdevice_ctx->data;
+  // display_vram_t sets data to [ID3D11Device*, ID3D10Multithread*]
+  auto data     = (void **)hwdevice_ctx->data;
+  ctx->device   = (ID3D11Device *)data[0];
+  ctx->lock_ctx = (ID3D10Multithread *)data[1];
+  ctx->lock     = enter_multithread;
+  ctx->unlock   = leave_multithread;
 
-  device->AddRef();
-  ctx->device = device;
-
-  ctx->lock_ctx = (void *)1;
-  ctx->lock     = do_nothing;
-  ctx->unlock   = do_nothing;
+  ctx->device->AddRef();
 
   auto err = av_hwdevice_ctx_init(ctx_buf.get());
   if(err) {

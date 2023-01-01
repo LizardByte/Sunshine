@@ -237,6 +237,8 @@ public:
   int convert(platf::img_t &img_base) override {
     auto &img = (img_d3d_t &)img_base;
 
+    multithread->Enter();
+
     device_ctx_p->IASetInputLayout(input_layout.get());
 
     _init_view_port(this->img.width, this->img.height);
@@ -266,6 +268,8 @@ public:
     device_ctx_p->Draw(3, 0);
     device_ctx_p->Flush();
 
+    multithread->Leave();
+
     return 0;
   }
 
@@ -288,22 +292,23 @@ public:
       ++color_p;
     }
 
-    auto color_matrix = make_buffer((device_t::pointer)data, *color_p);
+    auto color_matrix = make_buffer(device_p, *color_p);
     if(!color_matrix) {
       BOOST_LOG(warning) << "Failed to create color matrix"sv;
       return;
     }
 
+    multithread->Enter();
     device_ctx_p->VSSetConstantBuffers(0, 1, &info_scene);
     device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix);
+    multithread->Leave();
+
     this->color_matrix = std::move(color_matrix);
   }
 
   int set_frame(AVFrame *frame) {
     this->hwframe.reset(frame);
     this->frame = frame;
-
-    auto device_p = (device_t::pointer)data;
 
     auto out_width  = frame->width;
     auto out_height = frame->height;
@@ -399,9 +404,19 @@ public:
     HRESULT status;
 
     device_p->AddRef();
-    data = device_p;
 
+    this->device_p     = device_p;
     this->device_ctx_p = device_ctx_p;
+
+    status = device_p->QueryInterface(IID_ID3D10Multithread, (void **)&multithread);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Couldn't query ID3D10Multithread [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    data_ptrs[0] = device_p;
+    data_ptrs[1] = multithread.get();
+    this->data   = data_ptrs;
 
     format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
     status = device_p->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
@@ -467,8 +482,8 @@ public:
   }
 
   ~hwdevice_t() override {
-    if(data) {
-      ((ID3D11Device *)data)->Release();
+    if(device_p) {
+      device_p->Release();
     }
   }
 
@@ -518,7 +533,11 @@ public:
 
   DXGI_FORMAT format;
 
+  device_t::pointer device_p;
   device_ctx_t::pointer device_ctx_p;
+  multithread_t multithread;
+
+  void *data_ptrs[2] {};
 };
 
 capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
@@ -685,6 +704,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       0.0f, 1.0f
     };
 
+    multithread->Enter();
     device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(scene_ps.get(), nullptr, 0);
     device_ctx->RSSetViewports(1, &view);
@@ -694,6 +714,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     device_ctx->RSSetViewports(1, &cursor.cursor_view);
     device_ctx->Draw(3, 0);
     device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
+    multithread->Leave();
   }
 
   return capture_e::ok;
@@ -704,6 +725,15 @@ int display_vram_t::init(int framerate, const std::string &display_name) {
     return -1;
   }
 
+  auto status = device->QueryInterface(IID_ID3D10Multithread, (void **)&multithread);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Couldn't query ID3D10Multithread [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  // Enable multi-thread protection on our device for PARALLEL_ENCODING
+  multithread->SetMultithreadProtected(true);
+
   D3D11_SAMPLER_DESC sampler_desc {};
   sampler_desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
   sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -713,7 +743,7 @@ int display_vram_t::init(int framerate, const std::string &display_name) {
   sampler_desc.MinLOD         = 0;
   sampler_desc.MaxLOD         = D3D11_FLOAT32_MAX;
 
-  auto status = device->CreateSamplerState(&sampler_desc, &sampler_linear);
+  status = device->CreateSamplerState(&sampler_desc, &sampler_linear);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create point sampler state [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
