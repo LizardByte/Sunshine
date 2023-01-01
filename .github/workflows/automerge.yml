@@ -3,6 +3,8 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
+# This workflow will, first, automatically approve PRs created by @LizardByte-bot. Then it will automerge relevant PRs.
+
 name: Automerge PR
 
 on:
@@ -10,6 +12,10 @@ on:
     types:
       - opened
       - synchronize
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   autoapprove:
@@ -40,9 +46,6 @@ jobs:
     if: startsWith(github.repository, 'LizardByte/')
     needs: [autoapprove]
     runs-on: ubuntu-latest
-    concurrency:
-      group: automerge-${{ github.ref }}
-      cancel-in-progress: true
 
     steps:
       - name: Automerging
