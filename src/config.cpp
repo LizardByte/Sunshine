@@ -51,7 +51,7 @@ std::string_view to_config_prop_string(config_props propType) {
 std::unordered_map<std::string, std::pair<config_prop, limit>> property_schema = {
   { "qp"s, { config_prop(TYPE_INT, "qp"s, ""s, true, &video.qp), no_limit() } },
   { "min_threads"s, { config_prop(TYPE_INT, "min_threads"s, "Minimum number of threads used by ffmpeg to encode the video."s, true, &video.min_threads), minmax_limit(1, std::thread::hardware_concurrency()) } },
-  { "hevc_mode"s, { config_prop(TYPE_INT, "hevc_mode"s, "Allows the client to request HEVC Main or HEVC Main10 video streams."s, true, &video.hevc_mode), string_limit({ "0", "1", "2", "3" }) } },
+  { "hevc_mode"s, { config_prop(TYPE_INT, "hevc_mode"s, "Allows the client to request HEVC Main or HEVC Main10 video streams."s, true, &video.hevc_mode), minmax_limit(0, 3) } },
   { "sw_preset"s, { config_prop(TYPE_STRING, "sw_preset"s, "Software encoding preset"s, true, &video.sw.preset), no_limit() } },
   { "sw_tune"s, { config_prop(TYPE_STRING, "sw_tune"s, "Software encoding tuning parameters"s, true, &video.sw.tune), no_limit() } },
   { "nv_preset"s, { config_prop(TYPE_STRING, "nv_preset"s, "NVENC preset"s, true), string_limit({ "p1", "p2", "p3", "p4", "p5", "p6", "p7" }) } },
@@ -77,7 +77,7 @@ std::unordered_map<std::string, std::pair<config_prop, limit>> property_schema =
   { "ping_timeout"s, { config_prop(TYPE_INT, "ping_timeout"s, "How long to wait (in milliseconds) for data from Moonlight clients before shutting down the stream"s, true, &stream.ping_timeout), minmax_limit(0, std::numeric_limits<int>::max()) } },
   { "channels"s, { config_prop(TYPE_INT, "channels"s, ""s, true, &video.qp), minmax_limit(1, 24) } },
   { "file_apps"s, { config_prop(TYPE_FILE, "file_apps"s, "Path to apps.json which contains all the necessary configuration for running apps in Sunshine."s, true, &stream.file_apps), no_limit() } },
-  { "fec_percentage"s, { config_prop(TYPE_INT, "fec_percentage"s, "Percentage of error correcting packets per data packet in each video frame."s, true, &stream.fec_percentage), no_limit() } },
+  { "fec_percentage"s, { config_prop(TYPE_INT, "fec_percentage"s, "Percentage of error correcting packets per data packet in each video frame."s, true, &stream.fec_percentage), minmax_limit(0, 100) } },
   { "keybindings"s, { config_prop(TYPE_STRING_ARRAY, "keybindings"s, ""s, true), no_limit() } },
   { "key_rightalt_to_key_win"s, { config_prop(TYPE_BOOLEAN, "key_rightalt_to_key_win"s, "It may be possible that you cannot send the Windows key from Moonlight directly. \r\n Allows using Right Alt key as the Windows key."s, true), no_limit() } },
   { "back_button_timeout"s, { config_prop(TYPE_INT, "back_button_timeout"s, "Emulate back/select button press on the controller."s, true, &input.back_button_timeout), minmax_limit(-1, std::numeric_limits<int>::max()) } },

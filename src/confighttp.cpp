@@ -27,6 +27,10 @@
 #include "uuid.h"
 #include "version.h"
 
+
+using std::chrono::duration_cast;
+using std::chrono::system_clock;
+
 using namespace std::literals;
 
 namespace confighttp {
