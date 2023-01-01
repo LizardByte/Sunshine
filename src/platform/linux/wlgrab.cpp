@@ -162,6 +162,12 @@ public:
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, (*rgb_opt)->tex[0]);
+
+    int w, h;
+    gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+    gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &h);
+    BOOST_LOG(debug) << "width and height: w "sv << w << ' h ' << h;
+
     gl::ctx.GetTextureSubImage((*rgb_opt)->tex[0], 0, 0, 0, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
