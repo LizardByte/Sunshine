@@ -441,11 +441,10 @@ static encoder_t nvenc {
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_nvenc"s,
   },
+  PARALLEL_ENCODING,
 #ifdef _WIN32
-  DEFAULT,
   dxgi_make_hwdevice_ctx
 #else
-  PARALLEL_ENCODING,
   cuda_make_hwdevice_ctx
 #endif
 };
@@ -486,7 +485,7 @@ static encoder_t amdvce {
     std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "h264_amf"s,
   },
-  DEFAULT,
+  PARALLEL_ENCODING,
   dxgi_make_hwdevice_ctx
 };
 #endif
