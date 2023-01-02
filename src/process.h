@@ -97,6 +97,8 @@ private:
   file_t _pipe;
   std::vector<cmd_t>::const_iterator _undo_it;
   std::vector<cmd_t>::const_iterator _undo_begin;
+
+  int app_index_from_id(int app_id);
 };
 
 void refresh(const std::string &file_name);

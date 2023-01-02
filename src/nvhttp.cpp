@@ -640,7 +640,7 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   }
   auto current_appid = proc::proc.running();
   tree.put("root.PairStatus", pair_status);
-  tree.put("root.currentgame", current_appid >= 0 ? current_appid + 1 : 0);
+  tree.put("root.currentgame", current_appid >= 0 ? current_appid : 0);
   tree.put("root.state", current_appid >= 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
 
   std::ostringstream data;
@@ -683,8 +683,8 @@ void applist(resp_https_t response, req_https_t request) {
 
   apps.put("<xmlattr>.status_code", 200);
 
-  int x = 0;
-  for(auto &proc : proc::proc.get_apps()) {
+  for(int i = 0; i < proc::proc.get_apps().size(); i++) {
+    auto &proc = proc::proc.get_apps()[i];
     pt::ptree app;
 
     // Check if the "id" field is empty
@@ -693,8 +693,8 @@ void applist(resp_https_t response, req_https_t request) {
       app.put("ID", proc.id);
     }
     else {
-      // Otherwise, use the "x" counter to set the ID
-      app.put("ID", ++x);
+      // Otherwise, use index to set the ID
+      app.put("ID", i);
     }
 
     app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
@@ -736,7 +736,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto appid = util::from_view(get_arg(args, "appid")) - 1;
+  auto appid = util::from_view(get_arg(args, "appid"));
 
   auto current_appid = proc::proc.running();
   if(current_appid != -1) {

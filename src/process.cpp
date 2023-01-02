@@ -84,14 +84,14 @@ int proc_t::execute(int app_id) {
   // Ensure starting from a clean slate
   terminate();
 
-  if(app_id < 0 || app_id >= _apps.size()) {
+  int app_index = app_index_from_id(app_id);
+  if(app_index < 0 || app_index >= _apps.size()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-
     return 404;
   }
 
   _app_id    = app_id;
-  auto &proc = _apps[app_id];
+  auto &proc = _apps[app_index];
 
   _undo_begin = std::begin(proc.prep_cmds);
   _undo_it    = _undo_begin;
@@ -230,16 +230,17 @@ std::vector<ctx_t> &proc_t::get_apps() {
 // Returns default image if image configuration is not set.
 // Returns http content-type header compatible image type.
 std::string proc_t::get_app_image(int app_id) {
-  auto app_index = app_id - 1;
+  auto default_image  = SUNSHINE_ASSETS_DIR "/box.png";
+
+  int app_index = app_index_from_id(app_id);
   if(app_index < 0 || app_index >= _apps.size()) {
-    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-    return SUNSHINE_ASSETS_DIR "/box.png";
+    BOOST_LOG(error) << "Couldn't find app image with ID ["sv << app_id << ']';
+    return default_image;
   }
 
-  auto default_image  = SUNSHINE_ASSETS_DIR "/box.png";
   auto app_image_path = _apps[app_index].image_path;
   if(app_image_path.empty()) {
-    // image is empty, return default box image
+    BOOST_LOG(warning) << "Couldn't find app image ["sv << app_image_path << ']';
     return default_image;
   }
 
@@ -297,6 +298,19 @@ std::string_view::iterator find_match(std::string_view::iterator begin, std::str
     throw std::out_of_range("Missing closing bracket \')\'");
   }
   return begin;
+}
+
+int proc_t::app_index_from_id(int app_id) {
+  if (app_id >= 0 && app_id < _apps.size()) {
+    // Generated app ids use timestamps so we assume an indexable id is an actual index
+    return app_id;
+  }
+  for (int i = 0; i < _apps.size(); i++) {
+    if (_apps[i].id == std::to_string(app_id)) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 std::string parse_env_val(bp::native_environment &env, const std::string_view &val_raw) {
@@ -379,6 +393,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto cmd                = app_node.get_optional<std::string>("cmd"s);
       auto image_path         = app_node.get_optional<std::string>("image-path"s);
       auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
+      auto id                 = app_node.get_optional<std::string>("id"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       if(prep_nodes_opt) {
@@ -422,6 +437,10 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
       if(image_path) {
         ctx.image_path = parse_env_val(this_env, *image_path);
+      }
+
+      if(id) {
+        ctx.id = parse_env_val(this_env, *id);
       }
 
       ctx.name      = std::move(name);
