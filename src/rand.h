@@ -5,18 +5,18 @@
 
 namespace util {
 
-static uint32_t generate_uint32(std::default_random_engine &engine, uint32_t min, uint32_t max) {
-  std::uniform_int_distribution<std::uint32_t> dist(min, max);
+static int32_t generate_int32(std::default_random_engine &engine, int32_t min, int32_t max) {
+  std::uniform_int_distribution<std::int32_t> dist(min, max);
 
   return dist(engine);
 }
 
-static uint32_t generate_uint32(uint32_t min, uint32_t max) {
+static int32_t generate_int32(int32_t min, int32_t max) {
   std::random_device r;
 
   std::default_random_engine engine { r() };
 
-  return util::generate_uint32(engine, min, max);
+  return util::generate_int32(engine, min, max);
 }
 
 } // namespace util
