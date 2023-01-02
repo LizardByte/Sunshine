@@ -186,7 +186,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     adapter_p,
     D3D_DRIVER_TYPE_UNKNOWN,
     nullptr,
-    D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
+    D3D11_CREATE_DEVICE_FLAGS,
     featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
     D3D11_SDK_VERSION,
     &device,
@@ -272,7 +272,10 @@ int display_base_t::init(int framerate, const std::string &display_name) {
       return -1;
     }
 
-    dxgi->SetGPUThreadPriority(7);
+    status = dxgi->SetGPUThreadPriority(7);
+    if(FAILED(status)) {
+      BOOST_LOG(warning) << "Failed to increase capture GPU thread priority. Please run application as administrator for optimal performance.";
+    }
   }
 
   // Try to reduce latency

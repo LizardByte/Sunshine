@@ -88,13 +88,26 @@ blob_t scene_ps_hlsl;
 struct img_d3d_t : public platf::img_t {
   std::shared_ptr<platf::display_t> display;
 
-  shader_res_t input_res;
-  render_target_t scene_rt;
+  // These objects are owned by the display_t's ID3D11Device
+  texture2d_t capture_texture;
+  render_target_t capture_rt;
+  keyed_mutex_t capture_mutex;
 
-  texture2d_t texture;
+  // These objects are owned by the hwdevice_t's ID3D11Device
+  texture2d_t encoder_texture;
+  shader_res_t encoder_input_res;
+  keyed_mutex_t encoder_mutex;
+
+  // This is the shared handle used by hwdevice_t to open capture_texture
+  HANDLE encoder_texture_handle = {};
+
   bool dummy = false;
 
-  ~img_d3d_t() override = default;
+  virtual ~img_d3d_t() override {
+    if(encoder_texture_handle) {
+      CloseHandle(encoder_texture_handle);
+    }
+  };
 };
 
 util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
@@ -216,55 +229,65 @@ blob_t compile_vertex_shader(LPCSTR file) {
   return compile_shader(file, "main_vs", "vs_5_0");
 }
 
-int init_rt(device_t::pointer device, shader_res_t &shader_res, render_target_t &render_target, int width, int height, texture2d_t::pointer tex) {
-  auto status = device->CreateShaderResourceView(tex, nullptr, &shader_res);
-  if(status) {
-    BOOST_LOG(error) << "Failed to create shader resource view for luma [0x"sv << util::hex(status).to_string_view() << ']';
-    return -1;
-  }
-
-  status = device->CreateRenderTargetView(tex, nullptr, &render_target);
-  if(status) {
-    BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-    return -1;
-  }
-
-  return 0;
-}
-
 class hwdevice_t : public platf::hwdevice_t {
 public:
   int convert(platf::img_t &img_base) override {
-    auto &img = (img_d3d_t &)img_base;
+    auto &img         = (img_d3d_t &)img_base;
+    auto back_d3d_img = (img_d3d_t *)back_img.get();
 
-    device_ctx_p->IASetInputLayout(input_layout.get());
+    // Open the shared capture texture with our ID3D11Device
+    if(share_img(&img_base)) {
+      return -1;
+    }
+
+    // Acquire encoder mutex to synchronize with capture code
+    auto status = img.encoder_mutex->AcquireSync(0, INFINITE);
+    if(status != S_OK) {
+      BOOST_LOG(error) << "Failed to acquire encoder mutex [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // Even though this image will never have racing updates, we must acquire the
+    // keyed mutex for PSSetShaderResources() to succeed.
+    status = back_d3d_img->encoder_mutex->AcquireSync(0, INFINITE);
+    if(status != S_OK) {
+      img.encoder_mutex->ReleaseSync(0);
+      BOOST_LOG(error) << "Failed to acquire back_d3d_img mutex [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    device_ctx->IASetInputLayout(input_layout.get());
 
     _init_view_port(this->img.width, this->img.height);
-    device_ctx_p->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
-    device_ctx_p->VSSetShader(scene_vs.get(), nullptr, 0);
-    device_ctx_p->PSSetShader(convert_Y_ps.get(), nullptr, 0);
-    device_ctx_p->PSSetShaderResources(0, 1, &((img_d3d_t *)back_img.get())->input_res);
-    device_ctx_p->Draw(3, 0);
+    device_ctx->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
+    device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
+    device_ctx->PSSetShader(convert_Y_ps.get(), nullptr, 0);
+    device_ctx->PSSetShaderResources(0, 1, &back_d3d_img->encoder_input_res);
+    device_ctx->Draw(3, 0);
 
-    device_ctx_p->RSSetViewports(1, &outY_view);
-    device_ctx_p->PSSetShaderResources(0, 1, &img.input_res);
-    device_ctx_p->Draw(3, 0);
+    device_ctx->RSSetViewports(1, &outY_view);
+    device_ctx->PSSetShaderResources(0, 1, &img.encoder_input_res);
+    device_ctx->Draw(3, 0);
 
     // Artifacts start appearing on the rendered image if Sunshine doesn't flush
     // before rendering on the UV part of the image.
-    device_ctx_p->Flush();
+    device_ctx->Flush();
 
     _init_view_port(this->img.width / 2, this->img.height / 2);
-    device_ctx_p->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
-    device_ctx_p->VSSetShader(convert_UV_vs.get(), nullptr, 0);
-    device_ctx_p->PSSetShader(convert_UV_ps.get(), nullptr, 0);
-    device_ctx_p->PSSetShaderResources(0, 1, &((img_d3d_t *)back_img.get())->input_res);
-    device_ctx_p->Draw(3, 0);
+    device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
+    device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
+    device_ctx->PSSetShader(convert_UV_ps.get(), nullptr, 0);
+    device_ctx->PSSetShaderResources(0, 1, &back_d3d_img->encoder_input_res);
+    device_ctx->Draw(3, 0);
 
-    device_ctx_p->RSSetViewports(1, &outUV_view);
-    device_ctx_p->PSSetShaderResources(0, 1, &img.input_res);
-    device_ctx_p->Draw(3, 0);
-    device_ctx_p->Flush();
+    device_ctx->RSSetViewports(1, &outUV_view);
+    device_ctx->PSSetShaderResources(0, 1, &img.encoder_input_res);
+    device_ctx->Draw(3, 0);
+    device_ctx->Flush();
+
+    // Release encoder mutexes to allow capture code to reuse this image
+    back_d3d_img->encoder_mutex->ReleaseSync(0);
+    img.encoder_mutex->ReleaseSync(0);
 
     return 0;
   }
@@ -294,16 +317,14 @@ public:
       return;
     }
 
-    device_ctx_p->VSSetConstantBuffers(0, 1, &info_scene);
-    device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix);
+    device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
+    device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
     this->color_matrix = std::move(color_matrix);
   }
 
   int set_frame(AVFrame *frame) {
     this->hwframe.reset(frame);
     this->frame = frame;
-
-    auto device_p = (device_t::pointer)data;
 
     auto out_width  = frame->width;
     auto out_height = frame->height;
@@ -333,7 +354,7 @@ public:
     t.Format           = format;
     t.BindFlags        = D3D11_BIND_RENDER_TARGET;
 
-    auto status = device_p->CreateTexture2D(&t, nullptr, &img.texture);
+    auto status = device->CreateTexture2D(&t, nullptr, &img.encoder_texture);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -341,12 +362,12 @@ public:
 
     img.width       = out_width;
     img.height      = out_height;
-    img.data        = (std::uint8_t *)img.texture.get();
+    img.data        = (std::uint8_t *)img.encoder_texture.get();
     img.row_pitch   = out_width * 4;
     img.pixel_pitch = 4;
 
     float info_in[16 / sizeof(float)] { 1.0f / (float)out_width_f }; //aligned to 16-byte
-    info_scene = make_buffer(device_p, info_in);
+    info_scene = make_buffer(device.get(), info_in);
 
     if(!info_scene) {
       BOOST_LOG(error) << "Failed to create info scene buffer"sv;
@@ -358,7 +379,7 @@ public:
       D3D11_RTV_DIMENSION_TEXTURE2D
     };
 
-    status = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_Y_rt);
+    status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -366,7 +387,7 @@ public:
 
     nv12_rt_desc.Format = (format == DXGI_FORMAT_P010) ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
 
-    status = device_p->CreateRenderTargetView(img.texture.get(), &nv12_rt_desc, &nv12_UV_rt);
+    status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -393,48 +414,81 @@ public:
   }
 
   int init(
-    std::shared_ptr<platf::display_t> display, device_t::pointer device_p, device_ctx_t::pointer device_ctx_p,
+    std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p,
     pix_fmt_e pix_fmt) {
 
-    HRESULT status;
+    D3D_FEATURE_LEVEL featureLevels[] {
+      D3D_FEATURE_LEVEL_11_1,
+      D3D_FEATURE_LEVEL_11_0,
+      D3D_FEATURE_LEVEL_10_1,
+      D3D_FEATURE_LEVEL_10_0,
+      D3D_FEATURE_LEVEL_9_3,
+      D3D_FEATURE_LEVEL_9_2,
+      D3D_FEATURE_LEVEL_9_1
+    };
 
-    device_p->AddRef();
-    data = device_p;
+    HRESULT status = D3D11CreateDevice(
+      adapter_p,
+      D3D_DRIVER_TYPE_UNKNOWN,
+      nullptr,
+      D3D11_CREATE_DEVICE_FLAGS,
+      featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+      D3D11_SDK_VERSION,
+      &device,
+      nullptr,
+      &device_ctx);
 
-    this->device_ctx_p = device_ctx_p;
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create encoder D3D11 device [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    dxgi::dxgi_t dxgi;
+    status = device->QueryInterface(IID_IDXGIDevice, (void **)&dxgi);
+    if(FAILED(status)) {
+      BOOST_LOG(warning) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    status = dxgi->SetGPUThreadPriority(7);
+    if(FAILED(status)) {
+      BOOST_LOG(warning) << "Failed to increase encoding GPU thread priority. Please run application as administrator for optimal performance.";
+    }
+
+    data = device.get();
 
     format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
-    status = device_p->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
+    status = device->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
     if(status) {
       BOOST_LOG(error) << "Failed to create scene vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    status = device_p->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+    status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
     if(status) {
       BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    status = device_p->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+    status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
     if(status) {
       BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    status = device_p->CreateVertexShader(convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(), nullptr, &convert_UV_vs);
+    status = device->CreateVertexShader(convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(), nullptr, &convert_UV_vs);
     if(status) {
       BOOST_LOG(error) << "Failed to create convertUV vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    status = device_p->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+    status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
     if(status) {
       BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    color_matrix = make_buffer(device_p, ::video::colors[0]);
+    color_matrix = make_buffer(device.get(), ::video::colors[0]);
     if(!color_matrix) {
       BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
       return -1;
@@ -444,7 +498,7 @@ public:
       "SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
     };
 
-    status = device_p->CreateInputLayout(
+    status = device->CreateInputLayout(
       &layout_desc, 1,
       convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(),
       &input_layout);
@@ -454,22 +508,40 @@ public:
     // Color the background black, so that the padding for keeping the aspect ratio
     // is black
     back_img = img.display->alloc_img();
-    if(img.display->dummy_img(back_img.get())) {
+    if(img.display->dummy_img(back_img.get()) || share_img(back_img.get())) {
       BOOST_LOG(warning) << "Couldn't create an image to set background color to black"sv;
       return -1;
     }
 
-    device_ctx_p->IASetInputLayout(input_layout.get());
-    device_ctx_p->PSSetConstantBuffers(0, 1, &color_matrix);
-    device_ctx_p->VSSetConstantBuffers(0, 1, &info_scene);
+    blend_disable = make_blend(device.get(), false);
+    if(!blend_disable) {
+      return -1;
+    }
+
+    D3D11_SAMPLER_DESC sampler_desc {};
+    sampler_desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler_desc.AddressU       = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressV       = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressW       = D3D11_TEXTURE_ADDRESS_WRAP;
+    sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampler_desc.MinLOD         = 0;
+    sampler_desc.MaxLOD         = D3D11_FLOAT32_MAX;
+
+    status = device->CreateSamplerState(&sampler_desc, &sampler_linear);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create point sampler state [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    device_ctx->IASetInputLayout(input_layout.get());
+    device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
+    device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
+
+    device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
+    device_ctx->PSSetSamplers(0, 1, &sampler_linear);
+    device_ctx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
     return 0;
-  }
-
-  ~hwdevice_t() override {
-    if(data) {
-      ((ID3D11Device *)data)->Release();
-    }
   }
 
 private:
@@ -480,11 +552,50 @@ private:
       0.0f, 1.0f
     };
 
-    device_ctx_p->RSSetViewports(1, &view);
+    device_ctx->RSSetViewports(1, &view);
   }
 
   void _init_view_port(float width, float height) {
     _init_view_port(0.0f, 0.0f, width, height);
+  }
+
+  int share_img(platf::img_t *img_base) {
+    auto img = (img_d3d_t *)img_base;
+
+    // If we've already opened the shared texture, we're done
+    if(img->encoder_texture) {
+      return 0;
+    }
+
+    device1_t device1;
+    auto status = device->QueryInterface(__uuidof(ID3D11Device1), (void **)&device1);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to query ID3D11Device1 [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // Open a handle to the shared texture
+    status = device1->OpenSharedResource1(img->encoder_texture_handle, __uuidof(ID3D11Texture2D), (void **)&img->encoder_texture);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to open shared image texture [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // Get the keyed mutex to synchronize with the capture code
+    status = img->encoder_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&img->encoder_mutex);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // Create the SRV for the encoder texture
+    status = device->CreateShaderResourceView(img->encoder_texture.get(), nullptr, &img->encoder_input_res);
+    if(FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create shader resource view for encoding [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    return 0;
   }
 
 public:
@@ -496,6 +607,9 @@ public:
   buf_t color_matrix;
 
   input_layout_t input_layout;
+
+  blend_t blend_disable;
+  sampler_state_t sampler_linear;
 
   render_target_t nv12_Y_rt;
   render_target_t nv12_UV_rt;
@@ -518,7 +632,8 @@ public:
 
   DXGI_FORMAT format;
 
-  device_ctx_t::pointer device_ctx_p;
+  device_t device;
+  device_ctx_t device_ctx;
 };
 
 capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
@@ -664,7 +779,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       t.BindFlags        = 0;
 
       // Create a texture to store the most recent copy of the desktop
-      auto status = device->CreateTexture2D(&t, nullptr, &last_frame_copy);
+      status = device->CreateTexture2D(&t, nullptr, &last_frame_copy);
       if(FAILED(status)) {
         BOOST_LOG(error) << "Failed to create frame copy texture [0x"sv << util::hex(status).to_string_view() << ']';
         return capture_e::error;
@@ -683,17 +798,38 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       return capture_e::error;
     }
 
-    // Copy the texture into this image and the staging texture
-    device_ctx->CopyResource(img->texture.get(), src.get());
+    // Copy the texture to use for cursor-only updates
     device_ctx->CopyResource(last_frame_copy.get(), src.get());
+
+    // Copy into the capture texture on the image with the mutex held
+    status = img->capture_mutex->AcquireSync(0, INFINITE);
+    if(status != S_OK) {
+      BOOST_LOG(error) << "Failed to acquire capture mutex [0x"sv << util::hex(status).to_string_view() << ']';
+      return capture_e::error;
+    }
+    device_ctx->CopyResource(img->capture_texture.get(), src.get());
   }
   else if(capture_format == DXGI_FORMAT_UNKNOWN) {
     // We don't know the final capture format yet, so we will encode a dummy image
     BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
 
-    if(dummy_img(img)) {
+    // Finish creating the image as a dummy (if it hasn't happened already)
+    if(complete_img(img, true)) {
       return capture_e::error;
     }
+
+    auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
+    std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
+
+    status = img->capture_mutex->AcquireSync(0, INFINITE);
+    if(status != S_OK) {
+      BOOST_LOG(error) << "Failed to acquire capture mutex [0x"sv << util::hex(status).to_string_view() << ']';
+      return capture_e::error;
+    }
+
+    // Populate the image with dummy data. This is required because these images could be reused
+    // after rendering (in which case they would have a cursor already rendered into them).
+    device_ctx->UpdateSubresource(img->capture_texture.get(), 0, nullptr, dummy_data.get(), img->row_pitch, 0);
   }
   else {
     // We must know the capture format in this path or we would have hit the above unknown format case
@@ -705,7 +841,12 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     // the call to AcquireNextFrame() because that won't be valid. It seems to return a texture
     // in the unmodified desktop format (rather than the formats we passed to DuplicateOutput1())
     // if called in that case.
-    device_ctx->CopyResource(img->texture.get(), last_frame_copy.get());
+    status = img->capture_mutex->AcquireSync(0, INFINITE);
+    if(status != S_OK) {
+      BOOST_LOG(error) << "Failed to acquire capture mutex [0x"sv << util::hex(status).to_string_view() << ']';
+      return capture_e::error;
+    }
+    device_ctx->CopyResource(img->capture_texture.get(), last_frame_copy.get());
   }
 
   if(cursor.visible && cursor_visible) {
@@ -719,12 +860,15 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     device_ctx->PSSetShader(scene_ps.get(), nullptr, 0);
     device_ctx->RSSetViewports(1, &view);
     device_ctx->PSSetShaderResources(0, 1, &cursor.input_res);
-    device_ctx->OMSetRenderTargets(1, &img->scene_rt, nullptr);
+    device_ctx->OMSetRenderTargets(1, &img->capture_rt, nullptr);
     device_ctx->OMSetBlendState(blend_enable.get(), nullptr, 0xFFFFFFFFu);
     device_ctx->RSSetViewports(1, &cursor.cursor_view);
     device_ctx->Draw(3, 0);
     device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
   }
+
+  // Release the mutex to allow encoding of this frame
+  img->capture_mutex->ReleaseSync(0);
 
   return capture_e::ok;
 }
@@ -786,11 +930,12 @@ std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   return img;
 }
 
+// This cannot use ID3D11DeviceContext because it can be called concurrently by the encoding thread
 int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
   auto img = (img_d3d_t *)img_base;
 
-  // If this already has a texture and it's not switching dummy state, nothing to do
-  if(img->texture && img->dummy == dummy) {
+  // If this already has a capture texture and it's not switching dummy state, nothing to do
+  if(img->capture_texture && img->dummy == dummy) {
     return 0;
   }
 
@@ -801,10 +946,17 @@ int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
   }
 
   // Reset the image (in case this was previously a dummy)
-  img->texture.reset();
-  img->input_res.reset();
-  img->scene_rt.reset();
+  img->capture_texture.reset();
+  img->capture_rt.reset();
+  img->capture_mutex.reset();
+  img->encoder_texture.reset();
+  img->encoder_input_res.reset();
+  img->encoder_mutex.reset();
   img->data = nullptr;
+  if(img->encoder_texture_handle) {
+    CloseHandle(img->encoder_texture_handle);
+    img->encoder_texture_handle = NULL;
+  }
 
   // Initialize format-dependent fields
   img->pixel_pitch = get_pixel_pitch();
@@ -820,34 +972,57 @@ int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
   t.Usage            = D3D11_USAGE_DEFAULT;
   t.Format           = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;
   t.BindFlags        = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+  t.MiscFlags        = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
-  auto status = device->CreateTexture2D(&t, nullptr, &img->texture);
+  auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
+  std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
+  D3D11_SUBRESOURCE_DATA initial_data {
+    dummy_data.get(),
+    (UINT)img->row_pitch,
+    0
+  };
+
+  auto status = device->CreateTexture2D(&t, &initial_data, &img->capture_texture);
   if(FAILED(status)) {
     BOOST_LOG(error) << "Failed to create img buf texture [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
   }
 
-  if(init_rt(device.get(), img->input_res, img->scene_rt, img->width, img->height, img->texture.get())) {
+  status = device->CreateRenderTargetView(img->capture_texture.get(), nullptr, &img->capture_rt);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
   }
 
-  img->data = (std::uint8_t *)img->texture.get();
+  // Get the keyed mutex to synchronize with the encoding code
+  status = img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&img->capture_mutex);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  resource1_t resource;
+  status = img->capture_texture->QueryInterface(__uuidof(IDXGIResource1), (void **)&resource);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to query IDXGIResource1 [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  // Create a handle for the encoder device to use to open this texture
+  status = resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ, nullptr, &img->encoder_texture_handle);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create shared texture handle [0x"sv << util::hex(status).to_string_view() << ']';
+    return -1;
+  }
+
+  img->data = (std::uint8_t *)img->capture_texture.get();
 
   return 0;
 }
 
+// This cannot use ID3D11DeviceContext because it can be called concurrently by the encoding thread
 int display_vram_t::dummy_img(platf::img_t *img_base) {
-  auto img = (img_d3d_t *)img_base;
-
-  if(complete_img(img, true)) {
-    return -1;
-  }
-
-  auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
-  std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
-
-  device_ctx->UpdateSubresource(img->texture.get(), 0, nullptr, dummy_data.get(), img->row_pitch, 0);
-  return 0;
+  return complete_img(img_base, true);
 }
 
 std::vector<DXGI_FORMAT> display_vram_t::get_supported_sdr_capture_formats() {
@@ -865,8 +1040,7 @@ std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_f
 
   auto ret = hwdevice->init(
     shared_from_this(),
-    device.get(),
-    device_ctx.get(),
+    adapter.get(),
     pix_fmt);
 
   if(ret) {

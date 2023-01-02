@@ -18,6 +18,10 @@
 namespace platf::dxgi {
 extern const char *format_str[];
 
+// Add D3D11_CREATE_DEVICE_DEBUG here to enable the D3D11 debug runtime.
+// You should have a debugger like WinDbg attached to receive debug messages.
+auto constexpr D3D11_CREATE_DEVICE_FLAGS = D3D11_CREATE_DEVICE_VIDEO_SUPPORT;
+
 template<class T>
 void Release(T *dxgi) {
   dxgi->Release();
@@ -27,6 +31,7 @@ using factory1_t            = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory
 using dxgi_t                = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
 using dxgi1_t               = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
 using device_t              = util::safe_ptr<ID3D11Device, Release<ID3D11Device>>;
+using device1_t             = util::safe_ptr<ID3D11Device1, Release<ID3D11Device1>>;
 using device_ctx_t          = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11DeviceContext>>;
 using adapter_t             = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
 using output_t              = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
@@ -36,6 +41,7 @@ using dup_t                 = util::safe_ptr<IDXGIOutputDuplication, Release<IDX
 using texture2d_t           = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
 using texture1d_t           = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;
 using resource_t            = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
+using resource1_t           = util::safe_ptr<IDXGIResource1, Release<IDXGIResource1>>;
 using multithread_t         = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
 using vs_t                  = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
 using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
@@ -49,6 +55,7 @@ using sampler_state_t       = util::safe_ptr<ID3D11SamplerState, Release<ID3D11S
 using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
 using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
 using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
+using keyed_mutex_t         = util::safe_ptr<IDXGIKeyedMutex, Release<IDXGIKeyedMutex>>;
 
 namespace video {
 using device_t         = util::safe_ptr<ID3D11VideoDevice, Release<ID3D11VideoDevice>>;
