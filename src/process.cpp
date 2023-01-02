@@ -84,7 +84,7 @@ int proc_t::execute(int app_id) {
   // Ensure starting from a clean slate
   terminate();
 
-  auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id] (const auto app) {
+  auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
     return app.id == std::to_string(app_id);
   });
 
@@ -235,10 +235,10 @@ std::vector<ctx_t> &proc_t::get_apps() {
 std::string proc_t::get_app_image(int app_id) {
   auto default_image = SUNSHINE_ASSETS_DIR "/box.png";
 
-  auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id]  (const auto app){
+  auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app){
     return app.id == std::to_string(app_id);
   });
-  auto app_image_path = iter != _apps.end() ? NULL : iter->image_path;
+  auto app_image_path = iter == _apps.end() ? std::string() : iter->image_path;
 
   if(app_image_path.empty()) {
     BOOST_LOG(warning) << "Couldn't find app image for ID ["sv << app_id << ']';
@@ -430,7 +430,8 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
       if(id) {
         ctx.id = parse_env_val(this_env, *id);
-      } else {
+      }
+      else {
         ctx.id = std::to_string(app_index);
       }
       // Always increment index to avoid order shuffling in moonlight
