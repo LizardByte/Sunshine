@@ -292,22 +292,10 @@ int display_base_t::init(int framerate, const std::string &display_name) {
 
   //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
   {
-    dxgi::output1_t output1 {};
-    dxgi::output5_t output5 {};
-
     // IDXGIOutput5 is optional, but can provide improved performance and wide color support
+    dxgi::output5_t output5 {};
     status = output->QueryInterface(IID_IDXGIOutput5, (void **)&output5);
-    if(FAILED(status)) {
-      BOOST_LOG(warning) << "Failed to query IDXGIOutput5 from the output"sv;
-    }
-
-    status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
-      return -1;
-    }
-
-    if(output5) {
+    if(SUCCEEDED(status)) {
       // Ask the display implementation which formats it supports
       auto supported_formats = get_supported_sdr_capture_formats();
       if(supported_formats.empty()) {
@@ -324,12 +312,24 @@ int display_base_t::init(int framerate, const std::string &display_name) {
         std::this_thread::sleep_for(200ms);
       }
 
+      // We don't retry with DuplicateOutput() because we can hit this codepath when we're racing
+      // with mode changes and we don't want to accidentally fall back to suboptimal capture if
+      // we get unlucky and succeed below.
       if(FAILED(status)) {
         BOOST_LOG(warning) << "DuplicateOutput1 Failed [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
       }
     }
+    else {
+      BOOST_LOG(warning) << "IDXGIOutput5 is not supported by your OS. Capture performance may be reduced."sv;
 
-    if(!output5 || FAILED(status)) {
+      dxgi::output1_t output1 {};
+      status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+        return -1;
+      }
+
       for(int x = 0; x < 2; ++x) {
         status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
         if(SUCCEEDED(status)) {
