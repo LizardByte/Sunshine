@@ -83,31 +83,40 @@ int proc_t::execute(int app_id) {
   // Ensure starting from a clean slate
   terminate();
 
-  if(app_id < 0 || app_id >= _apps.size()) {
+  bool found = false;
+  ctx_t process {};
+  for(auto &_app : _apps) {
+    if(_app.id == app_id) {
+      process = _app;
+      found   = true;
+      break;
+    }
+  }
+
+  if(!found) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
 
     return 404;
   }
+  _app_id = app_id;
 
-  _app_id    = app_id;
-  auto &proc = _apps[app_id];
 
-  _undo_begin = std::begin(proc.prep_cmds);
+  _undo_begin = std::begin(process.prep_cmds);
   _undo_it    = _undo_begin;
 
-  if(!proc.output.empty() && proc.output != "null"sv) {
+  if(!process.output.empty() && process.output != "null"sv) {
 #ifdef _WIN32
     // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
     // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-    auto woutput = converter.from_bytes(proc.output);
+    auto woutput = converter.from_bytes(process.output);
 
     // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
     // still open from a previous execution. This is required to handle the case of a
     // detached process executing again while the previous process is still running.
     _pipe.reset(_wfsopen(woutput.c_str(), L"a", _SH_DENYNO));
 #else
-    _pipe.reset(fopen(proc.output.c_str(), "a"));
+    _pipe.reset(fopen(process.output.c_str(), "a"));
 #endif
   }
 
@@ -117,7 +126,7 @@ int proc_t::execute(int app_id) {
     terminate();
   });
 
-  for(; _undo_it != std::end(proc.prep_cmds); ++_undo_it) {
+  for(; _undo_it != std::end(process.prep_cmds); ++_undo_it) {
     auto &cmd = _undo_it->do_cmd;
 
     BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
@@ -134,10 +143,10 @@ int proc_t::execute(int app_id) {
     }
   }
 
-  for(auto &cmd : proc.detached) {
-    boost::filesystem::path working_dir = proc.working_dir.empty() ?
+  for(auto &cmd : process.detached) {
+    boost::filesystem::path working_dir = process.working_dir.empty() ?
                                             find_working_directory(cmd, _env) :
-                                            boost::filesystem::path(proc.working_dir);
+                                            boost::filesystem::path(process.working_dir);
     BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
     auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec);
     if(ec) {
@@ -148,18 +157,19 @@ int proc_t::execute(int app_id) {
     }
   }
 
-  if(proc.cmd.empty()) {
+  BOOST_LOG(info) << process.cmd << " " << process.cmd.size() << "\n";
+  if(process.cmd.empty()) {
     BOOST_LOG(debug) << "Executing [Desktop]"sv;
     placebo = true;
   }
   else {
-    boost::filesystem::path working_dir = proc.working_dir.empty() ?
-                                            find_working_directory(proc.cmd, _env) :
-                                            boost::filesystem::path(proc.working_dir);
-    BOOST_LOG(info) << "Executing: ["sv << proc.cmd << "] in ["sv << working_dir << ']';
-    _process = platf::run_unprivileged(proc.cmd, working_dir, _env, _pipe.get(), ec);
+    boost::filesystem::path working_dir = process.working_dir.empty() ?
+                                            find_working_directory(process.cmd, _env) :
+                                            boost::filesystem::path(process.working_dir);
+    BOOST_LOG(info) << "Executing: ["sv << process.cmd << "] in ["sv << working_dir << ']';
+    _process = platf::run_unprivileged(process.cmd, working_dir, _env, _pipe.get(), ec);
     if(ec) {
-      BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
+      BOOST_LOG(warning) << "Couldn't run ["sv << process.cmd << "]: System: "sv << ec.message();
       return -1;
     }
 
@@ -399,11 +409,11 @@ bool save(const std::string &fileName) {
     currentApps.at("apps") = apps;
     write_file(fileName.c_str(), json::serialize(currentApps));
     return true;
-  } catch (std::exception &e) {
+  }
+  catch(std::exception &e) {
     BOOST_LOG(error) << "Failed to save apps.json; file is corrupted.";
     return false;
   }
-
 }
 
 void parse(const std::string &fileName) {

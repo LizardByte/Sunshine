@@ -97,6 +97,22 @@ bool save_app(const json::object &data, json::object &response) {
     return false;
   }
 }
+bool get_current_session(json::object &data, json::object &response) {
+  auto current_id = proc::proc.running();
+  response["app_id"] = current_id;
+
+  if (current_id == -1) {
+    return true;
+  }
+
+  for (auto proc : proc::proc.get_apps()) {
+    if (proc.id == current_id) {
+      response["app"] = json::value_from(proc);
+      break;
+    }
+  }
+  return true;
+}
 
 bool delete_app(json::object &data, json::object &response) {
   if(!data.at("id").is_int64()) {
@@ -300,7 +316,8 @@ std::map<std::string, std::pair<req_type, std::function<bool(json::object &, jso
   { "unpair_all"s, { req_type::POST, unpair_all } },
   { "close_app"s, { req_type::POST, close_app } },
   { "upload_cover"s, { req_type::POST, upload_cover } },
-  { "get_config_schema"s, { req_type::GET, get_config_schema } }
+  { "get_config_schema"s, { req_type::GET, get_config_schema } },
+  { "current_session", { req_type::GET, get_current_session }}
 };
 
 bool checkRequestOrigin(const req_http_t &request) {
