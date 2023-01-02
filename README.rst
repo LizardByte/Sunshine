@@ -84,11 +84,11 @@ System Requirements
 Integrations
 ------------
 
-.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/CI.yml?branch=master&label=CI%20build&logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/CI.yml.svg?branch=master&label=CI%20build&logo=github&style=for-the-badge
    :alt: GitHub Workflow Status (CI)
    :target: https://github.com/LizardByte/Sunshine/actions/workflows/CI.yml?query=branch%3Amaster
 
-.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml?branch=nightly&label=localize%20build&logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=nightly&label=localize%20build&logo=github&style=for-the-badge
    :alt: GitHub Workflow Status (localize)
    :target: https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Anightly
 
@@ -101,7 +101,7 @@ Integrations
    :target: https://crowdin.com/project/sunshinestream
 
 Support
----------
+-------
 
 Our support methods are listed in our
 `LizardByte Docs <https://lizardbyte.readthedocs.io/en/latest/about/support.html>`_.
