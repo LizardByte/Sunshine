@@ -84,14 +84,17 @@ int proc_t::execute(int app_id) {
   // Ensure starting from a clean slate
   terminate();
 
-  int app_index = app_index_from_id(app_id);
-  if(app_index < 0 || app_index >= _apps.size()) {
+  auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id] (const auto app) {
+    return app.id == std::to_string(app_id);
+  });
+
+  if(iter == _apps.end()) {
     BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
     return 404;
   }
 
   _app_id    = app_id;
-  auto &proc = _apps[app_index];
+  auto &proc = *iter;
 
   _undo_begin = std::begin(proc.prep_cmds);
   _undo_it    = _undo_begin;
@@ -182,7 +185,7 @@ int proc_t::running() {
     terminate();
   }
 
-  return -1;
+  return 0;
 }
 
 void proc_t::terminate() {
@@ -230,17 +233,15 @@ std::vector<ctx_t> &proc_t::get_apps() {
 // Returns default image if image configuration is not set.
 // Returns http content-type header compatible image type.
 std::string proc_t::get_app_image(int app_id) {
-  auto default_image  = SUNSHINE_ASSETS_DIR "/box.png";
+  auto default_image = SUNSHINE_ASSETS_DIR "/box.png";
 
-  int app_index = app_index_from_id(app_id);
-  if(app_index < 0 || app_index >= _apps.size()) {
-    BOOST_LOG(error) << "Couldn't find app image with ID ["sv << app_id << ']';
-    return default_image;
-  }
+  auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id]  (const auto app){
+    return app.id == std::to_string(app_id);
+  });
+  auto app_image_path = iter != _apps.end() ? NULL : iter->image_path;
 
-  auto app_image_path = _apps[app_index].image_path;
   if(app_image_path.empty()) {
-    BOOST_LOG(warning) << "Couldn't find app image ["sv << app_image_path << ']';
+    BOOST_LOG(warning) << "Couldn't find app image for ID ["sv << app_id << ']';
     return default_image;
   }
 
@@ -298,19 +299,6 @@ std::string_view::iterator find_match(std::string_view::iterator begin, std::str
     throw std::out_of_range("Missing closing bracket \')\'");
   }
   return begin;
-}
-
-int proc_t::app_index_from_id(int app_id) {
-  if (app_id >= 0 && app_id < _apps.size()) {
-    // Generated app ids use timestamps so we assume an indexable id is an actual index
-    return app_id;
-  }
-  for (int i = 0; i < _apps.size(); i++) {
-    if (_apps[i].id == std::to_string(app_id)) {
-      return i;
-    }
-  }
-  return -1;
 }
 
 std::string parse_env_val(bp::native_environment &env, const std::string_view &val_raw) {
@@ -382,6 +370,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
     }
 
+    int app_index = 1; // Start at 1, 0 indicates no app running
     std::vector<proc::ctx_t> apps;
     for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
@@ -441,7 +430,11 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
       if(id) {
         ctx.id = parse_env_val(this_env, *id);
+      } else {
+        ctx.id = std::to_string(app_index);
       }
+      // Always increment index to avoid order shuffling in moonlight
+      app_index++;
 
       ctx.name      = std::move(name);
       ctx.prep_cmds = std::move(prep_cmds);

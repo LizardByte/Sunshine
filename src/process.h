@@ -63,14 +63,14 @@ public:
 
   proc_t(
     boost::process::environment &&env,
-    std::vector<ctx_t> &&apps) : _app_id(-1),
+    std::vector<ctx_t> &&apps) : _app_id(0),
                                  _env(std::move(env)),
                                  _apps(std::move(apps)) {}
 
   int execute(int app_id);
 
   /**
-   * @return _app_id if a process is running, otherwise returns -1
+   * @return _app_id if a process is running, otherwise returns 0
    */
   int running();
 

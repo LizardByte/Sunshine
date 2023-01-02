@@ -29,6 +29,7 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "rand.h"
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
@@ -310,11 +311,9 @@ void saveApp(resp_https_t response, req_https_t request) {
     pt::read_json(config::stream.file_apps, fileTree);
 
     // Moonlight checks the id of an item to determine if an item was changed
-    // Add a property named "id" to the inputTree with a value of the current timestamp
-    // Time is in seconds because some Moonlight clients cannot accept more than a 32-bit integer
-    // Milliseconds would be a better option
-    time_t id = time(nullptr);
-    inputTree.put("id", id);
+    // Add a property named "id" to the inputTree with a random id (min of 1 as "0" indicates no app running)
+    // Fixed to 32-bit integer because some Moonlight clients cannot accept more than that
+    inputTree.put("id", util::generate_uint32(1, std::numeric_limits<std::uint32_t>::max()));
 
     if(inputTree.get_child("prep-cmd").empty()) {
       inputTree.erase("prep-cmd");
