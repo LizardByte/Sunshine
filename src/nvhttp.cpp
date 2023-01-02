@@ -488,7 +488,7 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
       else {
         ptr->second.async_insert_pin.response = std::move(response);
 
-        confighttp::request_pin();
+        confighttp::sendSSEEvent(confighttp::sse_event_type::REQUEST_PIN);
         fg.disable();
         return;
       }
@@ -727,7 +727,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto appid = util::from_view(get_arg(args, "appid")) - 1;
+  auto appid = util::from_view(get_arg(args, "appid"));
 
   auto current_appid = proc::proc.running();
   if(current_appid != -1) {
@@ -753,6 +753,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
   tree.put("root.<xmlattr>.status_code", 200);
   tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
   tree.put("root.gamesession", 1);
+  confighttp::sendSSEEvent(confighttp::sse_event_type::NEW_LAUNCH_SESSION);
 }
 
 void resume(bool &host_audio, resp_https_t response, req_https_t request) {

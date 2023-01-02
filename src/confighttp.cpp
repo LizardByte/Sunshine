@@ -197,12 +197,23 @@ bool close_app(json::object &data, json::object &response) {
   return true;
 }
 
-bool request_pin() {
-  json::value v { { "type", "request_pin" } };
+void sendSSEEvent(sse_event_type eventType) {
+
+  std::string event_name;
+  switch (eventType) {
+  case NEW_LAUNCH_SESSION:
+    event_name = "new_session";
+    break;
+
+  case REQUEST_PIN:
+    event_name = "request_pin";
+    break;
+  }
+
+  json::value v { { "type", event_name } };
 
   last_sse_event = json::serialize(v);
   sse_event_awaiter.notify_all();
-  return true;
 }
 
 

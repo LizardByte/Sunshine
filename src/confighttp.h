@@ -14,7 +14,13 @@
 namespace confighttp {
 constexpr auto PORT_HTTP = 1;
 void start();
-bool request_pin();
+
+enum sse_event_type {
+  REQUEST_PIN,
+  NEW_LAUNCH_SESSION,
+};
+void sendSSEEvent(sse_event_type type);
+
 } // namespace confighttp
 
 #endif // SUNSHINE_CONFIGHTTP_H
