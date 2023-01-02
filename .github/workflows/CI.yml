@@ -189,7 +189,7 @@ jobs:
             elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
               sub_version=".r${commit}"
 
-              echo "aur_publish=true" >> $GITHUB_ENV
+              echo "aur_publish=false" >> $GITHUB_ENV
             fi
           else
             echo "This is a PR event"
