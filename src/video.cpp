@@ -1408,6 +1408,12 @@ void capture_async(
       std::move(hwdevice),
       ref->reinit_event, *ref->encoder_p,
       channel_data);
+
+    // Free images that weren't consumed by the encoder before it quit.
+    // This is critical to allow the display_t to be freed correctly.
+    while(images->peek()) {
+      images->pop();
+    }
   }
 }
 
