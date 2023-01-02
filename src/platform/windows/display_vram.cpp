@@ -628,7 +628,7 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
   }
 
-  if(capture_format != DXGI_FORMAT_UNKNOWN || frame_update_flag) {
+  if(frame_update_flag) {
     texture2d_t src {};
 
     // Get the texture object from this frame
@@ -641,17 +641,34 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     D3D11_TEXTURE2D_DESC desc;
     src->GetDesc(&desc);
 
-    // If we don't know the capture format yet, grab it from this texture
-    if(capture_format == DXGI_FORMAT_UNKNOWN) {
-      capture_format = desc.Format;
-      BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
-    }
-
     // It's possible for our display enumeration to race with mode changes and result in
     // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
     if(desc.Width != width || desc.Height != height) {
       BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
       return capture_e::reinit;
+    }
+
+    // If we don't know the capture format yet, grab it from this texture
+    if(capture_format == DXGI_FORMAT_UNKNOWN) {
+      capture_format = desc.Format;
+      BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
+
+      D3D11_TEXTURE2D_DESC t {};
+      t.Width            = width;
+      t.Height           = height;
+      t.MipLevels        = 1;
+      t.ArraySize        = 1;
+      t.SampleDesc.Count = 1;
+      t.Usage            = D3D11_USAGE_DEFAULT;
+      t.Format           = capture_format;
+      t.BindFlags        = 0;
+
+      // Create a texture to store the most recent copy of the desktop
+      auto status = device->CreateTexture2D(&t, nullptr, &last_frame_copy);
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create frame copy texture [0x"sv << util::hex(status).to_string_view() << ']';
+        return capture_e::error;
+      }
     }
 
     // It's also possible for the capture format to change on the fly. If that happens,
@@ -666,16 +683,29 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       return capture_e::error;
     }
 
-    // Copy the texture into this image
+    // Copy the texture into this image and the staging texture
     device_ctx->CopyResource(img->texture.get(), src.get());
+    device_ctx->CopyResource(last_frame_copy.get(), src.get());
   }
-  else {
+  else if(capture_format == DXGI_FORMAT_UNKNOWN) {
     // We don't know the final capture format yet, so we will encode a dummy image
     BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
 
     if(dummy_img(img)) {
       return capture_e::error;
     }
+  }
+  else {
+    // We must know the capture format in this path or we would have hit the above unknown format case
+    if(complete_img(img, false)) {
+      return capture_e::error;
+    }
+
+    // We have a previously captured frame to reuse. We can't just grab the src texture from
+    // the call to AcquireNextFrame() because that won't be valid. It seems to return a texture
+    // in the unmodified desktop format (rather than the formats we passed to DuplicateOutput1())
+    // if called in that case.
+    device_ctx->CopyResource(img->texture.get(), last_frame_copy.get());
   }
 
   if(cursor.visible && cursor_visible) {
