@@ -11,9 +11,7 @@ on:
   pull_request_target:
     types: [opened, synchronize, edited, reopened]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# no concurrency for pull_request_target events
 
 jobs:
   check-pull-request:
