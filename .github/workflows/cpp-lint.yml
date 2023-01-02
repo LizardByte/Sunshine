@@ -3,6 +3,8 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
+# Lint c++ source files and cmake files.
+
 name: C++ Lint
 
 on:
@@ -10,45 +12,36 @@ on:
     branches: [master, nightly]
     types: [opened, synchronize, reopened]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check_src:
-    name: Check src
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Check
-        id: check
-        run: |
-          if [ -d "./src" ]
-          then
-            FOUND=true
-          else
-            FOUND=false
-          fi
-
-          echo "src=${FOUND}" >> $GITHUB_OUTPUT
-
-    outputs:
-      src: ${{ steps.check.outputs.src }}
-
   clang-format:
     name: Clang Format Lint
-    needs: [check_src]
-    if: ${{ needs.check_src.outputs.src == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Find cpp files
+        id: cpp_files
+        run: |
+          cpp_files=$(find . -type f -iname "*.cpp" -o -iname "*.h" -o -iname "*.m" -o -iname "*.mm")
+
+          echo "found cpp files: ${cpp_files}"
+
+          # do not quote to keep this as a single line
+          echo cpp_files=${cpp_files} >> $GITHUB_OUTPUT
+
       - name: Clang format lint
+        if: ${{ steps.cpp_files.outputs.cpp_files }}
         uses: DoozyX/clang-format-lint-action@v0.15
         with:
-          source: './src'
+          source: ${{ steps.cpp_files.outputs.cpp_files }}
           extensions: 'cpp,h,m,mm'
-          clangFormatVersion: 13
+          clangFormatVersion: 15
           style: file
           inplace: false
 
@@ -57,7 +50,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: clang-format-fixes
-          path: src/
+          path: ${{ steps.cpp_files.outputs.cpp_files }}
 
   cmake-lint:
     name: CMake Lint
