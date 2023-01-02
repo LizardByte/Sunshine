@@ -686,9 +686,9 @@ void applist(resp_https_t response, req_https_t request) {
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
-    app.put("ID", proc.id);
     app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
+    app.put("ID", proc.id);
 
     apps.push_back(std::make_pair("App", std::move(app)));
   }
@@ -729,7 +729,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
   auto appid = util::from_view(get_arg(args, "appid"));
 
   auto current_appid = proc::proc.running();
-  if(current_appid == 0) {
+  if(current_appid > 0) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 400);
 
