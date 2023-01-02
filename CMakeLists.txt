@@ -375,6 +375,7 @@ set(SUNSHINE_TARGET_FILES
         src/network.cpp
         src/network.h
         src/move_by_copy.h
+        src/rand.h
         src/task_pool.h
         src/thread_pool.h
         src/thread_safe.h
