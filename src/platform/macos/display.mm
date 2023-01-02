@@ -193,4 +193,4 @@ std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 
   return display_names;
 }
-}
+} // namespace platf

@@ -142,7 +142,7 @@ typedef struct control_encrypted_t {
     return (uint8_t *)(this + 1);
   }
   // encrypted control_header_v2 and payload data follow
-} * control_encrypted_p;
+} *control_encrypted_p;
 
 struct audio_fec_packet_raw_t {
   uint8_t *payload() {

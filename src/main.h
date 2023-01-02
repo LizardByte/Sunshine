@@ -31,8 +31,10 @@ int write_file(const char *path, const std::string_view &contents);
 std::uint16_t map_port(int port);
 
 namespace mail {
-#define MAIL(x) \
-  constexpr auto x = std::string_view { #x }
+#define MAIL(x)                         \
+  constexpr auto x = std::string_view { \
+#x                                  \
+  }
 
 extern safe::mail_t man;
 

@@ -84,4 +84,4 @@ public:
 std::unique_ptr<audio_control_t> audio_control() {
   return std::make_unique<macos_audio_control_t>();
 }
-}
+} // namespace platf
