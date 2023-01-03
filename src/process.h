@@ -54,6 +54,7 @@ struct ctx_t {
   std::string working_dir;
   std::string output;
   std::string image_path;
+  std::string id;
 };
 
 class proc_t {
@@ -62,14 +63,14 @@ public:
 
   proc_t(
     boost::process::environment &&env,
-    std::vector<ctx_t> &&apps) : _app_id(-1),
+    std::vector<ctx_t> &&apps) : _app_id(0),
                                  _env(std::move(env)),
                                  _apps(std::move(apps)) {}
 
   int execute(int app_id);
 
   /**
-   * @return _app_id if a process is running, otherwise returns -1
+   * @return _app_id if a process is running, otherwise returns 0
    */
   int running();
 
@@ -96,6 +97,8 @@ private:
   file_t _pipe;
   std::vector<cmd_t>::const_iterator _undo_it;
   std::vector<cmd_t>::const_iterator _undo_begin;
+
+  int app_index_from_id(int app_id);
 };
 
 void refresh(const std::string &file_name);

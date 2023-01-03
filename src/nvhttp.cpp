@@ -640,8 +640,8 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   }
   auto current_appid = proc::proc.running();
   tree.put("root.PairStatus", pair_status);
-  tree.put("root.currentgame", current_appid >= 0 ? current_appid + 1 : 0);
-  tree.put("root.state", current_appid >= 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
+  tree.put("root.currentgame", current_appid);
+  tree.put("root.state", current_appid > 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
 
   std::ostringstream data;
 
@@ -683,13 +683,12 @@ void applist(resp_https_t response, req_https_t request) {
 
   apps.put("<xmlattr>.status_code", 200);
 
-  int x = 0;
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
     app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
-    app.put("ID"s, ++x);
+    app.put("ID", proc.id);
 
     apps.push_back(std::make_pair("App", std::move(app)));
   }
@@ -727,17 +726,17 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto appid = util::from_view(get_arg(args, "appid")) - 1;
+  auto appid = util::from_view(get_arg(args, "appid"));
 
   auto current_appid = proc::proc.running();
-  if(current_appid != -1) {
+  if(current_appid > 0) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 400);
 
     return;
   }
 
-  if(appid >= 0) {
+  if(appid > 0) {
     auto err = proc::proc.execute(appid);
     if(err) {
       tree.put("root.<xmlattr>.status_code", err);
@@ -777,7 +776,7 @@ void resume(bool &host_audio, resp_https_t response, req_https_t request) {
   }
 
   auto current_appid = proc::proc.running();
-  if(current_appid == -1) {
+  if(current_appid == 0) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
@@ -826,7 +825,7 @@ void cancel(resp_https_t response, req_https_t request) {
   tree.put("root.cancel", 1);
   tree.put("root.<xmlattr>.status_code", 200);
 
-  if(proc::proc.running() != -1) {
+  if(proc::proc.running() > 0) {
     proc::proc.terminate();
   }
 }

@@ -357,6 +357,7 @@ int main(int argc, char *argv[]) {
 
 std::string read_file(const char *path) {
   if(!std::filesystem::exists(path)) {
+    BOOST_LOG(debug) << "Missing file: " << path;
     return {};
   }
 

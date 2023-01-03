@@ -6,6 +6,7 @@
 #include "process.h"
 
 #include <filesystem>
+#include <set>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -29,6 +30,7 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "rand.h"
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
@@ -301,6 +303,11 @@ void saveApp(resp_https_t response, req_https_t request) {
     response->write(data.str());
   });
 
+  std::set<std::string> ids;
+  for(auto const &app : proc::proc.get_apps()) {
+    ids.insert(app.id);
+  }
+
   pt::ptree inputTree, fileTree;
 
   BOOST_LOG(fatal) << config::stream.file_apps;
@@ -308,6 +315,14 @@ void saveApp(resp_https_t response, req_https_t request) {
     // TODO: Input Validation
     pt::read_json(ss, inputTree);
     pt::read_json(config::stream.file_apps, fileTree);
+
+    // Moonlight checks the id of an item to determine if an item was changed
+    // Needs to be a 32-bit positive integer due to client limitations, "0" indicates no app
+    auto id = util::generate_int32(1, std::numeric_limits<std::int32_t>::max());
+    while(ids.count(std::to_string(id)) > 0) {
+      id = util::generate_int32(1, std::numeric_limits<std::int32_t>::max());
+    }
+    inputTree.put("id", id);
 
     if(inputTree.get_child("prep-cmd").empty()) {
       inputTree.erase("prep-cmd");
