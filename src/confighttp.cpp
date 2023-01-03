@@ -6,6 +6,7 @@
 #include "process.h"
 
 #include <filesystem>
+#include <set>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
