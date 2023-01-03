@@ -303,7 +303,7 @@ void saveApp(resp_https_t response, req_https_t request) {
   });
 
   std::set<std::string> ids;
-  for (auto const &app : proc::proc.get_apps()) {
+  for(auto const &app : proc::proc.get_apps()) {
     ids.insert(app.id);
   }
 
@@ -318,7 +318,7 @@ void saveApp(resp_https_t response, req_https_t request) {
     // Moonlight checks the id of an item to determine if an item was changed
     // Needs to be a 32-bit positive integer due to client limitations, "0" indicates no app
     auto id = util::generate_int32(1, std::numeric_limits<std::int32_t>::max());
-    while (ids.count(std::to_string(id)) > 0) {
+    while(ids.count(std::to_string(id)) > 0) {
       id = util::generate_int32(1, std::numeric_limits<std::int32_t>::max());
     }
     inputTree.put("id", id);
