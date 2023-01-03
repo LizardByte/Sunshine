@@ -822,6 +822,7 @@ encoder
    nvenc      For NVIDIA graphics cards
    quicksync  For Intel graphics cards
    amdvce     For AMD graphics cards
+   mf         Media Foundation (slower than encoders above)
    software   Encoding occurs on the CPU
    =========  ===========
 

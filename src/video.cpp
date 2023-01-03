@@ -599,6 +599,45 @@ namespace video {
     PARALLEL_ENCODING,
     dxgi_make_hwdevice_ctx
   };
+
+  static encoder_t mfenc {
+    "mf"sv,
+    AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
+    AV_PIX_FMT_NONE,
+    AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
+    {
+      // Common options
+      {
+        { "hw_encoding"s, 1 },
+        { "scenario"s, "display_remoting"s },
+        { "low_latency", 1 },
+
+        // Other rate controls exist but they are inconsistently implemented
+        // and can cause codec init to totally fail if unsupported.
+        { "rate_control"s, "cbr"s },
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      std::nullopt,
+      "hevc_mf"s,
+    },
+    {
+      // Common options
+      {
+        { "hw_encoding"s, 1 },
+        { "scenario"s, "display_remoting"s },
+        { "low_latency", 1 },
+        { "rate_control"s, "cbr"s },
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      std::nullopt,
+      "h264_mf"s,
+    },
+    PARALLEL_ENCODING,
+    nullptr
+  };
+
 #endif
 
   static encoder_t software {
@@ -717,6 +756,7 @@ namespace video {
 #ifdef _WIN32
     &quicksync,
     &amdvce,
+    &mfenc,
 #endif
 #ifdef __linux__
     &vaapi,
