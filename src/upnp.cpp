@@ -82,6 +82,8 @@ static std::string_view status_string(int status) {
   case 1:
     return "Valid IGD device found"sv;
   case 2:
+    return "Valid IGD device found,  but it isn't connected"sv;
+  case 3:
     return "A UPnP device has been found,  but it wasn't recognized as an IGD"sv;
   }
 
