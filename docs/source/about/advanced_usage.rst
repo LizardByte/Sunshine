@@ -844,7 +844,8 @@ nv_preset
 **Description**
    The encoder preset to use.
 
-   .. Note:: This option only applies when using nvenc `encoder`_.
+   .. Note:: This option only applies when using nvenc `encoder`_. For more information on the presets, see
+      `nvenc preset migration guide <https://docs.nvidia.com/video-technologies/video-codec-sdk/nvenc-preset-migration-guide/>`_.
 
 **Choices**
 
