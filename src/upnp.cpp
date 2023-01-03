@@ -111,7 +111,7 @@ std::unique_ptr<platf::deinit_t> start() {
   IGDdatas data;
 
   auto status = UPNP_GetValidIGD(device.get(), &urls.el, &data, lan_addr.data(), lan_addr.size());
-  if(status != 1) {
+  if(status != 1 && status != 2) {
     BOOST_LOG(error) << status_string(status);
     return nullptr;
   }
