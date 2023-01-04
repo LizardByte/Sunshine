@@ -461,7 +461,7 @@
       </div>
       <!-- Quantization Parameter -->
       <div class="mb-3">
-        <label for="qp" class="form-label">Quantitization Parameter</label>
+        <label for="qp" class="form-label">Quantization Parameter</label>
         <input
           type="number"
           class="form-control"
@@ -470,7 +470,7 @@
           v-model="config.qp"
         />
         <div class="form-text">
-          Quantitization Parameter<br />
+          Quantization Parameter<br />
           Some devices may not support Constant Bit Rate.<br />
           For those devices, QP is used instead.<br />
           Higher value means more compression, but less quality<br />
@@ -479,7 +479,7 @@
       <!-- Min Threads -->
       <div class="mb-3">
         <label for="min_threads" class="form-label"
-          >Minimum number of threads used by ffmpeg to encode the video.</label
+          >Minimum Software Encoding Thread Count</label
         >
         <input
           type="number"
@@ -490,7 +490,6 @@
           v-model="config.min_threads"
         />
         <div class="form-text">
-          Minimum number of threads used by ffmpeg to encode the video.<br />
           Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br />
           worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br />
           value that can reliably encode at your desired streaming settings on your hardware.
@@ -523,9 +522,10 @@
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
           <option value>Autodetect</option>
-          <option value="nvenc">nVidia NVENC</option>
-          <option value="amdvce">AMD AMF/VCE</option>
-          <option value="vaapi">VA-API</option>
+          <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
+          <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
+          <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
+          <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
           <option value="software">Software</option>
         </select>
         <div class="form-text">
@@ -727,6 +727,7 @@
         </select>
       </div>
     </div>
+    <!--VA-API Encoder Settings-->
     <div v-if="currentTab === 'va-api'" class="config-page">
       <input
         class="form-control"
@@ -807,24 +808,24 @@
             name: "Advanced",
           },
           {
-            id: "sw",
-            name: "Software Encoder",
-          },
-          {
             id: "nv",
-            name: "NVENC Encoder",
+            name: "NVIDIA NVENC Encoder",
           },
           {
             id: "amd",
-            name: "AMF Encoder",
+            name: "AMD AMF Encoder",
           },
           {
             id: "va-api",
-            name: "VA-API encoder",
+            name: "VA-API Encoder",
           },
           {
             id: "vt",
-            name: "VideoToolbox encoder",
+            name: "VideoToolbox Encoder",
+          },
+          {
+            id: "sw",
+            name: "Software Encoder",
           },
         ],
       };
@@ -839,12 +840,17 @@
           var app = document.getElementById("app");
           if (this.platform == "windows") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "va-api";
+              return el.id !== "va-api" && el.id !== "vt";
             });
           }
           if (this.platform == "linux") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd";
+              return el.id !== "amd" && el.id !== "vt";
+            });
+          }
+          if (this.platform == "macos") {
+            this.tabs = this.tabs.filter((el) => {
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "va-api";
             });
           }
 
