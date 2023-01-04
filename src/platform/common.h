@@ -92,7 +92,6 @@ constexpr std::uint8_t map_surround71[] {
   FRONT_RIGHT,
   FRONT_CENTER,
   LOW_FREQUENCY,
-  LOW_FREQUENCY,
   BACK_LEFT,
   BACK_RIGHT,
   SIDE_LEFT,
