@@ -838,12 +838,17 @@
           var app = document.getElementById("app");
           if (this.platform == "windows") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "va-api";
+              return el.id !== "va-api" && el.id !== "vt";
             });
           }
           if (this.platform == "linux") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd";
+              return el.id !== "amd" && el.id !== "vt";
+            });
+          }
+          if (this.platform == "macos") {
+            this.tabs = this.tabs.filter((el) => {
+              return el.id !== "amd" && el.id !== "va-api" && el.id !== "nv";
             });
           }
 
