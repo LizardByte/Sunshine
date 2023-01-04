@@ -673,6 +673,9 @@ void captureThread(
     }
   }
 
+  // Capture takes place on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::critical);
+
   while(capture_ctx_queue->running()) {
     bool artificial_reinit = false;
 
@@ -703,7 +706,10 @@ void captureThread(
       }
 
       auto &next_img = *round_robin++;
-      while(next_img.use_count() > 1) {}
+      while(next_img.use_count() > 1) {
+        // Sleep a bit to avoid starving the encoder threads
+        std::this_thread::sleep_for(2ms);
+      }
 
       return next_img;
     },
@@ -1335,6 +1341,9 @@ void captureThreadSync() {
     }
   });
 
+  // Encoding and capture takes place on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::high);
+
   while(encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
 }
 
@@ -1366,6 +1375,9 @@ void capture_async(
   int frame_nr = 1;
 
   auto touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
+
+  // Encoding takes place on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(!shutdown_event->peek() && images->running()) {
     // Wait for the main capture event when the display is being reinitialized

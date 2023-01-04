@@ -13,9 +13,12 @@
 #include <winuser.h>
 #include <ws2tcpip.h>
 #include <userenv.h>
+#include <dwmapi.h>
+#include <timeapi.h>
 // clang-format on
 
 #include "src/main.h"
+#include "src/platform/common.h"
 #include "src/utility.h"
 
 namespace bp = boost::process;
@@ -468,6 +471,55 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
     ec = std::make_error_code(std::errc::invalid_argument);
     return bp::child();
   }
+}
+
+void adjust_thread_priority(thread_priority_e priority) {
+  int win32_priority;
+
+  switch(priority) {
+  case thread_priority_e::low:
+    win32_priority = THREAD_PRIORITY_BELOW_NORMAL;
+    break;
+  case thread_priority_e::normal:
+    win32_priority = THREAD_PRIORITY_NORMAL;
+    break;
+  case thread_priority_e::high:
+    win32_priority = THREAD_PRIORITY_ABOVE_NORMAL;
+    break;
+  case thread_priority_e::critical:
+    win32_priority = THREAD_PRIORITY_HIGHEST;
+    break;
+  default:
+    BOOST_LOG(error) << "Unknown thread priority: "sv << (int)priority;
+    return;
+  }
+
+  if(!SetThreadPriority(GetCurrentThread(), win32_priority)) {
+    auto winerr = GetLastError();
+    BOOST_LOG(warning) << "Unable to set thread priority to "sv << win32_priority << ": "sv << winerr;
+  }
+}
+
+void streaming_will_start() {
+  // Enable MMCSS scheduling for DWM
+  DwmEnableMMCSS(true);
+
+  // Reduce timer period to 1ms
+  timeBeginPeriod(1);
+
+  // Promote ourselves to high priority class
+  SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+}
+
+void streaming_will_stop() {
+  // Demote ourselves back to normal priority class
+  SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
+
+  // End our 1ms timer request
+  timeEndPeriod(1);
+
+  // Disable MMCSS scheduling for DWM
+  DwmEnableMMCSS(false);
 }
 
 } // namespace platf

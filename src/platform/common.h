@@ -306,6 +306,18 @@ std::vector<std::string> display_names(mem_type_e hwdevice_type);
 
 boost::process::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec);
 
+enum class thread_priority_e : int {
+  low,
+  normal,
+  high,
+  critical
+};
+void adjust_thread_priority(thread_priority_e priority);
+
+// Allow OS-specific actions to be taken to prepare for streaming
+void streaming_will_start();
+void streaming_will_stop();
+
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);

@@ -89,6 +89,9 @@ void encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
   auto packets = mail::man->queue<packet_t>(mail::audio_packets);
   auto stream  = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
 
+  // Encoding takes place on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::high);
+
   opus_t opus { opus_multistream_encoder_create(
     stream->sampleRate,
     stream->channelCount,
@@ -172,6 +175,9 @@ void capture(safe::mail_t mail, config_t config, void *channel_data) {
       return;
     }
   }
+
+  // Capture takes place on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
   auto samples = std::make_shared<sample_queue_t::element_type>(30);
   std::thread thread { encodeThread, samples, config, channel_data };
