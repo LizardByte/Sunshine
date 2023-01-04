@@ -165,6 +165,16 @@ void streaming_will_stop() {
   // Nothing to do
 }
 
+bool restart_supported() {
+  // Restart not supported yet
+  return false;
+}
+
+bool restart() {
+  // Restart not supported yet
+  return false;
+}
+
 namespace source {
 enum source_e : std::size_t {
 #ifdef SUNSHINE_BUILD_CUDA

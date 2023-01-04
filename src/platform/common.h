@@ -318,6 +318,9 @@ void adjust_thread_priority(thread_priority_e priority);
 void streaming_will_start();
 void streaming_will_stop();
 
+bool restart_supported();
+bool restart();
+
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);
