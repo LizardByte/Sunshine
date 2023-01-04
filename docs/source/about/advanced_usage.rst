@@ -667,7 +667,7 @@ qp
 ^^
 
 **Description**
-   Quantitization Parameter. Some devices don't support Constant Bit Rate. For those devices, QP is used instead.
+   Quantization Parameter. Some devices don't support Constant Bit Rate. For those devices, QP is used instead.
 
    .. Warning:: Higher value means more compression, but less quality.
 
