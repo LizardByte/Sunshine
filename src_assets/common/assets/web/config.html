@@ -522,9 +522,10 @@
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
           <option value>Autodetect</option>
-          <option value="nvenc">NVIDIA NVENC</option>
-          <option value="amdvce">AMD AMF/VCE</option>
-          <option value="vaapi">VA-API</option>
+          <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
+          <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
+          <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
+          <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
           <option value="software">Software</option>
         </select>
         <div class="form-text">
