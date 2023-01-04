@@ -286,12 +286,6 @@ struct encoder_t {
     option_t(std::string &&name, decltype(value) &&value) : name { std::move(name) }, value { std::move(value) } {}
   };
 
-  struct {
-    int h264_high;
-    int hevc_main;
-    int hevc_main_10;
-  } profile;
-
   AVHWDeviceType dev_type;
   AVPixelFormat dev_pix_fmt;
 
@@ -299,7 +293,9 @@ struct encoder_t {
   AVPixelFormat dynamic_pix_fmt;
 
   struct {
-    std::vector<option_t> options;
+    std::vector<option_t> common_options;
+    std::vector<option_t> sdr_options;
+    std::vector<option_t> hdr_options;
     std::optional<option_t> qp;
 
     std::string name;
@@ -407,7 +403,6 @@ auto capture_thread_sync  = safe::make_shared<capture_thread_sync_ctx_t>(start_c
 
 static encoder_t nvenc {
   "nvenc"sv,
-  { (int)nv::profile_h264_e::high, (int)nv::profile_hevc_e::main, (int)nv::profile_hevc_e::main_10 },
 #ifdef _WIN32
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
@@ -417,6 +412,7 @@ static encoder_t nvenc {
 #endif
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
+    // Common options
     {
       { "delay"s, 0 },
       { "forced-idr"s, 1 },
@@ -424,6 +420,14 @@ static encoder_t nvenc {
       { "preset"s, &config::video.nv.preset },
       { "tune"s, &config::video.nv.tune },
       { "rc"s, &config::video.nv.rc },
+    },
+    // SDR-specific options
+    {
+      { "profile"s, (int)nv::profile_hevc_e::main },
+    },
+    // HDR-specific options
+    {
+      { "profile"s, (int)nv::profile_hevc_e::main_10 },
     },
     std::nullopt,
     "hevc_nvenc"s,
@@ -438,6 +442,11 @@ static encoder_t nvenc {
       { "rc"s, &config::video.nv.rc },
       { "coder"s, &config::video.nv.coder },
     },
+    // SDR-specific options
+    {
+      { "profile"s, (int)nv::profile_h264_e::high },
+    },
+    {}, // HDR-specific options
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_nvenc"s,
   },
@@ -452,11 +461,11 @@ static encoder_t nvenc {
 #ifdef _WIN32
 static encoder_t amdvce {
   "amdvce"sv,
-  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN },
   AV_HWDEVICE_TYPE_D3D11VA,
   AV_PIX_FMT_D3D11,
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
+    // Common options
     {
       { "enforce_hrd"s, true },
       { "gops_per_idr"s, 1 },
@@ -468,10 +477,13 @@ static encoder_t amdvce {
       { "usage"s, "ultralowlatency"s },
       { "vbaq"s, true },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "hevc_amf"s,
   },
   {
+    // Common options
     {
       { "enforce_hrd"s, true },
       { "log_to_dbg"s, "1"s },
@@ -482,6 +494,8 @@ static encoder_t amdvce {
       { "usage"s, "ultralowlatency"s },
       { "vbaq"s, true },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
     "h264_amf"s,
   },
@@ -492,7 +506,6 @@ static encoder_t amdvce {
 
 static encoder_t software {
   "software"sv,
-  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
   AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_NONE,
   AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
@@ -507,14 +520,19 @@ static encoder_t software {
       { "preset"s, &config::video.sw.preset },
       { "tune"s, &config::video.sw.tune },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "libx265"s,
   },
   {
+    // Common options
     {
       { "preset"s, &config::video.sw.preset },
       { "tune"s, &config::video.sw.tune },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "libx264"s,
   },
@@ -526,25 +544,30 @@ static encoder_t software {
 #ifdef __linux__
 static encoder_t vaapi {
   "vaapi"sv,
-  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
   AV_HWDEVICE_TYPE_VAAPI,
   AV_PIX_FMT_VAAPI,
   AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P10,
   {
+    // Common options
     {
       { "async_depth"s, 1 },
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "hevc_vaapi"s,
   },
   {
+    // Common options
     {
       { "async_depth"s, 1 },
       { "sei"s, 0 },
       { "idr_interval"s, std::numeric_limits<int>::max() },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
     "h264_vaapi"s,
   },
@@ -557,25 +580,30 @@ static encoder_t vaapi {
 #ifdef __APPLE__
 static encoder_t videotoolbox {
   "videotoolbox"sv,
-  { FF_PROFILE_H264_HIGH, FF_PROFILE_HEVC_MAIN, FF_PROFILE_HEVC_MAIN_10 },
   AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_VIDEOTOOLBOX,
   AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
   {
+    // Common options
     {
       { "allow_sw"s, &config::video.vt.allow_sw },
       { "require_sw"s, &config::video.vt.require_sw },
       { "realtime"s, &config::video.vt.realtime },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::nullopt,
     "hevc_videotoolbox"s,
   },
   {
+    // Common options
     {
       { "allow_sw"s, &config::video.vt.allow_sw },
       { "require_sw"s, &config::video.vt.require_sw },
       { "realtime"s, &config::video.vt.realtime },
     },
+    {}, // SDR-specific options
+    {}, // HDR-specific options
     std::nullopt,
     "h264_videotoolbox"s,
   },
@@ -865,13 +893,13 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   ctx->framerate = AVRational { config.framerate, 1 };
 
   if(config.videoFormat == 0) {
-    ctx->profile = encoder.profile.h264_high;
+    ctx->profile = FF_PROFILE_H264_HIGH;
   }
   else if(config.dynamicRange == 0) {
-    ctx->profile = encoder.profile.hevc_main;
+    ctx->profile = FF_PROFILE_HEVC_MAIN;
   }
   else {
-    ctx->profile = encoder.profile.hevc_main_10;
+    ctx->profile = FF_PROFILE_HEVC_MAIN_10;
   }
 
   // B-frames delay decoder output, so never use them
@@ -984,7 +1012,11 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
       option.value);
   };
 
-  for(auto &option : video_format.options) {
+  // Apply common options, then format-specific overrides
+  for(auto &option : video_format.common_options) {
+    handle_option(option);
+  }
+  for(auto &option : (config.dynamicRange ? video_format.hdr_options : video_format.sdr_options)) {
     handle_option(option);
   }
 
