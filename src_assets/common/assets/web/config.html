@@ -726,6 +726,7 @@
         </select>
       </div>
     </div>
+    <!--VA-API Encoder Settings-->
     <div v-if="currentTab === 'va-api'" class="config-page">
       <input
         class="form-control"
@@ -806,10 +807,6 @@
             name: "Advanced",
           },
           {
-            id: "sw",
-            name: "Software Encoder",
-          },
-          {
             id: "nv",
             name: "NVENC Encoder",
           },
@@ -824,6 +821,10 @@
           {
             id: "vt",
             name: "VideoToolbox encoder",
+          },
+          {
+            id: "sw",
+            name: "Software Encoder",
           },
         ],
       };
