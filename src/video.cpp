@@ -1021,11 +1021,19 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   }
 
   if(video_format[encoder_t::CBR]) {
-    auto bitrate        = config.bitrate * 1000;
-    ctx->rc_max_rate    = bitrate;
-    ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
-    ctx->bit_rate       = bitrate;
-    ctx->rc_min_rate    = bitrate;
+    auto bitrate     = config.bitrate * 1000;
+    ctx->rc_max_rate = bitrate;
+    ctx->bit_rate    = bitrate;
+    ctx->rc_min_rate = bitrate;
+
+    if(!hardware && ctx->slices > 1) {
+      // Use a larger rc_buffer_size for software encoding when slices are enabled,
+      // because libx264 can severely degrade quality if the buffer is too small.
+      ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+    }
+    else {
+      ctx->rc_buffer_size = bitrate / config.framerate;
+    }
   }
   else if(video_format.qp) {
     handle_option(*video_format.qp);
