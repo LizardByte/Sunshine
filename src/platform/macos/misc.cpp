@@ -131,6 +131,18 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
   }
 }
 
+void adjust_thread_priority(thread_priority_e priority) {
+  // Unimplemented
+}
+
+void streaming_will_start() {
+  // Nothing to do
+}
+
+void streaming_will_stop() {
+  // Nothing to do
+}
+
 } // namespace platf
 
 namespace dyn {

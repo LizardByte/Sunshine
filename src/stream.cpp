@@ -740,6 +740,8 @@ void controlBroadcastThread(control_server_t *server) {
     input::passthrough(session->input, std::move(plaintext));
   });
 
+  // This thread handles latency-sensitive control messages
+  platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   while(!shutdown_event->peek()) {
@@ -904,6 +906,9 @@ void videoBroadcastThread(udp::socket &sock) {
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   auto packets        = mail::man->queue<video::packet_t>(mail::video_packets);
   auto timebase       = boost::posix_time::microsec_clock::universal_time();
+
+  // Video traffic is sent on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
@@ -1078,6 +1083,9 @@ void audioBroadcastThread(udp::socket &sock) {
   audio_packet->rtp.header     = 0x80;
   audio_packet->rtp.packetType = 97;
   audio_packet->rtp.ssrc       = 0;
+
+  // Audio traffic is sent on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
@@ -1333,6 +1341,8 @@ void audioThread(session_t *session) {
 }
 
 namespace session {
+std::atomic_uint running_sessions;
+
 state_e state(session_t &session) {
   return session.state.load(std::memory_order_relaxed);
 }
@@ -1394,6 +1404,11 @@ void join(session_t &session) {
     }
   }
 
+  // If this is the last session, invoke the platform callbacks
+  if(--running_sessions == 0) {
+    platf::streaming_will_stop();
+  }
+
   BOOST_LOG(debug) << "Session ended"sv;
 }
 
@@ -1431,6 +1446,11 @@ int start(session_t &session, const std::string &addr_string) {
   session.videoThread = std::thread { videoThread, &session };
 
   session.state.store(state_e::RUNNING, std::memory_order_relaxed);
+
+  // If this is the first session, invoke the platform callbacks
+  if(++running_sessions == 1) {
+    platf::streaming_will_start();
+  }
 
   return 0;
 }
