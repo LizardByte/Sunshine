@@ -479,7 +479,7 @@
       <!-- Min Threads -->
       <div class="mb-3">
         <label for="min_threads" class="form-label"
-          >Minimum number of threads used by ffmpeg to encode the video.</label
+          >Minimum Software Encoding Thread Count</label
         >
         <input
           type="number"
@@ -490,7 +490,6 @@
           v-model="config.min_threads"
         />
         <div class="form-text">
-          Minimum number of threads used by ffmpeg to encode the video.<br />
           Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br />
           worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br />
           value that can reliably encode at your desired streaming settings on your hardware.

@@ -683,7 +683,7 @@ min_threads
 ^^^^^^^^^^^
 
 **Description**
-   Minimum number of threads used by ffmpeg to encode the video.
+   Minimum number of threads used for software encoding.
 
    .. Note:: Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually worth it to gain
       the use of more CPU cores for encoding. The ideal value is the lowest value that can reliably encode at your
