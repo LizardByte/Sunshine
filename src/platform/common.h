@@ -216,7 +216,8 @@ enum class capture_e : int {
 class display_t {
 public:
   /**
-   * When display has a new image ready, this callback will be called with the new image.
+   * When display has a new image ready or a timeout occurs, this callback will be called with the image.
+   * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
    * 
    * On Break Request -->
    *    Returns nullptr
@@ -225,7 +226,7 @@ public:
    *    Returns the image object that should be filled next.
    *    This may or may not be the image send with the callback
    */
-  using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img)>;
+  using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img, bool frame_captured)>;
 
   display_t() noexcept : offset_x { 0 }, offset_y { 0 } {}
 
