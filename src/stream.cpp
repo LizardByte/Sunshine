@@ -1359,6 +1359,20 @@ void stop(session_t &session) {
 }
 
 void join(session_t &session) {
+  // Current Nvidia drivers have a bug where NVENC can deadlock the encoder thread with hardware-accelerated
+  // GPU scheduling enabled. If this happens, we will terminate ourselves and the service can restart.
+  // The alternative is that Sunshine can never start another session until it's manually restarted.
+  auto task = []() {
+    BOOST_LOG(fatal) << "Hang detected! Session failed to terminate in 10 seconds."sv;
+    log_flush();
+    std::abort();
+  };
+  auto force_kill = task_pool.pushDelayed(task, 10s).task_id;
+  auto fg         = util::fail_guard([&force_kill]() {
+    // Cancel the kill task if we manage to return from this function
+    task_pool.cancel(force_kill);
+  });
+
   BOOST_LOG(debug) << "Waiting for video to end..."sv;
   session.videoThread.join();
   BOOST_LOG(debug) << "Waiting for audio to end..."sv;
