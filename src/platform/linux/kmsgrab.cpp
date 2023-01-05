@@ -12,6 +12,7 @@
 #include "src/platform/common.h"
 #include "src/round_robin.h"
 #include "src/utility.h"
+#include "src/config.h"
 
 // Cursor rendering support through x11
 #include "graphics.h"
@@ -530,9 +531,15 @@ public:
         if(monitor != std::end(pos->crtc_to_monitor)) {
           auto &viewport = monitor->second.viewport;
 
-          width    = viewport.width;
-          height   = viewport.height;
-          offset_x = viewport.offset_x;
+	  if (!config::video.kms_wh_swap) {
+	    width    = viewport.width;
+	    height   = viewport.height;
+	  }
+	  else {
+	    width    = viewport.height;
+	    height   = viewport.width;
+	  }
+	  offset_x = viewport.offset_x;
           offset_y = viewport.offset_y;
         }
         // This code path shouldn't happend, but it's there just in case.

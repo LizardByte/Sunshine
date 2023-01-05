@@ -47,6 +47,7 @@ struct video_t {
   std::string adapter_name;
   std::string output_name;
   bool dwmflush;
+  bool kms_wh_swap;
 };
 
 struct audio_t {
