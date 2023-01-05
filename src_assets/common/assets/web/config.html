@@ -766,7 +766,7 @@
     </div>
   </div>
   <div class="alert alert-success my-4" v-if="saved && restart_supported">
-    <b>Success!</b> Click 'Apply' to restart Sunshine and apply the changes.
+    <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
   </div>
   <div class="alert alert-success my-4" v-if="saved && !restart_supported">
     <b>Success!</b> Restart Sunshine to apply changes.
@@ -776,7 +776,7 @@
   </div>
   <div class="mb-3 buttons">
     <button class="btn btn-primary" @click="save">Save</button>
-    <button class="btn btn-success" @click="apply" v-if="restart_supported">Apply</button>
+    <button class="btn btn-success" @click="apply" v-if="saved && restart_supported && !restarted">Apply</button>
   </div>
 </div>
 
@@ -937,7 +937,6 @@
           if (r.status == 200) {
             fetch("/api/restart", {
               method: "POST",
-              body: JSON.stringify(this.config),
             }).then((r) => {
               if (r.status == 200) this.restarted = true;
             });
