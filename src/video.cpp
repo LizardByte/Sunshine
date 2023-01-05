@@ -1029,9 +1029,11 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     ctx->bit_rate    = bitrate;
     ctx->rc_min_rate = bitrate;
 
-    if(!hardware && ctx->slices > 1) {
+    if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
       // Use a larger rc_buffer_size for software encoding when slices are enabled,
       // because libx264 can severely degrade quality if the buffer is too small.
+      // libx265 encounters this issue more frequently, so always scale the
+      // buffer by 1.5x for software HEVC encoding.
       ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
     }
     else {
@@ -1694,35 +1696,91 @@ retry:
 }
 
 int init() {
+  bool encoder_found = false;
+  if(!config::video.encoder.empty()) {
+    // If there is a specific encoder specified, use it if it passes validation
+    KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+      auto encoder = *pos;
+
+      if(encoder.name == config::video.encoder) {
+        // Remove the encoder from the list entirely if it fails validation
+        if(!validate_encoder(encoder)) {
+          pos = encoders.erase(pos);
+          break;
+        }
+
+        // If we can't satisfy both the encoder and HDR requirement, prefer the encoder over HDR support
+        if(config::video.hevc_mode == 3 && !encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+          BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HDR on this system"sv;
+          config::video.hevc_mode = 0;
+        }
+
+        encoders.clear();
+        encoders.emplace_back(encoder);
+        encoder_found = true;
+        break;
+      }
+
+      pos++;
+    });
+
+    if(!encoder_found) {
+      BOOST_LOG(error) << "Couldn't find any working encoder matching ["sv << config::video.encoder << ']';
+      config::video.encoder.clear();
+    }
+  }
+
   BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
-  KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
-    if(
-      (!config::video.encoder.empty() && pos->name != config::video.encoder) ||
-      !validate_encoder(*pos) ||
-      (config::video.hevc_mode == 3 && !pos->hevc[encoder_t::DYNAMIC_RANGE])) {
-      pos = encoders.erase(pos);
+  // If we haven't found an encoder yet but we want one with HDR support, search for that now.
+  if(!encoder_found && config::video.hevc_mode == 3) {
+    KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+      auto encoder = *pos;
 
-      continue;
+      // Remove the encoder from the list entirely if it fails validation
+      if(!validate_encoder(encoder)) {
+        pos = encoders.erase(pos);
+        continue;
+      }
+
+      // Skip it if it doesn't support HDR
+      if(!encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+        pos++;
+        continue;
+      }
+
+      encoders.clear();
+      encoders.emplace_back(encoder);
+      encoder_found = true;
+      break;
+    });
+
+    if(!encoder_found) {
+      BOOST_LOG(error) << "Couldn't find any working HDR-capable encoder"sv;
     }
+  }
 
-    break;
-  })
+  // If no encoder was specified or the specified encoder was unusable, keep trying
+  // the remaining encoders until we find one that passes validation.
+  if(!encoder_found) {
+    KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+      if(!validate_encoder(*pos)) {
+        pos = encoders.erase(pos);
+        continue;
+      }
+
+      break;
+    });
+  }
+
+  if(encoders.empty()) {
+    BOOST_LOG(fatal) << "Couldn't find any working encoder"sv;
+    return -1;
+  }
 
   BOOST_LOG(info);
   BOOST_LOG(info) << "// Ignore any errors mentioned above, they are not relevant. //"sv;
   BOOST_LOG(info);
-
-  if(encoders.empty()) {
-    if(config::video.encoder.empty()) {
-      BOOST_LOG(fatal) << "Couldn't find any encoder"sv;
-    }
-    else {
-      BOOST_LOG(fatal) << "Couldn't find any encoder matching ["sv << config::video.encoder << ']';
-    }
-
-    return -1;
-  }
 
   auto &encoder = encoders.front();
 
