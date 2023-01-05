@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(Sunshine VERSION 0.16.0
+project(Sunshine VERSION 0.17.0
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
 
