@@ -1029,9 +1029,11 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     ctx->bit_rate    = bitrate;
     ctx->rc_min_rate = bitrate;
 
-    if(!hardware && ctx->slices > 1) {
+    if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
       // Use a larger rc_buffer_size for software encoding when slices are enabled,
       // because libx264 can severely degrade quality if the buffer is too small.
+      // libx265 encounters this issue more frequently, so always scale the
+      // buffer by 1.5x for software HEVC encoding.
       ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
     }
     else {
