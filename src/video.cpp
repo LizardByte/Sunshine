@@ -707,7 +707,7 @@ void captureThread(
   while(capture_ctx_queue->running()) {
     bool artificial_reinit = false;
 
-    auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img) -> std::shared_ptr<platf::img_t> {
+    auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img, bool frame_captured) -> std::shared_ptr<platf::img_t> {
       KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
         if(!capture_ctx->images->running()) {
           capture_ctx = capture_ctxs.erase(capture_ctx);
@@ -715,7 +715,10 @@ void captureThread(
           continue;
         }
 
-        capture_ctx->images->raise(img);
+        if(frame_captured) {
+          capture_ctx->images->raise(img);
+        }
+
         ++capture_ctx;
       })
 
@@ -1274,7 +1277,7 @@ encode_e encode_run_sync(
 
   auto ec = platf::capture_e::ok;
   while(encode_session_ctx_queue.running()) {
-    auto snapshot_cb = [&](std::shared_ptr<platf::img_t> &img) -> std::shared_ptr<platf::img_t> {
+    auto snapshot_cb = [&](std::shared_ptr<platf::img_t> &img, bool frame_captured) -> std::shared_ptr<platf::img_t> {
       while(encode_session_ctx_queue.peek()) {
         auto encode_session_ctx = encode_session_ctx_queue.pop();
         if(!encode_session_ctx) {
@@ -1318,7 +1321,7 @@ encode_e encode_run_sync(
           ctx->idr_events->pop();
         }
 
-        if(pos->session.device->convert(*img)) {
+        if(frame_captured && pos->session.device->convert(*img)) {
           BOOST_LOG(error) << "Could not convert image"sv;
           ctx->shutdown_event->raise(true);
 

@@ -652,10 +652,11 @@ capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<:
     case platf::capture_e::error:
       return status;
     case platf::capture_e::timeout:
+      img = snapshot_cb(img, false);
       std::this_thread::sleep_for(1ms);
-      continue;
+      break;
     case platf::capture_e::ok:
-      img = snapshot_cb(img);
+      img = snapshot_cb(img, true);
       break;
     default:
       BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
