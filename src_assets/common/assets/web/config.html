@@ -765,11 +765,18 @@
       </div>
     </div>
   </div>
-  <div class="alert alert-success my-4" v-if="success">
-    <b>Success!</b> Restart Sunshine to apply changes
+  <div class="alert alert-success my-4" v-if="saved && restart_supported">
+    <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
+  </div>
+  <div class="alert alert-success my-4" v-if="saved && !restart_supported">
+    <b>Success!</b> Restart Sunshine to apply changes.
+  </div>
+  <div class="alert alert-success my-4" v-if="restarted">
+    <b>Success!</b> Sunshine is restarting to apply changes.
   </div>
   <div class="mb-3 buttons">
     <button class="btn btn-primary" @click="save">Save</button>
+    <button class="btn btn-success" @click="apply" v-if="saved && restart_supported && !restarted">Apply</button>
   </div>
 </div>
 
@@ -779,7 +786,9 @@
     data() {
       return {
         platform: "",
-        success: false,
+        restart_supported: false,
+        saved: false,
+        restarted: false,
         config: null,
         fps: [],
         resolutions: [],
@@ -836,6 +845,7 @@
         .then((r) => {
           this.config = r;
           this.platform = this.config.platform;
+          this.restart_supported = (this.config.restart_supported === "true");
 
           var app = document.getElementById("app");
           if (this.platform == "windows") {
@@ -856,6 +866,7 @@
 
           delete this.config.status;
           delete this.config.platform;
+          delete this.config.restart_supported;
           //Populate default values if not present in config
           this.config.key_rightalt_to_key_win =
             this.config.key_rightalt_to_key_win || "disabled";
@@ -895,8 +906,7 @@
         });
     },
     methods: {
-      save() {
-        this.success = false;
+      serialize() {
         let nl = this.config === "windows" ? "\r\n" : "\n";
         this.config.resolutions =
           "[" +
@@ -906,12 +916,31 @@
           nl +
           "]";
         this.config.fps = JSON.stringify(this.fps);
-
+      },
+      save() {
+        this.saved = this.restarted = false;
+        this.serialize();
         fetch("/api/config", {
           method: "POST",
           body: JSON.stringify(this.config),
         }).then((r) => {
-          if (r.status == 200) this.success = true;
+          if (r.status == 200) this.saved = true;
+        });
+      },
+      apply() {
+        this.saved = this.restarted = false;
+        this.serialize();
+        fetch("/api/config", {
+          method: "POST",
+          body: JSON.stringify(this.config),
+        }).then((r) => {
+          if (r.status == 200) {
+            fetch("/api/restart", {
+              method: "POST",
+            }).then((r) => {
+              if (r.status == 200) this.restarted = true;
+            });
+          }
         });
       },
     },

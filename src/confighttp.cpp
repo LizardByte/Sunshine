@@ -494,6 +494,7 @@ void getConfig(resp_https_t response, req_https_t request) {
 
   outputTree.put("status", "true");
   outputTree.put("platform", SUNSHINE_PLATFORM);
+  outputTree.put("restart_supported", platf::restart_supported());
 
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
@@ -535,6 +536,37 @@ void saveConfig(resp_https_t response, req_https_t request) {
     outputTree.put("error", e.what());
     return;
   }
+}
+
+void restart(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+
+  print_req(request);
+
+  std::stringstream ss;
+  std::stringstream configStream;
+  ss << request->content.rdbuf();
+  pt::ptree outputTree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+
+  if(!platf::restart_supported()) {
+    outputTree.put("status", false);
+    outputTree.put("error", "Restart is not currently supported on this platform");
+    return;
+  }
+
+  if(!platf::restart()) {
+    outputTree.put("status", false);
+    outputTree.put("error", "Restart failed");
+    return;
+  }
+
+  outputTree.put("status", true);
 }
 
 void savePassword(resp_https_t response, req_https_t request) {
@@ -678,6 +710,7 @@ void start() {
   server.resource["^/api/apps$"]["POST"]                   = saveApp;
   server.resource["^/api/config$"]["GET"]                  = getConfig;
   server.resource["^/api/config$"]["POST"]                 = saveConfig;
+  server.resource["^/api/restart$"]["POST"]                = restart;
   server.resource["^/api/password$"]["POST"]               = savePassword;
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"]        = deleteApp;
   server.resource["^/api/clients/unpair$"]["POST"]         = unpairAll;

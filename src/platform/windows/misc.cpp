@@ -1,3 +1,4 @@
+#include <csignal>
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
@@ -520,6 +521,18 @@ void streaming_will_stop() {
 
   // Disable MMCSS scheduling for DWM
   DwmEnableMMCSS(false);
+}
+
+bool restart_supported() {
+  // Restart is supported if we're running from the service
+  return (GetConsoleWindow() == NULL);
+}
+
+bool restart() {
+  // Raise SIGINT to trigger the graceful exit logic. The service will
+  // restart us in a few seconds.
+  std::raise(SIGINT);
+  return true;
 }
 
 } // namespace platf

@@ -143,6 +143,16 @@ void streaming_will_stop() {
   // Nothing to do
 }
 
+bool restart_supported() {
+  // Restart not supported yet
+  return false;
+}
+
+bool restart() {
+  // Restart not supported yet
+  return false;
+}
+
 } // namespace platf
 
 namespace dyn {
