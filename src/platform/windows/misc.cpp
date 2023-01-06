@@ -29,7 +29,9 @@ namespace platf {
 using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
 std::filesystem::path appdata() {
-  return L"."sv;
+  WCHAR sunshine_path[MAX_PATH];
+  GetModuleFileNameW(NULL, sunshine_path, _countof(sunshine_path));
+  return std::filesystem::path { sunshine_path }.remove_filename() / L"config"sv;
 }
 
 std::string from_sockaddr(const sockaddr *const socket_address) {

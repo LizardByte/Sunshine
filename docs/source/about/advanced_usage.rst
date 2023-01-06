@@ -33,7 +33,7 @@ location by modifying the configuration file.
    Docker      /config/
    Linux       ~/.config/sunshine/
    macOS       ~/.config/sunshine/
-   Windows     ./config/
+   Windows     %ProgramFiles%\\Sunshine\\config
    =========   ===========
 
 **Example**
