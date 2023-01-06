@@ -244,7 +244,7 @@ std::string proc_t::get_app_image(int app_id) {
   auto app_image_path = iter == _apps.end() ? std::string() : iter->image_path;
 
   auto image_path = validate_app_image_path(app_image_path);
-  if (image_path == DEFAULT_APP_IMAGE_PATH) {
+  if(image_path == DEFAULT_APP_IMAGE_PATH) {
     BOOST_LOG(info) << "Couldn't find non-default app image for ID ["sv << app_id << ']';
   }
   return image_path;
@@ -365,56 +365,55 @@ std::string validate_app_image_path(std::string app_image_path) {
   return app_image_path;
 }
 
-std::optional<std::string> calculate_sha256(std::string filename)
-{
-    SHA256_CTX context;
-    if(!SHA256_Init(&context))
-    {
-        return std::nullopt;
-    }
+std::optional<std::string> calculate_sha256(std::string filename) {
+  SHA256_CTX context;
+  if(!SHA256_Init(&context))
+  {
+      return std::nullopt;
+  }
 
-    // Read file and update calculated SHA
-    char buf[1024 * 16];
-    std::ifstream file(filename, std::ifstream::binary);
-    while (file.good())
-    {
-        file.read(buf, sizeof(buf));
-        if(!SHA256_Update(&context, buf, file.gcount()))
-        {
-            return std::nullopt;
-        }
-    }
+  // Read file and update calculated SHA
+  char buf[1024 * 16];
+  std::ifstream file(filename, std::ifstream::binary);
+  while (file.good())
+  {
+      file.read(buf, sizeof(buf));
+      if(!SHA256_Update(&context, buf, file.gcount()))
+      {
+          return std::nullopt;
+      }
+  }
 
-    unsigned char result[SHA256_DIGEST_LENGTH];
-    if(!SHA256_Final(result, &context))
-    {
-        return std::nullopt;
-    }
+  unsigned char result[SHA256_DIGEST_LENGTH];
+  if(!SHA256_Final(result, &context))
+  {
+      return std::nullopt;
+  }
 
-    // Transform byte-array to string
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    for (const auto &byte: result)
-    {
-        ss << std::setw(2) << (int)byte;
-    }
-    return ss.str();
+  // Transform byte-array to string
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0');
+  for (const auto &byte: result)
+  {
+      ss << std::setw(2) << (int)byte;
+  }
+  return ss.str();
 }
 
 uint32_t calculate_crc32(const std::string& input) {
-    boost::crc_32_type result;
-    result.process_bytes(input.data(), input.length());
-    return result.checksum();
+  boost::crc_32_type result;
+  result.process_bytes(input.data(), input.length());
+  return result.checksum();
 }
 
-std::tuple<std::string, std::string> calculate_app_id(std::string app_name, std::string app_image_path, int index) {
+std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, std::string app_image_path, int index) {
   // Generate id by hashing name with image data if present
   std::vector<std::string> to_hash;
   to_hash.push_back(app_name);
   auto file_path = validate_app_image_path(app_image_path);
-  if (file_path != DEFAULT_APP_IMAGE_PATH) {
+  if(file_path != DEFAULT_APP_IMAGE_PATH) {
     auto file_hash = calculate_sha256(file_path);
-    if (file_hash) {
+    if(file_hash) {
       to_hash.push_back(file_hash.value());
     }
     else {
@@ -425,13 +424,13 @@ std::tuple<std::string, std::string> calculate_app_id(std::string app_name, std:
 
   // Create combined strings for hash
   std::stringstream ss;
-  for_each(to_hash.begin(), to_hash.end(), [&ss](const std::string& s) { ss << s; });
+  for_each(to_hash.begin(), to_hash.end(), [&ss](const std::string &s) { ss << s; });
   auto input_no_index = ss.str();
   ss << index;
   auto input_with_index = ss.str();
 
   // CRC32 then truncate to signed 32-bit range due to client limitations
-  auto id_no_index = std::to_string((int32_t)calculate_crc32(input_no_index));
+  auto id_no_index   = std::to_string((int32_t)calculate_crc32(input_no_index));
   auto id_with_index = std::to_string((int32_t)calculate_crc32(input_with_index));
 
   return std::make_tuple(id_no_index, id_with_index);
@@ -511,7 +510,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       }
 
       auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
-      if (ids.count(std::get<0>(possible_ids)) == 0) {
+      if(ids.count(std::get<0>(possible_ids)) == 0) {
         // Avoid using index to generate id if possible
         ctx.id = std::get<0>(possible_ids);
       }

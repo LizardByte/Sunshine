@@ -103,7 +103,7 @@ private:
  * Calculate a stable id based on name and image data
  * @return tuple of id calculated without index (for use if no collision) and one with
 */
-std::tuple<std::string, std::string> calculate_app_id(std::string app_name, std::string app_image_path, int index);
+std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, std::string app_image_path, int index);
 
 std::string validate_app_image_path(std::string app_image_path);
 void refresh(const std::string &file_name);

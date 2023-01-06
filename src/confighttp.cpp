@@ -317,7 +317,7 @@ void saveApp(resp_https_t response, req_https_t request) {
 
     // Moonlight checks the id of an item to determine if an item was changed, recompute
     auto possible_ids = proc::calculate_app_id(inputTree.get<std::string>("name"), inputTree.get<std::string>("image-path"), inputTree.get<int>("index"));
-    if (ids.count(std::get<0>(possible_ids)) == 0) {
+    if(ids.count(std::get<0>(possible_ids)) == 0) {
       // Avoid using index to generate id if possible
       inputTree.put("id", std::get<0>(possible_ids));
     }
