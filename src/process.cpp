@@ -365,42 +365,37 @@ std::string validate_app_image_path(std::string app_image_path) {
   return app_image_path;
 }
 
-std::optional<std::string> calculate_sha256(std::string filename) {
+std::optional<std::string> calculate_sha256(const std::string &filename) {
   SHA256_CTX context;
-  if(!SHA256_Init(&context))
-  {
-      return std::nullopt;
+  if(!SHA256_Init(&context)) {
+    return std::nullopt;
   }
 
   // Read file and update calculated SHA
   char buf[1024 * 16];
   std::ifstream file(filename, std::ifstream::binary);
-  while (file.good())
-  {
-      file.read(buf, sizeof(buf));
-      if(!SHA256_Update(&context, buf, file.gcount()))
-      {
-          return std::nullopt;
-      }
+  while (file.good()) {
+    file.read(buf, sizeof(buf));
+    if(!SHA256_Update(&context, buf, file.gcount())) {
+      return std::nullopt;
+    }
   }
 
   unsigned char result[SHA256_DIGEST_LENGTH];
-  if(!SHA256_Final(result, &context))
-  {
-      return std::nullopt;
+  if(!SHA256_Final(result, &context)) {
+    return std::nullopt;
   }
 
   // Transform byte-array to string
   std::stringstream ss;
   ss << std::hex << std::setfill('0');
-  for (const auto &byte: result)
-  {
-      ss << std::setw(2) << (int)byte;
+  for(const auto &byte : result) {
+    ss << std::setw(2) << (int)byte;
   }
   return ss.str();
 }
 
-uint32_t calculate_crc32(const std::string& input) {
+uint32_t calculate_crc32(const std::string &input) {
   boost::crc_32_type result;
   result.process_bytes(input.data(), input.length());
   return result.checksum();
