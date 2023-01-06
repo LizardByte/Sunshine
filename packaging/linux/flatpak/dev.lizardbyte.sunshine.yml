@@ -100,20 +100,20 @@ modules:
       - chmod u+x ./cuda.run
       - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm
         --tmpdir=$FLATPAK_BUILDER_BUILDDIR
-      - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
+      - rm -r $FLATPAK_DEST/cuda/nsight-systems-*
       - rm ./cuda.run
     sources:
       - type: file
         only-arches:
           - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
-        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
+        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run
+        sha256: 9223c4af3aebe4a7bbed9abd9b163b03a1b34b855fbc2b4a0d1b706ac09a5a16
         dest-filename: cuda.run
       - type: file
         only-arches:
           - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run  # yamllint disable-line rule:line-length
-        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
+        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run  # yamllint disable-line rule:line-length
+        sha256: e6e9a8d31163c9776b5e313fd7590877c5684e1ecddee741154f95704d4ed27c
         dest-filename: cuda.run
 
   - name: numactl
