@@ -9,10 +9,13 @@
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/crc.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+
+#include <openssl/sha.h>
 
 #include "main.h"
 #include "platform/common.h"
@@ -22,6 +25,8 @@
 // _SH constants for _wfsopen()
 #include <share.h>
 #endif
+
+#define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
 
 namespace proc {
 using namespace std::literals;
@@ -233,47 +238,16 @@ std::vector<ctx_t> &proc_t::get_apps() {
 // Returns default image if image configuration is not set.
 // Returns http content-type header compatible image type.
 std::string proc_t::get_app_image(int app_id) {
-  auto default_image = SUNSHINE_ASSETS_DIR "/box.png";
-
   auto iter           = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
     return app.id == std::to_string(app_id);
   });
   auto app_image_path = iter == _apps.end() ? std::string() : iter->image_path;
 
-  if(app_image_path.empty()) {
-    BOOST_LOG(warning) << "Couldn't find app image for ID ["sv << app_id << ']';
-    return default_image;
+  auto image_path = validate_app_image_path(app_image_path);
+  if (image_path == DEFAULT_APP_IMAGE_PATH) {
+    BOOST_LOG(info) << "Couldn't find non-default app image for ID ["sv << app_id << ']';
   }
-
-  // get the image extension and convert it to lowercase
-  auto image_extension = std::filesystem::path(app_image_path).extension().string();
-  boost::to_lower(image_extension);
-
-  // return the default box image if extension is not "png"
-  if(image_extension != ".png") {
-    return default_image;
-  }
-
-  // check if image is in assets directory
-  auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
-  if(std::filesystem::exists(full_image_path)) {
-    return full_image_path.string();
-  }
-  else if(app_image_path == "./assets/steam.png") {
-    // handle old default steam image definition
-    return SUNSHINE_ASSETS_DIR "/steam.png";
-  }
-
-  // check if specified image exists
-  std::error_code code;
-  if(!std::filesystem::exists(app_image_path, code)) {
-    // return default box image if image does not exist
-    return default_image;
-  }
-
-  // image is a png, and not in assets directory
-  // return only "content-type" http header compatible image type
-  return app_image_path;
+  return image_path;
 }
 
 proc_t::~proc_t() {
@@ -355,6 +329,114 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
   return ss.str();
 }
 
+std::string validate_app_image_path(std::string app_image_path) {
+  if(app_image_path.empty()) {
+    return DEFAULT_APP_IMAGE_PATH;
+  }
+
+  // get the image extension and convert it to lowercase
+  auto image_extension = std::filesystem::path(app_image_path).extension().string();
+  boost::to_lower(image_extension);
+
+  // return the default box image if extension is not "png"
+  if(image_extension != ".png") {
+    return DEFAULT_APP_IMAGE_PATH;
+  }
+
+  // check if image is in assets directory
+  auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
+  if(std::filesystem::exists(full_image_path)) {
+    return full_image_path.string();
+  }
+  else if(app_image_path == "./assets/steam.png") {
+    // handle old default steam image definition
+    return SUNSHINE_ASSETS_DIR "/steam.png";
+  }
+
+  // check if specified image exists
+  std::error_code code;
+  if(!std::filesystem::exists(app_image_path, code)) {
+    // return default box image if image does not exist
+    return DEFAULT_APP_IMAGE_PATH;
+  }
+
+  // image is a png, and not in assets directory
+  // return only "content-type" http header compatible image type
+  return app_image_path;
+}
+
+std::optional<std::string> calculate_sha256(std::string filename)
+{
+    SHA256_CTX context;
+    if(!SHA256_Init(&context))
+    {
+        return std::nullopt;
+    }
+
+    // Read file and update calculated SHA
+    char buf[1024 * 16];
+    std::ifstream file(filename, std::ifstream::binary);
+    while (file.good())
+    {
+        file.read(buf, sizeof(buf));
+        if(!SHA256_Update(&context, buf, file.gcount()))
+        {
+            return std::nullopt;
+        }
+    }
+
+    unsigned char result[SHA256_DIGEST_LENGTH];
+    if(!SHA256_Final(result, &context))
+    {
+        return std::nullopt;
+    }
+
+    // Transform byte-array to string
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (const auto &byte: result)
+    {
+        ss << std::setw(2) << (int)byte;
+    }
+    return ss.str();
+}
+
+uint32_t calculate_crc32(const std::string& input) {
+    boost::crc_32_type result;
+    result.process_bytes(input.data(), input.length());
+    return result.checksum();
+}
+
+std::tuple<std::string, std::string> calculate_app_id(std::string app_name, std::string app_image_path, int index) {
+  // Generate id by hashing name with image data if present
+  std::vector<std::string> to_hash;
+  to_hash.push_back(app_name);
+  auto file_path = validate_app_image_path(app_image_path);
+  if (file_path != DEFAULT_APP_IMAGE_PATH) {
+    auto file_hash = calculate_sha256(file_path);
+    if (file_hash) {
+      to_hash.push_back(file_hash.value());
+    }
+    else {
+      // Fallback to just hashing image path
+      to_hash.push_back(file_path);
+    }
+  }
+
+  // Create combined strings for hash
+  std::stringstream ss;
+  for_each(to_hash.begin(), to_hash.end(), [&ss](const std::string& s) { ss << s; });
+  auto input_no_index = ss.str();
+  ss << index;
+  auto input_with_index = ss.str();
+
+  // CRC32 then truncate to signed 32-bit range due to client limitations
+  auto id_no_index = std::to_string((int32_t)calculate_crc32(input_no_index));
+  auto id_with_index = std::to_string((int32_t)calculate_crc32(input_with_index));
+
+  return std::make_tuple(id_no_index, id_with_index);
+}
+
 std::optional<proc::proc_t> parse(const std::string &file_name) {
   pt::ptree tree;
 
@@ -370,8 +452,9 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
     }
 
-    int app_index = 1; // Start at 1, 0 indicates no app running
+    std::set<std::string> ids;
     std::vector<proc::ctx_t> apps;
+    int i = 0;
     for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
 
@@ -382,7 +465,6 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto cmd                = app_node.get_optional<std::string>("cmd"s);
       auto image_path         = app_node.get_optional<std::string>("image-path"s);
       auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
-      auto id                 = app_node.get_optional<std::string>("id"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       if(prep_nodes_opt) {
@@ -428,14 +510,16 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
-      if(id) {
-        ctx.id = parse_env_val(this_env, *id);
+      auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
+      if (ids.count(std::get<0>(possible_ids)) == 0) {
+        // Avoid using index to generate id if possible
+        ctx.id = std::get<0>(possible_ids);
       }
       else {
-        ctx.id = std::to_string(app_index);
+        // Fallback to include index on collision
+        ctx.id = std::get<1>(possible_ids);
       }
-      // Always increment index to avoid order shuffling in moonlight
-      app_index++;
+      ids.insert(ctx.id);
 
       ctx.name      = std::move(name);
       ctx.prep_cmds = std::move(prep_cmds);

@@ -97,10 +97,15 @@ private:
   file_t _pipe;
   std::vector<cmd_t>::const_iterator _undo_it;
   std::vector<cmd_t>::const_iterator _undo_begin;
-
-  int app_index_from_id(int app_id);
 };
 
+/**
+ * Calculate a stable id based on name and image data
+ * @return tuple of id calculated without index (for use if no collision) and one with
+*/
+std::tuple<std::string, std::string> calculate_app_id(std::string app_name, std::string app_image_path, int index);
+
+std::string validate_app_image_path(std::string app_image_path);
 void refresh(const std::string &file_name);
 std::optional<proc::proc_t> parse(const std::string &file_name);
 
