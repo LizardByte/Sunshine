@@ -374,7 +374,7 @@ std::optional<std::string> calculate_sha256(const std::string &filename) {
   // Read file and update calculated SHA
   char buf[1024 * 16];
   std::ifstream file(filename, std::ifstream::binary);
-  while (file.good()) {
+  while(file.good()) {
     file.read(buf, sizeof(buf));
     if(!SHA256_Update(&context, buf, file.gcount())) {
       return std::nullopt;
