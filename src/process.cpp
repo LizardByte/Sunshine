@@ -15,6 +15,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
+#include <openssl/evp.h>
 #include <openssl/sha.h>
 
 #include "main.h"
@@ -366,8 +367,12 @@ std::string validate_app_image_path(std::string app_image_path) {
 }
 
 std::optional<std::string> calculate_sha256(const std::string &filename) {
-  SHA256_CTX context;
-  if(!SHA256_Init(&context)) {
+  EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+  if(!mdctx) {
+    return std::nullopt;
+  }
+
+  if(!EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr)) {
     return std::nullopt;
   }
 
@@ -376,13 +381,14 @@ std::optional<std::string> calculate_sha256(const std::string &filename) {
   std::ifstream file(filename, std::ifstream::binary);
   while(file.good()) {
     file.read(buf, sizeof(buf));
-    if(!SHA256_Update(&context, buf, file.gcount())) {
+    if(!EVP_DigestUpdate (mdctx, buf, file.gcount())) {
       return std::nullopt;
     }
   }
+  file.close();
 
   unsigned char result[SHA256_DIGEST_LENGTH];
-  if(!SHA256_Final(result, &context)) {
+  if(!EVP_DigestFinal_ex(mdctx, result, nullptr)) {
     return std::nullopt;
   }
 
@@ -425,8 +431,8 @@ std::tuple<std::string, std::string> calculate_app_id(const std::string &app_nam
   auto input_with_index = ss.str();
 
   // CRC32 then truncate to signed 32-bit range due to client limitations
-  auto id_no_index   = std::to_string((int32_t)calculate_crc32(input_no_index));
-  auto id_with_index = std::to_string((int32_t)calculate_crc32(input_with_index));
+  auto id_no_index   = std::to_string(abs((int32_t)calculate_crc32(input_no_index)));
+  auto id_with_index = std::to_string(abs((int32_t)calculate_crc32(input_with_index)));
 
   return std::make_tuple(id_no_index, id_with_index);
 }
