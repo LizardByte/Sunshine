@@ -302,11 +302,6 @@ void saveApp(resp_https_t response, req_https_t request) {
     response->write(data.str());
   });
 
-  std::set<std::string> ids;
-  for(auto const &app : proc::proc.get_apps()) {
-    ids.insert(app.id);
-  }
-
   pt::ptree inputTree, fileTree;
 
   BOOST_LOG(fatal) << config::stream.file_apps;
@@ -314,17 +309,6 @@ void saveApp(resp_https_t response, req_https_t request) {
     // TODO: Input Validation
     pt::read_json(ss, inputTree);
     pt::read_json(config::stream.file_apps, fileTree);
-
-    // Moonlight checks the id of an item to determine if an item was changed, recompute
-    auto possible_ids = proc::calculate_app_id(inputTree.get<std::string>("name"), inputTree.get<std::string>("image-path"), inputTree.get<int>("index"));
-    if(ids.count(std::get<0>(possible_ids)) == 0) {
-      // Avoid using index to generate id if possible
-      inputTree.put("id", std::get<0>(possible_ids));
-    }
-    else {
-      // Fallback to include index on collision
-      inputTree.put("id", std::get<1>(possible_ids));
-    }
 
     if(inputTree.get_child("prep-cmd").empty()) {
       inputTree.erase("prep-cmd");

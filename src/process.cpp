@@ -244,11 +244,7 @@ std::string proc_t::get_app_image(int app_id) {
   });
   auto app_image_path = iter == _apps.end() ? std::string() : iter->image_path;
 
-  auto image_path = validate_app_image_path(app_image_path);
-  if(image_path == DEFAULT_APP_IMAGE_PATH) {
-    BOOST_LOG(info) << "Couldn't find non-default app image for ID ["sv << app_id << ']';
-  }
-  return image_path;
+  return validate_app_image_path(app_image_path);
 }
 
 proc_t::~proc_t() {
@@ -358,6 +354,7 @@ std::string validate_app_image_path(std::string app_image_path) {
   std::error_code code;
   if(!std::filesystem::exists(app_image_path, code)) {
     // return default box image if image does not exist
+    BOOST_LOG(warning) << "Couldn't find app image at path ["sv << app_image_path << ']';
     return DEFAULT_APP_IMAGE_PATH;
   }
 
@@ -381,7 +378,7 @@ std::optional<std::string> calculate_sha256(const std::string &filename) {
   std::ifstream file(filename, std::ifstream::binary);
   while(file.good()) {
     file.read(buf, sizeof(buf));
-    if(!EVP_DigestUpdate (mdctx, buf, file.gcount())) {
+    if(!EVP_DigestUpdate(mdctx, buf, file.gcount())) {
       return std::nullopt;
     }
   }
