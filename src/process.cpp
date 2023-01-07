@@ -364,12 +364,12 @@ std::string validate_app_image_path(std::string app_image_path) {
 }
 
 std::optional<std::string> calculate_sha256(const std::string &filename) {
-  EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-  if(!mdctx) {
+  crypto::md_ctx_t ctx { EVP_MD_CTX_create() };
+  if(!ctx) {
     return std::nullopt;
   }
 
-  if(!EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr)) {
+  if(!EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr)) {
     return std::nullopt;
   }
 
@@ -378,14 +378,14 @@ std::optional<std::string> calculate_sha256(const std::string &filename) {
   std::ifstream file(filename, std::ifstream::binary);
   while(file.good()) {
     file.read(buf, sizeof(buf));
-    if(!EVP_DigestUpdate(mdctx, buf, file.gcount())) {
+    if(!EVP_DigestUpdate(ctx, buf, file.gcount())) {
       return std::nullopt;
     }
   }
   file.close();
 
   unsigned char result[SHA256_DIGEST_LENGTH];
-  if(!EVP_DigestFinal_ex(mdctx, result, nullptr)) {
+  if(!EVP_DigestFinal_ex(ctx, result, nullptr)) {
     return std::nullopt;
   }
 
