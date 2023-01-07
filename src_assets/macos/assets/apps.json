@@ -9,7 +9,6 @@
     },
     {
       "name": "Steam BigPicture",
-      "output": "steam.txt",
       "detached": [
         "open steam://open/bigpicture"
       ],

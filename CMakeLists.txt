@@ -532,6 +532,9 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
             DESTINATION "scripts"
             COMPONENT service)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
+            DESTINATION "scripts"
+            COMPONENT assets)
 
     # Sunshine assets
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
@@ -548,12 +551,16 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")
 
     # Extra install commands
-    # Sets permissions on the installed folder so that we can write in it
+    # Restores permissions on the install directory
+    # Migrates config files from the root into the new config folder
+    # Sets permissions on the config folder so that we can write in it
     # Install service
     SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
             "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
         ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://sunshinestream.readthedocs.io/\\\"'
-        ExecWait 'icacls \\\"$INSTDIR\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+        ExecWait 'icacls \\\"$INSTDIR\\\" /reset'
+        ExecWait '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
+        ExecWait 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
         MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to add/update ViGEmBus (virtual controller support)?' \
