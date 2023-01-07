@@ -1991,5 +1991,7 @@ color_t colors[] {
   make_color_matrix(0.299f, 0.114f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),     // BT601 JPEG
   make_color_matrix(0.2126f, 0.0722f, { 16.0f, 235.0f }, { 16.0f, 240.0f }), // BT709 MPEG
   make_color_matrix(0.2126f, 0.0722f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),   // BT709 JPEG
+  make_color_matrix(0.2627f, 0.0593f, { 16.0f, 235.0f }, { 16.0f, 240.0f }), // BT2020 MPEG
+  make_color_matrix(0.2627f, 0.0593f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),   // BT2020 JPEG
 };
 } // namespace video
