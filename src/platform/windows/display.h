@@ -185,13 +185,15 @@ public:
 
   sampler_state_t sampler_linear;
 
-  blend_t blend_enable;
+  blend_t blend_alpha;
+  blend_t blend_invert;
   blend_t blend_disable;
 
   ps_t scene_ps;
   vs_t scene_vs;
 
-  gpu_cursor_t cursor;
+  gpu_cursor_t cursor_alpha;
+  gpu_cursor_t cursor_xor;
 
   texture2d_t last_frame_copy;
 };

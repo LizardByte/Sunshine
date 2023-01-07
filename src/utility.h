@@ -726,6 +726,9 @@ public:
   buffer_t(buffer_t &&o) noexcept : _els { o._els }, _buf { std::move(o._buf) } {
     o._els = 0;
   }
+  buffer_t(const buffer_t &o) : _els { o._els }, _buf { std::make_unique<T[]>(_els) } {
+    std::copy(o.begin(), o.end(), begin());
+  }
   buffer_t &operator=(buffer_t &&o) noexcept {
     std::swap(_els, o._els);
     std::swap(_buf, o._buf);

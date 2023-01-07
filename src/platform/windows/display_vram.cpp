@@ -52,7 +52,7 @@ buf_t make_buffer(device_t::pointer device, const T &t) {
   return buf_t { buf_p };
 }
 
-blend_t make_blend(device_t::pointer device, bool enable) {
+blend_t make_blend(device_t::pointer device, bool enable, bool invert) {
   D3D11_BLEND_DESC bdesc {};
   auto &rt                 = bdesc.RenderTarget[0];
   rt.BlendEnable           = enable;
@@ -62,8 +62,16 @@ blend_t make_blend(device_t::pointer device, bool enable) {
     rt.BlendOp      = D3D11_BLEND_OP_ADD;
     rt.BlendOpAlpha = D3D11_BLEND_OP_ADD;
 
-    rt.SrcBlend  = D3D11_BLEND_SRC_ALPHA;
-    rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    if(invert) {
+      // Invert colors
+      rt.SrcBlend  = D3D11_BLEND_INV_DEST_COLOR;
+      rt.DestBlend = D3D11_BLEND_INV_SRC_COLOR;
+    }
+    else {
+      // Regular alpha blending
+      rt.SrcBlend  = D3D11_BLEND_SRC_ALPHA;
+      rt.DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    }
 
     rt.SrcBlendAlpha  = D3D11_BLEND_ZERO;
     rt.DestBlendAlpha = D3D11_BLEND_ZERO;
@@ -110,22 +118,39 @@ struct img_d3d_t : public platf::img_t {
   };
 };
 
-util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
-  constexpr std::uint32_t black       = 0xFF000000;
-  constexpr std::uint32_t white       = 0xFFFFFFFF;
+util::buffer_t<std::uint8_t> make_cursor_xor_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
+  constexpr std::uint32_t inverted    = 0xFFFFFFFF;
   constexpr std::uint32_t transparent = 0;
 
   switch(shape_info.Type) {
-  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
-    std::for_each((std::uint32_t *)std::begin(img_data), (std::uint32_t *)std::end(img_data), [](auto &pixel) {
-      if(pixel & 0xFF000000) {
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
+    // This type doesn't require any XOR-blending
+    return {};
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR: {
+    util::buffer_t<std::uint8_t> cursor_img = img_data;
+    std::for_each((std::uint32_t *)std::begin(cursor_img), (std::uint32_t *)std::end(cursor_img), [](auto &pixel) {
+      auto alpha = (std::uint8_t)((pixel >> 24) & 0xFF);
+      if(alpha == 0xFF) {
+        // Pixels with 0xFF alpha will be XOR-blended as is.
+      }
+      else if(alpha == 0x00) {
+        // Pixels with 0x00 alpha will be blended by make_cursor_alpha_image().
+        // We make them transparent for the XOR-blended cursor image.
         pixel = transparent;
       }
+      else {
+        // Other alpha values are illegal in masked color cursors
+        BOOST_LOG(warning) << "Illegal alpha value in masked color cursor: " << alpha;
+      }
     });
-  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
-    return std::move(img_data);
-  default:
+    return cursor_img;
+  }
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
+    // Monochrome is handled below
     break;
+  default:
+    BOOST_LOG(error) << "Invalid cursor shape type: " << shape_info.Type;
+    return {};
   }
 
   shape_info.Height /= 2;
@@ -144,45 +169,88 @@ util::buffer_t<std::uint8_t> make_cursor_image(util::buffer_t<std::uint8_t> &&im
       auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
 
       switch(color_type) {
-      case 0: //black
+      case 0: // Opaque black (handled by alpha-blending)
+      case 2: // Opaque white (handled by alpha-blending)
+      case 1: // Color of screen (transparent)
+        *pixel_data = transparent;
+        break;
+      case 3: // Inverse of screen
+        *pixel_data = inverted;
+        break;
+      }
+
+      ++pixel_data;
+    }
+    ++and_mask;
+    ++xor_mask;
+  }
+
+  return cursor_img;
+}
+
+util::buffer_t<std::uint8_t> make_cursor_alpha_image(const util::buffer_t<std::uint8_t> &img_data, DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info) {
+  constexpr std::uint32_t black       = 0xFF000000;
+  constexpr std::uint32_t white       = 0xFFFFFFFF;
+  constexpr std::uint32_t transparent = 0;
+
+  switch(shape_info.Type) {
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR: {
+    util::buffer_t<std::uint8_t> cursor_img = img_data;
+    std::for_each((std::uint32_t *)std::begin(cursor_img), (std::uint32_t *)std::end(cursor_img), [](auto &pixel) {
+      auto alpha = (std::uint8_t)((pixel >> 24) & 0xFF);
+      if(alpha == 0xFF) {
+        // Pixels with 0xFF alpha will be XOR-blended by make_cursor_xor_image().
+        // We make them transparent for the alpha-blended cursor image.
+        pixel = transparent;
+      }
+      else if(alpha == 0x00) {
+        // Pixels with 0x00 alpha will be blended as opaque with the alpha-blended image.
+        pixel |= 0xFF000000;
+      }
+      else {
+        // Other alpha values are illegal in masked color cursors
+        BOOST_LOG(warning) << "Illegal alpha value in masked color cursor: " << alpha;
+      }
+    });
+    return cursor_img;
+  }
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
+    // Color cursors are just an ARGB bitmap which requires no processing.
+    return img_data;
+  case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
+    // Monochrome cursors are handled below.
+    break;
+  default:
+    BOOST_LOG(error) << "Invalid cursor shape type: " << shape_info.Type;
+    return {};
+  }
+
+  shape_info.Height /= 2;
+
+  util::buffer_t<std::uint8_t> cursor_img { shape_info.Width * shape_info.Height * 4 };
+
+  auto bytes       = shape_info.Pitch * shape_info.Height;
+  auto pixel_begin = (std::uint32_t *)std::begin(cursor_img);
+  auto pixel_data  = pixel_begin;
+  auto and_mask    = std::begin(img_data);
+  auto xor_mask    = std::begin(img_data) + bytes;
+
+  for(auto x = 0; x < bytes; ++x) {
+    for(auto c = 7; c >= 0; --c) {
+      auto bit        = 1 << c;
+      auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
+
+      switch(color_type) {
+      case 0: // Opaque black
         *pixel_data = black;
         break;
-      case 2: //white
+      case 2: // Opaque white
         *pixel_data = white;
         break;
-      case 1: //transparent
-      {
+      case 3: // Inverse of screen (handled by XOR blending)
+      case 1: // Color of screen (transparent)
         *pixel_data = transparent;
-
         break;
-      }
-      case 3: //inverse
-      {
-        auto top_p    = pixel_data - shape_info.Width;
-        auto left_p   = pixel_data - 1;
-        auto right_p  = pixel_data + 1;
-        auto bottom_p = pixel_data + shape_info.Width;
-
-        // Get the x coordinate of the pixel
-        auto column = (pixel_data - pixel_begin) % shape_info.Width != 0;
-
-        if(top_p >= pixel_begin && *top_p == transparent) {
-          *top_p = black;
-        }
-
-        if(column != 0 && left_p >= pixel_begin && *left_p == transparent) {
-          *left_p = black;
-        }
-
-        if(bottom_p < (std::uint32_t *)std::end(cursor_img)) {
-          *bottom_p = black;
-        }
-
-        if(column != shape_info.Width - 1) {
-          *right_p = black;
-        }
-        *pixel_data = white;
-      }
       }
 
       ++pixel_data;
@@ -513,7 +581,7 @@ public:
       return -1;
     }
 
-    blend_disable = make_blend(device.get(), false);
+    blend_disable = make_blend(device.get(), false, false);
     if(!blend_disable) {
       return -1;
     }
@@ -667,6 +735,50 @@ capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<:
   return capture_e::ok;
 }
 
+bool set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info) {
+  // This cursor image may not be used
+  if(cursor_img.size() == 0) {
+    cursor.input_res.reset();
+    cursor.set_texture(0, 0, nullptr);
+    return true;
+  }
+
+  D3D11_SUBRESOURCE_DATA data {
+    std::begin(cursor_img),
+    4 * shape_info.Width,
+    0
+  };
+
+  // Create texture for cursor
+  D3D11_TEXTURE2D_DESC t {};
+  t.Width            = shape_info.Width;
+  t.Height           = cursor_img.size() / data.SysMemPitch;
+  t.MipLevels        = 1;
+  t.ArraySize        = 1;
+  t.SampleDesc.Count = 1;
+  t.Usage            = D3D11_USAGE_IMMUTABLE;
+  t.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+  t.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+
+  texture2d_t texture;
+  auto status = device->CreateTexture2D(&t, &data, &texture);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create mouse texture [0x"sv << util::hex(status).to_string_view() << ']';
+    return false;
+  }
+
+  // Free resources before allocating on the next line.
+  cursor.input_res.reset();
+  status = device->CreateShaderResourceView(texture.get(), nullptr, &cursor.input_res);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create cursor shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
+    return false;
+  }
+
+  cursor.set_texture(t.Width, t.Height, std::move(texture));
+  return true;
+}
+
 capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) {
   auto img = (img_d3d_t *)img_base;
 
@@ -703,45 +815,18 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
       return capture_e::error;
     }
 
-    auto cursor_img = make_cursor_image(std::move(img_data), shape_info);
+    auto alpha_cursor_img = make_cursor_alpha_image(img_data, shape_info);
+    auto xor_cursor_img   = make_cursor_xor_image(img_data, shape_info);
 
-    D3D11_SUBRESOURCE_DATA data {
-      std::begin(cursor_img),
-      4 * shape_info.Width,
-      0
-    };
-
-    // Create texture for cursor
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width            = shape_info.Width;
-    t.Height           = cursor_img.size() / data.SysMemPitch;
-    t.MipLevels        = 1;
-    t.ArraySize        = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage            = D3D11_USAGE_DEFAULT;
-    t.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
-    t.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
-
-    texture2d_t texture;
-    auto status = device->CreateTexture2D(&t, &data, &texture);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create mouse texture [0x"sv << util::hex(status).to_string_view() << ']';
+    if(!set_cursor_texture(device.get(), cursor_alpha, std::move(alpha_cursor_img), shape_info) ||
+       !set_cursor_texture(device.get(), cursor_xor, std::move(xor_cursor_img), shape_info)) {
       return capture_e::error;
     }
-
-    // Free resources before allocating on the next line.
-    cursor.input_res.reset();
-    status = device->CreateShaderResourceView(texture.get(), nullptr, &cursor.input_res);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create cursor shader resource view [0x"sv << util::hex(status).to_string_view() << ']';
-      return capture_e::error;
-    }
-
-    cursor.set_texture(t.Width, t.Height, std::move(texture));
   }
 
   if(frame_info.LastMouseUpdateTime.QuadPart) {
-    cursor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
+    cursor_alpha.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
+    cursor_xor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
   }
 
   if(frame_update_flag) {
@@ -850,21 +935,29 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
     device_ctx->CopyResource(img->capture_texture.get(), last_frame_copy.get());
   }
 
-  if(cursor.visible && cursor_visible) {
-    D3D11_VIEWPORT view {
-      0.0f, 0.0f,
-      (float)width, (float)height,
-      0.0f, 1.0f
-    };
-
+  if((cursor_alpha.visible || cursor_xor.visible) && cursor_visible) {
     device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(scene_ps.get(), nullptr, 0);
-    device_ctx->RSSetViewports(1, &view);
-    device_ctx->PSSetShaderResources(0, 1, &cursor.input_res);
     device_ctx->OMSetRenderTargets(1, &img->capture_rt, nullptr);
-    device_ctx->OMSetBlendState(blend_enable.get(), nullptr, 0xFFFFFFFFu);
-    device_ctx->RSSetViewports(1, &cursor.cursor_view);
-    device_ctx->Draw(3, 0);
+
+    if(cursor_alpha.texture.get()) {
+      // Perform an alpha blending operation
+      device_ctx->OMSetBlendState(blend_alpha.get(), nullptr, 0xFFFFFFFFu);
+
+      device_ctx->PSSetShaderResources(0, 1, &cursor_alpha.input_res);
+      device_ctx->RSSetViewports(1, &cursor_alpha.cursor_view);
+      device_ctx->Draw(3, 0);
+    }
+
+    if(cursor_xor.texture.get()) {
+      // Perform an invert blending without touching alpha values
+      device_ctx->OMSetBlendState(blend_invert.get(), nullptr, 0x00FFFFFFu);
+
+      device_ctx->PSSetShaderResources(0, 1, &cursor_xor.input_res);
+      device_ctx->RSSetViewports(1, &cursor_xor.cursor_view);
+      device_ctx->Draw(3, 0);
+    }
+
     device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
   }
 
@@ -906,10 +999,11 @@ int display_vram_t::init(int framerate, const std::string &display_name) {
     return -1;
   }
 
-  blend_enable  = make_blend(device.get(), true);
-  blend_disable = make_blend(device.get(), false);
+  blend_alpha   = make_blend(device.get(), true, false);
+  blend_invert  = make_blend(device.get(), true, true);
+  blend_disable = make_blend(device.get(), false, false);
 
-  if(!blend_disable || !blend_enable) {
+  if(!blend_disable || !blend_alpha || !blend_invert) {
     return -1;
   }
 
