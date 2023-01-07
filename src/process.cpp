@@ -18,6 +18,7 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
+#include "crypto.h"
 #include "main.h"
 #include "platform/common.h"
 #include "utility.h"
@@ -369,7 +370,7 @@ std::optional<std::string> calculate_sha256(const std::string &filename) {
     return std::nullopt;
   }
 
-  if(!EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr)) {
+  if(!EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr)) {
     return std::nullopt;
   }
 
@@ -378,14 +379,14 @@ std::optional<std::string> calculate_sha256(const std::string &filename) {
   std::ifstream file(filename, std::ifstream::binary);
   while(file.good()) {
     file.read(buf, sizeof(buf));
-    if(!EVP_DigestUpdate(ctx, buf, file.gcount())) {
+    if(!EVP_DigestUpdate(ctx.get(), buf, file.gcount())) {
       return std::nullopt;
     }
   }
   file.close();
 
   unsigned char result[SHA256_DIGEST_LENGTH];
-  if(!EVP_DigestFinal_ex(ctx, result, nullptr)) {
+  if(!EVP_DigestFinal_ex(ctx.get(), result, nullptr)) {
     return std::nullopt;
   }
 
