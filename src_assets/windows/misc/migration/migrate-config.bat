@@ -35,6 +35,9 @@ rem Migrate the covers directory
 if exist "%OLD_DIR%\covers\" (
     if not exist "%NEW_DIR%\covers\" (
         move "%OLD_DIR%\covers" "%NEW_DIR%\"
+
+        rem Fix apps.json image path values that point at the old covers directory
+        powershell -c "(Get-Content '%NEW_DIR%\apps.json').replace('.\/covers\/', '.\/config\/covers\/') | Set-Content '%NEW_DIR%\apps.json'"
     )
 )
 
