@@ -1966,7 +1966,7 @@ platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt) {
   return platf::pix_fmt_e::unknown;
 }
 
-color_t make_color_matrix(float Cr, float Cb, float U_max, float V_max, float add_Y, float add_UV, const float2 &range_Y, const float2 &range_UV) {
+color_t make_color_matrix(float Cr, float Cb, const float2 &range_Y, const float2 &range_UV) {
   float Cg = 1.0f - Cr - Cb;
 
   float Cr_i = 1.0f - Cr;
@@ -1978,18 +1978,18 @@ color_t make_color_matrix(float Cr, float Cb, float U_max, float V_max, float ad
   float scale_y  = (range_Y[1] - range_Y[0]) / 256.0f;
   float scale_uv = (range_UV[1] - range_UV[0]) / 256.0f;
   return {
-    { Cr, Cg, Cb, add_Y },
-    { -(Cr * U_max / Cb_i), -(Cg * U_max / Cb_i), U_max, add_UV },
-    { V_max, -(Cg * V_max / Cr_i), -(Cb * V_max / Cr_i), add_UV },
+    { Cr, Cg, Cb, 0.0f },
+    { -(Cr * 0.5f / Cb_i), -(Cg * 0.5f / Cb_i), 0.5f, 0.5f },
+    { 0.5f, -(Cg * 0.5f / Cr_i), -(Cb * 0.5f / Cr_i), 0.5f },
     { scale_y, shift_y },
     { scale_uv, shift_uv },
   };
 }
 
 color_t colors[] {
-  make_color_matrix(0.299f, 0.114f, 0.436f, 0.615f, 0.0625, 0.5f, { 16.0f, 235.0f }, { 16.0f, 240.0f }),   // BT601 MPEG
-  make_color_matrix(0.299f, 0.114f, 0.5f, 0.5f, 0.0f, 0.5f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),           // BT601 JPEG
-  make_color_matrix(0.2126f, 0.0722f, 0.436f, 0.615f, 0.0625, 0.5f, { 16.0f, 235.0f }, { 16.0f, 240.0f }), // BT701 MPEG
-  make_color_matrix(0.2126f, 0.0722f, 0.5f, 0.5f, 0.0f, 0.5f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),         // BT701 JPEG
+  make_color_matrix(0.299f, 0.114f, { 16.0f, 235.0f }, { 16.0f, 240.0f }),   // BT601 MPEG
+  make_color_matrix(0.299f, 0.114f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),     // BT601 JPEG
+  make_color_matrix(0.2126f, 0.0722f, { 16.0f, 235.0f }, { 16.0f, 240.0f }), // BT709 MPEG
+  make_color_matrix(0.2126f, 0.0722f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),   // BT709 JPEG
 };
 } // namespace video
