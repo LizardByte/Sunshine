@@ -1972,11 +1972,11 @@ color_t make_color_matrix(float Cr, float Cb, const float2 &range_Y, const float
   float Cr_i = 1.0f - Cr;
   float Cb_i = 1.0f - Cb;
 
-  float shift_y  = range_Y[0] / 256.0f;
-  float shift_uv = range_UV[0] / 256.0f;
+  float shift_y  = range_Y[0] / 255.0f;
+  float shift_uv = range_UV[0] / 255.0f;
 
-  float scale_y  = (range_Y[1] - range_Y[0]) / 256.0f;
-  float scale_uv = (range_UV[1] - range_UV[0]) / 256.0f;
+  float scale_y  = (range_Y[1] - range_Y[0]) / 255.0f;
+  float scale_uv = (range_UV[1] - range_UV[0]) / 255.0f;
   return {
     { Cr, Cg, Cb, 0.0f },
     { -(Cr * 0.5f / Cb_i), -(Cg * 0.5f / Cb_i), 0.5f, 0.5f },
