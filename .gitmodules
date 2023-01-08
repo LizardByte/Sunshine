@@ -1,44 +1,44 @@
-[submodule "moonlight-common-c"]
+[submodule "third-party/moonlight-common-c"]
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
 	branch = master
-[submodule "Simple-Web-Server"]
+[submodule "third-party/Simple-Web-Server"]
 	path = third-party/Simple-Web-Server
 	url = https://gitlab.com/eidheim/Simple-Web-Server.git
 	branch = master
-[submodule "ViGEmClient"]
+[submodule "third-party/ViGEmClient"]
 	path = third-party/ViGEmClient
 	url = https://github.com/ViGEm/ViGEmClient
 	branch = master
-[submodule "miniupnp"]
+[submodule "third-party/miniupnp"]
 	path = third-party/miniupnp
 	url = https://github.com/miniupnp/miniupnp
 	branch = master
-[submodule "nv-codec-headers"]
+[submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers
 	branch = sdk/11.1
-[submodule "TPCircularBuffer"]
+[submodule "third-party/TPCircularBuffer"]
 	path = third-party/TPCircularBuffer
 	url = https://github.com/michaeltyson/TPCircularBuffer
 	branch = master
-[submodule "ffmpeg-windows-x86_64"]
+[submodule "third-party/ffmpeg-windows-x86_64"]
 	path = third-party/ffmpeg-windows-x86_64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-windows-x86_64
-[submodule "ffmpeg-macos-x86_64"]
+[submodule "third-party/ffmpeg-macos-x86_64"]
 	path = third-party/ffmpeg-macos-x86_64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-macos-x86_64
-[submodule "ffmpeg-linux-x86_64"]
+[submodule "third-party/ffmpeg-linux-x86_64"]
 	path = third-party/ffmpeg-linux-x86_64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-linux-x86_64
-[submodule "ffmpeg-linux-aarch64"]
+[submodule "third-party/ffmpeg-linux-aarch64"]
 	path = third-party/ffmpeg-linux-aarch64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-linux-aarch64
-[submodule "ffmpeg-macos-aarch64"]
+[submodule "third-party/ffmpeg-macos-aarch64"]
 	path = third-party/ffmpeg-macos-aarch64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-macos-aarch64
