@@ -885,6 +885,7 @@ jobs:
             mingw-w64-x86_64-binutils
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-curl
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
@@ -892,18 +893,6 @@ jobs:
             nasm
             wget
             yasm
-
-      - name: pin libpsl
-        # libpsl is pinned until https://github.com/msys2/MINGW-packages/issues/14882 is resolved
-        # wget above is only necessary for this step
-        shell: msys2 {0}
-        run: |
-          # manually download and install libpsl
-          wget https://repo.msys2.org/mingw/mingw64/mingw-w64-x86_64-libpsl-0.21.1-4-any.pkg.tar.zst
-          pacman --noconfirm -U mingw-w64-x86_64-libpsl-0.21.1-4-any.pkg.tar.zst
-
-          # install curl
-          pacman --noconfirm -S mingw-w64-x86_64-curl
 
       - name: Install npm packages
         run: |
