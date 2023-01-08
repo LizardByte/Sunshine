@@ -28,7 +28,9 @@ using namespace std::literals;
 namespace platf {
 using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
-bool enabled_mouse_keys = false;
+int previous_mouse_state[3];
+bool disabled_mouse_accel = false;
+bool enabled_mouse_keys   = false;
 MOUSEKEYS previous_mouse_keys_state;
 
 std::filesystem::path appdata() {
@@ -516,6 +518,28 @@ void streaming_will_start() {
   // Promote ourselves to high priority class
   SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
+  // Disable mouse acceleration
+  if(SystemParametersInfoW(SPI_GETMOUSE, 0, &previous_mouse_state, 0)) {
+    int new_mouse_state[3] = {};
+
+    new_mouse_state[0] = previous_mouse_state[0];
+    new_mouse_state[1] = previous_mouse_state[1];
+    new_mouse_state[2] = 0; // disable mouse acceleration
+
+    if(SystemParametersInfoW(SPI_SETMOUSE, 0, &new_mouse_state, 0)) {
+      // Remember to restore the previous settings when we stop streaming
+      disabled_mouse_accel = true;
+    }
+    else {
+      auto winerr = GetLastError();
+      BOOST_LOG(warning) << "Unable to disable mouse acceleration: "sv << winerr;
+    }
+  }
+  else {
+    auto winerr = GetLastError();
+    BOOST_LOG(warning) << "Unable to get current state of mouse acceleration: "sv << winerr;
+  }
+
   // If there is no mouse connected, enable Mouse Keys to force the cursor to appear
   if(!GetSystemMetrics(SM_MOUSEPRESENT)) {
     BOOST_LOG(info) << "A mouse was not detected. Sunshine will enable Mouse Keys while streaming to force the mouse cursor to appear.";
@@ -555,6 +579,15 @@ void streaming_will_stop() {
 
   // Disable MMCSS scheduling for DWM
   DwmEnableMMCSS(false);
+
+  // Restore mouse acceleration back to the previous settings if we disabled it
+  if(disabled_mouse_accel) {
+    disabled_mouse_accel = false;
+    if(!SystemParametersInfoW(SPI_SETMOUSE, 0, &previous_mouse_state, 0)) {
+      auto winerr = GetLastError();
+      BOOST_LOG(warning) << "Unable to restore original state of mouse acceleration: "sv << winerr;
+    }
+  }
 
   // Restore Mouse Keys back to the previous settings if we turned it on
   if(enabled_mouse_keys) {
