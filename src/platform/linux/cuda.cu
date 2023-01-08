@@ -143,7 +143,7 @@ inline __device__ float2 calcUV(float3 pixel, const video::color_t *const color_
   float v = dot(pixel, make_float3(vec_v)) + vec_v.w;
 
   u = u * color_matrix->range_uv.x + color_matrix->range_uv.y;
-  v = (v * color_matrix->range_uv.x + color_matrix->range_uv.y) * 224.0f / 256.0f + 0.0625f;
+  v = v * color_matrix->range_uv.x + color_matrix->range_uv.y;
 
   return make_float2(u, v);
 }
@@ -322,6 +322,8 @@ void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
     color_p = &video::colors[2];
     break;
   case 9: // SWS_CS_BT2020
+    color_p = &video::colors[4];
+    break;
   default:
     color_p = &video::colors[0];
   };
