@@ -71,7 +71,7 @@ util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_c
 util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
+int hwframe_ctx(ctx_t &ctx, platf::hwdevice_t *hwdevice, buffer_t &hwdevice_ctx, AVPixelFormat format);
 
 class swdevice_t : public platf::hwdevice_t {
 public:
@@ -116,17 +116,16 @@ public:
     return 0;
   }
 
-  int set_frame(AVFrame *frame) {
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
     this->frame = frame;
 
     // If it's a hwframe, allocate buffers for hardware
-    if(frame->hw_frames_ctx) {
+    if(hw_frames_ctx) {
       hw_frame.reset(frame);
 
-      if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) return -1;
+      if(av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) return -1;
     }
-
-    if(!frame->hw_frames_ctx) {
+    else {
       sw_frame.reset(frame);
     }
 
@@ -181,9 +180,9 @@ public:
     return 0;
   }
 
-  int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format) {
+  int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format, bool hardware) {
     // If the device used is hardware, yet the image resides on main memory
-    if(frame->hw_frames_ctx) {
+    if(hardware) {
       sw_frame.reset(av_frame_alloc());
 
       sw_frame->width  = frame->width;
@@ -981,7 +980,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     }
 
     hwdevice_ctx = std::move(buf_or_error.left());
-    if(hwframe_ctx(ctx, hwdevice_ctx, sw_fmt)) {
+    if(hwframe_ctx(ctx, hwdevice.get(), hwdevice_ctx, sw_fmt)) {
       return std::nullopt;
     }
 
@@ -1063,17 +1062,12 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   frame->width  = ctx->width;
   frame->height = ctx->height;
 
-
-  if(hardware) {
-    frame->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
-  }
-
   std::shared_ptr<platf::hwdevice_t> device;
 
   if(!hwdevice->data) {
     auto device_tmp = std::make_unique<swdevice_t>();
 
-    if(device_tmp->init(width, height, frame.get(), sw_fmt)) {
+    if(device_tmp->init(width, height, frame.get(), sw_fmt, hardware)) {
       return std::nullopt;
     }
 
@@ -1083,7 +1077,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     device = std::move(hwdevice);
   }
 
-  if(device->set_frame(frame.release())) {
+  if(device->set_frame(frame.release(), ctx->hw_frames_ctx)) {
     return std::nullopt;
   }
 
@@ -1812,8 +1806,8 @@ int init() {
   return 0;
 }
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
-  buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice.get()) };
+int hwframe_ctx(ctx_t &ctx, platf::hwdevice_t *hwdevice, buffer_t &hwdevice_ctx, AVPixelFormat format) {
+  buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice_ctx.get()) };
 
   auto frame_ctx               = (AVHWFramesContext *)frame_ref->data;
   frame_ctx->format            = ctx->pix_fmt;
@@ -1821,6 +1815,9 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   frame_ctx->height            = ctx->height;
   frame_ctx->width             = ctx->width;
   frame_ctx->initial_pool_size = 0;
+
+  // Allow the hwdevice to modify hwframe context parameters
+  hwdevice->init_hwframes(frame_ctx);
 
   if(auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
     return err;

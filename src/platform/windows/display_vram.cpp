@@ -392,9 +392,55 @@ public:
     this->color_matrix = std::move(color_matrix);
   }
 
-  int set_frame(AVFrame *frame) {
+  void init_hwframes(AVHWFramesContext *frames) override {
+    // We may be called with a QSV or D3D11VA context
+    if(frames->device_ctx->type == AV_HWDEVICE_TYPE_D3D11VA) {
+      auto d3d11_frames = (AVD3D11VAFramesContext *)frames->hwctx;
+
+      // The encoder requires textures with D3D11_BIND_RENDER_TARGET set
+      d3d11_frames->BindFlags = D3D11_BIND_RENDER_TARGET;
+      d3d11_frames->MiscFlags = 0;
+    }
+
+    // We require a single texture
+    frames->initial_pool_size = 1;
+  }
+
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
     this->hwframe.reset(frame);
     this->frame = frame;
+
+    // Populate this frame with a hardware buffer if one isn't there already
+    if(!frame->buf[0]) {
+      auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
+      if(err) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+        BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+        return -1;
+      }
+    }
+
+    // If this is a frame from a derived context, we'll need to map it to D3D11
+    ID3D11Texture2D *frame_texture;
+    if(frame->format != AV_PIX_FMT_D3D11) {
+      frame_t d3d11_frame { av_frame_alloc() };
+
+      d3d11_frame->format = AV_PIX_FMT_D3D11;
+
+      auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
+      if(err) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+        BOOST_LOG(error) << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+        return -1;
+      }
+
+      // Get the texture from the mapped frame
+      frame_texture = (ID3D11Texture2D *)d3d11_frame->data[0];
+    }
+    else {
+      // Otherwise, we can just use the texture inside the original frame
+      frame_texture = (ID3D11Texture2D *)frame->data[0];
+    }
 
     auto out_width  = frame->width;
     auto out_height = frame->height;
@@ -402,7 +448,7 @@ public:
     float in_width  = img.display->width;
     float in_height = img.display->height;
 
-    // // Ensure aspect ratio is maintained
+    // Ensure aspect ratio is maintained
     auto scalar       = std::fminf(out_width / in_width, out_height / in_height);
     auto out_width_f  = in_width * scalar;
     auto out_height_f = in_height * scalar;
@@ -414,21 +460,9 @@ public:
     outY_view  = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
     outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width            = out_width;
-    t.Height           = out_height;
-    t.MipLevels        = 1;
-    t.ArraySize        = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage            = D3D11_USAGE_DEFAULT;
-    t.Format           = format;
-    t.BindFlags        = D3D11_BIND_RENDER_TARGET;
-
-    auto status = device->CreateTexture2D(&t, nullptr, &img.encoder_texture);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create render target texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
+    // The underlying frame pool owns the texture, so we must reference it for ourselves
+    frame_texture->AddRef();
+    img.encoder_texture.reset(frame_texture);
 
     img.width       = out_width;
     img.height      = out_height;
@@ -449,7 +483,7 @@ public:
       D3D11_RTV_DIMENSION_TEXTURE2D
     };
 
-    status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
+    auto status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -462,23 +496,6 @@ public:
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-
-    // Need to have something refcounted
-    if(!frame->buf[0]) {
-      frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
-    }
-
-    auto desc     = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
-    desc->texture = (ID3D11Texture2D *)img.data;
-    desc->index   = 0;
-
-    frame->data[0] = img.data;
-    frame->data[1] = 0;
-
-    frame->linesize[0] = img.row_pitch;
-
-    frame->height = img.height;
-    frame->width  = img.width;
 
     return 0;
   }
