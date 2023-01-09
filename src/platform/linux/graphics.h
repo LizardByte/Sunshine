@@ -35,7 +35,7 @@ class tex_t : public util::buffer_t<GLuint> {
   using util::buffer_t<GLuint>::buffer_t;
 
 public:
-  tex_t(tex_t &&) = default;
+  tex_t(tex_t &&)            = default;
   tex_t &operator=(tex_t &&) = default;
 
   ~tex_t();
@@ -47,7 +47,7 @@ class frame_buf_t : public util::buffer_t<GLuint> {
   using util::buffer_t<GLuint>::buffer_t;
 
 public:
-  frame_buf_t(frame_buf_t &&) = default;
+  frame_buf_t(frame_buf_t &&)            = default;
   frame_buf_t &operator=(frame_buf_t &&) = default;
 
   ~frame_buf_t();

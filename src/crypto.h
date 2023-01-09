@@ -30,6 +30,8 @@ using cipher_ctx_t     = util::safe_ptr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free>;
 using md_ctx_t         = util::safe_ptr<EVP_MD_CTX, md_ctx_destroy>;
 using bio_t            = util::safe_ptr<BIO, BIO_free_all>;
 using pkey_t           = util::safe_ptr<EVP_PKEY, EVP_PKEY_free>;
+using pkey_ctx_t       = util::safe_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
+using bignum_t         = util::safe_ptr<BIGNUM, BN_free>;
 
 sha256_t hash(const std::string_view &plaintext);
 
@@ -82,8 +84,8 @@ public:
 
 class ecb_t : public cipher_t {
 public:
-  ecb_t()                  = default;
-  ecb_t(ecb_t &&) noexcept = default;
+  ecb_t()                             = default;
+  ecb_t(ecb_t &&) noexcept            = default;
   ecb_t &operator=(ecb_t &&) noexcept = default;
 
   ecb_t(const aes_t &key, bool padding = true);
@@ -94,8 +96,8 @@ public:
 
 class gcm_t : public cipher_t {
 public:
-  gcm_t()                  = default;
-  gcm_t(gcm_t &&) noexcept = default;
+  gcm_t()                             = default;
+  gcm_t(gcm_t &&) noexcept            = default;
   gcm_t &operator=(gcm_t &&) noexcept = default;
 
   gcm_t(const crypto::aes_t &key, bool padding = true);
@@ -113,8 +115,8 @@ public:
 
 class cbc_t : public cipher_t {
 public:
-  cbc_t()                  = default;
-  cbc_t(cbc_t &&) noexcept = default;
+  cbc_t()                             = default;
+  cbc_t(cbc_t &&) noexcept            = default;
   cbc_t &operator=(cbc_t &&) noexcept = default;
 
   cbc_t(const crypto::aes_t &key, bool padding = true);

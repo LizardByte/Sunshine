@@ -37,7 +37,69 @@ constexpr auto GFE_VERSION = "3.23.0.74";
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
 
-using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
+class SunshineHttpsServer : public SimpleWeb::Server<SimpleWeb::HTTPS> {
+public:
+  SunshineHttpsServer(const std::string &certification_file, const std::string &private_key_file)
+      : SimpleWeb::Server<SimpleWeb::HTTPS>::Server(certification_file, private_key_file) {}
+
+  std::function<int(SSL *)> verify;
+  std::function<void(std::shared_ptr<Response>, std::shared_ptr<Request>)> on_verify_failed;
+
+protected:
+  void after_bind() override {
+    SimpleWeb::Server<SimpleWeb::HTTPS>::after_bind();
+
+    if(verify) {
+      context.set_verify_mode(boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once);
+      context.set_verify_callback([](int verified, boost::asio::ssl::verify_context &ctx) {
+        // To respond with an error message, a connection must be established
+        return 1;
+      });
+    }
+  }
+
+  // This is Server<HTTPS>::accept() with SSL validation support added
+  void accept() override {
+    auto connection = create_connection(*io_service, context);
+
+    acceptor->async_accept(connection->socket->lowest_layer(), [this, connection](const SimpleWeb::error_code &ec) {
+      auto lock = connection->handler_runner->continue_lock();
+      if(!lock)
+        return;
+
+      if(ec != SimpleWeb::error::operation_aborted)
+        this->accept();
+
+      auto session = std::make_shared<Session>(config.max_request_streambuf_size, connection);
+
+      if(!ec) {
+        boost::asio::ip::tcp::no_delay option(true);
+        SimpleWeb::error_code ec;
+        session->connection->socket->lowest_layer().set_option(option, ec);
+
+        session->connection->set_timeout(config.timeout_request);
+        session->connection->socket->async_handshake(boost::asio::ssl::stream_base::server, [this, session](const SimpleWeb::error_code &ec) {
+          session->connection->cancel_timeout();
+          auto lock = session->connection->handler_runner->continue_lock();
+          if(!lock)
+            return;
+          if(!ec) {
+            if(verify && !verify(session->connection->socket->native_handle()))
+              this->write(session, on_verify_failed);
+            else
+              this->read(session);
+          }
+          else if(this->on_error)
+            this->on_error(session->request, ec);
+        });
+      }
+      else if(this->on_error)
+        this->on_error(session->request, ec);
+    });
+  }
+};
+
+using https_server_t = SunshineHttpsServer;
 using http_server_t  = SimpleWeb::Server<SimpleWeb::HTTP>;
 
 struct conf_intern_t {
@@ -85,6 +147,14 @@ enum class op_e {
   ADD,
   REMOVE
 };
+
+std::string get_arg(const args_t &args, const char *name) {
+  auto it = args.find(name);
+  if(it == std::end(args)) {
+    throw std::out_of_range(name);
+  }
+  return it->second;
+}
 
 void save_state() {
   pt::ptree root;
@@ -188,8 +258,8 @@ stream::launch_session_t make_launch_session(bool host_audio, const args_t &args
   stream::launch_session_t launch_session;
 
   launch_session.host_audio = host_audio;
-  launch_session.gcm_key    = util::from_hex<crypto::aes_t>(args.at("rikey"s), true);
-  uint32_t prepend_iv       = util::endian::big<uint32_t>(util::from_view(args.at("rikeyid"s)));
+  launch_session.gcm_key    = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
+  uint32_t prepend_iv       = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
   auto prepend_iv_p         = (uint8_t *)&prepend_iv;
 
   auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
@@ -217,7 +287,7 @@ void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin
   tree.put("root.<xmlattr>.status_code", 200);
 }
 void serverchallengeresp(pair_session_t &sess, pt::ptree &tree, const args_t &args) {
-  auto encrypted_response = util::from_hex_vec(args.at("serverchallengeresp"s), true);
+  auto encrypted_response = util::from_hex_vec(get_arg(args, "serverchallengeresp"), true);
 
   std::vector<uint8_t> decrypted;
   crypto::cipher::ecb_t cipher(*sess.cipher_key, false);
@@ -237,7 +307,7 @@ void serverchallengeresp(pair_session_t &sess, pt::ptree &tree, const args_t &ar
 }
 
 void clientchallenge(pair_session_t &sess, pt::ptree &tree, const args_t &args) {
-  auto challenge = util::from_hex_vec(args.at("clientchallenge"s), true);
+  auto challenge = util::from_hex_vec(get_arg(args, "clientchallenge"), true);
 
   crypto::cipher::ecb_t cipher(*sess.cipher_key, false);
 
@@ -274,7 +344,7 @@ void clientchallenge(pair_session_t &sess, pt::ptree &tree, const args_t &args) 
 void clientpairingsecret(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, pair_session_t &sess, pt::ptree &tree, const args_t &args) {
   auto &client = sess.client;
 
-  auto pairingsecret = util::from_hex_vec(args.at("clientpairingsecret"), true);
+  auto pairingsecret = util::from_hex_vec(get_arg(args, "clientpairingsecret"), true);
 
   std::string_view secret { pairingsecret.data(), 16 };
   std::string_view sign { pairingsecret.data() + secret.size(), crypto::digest_size };
@@ -391,7 +461,7 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
     return;
   }
 
-  auto uniqID { std::move(args.at("uniqueid"s)) };
+  auto uniqID { std::move(get_arg(args, "uniqueid")) };
   auto sess_it = map_id_sess.find(uniqID);
 
   args_t::const_iterator it;
@@ -400,12 +470,12 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
       pair_session_t sess;
 
       sess.client.uniqueID = std::move(uniqID);
-      sess.client.cert     = util::from_hex_vec(args.at("clientcert"s), true);
+      sess.client.cert     = util::from_hex_vec(get_arg(args, "clientcert"), true);
 
       BOOST_LOG(debug) << sess.client.cert;
       auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
-      ptr->second.async_insert_pin.salt = std::move(args.at("salt"s));
+      ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
 
       if(config::sunshine.flags[config::flag::PIN_STDIN]) {
         std::string pin;
@@ -477,7 +547,7 @@ void pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, 
 
   response->close_connection_after_response = true;
 
-  auto address = request->remote_endpoint_address();
+  auto address = request->remote_endpoint().address().to_string();
   auto ip_type = net::from_address(address);
   if(ip_type > http::origin_pin_allowed) {
     BOOST_LOG(info) << "/pin: ["sv << address << "] -- denied"sv;
@@ -513,6 +583,8 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
     }
   }
 
+  auto local_endpoint = request->local_endpoint();
+
   pt::ptree tree;
 
   tree.put("root.<xmlattr>.status_code", 200);
@@ -523,9 +595,9 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   tree.put("root.uniqueid", http::unique_id);
   tree.put("root.HttpsPort", map_port(PORT_HTTPS));
   tree.put("root.ExternalPort", map_port(PORT_HTTP));
-  tree.put("root.mac", platf::get_mac_address(request->local_endpoint_address()));
+  tree.put("root.mac", platf::get_mac_address(local_endpoint.address().to_string()));
   tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 1 ? "1869449984" : "0");
-  tree.put("root.LocalIP", request->local_endpoint_address());
+  tree.put("root.LocalIP", local_endpoint.address().to_string());
 
   if(config::video.hevc_mode == 3) {
     tree.put("root.ServerCodecModeSupport", "3843");
@@ -568,8 +640,8 @@ void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> res
   }
   auto current_appid = proc::proc.running();
   tree.put("root.PairStatus", pair_status);
-  tree.put("root.currentgame", current_appid >= 0 ? current_appid + 1 : 0);
-  tree.put("root.state", current_appid >= 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
+  tree.put("root.currentgame", current_appid);
+  tree.put("root.state", current_appid > 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
 
   std::ostringstream data;
 
@@ -598,7 +670,7 @@ void applist(resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto clientID = args.at("uniqueid"s);
+  auto clientID = get_arg(args, "uniqueid");
 
   auto client = map_id_client.find(clientID);
   if(client == std::end(map_id_client)) {
@@ -611,13 +683,12 @@ void applist(resp_https_t response, req_https_t request) {
 
   apps.put("<xmlattr>.status_code", 200);
 
-  int x = 0;
   for(auto &proc : proc::proc.get_apps()) {
     pt::ptree app;
 
     app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
     app.put("AppTitle"s, proc.name);
-    app.put("ID"s, ++x);
+    app.put("ID", proc.id);
 
     apps.push_back(std::make_pair("App", std::move(app)));
   }
@@ -655,17 +726,17 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
     return;
   }
 
-  auto appid = util::from_view(args.at("appid")) - 1;
+  auto appid = util::from_view(get_arg(args, "appid"));
 
   auto current_appid = proc::proc.running();
-  if(current_appid != -1) {
+  if(current_appid > 0) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 400);
 
     return;
   }
 
-  if(appid >= 0) {
+  if(appid > 0) {
     auto err = proc::proc.execute(appid);
     if(err) {
       tree.put("root.<xmlattr>.status_code", err);
@@ -675,11 +746,11 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
     }
   }
 
-  host_audio = util::from_view(args.at("localAudioPlayMode"));
+  host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
   stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
-  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint_address() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
+  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
   tree.put("root.gamesession", 1);
 }
 
@@ -705,7 +776,7 @@ void resume(bool &host_audio, resp_https_t response, req_https_t request) {
   }
 
   auto current_appid = proc::proc.running();
-  if(current_appid == -1) {
+  if(current_appid == 0) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
@@ -726,7 +797,7 @@ void resume(bool &host_audio, resp_https_t response, req_https_t request) {
   stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
-  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint_address() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
+  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
   tree.put("root.resume", 1);
 }
 
@@ -754,7 +825,7 @@ void cancel(resp_https_t response, req_https_t request) {
   tree.put("root.cancel", 1);
   tree.put("root.<xmlattr>.status_code", 200);
 
-  if(proc::proc.running() != -1) {
+  if(proc::proc.running() > 0) {
     proc::proc.terminate();
   }
 }
@@ -764,7 +835,7 @@ void appasset(resp_https_t response, req_https_t request) {
   print_req<SimpleWeb::HTTPS>(request);
 
   auto args      = request->parse_query_string();
-  auto app_image = proc::proc.get_app_image(util::from_view(args.at("appid")));
+  auto app_image = proc::proc.get_app_image(util::from_view(get_arg(args, "appid")));
 
   std::ifstream in(app_image, std::ios::binary);
   SimpleWeb::CaseInsensitiveMultimap headers;
@@ -788,10 +859,6 @@ void start() {
   conf_intern.pkey       = read_file(config::nvhttp.pkey.c_str());
   conf_intern.servercert = read_file(config::nvhttp.cert.c_str());
 
-  auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
-  ctx->use_certificate_chain_file(config::nvhttp.cert);
-  ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
-
   crypto::cert_chain_t cert_chain;
   for(auto &[_, client] : map_id_client) {
     for(auto &cert : client.certs) {
@@ -801,16 +868,11 @@ void start() {
 
   auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>(30);
 
-  ctx->set_verify_callback([](int verified, boost::asio::ssl::verify_context &ctx) {
-    // To respond with an error message, a connection must be established
-    return 1;
-  });
-
   // /resume doesn't get the parameter "localAudioPlayMode"
   // /launch will store it in host_audio
   bool host_audio {};
 
-  https_server_t https_server { ctx, boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once };
+  https_server_t https_server { config::nvhttp.cert, config::nvhttp.pkey };
   http_server_t http_server;
 
   // Verify certificates after establishing connection
@@ -870,7 +932,7 @@ void start() {
     tree.put("root.<xmlattr>.status_message"s, "The client is not authorized. Certificate verification failed."s);
   };
 
-  https_server.default_resource                   = not_found<SimpleWeb::HTTPS>;
+  https_server.default_resource["GET"]            = not_found<SimpleWeb::HTTPS>;
   https_server.resource["^/serverinfo$"]["GET"]   = serverinfo<SimpleWeb::HTTPS>;
   https_server.resource["^/pair$"]["GET"]         = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTPS>(add_cert, resp, req); };
   https_server.resource["^/applist$"]["GET"]      = applist;
@@ -884,7 +946,7 @@ void start() {
   https_server.config.address       = "0.0.0.0"s;
   https_server.config.port          = port_https;
 
-  http_server.default_resource                   = not_found<SimpleWeb::HTTP>;
+  http_server.default_resource["GET"]            = not_found<SimpleWeb::HTTP>;
   http_server.resource["^/serverinfo$"]["GET"]   = serverinfo<SimpleWeb::HTTP>;
   http_server.resource["^/pair$"]["GET"]         = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTP>(add_cert, resp, req); };
   http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
@@ -893,20 +955,9 @@ void start() {
   http_server.config.address       = "0.0.0.0"s;
   http_server.config.port          = port_http;
 
-  try {
-    https_server.bind();
-    http_server.bind();
-  }
-  catch(boost::system::system_error &err) {
-    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << port_http << ", "sv << port_http << "]: "sv << err.what();
-
-    shutdown_event->raise(true);
-    return;
-  }
-
   auto accept_and_run = [&](auto *http_server) {
     try {
-      http_server->accept_and_run();
+      http_server->start();
     }
     catch(boost::system::system_error &err) {
       // It's possible the exception gets thrown after calling http_server->stop() from a different thread
@@ -914,7 +965,7 @@ void start() {
         return;
       }
 
-      BOOST_LOG(fatal) << "Couldn't start http server to ports ["sv << port_https << ", "sv << port_https << "]: "sv << err.what();
+      BOOST_LOG(fatal) << "Couldn't start http server on ports ["sv << port_https << ", "sv << port_https << "]: "sv << err.what();
       shutdown_event->raise(true);
       return;
     }

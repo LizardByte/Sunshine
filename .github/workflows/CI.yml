@@ -9,6 +9,10 @@ on:
     branches: [master, nightly]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   github_env:
     name: GitHub Env Debug
@@ -185,7 +189,7 @@ jobs:
             elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
               sub_version=".r${commit}"
 
-              echo "aur_publish=true" >> $GITHUB_ENV
+              echo "aur_publish=false" >> $GITHUB_ENV
             fi
           else
             echo "This is a PR event"
@@ -388,7 +392,8 @@ jobs:
               libboost-filesystem1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
-              libboost-thread1.71-dev
+              libboost-thread1.71-dev \
+              libboost-program-options1.71-dev
 
             # Install cmake
             wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
@@ -412,7 +417,8 @@ jobs:
               cmake \
               libboost-filesystem-dev \
               libboost-log-dev \
-              libboost-thread-dev
+              libboost-thread-dev \
+              libboost-program-options-dev
           fi
 
           sudo apt-get install -y \
@@ -466,9 +472,7 @@ jobs:
           mkdir -p build
           mkdir -p artifacts
 
-          pushd "./src_assets/common/assets/web"
           npm install
-          popd
 
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -588,9 +592,7 @@ jobs:
 
       - name: Build MacOS
         run: |
-          pushd "./src_assets/common/assets/web"
           npm install
-          popd
 
           mkdir build
           cd build
@@ -888,12 +890,11 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-x265
             nasm
+            wget
             yasm
 
       - name: Install npm packages
-        working-directory: src_assets/common/assets/web
         run: |
           npm install
 
@@ -906,7 +907,7 @@ jobs:
             -DSUNSHINE_ASSETS_DIR=assets \
             -G "MinGW Makefiles" \
             ..
-          mingw32-make -j2
+          mingw32-make -j$(nproc)
 
       - name: Package Windows
         shell: msys2 {0}

@@ -3,11 +3,15 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
+# Ensure PRs are made against `nightly` branch.
+
 name: Pull Requests
 
 on:
   pull_request_target:
     types: [opened, synchronize, edited, reopened]
+
+# no concurrency for pull_request_target events
 
 jobs:
   check-pull-request:

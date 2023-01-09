@@ -251,11 +251,18 @@ public:
 
   fb_t fb(plane_t::pointer plane) {
     cap_sys_admin admin;
-    auto fb = drmModeGetFB2(fd.el, plane->fb_id);
+
+    auto fb2 = drmModeGetFB2(fd.el, plane->fb_id);
+    if(fb2) {
+      return std::make_unique<wrapper_fb>(fb2);
+    }
+
+    auto fb = drmModeGetFB(fd.el, plane->fb_id);
     if(fb) {
       return std::make_unique<wrapper_fb>(fb);
     }
-    return std::make_unique<wrapper_fb>(drmModeGetFB(fd.el, plane->fb_id));
+
+    return nullptr;
   }
 
   crtc_t crtc(std::uint32_t id) {
@@ -677,10 +684,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        std::this_thread::sleep_for(1ms);
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
@@ -798,10 +805,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        std::this_thread::sleep_for(1ms);
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';

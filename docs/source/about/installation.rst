@@ -21,19 +21,10 @@ See :ref:`Docker <about/docker:docker>` for additional information.
 
 Linux
 -----
-First, follow the instructions for your preferred package type below.
-
-Then start sunshine with the following command, unless a start command is listed in the specified package.
-
-.. code-block:: bash
-
-   sunshine
+Follow the instructions for your preferred package type below.
 
 AppImage
 ^^^^^^^^
-.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:appimage?logo=github&style=for-the-badge
-   :alt: GitHub issues by-label
-
 According to AppImageLint the supported distro matrix of the AppImage is below.
 
 - [✖] Debian oldstable (buster)
@@ -82,9 +73,6 @@ Uninstall:
 
 Debian Package
 ^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:deb?logo=github&style=for-the-badge
-   :alt: GitHub issues by-label
-
 #. Download ``sunshine-{ubuntu-version}.deb`` and run the following code.
 
    .. code-block:: bash
@@ -103,9 +91,6 @@ Uninstall:
 
 Flatpak Package
 ^^^^^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:flatpak?logo=github&style=for-the-badge
-   :alt: GitHub issues by-label
-
 #. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
 #. Download ``sunshine_{arch}.flatpak`` and run the following code.
 
@@ -145,9 +130,6 @@ Uninstall:
 
 RPM Package
 ^^^^^^^^^^^
-.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/pkg:rpm?logo=github&style=for-the-badge
-   :alt: GitHub issues by-label
-
 #. Add `rpmfusion` repositories by running the following code.
 
    .. code-block:: bash
@@ -170,12 +152,11 @@ Uninstall:
 
 macOS
 -----
-.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:macos?logo=github&style=for-the-badge
-   :alt: GitHub issues by-label
+Sunshine on macOS is experimental. Gamepads do not work. Other features may not work as expected.
 
 pkg
 ^^^
-.. Warning:: The `pkg` does not include runtime dependencies and should be considered experimental.
+.. Warning:: The `pkg` does not include runtime dependencies.
 
 #. Download the ``sunshine.pkg`` file and install it as normal.
 
@@ -218,15 +199,13 @@ Uninstall:
 
 Windows
 -------
-.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:windows:10?logo=github&style=for-the-badge
-   :alt: GitHub issues by-label
-
-.. image:: https://img.shields.io/github/issues/lizardbyte/sunshine/os:windows:11?logo=github&style=for-the-badge
-   :alt: GitHub issues by-label
 
 Installer
 ^^^^^^^^^
 #. Download and install ``sunshine-windows.exe``
+
+.. Attention:: You should carefully select or unselect the options you want to install. Do not blindly install or enable
+   features.
 
 To uninstall, find Sunshine in the list `here <ms-settings:installed-apps>`_ and select "Uninstall" from the overflow
 menu. Different versions of Windows may provide slightly different steps for uninstall.

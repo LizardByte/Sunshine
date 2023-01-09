@@ -2,5 +2,17 @@
   "env": {
     "PATH": "$(PATH):$(HOME)/.local/bin"
   },
-  "apps": []
+  "apps": [
+    {
+      "name": "Desktop",
+      "image-path": "desktop.png"
+    },
+    {
+      "name": "Steam BigPicture",
+      "detached": [
+        "open steam://open/bigpicture"
+      ],
+      "image-path": "steam.png"
+    }
+  ]
 }

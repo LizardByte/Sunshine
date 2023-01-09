@@ -9,10 +9,14 @@
 #include "src/main.h"
 #include "src/platform/common.h"
 
+#include <boost/process.hpp>
+
 using namespace std::literals;
 namespace fs = std::filesystem;
+namespace bp = boost::process;
 
 namespace platf {
+
 std::unique_ptr<deinit_t> init() {
   if(!CGPreflightScreenCaptureAccess()) {
     BOOST_LOG(error) << "No screen capture permission!"sv;
@@ -116,6 +120,39 @@ std::string get_mac_address(const std::string_view &address) {
   BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
   return "00:00:00:00:00:00"s;
 }
+
+bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec) {
+  BOOST_LOG(warning) << "run_unprivileged() is not yet implemented for this platform. The new process will run with Sunshine's permissions."sv;
+  if(!file) {
+    return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
+  }
+  else {
+    return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > file, bp::std_err > file, ec);
+  }
+}
+
+void adjust_thread_priority(thread_priority_e priority) {
+  // Unimplemented
+}
+
+void streaming_will_start() {
+  // Nothing to do
+}
+
+void streaming_will_stop() {
+  // Nothing to do
+}
+
+bool restart_supported() {
+  // Restart not supported yet
+  return false;
+}
+
+bool restart() {
+  // Restart not supported yet
+  return false;
+}
+
 } // namespace platf
 
 namespace dyn {

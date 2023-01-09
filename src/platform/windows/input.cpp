@@ -170,12 +170,31 @@ void CALLBACK ds4_notify(
   task_pool.push(&vigem_t::rumble, (vigem_t *)userdata, target, smallMotor, largeMotor);
 }
 
-input_t input() {
-  input_t result { new vigem_t {} };
+struct input_raw_t {
+  ~input_raw_t() {
+    delete vigem;
+  }
 
-  auto vigem = (vigem_t *)result.get();
-  if(vigem->init()) {
-    return nullptr;
+  vigem_t *vigem;
+  HKL keyboard_layout;
+};
+
+input_t input() {
+  input_t result { new input_raw_t {} };
+  auto &raw = *(input_raw_t *)result.get();
+
+  raw.vigem = new vigem_t {};
+  if(raw.vigem->init()) {
+    delete raw.vigem;
+    raw.vigem = nullptr;
+  }
+
+  // Moonlight currently sends keys normalized to the US English layout.
+  // We need to use that layout when converting to scancodes.
+  raw.keyboard_layout = LoadKeyboardLayoutA("00000409", 0);
+  if(!raw.keyboard_layout || LOWORD(raw.keyboard_layout) != 0x409) {
+    BOOST_LOG(warning) << "Unable to load US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
+    raw.keyboard_layout = NULL;
   }
 
   return result;
@@ -285,16 +304,23 @@ void scroll(input_t &input, int distance) {
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
+  auto raw = (input_raw_t *)input.get();
+
   INPUT i {};
   i.type   = INPUT_KEYBOARD;
   auto &ki = i.ki;
 
   // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
-  if(modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE) {
-    ki.wScan   = MapVirtualKey(modcode, MAPVK_VK_TO_VSC);
+  if(modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE && raw->keyboard_layout != NULL) {
+    ki.wScan = MapVirtualKeyEx(modcode, MAPVK_VK_TO_VSC, raw->keyboard_layout);
+  }
+
+  // If we can map this to a scancode, send it as a scancode for maximum game compatibility.
+  if(ki.wScan) {
     ki.dwFlags = KEYEVENTF_SCANCODE;
   }
   else {
+    // If there is no scancode mapping, send it as a regular VK event.
     ki.wVk = modcode;
   }
 
@@ -355,19 +381,23 @@ void unicode(input_t &input, char *utf8, int size) {
 }
 
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
-  if(!input) {
+  auto raw = (input_raw_t *)input.get();
+
+  if(!raw->vigem) {
     return 0;
   }
 
-  return ((vigem_t *)input.get())->alloc_gamepad_interal(nr, rumble_queue, map(config::input.gamepad));
+  return raw->vigem->alloc_gamepad_interal(nr, rumble_queue, map(config::input.gamepad));
 }
 
 void free_gamepad(input_t &input, int nr) {
-  if(!input) {
+  auto raw = (input_raw_t *)input.get();
+
+  if(!raw->vigem) {
     return;
   }
 
-  ((vigem_t *)input.get())->free_target(nr);
+  raw->vigem->free_target(nr);
 }
 
 static VIGEM_ERROR x360_update(client_t::pointer client, target_t::pointer gp, const gamepad_state_t &gamepad_state) {
@@ -476,12 +506,12 @@ static VIGEM_ERROR ds4_update(client_t::pointer client, target_t::pointer gp, co
 
 
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
+  auto vigem = ((input_raw_t *)input.get())->vigem;
+
   // If there is no gamepad support
-  if(!input) {
+  if(!vigem) {
     return;
   }
-
-  auto vigem = (vigem_t *)input.get();
 
   auto &[_, gp] = vigem->gamepads[nr];
 
@@ -495,17 +525,14 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   }
 
   if(!VIGEM_SUCCESS(status)) {
-    BOOST_LOG(fatal) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-
-    log_flush();
-    std::abort();
+    BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
   }
 }
 
 void freeInput(void *p) {
-  auto vigem = (vigem_t *)p;
+  auto input = (input_raw_t *)p;
 
-  delete vigem;
+  delete input;
 }
 
 std::vector<std::string_view> &supported_gamepads() {

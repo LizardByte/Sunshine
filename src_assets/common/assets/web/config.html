@@ -49,6 +49,20 @@
           The minimum log level printed to standard out
         </div>
       </div>
+      <!--Log Path-->
+      <div class="mb-3">
+        <label for="log_path" class="form-label">Logfile Path</label>
+        <input
+          type="text"
+          class="form-control"
+          id="log_path"
+          placeholder="sunshine.log"
+          v-model="config.log_path"
+        />
+        <div class="form-text">
+          The file where the current logs of Sunshine are stored.
+        </div>
+      </div>
       <!--Origin Web UI Allowed-->
       <div class="mb-3">
         <label for="origin_web_ui_allowed" class="form-label"
@@ -447,7 +461,7 @@
       </div>
       <!-- Quantization Parameter -->
       <div class="mb-3">
-        <label for="qp" class="form-label">Quantitization Parameter</label>
+        <label for="qp" class="form-label">Quantization Parameter</label>
         <input
           type="number"
           class="form-control"
@@ -456,7 +470,7 @@
           v-model="config.qp"
         />
         <div class="form-text">
-          Quantitization Parameter<br />
+          Quantization Parameter<br />
           Some devices may not support Constant Bit Rate.<br />
           For those devices, QP is used instead.<br />
           Higher value means more compression, but less quality<br />
@@ -465,7 +479,7 @@
       <!-- Min Threads -->
       <div class="mb-3">
         <label for="min_threads" class="form-label"
-          >Minimum number of threads used by ffmpeg to encode the video.</label
+          >Minimum Software Encoding Thread Count</label
         >
         <input
           type="number"
@@ -476,7 +490,6 @@
           v-model="config.min_threads"
         />
         <div class="form-text">
-          Minimum number of threads used by ffmpeg to encode the video.<br />
           Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br />
           worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br />
           value that can reliably encode at your desired streaming settings on your hardware.
@@ -509,9 +522,10 @@
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
           <option value>Autodetect</option>
-          <option value="nvenc">nVidia NVENC</option>
-          <option value="amdvce">AMD AMF/VCE</option>
-          <option value="vaapi">VA-API</option>
+          <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
+          <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
+          <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
+          <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
           <option value="software">Software</option>
         </select>
         <div class="form-text">
@@ -644,40 +658,40 @@
     <div v-if="currentTab === 'nv'" class="config-page">
       <!--NVENC SETTINGS-->
       <div class="mb-3">
-        <label for="nv_preset" class="form-label">NVEnc Preset</label>
+        <label for="nv_preset" class="form-label">NVENC Preset</label>
         <select id="nv_preset" class="form-select" v-model="config.nv_preset">
-          <option value="default">Default</option>
-          <option value="hp">High Performance</option>
-          <option value="hq">High Quality</option>
-          <option value="slow">Slow - hq 2 passes</option>
-          <option value="medium">medium -- hq 1 pass</option>
-          <option value="fast">fast -- hp 1 pass</option>
-          <option value="bd">bd</option>
+          <option value="p1">p1 -- fastest (lowest quality)</option>
+          <option value="p2">p2 -- faster (lower quality)</option>
+          <option value="p3">p3 -- fast (low quality)</option>
+          <option value="p4">p4 -- medium (default)</option>
+          <option value="p5">p5 -- slow (good quality)</option>
+          <option value="p6">p6 -- slower (better quality)</option>
+          <option value="p7">p7 -- slowest (best quality)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="nv_tune" class="form-label">NVENC Tune</label>
+        <select id="nv_tune" class="form-select" v-model="config.nv_tune">
+          <option value="hq">hq -- high quality</option>
           <option value="ll">ll -- low latency</option>
-          <option value="llhq">llhq</option>
-          <option value="llhp">llhp</option>
-          <option value="lossless">lossless</option>
-          <option value="losslesshp">losslesshp</option>
+          <option value="ull">ull -- ultra low latency (default)</option>
+          <option value="lossless">lossless -- lossless</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="nv_rc" class="form-label">NVEnc Rate Control</label>
+        <label for="nv_rc" class="form-label">NVENC Rate Control</label>
         <select id="nv_rc" class="form-select" v-model="config.nv_rc">
-          <option value="auto">auto -- let ffmpeg decide rate control</option>
-          <option value="constqp">constqp -- constant QP mode</option>
+          <option value="constqp">constqp -- constant qp mode</option>
           <option value="vbr">vbr -- variable bitrate</option>
-          <option value="cbr">cbr -- constant bitrate</option>
-          <option value="cbr_hq">cbr_hq -- cbr high quality</option>
-          <option value="cbr_ld_hq">cbr_ld_hq -- cbr low delay high quality</option>
-          <option value="vbr_hq">vbr_hq -- vbr high quality</option>
+          <option value="cbr">cbr -- constant bitrate (default)</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="nv_coder" class="form-label">NVEnc Coder</label>
+        <label for="nv_coder" class="form-label">NVENC Coder (H264)</label>
         <select id="nv_coder" class="form-select" v-model="config.nv_coder">
-          <option value="auto">auto</option>
-          <option value="cabac">cabac</option>
-          <option value="cavlc">cavlc</option>
+          <option value="auto">auto -- let ffmpeg decide (default)</option>
+          <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
+          <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
         </select>
       </div>
     </div>
@@ -685,36 +699,35 @@
     <div v-if="currentTab === 'amd'" class="config-page">
       <!--Presets-->
       <div class="mb-3">
-        <label for="amd_quality" class="form-label">AMD AMF Quality</label>
+        <label for="amd_quality" class="form-label">AMF Quality</label>
         <select
           id="amd_quality"
           class="form-select"
-          v-model="config.amd_quality"
-        >
-          <option value="default">Default</option>
-          <option value="speed">Speed</option>
-          <option value="balanced">Balanced</option>
+          v-model="config.amd_quality">
+          <option value="speed">speed -- prefer speed</option>
+          <option value="balanced">balanced -- balanced (default)</option>
+          <option value="quality">quality -- prefer quality</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="amd_rc" class="form-label">AMD AMF Rate Control</label>
+        <label for="amd_rc" class="form-label">AMF Rate Control</label>
         <select id="amd_rc" class="form-select" v-model="config.amd_rc">
-          <option value="auto">auto -- let ffmpeg decide rate control</option>
-          <option value="constqp">constqp -- constant QP mode</option>
-          <option value="vbr_latency">vbr_latency -- Latency Constrained Variable Bitrate</option>
-          <option value="vbr_peak">vbr_peak -- Peak Contrained Variable Bitrate</option>
+          <option value="cqp">cqp -- constant qp mode</option>
+          <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
+          <option value="vbr_peak">vbr_peak -- peak contrained variable bitrate</option>
           <option value="cbr">cbr -- constant bitrate</option>
         </select>
       </div>
       <div class="mb-3">
-        <label for="amd_coder" class="form-label">AMD AMF Coder</label>
+        <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
         <select id="amd_coder" class="form-select" v-model="config.amd_coder">
-          <option value="auto">auto</option>
-          <option value="cabac">cabac</option>
-          <option value="cavlc">cavlc</option>
+          <option value="auto">auto -- let ffmpeg decide (default)</option>
+          <option value="cabac">cabac -- context adaptive variable-length coding - higher quality</option>
+          <option value="cavlc">cavlc -- context adaptive binary arithmetic coding - faster decode</option>
         </select>
       </div>
     </div>
+    <!--VA-API Encoder Settings-->
     <div v-if="currentTab === 'va-api'" class="config-page">
       <input
         class="form-control"
@@ -752,11 +765,18 @@
       </div>
     </div>
   </div>
-  <div class="alert alert-success my-4" v-if="success">
-    <b>Success!</b> Restart Sunshine to apply changes
+  <div class="alert alert-success my-4" v-if="saved && restart_supported">
+    <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
+  </div>
+  <div class="alert alert-success my-4" v-if="saved && !restart_supported">
+    <b>Success!</b> Restart Sunshine to apply changes.
+  </div>
+  <div class="alert alert-success my-4" v-if="restarted">
+    <b>Success!</b> Sunshine is restarting to apply changes.
   </div>
   <div class="mb-3 buttons">
     <button class="btn btn-primary" @click="save">Save</button>
+    <button class="btn btn-success" @click="apply" v-if="saved && restart_supported && !restarted">Apply</button>
   </div>
 </div>
 
@@ -766,7 +786,9 @@
     data() {
       return {
         platform: "",
-        success: false,
+        restart_supported: false,
+        saved: false,
+        restarted: false,
         config: null,
         fps: [],
         resolutions: [],
@@ -795,24 +817,24 @@
             name: "Advanced",
           },
           {
-            id: "sw",
-            name: "Software Encoder",
-          },
-          {
             id: "nv",
-            name: "NVENC Encoder",
+            name: "NVIDIA NVENC Encoder",
           },
           {
             id: "amd",
-            name: "AMF Encoder",
+            name: "AMD AMF Encoder",
           },
           {
             id: "va-api",
-            name: "VA-API encoder",
+            name: "VA-API Encoder",
           },
           {
             id: "vt",
-            name: "VideoToolbox encoder",
+            name: "VideoToolbox Encoder",
+          },
+          {
+            id: "sw",
+            name: "Software Encoder",
           },
         ],
       };
@@ -823,21 +845,28 @@
         .then((r) => {
           this.config = r;
           this.platform = this.config.platform;
+          this.restart_supported = (this.config.restart_supported === "true");
 
           var app = document.getElementById("app");
           if (this.platform == "windows") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "va-api";
+              return el.id !== "va-api" && el.id !== "vt";
             });
           }
           if (this.platform == "linux") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd";
+              return el.id !== "amd" && el.id !== "vt";
+            });
+          }
+          if (this.platform == "macos") {
+            this.tabs = this.tabs.filter((el) => {
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "va-api";
             });
           }
 
           delete this.config.status;
           delete this.config.platform;
+          delete this.config.restart_supported;
           //Populate default values if not present in config
           this.config.key_rightalt_to_key_win =
             this.config.key_rightalt_to_key_win || "disabled";
@@ -848,15 +877,16 @@
           this.config.origin_pin_allowed =
             this.config.origin_pin_allowed || "pc";
           this.config.origin_web_ui_allowed =
-            this.config.origin_web_manager_allowed || "lan";
+            this.config.origin_web_ui_allowed || "lan";
           this.config.hevc_mode = this.config.hevc_mode || 0;
           this.config.encoder = this.config.encoder || "";
-          this.config.nv_preset = this.config.nv_preset || "default";
-          this.config.nv_rc = this.config.nv_rc || "auto";
+          this.config.nv_preset = this.config.nv_preset || "p4";
+          this.config.nv_tune = this.config.nv_tune || "ull";
           this.config.nv_coder = this.config.nv_coder || "auto";
+          this.config.nv_rc = this.config.nv_rc || "cbr";
           this.config.amd_coder = this.config.amd_coder || "auto"
-          this.config.amd_quality = this.config.amd_quality || "default";
-          this.config.amd_rc = this.config.amd_rc || "auto";
+          this.config.amd_quality = this.config.amd_quality || "balanced";
+          this.config.amd_rc = this.config.amd_rc || "vbr_latency";
           this.config.vt_coder = this.config.vt_coder || "auto";
           this.config.vt_software = this.config.vt_software || "auto";
           this.config.vt_realtime = this.config.vt_realtime || "enabled";
@@ -876,8 +906,7 @@
         });
     },
     methods: {
-      save() {
-        this.success = false;
+      serialize() {
         let nl = this.config === "windows" ? "\r\n" : "\n";
         this.config.resolutions =
           "[" +
@@ -887,12 +916,31 @@
           nl +
           "]";
         this.config.fps = JSON.stringify(this.fps);
-
+      },
+      save() {
+        this.saved = this.restarted = false;
+        this.serialize();
         fetch("/api/config", {
           method: "POST",
           body: JSON.stringify(this.config),
         }).then((r) => {
-          if (r.status == 200) this.success = true;
+          if (r.status == 200) this.saved = true;
+        });
+      },
+      apply() {
+        this.saved = this.restarted = false;
+        this.serialize();
+        fetch("/api/config", {
+          method: "POST",
+          body: JSON.stringify(this.config),
+        }).then((r) => {
+          if (r.status == 200) {
+            fetch("/api/restart", {
+              method: "POST",
+            }).then((r) => {
+              if (r.status == 200) this.restarted = true;
+            });
+          }
         });
       },
     },

@@ -9,12 +9,26 @@
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/crc.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
+#include <openssl/evp.h>
+#include <openssl/sha.h>
+
+#include "crypto.h"
 #include "main.h"
+#include "platform/common.h"
 #include "utility.h"
+
+#ifdef _WIN32
+// _SH constants for _wfsopen()
+#include <share.h>
+#endif
+
+#define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
 
 namespace proc {
 using namespace std::literals;
@@ -35,7 +49,7 @@ void process_end(bp::child &proc, bp::group &proc_handle) {
   proc.wait();
 }
 
-int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
+int exe_with_full_privs(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
   if(!file) {
     return bp::system(cmd, env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
   }
@@ -43,31 +57,69 @@ int exe(const std::string &cmd, bp::environment &env, file_t &file, std::error_c
   return bp::system(cmd, env, bp::std_out > file.get(), bp::std_err > file.get(), ec);
 }
 
+boost::filesystem::path find_working_directory(const std::string &cmd, bp::environment &env) {
+  // Parse the raw command string into parts to get the actual command portion
+#ifdef _WIN32
+  auto parts = boost::program_options::split_winmain(cmd);
+#else
+  auto parts = boost::program_options::split_unix(cmd);
+#endif
+  if(parts.empty()) {
+    BOOST_LOG(error) << "Unable to parse command: "sv << cmd;
+    return boost::filesystem::path();
+  }
+
+  BOOST_LOG(debug) << "Parsed executable ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
+
+  // If the cmd path is not a complete path, resolve it using our PATH variable
+  boost::filesystem::path cmd_path(parts.at(0));
+  if(!cmd_path.is_complete()) {
+    cmd_path = boost::process::search_path(parts.at(0));
+    if(cmd_path.empty()) {
+      BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
+      return boost::filesystem::path();
+    }
+  }
+
+  BOOST_LOG(debug) << "Resolved executable ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
+
+  // Now that we have a complete path, we can just use parent_path()
+  return cmd_path.parent_path();
+}
+
 int proc_t::execute(int app_id) {
-  if(!running() && _app_id != -1) {
-    // previous process exited on its own, reset _process_handle
-    _process_handle = bp::group();
-
-    _app_id = -1;
-  }
-
-  if(app_id < 0 || app_id >= _apps.size()) {
-    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-
-    return 404;
-  }
-
   // Ensure starting from a clean slate
   terminate();
 
+  auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
+    return app.id == std::to_string(app_id);
+  });
+
+  if(iter == _apps.end()) {
+    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
+    return 404;
+  }
+
   _app_id    = app_id;
-  auto &proc = _apps[app_id];
+  auto &proc = *iter;
 
   _undo_begin = std::begin(proc.prep_cmds);
   _undo_it    = _undo_begin;
 
   if(!proc.output.empty() && proc.output != "null"sv) {
+#ifdef _WIN32
+    // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
+    // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+    auto woutput = converter.from_bytes(proc.output);
+
+    // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
+    // still open from a previous execution. This is required to handle the case of a
+    // detached process executing again while the previous process is still running.
+    _pipe.reset(_wfsopen(woutput.c_str(), L"a", _SH_DENYNO));
+#else
     _pipe.reset(fopen(proc.output.c_str(), "a"));
+#endif
   }
 
   std::error_code ec;
@@ -80,7 +132,7 @@ int proc_t::execute(int app_id) {
     auto &cmd = _undo_it->do_cmd;
 
     BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
-    auto ret = exe(cmd, _env, _pipe, ec);
+    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
 
     if(ec) {
       BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
@@ -94,40 +146,35 @@ int proc_t::execute(int app_id) {
   }
 
   for(auto &cmd : proc.detached) {
-    BOOST_LOG(info) << "Spawning ["sv << cmd << ']';
-    if(proc.output.empty() || proc.output == "null"sv) {
-      bp::spawn(cmd, _env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
-    }
-    else {
-      bp::spawn(cmd, _env, bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
-    }
-
+    boost::filesystem::path working_dir = proc.working_dir.empty() ?
+                                            find_working_directory(cmd, _env) :
+                                            boost::filesystem::path(proc.working_dir);
+    BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
+    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec);
     if(ec) {
       BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
+    }
+    else {
+      child.detach();
     }
   }
 
   if(proc.cmd.empty()) {
-    BOOST_LOG(debug) << "Executing [Desktop]"sv;
+    BOOST_LOG(info) << "Executing [Desktop]"sv;
     placebo = true;
   }
   else {
     boost::filesystem::path working_dir = proc.working_dir.empty() ?
-                                            boost::filesystem::path(proc.cmd).parent_path() :
+                                            find_working_directory(proc.cmd, _env) :
                                             boost::filesystem::path(proc.working_dir);
-    if(proc.output.empty() || proc.output == "null"sv) {
-      BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
-      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
+    BOOST_LOG(info) << "Executing: ["sv << proc.cmd << "] in ["sv << working_dir << ']';
+    _process = platf::run_unprivileged(proc.cmd, working_dir, _env, _pipe.get(), ec);
+    if(ec) {
+      BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
+      return -1;
     }
-    else {
-      BOOST_LOG(info) << "Executing: ["sv << proc.cmd << ']';
-      _process = bp::child(_process_handle, proc.cmd, _env, bp::start_dir(working_dir), bp::std_out > _pipe.get(), bp::std_err > _pipe.get(), ec);
-    }
-  }
 
-  if(ec) {
-    BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
-    return -1;
+    _process_handle.add(_process);
   }
 
   fg.disable();
@@ -140,7 +187,12 @@ int proc_t::running() {
     return _app_id;
   }
 
-  return -1;
+  // Perform cleanup actions now if needed
+  if(_process) {
+    terminate();
+  }
+
+  return 0;
 }
 
 void proc_t::terminate() {
@@ -149,13 +201,9 @@ void proc_t::terminate() {
   // Ensure child process is terminated
   placebo = false;
   process_end(_process, _process_handle);
-  _app_id = -1;
-
-  if(ec) {
-    BOOST_LOG(fatal) << "System: "sv << ec.message();
-    log_flush();
-    std::abort();
-  }
+  _process        = bp::child();
+  _process_handle = bp::group();
+  _app_id         = -1;
 
   for(; _undo_it != _undo_begin; --_undo_it) {
     auto &cmd = (_undo_it - 1)->undo_cmd;
@@ -164,20 +212,16 @@ void proc_t::terminate() {
       continue;
     }
 
-    BOOST_LOG(debug) << "Executing: ["sv << cmd << ']';
+    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
 
-    auto ret = exe(cmd, _env, _pipe, ec);
+    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
 
     if(ec) {
-      BOOST_LOG(fatal) << "System: "sv << ec.message();
-      log_flush();
-      std::abort();
+      BOOST_LOG(warning) << "System: "sv << ec.message();
     }
 
     if(ret != 0) {
-      BOOST_LOG(fatal) << "Return code ["sv << ret << ']';
-      log_flush();
-      std::abort();
+      BOOST_LOG(warning) << "Return code ["sv << ret << ']';
     }
   }
 
@@ -196,48 +240,12 @@ std::vector<ctx_t> &proc_t::get_apps() {
 // Returns default image if image configuration is not set.
 // Returns http content-type header compatible image type.
 std::string proc_t::get_app_image(int app_id) {
-  auto app_index = app_id - 1;
-  if(app_index < 0 || app_index >= _apps.size()) {
-    BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
-    return SUNSHINE_ASSETS_DIR "/box.png";
-  }
+  auto iter           = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
+    return app.id == std::to_string(app_id);
+  });
+  auto app_image_path = iter == _apps.end() ? std::string() : iter->image_path;
 
-  auto default_image  = SUNSHINE_ASSETS_DIR "/box.png";
-  auto app_image_path = _apps[app_index].image_path;
-  if(app_image_path.empty()) {
-    // image is empty, return default box image
-    return default_image;
-  }
-
-  // get the image extension and convert it to lowercase
-  auto image_extension = std::filesystem::path(app_image_path).extension().string();
-  boost::to_lower(image_extension);
-
-  // return the default box image if extension is not "png"
-  if(image_extension != ".png") {
-    return default_image;
-  }
-
-  // check if image is in assets directory
-  auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
-  if(std::filesystem::exists(full_image_path)) {
-    return full_image_path.string();
-  }
-  else if(app_image_path == "./assets/steam.png") {
-    // handle old default steam image definition
-    return SUNSHINE_ASSETS_DIR "/steam.png";
-  }
-
-  // check if specified image exists
-  std::error_code code;
-  if(!std::filesystem::exists(app_image_path, code)) {
-    // return default box image if image does not exist
-    return default_image;
-  }
-
-  // image is a png, and not in assets directory
-  // return only "content-type" http header compatible image type
-  return app_image_path;
+  return validate_app_image_path(app_image_path);
 }
 
 proc_t::~proc_t() {
@@ -279,8 +287,21 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
         ss.write(pos, (dollar - pos));
         auto var_begin = next + 1;
         auto var_end   = find_match(next, std::end(val_raw));
+        auto var_name  = std::string { var_begin, var_end };
 
-        ss << env[std::string { var_begin, var_end }].to_string();
+#ifdef _WIN32
+        // Windows treats environment variable names in a case-insensitive manner,
+        // so we look for a case-insensitive match here. This is critical for
+        // correctly appending to PATH on Windows.
+        auto itr = std::find_if(env.cbegin(), env.cend(),
+          [&](const auto &e) { return boost::iequals(e.get_name(), var_name); });
+        if(itr != env.cend()) {
+          // Use an existing case-insensitive match
+          var_name = itr->get_name();
+        }
+#endif
+
+        ss << env[var_name].to_string();
 
         pos  = var_end + 1;
         next = var_end;
@@ -306,6 +327,114 @@ std::string parse_env_val(bp::native_environment &env, const std::string_view &v
   return ss.str();
 }
 
+std::string validate_app_image_path(std::string app_image_path) {
+  if(app_image_path.empty()) {
+    return DEFAULT_APP_IMAGE_PATH;
+  }
+
+  // get the image extension and convert it to lowercase
+  auto image_extension = std::filesystem::path(app_image_path).extension().string();
+  boost::to_lower(image_extension);
+
+  // return the default box image if extension is not "png"
+  if(image_extension != ".png") {
+    return DEFAULT_APP_IMAGE_PATH;
+  }
+
+  // check if image is in assets directory
+  auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
+  if(std::filesystem::exists(full_image_path)) {
+    return full_image_path.string();
+  }
+  else if(app_image_path == "./assets/steam.png") {
+    // handle old default steam image definition
+    return SUNSHINE_ASSETS_DIR "/steam.png";
+  }
+
+  // check if specified image exists
+  std::error_code code;
+  if(!std::filesystem::exists(app_image_path, code)) {
+    // return default box image if image does not exist
+    BOOST_LOG(warning) << "Couldn't find app image at path ["sv << app_image_path << ']';
+    return DEFAULT_APP_IMAGE_PATH;
+  }
+
+  // image is a png, and not in assets directory
+  // return only "content-type" http header compatible image type
+  return app_image_path;
+}
+
+std::optional<std::string> calculate_sha256(const std::string &filename) {
+  crypto::md_ctx_t ctx { EVP_MD_CTX_create() };
+  if(!ctx) {
+    return std::nullopt;
+  }
+
+  if(!EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr)) {
+    return std::nullopt;
+  }
+
+  // Read file and update calculated SHA
+  char buf[1024 * 16];
+  std::ifstream file(filename, std::ifstream::binary);
+  while(file.good()) {
+    file.read(buf, sizeof(buf));
+    if(!EVP_DigestUpdate(ctx.get(), buf, file.gcount())) {
+      return std::nullopt;
+    }
+  }
+  file.close();
+
+  unsigned char result[SHA256_DIGEST_LENGTH];
+  if(!EVP_DigestFinal_ex(ctx.get(), result, nullptr)) {
+    return std::nullopt;
+  }
+
+  // Transform byte-array to string
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0');
+  for(const auto &byte : result) {
+    ss << std::setw(2) << (int)byte;
+  }
+  return ss.str();
+}
+
+uint32_t calculate_crc32(const std::string &input) {
+  boost::crc_32_type result;
+  result.process_bytes(input.data(), input.length());
+  return result.checksum();
+}
+
+std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, std::string app_image_path, int index) {
+  // Generate id by hashing name with image data if present
+  std::vector<std::string> to_hash;
+  to_hash.push_back(app_name);
+  auto file_path = validate_app_image_path(app_image_path);
+  if(file_path != DEFAULT_APP_IMAGE_PATH) {
+    auto file_hash = calculate_sha256(file_path);
+    if(file_hash) {
+      to_hash.push_back(file_hash.value());
+    }
+    else {
+      // Fallback to just hashing image path
+      to_hash.push_back(file_path);
+    }
+  }
+
+  // Create combined strings for hash
+  std::stringstream ss;
+  for_each(to_hash.begin(), to_hash.end(), [&ss](const std::string &s) { ss << s; });
+  auto input_no_index = ss.str();
+  ss << index;
+  auto input_with_index = ss.str();
+
+  // CRC32 then truncate to signed 32-bit range due to client limitations
+  auto id_no_index   = std::to_string(abs((int32_t)calculate_crc32(input_no_index)));
+  auto id_with_index = std::to_string(abs((int32_t)calculate_crc32(input_with_index)));
+
+  return std::make_tuple(id_no_index, id_with_index);
+}
+
 std::optional<proc::proc_t> parse(const std::string &file_name) {
   pt::ptree tree;
 
@@ -321,7 +450,9 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
     }
 
+    std::set<std::string> ids;
     std::vector<proc::ctx_t> apps;
+    int i = 0;
     for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
 
@@ -377,6 +508,17 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
+      auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
+      if(ids.count(std::get<0>(possible_ids)) == 0) {
+        // Avoid using index to generate id if possible
+        ctx.id = std::get<0>(possible_ids);
+      }
+      else {
+        // Fallback to include index on collision
+        ctx.id = std::get<1>(possible_ids);
+      }
+      ids.insert(ctx.id);
+
       ctx.name      = std::move(name);
       ctx.prep_cmds = std::move(prep_cmds);
       ctx.detached  = std::move(detached);
@@ -399,11 +541,6 @@ void refresh(const std::string &file_name) {
   auto proc_opt = proc::parse(file_name);
 
   if(proc_opt) {
-    {
-      proc::ctx_t ctx;
-      ctx.name = "Desktop"s;
-      proc_opt->get_apps().emplace(std::begin(proc_opt->get_apps()), std::move(ctx));
-    }
     proc = std::move(*proc_opt);
   }
 }

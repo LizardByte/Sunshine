@@ -18,6 +18,10 @@
 namespace platf::dxgi {
 extern const char *format_str[];
 
+// Add D3D11_CREATE_DEVICE_DEBUG here to enable the D3D11 debug runtime.
+// You should have a debugger like WinDbg attached to receive debug messages.
+auto constexpr D3D11_CREATE_DEVICE_FLAGS = D3D11_CREATE_DEVICE_VIDEO_SUPPORT;
+
 template<class T>
 void Release(T *dxgi) {
   dxgi->Release();
@@ -27,14 +31,17 @@ using factory1_t            = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory
 using dxgi_t                = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
 using dxgi1_t               = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
 using device_t              = util::safe_ptr<ID3D11Device, Release<ID3D11Device>>;
+using device1_t             = util::safe_ptr<ID3D11Device1, Release<ID3D11Device1>>;
 using device_ctx_t          = util::safe_ptr<ID3D11DeviceContext, Release<ID3D11DeviceContext>>;
 using adapter_t             = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
 using output_t              = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
 using output1_t             = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
+using output5_t             = util::safe_ptr<IDXGIOutput5, Release<IDXGIOutput5>>;
 using dup_t                 = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
 using texture2d_t           = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
 using texture1d_t           = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;
 using resource_t            = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
+using resource1_t           = util::safe_ptr<IDXGIResource1, Release<IDXGIResource1>>;
 using multithread_t         = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
 using vs_t                  = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
 using ps_t                  = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
@@ -48,6 +55,7 @@ using sampler_state_t       = util::safe_ptr<ID3D11SamplerState, Release<ID3D11S
 using blob_t                = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
 using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
 using depth_stencil_view_t  = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
+using keyed_mutex_t         = util::safe_ptr<IDXGIKeyedMutex, Release<IDXGIKeyedMutex>>;
 
 namespace video {
 using device_t         = util::safe_ptr<ID3D11VideoDevice, Release<ID3D11VideoDevice>>;
@@ -118,7 +126,7 @@ public:
   device_ctx_t device_ctx;
   duplication_t dup;
 
-  DXGI_FORMAT format;
+  DXGI_FORMAT capture_format;
   D3D_FEATURE_LEVEL feature_level;
 
   typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
@@ -131,6 +139,16 @@ public:
   } D3DKMT_SCHEDULINGPRIORITYCLASS;
 
   typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+
+protected:
+  int get_pixel_pitch() {
+    return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
+  }
+
+  const char *dxgi_format_to_string(DXGI_FORMAT format);
+
+  virtual int complete_img(img_t *img, bool dummy)                     = 0;
+  virtual std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() = 0;
 };
 
 class display_ram_t : public display_base_t {
@@ -141,6 +159,8 @@ public:
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img) override;
+  int complete_img(img_t *img, bool dummy) override;
+  std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() override;
 
   int init(int framerate, const std::string &display_name);
 
@@ -156,6 +176,8 @@ public:
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;
+  int complete_img(img_t *img_base, bool dummy) override;
+  std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() override;
 
   int init(int framerate, const std::string &display_name);
 
@@ -163,14 +185,17 @@ public:
 
   sampler_state_t sampler_linear;
 
-  blend_t blend_enable;
+  blend_t blend_alpha;
+  blend_t blend_invert;
   blend_t blend_disable;
 
   ps_t scene_ps;
   vs_t scene_vs;
 
-  texture2d_t src;
-  gpu_cursor_t cursor;
+  gpu_cursor_t cursor_alpha;
+  gpu_cursor_t cursor_xor;
+
+  texture2d_t last_frame_copy;
 };
 } // namespace platf::dxgi
 

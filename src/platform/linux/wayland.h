@@ -39,7 +39,7 @@ public:
   dmabuf_t(const dmabuf_t &) = delete;
 
   dmabuf_t &operator=(const dmabuf_t &) = delete;
-  dmabuf_t &operator=(dmabuf_t &&) = delete;
+  dmabuf_t &operator=(dmabuf_t &&)      = delete;
 
   dmabuf_t();
 
@@ -91,7 +91,7 @@ public:
   monitor_t(const monitor_t &) = delete;
 
   monitor_t &operator=(const monitor_t &) = delete;
-  monitor_t &operator=(monitor_t &&) = delete;
+  monitor_t &operator=(monitor_t &&)      = delete;
 
   monitor_t(wl_output *output);
 
@@ -130,7 +130,7 @@ public:
   interface_t(const interface_t &) = delete;
 
   interface_t &operator=(const interface_t &) = delete;
-  interface_t &operator=(interface_t &&) = delete;
+  interface_t &operator=(interface_t &&)      = delete;
 
   interface_t() noexcept;
 
@@ -193,7 +193,7 @@ public:
   monitor_t(const monitor_t &) = delete;
 
   monitor_t &operator=(const monitor_t &) = delete;
-  monitor_t &operator=(monitor_t &&) = delete;
+  monitor_t &operator=(monitor_t &&)      = delete;
 
   monitor_t(wl_output *output);
 

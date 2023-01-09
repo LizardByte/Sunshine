@@ -11,6 +11,12 @@
 
 .. toctree::
    :maxdepth: 2
+   :caption: GameStream
+
+   gamestream/gamestream
+
+.. toctree::
+   :maxdepth: 2
    :caption: Troubleshooting
 
    troubleshooting/general
@@ -34,3 +40,9 @@
    contributing/contributing
    contributing/localization
    contributing/testing
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Legal
+
+   legal/legal

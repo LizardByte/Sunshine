@@ -33,7 +33,7 @@ modules:
     buildsystem: simple
     build-commands:
       - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
-      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log || cat bootstrap.log
+      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log,program_options || cat bootstrap.log
       - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
         -j $FLATPAK_BUILDER_N_JOBS
     sources:
@@ -142,7 +142,7 @@ modules:
         NPM_CONFIG_LOGLEVEL: info
     build-commands:
       # Install npm dependencies
-      - cd ${FLATPAK_BUILDER_BUILDDIR}/src_assets/common/assets/web && npm install
+      - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app

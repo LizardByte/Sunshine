@@ -23,12 +23,14 @@ struct video_t {
 
   struct {
     std::optional<int> preset;
+    std::optional<int> tune;
     std::optional<int> rc;
     int coder;
   } nv;
 
   struct {
-    std::optional<int> quality;
+    std::optional<int> quality_h264;
+    std::optional<int> quality_hevc;
     std::optional<int> rc_h264;
     std::optional<int> rc_hevc;
     int coder;
@@ -120,6 +122,7 @@ struct sunshine_t {
   } cmd;
 
   std::uint16_t port;
+  std::string log_file;
 };
 
 extern video_t video;

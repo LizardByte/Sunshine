@@ -1,23 +1,35 @@
 Usage
 =====
 #. See the `setup`_ section for your specific OS.
-#. Run ``sunshine <directory of conf file>/sunshine.conf``.
+#. If you did not install the service, then start sunshine with the following command, unless a start command is listed
+   in the specified package :ref:`installation <about/installation:installation>` instructions.
 
-   .. Note:: You do not need to specify a config file. If no config file is entered the default location will be used.
+   .. Note:: A service is a process that runs in the background. Running multiple instances of Sunshine is not
+      advised.
 
-   .. Attention:: The configuration file specified will be created if it doesn't exist.
+   **Basic usage**
+      .. code-block:: bash
 
-   .. Tip:: If using the Linux AppImage, replace ``sunshine`` with ``./sunshine.AppImage``
+         sunshine
+
+   **Specify config file**
+      .. code-block:: bash
+
+         sunshine <directory of conf file>/sunshine.conf
+
+      .. Note:: You do not need to specify a config file. If no config file is entered the default location will be used.
+
+      .. Attention:: The configuration file specified will be created if it doesn't exist.
 
 #. Configure Sunshine in the web ui
 
    The web ui is available on `https://localhost:47990 <https://localhost:47990>`_ by default. You may replace
    `localhost` with your internal ip address.
 
-   .. Attention:: Ignore any warning given by your browser about "insecure website".
+   .. Attention:: Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
+      being self signed.
 
-   .. Caution:: If running for the first time, make sure to note the username and password Sunshine showed to you,
-      since you cannot get back later!
+   .. Caution:: If running for the first time, make sure to note the username and password that you created.
 
    **Add games and applications.**
          This can be configured in the web ui.
@@ -25,8 +37,6 @@ Usage
          .. Note:: Additionally, apps can be configured manually. `src_assets/<os>/config/apps.json` is an example of a
             list of applications that are started just before running a stream. This is the directory within the GitHub
             repo.
-
-         .. Attention:: Application list is not fully supported on macOS
 
 #. In Moonlight, you may need to add the PC manually.
 #. When Moonlight request you insert the correct pin on sunshine:
@@ -76,7 +86,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
          .. code-block::
 
             [Unit]
-            Description=Sunshine Gamestream Server for Moonlight
+            Description=Sunshine self-hosted game stream host for Moonlight.
 
             [Service]
             ExecStart=<see table>
@@ -118,7 +128,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
             sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
 
-      **Disable**
+      **Disable (for Xorg/X11)**
          .. code-block:: bash
 
             sudo setcap -r $(readlink -f $(which sunshine))
@@ -149,6 +159,32 @@ Windows
 ^^^^^^^
 For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`_
 
+Sunshine firewall
+   **Add rule**
+      .. code-block:: batch
+
+         cd /d "C:\Program Files\Sunshine\scripts"
+         add-firewall-rule.bat
+
+   **Remove rule**
+      .. code-block:: batch
+
+         cd /d "C:\Program Files\Sunshine\scripts"
+         remove-firewall-rule.bat
+
+Sunshine service
+   **Enable**
+      .. code-block:: batch
+
+         cd /d "C:\Program Files\Sunshine\scripts"
+         install-service.bat
+
+   **Disable**
+      .. code-block:: batch
+
+         cd /d "C:\Program Files\Sunshine\scripts"
+         uninstall-service.bat
+
 Shortcuts
 ---------
 All shortcuts start with ``CTRL + ALT + SHIFT``, just like Moonlight
@@ -159,34 +195,43 @@ All shortcuts start with ``CTRL + ALT + SHIFT``, just like Moonlight
 Application List
 ----------------
 - Applications should be configured via the web UI.
-- A basic understanding of working directories and commands is recommended.
+- A basic understanding of working directories and commands is required.
 - You can use Environment variables in place of values
 - ``$(HOME)`` will be replaced by the value of ``$HOME``
 - ``$$`` will be replaced by ``$``, e.g. ``$$(HOME)`` will be become ``$(HOME)``
 - ``env`` - Adds or overwrites Environment variables for the commands/applications run by Sunshine
 - ``"Variable name":"Variable value"``
 - ``apps`` - The list of applications
+- Advanced users may want to edit the application list manually. The format is ``json``.
 - Example application:
    .. code-block:: json
 
       {
-      "name":"An App",
-      "cmd":"command to open app",
-      "prep-cmd":[
-            {
-               "do":"some-command",
-               "undo":"undo-that-command"
-            }
-         ],
-      "detached":[
-         "some-command",
-         "another-command"
-         ]
+          "cmd": "command to open app",
+          "detached": [
+              "some-command",
+              "another-command"
+          ],
+          "image-path": "/full-path/to/png-image",
+          "name": "An App",
+          "output": "/full-path/to/command-log-file",
+          "prep-cmd": [
+              {
+                  "do": "some-command",
+                  "undo": "undo-that-command"
+              }
+          ],
+          "working-dir": "/full-path/to/working-directory"
       }
 
+   - ``cmd`` - The main application
+   - ``detached`` - A list of commands to be run and forgotten about
+
+     - If not specified, a process is started that sleeps indefinitely
+
+   - ``image-path`` - The full path to the cover art image to use.
    - ``name`` - The name of the application/game
    - ``output`` - The file where the output of the command is stored
-   - ``detached`` - A list of commands to be run and forgotten about
    - ``prep-cmd`` - A list of commands to be run before/after the application
 
      - If any of the prep-commands fail, starting the application is aborted
@@ -196,12 +241,9 @@ Application List
 
      - ``undo`` - Run after the application has terminated
 
-       - This should not fail considering it is supposed to undo the ``do`` commands
-       - If it fails, Sunshine is terminated
+       - Failures of ``undo`` commands are ignored
 
-     - ``cmd`` - The main application
-
-       - If not specified, a process is started that sleeps indefinitely
+   - ``working-dir`` - The working directory to use. If not specified, Sunshine will use the application directory.
 
 Considerations
 --------------
@@ -214,3 +256,11 @@ Considerations
 - In addition to the apps listed, one app "Desktop" is hardcoded into Sunshine. It does not start an application,
   instead it simply starts a stream.
 - For the Linux flatpak you must prepend commands with ``flatpak-spawn --host``.
+
+Tutorials
+---------
+Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.
+
+.. admonition:: Community!
+
+   Tutorials are community generated. Want to contribute? Reach out to us on our discord server.

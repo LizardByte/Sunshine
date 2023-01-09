@@ -181,10 +181,11 @@ capture_e display_ram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::
     case platf::capture_e::error:
       return status;
     case platf::capture_e::timeout:
+      img = snapshot_cb(img, false);
       std::this_thread::sleep_for(1ms);
-      continue;
+      break;
     case platf::capture_e::ok:
-      img = snapshot_cb(img);
+      img = snapshot_cb(img, true);
       break;
     default:
       BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
@@ -210,6 +211,14 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     return capture_status;
   }
 
+  const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
+  const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
+  const bool update_flag       = mouse_update_flag || frame_update_flag;
+
+  if(!update_flag) {
+    return capture_e::timeout;
+  }
+
   if(frame_info.PointerShapeBufferSize > 0) {
     auto &img_data = cursor.img_data;
 
@@ -230,8 +239,7 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
     cursor.visible = frame_info.PointerPosition.Visible;
   }
 
-  // If frame has been updated
-  if(frame_info.LastPresentTime.QuadPart != 0) {
+  if(frame_update_flag) {
     {
       texture2d_t src {};
       status = res->QueryInterface(IID_ID3D11Texture2D, (void **)&src);
@@ -241,34 +249,81 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
         return capture_e::error;
       }
 
+      D3D11_TEXTURE2D_DESC desc;
+      src->GetDesc(&desc);
+
+      // If we don't know the capture format yet, grab it from this texture and create the staging texture
+      if(capture_format == DXGI_FORMAT_UNKNOWN) {
+        capture_format = desc.Format;
+        BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
+
+        D3D11_TEXTURE2D_DESC t {};
+        t.Width            = width;
+        t.Height           = height;
+        t.MipLevels        = 1;
+        t.ArraySize        = 1;
+        t.SampleDesc.Count = 1;
+        t.Usage            = D3D11_USAGE_STAGING;
+        t.Format           = capture_format;
+        t.CPUAccessFlags   = D3D11_CPU_ACCESS_READ;
+
+        auto status = device->CreateTexture2D(&t, nullptr, &texture);
+
+        if(FAILED(status)) {
+          BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
+          return capture_e::error;
+        }
+      }
+
+      // It's possible for our display enumeration to race with mode changes and result in
+      // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
+      if(desc.Width != width || desc.Height != height) {
+        BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
+        return capture_e::reinit;
+      }
+
+      // It's also possible for the capture format to change on the fly. If that happens,
+      // reinitialize capture to try format detection again and create new images.
+      if(capture_format != desc.Format) {
+        BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
+        return capture_e::reinit;
+      }
+
       //Copy from GPU to CPU
       device_ctx->CopyResource(texture.get(), src.get());
     }
+  }
 
-    if(img_info.pData) {
-      device_ctx->Unmap(texture.get(), 0);
-      img_info.pData = nullptr;
+  // If we don't know the final capture format yet, encode a dummy image
+  if(capture_format == DXGI_FORMAT_UNKNOWN) {
+    BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image"sv;
+
+    if(dummy_img(img)) {
+      return capture_e::error;
     }
-
+  }
+  else {
+    // Map the staging texture for CPU access (making it inaccessible for the GPU)
     status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
 
       return capture_e::error;
     }
+
+    // Now that we know the capture format, we can finish creating the image
+    if(complete_img(img, false)) {
+      device_ctx->Unmap(texture.get(), 0);
+      img_info.pData = nullptr;
+      return capture_e::error;
+    }
+
+    std::copy_n((std::uint8_t *)img_info.pData, height * img_info.RowPitch, (std::uint8_t *)img->data);
+
+    // Unmap the staging texture to allow GPU access again
+    device_ctx->Unmap(texture.get(), 0);
+    img_info.pData = nullptr;
   }
-
-  const bool mouse_update =
-    (frame_info.LastMouseUpdateTime.QuadPart || frame_info.PointerShapeBufferSize > 0) &&
-    (cursor_visible && cursor.visible);
-
-  const bool update_flag = frame_info.LastPresentTime.QuadPart != 0 || mouse_update;
-
-  if(!update_flag) {
-    return capture_e::timeout;
-  }
-
-  std::copy_n((std::uint8_t *)img_info.pData, height * img_info.RowPitch, (std::uint8_t *)img->data);
 
   if(cursor_visible && cursor.visible) {
     blend_cursor(cursor, *img);
@@ -280,45 +335,56 @@ capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::millise
 std::shared_ptr<platf::img_t> display_ram_t::alloc_img() {
   auto img = std::make_shared<img_t>();
 
-  img->pixel_pitch = 4;
-  img->row_pitch   = img_info.RowPitch;
-  img->width       = width;
-  img->height      = height;
-  img->data        = new std::uint8_t[img->row_pitch * height];
+  // Initialize fields that are format-independent
+  img->width  = width;
+  img->height = height;
 
   return img;
 }
 
-int display_ram_t::dummy_img(platf::img_t *img) {
+int display_ram_t::complete_img(platf::img_t *img, bool dummy) {
+  // If this is not a dummy image, we must know the format by now
+  if(!dummy && capture_format == DXGI_FORMAT_UNKNOWN) {
+    BOOST_LOG(error) << "display_ram_t::complete_img() called with unknown capture format!";
+    return -1;
+  }
+
+  img->pixel_pitch = get_pixel_pitch();
+
+  if(dummy && !img->row_pitch) {
+    // Assume our dummy image will have no padding
+    img->row_pitch = img->pixel_pitch * img->width;
+  }
+
+  // Reallocate the image buffer if the pitch changes
+  if(!dummy && img->row_pitch != img_info.RowPitch) {
+    img->row_pitch = img_info.RowPitch;
+    delete img->data;
+    img->data = nullptr;
+  }
+
+  if(!img->data) {
+    img->data = new std::uint8_t[img->row_pitch * height];
+  }
+
   return 0;
+}
+
+int display_ram_t::dummy_img(platf::img_t *img) {
+  if(complete_img(img, true)) {
+    return -1;
+  }
+
+  std::fill_n((std::uint8_t *)img->data, height * img->row_pitch, 0);
+  return 0;
+}
+
+std::vector<DXGI_FORMAT> display_ram_t::get_supported_sdr_capture_formats() {
+  return std::vector { DXGI_FORMAT_B8G8R8A8_UNORM };
 }
 
 int display_ram_t::init(int framerate, const std::string &display_name) {
   if(display_base_t::init(framerate, display_name)) {
-    return -1;
-  }
-
-  D3D11_TEXTURE2D_DESC t {};
-  t.Width            = width;
-  t.Height           = height;
-  t.MipLevels        = 1;
-  t.ArraySize        = 1;
-  t.SampleDesc.Count = 1;
-  t.Usage            = D3D11_USAGE_STAGING;
-  t.Format           = format;
-  t.CPUAccessFlags   = D3D11_CPU_ACCESS_READ;
-
-  auto status = device->CreateTexture2D(&t, nullptr, &texture);
-
-  if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to create texture [0x"sv << util::hex(status).to_string_view() << ']';
-    return -1;
-  }
-
-  // map the texture simply to get the pitch and stride
-  status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
-  if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to map the texture [0x"sv << util::hex(status).to_string_view() << ']';
     return -1;
   }
 

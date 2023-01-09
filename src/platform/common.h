@@ -11,11 +11,26 @@
 #include <mutex>
 #include <string>
 
+#include "src/main.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
 
 struct sockaddr;
 struct AVFrame;
+
+// Forward declarations of boost classes to avoid having to include boost headers
+// here, which results in issues with Windows.h and WinSock2.h include order.
+namespace boost {
+namespace filesystem {
+class path;
+}
+namespace process {
+class child;
+template<typename Char>
+class basic_environment;
+typedef basic_environment<char> environment;
+} // namespace process
+} // namespace boost
 
 namespace platf {
 constexpr auto MAX_GAMEPADS = 32;
@@ -76,7 +91,6 @@ constexpr std::uint8_t map_surround71[] {
   FRONT_LEFT,
   FRONT_RIGHT,
   FRONT_CENTER,
-  LOW_FREQUENCY,
   LOW_FREQUENCY,
   BACK_LEFT,
   BACK_RIGHT,
@@ -143,9 +157,9 @@ struct img_t {
 public:
   img_t() = default;
 
-  img_t(img_t &&)      = delete;
-  img_t(const img_t &) = delete;
-  img_t &operator=(img_t &&) = delete;
+  img_t(img_t &&)                 = delete;
+  img_t(const img_t &)            = delete;
+  img_t &operator=(img_t &&)      = delete;
   img_t &operator=(const img_t &) = delete;
 
   std::uint8_t *data {};
@@ -183,7 +197,7 @@ struct hwdevice_t {
    * implementations must take ownership of 'frame'
    */
   virtual int set_frame(AVFrame *frame) {
-    std::abort(); // ^ This function must never be called
+    BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
     return -1;
   };
 
@@ -202,7 +216,8 @@ enum class capture_e : int {
 class display_t {
 public:
   /**
-   * When display has a new image ready, this callback will be called with the new image.
+   * When display has a new image ready or a timeout occurs, this callback will be called with the image.
+   * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
    * 
    * On Break Request -->
    *    Returns nullptr
@@ -211,7 +226,7 @@ public:
    *    Returns the image object that should be filled next.
    *    This may or may not be the image send with the callback
    */
-  using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img)>;
+  using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img, bool frame_captured)>;
 
   display_t() noexcept : offset_x { 0 }, offset_y { 0 } {}
 
@@ -288,6 +303,23 @@ std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &
 
 // A list of names of displays accepted as display_name with the mem_type_e
 std::vector<std::string> display_names(mem_type_e hwdevice_type);
+
+boost::process::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec);
+
+enum class thread_priority_e : int {
+  low,
+  normal,
+  high,
+  critical
+};
+void adjust_thread_priority(thread_priority_e priority);
+
+// Allow OS-specific actions to be taken to prepare for streaming
+void streaming_will_start();
+void streaming_will_stop();
+
+bool restart_supported();
+bool restart();
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

@@ -54,6 +54,7 @@ struct ctx_t {
   std::string working_dir;
   std::string output;
   std::string image_path;
+  std::string id;
 };
 
 class proc_t {
@@ -62,14 +63,14 @@ public:
 
   proc_t(
     boost::process::environment &&env,
-    std::vector<ctx_t> &&apps) : _app_id(-1),
+    std::vector<ctx_t> &&apps) : _app_id(0),
                                  _env(std::move(env)),
                                  _apps(std::move(apps)) {}
 
   int execute(int app_id);
 
   /**
-   * @return _app_id if a process is running, otherwise returns -1
+   * @return _app_id if a process is running, otherwise returns 0
    */
   int running();
 
@@ -98,6 +99,13 @@ private:
   std::vector<cmd_t>::const_iterator _undo_begin;
 };
 
+/**
+ * Calculate a stable id based on name and image data
+ * @return tuple of id calculated without index (for use if no collision) and one with
+*/
+std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, std::string app_image_path, int index);
+
+std::string validate_app_image_path(std::string app_image_path);
 void refresh(const std::string &file_name);
 std::optional<proc::proc_t> parse(const std::string &file_name);
 

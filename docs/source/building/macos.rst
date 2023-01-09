@@ -12,7 +12,7 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install boost cmake libopus npm9
+      sudo port install avahi boost180 cmake curl libopus npm9 pkgconfig
 
 Homebrew
 """"""""
@@ -29,9 +29,7 @@ npm dependencies
 Install npm dependencies.
    .. code-block:: bash
 
-      pushd ./src_assets/common/assets/web
       npm install
-      popd
 
 Build
 -----
@@ -45,5 +43,4 @@ Build
    cpack -G DragNDrop  # optionally, create a macOS dmg package
 
 If cmake fails complaining to find Boost, try to set the path explicitly.
-  ``cmake -DBOOST_ROOT=[boost path] ..``, e.g., ``cmake -DBOOST_ROOT=/opt/local/libexec/boost/1.76 ..``
-
+  ``cmake -DBOOST_ROOT=[boost path] ..``, e.g., ``cmake -DBOOST_ROOT=/opt/local/libexec/boost/1.80 ..``

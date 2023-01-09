@@ -72,7 +72,7 @@ struct __attribute__((__aligned__(16))) color_t {
   float2 range_uv;
 };
 
-extern color_t colors[4];
+extern color_t colors[6];
 
 void capture(
   safe::mail_t mail,

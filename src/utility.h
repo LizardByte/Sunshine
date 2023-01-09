@@ -21,7 +21,9 @@ template<typename T>
 struct argument_type;
 
 template<typename T, typename U>
-struct argument_type<T(U)> { typedef U type; };
+struct argument_type<T(U)> {
+  typedef U type;
+};
 
 #define KITTY_USING_MOVE_T(move_t, t, init_val, z)                 \
   class move_t {                                                   \
@@ -58,22 +60,22 @@ struct argument_type<T(U)> { typedef U type; };
   }
 
 #define KITTY_DECL_CONSTR(x)             \
-  x(x &&) noexcept = default;            \
+  x(x &&) noexcept            = default; \
   x &operator=(x &&) noexcept = default; \
   x();
 
-#define KITTY_DEFAULT_CONSTR_MOVE(x) \
-  x(x &&) noexcept = default;        \
+#define KITTY_DEFAULT_CONSTR_MOVE(x)     \
+  x(x &&) noexcept            = default; \
   x &operator=(x &&) noexcept = default;
 
 #define KITTY_DEFAULT_CONSTR_MOVE_THROW(x) \
-  x(x &&)    = default;                    \
+  x(x &&)            = default;            \
   x &operator=(x &&) = default;            \
   x()                = default;
 
-#define KITTY_DEFAULT_CONSTR(x)    \
-  KITTY_DEFAULT_CONSTR_MOVE(x)     \
-  x(const x &) noexcept = default; \
+#define KITTY_DEFAULT_CONSTR(x)      \
+  KITTY_DEFAULT_CONSTR_MOVE(x)       \
+  x(const x &) noexcept   = default; \
   x &operator=(const x &) = default;
 
 #define TUPLE_2D(a, b, expr)                     \
@@ -133,7 +135,9 @@ template<bool V, class X, class Y>
 using either_t = typename __either<V, X, Y>::type;
 
 template<class... Ts>
-struct overloaded : Ts... { using Ts::operator()...; };
+struct overloaded : Ts... {
+  using Ts::operator()...;
+};
 template<class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
@@ -453,7 +457,7 @@ public:
   constexpr uniq_ptr() noexcept : _p { nullptr } {}
   constexpr uniq_ptr(std::nullptr_t) noexcept : _p { nullptr } {}
 
-  uniq_ptr(const uniq_ptr &other) noexcept = delete;
+  uniq_ptr(const uniq_ptr &other) noexcept            = delete;
   uniq_ptr &operator=(const uniq_ptr &other) noexcept = delete;
 
   template<class V>
@@ -721,6 +725,9 @@ public:
   buffer_t() : _els { 0 } {};
   buffer_t(buffer_t &&o) noexcept : _els { o._els }, _buf { std::move(o._buf) } {
     o._els = 0;
+  }
+  buffer_t(const buffer_t &o) : _els { o._els }, _buf { std::make_unique<T[]>(_els) } {
+    std::copy(o.begin(), o.end(), begin());
   }
   buffer_t &operator=(buffer_t &&o) noexcept {
     std::swap(_els, o._els);

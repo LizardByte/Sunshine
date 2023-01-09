@@ -65,6 +65,28 @@ enum class socket_e : int {
 
 #pragma pack(push, 1)
 
+struct video_short_frame_header_t {
+  uint8_t *payload() {
+    return (uint8_t *)(this + 1);
+  }
+
+  std::uint8_t headerType; // Always 0x01 for short headers
+  std::uint8_t unknown[2];
+
+  // Currently known values:
+  // 1 = Normal P-frame
+  // 2 = IDR-frame
+  // 4 = P-frame with intra-refresh blocks
+  // 5 = P-frame after reference frame invalidation
+  std::uint8_t frameType;
+
+  std::uint8_t unknown2[4];
+};
+
+static_assert(
+  sizeof(video_short_frame_header_t) == 8,
+  "Short frame header must be 8 bytes");
+
 struct video_packet_raw_t {
   uint8_t *payload() {
     return (uint8_t *)(this + 1);
@@ -120,7 +142,7 @@ typedef struct control_encrypted_t {
     return (uint8_t *)(this + 1);
   }
   // encrypted control_header_v2 and payload data follow
-} * control_encrypted_p;
+} *control_encrypted_p;
 
 struct audio_fec_packet_raw_t {
   uint8_t *payload() {
@@ -718,6 +740,8 @@ void controlBroadcastThread(control_server_t *server) {
     input::passthrough(session->input, std::move(plaintext));
   });
 
+  // This thread handles latency-sensitive control messages
+  platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   while(!shutdown_event->peek()) {
@@ -754,7 +778,7 @@ void controlBroadcastThread(control_server_t *server) {
       })
     }
 
-    if(proc::proc.running() == -1) {
+    if(proc::proc.running() == 0) {
       BOOST_LOG(debug) << "Process terminated"sv;
 
       break;
@@ -855,10 +879,8 @@ void recvThread(broadcast_ctx_t &ctx) {
       }
 
       if(ec || !bytes) {
-        BOOST_LOG(fatal) << "Couldn't receive data from udp socket: "sv << ec.message();
-
-        log_flush();
-        std::abort();
+        BOOST_LOG(error) << "Couldn't receive data from udp socket: "sv << ec.message();
+        return;
       }
 
       auto it = peer_to_session.find(peer.address());
@@ -883,6 +905,10 @@ void recvThread(broadcast_ctx_t &ctx) {
 void videoBroadcastThread(udp::socket &sock) {
   auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
   auto packets        = mail::man->queue<video::packet_t>(mail::video_packets);
+  auto timebase       = boost::posix_time::microsec_clock::universal_time();
+
+  // Video traffic is sent on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
@@ -896,8 +922,11 @@ void videoBroadcastThread(udp::socket &sock) {
     std::string_view payload { (char *)av_packet->data, (size_t)av_packet->size };
     std::vector<uint8_t> payload_new;
 
-    auto nv_packet_header = "\0017charss"sv;
-    std::copy(std::begin(nv_packet_header), std::end(nv_packet_header), std::back_inserter(payload_new));
+    video_short_frame_header_t frame_header = {};
+    frame_header.headerType                 = 0x01; // Short header type
+    frame_header.frameType                  = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
+
+    std::copy_n((uint8_t *)&frame_header, sizeof(frame_header), std::back_inserter(payload_new));
     std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
 
     payload = { (char *)payload_new.data(), payload_new.size() };
@@ -992,6 +1021,10 @@ void videoBroadcastThread(udp::socket &sock) {
         for(auto x = 0; x < shards.size(); ++x) {
           auto *inspect = (video_packet_raw_t *)shards.data(x);
 
+          // RTP video timestamps use a 90 KHz clock
+          auto now       = boost::posix_time::microsec_clock::universal_time();
+          auto timestamp = (now - timebase).total_microseconds() / (1000 / 90);
+
           inspect->packet.fecInfo =
             (x << 12 |
               shards.data_shards << 22 |
@@ -999,12 +1032,11 @@ void videoBroadcastThread(udp::socket &sock) {
 
           inspect->rtp.header         = 0x80 | FLAG_EXTENSION;
           inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
+          inspect->rtp.timestamp      = util::endian::big<uint32_t>(timestamp);
 
           inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
           inspect->packet.frameIndex     = av_packet->pts;
-        }
 
-        for(auto x = 0; x < shards.size(); ++x) {
           sock.send_to(asio::buffer(shards[x]), session->video.peer);
         }
 
@@ -1051,6 +1083,9 @@ void audioBroadcastThread(udp::socket &sock) {
   audio_packet->rtp.header     = 0x80;
   audio_packet->rtp.packetType = 97;
   audio_packet->rtp.ssrc       = 0;
+
+  // Audio traffic is sent on this thread
+  platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(auto packet = packets->pop()) {
     if(shutdown_event->peek()) {
@@ -1306,6 +1341,8 @@ void audioThread(session_t *session) {
 }
 
 namespace session {
+std::atomic_uint running_sessions;
+
 state_e state(session_t &session) {
   return session.state.load(std::memory_order_relaxed);
 }
@@ -1322,6 +1359,20 @@ void stop(session_t &session) {
 }
 
 void join(session_t &session) {
+  // Current Nvidia drivers have a bug where NVENC can deadlock the encoder thread with hardware-accelerated
+  // GPU scheduling enabled. If this happens, we will terminate ourselves and the service can restart.
+  // The alternative is that Sunshine can never start another session until it's manually restarted.
+  auto task = []() {
+    BOOST_LOG(fatal) << "Hang detected! Session failed to terminate in 10 seconds."sv;
+    log_flush();
+    std::abort();
+  };
+  auto force_kill = task_pool.pushDelayed(task, 10s).task_id;
+  auto fg         = util::fail_guard([&force_kill]() {
+    // Cancel the kill task if we manage to return from this function
+    task_pool.cancel(force_kill);
+  });
+
   BOOST_LOG(debug) << "Waiting for video to end..."sv;
   session.videoThread.join();
   BOOST_LOG(debug) << "Waiting for audio to end..."sv;
@@ -1367,6 +1418,11 @@ void join(session_t &session) {
     }
   }
 
+  // If this is the last session, invoke the platform callbacks
+  if(--running_sessions == 0) {
+    platf::streaming_will_stop();
+  }
+
   BOOST_LOG(debug) << "Session ended"sv;
 }
 
@@ -1404,6 +1460,11 @@ int start(session_t &session, const std::string &addr_string) {
   session.videoThread = std::thread { videoThread, &session };
 
   session.state.store(state_e::RUNNING, std::memory_order_relaxed);
+
+  // If this is the first session, invoke the platform callbacks
+  if(++running_sessions == 1) {
+    platf::streaming_will_start();
+  }
 
   return 0;
 }

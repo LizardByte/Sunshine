@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <codecvt>
+#include <initguid.h>
 
 #include "display.h"
 #include "misc.h"
@@ -79,22 +80,21 @@ duplication_t::~duplication_t() {
 }
 
 int display_base_t::init(int framerate, const std::string &display_name) {
-  /* Uncomment when use of IDXGIOutput5 is implemented
+  std::once_flag windows_cpp_once_flag;
+
   std::call_once(windows_cpp_once_flag, []() {
     DECLARE_HANDLE(DPI_AWARENESS_CONTEXT);
-    const auto DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ((DPI_AWARENESS_CONTEXT)-4);
 
     typedef BOOL (*User32_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
 
     auto user32 = LoadLibraryA("user32.dll");
-    auto f = (User32_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+    auto f      = (User32_SetProcessDpiAwarenessContext)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
     if(f) {
       f(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
 
     FreeLibrary(user32);
   });
-*/
 
   // Ensure we can duplicate the current display
   syncThreadDesktop();
@@ -186,7 +186,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     adapter_p,
     D3D_DRIVER_TYPE_UNKNOWN,
     nullptr,
-    D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
+    D3D11_CREATE_DEVICE_FLAGS,
     featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
     D3D11_SDK_VERSION,
     &device,
@@ -272,7 +272,10 @@ int display_base_t::init(int framerate, const std::string &display_name) {
       return -1;
     }
 
-    dxgi->SetGPUThreadPriority(7);
+    status = dxgi->SetGPUThreadPriority(7);
+    if(FAILED(status)) {
+      BOOST_LOG(warning) << "Failed to increase capture GPU thread priority. Please run application as administrator for optimal performance.";
+    }
   }
 
   // Try to reduce latency
@@ -291,36 +294,68 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   }
 
   //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
-  //TODO: Use IDXGIOutput5 for improved performance
   {
-    dxgi::output1_t output1 {};
-    status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
-      return -1;
-    }
-
-    // We try this twice, in case we still get an error on reinitialization
-    for(int x = 0; x < 2; ++x) {
-      status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
-      if(SUCCEEDED(status)) {
-        break;
+    // IDXGIOutput5 is optional, but can provide improved performance and wide color support
+    dxgi::output5_t output5 {};
+    status = output->QueryInterface(IID_IDXGIOutput5, (void **)&output5);
+    if(SUCCEEDED(status)) {
+      // Ask the display implementation which formats it supports
+      auto supported_formats = get_supported_sdr_capture_formats();
+      if(supported_formats.empty()) {
+        BOOST_LOG(warning) << "No compatible capture formats for this encoder"sv;
+        return -1;
       }
-      std::this_thread::sleep_for(200ms);
-    }
 
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+      // We try this twice, in case we still get an error on reinitialization
+      for(int x = 0; x < 2; ++x) {
+        status = output5->DuplicateOutput1((IUnknown *)device.get(), 0, supported_formats.size(), supported_formats.data(), &dup.dup);
+        if(SUCCEEDED(status)) {
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
+      }
+
+      // We don't retry with DuplicateOutput() because we can hit this codepath when we're racing
+      // with mode changes and we don't want to accidentally fall back to suboptimal capture if
+      // we get unlucky and succeed below.
+      if(FAILED(status)) {
+        BOOST_LOG(warning) << "DuplicateOutput1 Failed [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+    }
+    else {
+      BOOST_LOG(warning) << "IDXGIOutput5 is not supported by your OS. Capture performance may be reduced."sv;
+
+      dxgi::output1_t output1 {};
+      status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+        return -1;
+      }
+
+      for(int x = 0; x < 2; ++x) {
+        status = output1->DuplicateOutput((IUnknown *)device.get(), &dup.dup);
+        if(SUCCEEDED(status)) {
+          break;
+        }
+        std::this_thread::sleep_for(200ms);
+      }
+
+      if(FAILED(status)) {
+        BOOST_LOG(error) << "DuplicateOutput Failed [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
   }
 
   DXGI_OUTDUPL_DESC dup_desc;
   dup.dup->GetDesc(&dup_desc);
 
-  format = dup_desc.ModeDesc.Format;
+  BOOST_LOG(info) << "Desktop resolution ["sv << dup_desc.ModeDesc.Width << 'x' << dup_desc.ModeDesc.Height << ']';
+  BOOST_LOG(info) << "Desktop format ["sv << dxgi_format_to_string(dup_desc.ModeDesc.Format) << ']';
 
-  BOOST_LOG(debug) << "Source format ["sv << format_str[dup_desc.ModeDesc.Format] << ']';
+  // Capture format will be determined from the first call to AcquireNextFrame()
+  capture_format = DXGI_FORMAT_UNKNOWN;
 
   return 0;
 }
@@ -449,6 +484,10 @@ const char *format_str[] = {
   "DXGI_FORMAT_V208",
   "DXGI_FORMAT_V408"
 };
+
+const char *display_base_t::dxgi_format_to_string(DXGI_FORMAT format) {
+  return format_str[format];
+}
 
 } // namespace platf::dxgi
 

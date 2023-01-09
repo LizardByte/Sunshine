@@ -7,11 +7,9 @@ Source code is tested against the `.clang-format` file for linting errors. The w
 format testing is `.github/workflows/cpp-clang-format-lint.yml`.
 
 Test clang-format locally.
-   .. Todo:: This documentation needs to be improved.
-
    .. code-block:: bash
 
-      clang-format ...
+      find ./ -iname *.cpp -o -iname *.h -iname *.m -iname *.mm | xargs clang-format -i
 
 Sphinx
 ------

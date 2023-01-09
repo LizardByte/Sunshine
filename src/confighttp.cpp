@@ -6,6 +6,7 @@
 #include "process.h"
 
 #include <filesystem>
+#include <set>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -68,7 +69,7 @@ void print_req(const req_https_t &request) {
 }
 
 void send_unauthorized(resp_https_t response, req_https_t request) {
-  auto address = request->remote_endpoint_address();
+  auto address = request->remote_endpoint().address().to_string();
   BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
   const SimpleWeb::CaseInsensitiveMultimap headers {
     { "WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")" }
@@ -77,7 +78,7 @@ void send_unauthorized(resp_https_t response, req_https_t request) {
 }
 
 void send_redirect(resp_https_t response, req_https_t request, const char *path) {
-  auto address = request->remote_endpoint_address();
+  auto address = request->remote_endpoint().address().to_string();
   BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
   const SimpleWeb::CaseInsensitiveMultimap headers {
     { "Location", path }
@@ -86,7 +87,7 @@ void send_redirect(resp_https_t response, req_https_t request, const char *path)
 }
 
 bool authenticate(resp_https_t response, req_https_t request) {
-  auto address = request->remote_endpoint_address();
+  auto address = request->remote_endpoint().address().to_string();
   auto ip_type = net::from_address(address);
 
   if(ip_type > http::origin_web_ui_allowed) {
@@ -272,6 +273,17 @@ void getApps(resp_https_t response, req_https_t request) {
 
   std::string content = read_file(config::stream.file_apps.c_str());
   response->write(content);
+}
+
+void getLogs(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+
+  print_req(request);
+
+  std::string content = read_file(config::sunshine.log_file.c_str());
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "text/plain");
+  response->write(SimpleWeb::StatusCode::success_ok, content, headers);
 }
 
 void saveApp(resp_https_t response, req_https_t request) {
@@ -468,6 +480,7 @@ void getConfig(resp_https_t response, req_https_t request) {
 
   outputTree.put("status", "true");
   outputTree.put("platform", SUNSHINE_PLATFORM);
+  outputTree.put("restart_supported", platf::restart_supported());
 
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
@@ -509,6 +522,37 @@ void saveConfig(resp_https_t response, req_https_t request) {
     outputTree.put("error", e.what());
     return;
   }
+}
+
+void restart(resp_https_t response, req_https_t request) {
+  if(!authenticate(response, request)) return;
+
+  print_req(request);
+
+  std::stringstream ss;
+  std::stringstream configStream;
+  ss << request->content.rdbuf();
+  pt::ptree outputTree;
+  auto g = util::fail_guard([&]() {
+    std::ostringstream data;
+
+    pt::write_json(data, outputTree);
+    response->write(data.str());
+  });
+
+  if(!platf::restart_supported()) {
+    outputTree.put("status", false);
+    outputTree.put("error", "Restart is not currently supported on this platform");
+    return;
+  }
+
+  if(!platf::restart()) {
+    outputTree.put("status", false);
+    outputTree.put("error", "Restart failed");
+    return;
+  }
+
+  outputTree.put("status", true);
 }
 
 void savePassword(resp_https_t response, req_https_t request) {
@@ -636,11 +680,8 @@ void start() {
 
   auto port_https = map_port(PORT_HTTPS);
 
-  auto ctx = std::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tls);
-  ctx->use_certificate_chain_file(config::nvhttp.cert);
-  ctx->use_private_key_file(config::nvhttp.pkey, boost::asio::ssl::context::pem);
-  https_server_t server { ctx, 0 };
-  server.default_resource                                  = not_found;
+  https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
+  server.default_resource["GET"]                           = not_found;
   server.resource["^/$"]["GET"]                            = getIndexPage;
   server.resource["^/pin$"]["GET"]                         = getPinPage;
   server.resource["^/apps$"]["GET"]                        = getAppsPage;
@@ -651,9 +692,11 @@ void start() {
   server.resource["^/troubleshooting$"]["GET"]             = getTroubleshootingPage;
   server.resource["^/api/pin$"]["POST"]                    = savePin;
   server.resource["^/api/apps$"]["GET"]                    = getApps;
+  server.resource["^/api/logs$"]["GET"]                    = getLogs;
   server.resource["^/api/apps$"]["POST"]                   = saveApp;
   server.resource["^/api/config$"]["GET"]                  = getConfig;
   server.resource["^/api/config$"]["POST"]                 = saveConfig;
+  server.resource["^/api/restart$"]["POST"]                = restart;
   server.resource["^/api/password$"]["POST"]               = savePassword;
   server.resource["^/api/apps/([0-9]+)$"]["DELETE"]        = deleteApp;
   server.resource["^/api/clients/unpair$"]["POST"]         = unpairAll;
@@ -666,19 +709,11 @@ void start() {
   server.config.address                                    = "0.0.0.0"s;
   server.config.port                                       = port_https;
 
-  try {
-    server.bind();
-    BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port_https << "]";
-  }
-  catch(boost::system::system_error &err) {
-    BOOST_LOG(fatal) << "Couldn't bind http server to ports ["sv << port_https << "]: "sv << err.what();
-
-    shutdown_event->raise(true);
-    return;
-  }
   auto accept_and_run = [&](auto *server) {
     try {
-      server->accept_and_run();
+      server->start([](unsigned short port) {
+        BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
+      });
     }
     catch(boost::system::system_error &err) {
       // It's possible the exception gets thrown after calling server->stop() from a different thread
@@ -686,7 +721,7 @@ void start() {
         return;
       }
 
-      BOOST_LOG(fatal) << "Couldn't start Configuration HTTPS server to port ["sv << port_https << "]: "sv << err.what();
+      BOOST_LOG(fatal) << "Couldn't start Configuration HTTPS server on port ["sv << port_https << "]: "sv << err.what();
       shutdown_event->raise(true);
       return;
     }

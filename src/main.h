@@ -3,6 +3,7 @@
 #ifndef SUNSHINE_MAIN_H
 #define SUNSHINE_MAIN_H
 
+#include <filesystem>
 #include <string_view>
 
 #include "thread_pool.h"
@@ -30,8 +31,10 @@ int write_file(const char *path, const std::string_view &contents);
 std::uint16_t map_port(int port);
 
 namespace mail {
-#define MAIL(x) \
-  constexpr auto x = std::string_view { #x }
+#define MAIL(x)                         \
+  constexpr auto x = std::string_view { \
+#x                                  \
+  }
 
 extern safe::mail_t man;
 
@@ -50,6 +53,4 @@ MAIL(idr);
 MAIL(rumble);
 #undef MAIL
 } // namespace mail
-
-
 #endif // SUNSHINE_MAIN_H

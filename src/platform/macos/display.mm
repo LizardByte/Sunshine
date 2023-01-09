@@ -60,11 +60,12 @@ struct av_display_t : public display_t {
       img_next->row_pitch   = CVPixelBufferGetBytesPerRow(pixelBuffer);
       img_next->pixel_pitch = img_next->row_pitch / img_next->width;
 
-      img_next = snapshot_cb(img_next);
+      img_next = snapshot_cb(img_next, true);
 
       return img_next != nullptr;
     }];
 
+    // FIXME: We should time out if an image isn't returned for a while
     dispatch_semaphore_wait(signal, DISPATCH_TIME_FOREVER);
 
     return capture_e::ok;
@@ -193,4 +194,4 @@ std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 
   return display_names;
 }
-}
+} // namespace platf
