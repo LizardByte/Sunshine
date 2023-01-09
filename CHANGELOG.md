@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.17.0] - 2023-01-08
+If you are running Sunshine as a service on Windows, we are strongly urging you to update to v0.17.0 as soon as
+possible. Older Windows versions of Sunshine had a security flaw in which the binary was located in a user-writable
+location which is problematic when running as a service or on a multi-user system. Additionally, when running Sunshine
+as a service, games and applications were launched as SYSTEM. This could lead to issues with save files and other game
+settings. In v0.17.0, games now run under your user account without elevated privileges.
+
+### Breaking
+- (Apps) Removed automatic desktop entry (Re-add by adding an empty application named "Desktop" with no commands, "desktop.png" can be added as the image.)
+- (Windows) Improved user upgrade experience (Suggest to manually uninstall existing Sunshine version before this upgrade. Do NOT select to remove everything, if prompted. Make a backup of config files before uninstall.)
+- (Windows) Move config files to specific directory (files will be migrated automatically if using Windows installer)
+- (Dependencies) Fix npm path (breaking change for package maintainers)
+### Added
+- (macOS) Added initial support for arm64 on macOS through Macports portfile
+- (Input) Added support for foreign keyboard input
+- (Misc) Logs inside the WebUI and log to file
+- (UI/Windows) Added an Apply button to configuration page when running as a service
+- (Input/Windows) Enable Mouse Keys while streaming for systems with no physical mouse
+### Fixed
+- (Video) Improved capture performance
+- (Audio) Improved audio bitrate and quality handling
+- (Apps/Windows) Fixed PATH environment variable handling
+- (Apps/Windows) Use the proper environment variable for the Program Files (x86) folder
+- (Service/Windows) Fix SunshineSvc hanging if an error occurs during startup
+- (Service/Windows) Spawn Sunshine.exe in a job object, so it is terminated if SunshineSvc.exe dies
+- (Video) windows/vram: fix fringing in NV12 colour conversion
+- (Apps/Windows) Launch games under the correct user account
+- (Video) nvenc, amdvce: rework all user presets/options
+- (Network) Generate certificates with unique serial numbers
+- (Service/Windows) Graceful termination on shutdown, logoff, and service stop
+- (Apps/Windows) Fix launching apps when Sunshine is running as admin
+- (Misc) Remove/fix calls to std::abort()
+- (Misc) Remove prompt to press enter after Sunshine exits
+- (Misc) Make log priority consistent for execution messages
+- (Apps) Applications in Moonlight clients are now updated automatically after editing
+- (Video/Linux) Fix wayland capture on nvidia
+- (Audio) Fix 7.1 surround channel mapping
+- (Video) Fix NVENC profile values not applying
+- (Network) Fix origin_web_ui_allowed binding
+- (Service/Windows) Self terminate/restart service if process hangs for 10 seconds
+- (Input/Windows) Fix Windows masked cursor blending with GPU encoders
+- (Video) Color conversion fixes and BT.2020 support
+### Dependencies
+- Bump ffmpeg from 4.4 to 5.1
+- ffmpeg_patches: add amfenc delay/buffering fix
+- CBS moved to ffmpeg submodules
+- Migrate to upstream Simple-Web-Server submodule
+- Bump third-party/TPCircularBuffer from `bce9170` to `8833b3a`
+- Bump third-party/moonlight-common-c from `8169a31` to `ef9ad52`
+- Bump third-party/miniupnp from `6f848ae` to `207cf44`
+- Bump third-party/ViGEmClient from `f719a1d` to `9e842ba`
+- Bump bootstrap from 5.0.0 to 5.2.3
+- Bump @fortawesome/fontawesome-free from 6.2.0 to 6.2.1
+
 ## [0.16.0] - 2022-12-13
 ### Added
 - Add cover finder
@@ -61,7 +115,7 @@
 - (Documentation) Added Sphinx documentation available at https://sunshinestream.readthedocs.io/en/latest/
 - (Development) Initial support for Localization
 - (Linux) Add rpm package as release asset
-- (MacOS) Add Portfile as release asset
+- (macOS) Add Portfile as release asset
 - (Windows) Add DwmFlush() call  to improve capture
 - (Windows) Add Windows installer
 ### Fixed
@@ -70,13 +124,13 @@
 - (Linux) Fixed rumble events causing game to freeze
 - (Linux) Improved Pulse/Pipewire compatibility
 - (Linux) Moved to single deb package
-- (MacOS) Fixed missing TPCircularBuffer submodule
+- (macOS) Fixed missing TPCircularBuffer submodule
 - (Stream) Properly catch exceptions in stream broadcast handlers
 - (Stream/Video) AVPacket fix
 
 ## [0.13.0] - 2022-02-27
 ### Added
-- (MacOS) Initial support for MacOS (#40)
+- (macOS) Initial support for macOS (#40)
 
 ## [0.12.0] - 2022-02-13
 ### Added
@@ -193,3 +247,28 @@
 ## [0.1.0] - 2020-01-27
 ### Added
 - The first official release for Sunshine!
+
+[0.1.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.1.0
+[0.1.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.1.1
+[0.2.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.2.0
+[0.3.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.3.0
+[0.3.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.3.1
+[0.4.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.4.0
+[0.5.0]: https://github.com/LizardByte/Sunshine/releases/tag/0.5.0
+[0.6.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.6.0
+[0.7.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.7.0
+[0.7.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.7.1
+[0.7.7]: https://github.com/LizardByte/Sunshine/releases/tag/v0.7.7
+[0.8.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.8.0
+[0.9.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.9.0
+[0.10.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.10.0
+[0.10.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.10.1
+[0.11.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.11.0
+[0.11.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.11.1
+[0.12.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.12.0
+[0.13.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.13.0
+[0.14.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.14.0
+[0.14.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.14.1
+[0.15.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.15.0
+[0.16.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.16.0
+[0.17.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.17.0
