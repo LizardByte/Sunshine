@@ -406,6 +406,23 @@ public:
     frames->initial_pool_size = 1;
   }
 
+  int prepare_to_derive_context(int hw_device_type) override {
+    // QuickSync requires our device to be multithread-protected
+    if(hw_device_type == AV_HWDEVICE_TYPE_QSV) {
+      multithread_t mt;
+
+      auto status = device->QueryInterface(IID_ID3D11Multithread, (void **)&mt);
+      if(FAILED(status)) {
+        BOOST_LOG(warning) << "Failed to query ID3D11Multithread interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      mt->SetMultithreadProtected(TRUE);
+    }
+
+    return 0;
+  }
+
   int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
     this->hwframe.reset(frame);
     this->frame = frame;
