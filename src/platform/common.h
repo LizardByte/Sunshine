@@ -17,6 +17,8 @@
 
 struct sockaddr;
 struct AVFrame;
+struct AVBufferRef;
+struct AVHWFramesContext;
 
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
@@ -196,12 +198,17 @@ struct hwdevice_t {
   /**
    * implementations must take ownership of 'frame'
    */
-  virtual int set_frame(AVFrame *frame) {
+  virtual int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
     BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
     return -1;
   };
 
   virtual void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
+
+  /**
+   * Implementations may set parameters during initialization of the hwframes context
+   */
+  virtual void init_hwframes(AVHWFramesContext *frames) {};
 
   virtual ~hwdevice_t() = default;
 };

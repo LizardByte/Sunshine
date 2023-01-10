@@ -94,20 +94,21 @@ public:
     return 0;
   }
 
-  int set_frame(AVFrame *frame) override {
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
     this->hwframe.reset(frame);
     this->frame = frame;
 
-    auto hwframe_ctx = (AVHWFramesContext *)frame->hw_frames_ctx->data;
+    auto hwframe_ctx = (AVHWFramesContext *)hw_frames_ctx->data;
     if(hwframe_ctx->sw_format != AV_PIX_FMT_NV12) {
       BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12"sv;
       return -1;
     }
 
-    if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
-      BOOST_LOG(error) << "Couldn't get hwframe for NVENC"sv;
-
-      return -1;
+    if(!frame->buf[0]) {
+      if(av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
+        BOOST_LOG(error) << "Couldn't get hwframe for NVENC"sv;
+        return -1;
+      }
     }
 
     auto cuda_ctx = (AVCUDADeviceContext *)hwframe_ctx->device_ctx->hwctx;
@@ -180,8 +181,8 @@ public:
     return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
   }
 
-  int set_frame(AVFrame *frame) {
-    if(cuda_t::set_frame(frame)) {
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    if(cuda_t::set_frame(frame, hw_frames_ctx)) {
       return -1;
     }
 
