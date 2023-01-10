@@ -91,6 +91,10 @@ static std::string_view status_string(int status) {
 }
 
 std::unique_ptr<platf::deinit_t> start() {
+  if(!config::sunshine.flags[config::flag::UPNP]) {
+    return nullptr;
+  }
+
   int err {};
 
   device_t device { upnpDiscover(2000, nullptr, nullptr, 0, IPv4, 2, &err) };
@@ -126,10 +130,6 @@ std::unique_ptr<platf::deinit_t> start() {
     if(config::nvhttp.external_ip.empty()) {
       config::nvhttp.external_ip = wan_addr.data();
     }
-  }
-
-  if(!config::sunshine.flags[config::flag::UPNP]) {
-    return nullptr;
   }
 
   auto rtsp     = std::to_string(map_port(stream::RTSP_SETUP_PORT));
