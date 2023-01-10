@@ -475,6 +475,8 @@ add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 
 if(WIN32)
     set_target_properties(sunshine PROPERTIES LINK_SEARCH_START_STATIC 1)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".dll")
+    find_library(ZLIB ZLIB1)
 endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
@@ -520,6 +522,9 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/node_modules"
 # Platform specific options
 if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
     install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
+
+    # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
+    install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
 
     # Adding tools
     install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
