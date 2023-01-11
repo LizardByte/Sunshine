@@ -1077,8 +1077,7 @@ void audioBroadcastThread(udp::socket &sock) {
   // works correctly. This is possible because the data and FEC shard count is
   // constant and known in advance.
   const unsigned char parity[] = { 0x77, 0x40, 0x38, 0x0e, 0xc7, 0xa7, 0x0d, 0x6c };
-  memcpy(&rs.get()->m[16], parity, sizeof(parity));
-  memcpy(rs.get()->parity, parity, sizeof(parity));
+  memcpy(rs.get()->p, parity, sizeof(parity));
 
   audio_packet->rtp.header     = 0x80;
   audio_packet->rtp.packetType = 97;

@@ -337,8 +337,8 @@ configure_file(version.h.in version.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SUNSHINE_TARGET_FILES
-        third-party/moonlight-common-c/reedsolomon/rs.c
-        third-party/moonlight-common-c/reedsolomon/rs.h
+        third-party/nanors/rs.c
+        third-party/nanors/rs.h
         third-party/moonlight-common-c/src/Input.h
         third-party/moonlight-common-c/src/Rtsp.h
         third-party/moonlight-common-c/src/RtspParser.c
@@ -385,6 +385,9 @@ set(SUNSHINE_TARGET_FILES
 
 set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
+set_source_files_properties(third-party/nanors/rs.c
+        PROPERTIES COMPILE_FLAGS "-include deps/obl/autoshim.h -ftree-vectorize")
+
 # Pre-compiled binaries
 if(WIN32)
     set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-windows-x86_64")
@@ -424,7 +427,8 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/reedsolomon
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/nanors
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/nanors/deps/obl
         ${FFMPEG_INCLUDE_DIRS}
         ${PLATFORM_INCLUDE_DIRS}
 )
