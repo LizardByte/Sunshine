@@ -15,12 +15,31 @@
 #define MULTICLICK_DELAY_NS 500000000
 
 // For gamepad emulation
+// https://github.com/kotleni/virthid-macos
 #define VIRTGAMEPAD_NAME "Sunshine Gamepad"
 #define VIRTGAMEPAD_SN "SG 0001"            // serial number
 #define SERVICE_NAME "it_kotleni_virthid"   // virthid service id
-#define VIRTGAMEPAD_INPU_COUNT 8
+#define VIRTGAMEPAD_INPUT_COUNT 16          // gamepad buttons count
 #define FOOHID_CREATE 0                     // create selector
 #define FOOHID_SEND 2                       // send selector
+
+// Gamepad buttons
+#define GAMEPAD_BTN_A     0b0000000000000001
+#define GAMEPAD_BTN_B     0b0000000000000010
+#define GAMEPAD_BTN_X     0b0000000000000100
+#define GAMEPAD_BTN_Y     0b0000000000001000
+#define GAMEPAD_BTN_L     0b0000000000010000
+#define GAMEPAD_BTN_R     0b0000000000100000
+#define GAMEPAD_BTN_LT    0b0000000001000000
+#define GAMEPAD_BTN_RT    0b0000000010000000
+#define GAMEPAD_BTN_BACK  0b0000000100000000
+#define GAMEPAD_BTN_START 0b0000001000000000
+#define GAMEPAD_BTN_LS    0b0000010000000000
+#define GAMEPAD_BTN_RS    0b0000100000000000
+#define GAMEPAD_BTN_UP    0b0001000000000000
+#define GAMEPAD_BTN_DOWN  0b0010000000000000
+#define GAMEPAD_BTN_LEFT  0b0100000000000000
+#define GAMEPAD_BTN_RIGHT 0b1000000000000000
 
 // http://eleccelerator.com/tutorial-about-usb-hid-report-descriptors/
 // Used HIDTool to generate the data
@@ -72,7 +91,7 @@ struct gamepad_report_t {
 io_iterator_t virtgamepad_iterator;
 io_service_t virtgamepad_service;
 io_connect_t virtgamepad_connect;
-uint64_t virtgamepad_input[VIRTGAMEPAD_INPU_COUNT];
+uint64_t virtgamepad_input[VIRTGAMEPAD_INPUT_COUNT];
 
 namespace platf {
 using namespace std::literals;
@@ -383,7 +402,7 @@ int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   virtgamepad_input[6] = (uint64_t) 2;  // vendor ID
   virtgamepad_input[7] = (uint64_t) 3;  // device ID
 
-  ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_CREATE, virtgamepad_input, VIRTGAMEPAD_INPU_COUNT, NULL, 0);
+  ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_CREATE, virtgamepad_input, VIRTGAMEPAD_INPUT_COUNT, NULL, 0);
   if (ret != KERN_SUCCESS) {
     BOOST_LOG(info) << "Gamepad: Unable to create HID device. May be fine if created previously."sv;
   }
@@ -395,8 +414,6 @@ void free_gamepad(input_t &input, int nr) {
 }
 
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
-  auto bf = gamepad_state.buttonFlags;
-
   // Arguments to be passed through the HID message.
   struct gamepad_report_t gamepad;
   uint32_t send_count = 4;
@@ -406,13 +423,31 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   send[2] = (uint64_t) &gamepad;                    // mouse struct
   send[3] = sizeof(struct gamepad_report_t);        // mouse struct len
 
-  gamepad.buttons = gamepad_state.buttonFlags;
+  auto flags = gamepad_state.buttonFlags;
+
+  gamepad.buttons = 0b00000000; // fill zeroes
+  if(flags & LEFT_STICK)   gamepad.buttons |= GAMEPAD_BTN_LS;
+  if(flags & RIGHT_STICK)  gamepad.buttons |= GAMEPAD_BTN_RS;
+  if(flags & LEFT_BUTTON)  gamepad.buttons |= GAMEPAD_BTN_L;
+  if(flags & RIGHT_BUTTON) gamepad.buttons |= GAMEPAD_BTN_R;
+  if(flags & START)        gamepad.buttons |= GAMEPAD_BTN_START;
+  if(flags & BACK)         gamepad.buttons |= GAMEPAD_BTN_BACK;
+  if(flags & A)            gamepad.buttons |= GAMEPAD_BTN_A;
+  if(flags & B)            gamepad.buttons |= GAMEPAD_BTN_B;
+  if(flags & X)            gamepad.buttons |= GAMEPAD_BTN_X;
+  if(flags & Y)            gamepad.buttons |= GAMEPAD_BTN_Y;
+  if(flags & DPAD_UP)      gamepad.buttons |= GAMEPAD_BTN_UP;
+  if(flags & DPAD_DOWN)    gamepad.buttons |= GAMEPAD_BTN_DOWN;
+  if(flags & DPAD_LEFT)    gamepad.buttons |= GAMEPAD_BTN_LEFT;
+  if(flags & DPAD_RIGHT)   gamepad.buttons |= GAMEPAD_BTN_RIGHT;
+
+  if(gamepad_state.lt > 0) gamepad.buttons |= GAMEPAD_BTN_LT;
+  if(gamepad_state.rt > 0) gamepad.buttons |= GAMEPAD_BTN_RT;
+
   gamepad.x = gamepad_state.lsX;
-  gamepad.y = -gamepad_state.lsY;                   // inversed
+  gamepad.y = -gamepad_state.lsY;    // inversed
   gamepad.rx = gamepad_state.rsX;
-  gamepad.ry = -gamepad_state.rsY;                  // inversed
-  gamepad.z = gamepad_state.lt;
-  gamepad.rz = gamepad_state.rt;
+  gamepad.ry = -gamepad_state.rsY;   // inversed
 
   kern_return_t ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_SEND, send, send_count, NULL, 0);
   if(ret != KERN_SUCCESS) {
