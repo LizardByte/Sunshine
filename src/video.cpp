@@ -1134,14 +1134,12 @@ void encode_run(
       idr_events->pop();
     }
 
+    // Encode at a minimum of 10 FPS to avoid image quality issues with static content
     if(!frame->key_frame || images->peek()) {
       if(auto img = images->pop(100ms)) {
         session->device->convert(*img);
       }
-      else if(images->running()) {
-        continue;
-      }
-      else {
+      else if(!images->running()) {
         break;
       }
     }
