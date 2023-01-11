@@ -16,77 +16,77 @@
 
 // For gamepad emulation
 // https://github.com/kotleni/VirtualHID-macOS
-#define VIRTGAMEPAD_NAME        "Sunshine Gamepad"
-#define VIRTGAMEPAD_SN          "SG 0001"             // serial number
-#define VIRTGAMEPAD_INPUT_COUNT 16                    // gamepad buttons count
-#define SERVICE_NAME            "it_kotleni_virthid"  // virthid service id
-#define FOOHID_CREATE           0                     // create selector
-#define FOOHID_SEND             2                     // send selector
+#define VIRTGAMEPAD_NAME "Sunshine Gamepad"
+#define VIRTGAMEPAD_SN "SG 0001"          // serial number
+#define VIRTGAMEPAD_INPUT_COUNT 16        // gamepad buttons count
+#define SERVICE_NAME "it_kotleni_virthid" // virthid service id
+#define FOOHID_CREATE 0                   // create selector
+#define FOOHID_SEND 2                     // send selector
 
 // Gamepad buttons
 #define GAMEPAD_ZEROBTNS  0
-#define GAMEPAD_BTN_A     (1 << 0)
-#define GAMEPAD_BTN_B     (1 << 1)
-#define GAMEPAD_BTN_X     (1 << 2)
-#define GAMEPAD_BTN_Y     (1 << 3)
-#define GAMEPAD_BTN_L     (1 << 4)
-#define GAMEPAD_BTN_R     (1 << 5)
-#define GAMEPAD_BTN_LT    (1 << 6)
-#define GAMEPAD_BTN_RT    (1 << 7)
-#define GAMEPAD_BTN_BACK  (1 << 8)
+#define GAMEPAD_BTN_A (1 << 0)
+#define GAMEPAD_BTN_B (1 << 1)
+#define GAMEPAD_BTN_X (1 << 2)
+#define GAMEPAD_BTN_Y (1 << 3)
+#define GAMEPAD_BTN_L (1 << 4)
+#define GAMEPAD_BTN_R (1 << 5)
+#define GAMEPAD_BTN_LT (1 << 6)
+#define GAMEPAD_BTN_RT (1 << 7)
+#define GAMEPAD_BTN_BACK (1 << 8)
 #define GAMEPAD_BTN_START (1 << 9)
-#define GAMEPAD_BTN_LS    (1 << 10)
-#define GAMEPAD_BTN_RS    (1 << 11)
-#define GAMEPAD_BTN_UP    (1 << 12)
-#define GAMEPAD_BTN_DOWN  (1 << 13)
-#define GAMEPAD_BTN_LEFT  (1 << 14)
+#define GAMEPAD_BTN_LS (1 << 10)
+#define GAMEPAD_BTN_RS (1 << 11)
+#define GAMEPAD_BTN_UP (1 << 12)
+#define GAMEPAD_BTN_DOWN (1 << 13)
+#define GAMEPAD_BTN_LEFT (1 << 14)
 #define GAMEPAD_BTN_RIGHT (1 << 15)
 
 // http://eleccelerator.com/tutorial-about-usb-hid-report-descriptors/
 // Used HIDTool to generate the data
 unsigned char gamepad_report_descriptor[] = {
-    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
-    0x09, 0x05,                    // USAGE (Game Pad)
-    0xa1, 0x01,                    // COLLECTION (Application)
-    0xa1, 0x00,                    //   COLLECTION (Physical)
-    0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
-    0x09, 0x30,                    //     USAGE (X)
-    0x09, 0x31,                    //     USAGE (Y)
-    0x09, 0x33,                    //     USAGE (Rx)
-    0x09, 0x34,                    //     USAGE (Ry)
-    0x16, 0x00, 0x80,              //     LOGICAL_MINIMUM (-32768)
-    0x26, 0xff, 0x7f,              //     LOGICAL_MAXIMUM (32767)
-    0x75, 0x10,                    //     REPORT_SIZE (16)
-    0x95, 0x04,                    //     REPORT_COUNT (4)
-    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
-    0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
-    0x09, 0x32,                    //     USAGE (Z)
-    0x09, 0x35,                    //     USAGE (Rz)
-    0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
-    0x46, 0xff, 0x00,              //     PHYSICAL_MAXIMUM (255)
-    0x75, 0x08,                    //     REPORT_SIZE (8)
-    0x95, 0x02,                    //     REPORT_COUNT (2)
-    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
-    0x05, 0x09,                    //     USAGE_PAGE (Button)
-    0x19, 0x01,                    //     USAGE_MINIMUM (Button 1)
-    0x29, 0x10,                    //     USAGE_MAXIMUM (Button 16)
-    0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
-    0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
-    0x75, 0x01,                    //     REPORT_SIZE (1)
-    0x95, 0x10,                    //     REPORT_COUNT (16)
-    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
-    0xc0,                          //     END_COLLECTION
-    0xc0                           // END_COLLECTION
+  0x05, 0x01,       // USAGE_PAGE (Generic Desktop)
+  0x09, 0x05,       // USAGE (Game Pad)
+  0xa1, 0x01,       // COLLECTION (Application)
+  0xa1, 0x00,       //   COLLECTION (Physical)
+  0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
+  0x09, 0x30,       //     USAGE (X)
+  0x09, 0x31,       //     USAGE (Y)
+  0x09, 0x33,       //     USAGE (Rx)
+  0x09, 0x34,       //     USAGE (Ry)
+  0x16, 0x00, 0x80, //     LOGICAL_MINIMUM (-32768)
+  0x26, 0xff, 0x7f, //     LOGICAL_MAXIMUM (32767)
+  0x75, 0x10,       //     REPORT_SIZE (16)
+  0x95, 0x04,       //     REPORT_COUNT (4)
+  0x81, 0x02,       //     INPUT (Data,Var,Abs)
+  0x05, 0x01,       //     USAGE_PAGE (Generic Desktop)
+  0x09, 0x32,       //     USAGE (Z)
+  0x09, 0x35,       //     USAGE (Rz)
+  0x15, 0x00,       //     LOGICAL_MINIMUM (0)
+  0x46, 0xff, 0x00, //     PHYSICAL_MAXIMUM (255)
+  0x75, 0x08,       //     REPORT_SIZE (8)
+  0x95, 0x02,       //     REPORT_COUNT (2)
+  0x81, 0x02,       //     INPUT (Data,Var,Abs)
+  0x05, 0x09,       //     USAGE_PAGE (Button)
+  0x19, 0x01,       //     USAGE_MINIMUM (Button 1)
+  0x29, 0x10,       //     USAGE_MAXIMUM (Button 16)
+  0x15, 0x00,       //     LOGICAL_MINIMUM (0)
+  0x25, 0x01,       //     LOGICAL_MAXIMUM (1)
+  0x75, 0x01,       //     REPORT_SIZE (1)
+  0x95, 0x10,       //     REPORT_COUNT (16)
+  0x81, 0x02,       //     INPUT (Data,Var,Abs)
+  0xc0,             //     END_COLLECTION
+  0xc0              // END_COLLECTION
 };
 
 struct gamepad_report_t {
-    int16_t x;
-    int16_t y;
-    int16_t rx;
-    int16_t ry;
-    uint8_t z;
-    uint8_t rz;
-    uint16_t buttons;
+  int16_t x;
+  int16_t y;
+  int16_t rx;
+  int16_t ry;
+  uint8_t z;
+  uint8_t rz;
+  uint16_t buttons;
 };
 
 io_iterator_t virtgamepad_iterator;
@@ -369,23 +369,23 @@ int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   // Get a reference to the IOService
   kern_return_t ret = IOServiceGetMatchingServices(kIOMasterPortDefault, IOServiceMatching(SERVICE_NAME), &virtgamepad_iterator);
 
-  if (ret != KERN_SUCCESS) {
+  if(ret != KERN_SUCCESS) {
     BOOST_LOG(info) << "Gamepad: Unable to access IOService."sv;
     return 1;
   }
 
   // Iterate till success
   int found = 0;
-  while ((virtgamepad_service = IOIteratorNext(virtgamepad_iterator)) != IO_OBJECT_NULL) {
+  while((virtgamepad_service = IOIteratorNext(virtgamepad_iterator)) != IO_OBJECT_NULL) {
     ret = IOServiceOpen(virtgamepad_service, mach_task_self(), 0, &virtgamepad_connect);
-    if (ret == KERN_SUCCESS) {
+    if(ret == KERN_SUCCESS) {
       found = 1;
       break;
     }
 
     IOObjectRelease(virtgamepad_service);
   }
-    
+
   IOObjectRelease(virtgamepad_iterator);
 
   if(!found) {
@@ -394,17 +394,17 @@ int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   }
 
   // Fill up the input arguments.
-  virtgamepad_input[0] = (uint64_t) strdup(VIRTGAMEPAD_NAME);  // device name
-  virtgamepad_input[1] = strlen((char *)virtgamepad_input[0]);  // name length
-  virtgamepad_input[2] = (uint64_t) gamepad_report_descriptor;  // report descriptor
-  virtgamepad_input[3] = sizeof(gamepad_report_descriptor);  // report descriptor len
-  virtgamepad_input[4] = (uint64_t) strdup(VIRTGAMEPAD_SN);  // serial number
-  virtgamepad_input[5] = strlen((char *)virtgamepad_input[4]);  // serial number len
-  virtgamepad_input[6] = (uint64_t) 0xdead;  // vendor ID
-  virtgamepad_input[7] = (uint64_t) 0xbeef;  // device ID
+  virtgamepad_input[0] = (uint64_t)strdup(VIRTGAMEPAD_NAME);   // device name
+  virtgamepad_input[1] = strlen((char *)virtgamepad_input[0]); // name length
+  virtgamepad_input[2] = (uint64_t)gamepad_report_descriptor;  // report descriptor
+  virtgamepad_input[3] = sizeof(gamepad_report_descriptor);    // report descriptor len
+  virtgamepad_input[4] = (uint64_t)strdup(VIRTGAMEPAD_SN);     // serial number
+  virtgamepad_input[5] = strlen((char *)virtgamepad_input[4]); // serial number len
+  virtgamepad_input[6] = (uint64_t)0xdead;                     // vendor ID
+  virtgamepad_input[7] = (uint64_t)0xbeef;                     // device ID
 
   ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_CREATE, virtgamepad_input, VIRTGAMEPAD_INPUT_COUNT, NULL, 0);
-  if (ret != KERN_SUCCESS) {
+  if(ret != KERN_SUCCESS) {
     BOOST_LOG(info) << "Gamepad: Unable to create HID device. May be fine if created previously."sv;
   }
   return 0;
@@ -421,7 +421,7 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   uint64_t send[send_count];
   send[0] = (uint64_t)virtgamepad_input[0];         // device name
   send[1] = strlen((char *)virtgamepad_input[0]);   // name length
-  send[2] = (uint64_t) &gamepad;                    // mouse struct
+  send[2] = (uint64_t)&gamepad;                     // mouse struct
   send[3] = sizeof(struct gamepad_report_t);        // mouse struct len
 
   auto flags = gamepad_state.buttonFlags;
@@ -430,28 +430,28 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   gamepad.buttons = GAMEPAD_ZEROBTNS;
 
   // Map buttons
-  if(flags & LEFT_STICK)   gamepad.buttons |= GAMEPAD_BTN_LS;
-  if(flags & RIGHT_STICK)  gamepad.buttons |= GAMEPAD_BTN_RS;
-  if(flags & LEFT_BUTTON)  gamepad.buttons |= GAMEPAD_BTN_L;
+  if(flags & LEFT_STICK) gamepad.buttons |= GAMEPAD_BTN_LS;
+  if(flags & RIGHT_STICK) gamepad.buttons |= GAMEPAD_BTN_RS;
+  if(flags & LEFT_BUTTON) gamepad.buttons |= GAMEPAD_BTN_L;
   if(flags & RIGHT_BUTTON) gamepad.buttons |= GAMEPAD_BTN_R;
-  if(flags & START)        gamepad.buttons |= GAMEPAD_BTN_START;
-  if(flags & BACK)         gamepad.buttons |= GAMEPAD_BTN_BACK;
-  if(flags & A)            gamepad.buttons |= GAMEPAD_BTN_A;
-  if(flags & B)            gamepad.buttons |= GAMEPAD_BTN_B;
-  if(flags & X)            gamepad.buttons |= GAMEPAD_BTN_X;
-  if(flags & Y)            gamepad.buttons |= GAMEPAD_BTN_Y;
-  if(flags & DPAD_UP)      gamepad.buttons |= GAMEPAD_BTN_UP;
-  if(flags & DPAD_DOWN)    gamepad.buttons |= GAMEPAD_BTN_DOWN;
-  if(flags & DPAD_LEFT)    gamepad.buttons |= GAMEPAD_BTN_LEFT;
-  if(flags & DPAD_RIGHT)   gamepad.buttons |= GAMEPAD_BTN_RIGHT;
+  if(flags & START) gamepad.buttons |= GAMEPAD_BTN_START;
+  if(flags & BACK) gamepad.buttons |= GAMEPAD_BTN_BACK;
+  if(flags & A) gamepad.buttons |= GAMEPAD_BTN_A;
+  if(flags & B) gamepad.buttons |= GAMEPAD_BTN_B;
+  if(flags & X) gamepad.buttons |= GAMEPAD_BTN_X;
+  if(flags & Y) gamepad.buttons |= GAMEPAD_BTN_Y;
+  if(flags & DPAD_UP) gamepad.buttons |= GAMEPAD_BTN_UP;
+  if(flags & DPAD_DOWN) gamepad.buttons |= GAMEPAD_BTN_DOWN;
+  if(flags & DPAD_LEFT) gamepad.buttons |= GAMEPAD_BTN_LEFT;
+  if(flags & DPAD_RIGHT) gamepad.buttons |= GAMEPAD_BTN_RIGHT;
 
   // Map triggers
   if(gamepad_state.lt > 0) gamepad.buttons |= GAMEPAD_BTN_LT;
   if(gamepad_state.rt > 0) gamepad.buttons |= GAMEPAD_BTN_RT;
 
   // Map sticks
-  gamepad.x = gamepad_state.lsX;
-  gamepad.y = -gamepad_state.lsY;
+  gamepad.x  = gamepad_state.lsX;
+  gamepad.y  = -gamepad_state.lsY;
   gamepad.rx = gamepad_state.rsX;
   gamepad.ry = -gamepad_state.rsY;
 
