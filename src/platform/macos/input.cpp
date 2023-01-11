@@ -15,7 +15,7 @@
 #define MULTICLICK_DELAY_NS 500000000
 
 // For gamepad emulation
-// https://github.com/kotleni/virthid-macos
+// https://github.com/kotleni/VirtualHID-macOS
 #define VIRTGAMEPAD_NAME "Sunshine Gamepad"
 #define VIRTGAMEPAD_SN "SG 0001"            // serial number
 #define SERVICE_NAME "it_kotleni_virthid"   // virthid service id
