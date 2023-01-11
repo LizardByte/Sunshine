@@ -2,6 +2,10 @@
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 
+// For gamepad emulation
+#include <IOKit/IOKitLib.h>
+#include <string.h>
+
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -9,6 +13,66 @@
 // Delay for a double click
 // FIXME: we probably want to make this configurable
 #define MULTICLICK_DELAY_NS 500000000
+
+// For gamepad emulation
+#define VIRTGAMEPAD_NAME "Sunshine Gamepad"
+#define VIRTGAMEPAD_SN "SG 0001"            // serial number
+#define SERVICE_NAME "it_kotleni_virthid"   // virthid service id
+#define VIRTGAMEPAD_INPU_COUNT 8
+#define FOOHID_CREATE 0                     // create selector
+#define FOOHID_SEND 2                       // send selector
+
+// http://eleccelerator.com/tutorial-about-usb-hid-report-descriptors/
+// Used HIDTool to generate the data
+unsigned char gamepad_report_descriptor[] = {
+    0x05, 0x01,                    // USAGE_PAGE (Generic Desktop)
+    0x09, 0x05,                    // USAGE (Game Pad)
+    0xa1, 0x01,                    // COLLECTION (Application)
+    0xa1, 0x00,                    //   COLLECTION (Physical)
+    0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
+    0x09, 0x30,                    //     USAGE (X)
+    0x09, 0x31,                    //     USAGE (Y)
+    0x09, 0x33,                    //     USAGE (Rx)
+    0x09, 0x34,                    //     USAGE (Ry)
+    0x16, 0x00, 0x80,              //     LOGICAL_MINIMUM (-32768)
+    0x26, 0xff, 0x7f,              //     LOGICAL_MAXIMUM (32767)
+    0x75, 0x10,                    //     REPORT_SIZE (16)
+    0x95, 0x04,                    //     REPORT_COUNT (4)
+    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+    0x05, 0x01,                    //     USAGE_PAGE (Generic Desktop)
+    0x09, 0x32,                    //     USAGE (Z)
+    0x09, 0x35,                    //     USAGE (Rz)
+    0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
+    0x46, 0xff, 0x00,              //     PHYSICAL_MAXIMUM (255)
+    0x75, 0x08,                    //     REPORT_SIZE (8)
+    0x95, 0x02,                    //     REPORT_COUNT (2)
+    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+    0x05, 0x09,                    //     USAGE_PAGE (Button)
+    0x19, 0x01,                    //     USAGE_MINIMUM (Button 1)
+    0x29, 0x10,                    //     USAGE_MAXIMUM (Button 16)
+    0x15, 0x00,                    //     LOGICAL_MINIMUM (0)
+    0x25, 0x01,                    //     LOGICAL_MAXIMUM (1)
+    0x75, 0x01,                    //     REPORT_SIZE (1)
+    0x95, 0x10,                    //     REPORT_COUNT (16)
+    0x81, 0x02,                    //     INPUT (Data,Var,Abs)
+    0xc0,                          //     END_COLLECTION
+    0xc0                           // END_COLLECTION
+};
+
+struct gamepad_report_t {
+    int16_t x;
+    int16_t y;
+    int16_t rx;
+    int16_t ry;
+    uint8_t z;
+    uint8_t rz;
+    uint16_t buttons;
+};
+
+io_iterator_t virtgamepad_iterator;
+io_service_t virtgamepad_service;
+io_connect_t virtgamepad_connect;
+uint64_t virtgamepad_input[VIRTGAMEPAD_INPU_COUNT];
 
 namespace platf {
 using namespace std::literals;
@@ -282,16 +346,78 @@ void unicode(input_t &input, char *utf8, int size) {
 }
 
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
-  BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
-  return -1;
+  // Get a reference to the IOService
+  kern_return_t ret = IOServiceGetMatchingServices(kIOMasterPortDefault, IOServiceMatching(SERVICE_NAME), &virtgamepad_iterator);
+
+  if (ret != KERN_SUCCESS) {
+    BOOST_LOG(info) << "Gamepad: Unable to access IOService."sv;
+    return 1;
+  }
+
+  // Iterate till success
+  int found = 0;
+  while ((virtgamepad_service = IOIteratorNext(virtgamepad_iterator)) != IO_OBJECT_NULL) {
+    ret = IOServiceOpen(virtgamepad_service, mach_task_self(), 0, &virtgamepad_connect);
+    if (ret == KERN_SUCCESS) {
+      found = 1;
+      break;
+    }
+
+    IOObjectRelease(virtgamepad_service);
+  }
+    
+  IOObjectRelease(virtgamepad_iterator);
+
+  if(!found) {
+    BOOST_LOG(info) << "Gamepad: Unable to open IOService."sv;
+    return 1;
+  }
+
+  // Fill up the input arguments.
+  virtgamepad_input[0] = (uint64_t) strdup(VIRTGAMEPAD_NAME);  // device name
+  virtgamepad_input[1] = strlen((char *)virtgamepad_input[0]);  // name length
+  virtgamepad_input[2] = (uint64_t) gamepad_report_descriptor;  // report descriptor
+  virtgamepad_input[3] = sizeof(gamepad_report_descriptor);  // report descriptor len
+  virtgamepad_input[4] = (uint64_t) strdup(VIRTGAMEPAD_SN);  // serial number
+  virtgamepad_input[5] = strlen((char *)virtgamepad_input[4]);  // serial number len
+  virtgamepad_input[6] = (uint64_t) 2;  // vendor ID
+  virtgamepad_input[7] = (uint64_t) 3;  // device ID
+
+  ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_CREATE, virtgamepad_input, VIRTGAMEPAD_INPU_COUNT, NULL, 0);
+  if (ret != KERN_SUCCESS) {
+    BOOST_LOG(info) << "Gamepad: Unable to create HID device. May be fine if created previously."sv;
+  }
+  return 0;
 }
 
 void free_gamepad(input_t &input, int nr) {
-  BOOST_LOG(info) << "free_gamepad: Gamepad not yet implemented for MacOS."sv;
+  IOObjectRelease(virtgamepad_connect);
 }
 
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
-  BOOST_LOG(info) << "gamepad: Gamepad not yet implemented for MacOS."sv;
+  auto bf = gamepad_state.buttonFlags;
+
+  // Arguments to be passed through the HID message.
+  struct gamepad_report_t gamepad;
+  uint32_t send_count = 4;
+  uint64_t send[send_count];
+  send[0] = (uint64_t)virtgamepad_input[0];         // device name
+  send[1] = strlen((char *)virtgamepad_input[0]);   // name length
+  send[2] = (uint64_t) &gamepad;                    // mouse struct
+  send[3] = sizeof(struct gamepad_report_t);        // mouse struct len
+
+  gamepad.buttons = gamepad_state.buttonFlags;
+  gamepad.x = gamepad_state.lsX;
+  gamepad.y = -gamepad_state.lsY;                   // inversed
+  gamepad.rx = gamepad_state.rsX;
+  gamepad.ry = -gamepad_state.rsY;                  // inversed
+  gamepad.z = gamepad_state.lt;
+  gamepad.rz = gamepad_state.rt;
+
+  kern_return_t ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_SEND, send, send_count, NULL, 0);
+  if(ret != KERN_SUCCESS) {
+    BOOST_LOG(info) << "Gamepad: Unable to send message to HID device."sv;
+  }
 }
 
 // returns current mouse location:
