@@ -24,7 +24,7 @@
 #define FOOHID_SEND 2                     // send selector
 
 // Gamepad buttons
-#define GAMEPAD_ZEROBTNS  0
+#define GAMEPAD_ZEROBTNS 0
 #define GAMEPAD_BTN_A (1 << 0)
 #define GAMEPAD_BTN_B (1 << 1)
 #define GAMEPAD_BTN_X (1 << 2)
@@ -419,10 +419,10 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   struct gamepad_report_t gamepad;
   uint32_t send_count = 4;
   uint64_t send[send_count];
-  send[0] = (uint64_t)virtgamepad_input[0];         // device name
-  send[1] = strlen((char *)virtgamepad_input[0]);   // name length
-  send[2] = (uint64_t)&gamepad;                     // mouse struct
-  send[3] = sizeof(struct gamepad_report_t);        // mouse struct len
+  send[0] = (uint64_t)virtgamepad_input[0];       // device name
+  send[1] = strlen((char *)virtgamepad_input[0]); // name length
+  send[2] = (uint64_t)&gamepad;                   // mouse struct
+  send[3] = sizeof(struct gamepad_report_t);      // mouse struct len
 
   auto flags = gamepad_state.buttonFlags;
 
