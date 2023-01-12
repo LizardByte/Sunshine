@@ -610,6 +610,7 @@ public:
 
     for(int y = 0; y < 4; ++y) {
       if(!fb->handles[y]) {
+        sd->fds[y] = -1;
         // It's not clear wheter there could still be valid handles left.
         // So, continue anyway.
         // TODO: Is this redundent?
