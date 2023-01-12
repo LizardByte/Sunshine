@@ -31,6 +31,8 @@
 #define GAMEPAD_BTN_Y (1 << 3)
 #define GAMEPAD_BTN_L (1 << 4)
 #define GAMEPAD_BTN_R (1 << 5)
+#define GAMEPAD_BTN_LT (1 << 6)
+#define GAMEPAD_BTN_RT (1 << 7)
 #define GAMEPAD_BTN_BACK (1 << 8)
 #define GAMEPAD_BTN_START (1 << 9)
 #define GAMEPAD_BTN_LS (1 << 10)
@@ -443,13 +445,15 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   if(flags & DPAD_LEFT) gamepad.buttons |= GAMEPAD_BTN_LEFT;
   if(flags & DPAD_RIGHT) gamepad.buttons |= GAMEPAD_BTN_RIGHT;
 
+  // Map triggers
+  if(gamepad_state.lt > 0) gamepad.buttons |= GAMEPAD_BTN_LT;
+  if(gamepad_state.rt > 0) gamepad.buttons |= GAMEPAD_BTN_RT;
+
   // Map sticks
   gamepad.x  = gamepad_state.lsX;
   gamepad.y  = -gamepad_state.lsY;
   gamepad.rx = gamepad_state.rsX;
   gamepad.ry = -gamepad_state.rsY;
-  gamepad.z  = gamepad_state.lt;
-  gamepad.rz = gamepad_state.rt;
 
   kern_return_t ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_SEND, send, send_count, NULL, 0);
   if(ret != KERN_SUCCESS) {
