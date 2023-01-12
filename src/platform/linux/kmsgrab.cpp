@@ -610,10 +610,12 @@ public:
 
     for(int y = 0; y < 4; ++y) {
       if(!fb->handles[y]) {
+        // setting sd->fds[y] to a negative value indicates that sd->offsets[y] and sd->pitches[y]
+        // are uninitialized and contain invalid values.
         sd->fds[y] = -1;
-        // It's not clear wheter there could still be valid handles left.
+        // It's not clear whether there could still be valid handles left.
         // So, continue anyway.
-        // TODO: Is this redundent?
+        // TODO: Is this redundant?
         continue;
       }
 
