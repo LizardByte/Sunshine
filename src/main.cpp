@@ -96,7 +96,7 @@ int entry(const char *name, int argc, char *argv[]) {
 */
 namespace version {
 int entry(const char *name, int argc, char *argv[]) {
-  std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
+  std::cout << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   return 0;
 }
 } // namespace version
@@ -279,7 +279,7 @@ int main(int argc, char *argv[]) {
 
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
-
+  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
   // Create signal handler after logging has been initialized
