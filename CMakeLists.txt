@@ -10,6 +10,28 @@ and Nvidia GPUs for hardware encoding. Software encoding is also available. You 
 Moonlight client on a variety of devices. A web UI is provided to allow configuration, and client pairing, from \
 your favorite web browser. Pair from the local server or any mobile device.")
 
+# Generate Sunshine Version based of the git tag
+# https://github.com/nocnokneo/cmake-git-versioning-example/blob/master/LICENSE
+find_package(Git)
+if(GIT_EXECUTABLE)
+  MESSAGE("${CMAKE_CURRENT_SOURCE_DIR}")
+  get_filename_component(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+  # Generate a git-describe version string from Git repository tags
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags --dirty
+    #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
+    RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+  if(NOT GIT_DESCRIBE_ERROR_CODE)
+    set(PROJECT_VERSION ${GIT_DESCRIBE_VERSION})
+    MESSAGE(Sunshine Version: ${GIT_DESCRIBE_VERSION})
+  else()
+    MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
+  endif()
+endif()
+
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configuration specific for AppImage." OFF)
 option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
 option(SUNSHINE_CONFIGURE_FLATPAK_MAN "Configure manifest file required for Flatpak build." OFF)
