@@ -1229,6 +1229,8 @@ void encode_run(
   auto packets        = mail::man->queue<packet_t>(mail::video_packets);
   auto idr_events     = mail->event<bool>(mail::idr);
 
+  std::chrono::duration<double> diff;
+
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
       break;
@@ -1244,17 +1246,25 @@ void encode_run(
     // Encode at a minimum of 10 FPS to avoid image quality issues with static content
     if(!frame->key_frame || images->peek()) {
       if(auto img = images->pop(100ms)) {
+        auto start = std::chrono::steady_clock::now();
         session->device->convert(*img);
+        auto stop = std::chrono::steady_clock::now();
+        diff = stop-start;
+        BOOST_LOG(verbose) << "convert in "sv << diff.count()*1000.0 << "ms"sv;
       }
       else if(!images->running()) {
         break;
       }
     }
 
+    auto start = std::chrono::steady_clock::now();
     if(encode(frame_nr++, *session, frame, packets, channel_data)) {
       BOOST_LOG(error) << "Could not encode video packet"sv;
       return;
     }
+    auto stop = std::chrono::steady_clock::now();
+    diff = stop-start;
+    BOOST_LOG(verbose) << "encode in "sv << diff.count()*1000.0 << "ms"sv;
 
     frame->pict_type = AV_PICTURE_TYPE_NONE;
     frame->key_frame = 0;

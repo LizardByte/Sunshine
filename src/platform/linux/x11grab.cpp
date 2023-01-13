@@ -491,6 +491,7 @@ struct x11_attr_t : public display_t {
   }
 
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
+    auto start = std::chrono::steady_clock::now();
     refresh();
 
     //The whole X server changed, so we gotta reinit everything
@@ -511,6 +512,10 @@ struct x11_attr_t : public display_t {
     if(cursor) {
       blend_cursor(xdisplay.get(), *img_out_base, offset_x, offset_y);
     }
+
+    auto stop = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = stop-start;
+    BOOST_LOG(verbose) << "x11 snapshot in "sv << diff.count()*1000.0 << "ms"sv << std::endl;
 
     return capture_e::ok;
   }
@@ -567,6 +572,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 
   capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
+    auto start = std::chrono::steady_clock::now();
     auto next_frame = std::chrono::steady_clock::now();
 
     while(img) {
@@ -598,10 +604,16 @@ struct shm_attr_t : public x11_attr_t {
       }
     }
 
+    auto stop = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = stop-start;
+    BOOST_LOG(verbose) << "x11 snapshot in "sv << diff.count()*1000.0 << "ms"sv;
+
     return capture_e::ok;
   }
 
   capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) {
+    auto start = std::chrono::steady_clock::now();
+
     //The whole X server changed, so we gotta reinit everything
     if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
@@ -621,7 +633,9 @@ struct shm_attr_t : public x11_attr_t {
       if(cursor) {
         blend_cursor(shm_xdisplay.get(), *img, offset_x, offset_y);
       }
-
+      auto stop = std::chrono::steady_clock::now();
+      std::chrono::duration<double> diff = stop-start;
+      BOOST_LOG(verbose) << "x11 snapshot in "sv << diff.count()*1000.0 << "ms"sv;
       return capture_e::ok;
     }
   }

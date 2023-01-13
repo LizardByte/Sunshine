@@ -707,6 +707,7 @@ public:
   }
 
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
+    auto start = std::chrono::steady_clock::now();
     file_t fb_fd[4];
 
     egl::surface_descriptor_t sd;
@@ -730,6 +731,10 @@ public:
     if(cursor_opt && cursor) {
       cursor_opt->blend(*img_out_base, img_offset_x, img_offset_y);
     }
+
+    auto stop = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = stop-start;
+    BOOST_LOG(verbose) << "kms snapshot in "sv << diff.count()*1000.0 << "ms"sv;
 
     return capture_e::ok;
   }

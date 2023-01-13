@@ -591,6 +591,7 @@ public:
   }
 
   platf::capture_e snapshot(platf::img_t *img, std::chrono::milliseconds timeout, bool cursor) {
+    auto start = std::chrono::steady_clock::now();
     if(cursor != cursor_visible) {
       auto status = reinit(cursor);
       if(status != platf::capture_e::ok) {
@@ -621,6 +622,10 @@ public:
     if(((img_t *)img)->tex.copy((std::uint8_t *)device_ptr, img->height, img->row_pitch)) {
       return platf::capture_e::error;
     }
+
+    auto stop = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = stop-start;
+    BOOST_LOG(verbose) << "nvfbc snapshot in "sv << diff.count()*1000.0 << "ms"sv;
 
     return platf::capture_e::ok;
   }
