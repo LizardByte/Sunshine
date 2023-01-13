@@ -188,7 +188,7 @@ Uninstall:
 
 macOS
 -----
-Sunshine on macOS is experimental. Gamepads do not work. Other features may not work as expected.
+Sunshine on macOS is experimental. Other features may not work as expected.
 
 pkg
 ^^^

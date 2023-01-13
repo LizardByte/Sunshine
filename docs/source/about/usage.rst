@@ -144,6 +144,8 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
 macOS
 ^^^^^
+For gamepad support, install `VirtualHID <https://github.com/kotleni/VirtualHID-macOS/releases/latest>`_
+
 Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
 `Soundflower <https://github.com/mattingalls/Soundflower>`_ or
 `BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
