@@ -1,6 +1,44 @@
 <div id="content" class="container">
   <h1 class="my-4">Hello, Sunshine!</h1>
   <p>Sunshine is a self-hosted game stream host for Moonlight.</p>
+  <!--Version-->
+  <div class="card p-2 my-4">
+    <div class="card-body" v-if="version">
+      <h2>Version {{version}}</h2>
+      <br />
+      <div class="alert alert-success" v-if="version.indexOf('dirty') !== -1">
+        Thank you for helping to make Sunshine a better software! 🌇
+      </div>
+      <div v-if="loading">
+        Loading Latest Release...
+      </div>
+      <div v-else-if="!hasNewNightly && !hasNewStable">
+        <div class="alert alert-success">
+          You're running the latest version of Sunshine
+        </div>
+      </div>
+      <div v-if="hasNewNightly">
+        <div class="alert alert-warning">
+          <div class="d-flex justify-content-between">
+            <div class="my-2">A new <b>Nightly</b> Version is Available!</div>
+            <a class="btn btn-success m-1" :href="nightlyData.html_url" target="_blank">Download</a>
+          </div>
+          <pre><b>{{nightlyData.head_sha}}</b></pre>
+          <pre>{{nightlyData.display_title}}</pre>
+        </div>
+      </div>
+      <div v-if="hasNewStable">
+        <div class="alert alert-warning">
+          <div class="d-flex justify-content-between">
+            <div class="my-2">A new <b>Stable</b> Version is Available!</div>
+            <a class="btn btn-success m-1" :href="githubVersion.html_url" target="_blank">Download</a>
+          </div>
+          <h3>{{githubVersion.name}}</h3>
+          <pre>{{githubVersion.body}}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
   <!--Resources-->
   <div class="card p-2 my-4">
     <div class="card-body">
@@ -35,3 +73,43 @@
     </div>
   </div>
 </div>
+
+<script>
+  new Vue({
+    el: "#content",
+    data() {
+      return {
+        version: null,
+        githubVersion: null,
+        nightlyData: null,
+        loading: true,
+      }
+    },
+    async created() {
+      try {
+        this.version = (await fetch("/api/config").then((r) => r.json())).version;
+        this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
+        if (this.version.split("-g").length > 1) {
+          this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&status=success&per_page=1").then((r) => r.json())).workflow_runs[0];
+        }
+      } catch(e){
+      }
+      this.loading = false;
+    },
+    computed: {
+      hasNewStable() {
+        if (!this.githubVersion || !this.version) return false;
+        if (this.version.indexOf("dirty") !== -1) return false;
+        let v = this.githubVersion.name;
+        if (v.indexOf("v") === 0) v = v.substring(1);
+        return v !== this.version.split("-")[0];
+      },
+      hasNewNightly() {
+        if (!this.version || !this.nightlyData || this.version.split("-g").length === 1) return false;
+        if (this.version.indexOf("dirty") !== -1) return false;
+        let commit = this.version.split("-g")[1].split("-")[0];
+        return this.nightlyData.head_sha.indexOf(commit) !== 0;
+      }
+    }
+  });
+</script>
