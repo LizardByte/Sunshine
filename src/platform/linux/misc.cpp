@@ -331,11 +331,59 @@ bool send_batch(batched_send_info_t &send_info) {
   }
 }
 
+class qos_t : public deinit_t {
+public:
+  qos_t(int sockfd, int level, int option) : sockfd(sockfd), level(level), option(option) {}
+
+  virtual ~qos_t() {
+    int reset_val = -1;
+    if(setsockopt(sockfd, level, option, &reset_val, sizeof(reset_val)) < 0) {
+      BOOST_LOG(warning) << "Failed to reset IP TOS: "sv << errno;
+    }
+  }
+
+private:
+  int sockfd;
+  int level;
+  int option;
+};
+
 std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
-  // Unimplemented
-  //
-  // NB: When implementing, remember to consider that some routes can drop DSCP-tagged packets completely!
-  return nullptr;
+  int sockfd = (int)native_socket;
+
+  int level;
+  int option;
+  if(address.is_v6()) {
+    level  = SOL_IPV6;
+    option = IPV6_TCLASS;
+  }
+  else {
+    level  = SOL_IP;
+    option = IP_TOS;
+  }
+
+  // The specific DSCP values here are chosen to be consistent with Windows
+  int dscp;
+  switch(data_type) {
+  case qos_data_type_e::video:
+    dscp = 40;
+    break;
+  case qos_data_type_e::audio:
+    dscp = 56;
+    break;
+  default:
+    BOOST_LOG(error) << "Unknown traffic type: "sv << (int)data_type;
+    return nullptr;
+  }
+
+  // Shift to put the DSCP value in the correct position in the TOS field
+  dscp <<= 2;
+
+  if(setsockopt(sockfd, level, option, &dscp, sizeof(dscp)) < 0) {
+    return nullptr;
+  }
+
+  return std::make_unique<qos_t>(sockfd, level, option);
 }
 
 namespace source {
