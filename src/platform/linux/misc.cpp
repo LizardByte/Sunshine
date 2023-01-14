@@ -143,13 +143,23 @@ std::string get_mac_address(const std::string_view &address) {
   return "00:00:00:00:00:00"s;
 }
 
-bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group &group) {
+bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
   BOOST_LOG(warning) << "run_unprivileged() is not yet implemented for this platform. The new process will run with Sunshine's permissions."sv;
-  if(!file) {
-    return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec, group);
+  if(!group) {
+    if(!file) {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
+    }
+    else {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > file, bp::std_err > file, ec);
+    }
   }
   else {
-    return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > file, bp::std_err > file, ec, group);
+    if(!file) {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec, *group);
+    }
+    else {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > file, bp::std_err > file, ec, *group);
+    }
   }
 }
 

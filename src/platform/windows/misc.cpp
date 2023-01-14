@@ -345,7 +345,7 @@ void free_proc_thread_attr_list(LPPROC_THREAD_ATTRIBUTE_LIST list) {
   HeapFree(GetProcessHeap(), 0, list);
 }
 
-bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group &group) {
+bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
   HANDLE shell_token = duplicate_shell_token();
   if(!shell_token) {
     // This can happen if the shell has crashed. Fail the launch rather than risking launching with
@@ -459,7 +459,7 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
   if(ret) {
     // Since we are always spawning a process with a less privileged token than ourselves,
     // bp::child() should have no problem opening it with any access rights it wants.
-    auto child = bp::child((bp::pid_t)process_info.dwProcessId, group);
+    auto child = group ? bp::child((bp::pid_t)process_info.dwProcessId, *group) : bp::child((bp::pid_t)process_info.dwProcessId);
 
     // Only close handles after bp::child() has opened the process. If the process terminates
     // quickly, the PID could be reused if we close the process handle.
