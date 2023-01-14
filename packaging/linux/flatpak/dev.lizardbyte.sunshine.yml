@@ -88,6 +88,14 @@ modules:
         url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
         sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
 
+  - name: libmfx-dev
+    disabled: false
+    buildsystem: cmake
+    sources:
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/universe/i/intel-mediasdk/intel-mediasdk_22.3.0.orig.tar.gz
+        sha256: e1e74229f409e969b70c2b35b1955068de3d40db85ecc42bd6ff501468bc76d7
+
   - name: cuda
     disabled: false
     buildsystem: simple

@@ -18,6 +18,7 @@ RUN apt-get update -y \
         libcurl4-openssl-dev=7.81.0* \
         libdrm-dev=2.4.110* \
         libevdev-dev=1.12.1* \
+        libmfx-dev=22.3.0* \
         libnuma-dev=2.0.14* \
         libopus-dev=1.3.1* \
         libpulse-dev=1:15.99.1* \
