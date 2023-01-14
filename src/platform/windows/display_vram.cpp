@@ -698,37 +698,6 @@ public:
   device_ctx_t device_ctx;
 };
 
-capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
-  auto next_frame = std::chrono::steady_clock::now();
-
-  while(img) {
-    auto now = std::chrono::steady_clock::now();
-    while(next_frame > now) {
-      now = std::chrono::steady_clock::now();
-    }
-    next_frame = now + delay;
-
-    auto status = snapshot(img.get(), 1000ms, *cursor);
-    switch(status) {
-    case platf::capture_e::reinit:
-    case platf::capture_e::error:
-      return status;
-    case platf::capture_e::timeout:
-      img = snapshot_cb(img, false);
-      std::this_thread::sleep_for(1ms);
-      break;
-    case platf::capture_e::ok:
-      img = snapshot_cb(img, true);
-      break;
-    default:
-      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
-      return status;
-    }
-  }
-
-  return capture_e::ok;
-}
-
 bool set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info) {
   // This cursor image may not be used
   if(cursor_img.size() == 0) {
