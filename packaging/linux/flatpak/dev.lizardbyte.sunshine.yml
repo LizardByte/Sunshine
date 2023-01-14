@@ -40,6 +40,12 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
         sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0-17ubuntu1.debian.tar.xz
+        sha256: 22e623d98c84eb3fec57e19ea371157a5bc8225ba4c5907f7e5155072317a31d
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do patch -Np1 -i "patches/$n" -d .; done
 
   - name: avahi
     disabled: false
@@ -74,6 +80,13 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8-6ubuntu1.debian.tar.xz
+        sha256: ebf1dfe5e853b6bc6843e3bd784cb6af632041f305abd0e5415114f80c1dcea4
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do patch -Np1 -i "patches/$n" -d .; done
+          - autoreconf -ivf
 
   - name: libevdev
     disabled: false
@@ -87,6 +100,12 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
         sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg-1.debian.tar.xz
+        sha256: d33c56acbbfff2dc540e45c57a38d92210b5e7fd0947ac47fbe48183468aad74
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do patch -Np1 -i "patches/$n" -d .; done
 
   - name: cuda
     disabled: false
