@@ -143,6 +143,12 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14.orig.tar.gz
         sha256: 1ee27abd07ff6ba140aaf9bc6379b37825e54496e01d6f7343330cf1a4487035
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14-3ubuntu2.debian.tar.xz
+        sha256: 49089e5be5367f6367f8b0389d1d523944432607783b53f0605705792e1015ee
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do patch -Np1 -i "patches/$n" -d .; done
     cleanup:
       - "/bin"
 
