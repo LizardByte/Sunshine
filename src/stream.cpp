@@ -764,7 +764,10 @@ void controlBroadcastThread(control_server_t *server) {
         if(session->state.load(std::memory_order_acquire) == session::state_e::STOPPING) {
           pos = server->_map_addr_session->erase(pos);
 
-          enet_peer_disconnect_now(session->control.peer, 0);
+          if(session->control.peer) {
+            enet_peer_disconnect_now(session->control.peer, 0);
+          }
+
           session->controlEnd.raise(true);
           continue;
         }
