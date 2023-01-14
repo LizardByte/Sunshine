@@ -28,6 +28,11 @@
 #define UDP_SEND_MSG_SIZE 2
 #endif
 
+// MinGW headers are missing qWAVE stuff
+typedef UINT32 QOS_FLOWID, *PQOS_FLOWID;
+#define QOS_NON_ADAPTIVE_FLOW 0x00000002
+#include <qos2.h>
+
 namespace bp = boost::process;
 
 using namespace std::literals;
@@ -36,6 +41,12 @@ using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
 bool enabled_mouse_keys = false;
 MOUSEKEYS previous_mouse_keys_state;
+
+HANDLE qos_handle = nullptr;
+
+decltype(QOSCreateHandle) *fn_QOSCreateHandle                 = nullptr;
+decltype(QOSAddSocketToFlow) *fn_QOSAddSocketToFlow           = nullptr;
+decltype(QOSRemoveSocketFromFlow) *fn_QOSRemoveSocketFromFlow = nullptr;
 
 std::filesystem::path appdata() {
   WCHAR sunshine_path[MAX_PATH];
@@ -655,6 +666,95 @@ bool send_batch(batched_send_info_t &send_info) {
   // If USO is not supported, this will fail and the caller will fall back to unbatched sends.
   DWORD bytes_sent;
   return WSASendMsg((SOCKET)send_info.native_socket, &msg, 1, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
+}
+
+class qos_t : public deinit_t {
+public:
+  qos_t(QOS_FLOWID flow_id) : flow_id(flow_id) {}
+
+  virtual ~qos_t() {
+    if(!fn_QOSRemoveSocketFromFlow(qos_handle, (SOCKET)NULL, flow_id, 0)) {
+      auto winerr = GetLastError();
+      BOOST_LOG(warning) << "QOSRemoveSocketFromFlow() failed: "sv << winerr;
+    }
+  }
+
+private:
+  QOS_FLOWID flow_id;
+};
+
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
+  SOCKADDR_IN saddr_v4;
+  SOCKADDR_IN6 saddr_v6;
+  PSOCKADDR dest_addr;
+
+  static std::once_flag load_qwave_once_flag;
+  std::call_once(load_qwave_once_flag, []() {
+    // qWAVE is not installed by default on Windows Server, so we load it dynamically
+    HMODULE qwave = LoadLibraryExA("qwave.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if(!qwave) {
+      BOOST_LOG(debug) << "qwave.dll is not available on this OS"sv;
+      return;
+    }
+
+    fn_QOSCreateHandle         = (decltype(fn_QOSCreateHandle))GetProcAddress(qwave, "QOSCreateHandle");
+    fn_QOSAddSocketToFlow      = (decltype(fn_QOSAddSocketToFlow))GetProcAddress(qwave, "QOSAddSocketToFlow");
+    fn_QOSRemoveSocketFromFlow = (decltype(fn_QOSRemoveSocketFromFlow))GetProcAddress(qwave, "QOSRemoveSocketFromFlow");
+
+    if(!fn_QOSCreateHandle || !fn_QOSAddSocketToFlow || !fn_QOSRemoveSocketFromFlow) {
+      BOOST_LOG(error) << "qwave.dll is missing exports?"sv;
+
+      fn_QOSCreateHandle         = nullptr;
+      fn_QOSAddSocketToFlow      = nullptr;
+      fn_QOSRemoveSocketFromFlow = nullptr;
+
+      FreeLibrary(qwave);
+      return;
+    }
+
+    QOS_VERSION qos_version { 1, 0 };
+    if(!fn_QOSCreateHandle(&qos_version, &qos_handle)) {
+      auto winerr = GetLastError();
+      BOOST_LOG(warning) << "QOSCreateHandle() failed: "sv << winerr;
+      return;
+    }
+  });
+
+  // If qWAVE is unavailable, just return
+  if(!fn_QOSAddSocketToFlow || !qos_handle) {
+    return nullptr;
+  }
+
+  if(address.is_v6()) {
+    saddr_v6  = to_sockaddr(address.to_v6(), port);
+    dest_addr = (PSOCKADDR)&saddr_v6;
+  }
+  else {
+    saddr_v4  = to_sockaddr(address.to_v4(), port);
+    dest_addr = (PSOCKADDR)&saddr_v4;
+  }
+
+  QOS_TRAFFIC_TYPE traffic_type;
+  switch(data_type) {
+  case qos_data_type_e::audio:
+    traffic_type = QOSTrafficTypeVoice;
+    break;
+  case qos_data_type_e::video:
+    traffic_type = QOSTrafficTypeAudioVideo;
+    break;
+  default:
+    BOOST_LOG(error) << "Unknown traffic type: "sv << (int)data_type;
+    return nullptr;
+  }
+
+  QOS_FLOWID flow_id = 0;
+  if(!fn_QOSAddSocketToFlow(qos_handle, (SOCKET)native_socket, dest_addr, traffic_type, QOS_NON_ADAPTIVE_FLOW, &flow_id)) {
+    auto winerr = GetLastError();
+    BOOST_LOG(warning) << "QOSAddSocketToFlow() failed: "sv << winerr;
+    return nullptr;
+  }
+
+  return std::make_unique<qos_t>(flow_id);
 }
 
 } // namespace platf

@@ -351,6 +351,12 @@ struct batched_send_info_t {
 };
 bool send_batch(batched_send_info_t &send_info);
 
+enum class qos_data_type_e : int {
+  audio,
+  video
+};
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
+
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);

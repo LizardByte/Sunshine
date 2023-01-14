@@ -287,6 +287,7 @@ struct session_t {
     int lowseq;
     udp::endpoint peer;
     safe::mail_raw_t::event_t<bool> idr_events;
+    std::unique_ptr<platf::deinit_t> qos;
   } video;
 
   struct {
@@ -302,6 +303,7 @@ struct session_t {
     util::buffer_t<uint8_t *> shards_p;
 
     audio_fec_packet_t fec_packet;
+    std::unique_ptr<platf::deinit_t> qos;
   } audio;
 
   struct {
@@ -1335,6 +1337,9 @@ void videoThread(session_t *session) {
     return;
   }
 
+  auto address       = session->video.peer.address();
+  session->video.qos = std::move(platf::enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video));
+
   BOOST_LOG(debug) << "Start capturing Video"sv;
   video::capture(session->mail, session->config.monitor, session);
 }
@@ -1351,6 +1356,9 @@ void audioThread(session_t *session) {
   if(port < 0) {
     return;
   }
+
+  auto address       = session->audio.peer.address();
+  session->audio.qos = std::move(platf::enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio));
 
   BOOST_LOG(debug) << "Start capturing Audio"sv;
   audio::capture(session->mail, session->config.audio, session);
