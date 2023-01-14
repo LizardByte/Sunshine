@@ -17,6 +17,7 @@
 #include <userenv.h>
 #include <dwmapi.h>
 #include <timeapi.h>
+#include <wlanapi.h>
 // clang-format on
 
 #include "src/main.h"
@@ -33,6 +34,10 @@ typedef UINT32 QOS_FLOWID, *PQOS_FLOWID;
 #define QOS_NON_ADAPTIVE_FLOW 0x00000002
 #include <qos2.h>
 
+#ifndef WLAN_API_MAKE_VERSION
+#define WLAN_API_MAKE_VERSION(_major, _minor) (((DWORD)(_minor)) << 16 | (_major))
+#endif
+
 namespace bp = boost::process;
 
 using namespace std::literals;
@@ -47,6 +52,14 @@ HANDLE qos_handle = nullptr;
 decltype(QOSCreateHandle) *fn_QOSCreateHandle                 = nullptr;
 decltype(QOSAddSocketToFlow) *fn_QOSAddSocketToFlow           = nullptr;
 decltype(QOSRemoveSocketFromFlow) *fn_QOSRemoveSocketFromFlow = nullptr;
+
+HANDLE wlan_handle = nullptr;
+
+decltype(WlanOpenHandle) *fn_WlanOpenHandle         = nullptr;
+decltype(WlanCloseHandle) *fn_WlanCloseHandle       = nullptr;
+decltype(WlanFreeMemory) *fn_WlanFreeMemory         = nullptr;
+decltype(WlanEnumInterfaces) *fn_WlanEnumInterfaces = nullptr;
+decltype(WlanSetInterface) *fn_WlanSetInterface     = nullptr;
 
 std::filesystem::path appdata() {
   WCHAR sunshine_path[MAX_PATH];
@@ -524,6 +537,35 @@ void adjust_thread_priority(thread_priority_e priority) {
 }
 
 void streaming_will_start() {
+  static std::once_flag load_wlanapi_once_flag;
+  std::call_once(load_wlanapi_once_flag, []() {
+    // wlanapi.dll is not installed by default on Windows Server, so we load it dynamically
+    HMODULE wlanapi = LoadLibraryExA("wlanapi.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if(!wlanapi) {
+      BOOST_LOG(debug) << "wlanapi.dll is not available on this OS"sv;
+      return;
+    }
+
+    fn_WlanOpenHandle     = (decltype(fn_WlanOpenHandle))GetProcAddress(wlanapi, "WlanOpenHandle");
+    fn_WlanCloseHandle    = (decltype(fn_WlanCloseHandle))GetProcAddress(wlanapi, "WlanCloseHandle");
+    fn_WlanFreeMemory     = (decltype(fn_WlanFreeMemory))GetProcAddress(wlanapi, "WlanFreeMemory");
+    fn_WlanEnumInterfaces = (decltype(fn_WlanEnumInterfaces))GetProcAddress(wlanapi, "WlanEnumInterfaces");
+    fn_WlanSetInterface   = (decltype(fn_WlanSetInterface))GetProcAddress(wlanapi, "WlanSetInterface");
+
+    if(!fn_WlanOpenHandle || !fn_WlanCloseHandle || !fn_WlanFreeMemory || !fn_WlanEnumInterfaces || !fn_WlanSetInterface) {
+      BOOST_LOG(error) << "wlanapi.dll is missing exports?"sv;
+
+      fn_WlanOpenHandle     = nullptr;
+      fn_WlanCloseHandle    = nullptr;
+      fn_WlanFreeMemory     = nullptr;
+      fn_WlanEnumInterfaces = nullptr;
+      fn_WlanSetInterface   = nullptr;
+
+      FreeLibrary(wlanapi);
+      return;
+    }
+  });
+
   // Enable MMCSS scheduling for DWM
   DwmEnableMMCSS(true);
 
@@ -532,6 +574,39 @@ void streaming_will_start() {
 
   // Promote ourselves to high priority class
   SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+
+  // Enable low latency mode on all connected WLAN NICs if wlanapi.dll is available
+  if(fn_WlanOpenHandle) {
+    DWORD negotiated_version;
+
+    if(fn_WlanOpenHandle(WLAN_API_MAKE_VERSION(2, 0), nullptr, &negotiated_version, &wlan_handle) == ERROR_SUCCESS) {
+      PWLAN_INTERFACE_INFO_LIST wlan_interface_list;
+
+      if(fn_WlanEnumInterfaces(wlan_handle, nullptr, &wlan_interface_list) == ERROR_SUCCESS) {
+        for(DWORD i = 0; i < wlan_interface_list->dwNumberOfItems; i++) {
+          if(wlan_interface_list->InterfaceInfo[i].isState == wlan_interface_state_connected) {
+            // Enable media streaming mode for 802.11 wireless interfaces to reduce latency and
+            // unneccessary background scanning operations that cause packet loss and jitter.
+            //
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
+            // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
+            BOOL value = TRUE;
+            auto error = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid,
+              wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
+            if(error == ERROR_SUCCESS) {
+              BOOST_LOG(info) << "WLAN interface "sv << i << " is now in low latency mode"sv;
+            }
+          }
+        }
+
+        fn_WlanFreeMemory(wlan_interface_list);
+      }
+      else {
+        fn_WlanCloseHandle(wlan_handle, nullptr);
+        wlan_handle = NULL;
+      }
+    }
+  }
 
   // If there is no mouse connected, enable Mouse Keys to force the cursor to appear
   if(!GetSystemMetrics(SM_MOUSEPRESENT)) {
@@ -572,6 +647,12 @@ void streaming_will_stop() {
 
   // Disable MMCSS scheduling for DWM
   DwmEnableMMCSS(false);
+
+  // Closing our WLAN client handle will undo our optimizations
+  if(wlan_handle != nullptr) {
+    fn_WlanCloseHandle(wlan_handle, nullptr);
+    wlan_handle = nullptr;
+  }
 
   // Restore Mouse Keys back to the previous settings if we turned it on
   if(enabled_mouse_keys) {
