@@ -188,8 +188,6 @@ Uninstall:
 
 macOS
 -----
-Sunshine on macOS is experimental. Other features may not work as expected.
-
 pkg
 ^^^
 .. Warning:: The `pkg` does not include runtime dependencies.
