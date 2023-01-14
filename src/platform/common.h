@@ -210,6 +210,13 @@ struct hwdevice_t {
    */
   virtual void init_hwframes(AVHWFramesContext *frames) {};
 
+  /**
+   * Implementations may make modifications required before context derivation
+   */
+  virtual int prepare_to_derive_context(int hw_device_type) {
+    return 0;
+  };
+
   virtual ~hwdevice_t() = default;
 };
 
