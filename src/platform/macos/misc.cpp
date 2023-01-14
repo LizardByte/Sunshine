@@ -153,6 +153,11 @@ bool restart() {
   return false;
 }
 
+bool send_batch(batched_send_info_t &send_info) {
+  // Fall back to unbatched send calls
+  return false;
+}
+
 } // namespace platf
 
 namespace dyn {

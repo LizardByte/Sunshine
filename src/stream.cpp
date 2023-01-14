@@ -1036,8 +1036,25 @@ void videoBroadcastThread(udp::socket &sock) {
 
           inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
           inspect->packet.frameIndex     = av_packet->pts;
+        }
 
-          sock.send_to(asio::buffer(shards[x]), session->video.peer);
+        auto peer_address = session->video.peer.address();
+        auto batch_info   = platf::batched_send_info_t {
+          shards.shards.begin(),
+          shards.blocksize,
+          shards.nr_shards,
+          (uintptr_t)sock.native_handle(),
+          peer_address,
+          session->video.peer.port(),
+        };
+
+        // Use a batched send if it's supported on this platform
+        if(!platf::send_batch(batch_info)) {
+          // Batched send is not available, so send each packet individually
+          BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
+          for(auto x = 0; x < shards.size(); ++x) {
+            sock.send_to(asio::buffer(shards[x]), session->video.peer);
+          }
         }
 
         if(av_packet->flags & AV_PKT_FLAG_KEY) {

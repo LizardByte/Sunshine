@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <boost/process.hpp>
 
 // prevent clang format from "optimizing" the header include order
@@ -21,6 +22,11 @@
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+
+// UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
+#ifndef UDP_SEND_MSG_SIZE
+#define UDP_SEND_MSG_SIZE 2
+#endif
 
 namespace bp = boost::process;
 
@@ -576,6 +582,79 @@ bool restart() {
   // restart us in a few seconds.
   std::raise(SIGINT);
   return true;
+}
+
+SOCKADDR_IN to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
+  SOCKADDR_IN saddr_v4 = {};
+
+  saddr_v4.sin_family = AF_INET;
+  saddr_v4.sin_port   = htons(port);
+
+  auto addr_bytes = address.to_bytes();
+  memcpy(&saddr_v4.sin_addr, addr_bytes.data(), sizeof(saddr_v4.sin_addr));
+
+  return saddr_v4;
+}
+
+SOCKADDR_IN6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
+  SOCKADDR_IN6 saddr_v6 = {};
+
+  saddr_v6.sin6_family   = AF_INET6;
+  saddr_v6.sin6_port     = htons(port);
+  saddr_v6.sin6_scope_id = address.scope_id();
+
+  auto addr_bytes = address.to_bytes();
+  memcpy(&saddr_v6.sin6_addr, addr_bytes.data(), sizeof(saddr_v6.sin6_addr));
+
+  return saddr_v6;
+}
+
+// Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
+// hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
+bool send_batch(batched_send_info_t &send_info) {
+  WSAMSG msg;
+
+  // Convert the target address into a SOCKADDR
+  SOCKADDR_IN saddr_v4;
+  SOCKADDR_IN6 saddr_v6;
+  if(send_info.target_address.is_v6()) {
+    saddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
+
+    msg.name    = (PSOCKADDR)&saddr_v6;
+    msg.namelen = sizeof(saddr_v6);
+  }
+  else {
+    saddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
+
+    msg.name    = (PSOCKADDR)&saddr_v4;
+    msg.namelen = sizeof(saddr_v4);
+  }
+
+  WSABUF buf;
+  buf.buf = (char *)send_info.buffer;
+  buf.len = send_info.block_size * send_info.block_count;
+
+  msg.lpBuffers     = &buf;
+  msg.dwBufferCount = 1;
+  msg.dwFlags       = 0;
+
+  char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD))];
+  msg.Control.buf = cmbuf;
+  msg.Control.len = 0;
+
+  if(send_info.block_count > 1) {
+    msg.Control.len += WSA_CMSG_SPACE(sizeof(DWORD));
+
+    auto cm                       = WSA_CMSG_FIRSTHDR(&msg);
+    cm->cmsg_level                = IPPROTO_UDP;
+    cm->cmsg_type                 = UDP_SEND_MSG_SIZE;
+    cm->cmsg_len                  = WSA_CMSG_LEN(sizeof(DWORD));
+    *((DWORD *)WSA_CMSG_DATA(cm)) = send_info.block_size;
+  }
+
+  // If USO is not supported, this will fail and the caller will fall back to unbatched sends.
+  DWORD bytes_sent;
+  return WSASendMsg((SOCKET)send_info.native_socket, &msg, 1, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
 }
 
 } // namespace platf
