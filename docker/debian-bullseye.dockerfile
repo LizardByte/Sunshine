@@ -1,3 +1,4 @@
+# artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 ARG BASE=debian
 ARG TAG=bullseye
@@ -44,6 +45,10 @@ apt-get install -y --no-install-recommends \
   nodejs=12.22* \
   npm=7.5.2* \
   wget=1.21*
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  apt-get install -y --no-install-recommends \
+    libmfx-dev=21.1.0*
+fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS

@@ -1,3 +1,4 @@
+# artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 ARG BASE=ubuntu
 ARG TAG=22.04
@@ -44,6 +45,10 @@ apt-get install -y --no-install-recommends \
   nodejs=12.22.9* \
   npm=8.5.1* \
   wget=1.21.2*
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  apt-get install -y --no-install-recommends \
+    libmfx-dev=22.3.0*
+fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS

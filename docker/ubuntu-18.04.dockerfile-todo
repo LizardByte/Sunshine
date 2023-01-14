@@ -1,3 +1,4 @@
+# artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 ARG BASE=ubuntu
 ARG TAG=18.04
@@ -123,6 +124,9 @@ chmod a+x ./cuda.run
 ./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
 rm ./cuda.run
 _INSTALL_CUDA
+
+# todo - install libmfx
+# https://github.com/Intel-Media-SDK/MediaSDK
 
 # copy repository
 WORKDIR /build/sunshine/

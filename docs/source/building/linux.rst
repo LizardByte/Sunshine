@@ -23,6 +23,7 @@ Install Requirements
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
+          libmfx-dev \  # x86_64 only
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -79,7 +80,9 @@ Install Requirements
           pulseaudio-libs-devel \
           rpm-build \  # if you want to build an RPM binary package
           wget \  # necessary for cuda install with `run` file
-          which  # necessary for cuda install with `run` file
+          which \  # necessary for cuda install with `run` file
+          # libmfx-devel is not listed for fedora, this is for x86_64 only
+          https://kojipkgs.fedoraproject.org//packages/libmfx/1.25/4.el8/x86_64/libmfx-devel-1.25-4.el8.x86_64.rpm
 
 Ubuntu 20.04
 ^^^^^^^^^^^^
@@ -100,6 +103,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
+          libmfx-dev \  # x86_64 only
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -146,6 +150,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
+          libmfx-dev \  # x86_64 only
           libnuma-dev \
           libopus-dev \
           libpulse-dev \

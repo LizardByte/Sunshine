@@ -1,3 +1,4 @@
+# artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 ARG BASE=ubuntu
 ARG TAG=20.04
@@ -45,6 +46,10 @@ apt-get install -y --no-install-recommends \
   nodejs=10.19.0* \
   npm=6.14.4* \
   wget=1.20.3*
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  apt-get install -y --no-install-recommends \
+    libmfx-dev=20.1.0*
+fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS

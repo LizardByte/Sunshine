@@ -3,9 +3,17 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# This workflow is intended to work with all our organization Docker projects. Docker platforms/architectures should be
-# listed in a file named `.docker_platforms`, comma separated list with no spaces. A readme named `DOCKER_README.md`
+# This workflow is intended to work with all our organization Docker projects. A readme named `DOCKER_README.md`
 # will be used to update the description on Docker hub.
+
+# custom comments in dockerfiles:
+
+# `# platforms: `
+#    Comma separated list of platforms, i.e. `# platforms: linux/386,linux/amd64`. Docker platforms can alternatively
+#    be listed in a file named `.docker_platforms`.
+# `# artifacts: `
+#    `true` to build in two steps, stopping at `artifacts` build stage and extracting the image from there to the
+#    GitHub runner.
 
 name: CI Docker
 
@@ -86,6 +94,59 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       next_version: ${{ steps.verify_changelog.outputs.changelog_parser_version }}
+      next_version_bare: ${{ steps.verify_changelog.outputs.changelog_parser_version_bare }}
+      last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
+      release_body: ${{ steps.verify_changelog.outputs.changelog_parser_description }}
+
+  setup_release:
+    name: Setup Release
+    needs: check_changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set release details
+        id: release_details
+        env:
+          RELEASE_BODY: ${{ needs.check_changelog.outputs.release_body }}
+        run: |
+          # determine to create a release or not
+          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+            RELEASE=true
+          else
+            RELEASE=false
+          fi
+
+          # set the release tag
+          COMMIT=${{ github.sha }}
+          if [[ $GITHUB_REF == refs/heads/master ]]; then
+            TAG="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_BODY="$RELEASE_BODY"
+            PRE_RELEASE="false"
+          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
+            TAG="nightly-dev"
+            RELEASE_NAME="nightly"
+            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
+            PRE_RELEASE="true"
+          fi
+
+          echo "create_release=${RELEASE}" >> $GITHUB_OUTPUT
+          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
+
+          # this is stupid but works for multiline strings
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+    outputs:
+      create_release: ${{ steps.release_details.outputs.create_release }}
+      release_tag: ${{ steps.release_details.outputs.release_tag }}
+      release_commit: ${{ steps.release_details.outputs.release_commit }}
+      release_name: ${{ steps.release_details.outputs.release_name }}
+      release_body: ${{ env.RELEASE_BODY }}
+      pre_release: ${{ steps.release_details.outputs.pre_release }}
 
   lint_dockerfile:
     needs: [check_dockerfiles]
@@ -116,7 +177,7 @@ jobs:
           cat "./hadolint.log" >> $GITHUB_STEP_SUMMARY
 
   docker:
-    needs: [check_dockerfiles, check_changelog]
+    needs: [check_dockerfiles, check_changelog, setup_release]
     if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
     runs-on: ubuntu-latest
     permissions:
@@ -174,12 +235,17 @@ jobs:
             TAGS="${TAGS},${BASE_TAG}:${NV}${{ matrix.tag }},ghcr.io/${BASE_TAG}:${NV}${{ matrix.tag }}"
           fi
 
+          # parse custom directives out of dockerfile
           # try to get the platforms from the dockerfile custom directive, i.e. `# platforms: xxx,yyy`
           while read -r line; do
-            if [[ $line == "# platforms: "* ]]; then
+            if [[ $line == "# platforms: "* && $PLATFORMS == "" ]]; then
               # echo the line and use `sed` to remove the custom directive
               PLATFORMS=$(echo -e "$line" | sed 's/# platforms: //')
-              # break once custom directive is found
+            elif [[ $line == "# artifacts: "* && $ARTIFACTS == "" ]]; then
+              # echo the line and use `sed` to remove the custom directive
+              ARTIFACTS=$(echo -e "$line" | sed 's/# artifacts: //')
+            elif [[ $PLATFORMS != "" && $ARTIFACTS != "" ]]; then
+              # break while loop once all custom directives are found
               break
             fi
           done <"${{ matrix.dockerfile }}"
@@ -196,6 +262,7 @@ jobs:
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
           echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "artifacts=${ARTIFACTS}" >> $GITHUB_OUTPUT
           echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
           echo "push=${PUSH}" >> $GITHUB_OUTPUT
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
@@ -231,6 +298,7 @@ jobs:
           password: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Build artifacts
+        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
         id: build_artifacts
         uses: docker/build-push-action@v3
         with:
@@ -267,6 +335,7 @@ jobs:
           cache-to: type=local,dest=/tmp/.buildx-cache
 
       - name: Arrange Artifacts
+        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
         working-directory: artifacts
         run: |
           # artifacts will be in sub directories named after the docker target platform, e.g. `linux_amd64`
@@ -275,10 +344,25 @@ jobs:
           find ./ -type f -exec mv -t ./ -n '{}' +
 
       - name: Upload Artifacts
+        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
         uses: actions/upload-artifact@v3
         with:
           name: sunshine${{ matrix.tag }}
           path: artifacts/
+
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
       - name: Update Docker Hub Description
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}

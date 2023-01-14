@@ -1,3 +1,4 @@
+# artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 ARG BASE=fedora
 ARG TAG=37
@@ -44,6 +45,11 @@ dnf -y install \
   rpm-build-4.18.0* \
   wget-1.21.3* \
   which-2.21*
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  apt-get install -y --no-install-recommends \
+    # libmfx-devel is not listed for fedora 36/37
+    https://kojipkgs.fedoraproject.org//packages/libmfx/1.25/4.el8/x86_64/libmfx-devel-1.25-4.el8.x86_64.rpm
+fi
 dnf clean all
 rm -rf /var/cache/yum
 _DEPS
