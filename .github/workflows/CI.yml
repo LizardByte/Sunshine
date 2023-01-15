@@ -363,12 +363,6 @@ jobs:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
         include:  # package these differently
-          - type: cpack
-            EXTRA_ARGS: ''
-            dist: 20.04
-          - type: cpack
-            EXTRA_ARGS: ''
-            dist: 22.04
           - type: appimage
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
             dist: 20.04
@@ -430,6 +424,7 @@ jobs:
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
+            libmfx-dev \
             libnuma-dev \
             libopus-dev \
             libpulse-dev \
@@ -459,9 +454,9 @@ jobs:
             --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
             --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
-          # Install CuDA
+          # Install CUDA
           sudo wget \
-            https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run \
+            https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run \
             --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
           sudo chmod a+x /root/cuda.run
           sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
