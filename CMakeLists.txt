@@ -463,7 +463,7 @@ else()
     else()
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
     endif()
-    set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
+    set(FFMPEG_PLATFORM_LIBRARIES mfx va va-drm va-x11 vdpau X11)
 endif()
 set(FFMPEG_INCLUDE_DIRS
         ${FFMPEG_PREPARED_BINARIES}/include)
