@@ -75,13 +75,6 @@ enum class profile_hevc_e : int {
   main    = 1,
   main_10 = 2,
 };
-
-enum class multiframe_mode_e : int {
-  mf_default  = 0,
-  mf_disabled = 1,
-  mf_auto     = 2,
-  mf_manual   = 3,
-};
 } // namespace qsv
 
 
@@ -495,10 +488,7 @@ static encoder_t quicksync {
       { "async_depth"s, 1 },
       { "low_delay_brc"s, 1 },
       { "recovery_point_sei"s, 0 },
-      { "vcm"s, 1 },
       { "pic_timing_sei"s, 0 },
-      { "max_dec_frame_buffering"s, 1 },
-      { "mfmode"s, (int)qsv::multiframe_mode_e::mf_disabled },
     },
     // SDR-specific options
     {
@@ -523,7 +513,6 @@ static encoder_t quicksync {
       { "vcm"s, 1 },
       { "pic_timing_sei"s, 0 },
       { "max_dec_frame_buffering"s, 1 },
-      { "mfmode"s, (int)qsv::multiframe_mode_e::mf_disabled },
     },
     // SDR-specific options
     {
