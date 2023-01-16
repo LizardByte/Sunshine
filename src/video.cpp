@@ -255,6 +255,7 @@ enum flag_e {
   SINGLE_SLICE_ONLY  = 0x08, // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
   CBR_WITH_VBR       = 0x10, // Use a VBR rate control mode to simulate CBR
   RELAXED_COMPLIANCE = 0x20, // Use FF_COMPLIANCE_UNOFFICIAL compliance mode
+  NO_RC_BUF_LIMIT    = 0x40, // Don't set rc_buffer_size
 };
 
 struct encoder_t {
@@ -522,7 +523,7 @@ static encoder_t quicksync {
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_qsv"s,
   },
-  PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE,
+  PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT,
   dxgi_make_hwdevice_ctx,
 };
 
@@ -1130,15 +1131,17 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
       ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
     }
 
-    if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
-      // Use a larger rc_buffer_size for software encoding when slices are enabled,
-      // because libx264 can severely degrade quality if the buffer is too small.
-      // libx265 encounters this issue more frequently, so always scale the
-      // buffer by 1.5x for software HEVC encoding.
-      ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
-    }
-    else {
-      ctx->rc_buffer_size = bitrate / config.framerate;
+    if(!(encoder.flags & NO_RC_BUF_LIMIT)) {
+      if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
+        // Use a larger rc_buffer_size for software encoding when slices are enabled,
+        // because libx264 can severely degrade quality if the buffer is too small.
+        // libx265 encounters this issue more frequently, so always scale the
+        // buffer by 1.5x for software HEVC encoding.
+        ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+      }
+      else {
+        ctx->rc_buffer_size = bitrate / config.framerate;
+      }
     }
   }
   else if(video_format.qp) {
