@@ -22,7 +22,6 @@ dnf -y install \
   cmake-3.24.1* \
   gcc-12.2.1* \
   gcc-c++-12.2.1* \
-  intel-mediasdk-devel-22.4.4* \
   libcap-devel-2.48* \
   libcurl-devel-7.85.0* \
   libdrm-devel-2.4.112* \
@@ -46,6 +45,9 @@ dnf -y install \
   rpm-build-4.18.0* \
   wget-1.21.3* \
   which-2.21*
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  dnf -y install intel-mediasdk-devel-22.4.4*
+fi
 dnf clean all
 rm -rf /var/cache/yum
 _DEPS
