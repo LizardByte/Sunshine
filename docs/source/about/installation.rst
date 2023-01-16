@@ -188,6 +188,7 @@ Uninstall:
 
 macOS
 -----
+
 pkg
 ^^^
 .. Warning:: The `pkg` does not include runtime dependencies.
