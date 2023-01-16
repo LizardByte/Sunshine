@@ -463,7 +463,7 @@ else()
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-aarch64")
     else()
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
-        append(FFMPEG_PLATFORM_LIBRARIES mfx)
+        list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
     endif()
 endif()
 set(FFMPEG_INCLUDE_DIRS
