@@ -23,6 +23,28 @@ Linux
 -----
 Follow the instructions for your preferred package type below.
 
+**CUDA Compatibility**
+
+CUDA is used for NVFBC capture.
+
+.. Tip:: See `CUDA GPUS <https://developer.nvidia.com/cuda-gpus>`_ to cross reference Compute Capability to your GPU.
+
+.. table::
+   :widths: auto
+
+   ===========================================  ==============   ==============    ================================
+   Package                                      CUDA Version     Min Driver        CUDA Compute Capabilities
+   ===========================================  ==============   ==============    ================================
+   https://aur.archlinux.org/packages/sunshine  User dependent   User dependent    User dependent
+   sunshine.AppImage                            11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
+   sunshine_{arch}.flatpak                      11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
+   sunshine-debian-bullseye-{arch}.deb          11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
+   sunshine-fedora-36-{arch}.rpm                12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
+   sunshine-fedora-37-{arch}.rpm                12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
+   sunshine-ubuntu-20.04-{arch}.deb             11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
+   sunshine-ubuntu-22.04-{arch}.deb             11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
+   ===========================================  ==============   ==============    ================================
+
 AppImage
 ^^^^^^^^
 According to AppImageLint the supported distro matrix of the AppImage is below.

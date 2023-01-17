@@ -300,8 +300,7 @@ blob_t compile_vertex_shader(LPCSTR file) {
 class hwdevice_t : public platf::hwdevice_t {
 public:
   int convert(platf::img_t &img_base) override {
-    auto &img         = (img_d3d_t &)img_base;
-    auto back_d3d_img = (img_d3d_t *)back_img.get();
+    auto &img = (img_d3d_t &)img_base;
 
     // Open the shared capture texture with our ID3D11Device
     if(share_img(&img_base)) {
@@ -315,24 +314,9 @@ public:
       return -1;
     }
 
-    // Even though this image will never have racing updates, we must acquire the
-    // keyed mutex for PSSetShaderResources() to succeed.
-    status = back_d3d_img->encoder_mutex->AcquireSync(0, INFINITE);
-    if(status != S_OK) {
-      img.encoder_mutex->ReleaseSync(0);
-      BOOST_LOG(error) << "Failed to acquire back_d3d_img mutex [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    device_ctx->IASetInputLayout(input_layout.get());
-
-    _init_view_port(this->img.width, this->img.height);
     device_ctx->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
     device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(convert_Y_ps.get(), nullptr, 0);
-    device_ctx->PSSetShaderResources(0, 1, &back_d3d_img->encoder_input_res);
-    device_ctx->Draw(3, 0);
-
     device_ctx->RSSetViewports(1, &outY_view);
     device_ctx->PSSetShaderResources(0, 1, &img.encoder_input_res);
     device_ctx->Draw(3, 0);
@@ -341,20 +325,13 @@ public:
     // before rendering on the UV part of the image.
     device_ctx->Flush();
 
-    _init_view_port(this->img.width / 2, this->img.height / 2);
     device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
     device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(convert_UV_ps.get(), nullptr, 0);
-    device_ctx->PSSetShaderResources(0, 1, &back_d3d_img->encoder_input_res);
-    device_ctx->Draw(3, 0);
-
     device_ctx->RSSetViewports(1, &outUV_view);
-    device_ctx->PSSetShaderResources(0, 1, &img.encoder_input_res);
     device_ctx->Draw(3, 0);
-    device_ctx->Flush();
 
-    // Release encoder mutexes to allow capture code to reuse this image
-    back_d3d_img->encoder_mutex->ReleaseSync(0);
+    // Release encoder mutex to allow capture code to reuse this image
     img.encoder_mutex->ReleaseSync(0);
 
     return 0;
@@ -404,6 +381,23 @@ public:
 
     // We require a single texture
     frames->initial_pool_size = 1;
+  }
+
+  int prepare_to_derive_context(int hw_device_type) override {
+    // QuickSync requires our device to be multithread-protected
+    if(hw_device_type == AV_HWDEVICE_TYPE_QSV) {
+      multithread_t mt;
+
+      auto status = device->QueryInterface(IID_ID3D11Multithread, (void **)&mt);
+      if(FAILED(status)) {
+        BOOST_LOG(warning) << "Failed to query ID3D11Multithread interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      mt->SetMultithreadProtected(TRUE);
+    }
+
+    return 0;
   }
 
   int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
@@ -496,6 +490,12 @@ public:
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
+
+    // Clear the RTVs to ensure the aspect ratio padding is black
+    const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    device_ctx->ClearRenderTargetView(nv12_Y_rt.get(), y_black);
+    const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+    device_ctx->ClearRenderTargetView(nv12_UV_rt.get(), uv_black);
 
     return 0;
   }
@@ -592,14 +592,6 @@ public:
 
     img.display = std::move(display);
 
-    // Color the background black, so that the padding for keeping the aspect ratio
-    // is black
-    back_img = img.display->alloc_img();
-    if(img.display->dummy_img(back_img.get()) || share_img(back_img.get())) {
-      BOOST_LOG(warning) << "Couldn't create an image to set background color to black"sv;
-      return -1;
-    }
-
     blend_disable = make_blend(device.get(), false, false);
     if(!blend_disable) {
       return -1;
@@ -632,20 +624,6 @@ public:
   }
 
 private:
-  void _init_view_port(float x, float y, float width, float height) {
-    D3D11_VIEWPORT view {
-      x, y,
-      width, height,
-      0.0f, 1.0f
-    };
-
-    device_ctx->RSSetViewports(1, &view);
-  }
-
-  void _init_view_port(float width, float height) {
-    _init_view_port(0.0f, 0.0f, width, height);
-  }
-
   int share_img(platf::img_t *img_base) {
     auto img = (img_d3d_t *)img_base;
 
@@ -704,9 +682,6 @@ public:
   // The image referenced by hwframe
   // The resulting image is stored here.
   img_d3d_t img;
-
-  // Clear nv12 render target to black
-  std::shared_ptr<img_t> back_img;
 
   vs_t convert_UV_vs;
   ps_t convert_UV_ps;

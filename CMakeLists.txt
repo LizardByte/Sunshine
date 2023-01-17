@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.18)
+# `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
 project(Sunshine VERSION 0.17.0
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
@@ -64,7 +65,7 @@ include_directories(third-party/miniupnp/miniupnpc/include)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules (CURL REQUIRED libcurl)
+pkg_check_modules(CURL REQUIRED libcurl)
 
 if(NOT APPLE)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
@@ -197,12 +198,70 @@ else()
         check_language(CUDA)
 
         if(CMAKE_CUDA_COMPILER)
-            if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-                set(CMAKE_CUDA_ARCHITECTURES 35)
-            endif()
-
             set(CUDA_FOUND ON)
             enable_language(CUDA)
+
+            message(STATUS "CUDA Compiler Version: ${CMAKE_CUDA_COMPILER_VERSION}")
+            set(CMAKE_CUDA_ARCHITECTURES "")
+
+            # https://tech.amikelive.com/node-930/cuda-compatibility-of-nvidia-display-gpu-drivers/
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 6.5)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 10)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_10,code=sm_10")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 6.5)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 50 52)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_50,code=sm_50")
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_52,code=sm_52")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 7.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 11)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_11,code=sm_11")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER 7.6)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 60 61 62)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_60,code=sm_60")
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_61,code=sm_61")
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_62,code=sm_62")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 9.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 20)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_20,code=sm_20")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 9.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 70)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_70,code=sm_70")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 75)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 30)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 80)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.1)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 86)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_86,code=sm_86")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.8)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 90)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_90,code=sm_90")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 12.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 35)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_35,code=sm_35")
+            endif()
+
+            # message(STATUS "CUDA NVCC Flags: ${CUDA_NVCC_FLAGS}")
+            message(STATUS "CUDA Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
         endif()
     endif()
     if(${SUNSHINE_ENABLE_DRM})
@@ -399,12 +458,13 @@ elseif(APPLE)
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
     endif()
 else()
+    set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-aarch64")
     else()
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
+        list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
     endif()
-    set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
 endif()
 set(FFMPEG_INCLUDE_DIRS
         ${FFMPEG_PREPARED_BINARIES}/include)

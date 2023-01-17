@@ -613,6 +613,8 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
   args.try_emplace("x-nv-general.useReliableUdp"sv, "1"sv);
   args.try_emplace("x-nv-vqos[0].fec.minRequiredFecPackets"sv, "0"sv);
   args.try_emplace("x-nv-general.featureFlags"sv, "135"sv);
+  args.try_emplace("x-nv-vqos[0].qosTrafficType"sv, "5"sv);
+  args.try_emplace("x-nv-aqos.qosTrafficType"sv, "4"sv);
 
   config_t config;
 
@@ -629,6 +631,8 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
     config.packetsize            = util::from_view(args.at("x-nv-video[0].packetSize"sv));
     config.minRequiredFecPackets = util::from_view(args.at("x-nv-vqos[0].fec.minRequiredFecPackets"sv));
     config.featureFlags          = util::from_view(args.at("x-nv-general.featureFlags"sv));
+    config.audioQosType          = util::from_view(args.at("x-nv-aqos.qosTrafficType"sv));
+    config.videoQosType          = util::from_view(args.at("x-nv-vqos[0].qosTrafficType"sv));
 
     config.monitor.height         = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
     config.monitor.width          = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));

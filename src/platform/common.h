@@ -23,6 +23,11 @@ struct AVHWFramesContext;
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
 namespace boost {
+namespace asio {
+namespace ip {
+class address;
+} // namespace ip
+} // namespace asio
 namespace filesystem {
 class path;
 }
@@ -211,6 +216,13 @@ struct hwdevice_t {
    */
   virtual void init_hwframes(AVHWFramesContext *frames) {};
 
+  /**
+   * Implementations may make modifications required before context derivation
+   */
+  virtual int prepare_to_derive_context(int hw_device_type) {
+    return 0;
+  };
+
   virtual ~hwdevice_t() = default;
 };
 
@@ -328,6 +340,23 @@ void streaming_will_stop();
 
 bool restart_supported();
 bool restart();
+
+struct batched_send_info_t {
+  const char *buffer;
+  size_t block_size;
+  size_t block_count;
+
+  std::uintptr_t native_socket;
+  boost::asio::ip::address &target_address;
+  uint16_t target_port;
+};
+bool send_batch(batched_send_info_t &send_info);
+
+enum class qos_data_type_e : int {
+  audio,
+  video
+};
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
