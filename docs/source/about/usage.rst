@@ -152,8 +152,6 @@ Sunshine can only access microphones on macOS due to system limitations. To stre
 
 .. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
-.. Caution:: Gamepads are not currently supported.
-
 Configure autostart service
    **MacPorts**
       .. code-block:: bash
