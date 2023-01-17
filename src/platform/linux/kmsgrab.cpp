@@ -295,6 +295,18 @@ public:
     return false;
   }
 
+  std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
+    auto props = plane_props(plane_id);
+    for(auto &[prop, val] : props) {
+      if(prop->name == "rotation"sv) {
+        return val;
+      }
+    }
+
+    BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
+    return DRM_MODE_ROTATE_0;
+  }
+
   connector_interal_t connector(std::uint32_t id) {
     return drmModeGetConnector(fd.el, id);
   }
@@ -532,31 +544,19 @@ public:
         if(monitor != std::end(pos->crtc_to_monitor)) {
           auto &viewport = monitor->second.viewport;
 
-	  // auto props = card.connector_props(card.connector.id);
-	  auto props = card.plane_props(plane->plane_id);
+    width    = viewport.height;
+    height   = viewport.width;
 
-    for(auto &[prop, val] : props) {
-      std::cout << "le prop " << prop-> name << std::endl;
-      if(prop->name == "rotation"sv) {
-        switch(val) {
-          case DRM_MODE_ROTATE_0:
-              std::cout << "Panel is upright and landscape" << std::endl;
-          case DRM_MODE_ROTATE_90:
-              std::cout << "Panel is 90" << std::endl;
-          case DRM_MODE_ROTATE_270:
-              std::cout << "Panel is 270" << std::endl;
-        }
-      }
+    switch (card.get_panel_orientation(plane->plane_id)) {
+      case DRM_MODE_ROTATE_270:
+        BOOST_LOG(debug) << "Detected panel orientation at 270, swapping width and height.";
+        width    = viewport.width;
+        height   = viewport.height;
+      case DRM_MODE_ROTATE_90:
+      case DRM_MODE_ROTATE_180:
+        BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
     }
 
-	  if (!config::video.kms_wh_swap) {
-	    width    = viewport.width;
-	    height   = viewport.height;
-	  }
-	  else {
-	    width    = viewport.height;
-	    height   = viewport.width;
-	  }
 	  offset_x = viewport.offset_x;
           offset_y = viewport.offset_y;
         }
