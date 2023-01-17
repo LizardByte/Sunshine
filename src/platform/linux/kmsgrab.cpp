@@ -19,6 +19,7 @@
 #include "vaapi.h"
 #include "wayland.h"
 #include "x11grab.h"
+#include <iostream>
 
 using namespace std::literals;
 namespace fs = std::filesystem;
@@ -530,6 +531,23 @@ public:
         auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
         if(monitor != std::end(pos->crtc_to_monitor)) {
           auto &viewport = monitor->second.viewport;
+
+	  // auto props = card.connector_props(card.connector.id);
+	  auto props = card.plane_props(plane->plane_id);
+
+    for(auto &[prop, val] : props) {
+      std::cout << "le prop " << prop-> name << std::endl;
+      if(prop->name == "rotation"sv) {
+        switch(val) {
+          case DRM_MODE_ROTATE_0:
+              std::cout << "Panel is upright and landscape" << std::endl;
+          case DRM_MODE_ROTATE_90:
+              std::cout << "Panel is 90" << std::endl;
+          case DRM_MODE_ROTATE_270:
+              std::cout << "Panel is 270" << std::endl;
+        }
+      }
+    }
 
 	  if (!config::video.kms_wh_swap) {
 	    width    = viewport.width;
@@ -1068,5 +1086,6 @@ std::vector<std::string> kms_display_names() {
 
   return display_names;
 }
+
 
 } // namespace platf
