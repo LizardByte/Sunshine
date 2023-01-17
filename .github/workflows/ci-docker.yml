@@ -267,6 +267,32 @@ jobs:
           echo "push=${PUSH}" >> $GITHUB_OUTPUT
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
+      - name: Fix Docker service
+        # https://www.lorenzobettini.it/2022/10/fixing-docker-problems-in-fedora
+        # Fedora docker images are extremely slow, especially with Qemu emulation for arm64 images.
+        run: |
+          # stop docker service
+          sudo systemctl stop docker
+
+          # create docker environment file
+          FILE="/etc/sysconfig/docker"
+          sudo mkdir -p $(dirname $FILE)
+          sudo touch $FILE
+          echo "OPTIONS=\"--log-driver=journald --live-restore --default-ulimit nofile=1024:1024\"" | sudo tee $FILE
+
+          # specify the docker daemon execution command
+          FILE="/etc/systemd/system/docker.service.d/docker-custom.conf"
+          sudo mkdir -p $(dirname $FILE)
+          sudo touch $FILE
+          echo "[Service]" | sudo tee $FILE
+          echo "EnvironmentFile=-/etc/sysconfig/docker" | sudo tee --append $FILE
+          echo "ExecStart=/usr/bin/dockerd --host=fd:// --exec-opt native.cgroupdriver=systemd $OPTIONS" \
+            | sudo tee --append $FILE
+
+          # restart docker service
+          sudo systemctl daemon-reload
+          sudo systemctl start docker
+
       - name: Set Up QEMU
         uses: docker/setup-qemu-action@v2
 
