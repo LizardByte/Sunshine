@@ -305,6 +305,7 @@ jobs:
           context: ./
           file: ${{ matrix.dockerfile }}
           target: artifacts
+          network: host
           outputs: type=local,dest=artifacts
           push: false
           platforms: ${{ steps.prepare.outputs.platforms }}
@@ -323,6 +324,7 @@ jobs:
         with:
           context: ./
           file: ${{ matrix.dockerfile }}
+          network: host
           push: ${{ steps.prepare.outputs.push }}
           platforms: ${{ steps.prepare.outputs.platforms }}
           build-args: |
