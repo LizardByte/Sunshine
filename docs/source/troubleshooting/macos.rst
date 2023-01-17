@@ -19,6 +19,6 @@ No gamepad detected
 Unable to create HID device
 ---------------------------
 If you get this error:
-   `Gamepad: Unable to create HID device. May be fine if created previously.`
+    `Gamepad: Unable to create HID device. May be fine if created previously.`
 
    It's okay. It's just a warning.
