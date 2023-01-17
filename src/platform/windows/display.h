@@ -116,6 +116,7 @@ public:
 class display_base_t : public display_t {
 public:
   int init(int framerate, const std::string &display_name);
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
 
   std::chrono::nanoseconds delay;
 
@@ -147,15 +148,14 @@ protected:
 
   const char *dxgi_format_to_string(DXGI_FORMAT format);
 
-  virtual int complete_img(img_t *img, bool dummy)                     = 0;
-  virtual std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() = 0;
+  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+  virtual int complete_img(img_t *img, bool dummy)                                               = 0;
+  virtual std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats()                           = 0;
 };
 
 class display_ram_t : public display_base_t {
 public:
-  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
-  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible);
-
+  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img) override;
@@ -171,8 +171,7 @@ public:
 
 class display_vram_t : public display_base_t, public std::enable_shared_from_this<display_vram_t> {
 public:
-  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
-  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible);
+  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;

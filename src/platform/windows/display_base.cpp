@@ -79,6 +79,63 @@ duplication_t::~duplication_t() {
   release_frame();
 }
 
+capture_e display_base_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
+  auto next_frame = std::chrono::steady_clock::now();
+
+  // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
+  HANDLE timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+  if(!timer) {
+    timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+    if(!timer) {
+      auto winerr = GetLastError();
+      BOOST_LOG(error) << "Failed to create timer: "sv << winerr;
+      return capture_e::error;
+    }
+  }
+
+  auto close_timer = util::fail_guard([timer]() {
+    CloseHandle(timer);
+  });
+
+  while(img) {
+    auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
+
+    // If the wait time is between 1 us and 1 second, wait the specified time
+    // and offset the next frame time from the exact current frame time target.
+    if(wait_time_us > 0 && wait_time_us < 1000000) {
+      LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
+      SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
+      WaitForSingleObject(timer, INFINITE);
+      next_frame += delay;
+    }
+    else {
+      // If the wait time is negative (meaning the frame is past due) or the
+      // computed wait time is beyond a second (meaning possible clock issues),
+      // just capture the frame now and resynchronize the frame interval with
+      // the current time.
+      next_frame = std::chrono::steady_clock::now() + delay;
+    }
+
+    auto status = snapshot(img.get(), 1000ms, *cursor);
+    switch(status) {
+    case platf::capture_e::reinit:
+    case platf::capture_e::error:
+      return status;
+    case platf::capture_e::timeout:
+      img = snapshot_cb(img, false);
+      break;
+    case platf::capture_e::ok:
+      img = snapshot_cb(img, true);
+      break;
+    default:
+      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+      return status;
+    }
+  }
+
+  return capture_e::ok;
+}
+
 int display_base_t::init(int framerate, const std::string &display_name) {
   std::once_flag windows_cpp_once_flag;
 
