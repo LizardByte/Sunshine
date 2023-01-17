@@ -1081,6 +1081,68 @@ amd_rc
 
       amd_rc = vbr_latency
 
+amd_usage
+^^^^^^^^^
+
+**Description**
+   The encoder usage profile, used to balance latency with encoding quality.
+
+   .. Note:: This option only applies when using amdvce `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =============== ===========
+   Value           Description
+   =============== ===========
+   transcoding     transcoding (slowest)
+   webcam          webcam (slow)
+   lowlatency      low latency (fast)
+   ultralowlatency ultra low latency (fastest)
+   =============== ===========
+
+**Default**
+   ``ultralowlatency``
+
+**Example**
+   .. code-block:: text
+
+      amd_usage = ultralowlatency
+
+amd_preanalysis
+^^^^^^^^^^^^^^^
+
+**Description**
+   Preanalysis can increase encoding quality at the cost of latency.
+
+   .. Note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_preanalysis = disabled
+
+amd_vbaq
+^^^^^^^^
+
+**Description**
+   Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality.
+
+   .. Note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_vbaq = enabled
+
 amd_coder
 ^^^^^^^^^
 
