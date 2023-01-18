@@ -6,6 +6,12 @@
 #include <codecvt>
 #include <initguid.h>
 
+#include <boost/process.hpp>
+
+// We have to include boost/process.hpp before display.h due to WinSock.h,
+// but that prevents the definition of NTSTATUS so we must define it ourself.
+typedef long NTSTATUS;
+
 #include "display.h"
 #include "misc.h"
 #include "src/config.h"
@@ -16,6 +22,8 @@ namespace platf {
 using namespace std::literals;
 }
 namespace platf::dxgi {
+namespace bp = boost::process;
+
 capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p) {
   auto capture_status = release_frame();
   if(capture_status != capture_e::ok) {
@@ -136,6 +144,96 @@ capture_e display_base_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<:
   return capture_e::ok;
 }
 
+bool set_gpu_preference_on_self(int preference) {
+  // The GPU preferences key uses app path as the value name.
+  WCHAR sunshine_path[MAX_PATH];
+  GetModuleFileNameW(NULL, sunshine_path, ARRAYSIZE(sunshine_path));
+
+  WCHAR value_data[128];
+  swprintf_s(value_data, L"GpuPreference=%d;", preference);
+
+  auto status = RegSetKeyValueW(HKEY_CURRENT_USER,
+    L"Software\\Microsoft\\DirectX\\UserGpuPreferences",
+    sunshine_path,
+    REG_SZ,
+    value_data,
+    (wcslen(value_data) + 1) * sizeof(WCHAR));
+  if(status != ERROR_SUCCESS) {
+    BOOST_LOG(error) << "Failed to set GPU preference: "sv << status;
+    return false;
+  }
+
+  BOOST_LOG(info) << "Set GPU preference: "sv << preference;
+  return true;
+}
+
+// On hybrid graphics systems, Windows will change the order of GPUs reported by
+// DXGI in accordance with the user's GPU preference. If the selected GPU is a
+// render-only device with no displays, DXGI will add virtual outputs to the
+// that device to avoid confusing applications. While this works properly for most
+// applications, it breaks the Desktop Duplication API because DXGI doesn't proxy
+// the virtual DXGIOutput to the real GPU it is attached to. When trying to call
+// DuplicateOutput() on one of these virtual outputs, it fails with DXGI_ERROR_UNSUPPORTED
+// (even if you try sneaky stuff like passing the ID3D11Device for the iGPU and the
+// virtual DXGIOutput from the dGPU). Because the GPU preference is once-per-process,
+// we spawn a helper tool to probe for us before we set our own GPU preference.
+bool probe_for_gpu_preference(const std::string &display_name) {
+  // If we've already been through here, there's nothing to do this time.
+  static bool set_gpu_preference = false;
+  if(set_gpu_preference) {
+    return true;
+  }
+
+  std::string cmd = "tools\\ddprobe.exe";
+
+  // We start at 1 because 0 is automatic selection which can be overridden by
+  // the GPU driver control panel options. Since ddprobe.exe can have different
+  // GPU driver overrides than Sunshine.exe, we want to avoid a scenario where
+  // autoselection might work for ddprobe.exe but not for us.
+  for(int i = 1; i < 5; i++) {
+    // Run the probe tool
+    //
+    // Arg format: [GPU preference] [Display name]
+    //
+    // Exit codes:
+    // < 0 -> Error performing the probe
+    // 0   -> Probe failed (DD API doesn't work with that GPU preference)
+    // 1   -> Probe successful (DD API works)
+    int result;
+    try {
+      result = bp::system(cmd, std::to_string(i), display_name, bp::std_out > bp::null, bp::std_err > bp::null);
+    }
+    catch(bp::process_error &e) {
+      BOOST_LOG(error) << "Failed to start ddprobe.exe: "sv << e.what();
+      return false;
+    }
+
+    BOOST_LOG(debug) << "ddprobe.exe ["sv << i << "] ["sv << display_name << "] returned: "sv << result;
+
+    if(result > 0) {
+      // We found a working GPU preference, so set ourselves to use that.
+      if(set_gpu_preference_on_self(i)) {
+        set_gpu_preference = true;
+        return true;
+      }
+      else {
+        return false;
+      }
+    }
+    else if(result == 0) {
+      // This configuration didn't work, so continue testing others
+      continue;
+    }
+    else {
+      BOOST_LOG(error) << "ddprobe.exe ["sv << i << "] ["sv << display_name << "] failed: "sv << result;
+    }
+  }
+
+  // If none of the manual options worked, we'll try autoselection as a last-ditch effort
+  set_gpu_preference_on_self(0);
+  return false;
+}
+
 int display_base_t::init(int framerate, const std::string &display_name) {
   std::once_flag windows_cpp_once_flag;
 
@@ -163,6 +261,11 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
   HRESULT status;
+
+  // We must set the GPU preference before calling any DXGI APIs!
+  if(!probe_for_gpu_preference(display_name)) {
+    BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
+  }
 
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
   if(FAILED(status)) {
@@ -577,10 +680,15 @@ std::vector<std::string> display_names(mem_type_e) {
 
   std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
+  // We must set the GPU preference before calling any DXGI APIs!
+  if(!dxgi::probe_for_gpu_preference("")) {
+    BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
+  }
+
   dxgi::factory1_t factory;
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
   if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+    BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']';
     return {};
   }
 

@@ -595,6 +595,9 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
     install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
 
+    # Mandatory tools
+    install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
+
     # scripts
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
             DESTINATION "scripts"
