@@ -620,20 +620,6 @@
           If no external IP address is given, Sunshine will automatically detect external IP
         </div>
       </div>
-	<!--KMS Capture Swap Width Height-->
-	<div class="mb-3">
-	<label for="kms_wh_swap" class="form-label"
-	    >Swap Width/Height for KMS Capture (Needed for Steam Deck)</label
-	>
-	<select
-	    id="kms_wh_swap"
-	    class="form-select"
-	    v-model="config.kms_wh_swap"
-	>
-	    <option value="disabled">Disabled</option>
-	    <option value="enabled">Enabled</option>
-	</select>
-	</div>
     </div>
     <!--Software Settings-->
     <div v-if="currentTab === 'sw'" class="config-page">
@@ -898,7 +884,6 @@
             this.config.resolutions ||
             "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]";
           this.fps = JSON.parse(this.config.fps);
-	  this.config.kms_wh_swap = this.config.kms_wh_swap || "disabled";
           //Resolutions should be fixed because are not valid JSON
           let res = this.config.resolutions.substring(
             1,

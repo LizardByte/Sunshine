@@ -12,14 +12,12 @@
 #include "src/platform/common.h"
 #include "src/round_robin.h"
 #include "src/utility.h"
-#include "src/config.h"
 
 // Cursor rendering support through x11
 #include "graphics.h"
 #include "vaapi.h"
 #include "wayland.h"
 #include "x11grab.h"
-#include <iostream>
 
 using namespace std::literals;
 namespace fs = std::filesystem;

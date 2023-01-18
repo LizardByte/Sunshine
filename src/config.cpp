@@ -270,8 +270,7 @@ video_t video {
   {},  // encoder
   {},  // adapter_name
   {},  // output_name
-  true, // dwmflush
-  false // kms_wh_swap
+  true // dwmflush
 };
 
 audio_t audio {};
@@ -786,7 +785,6 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
   bool_f(vars, "dwmflush", video.dwmflush);
-  bool_f(vars, "kms_wh_swap", video.kms_wh_swap);
 
   path_f(vars, "pkey", nvhttp.pkey);
   path_f(vars, "cert", nvhttp.cert);
