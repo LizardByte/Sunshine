@@ -539,27 +539,28 @@ public:
         this->env_height = ::platf::kms::env_height;
 
         auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
-        if(monitor != std::end(pos->crtc_to_monitor)) {
-          auto &viewport = monitor->second.viewport;
+	if(monitor != std::end(pos->crtc_to_monitor)) {
+	  auto &viewport = monitor->second.viewport;
 
-    width    = viewport.width;
-    height   = viewport.height;
+	  width    = viewport.width;
+	  height   = viewport.height;
 
-    switch (card.get_panel_orientation(plane->plane_id)) {
-      case DRM_MODE_ROTATE_270:
-        BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
-        width    = viewport.height;
-        height   = viewport.width;
-        break;
-      case DRM_MODE_ROTATE_90:
-      case DRM_MODE_ROTATE_180:
-        BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
-        break;
-    }
+	  switch (card.get_panel_orientation(plane->plane_id)) {
+	  case DRM_MODE_ROTATE_270:
+	    BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+	    width    = viewport.height;
+	    height   = viewport.width;
+	    break;
+	  case DRM_MODE_ROTATE_90:
+	  case DRM_MODE_ROTATE_180:
+	    BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
+	    break;
+	  }
 
 	  offset_x = viewport.offset_x;
-          offset_y = viewport.offset_y;
+	  offset_y = viewport.offset_y;
         }
+
         // This code path shouldn't happend, but it's there just in case.
         // crtc_to_monitor is part of the guesswork after all.
         else {
@@ -1086,6 +1087,5 @@ std::vector<std::string> kms_display_names() {
 
   return display_names;
 }
-
 
 } // namespace platf
