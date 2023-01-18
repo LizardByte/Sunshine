@@ -297,7 +297,7 @@ public:
     auto props = plane_props(plane_id);
     for(auto &[prop, val] : props) {
       if(prop->name == "rotation"sv) {
-        return val;
+	return val;
       }
     }
 
