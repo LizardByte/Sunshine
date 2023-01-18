@@ -75,13 +75,6 @@ enum class profile_hevc_e : int {
   main    = 1,
   main_10 = 2,
 };
-
-enum class multiframe_mode_e : int {
-  mf_default  = 0,
-  mf_disabled = 1,
-  mf_auto     = 2,
-  mf_manual   = 3,
-};
 } // namespace qsv
 
 
@@ -262,6 +255,7 @@ enum flag_e {
   SINGLE_SLICE_ONLY  = 0x08, // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
   CBR_WITH_VBR       = 0x10, // Use a VBR rate control mode to simulate CBR
   RELAXED_COMPLIANCE = 0x20, // Use FF_COMPLIANCE_UNOFFICIAL compliance mode
+  NO_RC_BUF_LIMIT    = 0x40, // Don't set rc_buffer_size
 };
 
 struct encoder_t {
@@ -494,11 +488,9 @@ static encoder_t quicksync {
       { "forced_idr"s, 1 },
       { "async_depth"s, 1 },
       { "low_delay_brc"s, 1 },
+      { "low_power"s, 1 },
       { "recovery_point_sei"s, 0 },
-      { "vcm"s, 1 },
       { "pic_timing_sei"s, 0 },
-      { "max_dec_frame_buffering"s, 1 },
-      { "mfmode"s, (int)qsv::multiframe_mode_e::mf_disabled },
     },
     // SDR-specific options
     {
@@ -519,11 +511,11 @@ static encoder_t quicksync {
       { "forced_idr"s, 1 },
       { "async_depth"s, 1 },
       { "low_delay_brc"s, 1 },
+      { "low_power"s, 1 },
       { "recovery_point_sei"s, 0 },
       { "vcm"s, 1 },
       { "pic_timing_sei"s, 0 },
       { "max_dec_frame_buffering"s, 1 },
-      { "mfmode"s, (int)qsv::multiframe_mode_e::mf_disabled },
     },
     // SDR-specific options
     {
@@ -533,7 +525,7 @@ static encoder_t quicksync {
     std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
     "h264_qsv"s,
   },
-  PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE,
+  PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT,
   dxgi_make_hwdevice_ctx,
 };
 
@@ -1141,15 +1133,17 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
       ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
     }
 
-    if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
-      // Use a larger rc_buffer_size for software encoding when slices are enabled,
-      // because libx264 can severely degrade quality if the buffer is too small.
-      // libx265 encounters this issue more frequently, so always scale the
-      // buffer by 1.5x for software HEVC encoding.
-      ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
-    }
-    else {
-      ctx->rc_buffer_size = bitrate / config.framerate;
+    if(!(encoder.flags & NO_RC_BUF_LIMIT)) {
+      if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
+        // Use a larger rc_buffer_size for software encoding when slices are enabled,
+        // because libx264 can severely degrade quality if the buffer is too small.
+        // libx265 encounters this issue more frequently, so always scale the
+        // buffer by 1.5x for software HEVC encoding.
+        ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+      }
+      else {
+        ctx->rc_buffer_size = bitrate / config.framerate;
+      }
     }
   }
   else if(video_format.qp) {
