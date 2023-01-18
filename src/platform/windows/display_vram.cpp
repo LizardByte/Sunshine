@@ -101,15 +101,15 @@ struct img_d3d_t : public platf::img_t {
   render_target_t capture_rt;
   keyed_mutex_t capture_mutex;
 
-  // These objects are owned by the hwdevice_t's ID3D11Device
-  texture2d_t encoder_texture;
-  shader_res_t encoder_input_res;
-  keyed_mutex_t encoder_mutex;
-
   // This is the shared handle used by hwdevice_t to open capture_texture
   HANDLE encoder_texture_handle = {};
 
+  // Set to true if the image corresponds to a dummy texture used prior to
+  // the first successful capture of a desktop frame
   bool dummy = false;
+
+  // Unique identifier for this image
+  uint32_t id = 0;
 
   virtual ~img_d3d_t() override {
     if(encoder_texture_handle) {
@@ -300,15 +300,16 @@ blob_t compile_vertex_shader(LPCSTR file) {
 class hwdevice_t : public platf::hwdevice_t {
 public:
   int convert(platf::img_t &img_base) override {
-    auto &img = (img_d3d_t &)img_base;
+    auto &img     = (img_d3d_t &)img_base;
+    auto &img_ctx = img_ctx_map[img.id];
 
     // Open the shared capture texture with our ID3D11Device
-    if(share_img(&img_base)) {
+    if(initialize_image_context(img, img_ctx)) {
       return -1;
     }
 
     // Acquire encoder mutex to synchronize with capture code
-    auto status = img.encoder_mutex->AcquireSync(0, INFINITE);
+    auto status = img_ctx.encoder_mutex->AcquireSync(0, INFINITE);
     if(status != S_OK) {
       BOOST_LOG(error) << "Failed to acquire encoder mutex [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -318,7 +319,7 @@ public:
     device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(convert_Y_ps.get(), nullptr, 0);
     device_ctx->RSSetViewports(1, &outY_view);
-    device_ctx->PSSetShaderResources(0, 1, &img.encoder_input_res);
+    device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
     device_ctx->Draw(3, 0);
 
     // Artifacts start appearing on the rendered image if Sunshine doesn't flush
@@ -332,7 +333,7 @@ public:
     device_ctx->Draw(3, 0);
 
     // Release encoder mutex to allow capture code to reuse this image
-    img.encoder_mutex->ReleaseSync(0);
+    img_ctx.encoder_mutex->ReleaseSync(0);
 
     return 0;
   }
@@ -439,8 +440,8 @@ public:
     auto out_width  = frame->width;
     auto out_height = frame->height;
 
-    float in_width  = img.display->width;
-    float in_height = img.display->height;
+    float in_width  = display->width;
+    float in_height = display->height;
 
     // Ensure aspect ratio is maintained
     auto scalar       = std::fminf(out_width / in_width, out_height / in_height);
@@ -456,13 +457,7 @@ public:
 
     // The underlying frame pool owns the texture, so we must reference it for ourselves
     frame_texture->AddRef();
-    img.encoder_texture.reset(frame_texture);
-
-    img.width       = out_width;
-    img.height      = out_height;
-    img.data        = (std::uint8_t *)img.encoder_texture.get();
-    img.row_pitch   = out_width * 4;
-    img.pixel_pitch = 4;
+    hwframe_texture.reset(frame_texture);
 
     float info_in[16 / sizeof(float)] { 1.0f / (float)out_width_f }; //aligned to 16-byte
     info_scene = make_buffer(device.get(), info_in);
@@ -477,7 +472,7 @@ public:
       D3D11_RTV_DIMENSION_TEXTURE2D
     };
 
-    auto status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
+    auto status = device->CreateRenderTargetView(hwframe_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -485,7 +480,7 @@ public:
 
     nv12_rt_desc.Format = (format == DXGI_FORMAT_P010) ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
 
-    status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
+    status = device->CreateRenderTargetView(hwframe_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -590,7 +585,7 @@ public:
       convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(),
       &input_layout);
 
-    img.display = std::move(display);
+    this->display = std::move(display);
 
     blend_disable = make_blend(device.get(), false, false);
     if(!blend_disable) {
@@ -624,13 +619,32 @@ public:
   }
 
 private:
-  int share_img(platf::img_t *img_base) {
-    auto img = (img_d3d_t *)img_base;
+  struct encoder_img_ctx_t {
+    // Used to determine if the underlying texture changes.
+    // Not safe for actual use by the encoder!
+    texture2d_t::pointer capture_texture_p;
 
+    texture2d_t encoder_texture;
+    shader_res_t encoder_input_res;
+    keyed_mutex_t encoder_mutex;
+
+    void reset() {
+      capture_texture_p = nullptr;
+      encoder_texture.reset();
+      encoder_input_res.reset();
+      encoder_mutex.reset();
+    }
+  };
+
+  int initialize_image_context(const img_d3d_t &img, encoder_img_ctx_t &img_ctx) {
     // If we've already opened the shared texture, we're done
-    if(img->encoder_texture) {
+    if(img_ctx.encoder_texture && img.capture_texture.get() == img_ctx.capture_texture_p) {
       return 0;
     }
+
+    // Reset this image context in case it was used before with a different texture.
+    // Textures can change when transitioning from a dummy image to a real image.
+    img_ctx.reset();
 
     device1_t device1;
     auto status = device->QueryInterface(__uuidof(ID3D11Device1), (void **)&device1);
@@ -640,26 +654,27 @@ private:
     }
 
     // Open a handle to the shared texture
-    status = device1->OpenSharedResource1(img->encoder_texture_handle, __uuidof(ID3D11Texture2D), (void **)&img->encoder_texture);
+    status = device1->OpenSharedResource1(img.encoder_texture_handle, __uuidof(ID3D11Texture2D), (void **)&img_ctx.encoder_texture);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to open shared image texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
     // Get the keyed mutex to synchronize with the capture code
-    status = img->encoder_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&img->encoder_mutex);
+    status = img_ctx.encoder_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&img_ctx.encoder_mutex);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
     // Create the SRV for the encoder texture
-    status = device->CreateShaderResourceView(img->encoder_texture.get(), nullptr, &img->encoder_input_res);
+    status = device->CreateShaderResourceView(img_ctx.encoder_texture.get(), nullptr, &img_ctx.encoder_input_res);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create shader resource view for encoding [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
+    img_ctx.capture_texture_p = img.capture_texture.get();
     return 0;
   }
 
@@ -680,8 +695,15 @@ public:
   render_target_t nv12_UV_rt;
 
   // The image referenced by hwframe
-  // The resulting image is stored here.
-  img_d3d_t img;
+  texture2d_t hwframe_texture;
+
+  // d3d_img_t::id -> encoder_img_ctx_t
+  // These store the encoder textures for each img_t that passes through
+  // convert(). We can't store them in the img_t itself because it is shared
+  // amongst multiple hwdevice_t objects (and therefore multiple ID3D11Devices).
+  std::map<uint32_t, encoder_img_ctx_t> img_ctx_map;
+
+  std::shared_ptr<platf::display_t> display;
 
   vs_t convert_UV_vs;
   ps_t convert_UV_ps;
@@ -984,6 +1006,7 @@ std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   img->width   = width;
   img->height  = height;
   img->display = shared_from_this();
+  img->id      = next_image_id++;
 
   return img;
 }
@@ -1007,9 +1030,6 @@ int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
   img->capture_texture.reset();
   img->capture_rt.reset();
   img->capture_mutex.reset();
-  img->encoder_texture.reset();
-  img->encoder_input_res.reset();
-  img->encoder_mutex.reset();
   img->data = nullptr;
   if(img->encoder_texture_handle) {
     CloseHandle(img->encoder_texture_handle);

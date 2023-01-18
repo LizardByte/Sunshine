@@ -195,6 +195,8 @@ public:
   gpu_cursor_t cursor_xor;
 
   texture2d_t last_frame_copy;
+
+  std::atomic<uint32_t> next_image_id;
 };
 } // namespace platf::dxgi
 
