@@ -489,7 +489,10 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
   if(ret) {
     // Since we are always spawning a process with a less privileged token than ourselves,
     // bp::child() should have no problem opening it with any access rights it wants.
-    auto child = group ? bp::child((bp::pid_t)process_info.dwProcessId, *group) : bp::child((bp::pid_t)process_info.dwProcessId);
+    auto child = bp::child((bp::pid_t)process_info.dwProcessId);
+    if(group) {
+      group->add(child);
+    }
 
     // Only close handles after bp::child() has opened the process. If the process terminates
     // quickly, the PID could be reused if we close the process handle.
