@@ -588,6 +588,8 @@ void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) 
     color_p = &video::colors[2];
     break;
   case 9: // SWS_CS_BT2020
+    color_p = &video::colors[4];
+    break;
   default:
     BOOST_LOG(warning) << "Colorspace: ["sv << colorspace << "] not yet supported: switching to default"sv;
     color_p = &video::colors[0];

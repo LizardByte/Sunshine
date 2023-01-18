@@ -165,36 +165,6 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
-capture_e display_ram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
-  auto next_frame = std::chrono::steady_clock::now();
-
-  while(img) {
-    auto now = std::chrono::steady_clock::now();
-    while(next_frame > now) {
-      now = std::chrono::steady_clock::now();
-    }
-    next_frame = now + delay;
-
-    auto status = snapshot(img.get(), 1000ms, *cursor);
-    switch(status) {
-    case platf::capture_e::reinit:
-    case platf::capture_e::error:
-      return status;
-    case platf::capture_e::timeout:
-      std::this_thread::sleep_for(1ms);
-      continue;
-    case platf::capture_e::ok:
-      img = snapshot_cb(img);
-      break;
-    default:
-      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
-      return status;
-    }
-  }
-
-  return capture_e::ok;
-}
-
 capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) {
   auto img = (img_t *)img_base;
 

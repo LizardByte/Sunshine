@@ -20,7 +20,7 @@ public:
   int init(void *display, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn);
 
   int convert(img_t &img);
-  int set_frame(AVFrame *frame);
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx);
   void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
 };
 

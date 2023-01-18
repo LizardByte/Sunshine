@@ -287,6 +287,7 @@ struct session_t {
     int lowseq;
     udp::endpoint peer;
     safe::mail_raw_t::event_t<bool> idr_events;
+    std::unique_ptr<platf::deinit_t> qos;
   } video;
 
   struct {
@@ -302,6 +303,7 @@ struct session_t {
     util::buffer_t<uint8_t *> shards_p;
 
     audio_fec_packet_t fec_packet;
+    std::unique_ptr<platf::deinit_t> qos;
   } audio;
 
   struct {
@@ -762,7 +764,10 @@ void controlBroadcastThread(control_server_t *server) {
         if(session->state.load(std::memory_order_acquire) == session::state_e::STOPPING) {
           pos = server->_map_addr_session->erase(pos);
 
-          enet_peer_disconnect_now(session->control.peer, 0);
+          if(session->control.peer) {
+            enet_peer_disconnect_now(session->control.peer, 0);
+          }
+
           session->controlEnd.raise(true);
           continue;
         }
@@ -1036,8 +1041,25 @@ void videoBroadcastThread(udp::socket &sock) {
 
           inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
           inspect->packet.frameIndex     = av_packet->pts;
+        }
 
-          sock.send_to(asio::buffer(shards[x]), session->video.peer);
+        auto peer_address = session->video.peer.address();
+        auto batch_info   = platf::batched_send_info_t {
+          shards.shards.begin(),
+          shards.blocksize,
+          shards.nr_shards,
+          (uintptr_t)sock.native_handle(),
+          peer_address,
+          session->video.peer.port(),
+        };
+
+        // Use a batched send if it's supported on this platform
+        if(!platf::send_batch(batch_info)) {
+          // Batched send is not available, so send each packet individually
+          BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
+          for(auto x = 0; x < shards.size(); ++x) {
+            sock.send_to(asio::buffer(shards[x]), session->video.peer);
+          }
         }
 
         if(av_packet->flags & AV_PKT_FLAG_KEY) {
@@ -1077,8 +1099,7 @@ void audioBroadcastThread(udp::socket &sock) {
   // works correctly. This is possible because the data and FEC shard count is
   // constant and known in advance.
   const unsigned char parity[] = { 0x77, 0x40, 0x38, 0x0e, 0xc7, 0xa7, 0x0d, 0x6c };
-  memcpy(&rs.get()->m[16], parity, sizeof(parity));
-  memcpy(rs.get()->parity, parity, sizeof(parity));
+  memcpy(rs.get()->p, parity, sizeof(parity));
 
   audio_packet->rtp.header     = 0x80;
   audio_packet->rtp.packetType = 97;
@@ -1319,6 +1340,13 @@ void videoThread(session_t *session) {
     return;
   }
 
+  // Enable QoS tagging on video traffic if requested by the client
+  if(session->config.videoQosType) {
+    auto address       = session->video.peer.address();
+    session->video.qos = std::move(platf::enable_socket_qos(ref->video_sock.native_handle(), address,
+      session->video.peer.port(), platf::qos_data_type_e::video));
+  }
+
   BOOST_LOG(debug) << "Start capturing Video"sv;
   video::capture(session->mail, session->config.monitor, session);
 }
@@ -1334,6 +1362,13 @@ void audioThread(session_t *session) {
   auto port = recv_ping(ref, socket_e::audio, session->audio.peer, config::stream.ping_timeout);
   if(port < 0) {
     return;
+  }
+
+  // Enable QoS tagging on audio traffic if requested by the client
+  if(session->config.audioQosType) {
+    auto address       = session->audio.peer.address();
+    session->audio.qos = std::move(platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
+      session->audio.peer.port(), platf::qos_data_type_e::audio));
   }
 
   BOOST_LOG(debug) << "Start capturing Audio"sv;
@@ -1359,6 +1394,20 @@ void stop(session_t &session) {
 }
 
 void join(session_t &session) {
+  // Current Nvidia drivers have a bug where NVENC can deadlock the encoder thread with hardware-accelerated
+  // GPU scheduling enabled. If this happens, we will terminate ourselves and the service can restart.
+  // The alternative is that Sunshine can never start another session until it's manually restarted.
+  auto task = []() {
+    BOOST_LOG(fatal) << "Hang detected! Session failed to terminate in 10 seconds."sv;
+    log_flush();
+    std::abort();
+  };
+  auto force_kill = task_pool.pushDelayed(task, 10s).task_id;
+  auto fg         = util::fail_guard([&force_kill]() {
+    // Cancel the kill task if we manage to return from this function
+    task_pool.cancel(force_kill);
+  });
+
   BOOST_LOG(debug) << "Waiting for video to end..."sv;
   session.videoThread.join();
   BOOST_LOG(debug) << "Waiting for audio to end..."sv;

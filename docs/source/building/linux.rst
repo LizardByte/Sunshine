@@ -17,11 +17,13 @@ Install Requirements
           libavdevice-dev \
           libboost-filesystem-dev \
           libboost-log-dev \
-          libboost-thread-dev \
           libboost-program-options-dev \
+          libboost-thread-dev \
           libcap-dev \  # KMS
+          libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
+          libmfx-dev \  # x86_64 only
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -41,25 +43,24 @@ Install Requirements
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit  # Cuda, NvFBC
 
-Fedora 36
-^^^^^^^^^
+Fedora 36, 37
+^^^^^^^^^^^^^
 End of Life: TBD
-
-Install Repositories
-   .. code-block:: bash
-
-      sudo dnf update && \
-          sudo dnf group install "Development Tools" && \
-          sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 
 Install Requirements
    .. code-block:: bash
 
+      sudo dnf update && \
+      sudo dnf group install "Development Tools" && \
       sudo dnf install \
           boost-devel \
-          boost-static.x86_64 \
+          boost-static \
           cmake \
+          gcc \
           gcc-c++ \
+          libcap-devel \
+          libcurl-devel \
+          libdrm-devel \
           libevdev-devel \
           libva-devel \
           libvdpau-devel \
@@ -67,18 +68,21 @@ Install Requirements
           libxcb-devel \  # X11
           libXcursor-devel \  # X11
           libXfixes-devel \  # X11
-          libXinerama-devel \  # X11
           libXi-devel \  # X11
+          libXinerama-devel \  # X11
           libXrandr-devel \  # X11
           libXtst-devel \  # X11
           mesa-libGL-devel \
-          nodejs \
           npm \
           numactl-devel \
           openssl-devel \
           opus-devel \
           pulseaudio-libs-devel \
-          rpm-build  # if you want to build an RPM binary package
+          rpm-build \  # if you want to build an RPM binary package
+          wget \  # necessary for cuda install with `run` file
+          which \  # necessary for cuda install with `run` file
+          # libmfx-devel is not listed for fedora, this is for x86_64 only
+          https://kojipkgs.fedoraproject.org//packages/libmfx/1.25/4.el8/x86_64/libmfx-devel-1.25-4.el8.x86_64.rpm
 
 Ubuntu 20.04
 ^^^^^^^^^^^^
@@ -99,6 +103,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
+          libmfx-dev \  # x86_64 only
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -115,18 +120,17 @@ Install Requirements
           libxtst-dev \  # X11
           nodejs \
           npm \
-          wget
+          wget  # necessary for cuda install with `run` file
 
 Update gcc alias
    .. code-block:: bash
 
-      update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 100 --slave /usr/bin/g++ g++ /usr/bin/g++-10
-
-Install CuDA
-   .. code-block:: bash
-
-      wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run --progress=bar:force:noscroll -q --show-progress -O ./cuda.run && chmod a+x ./cuda.run
-      ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm && rm ./cuda.run
+      update-alternatives --install \
+        /usr/bin/gcc gcc /usr/bin/gcc-10 100 \
+        --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
+        --slave /usr/bin/gcov gcov /usr/bin/gcov-10 \
+        --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
+        --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
 Ubuntu 22.04
 ^^^^^^^^^^^^
@@ -146,6 +150,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
+          libmfx-dev \  # x86_64 only
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -160,8 +165,26 @@ Install Requirements
           libxtst-dev \  # X11
           nodejs \
           npm \
-          nvidia-cuda-dev \  # Cuda, NvFBC
-          nvidia-cuda-toolkit  # Cuda, NvFBC
+          nvidia-cuda-dev \  # CUDA, NvFBC
+          nvidia-cuda-toolkit  # CUDA, NvFBC
+
+CUDA
+----
+If the version of CUDA available from your distro is not adequate, manually install CUDA.
+
+.. Tip:: The version of CUDA you use will determine compatibility with various GPU generations.
+   See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`_ for more info.
+
+   Select the appropriate run file based on your desired CUDA version and architecture according to
+   `CUDA Toolkit Archive <https://developer.nvidia.com/cuda-toolkit-archive>`_.
+
+.. code-block:: bash
+
+   wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run \
+     --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
+   chmod a+x ./cuda.run
+   ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
+   rm ./cuda.run
 
 npm dependencies
 ----------------

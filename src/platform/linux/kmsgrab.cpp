@@ -710,10 +710,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        std::this_thread::sleep_for(1ms);
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
@@ -831,10 +831,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        std::this_thread::sleep_for(1ms);
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';

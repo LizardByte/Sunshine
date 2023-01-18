@@ -17,10 +17,17 @@
 
 struct sockaddr;
 struct AVFrame;
+struct AVBufferRef;
+struct AVHWFramesContext;
 
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
 namespace boost {
+namespace asio {
+namespace ip {
+class address;
+} // namespace ip
+} // namespace asio
 namespace filesystem {
 class path;
 }
@@ -196,12 +203,24 @@ struct hwdevice_t {
   /**
    * implementations must take ownership of 'frame'
    */
-  virtual int set_frame(AVFrame *frame) {
+  virtual int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
     BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
     return -1;
   };
 
   virtual void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
+
+  /**
+   * Implementations may set parameters during initialization of the hwframes context
+   */
+  virtual void init_hwframes(AVHWFramesContext *frames) {};
+
+  /**
+   * Implementations may make modifications required before context derivation
+   */
+  virtual int prepare_to_derive_context(int hw_device_type) {
+    return 0;
+  };
 
   virtual ~hwdevice_t() = default;
 };
@@ -216,7 +235,8 @@ enum class capture_e : int {
 class display_t {
 public:
   /**
-   * When display has a new image ready, this callback will be called with the new image.
+   * When display has a new image ready or a timeout occurs, this callback will be called with the image.
+   * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
    * 
    * On Break Request -->
    *    Returns nullptr
@@ -225,7 +245,7 @@ public:
    *    Returns the image object that should be filled next.
    *    This may or may not be the image send with the callback
    */
-  using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img)>;
+  using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img, bool frame_captured)>;
 
   display_t() noexcept : offset_x { 0 }, offset_y { 0 } {}
 
@@ -316,6 +336,26 @@ void adjust_thread_priority(thread_priority_e priority);
 // Allow OS-specific actions to be taken to prepare for streaming
 void streaming_will_start();
 void streaming_will_stop();
+
+bool restart_supported();
+bool restart();
+
+struct batched_send_info_t {
+  const char *buffer;
+  size_t block_size;
+  size_t block_count;
+
+  std::uintptr_t native_socket;
+  boost::asio::ip::address &target_address;
+  uint16_t target_port;
+};
+bool send_batch(batched_send_info_t &send_info);
+
+enum class qos_data_type_e : int {
+  audio,
+  video
+};
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
 
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);

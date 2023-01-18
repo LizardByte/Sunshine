@@ -7,10 +7,10 @@
       <br />
       <p>
         If Moonlight complains about an app currently running, force closing the
-        app should fix the issue
+        app should fix the issue.
       </p>
       <div class="alert alert-success" v-if="closeAppStatus === true">
-        Application Closed Successfuly!
+        Application Closed Successfully!
       </div>
       <div class="alert alert-danger" v-if="closeAppStatus === false">
         Error while closing Appplication
@@ -18,6 +18,28 @@
       <div>
         <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
           Force Close
+        </button>
+      </div>
+    </div>
+  </div>
+  <!--Restart Sunshine-->
+  <div class="card p-2 my-4" v-if="restartSupported">
+    <div class="card-body">
+      <h2>Restart Sunshine</h2>
+      <br />
+      <p>
+        If Sunshine isn't working properly, you can try restarting it.
+        This will terminate any running sessions.
+      </p>
+      <div class="alert alert-success" v-if="restartStatus === true">
+        Sunshine is restarting
+      </div>
+      <div class="alert alert-danger" v-if="restartStatus === false">
+        Error restarting Sunshine
+      </div>
+      <div>
+        <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
+          Restart Sunshine
         </button>
       </div>
     </div>
@@ -68,6 +90,9 @@
         closeAppStatus: null,
         unpairAllPressed: false,
         unpairAllStatus: null,
+        restartSupported: false,
+        restartPressed: false,
+        restartStatus: null,
         logs: 'Loading...',
         logFilter: null,
         logInterval: null,
@@ -86,6 +111,11 @@
         this.refreshLogs();
       }, 5000);
       this.refreshLogs();
+      fetch("/api/config")
+        .then((r) => r.json())
+        .then((r) => {
+          this.restartSupported = (r.restart_supported === "true");
+        });
     },
     beforeDestroy(){
       clearInterval(this.logInterval);
@@ -124,7 +154,22 @@
       },
       copyLogs(){
         navigator.clipboard.writeText(this.actualLogs);
-      }
+      },
+      restart() {
+        this.restartPressed = true;
+        fetch("/api/restart", {
+            method: "POST",
+          }).then((r) => {
+            this.restartPressed = false;
+            
+            // We won't get a response in the success case
+            this.restartStatus = r.status.toString() !== "false";
+            
+            setTimeout(() => {
+              this.restartStatus = null;
+            }, 5000);
+          });
+      },
     },
   });
 </script>

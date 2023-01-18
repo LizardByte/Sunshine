@@ -143,6 +143,28 @@ void streaming_will_stop() {
   // Nothing to do
 }
 
+bool restart_supported() {
+  // Restart not supported yet
+  return false;
+}
+
+bool restart() {
+  // Restart not supported yet
+  return false;
+}
+
+bool send_batch(batched_send_info_t &send_info) {
+  // Fall back to unbatched send calls
+  return false;
+}
+
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
+  // Unimplemented
+  //
+  // NB: When implementing, remember to consider that some routes can drop DSCP-tagged packets completely!
+  return nullptr;
+}
+
 } // namespace platf
 
 namespace dyn {

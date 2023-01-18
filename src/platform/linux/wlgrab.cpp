@@ -134,9 +134,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
@@ -166,7 +167,7 @@ public:
     int w, h;
     gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
     gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &h);
-    BOOST_LOG(debug) << "width and height: w "sv << w << ' h ' << h;
+    BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;
 
     gl::ctx.GetTextureSubImage((*rgb_opt)->tex[0], 0, 0, 0, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
@@ -239,9 +240,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
