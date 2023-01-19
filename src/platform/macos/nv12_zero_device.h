@@ -23,7 +23,7 @@ namespace platf {
     int
     convert(img_t &img);
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx);
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx, int target_format);
     void
     set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
   };

@@ -216,7 +216,7 @@ namespace platf {
    * implementations must take ownership of 'frame'
    */
     virtual int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx, int target_format) {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
       return -1;
     };

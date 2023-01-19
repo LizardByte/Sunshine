@@ -56,7 +56,7 @@ namespace platf {
   }
 
   int
-  nv12_zero_device::set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+  nv12_zero_device::set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx, int target_format) {
     this->frame = frame;
 
     av_frame.reset(frame);

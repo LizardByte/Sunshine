@@ -141,7 +141,7 @@ namespace video {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx, int target_format) {
       this->frame = frame;
 
       // If it's a hwframe, allocate buffers for hardware
@@ -321,6 +321,12 @@ namespace video {
     AVHWDeviceType base_dev_type, derived_dev_type;
     AVPixelFormat dev_pix_fmt;
 
+    // Encoder requires frames to be read back into the sw_pix_fmt
+    // prior to being passed to the encoder. This can provide GPU
+    // accelerated RGB->YUV color conversion for encoders that can't
+    // otherwise accept GPU surfaces as input.
+    bool sw_frame_readback;
+
     AVPixelFormat static_pix_fmt, dynamic_pix_fmt;
 
     struct {
@@ -445,10 +451,10 @@ namespace video {
     "nvenc"sv,
 #ifdef _WIN32
     AV_HWDEVICE_TYPE_D3D11VA, AV_HWDEVICE_TYPE_NONE,
-    AV_PIX_FMT_D3D11,
+    AV_PIX_FMT_D3D11, false,
 #else
     AV_HWDEVICE_TYPE_CUDA, AV_HWDEVICE_TYPE_NONE,
-    AV_PIX_FMT_CUDA,
+    AV_PIX_FMT_CUDA, false,
 #endif
     AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
     {
@@ -504,6 +510,7 @@ namespace video {
     AV_HWDEVICE_TYPE_D3D11VA,
     AV_HWDEVICE_TYPE_QSV,
     AV_PIX_FMT_QSV,
+    false,
     AV_PIX_FMT_NV12,
     AV_PIX_FMT_P010,
     {
@@ -557,7 +564,7 @@ namespace video {
   static encoder_t amdvce {
     "amdvce"sv,
     AV_HWDEVICE_TYPE_D3D11VA, AV_HWDEVICE_TYPE_NONE,
-    AV_PIX_FMT_D3D11,
+    AV_PIX_FMT_D3D11, false,
     AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
     {
       // Common options
@@ -602,8 +609,8 @@ namespace video {
 
   static encoder_t mfenc {
     "mf"sv,
-    AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
-    AV_PIX_FMT_NONE,
+    AV_HWDEVICE_TYPE_D3D11VA, AV_HWDEVICE_TYPE_NONE,
+    AV_PIX_FMT_D3D11, true,
     AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
     {
       // Common options
@@ -635,7 +642,7 @@ namespace video {
       "h264_mf"s,
     },
     PARALLEL_ENCODING,
-    nullptr
+    dxgi_make_hwdevice_ctx
   };
 
 #endif
@@ -643,7 +650,7 @@ namespace video {
   static encoder_t software {
     "software"sv,
     AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
-    AV_PIX_FMT_NONE,
+    AV_PIX_FMT_NONE, false,
     AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
     {
       // x265's Info SEI is so long that it causes the IDR picture data to be
@@ -681,7 +688,7 @@ namespace video {
   static encoder_t vaapi {
     "vaapi"sv,
     AV_HWDEVICE_TYPE_VAAPI, AV_HWDEVICE_TYPE_NONE,
-    AV_PIX_FMT_VAAPI,
+    AV_PIX_FMT_VAAPI, false,
     AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P10,
     {
       // Common options
@@ -717,7 +724,7 @@ namespace video {
   static encoder_t videotoolbox {
     "videotoolbox"sv,
     AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
-    AV_PIX_FMT_VIDEOTOOLBOX,
+    AV_PIX_FMT_VIDEOTOOLBOX, false,
     AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
     {
       // Common options
@@ -756,7 +763,7 @@ namespace video {
 #ifdef _WIN32
     &quicksync,
     &amdvce,
-    &mfenc,
+    &mfenc,  // Should be lowest priority hw encoder
 #endif
 #ifdef __linux__
     &vaapi,
@@ -1270,16 +1277,6 @@ namespace video {
       return std::nullopt;
     }
 
-    if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-      BOOST_LOG(error)
-        << "Could not open codec ["sv
-        << video_format.name << "]: "sv
-        << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
-
-      return std::nullopt;
-    }
-
     frame_t frame { av_frame_alloc() };
     frame->format = ctx->pix_fmt;
     frame->width = ctx->width;
@@ -1331,11 +1328,33 @@ namespace video {
       device = std::move(hwdevice);
     }
 
-    if (device->set_frame(frame.release(), ctx->hw_frames_ctx)) {
+    // If this encoder doesn't accept hardware frames, use the swformat
+    if (hardware && encoder.sw_frame_readback) {
+      ctx->pix_fmt = sw_fmt;
+    }
+
+    if (device->set_frame(frame.release(), ctx->hw_frames_ctx, ctx->pix_fmt)) {
       return std::nullopt;
     }
 
     device->set_colorspace(sws_color_space, ctx->color_range);
+
+    // FFmpeg doesn't allow a hw_frames_ctx to be attached to the codec context
+    // if we're going to be using a software pixel format, so we will remove it
+    // now that set_frame() has had a chance to attach it to the AVFrame.
+    if (hardware && encoder.sw_frame_readback) {
+      av_buffer_unref(&ctx->hw_frames_ctx);
+    }
+
+    if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
+      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      BOOST_LOG(error)
+        << "Could not open codec ["sv
+        << video_format.name << "]: "sv
+        << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+
+      return std::nullopt;
+    }
 
     session_t session {
       std::move(ctx),

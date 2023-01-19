@@ -355,6 +355,16 @@ namespace platf::dxgi {
       ID3D11ShaderResourceView *emptyShaderResourceView = nullptr;
       device_ctx->PSSetShaderResources(0, 1, &emptyShaderResourceView);
 
+      // If this requires conversion to a swframe, transfer data back from the GPU
+      if (swframe) {
+        auto status = av_hwframe_transfer_data(this->frame, hwframe.get(), 0);
+        if (status < 0) {
+          char string[AV_ERROR_MAX_STRING_SIZE];
+          BOOST_LOG(error) << "Failed to transfer image data from hardware frame: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+          return -1;
+        }
+      }
+
       return 0;
     }
 
@@ -425,9 +435,25 @@ namespace platf::dxgi {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx, int target_format) override {
       this->hwframe.reset(frame);
-      this->frame = frame;
+
+      // If we have to do conversion to a different swframe pixel format, set up our context to do so
+      if (frame->format != target_format) {
+        swframe.reset(av_frame_alloc());
+        swframe->format = target_format;
+        swframe->width = frame->width;
+        swframe->height = frame->height;
+
+        // Allocate buffers for the swframe data
+        av_frame_get_buffer(swframe.get(), 0);
+
+        // Expose the swframe to the encoder rather than the hwframe
+        this->frame = swframe.get();
+      }
+      else {
+        this->frame = frame;
+      }
 
       // Populate this frame with a hardware buffer if one isn't there already
       if (!frame->buf[0]) {
@@ -723,6 +749,9 @@ namespace platf::dxgi {
 
   public:
     frame_t hwframe;
+
+    // Used when target_format differs from hwframe.format
+    frame_t swframe;
 
     ::video::color_t *color_p;
 

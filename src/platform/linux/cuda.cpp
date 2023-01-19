@@ -102,7 +102,7 @@ namespace cuda {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx, int target_format) override {
       this->hwframe.reset(frame);
       this->frame = frame;
 
@@ -193,8 +193,8 @@ namespace cuda {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
-      if (cuda_t::set_frame(frame, hw_frames_ctx)) {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx, int target_format) {
+      if (cuda_t::set_frame(frame, hw_frames_ctx, target_format)) {
         return -1;
       }
 
