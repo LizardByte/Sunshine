@@ -150,7 +150,7 @@ int proc_t::execute(int app_id) {
                                             find_working_directory(cmd, _env) :
                                             boost::filesystem::path(proc.working_dir);
     BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
-    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec);
+    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
     if(ec) {
       BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
     }
@@ -168,13 +168,11 @@ int proc_t::execute(int app_id) {
                                             find_working_directory(proc.cmd, _env) :
                                             boost::filesystem::path(proc.working_dir);
     BOOST_LOG(info) << "Executing: ["sv << proc.cmd << "] in ["sv << working_dir << ']';
-    _process = platf::run_unprivileged(proc.cmd, working_dir, _env, _pipe.get(), ec);
+    _process = platf::run_unprivileged(proc.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
     if(ec) {
       BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
       return -1;
     }
-
-    _process_handle.add(_process);
   }
 
   fg.disable();
