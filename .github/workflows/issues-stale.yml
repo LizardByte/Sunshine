@@ -9,7 +9,7 @@ name: Stale Issues / PRs
 
 on:
   schedule:
-    - cron: '00 00 * * *'
+    - cron: '00 10 * * *'
 
 jobs:
   stale:
