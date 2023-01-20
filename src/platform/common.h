@@ -33,6 +33,7 @@ class path;
 }
 namespace process {
 class child;
+class group;
 template<typename Char>
 class basic_environment;
 typedef basic_environment<char> environment;
@@ -323,7 +324,7 @@ std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &
 // A list of names of displays accepted as display_name with the mem_type_e
 std::vector<std::string> display_names(mem_type_e hwdevice_type);
 
-boost::process::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec);
+boost::process::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
 enum class thread_priority_e : int {
   low,

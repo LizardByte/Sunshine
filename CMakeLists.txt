@@ -17,6 +17,11 @@ option(SUNSHINE_CONFIGURE_FLATPAK "Configuration specific for Flatpak." OFF)
 option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to 'Release' as none was specified.")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+endif()
+
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
     configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
 elseif(${SUNSHINE_CONFIGURE_AUR})
@@ -495,13 +500,11 @@ include_directories(
 
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
-    list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -ggdb3)
     if(WIN32)
         set_source_files_properties(src/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
     endif()
 else()
     add_definitions(-DNDEBUG)
-    list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)
 endif()
 
 # setup assets directory
