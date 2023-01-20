@@ -297,7 +297,7 @@ public:
     auto props = plane_props(plane_id);
     for(auto &[prop, val] : props) {
       if(prop->name == "rotation"sv) {
-	return val;
+        return val;
       }
     }
 
@@ -539,15 +539,15 @@ public:
         this->env_height = ::platf::kms::env_height;
 
         auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
-	if(monitor != std::end(pos->crtc_to_monitor)) {
-	  auto &viewport = monitor->second.viewport;
+        if(monitor != std::end(pos->crtc_to_monitor)) {
+          auto &viewport = monitor->second.viewport;
 
-	  width    = viewport.width;
-	  height   = viewport.height;
+          width    = viewport.width;
+          height   = viewport.height;
 
-	  switch (card.get_panel_orientation(plane->plane_id)) {
-	  case DRM_MODE_ROTATE_270:
-	    BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+          switch (card.get_panel_orientation(plane->plane_id)) {
+          case DRM_MODE_ROTATE_270:
+            BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
 	    width    = viewport.height;
 	    height   = viewport.width;
 	    break;
