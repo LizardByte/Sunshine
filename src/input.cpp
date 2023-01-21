@@ -188,12 +188,20 @@ void print(PNV_SCROLL_PACKET packet) {
     << "--end mouse scroll packet--"sv;
 }
 
+void print(PSS_HSCROLL_PACKET packet) {
+  BOOST_LOG(debug)
+    << "--begin mouse hscroll packet--"sv << std::endl
+    << "scrollAmount ["sv << util::endian::big(packet->scrollAmount) << ']' << std::endl
+    << "--end mouse hscroll packet--"sv;
+}
+
 void print(PNV_KEYBOARD_PACKET packet) {
   BOOST_LOG(debug)
     << "--begin keyboard packet--"sv << std::endl
     << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
     << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl
     << "modifiers ["sv << util::hex(packet->modifiers).to_string_view() << ']' << std::endl
+    << "flags ["sv << util::hex(packet->flags).to_string_view() << ']' << std::endl
     << "--end keyboard packet--"sv;
 }
 
@@ -237,6 +245,9 @@ void print(void *payload) {
     break;
   case SCROLL_MAGIC_GEN5:
     print((PNV_SCROLL_PACKET)payload);
+    break;
+  case SS_HSCROLL_MAGIC:
+    print((PSS_HSCROLL_PACKET)payload);
     break;
   case KEY_DOWN_EVENT_MAGIC:
   case KEY_UP_EVENT_MAGIC:
@@ -459,6 +470,10 @@ void passthrough(PNV_SCROLL_PACKET packet) {
   platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
 }
 
+void passthrough(PSS_HSCROLL_PACKET packet) {
+  platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
+}
+
 void passthrough(PNV_UNICODE_PACKET packet) {
   auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
   platf::unicode(platf_input, packet->text, size);
@@ -620,6 +635,9 @@ void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t
     break;
   case SCROLL_MAGIC_GEN5:
     passthrough((PNV_SCROLL_PACKET)payload);
+    break;
+  case SS_HSCROLL_MAGIC:
+    passthrough((PSS_HSCROLL_PACKET)payload);
     break;
   case KEY_DOWN_EVENT_MAGIC:
   case KEY_UP_EVENT_MAGIC:

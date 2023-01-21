@@ -363,6 +363,7 @@ void move_mouse(input_t &input, int deltaX, int deltaY);
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);
 void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
+void hscroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
 void unicode(input_t &input, char *utf8, int size);

@@ -399,13 +399,12 @@ session_t *control_server_t::get_session(const net::peer_t peer) {
 void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload) {
   auto cb = _map_type_cb.find(type);
   if(cb == std::end(_map_type_cb)) {
-    BOOST_LOG(warning)
+    BOOST_LOG(debug)
       << "type [Unknown] { "sv << util::hex(type).to_string_view() << " }"sv << std::endl
       << "---data---"sv << std::endl
       << util::hex_vec(payload) << std::endl
       << "---end data---"sv;
   }
-
   else {
     cb->second(session, payload);
   }
