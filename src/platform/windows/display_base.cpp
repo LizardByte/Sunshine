@@ -723,7 +723,7 @@ std::vector<std::string> display_names(mem_type_e) {
   std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   // We must set the GPU preference before calling any DXGI APIs!
-  if(!dxgi::probe_for_gpu_preference("")) {
+  if(!dxgi::probe_for_gpu_preference(config::video.output_name)) {
     BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
   }
 
@@ -769,7 +769,10 @@ std::vector<std::string> display_names(mem_type_e) {
         << "    Resolution        : "sv << width << 'x' << height << std::endl
         << std::endl;
 
-      display_names.emplace_back(std::move(device_name));
+      // Don't include the display in the list if we can't actually capture it
+      if(desc.AttachedToDesktop && dxgi::test_dxgi_duplication(adapter, output)) {
+        display_names.emplace_back(std::move(device_name));
+      }
     }
   }
 
