@@ -191,15 +191,10 @@ bool probe_for_gpu_preference(const std::string &display_name) {
   // GPU driver overrides than Sunshine.exe, we want to avoid a scenario where
   // autoselection might work for ddprobe.exe but not for us.
   for(int i = 1; i < 5; i++) {
-    // Run the probe tool
+    // Run the probe tool. It returns the status of DuplicateOutput().
     //
     // Arg format: [GPU preference] [Display name]
-    //
-    // Exit codes:
-    // < 0 -> Error performing the probe
-    // 0   -> Probe failed (DD API doesn't work with that GPU preference)
-    // 1   -> Probe successful (DD API works)
-    int result;
+    HRESULT result;
     try {
       result = bp::system(cmd, std::to_string(i), display_name, bp::std_out > bp::null, bp::std_err > bp::null);
     }
@@ -208,9 +203,12 @@ bool probe_for_gpu_preference(const std::string &display_name) {
       return false;
     }
 
-    BOOST_LOG(debug) << "ddprobe.exe ["sv << i << "] ["sv << display_name << "] returned: "sv << result;
+    BOOST_LOG(info) << "ddprobe.exe ["sv << i << "] ["sv << display_name << "] returned: 0x"sv << util::hex(result).to_string_view();
 
-    if(result > 0) {
+    // E_ACCESSDENIED can happen at the login screen. If we get this error,
+    // we know capture would have been supported, because DXGI_ERROR_UNSUPPORTED
+    // would have been raised first if it wasn't.
+    if(result == S_OK || result == E_ACCESSDENIED) {
       // We found a working GPU preference, so set ourselves to use that.
       if(set_gpu_preference_on_self(i)) {
         set_gpu_preference = true;
@@ -220,17 +218,61 @@ bool probe_for_gpu_preference(const std::string &display_name) {
         return false;
       }
     }
-    else if(result == 0) {
+    else {
       // This configuration didn't work, so continue testing others
       continue;
     }
-    else {
-      BOOST_LOG(error) << "ddprobe.exe ["sv << i << "] ["sv << display_name << "] failed: "sv << result;
-    }
   }
 
-  // If none of the manual options worked, we'll try autoselection as a last-ditch effort
-  set_gpu_preference_on_self(0);
+  // If none of the manual options worked, leave the GPU preference alone
+  return false;
+}
+
+bool test_dxgi_duplication(adapter_t &adapter, output_t &output) {
+  D3D_FEATURE_LEVEL featureLevels[] {
+    D3D_FEATURE_LEVEL_11_1,
+    D3D_FEATURE_LEVEL_11_0,
+    D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL_10_0,
+    D3D_FEATURE_LEVEL_9_3,
+    D3D_FEATURE_LEVEL_9_2,
+    D3D_FEATURE_LEVEL_9_1
+  };
+
+  device_t device;
+  auto status = D3D11CreateDevice(
+    adapter.get(),
+    D3D_DRIVER_TYPE_UNKNOWN,
+    nullptr,
+    D3D11_CREATE_DEVICE_FLAGS,
+    featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+    D3D11_SDK_VERSION,
+    &device,
+    nullptr,
+    nullptr);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create D3D11 device for DD test [0x"sv << util::hex(status).to_string_view() << ']';
+    return false;
+  }
+
+  output1_t output1;
+  status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+    return false;
+  }
+
+  // Check if we can use the Desktop Duplication API on this output
+  for(int x = 0; x < 2; ++x) {
+    dup_t dup;
+    status = output1->DuplicateOutput((IUnknown *)device.get(), &dup);
+    if(SUCCEEDED(status)) {
+      return true;
+    }
+    Sleep(200);
+  }
+
+  BOOST_LOG(error) << "DuplicateOutput() test failed [0x"sv << util::hex(status).to_string_view() << ']';
   return false;
 }
 
@@ -300,7 +342,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
         continue;
       }
 
-      if(desc.AttachedToDesktop) {
+      if(desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
         output = std::move(output_tmp);
 
         offset_x = desc.DesktopCoordinates.left;
@@ -681,7 +723,7 @@ std::vector<std::string> display_names(mem_type_e) {
   std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   // We must set the GPU preference before calling any DXGI APIs!
-  if(!dxgi::probe_for_gpu_preference("")) {
+  if(!dxgi::probe_for_gpu_preference(config::video.output_name)) {
     BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
   }
 
@@ -727,7 +769,10 @@ std::vector<std::string> display_names(mem_type_e) {
         << "    Resolution        : "sv << width << 'x' << height << std::endl
         << std::endl;
 
-      display_names.emplace_back(std::move(device_name));
+      // Don't include the display in the list if we can't actually capture it
+      if(desc.AttachedToDesktop && dxgi::test_dxgi_duplication(adapter, output)) {
+        display_names.emplace_back(std::move(device_name));
+      }
     }
   }
 
