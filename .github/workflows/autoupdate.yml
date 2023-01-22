@@ -41,6 +41,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: rebase
-        uses: "bbeesley/gha-auto-dependabot-rebase@v1.3.18"
+        uses: "bbeesley/gha-auto-dependabot-rebase@v1.3.19"
         env:
           GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
