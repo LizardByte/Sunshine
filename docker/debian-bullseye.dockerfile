@@ -1,5 +1,7 @@
+# syntax=docker/dockerfile:1.4
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
+# platforms_pr: linux/amd64
 ARG BASE=debian
 ARG TAG=bullseye
 FROM ${BASE}:${TAG} AS sunshine-base
