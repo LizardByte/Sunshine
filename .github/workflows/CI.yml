@@ -180,13 +180,13 @@ jobs:
             commit=${{ github.sha }}
             clone_url=${{ github.event.repository.clone_url }}
 
-            if [[ ${{ github.ref == 'refs/heads/master' }} == 'true' ]]; then
+            if [[ ${{ github.ref == 'refs/heads/master' }} == true ]]; then
               echo "This is a main release event"
               aur_publish=true
               aur_pkg=sunshine
               conflicts=""
               provides=""
-            elif [[ ${{ github.ref == 'refs/heads/nightly' }} == 'false' ]]; then
+            elif [[ ${{ github.ref == 'refs/heads/nightly' }} == true ]]; then
               echo "This is a nightly release event"
               sub_version=".r${commit}"
             fi
