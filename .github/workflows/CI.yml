@@ -163,9 +163,10 @@ jobs:
             cmake
 
       - name: Configure PKGBUILD files
+        id: prepare
         run: |
           # variables for manifest
-          echo "aur_publish=false" >> $GITHUB_ENV
+          aur_publish=false
           aur_pkg=sunshine-dev
           sub_version=""
           conflicts="'sunshine'"
@@ -174,22 +175,20 @@ jobs:
           branch=${GITHUB_HEAD_REF}
 
           # check the branch variable
-          if [ -z "$branch" ]
-          then
+          if [ -z "$branch" ]; then
             echo "This is a PUSH event"
             commit=${{ github.sha }}
             clone_url=${{ github.event.repository.clone_url }}
 
             if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
+              echo "This is a main release event"
+              aur_publish=true
               aur_pkg=sunshine
               conflicts=""
               provides=""
-
-              echo "aur_publish=true" >> $GITHUB_ENV
             elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
+              echo "This is a nightly release event"
               sub_version=".r${commit}"
-
-              echo "aur_publish=false" >> $GITHUB_ENV
             fi
           else
             echo "This is a PR event"
@@ -201,7 +200,8 @@ jobs:
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
 
-          echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
+          echo "aur_publish=${aur_publish}" >> $GITHUB_OUTPUT
+          echo "aur_pkg=${aur_pkg}" >> $GITHUB_OUTPUT
 
           mkdir -p artifacts
           mkdir -p build
@@ -237,10 +237,10 @@ jobs:
           path: artifacts/
 
       - name: Publish AUR package
-        if: ${{ env.aur_publish == 'true' }}
+        if: ${{ steps.prepare.outputs.aur_publish == 'true' }}
         uses: KSXGitHub/github-actions-deploy-aur@v2.6.0
         with:
-          pkgname: ${{ env.aur_pkg }}
+          pkgname: ${{ steps.prepare.outputs.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
           assets: |
             ./artifacts/*
