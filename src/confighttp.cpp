@@ -248,23 +248,38 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
 
 void getNodeModules(resp_https_t response, req_https_t request) {
   print_req(request);
+  boost::filesystem::path webDirPath(WEB_DIR);
+  boost::filesystem::path nodeModulesPath(webDirPath / "node_modules");
+  boost::filesystem::path filePath(webDirPath / request->path);
 
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  if(boost::algorithm::iends_with(request->path, ".ttf") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/ttf");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  if(!boost::filesystem::exists(filePath)) {
+    // file does not exist
+    response->write(SimpleWeb::StatusCode::client_error_not_found);
   }
-  else if(boost::algorithm::iends_with(request->path, ".woff2") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/woff2");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  else if(boost::filesystem::canonical(filePath).string().find(boost::filesystem::canonical(nodeModulesPath).string()) != std::string::npos) {
+    // file is inside the node_modules directory
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    if(boost::algorithm::iends_with(request->path, ".ttf")) {
+      std::ifstream in((filePath).c_str(), std::ios::binary);
+      headers.emplace("Content-Type", "font/ttf");
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    }
+    else if(boost::algorithm::iends_with(request->path, ".woff2")) {
+      std::ifstream in((filePath).c_str(), std::ios::binary);
+      headers.emplace("Content-Type", "font/woff2");
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    }
+    else {
+      std::string content = read_file((filePath.string()).c_str());
+      response->write(content);
+    }
   }
   else {
-    std::string content = read_file((WEB_DIR + request->path).c_str());
-    response->write(content);
+    // file is not inside the node_modules directory
+    response->write(SimpleWeb::StatusCode::client_error_forbidden);
   }
 }
+
 
 void getApps(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
