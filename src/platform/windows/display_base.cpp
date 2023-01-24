@@ -26,11 +26,6 @@ namespace platf::dxgi {
 namespace bp = boost::process;
 
 capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p) {
-  auto capture_status = release_frame();
-  if(capture_status != capture_e::ok) {
-    return capture_status;
-  }
-
   auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
 
   switch(status) {
@@ -42,6 +37,7 @@ capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::ch
   case WAIT_ABANDONED:
   case DXGI_ERROR_ACCESS_LOST:
   case DXGI_ERROR_ACCESS_DENIED:
+  case DXGI_ERROR_INVALID_CALL:
     return capture_e::reinit;
   default:
     BOOST_LOG(error) << "Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view();
@@ -110,10 +106,10 @@ capture_e display_base_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<:
       return platf::capture_e::reinit;
     }
 
-    // If the wait time is between 1 us and 1 second, wait the specified time
+    // If the wait time is between 1 us and the frame to frame delay interval, wait the specified time
     // and offset the next frame time from the exact current frame time target.
     auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
-    if(wait_time_us > 0 && wait_time_us < 1000000) {
+    if(wait_time_us > 0 && wait_time_us < std::chrono::duration_cast<std::chrono::microseconds>(delay).count()) {
       LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
       SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
       WaitForSingleObject(timer, INFINITE);
@@ -121,21 +117,23 @@ capture_e display_base_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<:
     }
     else {
       // If the wait time is negative (meaning the frame is past due) or the
-      // computed wait time is beyond a second (meaning possible clock issues),
+      // computed wait time is beyond the delay interval (meaning possible clock issues),
       // just capture the frame now and resynchronize the frame interval with
       // the current time.
       next_frame = std::chrono::steady_clock::now() + delay;
     }
 
-    auto status = snapshot(img.get(), 1000ms, *cursor);
+    auto status = snapshot(img.get(), std::chrono::duration_cast<std::chrono::milliseconds>(delay / 2), *cursor);
     switch(status) {
     case platf::capture_e::reinit:
     case platf::capture_e::error:
       return status;
     case platf::capture_e::timeout:
+      next_frame -= (delay / 2); // try to reacquire with remaining delay interval (or force resync)
       img = snapshot_cb(img, false);
       break;
     case platf::capture_e::ok:
+      dup.release_frame();
       img = snapshot_cb(img, true);
       break;
     default:
