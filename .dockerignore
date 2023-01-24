@@ -6,7 +6,6 @@
 
 # ignore repo directories and files
 docs/
-packaging/
 scripts/
 tools/
 crowdin.yml
@@ -14,3 +13,6 @@ crowdin.yml
 # ignore dev directories
 build/
 venv/
+
+# ignore artifacts
+artifacts/

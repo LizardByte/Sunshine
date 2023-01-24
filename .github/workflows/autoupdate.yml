@@ -9,7 +9,7 @@
 
 # It uses an action that auto-updates pull requests branches, when changes are pushed to their destination branch.
 # Auto-updating to the latest destination branch works only in the context of upstream repo and not forks.
-# Dependabot PRs are updated by an action that comments `@depdenabot rebase` on dependabot PRs.
+# Dependabot PRs are updated by an action that comments `@depdenabot rebase` on dependabot PRs. (disabled)
 
 name: autoupdate
 
@@ -34,13 +34,18 @@ jobs:
           PR_READY_STATE: "all"
           MERGE_CONFLICT_ACTION: "fail"
 
-  dependabot-rebase:
-    name: Dependabot Rebase
-    if: >-
-      startsWith(github.repository, 'LizardByte/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: rebase
-        uses: "bbeesley/gha-auto-dependabot-rebase@v1.2.0"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+# Disabled due to:
+# - no major version tag, resulting in constant nagging to update this action
+# - additionally, the code is sketchy, 16k+ lines of code?
+# https://github.com/bbeesley/gha-auto-dependabot-rebase/blob/main/dist/main.cjs
+#
+#  dependabot-rebase:
+#    name: Dependabot Rebase
+#    if: >-
+#      startsWith(github.repository, 'LizardByte/')
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: rebase
+#        uses: "bbeesley/gha-auto-dependabot-rebase@v1.3.18"
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

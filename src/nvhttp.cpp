@@ -31,7 +31,8 @@
 using namespace std::literals;
 namespace nvhttp {
 
-constexpr auto VERSION     = "7.1.431.0";
+// The negative 4th version number tells Moonlight that this is Sunshine
+constexpr auto VERSION     = "7.1.431.-1";
 constexpr auto GFE_VERSION = "3.23.0.74";
 
 namespace fs = std::filesystem;

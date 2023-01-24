@@ -200,6 +200,46 @@ int coder_from_view(const std::string_view &coder) {
 }
 } // namespace amd
 
+namespace qsv {
+enum preset_e : int {
+  veryslow = 1,
+  slower   = 2,
+  slow     = 3,
+  medium   = 4,
+  fast     = 5,
+  faster   = 6,
+  veryfast = 7
+};
+
+enum cavlc_e : int {
+  _auto    = false,
+  enabled  = true,
+  disabled = false
+};
+
+std::optional<int> preset_from_view(const std::string_view &preset) {
+#define _CONVERT_(x) \
+  if(preset == #x##sv) return x
+  _CONVERT_(veryslow);
+  _CONVERT_(slower);
+  _CONVERT_(slow);
+  _CONVERT_(medium);
+  _CONVERT_(fast);
+  _CONVERT_(faster);
+  _CONVERT_(veryfast);
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+std::optional<int> coder_from_view(const std::string_view &coder) {
+  if(coder == "auto"sv) return _auto;
+  if(coder == "cabac"sv || coder == "ac"sv) return disabled;
+  if(coder == "cavlc"sv || coder == "vlc"sv) return enabled;
+  return std::nullopt;
+}
+
+} // namespace qsv
+
 namespace vt {
 
 enum coder_e : int {
@@ -255,17 +295,24 @@ video_t video {
   },          // nv
 
   {
+    qsv::medium, // preset
+    qsv::_auto,  // cavlc
+  },             // qsv
+
+  {
     (int)amd::quality_h264_e::balanced, // quality (h264)
     (int)amd::quality_hevc_e::balanced, // quality (hevc)
     (int)amd::rc_h264_e::vbr_latency,   // rate control (h264)
     (int)amd::rc_hevc_e::vbr_latency,   // rate control (hevc)
     (int)amd::coder_e::_auto,           // coder
   },                                    // amd
+
   {
     0,
     0,
     1,
-    -1 }, // vt
+    -1,
+  }, // vt
 
   {},  // encoder
   {},  // adapter_name
@@ -760,6 +807,9 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "nv_tune", video.nv.tune, nv::tune_from_view);
   int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
   int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+
+  int_f(vars, "qsv_preset", video.qsv.preset, qsv::preset_from_view);
+  int_f(vars, "qsv_coder", video.qsv.cavlc, qsv::coder_from_view);
 
   std::string quality;
   string_f(vars, "amd_quality", quality);

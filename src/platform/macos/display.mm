@@ -6,6 +6,11 @@
 #include "src/config.h"
 #include "src/main.h"
 
+// Avoid conflict between AVFoundation and libavutil both defining AVMediaType
+#define AVMediaType AVMediaType_FFmpeg
+#include "src/video.h"
+#undef AVMediaType
+
 namespace fs = std::filesystem;
 
 namespace platf {
@@ -60,11 +65,12 @@ struct av_display_t : public display_t {
       img_next->row_pitch   = CVPixelBufferGetBytesPerRow(pixelBuffer);
       img_next->pixel_pitch = img_next->row_pitch / img_next->width;
 
-      img_next = snapshot_cb(img_next);
+      img_next = snapshot_cb(img_next, true);
 
       return img_next != nullptr;
     }];
 
+    // FIXME: We should time out if an image isn't returned for a while
     dispatch_semaphore_wait(signal, DISPATCH_TIME_FOREVER);
 
     return capture_e::ok;
@@ -146,7 +152,7 @@ struct av_display_t : public display_t {
   }
 };
 
-std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
   if(hwdevice_type != platf::mem_type_e::system) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
@@ -167,7 +173,7 @@ std::shared_ptr<display_t> display(platf::mem_type_e hwdevice_type, const std::s
     }
   }
 
-  display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:framerate];
+  display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
 
   if(!display->av_capture) {
     BOOST_LOG(error) << "Video setup failed."sv;

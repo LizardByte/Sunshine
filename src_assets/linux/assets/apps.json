@@ -19,7 +19,6 @@
     },
     {
       "name": "Steam BigPicture",
-      "output": "steam.txt",
       "detached": [
         "setsid steam steam://open/bigpicture"
       ],

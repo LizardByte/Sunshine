@@ -3,9 +3,20 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# This workflow is intended to work with all our organization Docker projects. Docker platforms/architectures should be
-# listed in a file named `.docker_platforms`, comma separated list with no spaces. A readme named `DOCKER_README.md`
+# This workflow is intended to work with all our organization Docker projects. A readme named `DOCKER_README.md`
 # will be used to update the description on Docker hub.
+
+# custom comments in dockerfiles:
+
+# `# platforms: `
+#    Comma separated list of platforms, i.e. `# platforms: linux/386,linux/amd64`. Docker platforms can alternatively
+#    be listed in a file named `.docker_platforms`.
+# `# platforms_pr: `
+#    Comma separated list of platforms to run for PR events, i.e. `# platforms_pr: linux/amd64`. This will take
+#    precedence over the `# platforms: ` directive.
+# `# artifacts: `
+#    `true` to build in two steps, stopping at `artifacts` build stage and extracting the image from there to the
+#    GitHub runner.
 
 name: CI Docker
 
@@ -22,56 +33,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check_dockerfile:
-    name: Check Dockerfile
+  check_dockerfiles:
+    name: Check Dockerfiles
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Check
-        id: check
+      - name: Find dockerfiles
+        id: find
         run: |
-          if [ -f "./Dockerfile" ]
-          then
-            FOUND=true
-          else
-            FOUND=false
-          fi
+          dockerfiles=$(find . -type f -iname "Dockerfile" -o -iname "*.dockerfile")
 
-          echo "dockerfile=${FOUND}" >> $GITHUB_OUTPUT
+          echo "found dockerfiles: ${dockerfiles}"
+
+          # do not quote to keep this as a single line
+          echo dockerfiles=${dockerfiles} >> $GITHUB_OUTPUT
+
+          MATRIX_COMBINATIONS=""
+          for FILE in ${dockerfiles}; do
+            # extract tag from file name
+            tag=$(echo $FILE | sed -r -z -e 's/(\.\/)*.*\/(Dockerfile)/None/gm')
+            if [[ $tag == "None" ]]; then
+              MATRIX_COMBINATIONS="$MATRIX_COMBINATIONS {\"dockerfile\": \"$FILE\"},"
+            else
+              tag=$(echo $FILE | sed -r -z -e 's/(\.\/)*.*\/(.+)(\.dockerfile)/-\2/gm')
+              MATRIX_COMBINATIONS="$MATRIX_COMBINATIONS {\"dockerfile\": \"$FILE\", \"tag\": \"$tag\"},"
+            fi
+          done
+
+          # removes the last character (i.e. comma)
+          MATRIX_COMBINATIONS=${MATRIX_COMBINATIONS::-1}
+
+          # setup matrix for later jobs
+          matrix=$((
+            echo "{ \"include\": [$MATRIX_COMBINATIONS] }"
+          ) | jq -c .)
+
+          echo $matrix
+          echo $matrix | jq .
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
     outputs:
-      dockerfile: ${{ steps.check.outputs.dockerfile }}
-
-  lint_dockerfile:
-    name: Lint Dockerfile
-    needs: [check_dockerfile]
-    if: ${{ needs.check_dockerfile.outputs.dockerfile == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Hadolint
-        id: hadolint
-        uses: hadolint/hadolint-action@v3.0.0
-        with:
-          dockerfile: ./Dockerfile
-          ignore: DL3008,DL3013,DL3016,DL3018,DL3028,DL3059
-          output-file: ./hadolint.log
-          verbose: true
-
-      - name: Log
-        if: failure()
-        run: |
-          echo "Hadolint outcome: ${{ steps.hadolint.outcome }}" >> $GITHUB_STEP_SUMMARY
-          cat "./hadolint.log" >> $GITHUB_STEP_SUMMARY
+      dockerfiles: ${{ steps.find.outputs.dockerfiles }}
+      matrix: ${{ steps.find.outputs.matrix }}
 
   check_changelog:
     name: Check Changelog
-    needs: [check_dockerfile]
-    if: ${{ needs.check_dockerfile.outputs.dockerfile == 'true' }}
+    needs: [check_dockerfiles]
+    if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -87,15 +97,99 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       next_version: ${{ steps.verify_changelog.outputs.changelog_parser_version }}
+      next_version_bare: ${{ steps.verify_changelog.outputs.changelog_parser_version_bare }}
+      last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
+      release_body: ${{ steps.verify_changelog.outputs.changelog_parser_description }}
+
+  setup_release:
+    name: Setup Release
+    needs: check_changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set release details
+        id: release_details
+        env:
+          RELEASE_BODY: ${{ needs.check_changelog.outputs.release_body }}
+        run: |
+          # determine to create a release or not
+          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+            RELEASE=true
+          else
+            RELEASE=false
+          fi
+
+          # set the release tag
+          COMMIT=${{ github.sha }}
+          if [[ $GITHUB_REF == refs/heads/master ]]; then
+            TAG="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
+            RELEASE_BODY="$RELEASE_BODY"
+            PRE_RELEASE="false"
+          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
+            TAG="nightly-dev"
+            RELEASE_NAME="nightly"
+            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
+            PRE_RELEASE="true"
+          fi
+
+          echo "create_release=${RELEASE}" >> $GITHUB_OUTPUT
+          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
+
+          # this is stupid but works for multiline strings
+          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+    outputs:
+      create_release: ${{ steps.release_details.outputs.create_release }}
+      release_tag: ${{ steps.release_details.outputs.release_tag }}
+      release_commit: ${{ steps.release_details.outputs.release_commit }}
+      release_name: ${{ steps.release_details.outputs.release_name }}
+      release_body: ${{ env.RELEASE_BODY }}
+      pre_release: ${{ steps.release_details.outputs.pre_release }}
+
+  lint_dockerfile:
+    needs: [check_dockerfiles]
+    if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.check_dockerfiles.outputs.matrix) }}
+    name: Lint Dockerfile${{ matrix.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Hadolint
+        id: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          ignore: DL3008,DL3013,DL3016,DL3018,DL3028,DL3059
+          output-file: ./hadolint.log
+          verbose: true
+
+      - name: Log
+        if: failure()
+        run: |
+          echo "Hadolint outcome: ${{ steps.hadolint.outcome }}" >> $GITHUB_STEP_SUMMARY
+          cat "./hadolint.log" >> $GITHUB_STEP_SUMMARY
 
   docker:
-    name: Docker
-    needs: [check_dockerfile, check_changelog]
-    if: ${{ needs.check_dockerfile.outputs.dockerfile == 'true' }}
+    needs: [check_dockerfiles, check_changelog, setup_release]
+    if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
     runs-on: ubuntu-latest
     permissions:
       packages: write
       contents: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.check_dockerfiles.outputs.matrix) }}
+    name: Docker${{ matrix.tag }}
 
     steps:
       - name: Checkout
@@ -106,13 +200,12 @@ jobs:
       - name: Prepare
         id: prepare
         env:
-          NEXT_VERSION: ${{ needs.check_changelog.outputs.next_version }}
+          NV: ${{ needs.check_changelog.outputs.next_version }}
         run: |
           # get branch name
           BRANCH=${GITHUB_HEAD_REF}
 
-          if [ -z "$BRANCH" ]
-          then
+          if [ -z "$BRANCH" ]; then
             echo "This is a PUSH event"
             BRANCH=${{ github.ref_name }}
           fi
@@ -129,27 +222,62 @@ jobs:
           BASE_TAG=$(echo $REPOSITORY | tr '[:upper:]' '[:lower:]')
           COMMIT=${{ github.sha }}
 
-          TAGS="${BASE_TAG}:${COMMIT:0:7},ghcr.io/${BASE_TAG}:${COMMIT:0:7}"
+          TAGS="${BASE_TAG}:${COMMIT:0:7}${{ matrix.tag }},ghcr.io/${BASE_TAG}:${COMMIT:0:7}${{ matrix.tag }}"
 
           if [[ $GITHUB_REF == refs/heads/master ]]; then
-            TAGS="${TAGS},${BASE_TAG}:latest,ghcr.io/${BASE_TAG}:latest"
-            TAGS="${TAGS},${BASE_TAG}:master,ghcr.io/${BASE_TAG}:master"
+            TAGS="${TAGS},${BASE_TAG}:latest${{ matrix.tag }},ghcr.io/${BASE_TAG}:latest${{ matrix.tag }}"
+            TAGS="${TAGS},${BASE_TAG}:master${{ matrix.tag }},ghcr.io/${BASE_TAG}:master${{ matrix.tag }}"
           elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
-            TAGS="${TAGS},${BASE_TAG}:nightly,ghcr.io/${BASE_TAG}:nightly"
+            TAGS="${TAGS},${BASE_TAG}:nightly${{ matrix.tag }},ghcr.io/${BASE_TAG}:nightly${{ matrix.tag }}"
           else
-            TAGS="${TAGS},${BASE_TAG}:test,ghcr.io/${BASE_TAG}:test"
+            TAGS="${TAGS},${BASE_TAG}:test${{ matrix.tag }},ghcr.io/${BASE_TAG}:test${{ matrix.tag }}"
           fi
 
-          if [[ ${NEXT_VERSION} != "" ]]; then
-            TAGS="${TAGS},${BASE_TAG}:${NEXT_VERSION},ghcr.io/${BASE_TAG}:${NEXT_VERSION}"
+          if [[ ${NV} != "" ]]; then
+            TAGS="${TAGS},${BASE_TAG}:${NV}${{ matrix.tag }},ghcr.io/${BASE_TAG}:${NV}${{ matrix.tag }}"
           fi
 
-          # read the platforms from `.docker_platforms`
-          PLATFORMS=$(<.docker_platforms)
+          # parse custom directives out of dockerfile
+          # try to get the platforms from the dockerfile custom directive, i.e. `# platforms: xxx,yyy`
+          # directives for PR event, i.e. not push event
+          if [[ ${PUSH} == "false" ]]; then
+            while read -r line; do
+              if [[ $line == "# platforms_pr: "* && $PLATFORMS == "" ]]; then
+                # echo the line and use `sed` to remove the custom directive
+                PLATFORMS=$(echo -e "$line" | sed 's/# platforms_pr: //')
+              elif [[ $PLATFORMS != "" ]]; then
+                # break while loop once all custom "PR" event directives are found
+                break
+              fi
+            done <"${{ matrix.dockerfile }}"
+          fi
+          # directives for all events... above directives will not be parsed if they were already found
+          while read -r line; do
+            if [[ $line == "# platforms: "* && $PLATFORMS == "" ]]; then
+              # echo the line and use `sed` to remove the custom directive
+              PLATFORMS=$(echo -e "$line" | sed 's/# platforms: //')
+            elif [[ $line == "# artifacts: "* && $ARTIFACTS == "" ]]; then
+              # echo the line and use `sed` to remove the custom directive
+              ARTIFACTS=$(echo -e "$line" | sed 's/# artifacts: //')
+            elif [[ $PLATFORMS != "" && $ARTIFACTS != "" ]]; then
+              # break while loop once all custom directives are found
+              break
+            fi
+          done <"${{ matrix.dockerfile }}"
+          # if PLATFORMS is blank, fall back to the legacy method of reading from the `.docker_platforms` file
+          if [[ $PLATFORMS == "" ]]; then
+            # read the platforms from `.docker_platforms`
+            PLATFORMS=$(<.docker_platforms)
+          fi
+          # if PLATFORMS is still blank, fall back to `linux/amd64`
+          if [[ $PLATFORMS == "" ]]; then
+            PLATFORMS="linux/amd64"
+          fi
 
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
           echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "artifacts=${ARTIFACTS}" >> $GITHUB_OUTPUT
           echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
           echo "push=${PUSH}" >> $GITHUB_OUTPUT
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
@@ -165,9 +293,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          key: Docker-buildx${{ matrix.tag }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-buildx-
+            Docker-buildx${{ matrix.tag }}-
 
       - name: Log in to Docker Hub
         if: ${{ steps.prepare.outputs.push == 'true' }}  # PRs do not have access to secrets
@@ -184,11 +312,32 @@ jobs:
           username: ${{ secrets.GH_BOT_NAME }}
           password: ${{ secrets.GH_BOT_TOKEN }}
 
-      - name: Build and push
+      - name: Build artifacts
+        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
+        id: build_artifacts
         uses: docker/build-push-action@v3
         with:
           context: ./
-          file: ./Dockerfile
+          file: ${{ matrix.dockerfile }}
+          target: artifacts
+          outputs: type=local,dest=artifacts
+          push: false
+          platforms: ${{ steps.prepare.outputs.platforms }}
+          build-args: |
+            BRANCH=${{ steps.prepare.outputs.branch }}
+            BUILD_DATE=${{ steps.prepare.outputs.build_date }}
+            BUILD_VERSION=${{ needs.check_changelog.outputs.next_version }}
+            COMMIT=${{ steps.prepare.outputs.commit }}
+          tags: ${{ steps.prepare.outputs.tags }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v3
+        with:
+          context: ./
+          file: ${{ matrix.dockerfile }}
           push: ${{ steps.prepare.outputs.push }}
           platforms: ${{ steps.prepare.outputs.platforms }}
           build-args: |
@@ -199,6 +348,36 @@ jobs:
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+
+      - name: Arrange Artifacts
+        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
+        working-directory: artifacts
+        run: |
+          # artifacts will be in sub directories named after the docker target platform, e.g. `linux_amd64`
+          # so move files to the artifacts directory
+          # https://unix.stackexchange.com/a/52816
+          find ./ -type f -exec mv -t ./ -n '{}' +
+
+      - name: Upload Artifacts
+        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine${{ matrix.tag }}
+          path: artifacts/
+
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
       - name: Update Docker Hub Description
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}

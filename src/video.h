@@ -48,6 +48,16 @@ struct packet_raw_t {
 
 using packet_t = std::unique_ptr<packet_raw_t>;
 
+struct hdr_info_raw_t {
+  explicit hdr_info_raw_t(bool enabled) : enabled { enabled }, metadata {} {};
+  explicit hdr_info_raw_t(bool enabled, const SS_HDR_METADATA &metadata) : enabled { enabled }, metadata { metadata } {};
+
+  bool enabled;
+  SS_HDR_METADATA metadata;
+};
+
+using hdr_info_t = std::unique_ptr<hdr_info_raw_t>;
+
 struct config_t {
   int width;
   int height;
@@ -72,7 +82,7 @@ struct __attribute__((__aligned__(16))) color_t {
   float2 range_uv;
 };
 
-extern color_t colors[4];
+extern color_t colors[6];
 
 void capture(
   safe::mail_t mail,

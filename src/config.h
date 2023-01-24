@@ -29,6 +29,11 @@ struct video_t {
   } nv;
 
   struct {
+    std::optional<int> preset;
+    std::optional<int> cavlc;
+  } qsv;
+
+  struct {
     std::optional<int> quality_h264;
     std::optional<int> quality_hevc;
     std::optional<int> rc_h264;

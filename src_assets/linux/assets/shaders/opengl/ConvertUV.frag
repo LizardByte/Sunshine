@@ -31,5 +31,5 @@ void main() {
   u = u * range_uv.x + range_uv.y;
   v = v * range_uv.x + range_uv.y;
 
-  color = vec2(u, v * 224.0f / 256.0f + 0.0625);
+  color = vec2(u, v);
 }

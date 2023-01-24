@@ -12,6 +12,7 @@
 #include "src/platform/common.h"
 #include "src/round_robin.h"
 #include "src/utility.h"
+#include "src/video.h"
 
 // Cursor rendering support through x11
 #include "graphics.h"
@@ -444,8 +445,8 @@ class display_t : public platf::display_t {
 public:
   display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
 
-  int init(const std::string &display_name, int framerate) {
-    delay = std::chrono::nanoseconds { 1s } / framerate;
+  int init(const std::string &display_name, const ::video::config_t &config) {
+    delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
     int monitor_index = util::from_view(display_name);
     int monitor       = 0;
@@ -632,13 +633,13 @@ class display_ram_t : public display_t {
 public:
   display_ram_t(mem_type_e mem_type) : display_t(mem_type) {}
 
-  int init(const std::string &display_name, int framerate) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
     if(!gbm::create_device) {
       BOOST_LOG(warning) << "libgbm not initialized"sv;
       return -1;
     }
 
-    if(display_t::init(display_name, framerate)) {
+    if(display_t::init(display_name, config)) {
       return -1;
     }
 
@@ -684,10 +685,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        std::this_thread::sleep_for(1ms);
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
@@ -805,10 +806,10 @@ public:
       case platf::capture_e::error:
         return status;
       case platf::capture_e::timeout:
-        std::this_thread::sleep_for(1ms);
-        continue;
+        img = snapshot_cb(img, false);
+        break;
       case platf::capture_e::ok:
-        img = snapshot_cb(img);
+        img = snapshot_cb(img, true);
         break;
       default:
         BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
@@ -852,8 +853,8 @@ public:
     return capture_e::ok;
   }
 
-  int init(const std::string &display_name, int framerate) {
-    if(display_t::init(display_name, framerate)) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
+    if(display_t::init(display_name, config)) {
       return -1;
     }
 
@@ -872,11 +873,11 @@ public:
 
 } // namespace kms
 
-std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
   if(hwdevice_type == mem_type_e::vaapi) {
     auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
-    if(!disp->init(display_name, framerate)) {
+    if(!disp->init(display_name, config)) {
       return disp;
     }
 
@@ -885,7 +886,7 @@ std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::stri
 
   auto disp = std::make_shared<kms::display_ram_t>(hwdevice_type);
 
-  if(disp->init(display_name, framerate)) {
+  if(disp->init(display_name, config)) {
     return nullptr;
   }
 
