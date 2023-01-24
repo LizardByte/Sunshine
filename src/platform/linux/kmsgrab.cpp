@@ -543,14 +543,14 @@ public:
         if(monitor != std::end(pos->crtc_to_monitor)) {
           auto &viewport = monitor->second.viewport;
 
-          width    = viewport.width;
-          height   = viewport.height;
+          width  = viewport.width;
+          height = viewport.height;
 
-          switch (card.get_panel_orientation(plane->plane_id)) {
+          switch(card.get_panel_orientation(plane->plane_id)) {
           case DRM_MODE_ROTATE_270:
             BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
-            width    = viewport.height;
-            height   = viewport.width;
+            width  = viewport.height;
+            height = viewport.width;
             break;
           case DRM_MODE_ROTATE_90:
           case DRM_MODE_ROTATE_180:
