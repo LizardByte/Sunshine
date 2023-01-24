@@ -598,6 +598,23 @@ bool display_base_t::get_hdr_metadata(SS_HDR_METADATA &metadata) {
   DXGI_OUTPUT_DESC1 desc1;
   output6->GetDesc1(&desc1);
 
+  // The primaries reported here seem to correspond to scRGB (Rec. 709)
+  // which we then convert to Rec 2020 in our scRGB FP16 -> PQ shader
+  // prior to encoding. It's not clear to me if we're supposed to report
+  // the primaries of the original colorspace or the one we've converted
+  // it to, but let's just report Rec 2020 primaries and D65 white level
+  // to avoid confusing clients by reporting Rec 709 primaries with a
+  // Rec 2020 colorspace. It seems like most clients ignore the primaries
+  // in the metadata anyway (luminance range is most important).
+  desc1.RedPrimary[0]   = 0.708f;
+  desc1.RedPrimary[1]   = 0.292f;
+  desc1.GreenPrimary[0] = 0.170f;
+  desc1.GreenPrimary[1] = 0.797f;
+  desc1.BluePrimary[0]  = 0.131f;
+  desc1.BluePrimary[1]  = 0.046f;
+  desc1.WhitePoint[0]   = 0.3127f;
+  desc1.WhitePoint[1]   = 0.3290f;
+
   metadata.displayPrimaries[0].x = desc1.RedPrimary[0] * 50000;
   metadata.displayPrimaries[0].y = desc1.RedPrimary[1] * 50000;
   metadata.displayPrimaries[1].x = desc1.GreenPrimary[0] * 50000;

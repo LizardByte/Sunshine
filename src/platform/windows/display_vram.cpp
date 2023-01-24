@@ -89,9 +89,12 @@ blend_t make_blend(device_t::pointer device, bool enable, bool invert) {
 
 blob_t convert_UV_vs_hlsl;
 blob_t convert_UV_ps_hlsl;
+blob_t convert_UV_PQ_ps_hlsl;
 blob_t scene_vs_hlsl;
 blob_t convert_Y_ps_hlsl;
+blob_t convert_Y_PQ_ps_hlsl;
 blob_t scene_ps_hlsl;
+blob_t scene_NW_ps_hlsl;
 
 struct img_d3d_t : public platf::img_t {
   std::shared_ptr<platf::display_t> display;
@@ -546,28 +549,39 @@ public:
       return -1;
     }
 
-    status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
     status = device->CreateVertexShader(convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(), nullptr, &convert_UV_vs);
     if(status) {
       BOOST_LOG(error) << "Failed to create convertUV vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+    // If the display is in HDR and we're streaming HDR, we'll be converting scRGB to SMPTE 2084 PQ.
+    // NB: We can consume scRGB in SDR with our regular shaders because it behaves like UNORM input.
+    if(format == DXGI_FORMAT_P010 && display->is_hdr()) {
+      status = device->CreatePixelShader(convert_Y_PQ_ps_hlsl->GetBufferPointer(), convert_Y_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      status = device->CreatePixelShader(convert_UV_PQ_ps_hlsl->GetBufferPointer(), convert_UV_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+    }
+    else {
+      status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
 
     color_matrix = make_buffer(device.get(), ::video::colors[0]);
@@ -708,7 +722,6 @@ public:
   vs_t convert_UV_vs;
   ps_t convert_UV_ps;
   ps_t convert_Y_ps;
-  ps_t scene_ps;
   vs_t scene_vs;
 
   D3D11_VIEWPORT outY_view;
@@ -978,10 +991,32 @@ int display_vram_t::init(const ::video::config_t &config, const std::string &dis
     return -1;
   }
 
-  status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
-  if(status) {
-    BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-    return -1;
+  if(config.dynamicRange && is_hdr()) {
+    // This shader will normalize scRGB white levels to a user-defined white level
+    status = device->CreatePixelShader(scene_NW_ps_hlsl->GetBufferPointer(), scene_NW_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // Use a 300 nit target for the mouse cursor. We should really get
+    // the user's SDR white level in nits, but there is no API that
+    // provides that information to Win32 apps.
+    float sdr_multiplier_data[16 / sizeof(float)] { 300.0f / 80.f }; // aligned to 16-byte
+    auto sdr_multiplier = make_buffer(device.get(), sdr_multiplier_data);
+    if(!sdr_multiplier) {
+      BOOST_LOG(warning) << "Failed to create SDR multiplier"sv;
+      return -1;
+    }
+
+    device_ctx->PSSetConstantBuffers(0, 1, &sdr_multiplier);
+  }
+  else {
+    status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
   }
 
   blend_alpha   = make_blend(device.get(), true, false);
@@ -1108,7 +1143,25 @@ std::vector<DXGI_FORMAT> display_vram_t::get_supported_sdr_capture_formats() {
 }
 
 std::vector<DXGI_FORMAT> display_vram_t::get_supported_hdr_capture_formats() {
-  return { DXGI_FORMAT_R10G10B10A2_UNORM };
+  return {
+    // scRGB FP16 is the desired format for HDR content. This will also handle
+    // 10-bit SDR displays with the increased precision of FP16 vs 8-bit UNORMs.
+    DXGI_FORMAT_R16G16B16A16_FLOAT,
+
+    // DXGI_FORMAT_R10G10B10A2_UNORM seems like it might give us frames already
+    // converted to SMPTE 2084 PQ, however it seems to actually just clamp the
+    // scRGB FP16 values that DWM is using when the desktop format is scRGB FP16.
+    //
+    // If there is a case where the desktop format is really SMPTE 2084 PQ, it
+    // might make sense to support capturing it without conversion to scRGB,
+    // but we avoid it for now.
+
+    // We include the 8-bit modes too for when the display is in SDR mode,
+    // while the client stream is HDR-capable. These UNORM formats behave
+    // like a degenerate case of scRGB FP16 with values between 0.0f-1.0f.
+    DXGI_FORMAT_B8G8R8A8_UNORM,
+    DXGI_FORMAT_R8G8B8A8_UNORM,
+  };
 }
 
 std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_fmt) {
@@ -1144,8 +1197,18 @@ int init() {
     return -1;
   }
 
+  convert_Y_PQ_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertYPS_PQ.hlsl");
+  if(!convert_Y_PQ_ps_hlsl) {
+    return -1;
+  }
+
   convert_UV_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS.hlsl");
   if(!convert_UV_ps_hlsl) {
+    return -1;
+  }
+
+  convert_UV_PQ_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS_PQ.hlsl");
+  if(!convert_UV_PQ_ps_hlsl) {
     return -1;
   }
 
@@ -1156,6 +1219,11 @@ int init() {
 
   scene_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ScenePS.hlsl");
   if(!scene_ps_hlsl) {
+    return -1;
+  }
+
+  scene_NW_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ScenePS_NW.hlsl");
+  if(!scene_NW_ps_hlsl) {
     return -1;
   }
   BOOST_LOG(info) << "Compiled shaders"sv;
