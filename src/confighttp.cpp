@@ -247,7 +247,7 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
-bool isChildPath(fs::path const& base, fs::path const& query) {
+bool isChildPath(fs::path const &base, fs::path const &query) {
   auto relPath = fs::relative(query, base);
   return *(relPath.begin()) != fs::path("..");
 }
@@ -259,21 +259,23 @@ void getNodeModules(resp_https_t response, req_https_t request) {
   auto filePath = fs::weakly_canonical(webDirPath / request->path);
 
   // Don't do anything if file does not exist or is outside the node_modules directory
-  if (!fs::exists(filePath)) {
+  if(!fs::exists(filePath)) {
     response->write(SimpleWeb::StatusCode::client_error_not_found);
-    
-  } else if (!isChildPath(filePath, nodeModulesPath)) {
+  }
+  else if(!isChildPath(filePath, nodeModulesPath)) {
     BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
     response->write(SimpleWeb::StatusCode::client_error_bad_request, "Not Authorized");
-  } else {
+  }
+  else {
     auto relPath = fs::relative(filePath, webDirPath);
-    if (relPath.extension() == ".ttf" or relPath.extension() == ".woff2") {
+    if(relPath.extension() == ".ttf" or relPath.extension() == ".woff2") {
       // Fonts are read differntly
       SimpleWeb::CaseInsensitiveMultimap headers;
       std::ifstream in((filePath).c_str(), std::ios::binary);
       headers.emplace("Content-Type", "font/" + filePath.extension().string().substr(1));
       response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-    } else {
+    }
+    else {
       std::string content = read_file((filePath.string()).c_str());
       response->write(content);
     }
