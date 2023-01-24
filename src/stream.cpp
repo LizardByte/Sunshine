@@ -33,6 +33,7 @@ extern "C" {
 #define IDX_PERIODIC_PING 8
 #define IDX_REQUEST_IDR_FRAME 9
 #define IDX_ENCRYPTED 10
+#define IDX_HDR_MODE 11
 
 static const short packetTypes[] = {
   0x0305, // Start A
@@ -46,6 +47,7 @@ static const short packetTypes[] = {
   0x0200, // Periodic Ping
   0x0302, // IDR frame
   0x0001, // fully encrypted
+  0x010e, // HDR mode
 };
 
 namespace asio = boost::asio;
@@ -129,6 +131,15 @@ struct control_rumble_t {
   std::uint16_t id;
   std::uint16_t lowfreq;
   std::uint16_t highfreq;
+};
+
+struct control_hdr_mode_t {
+  control_header_v2 header;
+
+  std::uint8_t enabled;
+
+  // Sunshine protocol extension
+  SS_HDR_METADATA metadata;
 };
 
 typedef struct control_encrypted_t {
@@ -314,6 +325,7 @@ struct session_t {
     std::uint8_t seq;
 
     platf::rumble_queue_t rumble_queue;
+    safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
   } control;
 
   safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -607,6 +619,36 @@ int send_rumble(session_t *session, std::uint16_t id, std::uint16_t lowfreq, std
   return 0;
 }
 
+int send_hdr_mode(session_t *session, video::hdr_info_t hdr_info) {
+  if(!session->control.peer) {
+    BOOST_LOG(warning) << "Couldn't send HDR mode, still waiting for PING from Moonlight"sv;
+    // Still waiting for PING from Moonlight
+    return -1;
+  }
+
+  control_hdr_mode_t plaintext {};
+  plaintext.header.type          = packetTypes[IDX_HDR_MODE];
+  plaintext.header.payloadLength = sizeof(control_hdr_mode_t) - sizeof(control_header_v2);
+
+  plaintext.enabled  = hdr_info->enabled;
+  plaintext.metadata = hdr_info->metadata;
+
+  std::array<std::uint8_t,
+    sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+    encrypted_payload;
+
+  auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
+  if(session->broadcast_ref->control_server.send(payload, session->control.peer)) {
+    TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *)&session->control.peer->address.address));
+    BOOST_LOG(warning) << "Couldn't send HDR mode to ["sv << addr << ':' << port << ']';
+
+    return -1;
+  }
+
+  BOOST_LOG(debug) << "Sent HDR mode: " << hdr_info->enabled;
+  return 0;
+}
+
 void controlBroadcastThread(control_server_t *server) {
   server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
     BOOST_LOG(verbose) << "type [IDX_START_A]"sv;
@@ -776,6 +818,13 @@ void controlBroadcastThread(control_server_t *server) {
           auto rumble = rumble_queue->pop();
 
           send_rumble(session, rumble->id, rumble->lowfreq, rumble->highfreq);
+        }
+
+        auto &hdr_queue = session->control.hdr_queue;
+        while(hdr_queue->peek()) {
+          auto hdr_info = hdr_queue->pop();
+
+          send_hdr_mode(session, std::move(hdr_info));
         }
 
         ++pos;
@@ -1513,6 +1562,7 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
   session->config = config;
 
   session->control.rumble_queue = mail->queue<platf::rumble_t>(mail::rumble);
+  session->control.hdr_queue    = mail->event<video::hdr_info_t>(mail::hdr);
   session->control.iv           = iv;
   session->control.cipher       = crypto::cipher::gcm_t {
     gcm_key, false

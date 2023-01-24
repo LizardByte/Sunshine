@@ -952,8 +952,8 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
   return capture_e::ok;
 }
 
-int display_vram_t::init(int framerate, const std::string &display_name) {
-  if(display_base_t::init(framerate, display_name)) {
+int display_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
+  if(display_base_t::init(config, display_name)) {
     return -1;
   }
 
@@ -1104,7 +1104,11 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
 }
 
 std::vector<DXGI_FORMAT> display_vram_t::get_supported_sdr_capture_formats() {
-  return std::vector { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
+  return { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
+}
+
+std::vector<DXGI_FORMAT> display_vram_t::get_supported_hdr_capture_formats() {
+  return { DXGI_FORMAT_R10G10B10A2_UNORM };
 }
 
 std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_fmt) {
