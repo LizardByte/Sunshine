@@ -5,7 +5,7 @@ pkgname=@SUNSHINE_AUR_PKG@
 pkgver=@PROJECT_VERSION@@SUNSHINE_SUB_VERSION@
 pkgrel=1
 pkgdesc="@PROJECT_DESCRIPTION@"
-arch=('x86_64' 'i686')
+arch=('x86_64' 'i686' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
 
@@ -20,12 +20,24 @@ source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
 sha256sums=('SKIP')
 
 prepare() {
-    cd "$pkgname"
-    git -c submodule."ffmpeg-macos-x86_64".update=none \
-        -c submodule."ffmpeg-windows-x86_64".update=none \
-        -c submodule."ffmpeg-linux-aarch64".update=none \
-        -c submodule."ffmpeg-macos-aarch64".update=none \
-         submodule update --recursive --init
+# Skip submodules that we don't want
+    if [[ ${arch} == "x86_64" ]]; then
+        git -c submodule."ffmpeg-macos-x86_64".update=none \
+            -c submodule."ffmpeg-windows-x86_64".update=none \
+            -c submodule."ffmpeg-linux-aarch64".update=none \
+            -c submodule."ffmpeg-macos-aarch64".update=none \
+            submodule update --recursive --init
+    elif [[ ${arch} == "aarch64" ]]; then
+        git -c submodule."ffmpeg-macos-x86_64".update=none \
+            -c submodule."ffmpeg-windows-x86_64".update=none \
+            -c submodule."ffmpeg-linux-x86_64".update=none \
+            -c submodule."ffmpeg-macos-aarch64".update=none \
+            submodule update --recursive --init
+
+# It's unlikely that someone could get this far on a system with an incorrect arch, but we should handle it anyway; pull everything
+    else
+        git submodule update --recursive --init
+    fi
 }
 
 build() {
