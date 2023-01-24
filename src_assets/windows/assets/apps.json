@@ -8,7 +8,7 @@
       "image-path": "desktop.png"
     },
     {
-      "name": "Steam BigPicture",
+      "name": "Steam Big Picture",
       "detached": [
         "steam steam://open/bigpicture"
       ],
