@@ -247,23 +247,32 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
+bool isChildPath(fs::path const& base, fs::path const& query) {
+  auto relPath = fs::relative(query, base);
+  return *(relPath.begin()) != fs::path("..");
+}
+
 void getNodeModules(resp_https_t response, req_https_t request) {
   print_req(request);
+  fs::path webDirPath(WEB_DIR);
+  fs::path nodeModulesPath(webDirPath / "node_modules");
+  auto filePath = fs::weakly_canonical(webDirPath / request->path);
 
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  if(boost::algorithm::iends_with(request->path, ".ttf") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/ttf");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-  else if(boost::algorithm::iends_with(request->path, ".woff2") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/woff2");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-  else {
-    std::string content = read_file((WEB_DIR + request->path).c_str());
-    response->write(content);
+  // Don't do anything if file does not exist or is outside the node_modules directory
+  if (!isChildPath(filePath, nodeModulesPath) || !fs::exists(filePath)) {
+    response->write(SimpleWeb::StatusCode::client_error_not_found);
+  } else {
+    auto relPath = fs::relative(filePath, webDirPath);
+    if (relPath.extension() == ".ttf" or relPath.extension() == ".woff2") {
+      // Fonts are read differntly
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      std::ifstream in((filePath).c_str(), std::ios::binary);
+      headers.emplace("Content-Type", "font/" + filePath.extension().string().substr(1));
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    } else {
+      std::string content = read_file((filePath.string()).c_str());
+      response->write(content);
+    }
   }
 }
 
