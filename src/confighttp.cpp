@@ -247,7 +247,7 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
 }
 
 bool isChildPath(fs::path const &base, fs::path const &query) {
-  auto relPath = fs::relative(query, base);
+  auto relPath = fs::relative(base, query);
   return *(relPath.begin()) != fs::path("..");
 }
 
@@ -255,7 +255,9 @@ void getNodeModules(resp_https_t response, req_https_t request) {
   print_req(request);
   fs::path webDirPath(WEB_DIR);
   fs::path nodeModulesPath(webDirPath / "node_modules");
-  auto filePath = fs::weakly_canonical(webDirPath / request->path);
+
+  // .relative_path is needed to shed any leading slash that might exist in the request path
+  auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
   // Don't do anything if file does not exist or is outside the node_modules directory
   if(!fs::exists(filePath)) {
