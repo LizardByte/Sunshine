@@ -303,6 +303,18 @@ void scroll(input_t &input, int distance) {
   send_input(i);
 }
 
+void hscroll(input_t &input, int distance) {
+  INPUT i {};
+
+  i.type   = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  mi.dwFlags   = MOUSEEVENTF_HWHEEL;
+  mi.mouseData = distance;
+
+  send_input(i);
+}
+
 void keyboard(input_t &input, uint16_t modcode, bool release) {
   auto raw = (input_raw_t *)input.get();
 

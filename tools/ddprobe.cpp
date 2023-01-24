@@ -24,7 +24,7 @@ using dup_t      = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDup
 
 } // namespace dxgi
 
-bool set_gpu_preference(int preference) {
+LSTATUS set_gpu_preference(int preference) {
   // The GPU preferences key uses app path as the value name.
   WCHAR executable_path[MAX_PATH];
   GetModuleFileNameW(NULL, executable_path, ARRAYSIZE(executable_path));
@@ -39,14 +39,14 @@ bool set_gpu_preference(int preference) {
     value_data,
     (wcslen(value_data) + 1) * sizeof(WCHAR));
   if(status != ERROR_SUCCESS) {
-    std::cout << "Failed to set GPU preference: "sv << std::endl;
-    return false;
+    std::cout << "Failed to set GPU preference: "sv << status << std::endl;
+    return status;
   }
 
-  return true;
+  return ERROR_SUCCESS;
 }
 
-bool test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
+HRESULT test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
   D3D_FEATURE_LEVEL featureLevels[] {
     D3D_FEATURE_LEVEL_11_1,
     D3D_FEATURE_LEVEL_11_0,
@@ -70,27 +70,19 @@ bool test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
     nullptr);
   if(FAILED(status)) {
     std::cout << "Failed to create D3D11 device for DD test [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-    return false;
+    return status;
   }
 
   dxgi::output1_t output1;
   status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
   if(FAILED(status)) {
     std::cout << "Failed to query IDXGIOutput1 from the output"sv << std::endl;
-    return false;
+    return status;
   }
 
-  // Check if we can use the Desktop Duplication API on this output
-  for(int x = 0; x < 2; ++x) {
-    dxgi::dup_t dup;
-    status = output1->DuplicateOutput((IUnknown *)device.get(), &dup);
-    if(SUCCEEDED(status)) {
-      return true;
-    }
-    Sleep(200);
-  }
-
-  return false;
+  // Return the result of DuplicateOutput() to Sunshine
+  dxgi::dup_t dup;
+  return output1->DuplicateOutput((IUnknown *)device.get(), &dup);
 }
 
 int main(int argc, char *argv[]) {
@@ -109,8 +101,9 @@ int main(int argc, char *argv[]) {
   }
 
   // We must set the GPU preference before making any DXGI/D3D calls
-  if(!set_gpu_preference(atoi(argv[1]))) {
-    return -2;
+  status = set_gpu_preference(atoi(argv[1]));
+  if(status != ERROR_SUCCESS) {
+    return status;
   }
 
   // Remove the GPU preference when we're done
@@ -127,7 +120,7 @@ int main(int argc, char *argv[]) {
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
   if(FAILED(status)) {
     std::cout << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-    return -3;
+    return status;
   }
 
   dxgi::adapter_t::pointer adapter_p {};
@@ -152,7 +145,7 @@ int main(int argc, char *argv[]) {
       }
 
       // We found the matching output. Test it and return the result.
-      return test_dxgi_duplication(adapter, output) ? 1 : 0;
+      return test_dxgi_duplication(adapter, output);
     }
   }
 

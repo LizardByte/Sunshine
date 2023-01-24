@@ -1,6 +1,7 @@
 #include "src/platform/common.h"
 
 #include "src/main.h"
+#include "src/video.h"
 #include "vaapi.h"
 #include "wayland.h"
 
@@ -18,8 +19,8 @@ struct img_t : public platf::img_t {
 
 class wlr_t : public platf::display_t {
 public:
-  int init(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
-    delay    = std::chrono::nanoseconds { 1s } / framerate;
+  int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+    delay    = std::chrono::nanoseconds { 1s } / config.framerate;
     mem_type = hwdevice_type;
 
     if(display.init()) {
@@ -175,8 +176,8 @@ public:
     return platf::capture_e::ok;
   }
 
-  int init(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
-    if(wlr_t::init(hwdevice_type, display_name, framerate)) {
+  int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+    if(wlr_t::init(hwdevice_type, display_name, config)) {
       return -1;
     }
 
@@ -307,7 +308,7 @@ public:
 } // namespace wl
 
 namespace platf {
-std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
     return nullptr;
@@ -315,7 +316,7 @@ std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::strin
 
   if(hwdevice_type == platf::mem_type_e::vaapi) {
     auto wlr = std::make_shared<wl::wlr_vram_t>();
-    if(wlr->init(hwdevice_type, display_name, framerate)) {
+    if(wlr->init(hwdevice_type, display_name, config)) {
       return nullptr;
     }
 
@@ -323,7 +324,7 @@ std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::strin
   }
 
   auto wlr = std::make_shared<wl::wlr_ram_t>();
-  if(wlr->init(hwdevice_type, display_name, framerate)) {
+  if(wlr->init(hwdevice_type, display_name, config)) {
     return nullptr;
   }
 

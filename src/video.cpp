@@ -5,6 +5,7 @@
 #include <thread>
 
 extern "C" {
+#include <libavutil/mastering_display_metadata.h>
 #include <libswscale/swscale.h>
 }
 
@@ -372,6 +373,7 @@ struct sync_session_ctx_t {
   safe::mail_raw_t::event_t<bool> shutdown_event;
   safe::mail_raw_t::queue_t<packet_t> packets;
   safe::mail_raw_t::event_t<bool> idr_events;
+  safe::mail_raw_t::event_t<hdr_info_t> hdr_events;
   safe::mail_raw_t::event_t<input::touch_port_t> touch_port_events;
 
   config_t config;
@@ -391,7 +393,7 @@ using encode_e                   = platf::capture_e;
 
 struct capture_ctx_t {
   img_event_t images;
-  int framerate;
+  config_t config;
 };
 
 struct capture_thread_async_ctx_t {
@@ -700,11 +702,11 @@ static std::vector<encoder_t> encoders {
   software
 };
 
-void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, int framerate) {
+void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, const config_t &config) {
   // We try this twice, in case we still get an error on reinitialization
   for(int x = 0; x < 2; ++x) {
     disp.reset();
-    disp = platf::display(map_base_dev_type(type), display_name, framerate);
+    disp = platf::display(map_base_dev_type(type), display_name, config);
     if(disp) {
       break;
     }
@@ -755,7 +757,7 @@ void captureThread(
     capture_ctxs.emplace_back(std::move(*capture_ctx));
   }
 
-  auto disp = platf::display(map_base_dev_type(encoder.base_dev_type), display_names[display_p], capture_ctxs.front().framerate);
+  auto disp = platf::display(map_base_dev_type(encoder.base_dev_type), display_names[display_p], capture_ctxs.front().config);
   if(!disp) {
     return;
   }
@@ -841,7 +843,7 @@ void captureThread(
       }
 
       while(capture_ctx_queue->running()) {
-        reset_display(disp, encoder.base_dev_type, display_names[display_p], capture_ctxs.front().framerate);
+        reset_display(disp, encoder.base_dev_type, display_names[display_p], capture_ctxs.front().config);
 
         if(disp) {
           break;
@@ -939,7 +941,7 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
   return 0;
 }
 
-std::optional<session_t> make_session(const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
+std::optional<session_t> make_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
   bool hardware = encoder.base_dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
@@ -1037,6 +1039,15 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   }
   else {
     sw_fmt = encoder.dynamic_pix_fmt;
+
+    // When HDR is active, that overrides the colorspace the client requested
+    if(disp->is_hdr()) {
+      BOOST_LOG(info) << "HDR color coding override [SMPTE ST 2084 PQ]"sv;
+      ctx->color_primaries = AVCOL_PRI_BT2020;
+      ctx->color_trc       = AVCOL_TRC_SMPTE2084;
+      ctx->colorspace      = AVCOL_SPC_BT2020_NCL;
+      sws_color_space      = SWS_CS_BT2020;
+    }
   }
 
   // Used by cbs::make_sps_hevc
@@ -1169,6 +1180,37 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   frame->width  = ctx->width;
   frame->height = ctx->height;
 
+  // Attach HDR metadata to the AVFrame
+  if(config.dynamicRange && disp->is_hdr()) {
+    SS_HDR_METADATA hdr_metadata;
+    if(disp->get_hdr_metadata(hdr_metadata)) {
+      auto mdm = av_mastering_display_metadata_create_side_data(frame.get());
+
+      mdm->display_primaries[0][0] = av_make_q(hdr_metadata.displayPrimaries[0].x, 50000);
+      mdm->display_primaries[0][1] = av_make_q(hdr_metadata.displayPrimaries[0].y, 50000);
+      mdm->display_primaries[1][0] = av_make_q(hdr_metadata.displayPrimaries[1].x, 50000);
+      mdm->display_primaries[1][1] = av_make_q(hdr_metadata.displayPrimaries[1].y, 50000);
+      mdm->display_primaries[2][0] = av_make_q(hdr_metadata.displayPrimaries[2].x, 50000);
+      mdm->display_primaries[2][1] = av_make_q(hdr_metadata.displayPrimaries[2].y, 50000);
+
+      mdm->white_point[0] = av_make_q(hdr_metadata.whitePoint.x, 50000);
+      mdm->white_point[1] = av_make_q(hdr_metadata.whitePoint.y, 50000);
+
+      mdm->min_luminance = av_make_q(hdr_metadata.minDisplayLuminance, 10000);
+      mdm->max_luminance = av_make_q(hdr_metadata.maxDisplayLuminance, 1);
+
+      mdm->has_luminance = hdr_metadata.maxDisplayLuminance != 0 ? 1 : 0;
+      mdm->has_primaries = hdr_metadata.displayPrimaries[0].x != 0 ? 1 : 0;
+
+      if(hdr_metadata.maxContentLightLevel != 0 || hdr_metadata.maxFrameAverageLightLevel != 0) {
+        auto clm = av_content_light_metadata_create_side_data(frame.get());
+
+        clm->MaxCLL  = hdr_metadata.maxContentLightLevel;
+        clm->MaxFALL = hdr_metadata.maxFrameAverageLightLevel;
+      }
+    }
+  }
+
   std::shared_ptr<platf::hwdevice_t> device;
 
   if(!hwdevice->data) {
@@ -1212,13 +1254,13 @@ void encode_run(
   safe::mail_t mail,
   img_event_t images,
   config_t config,
-  int width, int height,
+  std::shared_ptr<platf::display_t> disp,
   std::shared_ptr<platf::hwdevice_t> &&hwdevice,
   safe::signal_t &reinit_event,
   const encoder_t &encoder,
   void *channel_data) {
 
-  auto session = make_session(encoder, config, width, height, std::move(hwdevice));
+  auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
   if(!session) {
     return;
   }
@@ -1303,7 +1345,15 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   // absolute mouse coordinates require that the dimensions of the screen are known
   ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
-  auto session = make_session(encoder, ctx.config, img.width, img.height, std::move(hwdevice));
+  // Update client with our current HDR display state
+  hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+  if(ctx.config.dynamicRange && disp->is_hdr()) {
+    disp->get_hdr_metadata(hdr_info->metadata);
+    hdr_info->enabled = true;
+  }
+  ctx.hdr_events->raise(std::move(hdr_info));
+
+  auto session = make_session(disp, encoder, ctx.config, img.width, img.height, std::move(hwdevice));
   if(!session) {
     return std::nullopt;
   }
@@ -1346,10 +1396,8 @@ encode_e encode_run_sync(
     synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*ctx)));
   }
 
-  int framerate = synced_session_ctxs.front()->config.framerate;
-
   while(encode_session_ctx_queue.running()) {
-    reset_display(disp, encoder.base_dev_type, display_names[display_p], framerate);
+    reset_display(disp, encoder.base_dev_type, display_names[display_p], synced_session_ctxs.front()->config);
     if(disp) {
       break;
     }
@@ -1509,8 +1557,7 @@ void capture_async(
     return;
   }
 
-  ref->capture_ctx_queue->raise(capture_ctx_t {
-    images, config.framerate });
+  ref->capture_ctx_queue->raise(capture_ctx_t { images, config });
 
   if(!ref->capture_ctx_queue->running()) {
     return;
@@ -1519,6 +1566,7 @@ void capture_async(
   int frame_nr = 1;
 
   auto touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
+  auto hdr_event        = mail->event<hdr_info_t>(mail::hdr);
 
   // Encoding takes place on this thread
   platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -1557,10 +1605,18 @@ void capture_async(
     // absolute mouse coordinates require that the dimensions of the screen are known
     touch_port_event->raise(make_port(display.get(), config));
 
+    // Update client with our current HDR display state
+    hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+    if(config.dynamicRange && display->is_hdr()) {
+      display->get_hdr_metadata(hdr_info->metadata);
+      hdr_info->enabled = true;
+    }
+    hdr_event->raise(std::move(hdr_info));
+
     encode_run(
       frame_nr,
       mail, images,
-      config, display->width, display->height,
+      config, display,
       std::move(hwdevice),
       ref->reinit_event, *ref->encoder_p,
       channel_data);
@@ -1592,6 +1648,7 @@ void capture(
       mail->event<bool>(mail::shutdown),
       mail::man->queue<packet_t>(mail::video_packets),
       std::move(idr_events),
+      mail->event<hdr_info_t>(mail::hdr),
       mail->event<input::touch_port_t>(mail::touch_port),
       config,
       1,
@@ -1609,7 +1666,7 @@ enum validate_flag_e {
 };
 
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
-  reset_display(disp, encoder.base_dev_type, config::video.output_name, config.framerate);
+  reset_display(disp, encoder.base_dev_type, config::video.output_name, config);
   if(!disp) {
     return -1;
   }
@@ -1620,7 +1677,7 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
     return -1;
   }
 
-  auto session = make_session(encoder, config, disp->width, disp->height, std::move(hwdevice));
+  auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
   if(!session) {
     return -1;
   }

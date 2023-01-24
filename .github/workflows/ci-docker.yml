@@ -11,6 +11,9 @@
 # `# platforms: `
 #    Comma separated list of platforms, i.e. `# platforms: linux/386,linux/amd64`. Docker platforms can alternatively
 #    be listed in a file named `.docker_platforms`.
+# `# platforms_pr: `
+#    Comma separated list of platforms to run for PR events, i.e. `# platforms_pr: linux/amd64`. This will take
+#    precedence over the `# platforms: ` directive.
 # `# artifacts: `
 #    `true` to build in two steps, stopping at `artifacts` build stage and extracting the image from there to the
 #    GitHub runner.
@@ -202,8 +205,7 @@ jobs:
           # get branch name
           BRANCH=${GITHUB_HEAD_REF}
 
-          if [ -z "$BRANCH" ]
-          then
+          if [ -z "$BRANCH" ]; then
             echo "This is a PUSH event"
             BRANCH=${{ github.ref_name }}
           fi
@@ -237,6 +239,19 @@ jobs:
 
           # parse custom directives out of dockerfile
           # try to get the platforms from the dockerfile custom directive, i.e. `# platforms: xxx,yyy`
+          # directives for PR event, i.e. not push event
+          if [[ ${PUSH} == "false" ]]; then
+            while read -r line; do
+              if [[ $line == "# platforms_pr: "* && $PLATFORMS == "" ]]; then
+                # echo the line and use `sed` to remove the custom directive
+                PLATFORMS=$(echo -e "$line" | sed 's/# platforms_pr: //')
+              elif [[ $PLATFORMS != "" ]]; then
+                # break while loop once all custom "PR" event directives are found
+                break
+              fi
+            done <"${{ matrix.dockerfile }}"
+          fi
+          # directives for all events... above directives will not be parsed if they were already found
           while read -r line; do
             if [[ $line == "# platforms: "* && $PLATFORMS == "" ]]; then
               # echo the line and use `sed` to remove the custom directive

@@ -15,6 +15,10 @@
 #include "src/thread_safe.h"
 #include "src/utility.h"
 
+extern "C" {
+#include <moonlight-common-c/src/Limelight.h>
+}
+
 struct sockaddr;
 struct AVFrame;
 struct AVBufferRef;
@@ -39,6 +43,9 @@ class basic_environment;
 typedef basic_environment<char> environment;
 } // namespace process
 } // namespace boost
+namespace video {
+struct config_t;
+}
 
 namespace platf {
 constexpr auto MAX_GAMEPADS = 32;
@@ -270,6 +277,15 @@ public:
     return std::make_shared<hwdevice_t>();
   }
 
+  virtual bool is_hdr() {
+    return false;
+  }
+
+  virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
+    std::memset(&metadata, 0, sizeof(metadata));
+    return false;
+  }
+
   virtual ~display_t() = default;
 
   // Offsets for when streaming a specific monitor. By default, they are 0.
@@ -315,11 +331,11 @@ std::unique_ptr<audio_control_t> audio_control();
  *    If display_name is empty --> Use the first monitor that's compatible you can find
  *    If you require to use this parameter in a seperate thread --> make a copy of it.
  * 
- * framerate --> The peak number of images per second
+ * config --> Stream configuration
  * 
  * Returns display_t based on hwdevice_type
  */
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
 // A list of names of displays accepted as display_name with the mem_type_e
 std::vector<std::string> display_names(mem_type_e hwdevice_type);
@@ -363,6 +379,7 @@ void move_mouse(input_t &input, int deltaX, int deltaY);
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);
 void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
+void hscroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
 void unicode(input_t &input, char *utf8, int size);

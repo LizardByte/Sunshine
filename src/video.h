@@ -48,6 +48,16 @@ struct packet_raw_t {
 
 using packet_t = std::unique_ptr<packet_raw_t>;
 
+struct hdr_info_raw_t {
+  explicit hdr_info_raw_t(bool enabled) : enabled { enabled }, metadata {} {};
+  explicit hdr_info_raw_t(bool enabled, const SS_HDR_METADATA &metadata) : enabled { enabled }, metadata { metadata } {};
+
+  bool enabled;
+  SS_HDR_METADATA metadata;
+};
+
+using hdr_info_t = std::unique_ptr<hdr_info_raw_t>;
+
 struct config_t {
   int width;
   int height;
