@@ -1574,6 +1574,12 @@ void capture_async(
   platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(!shutdown_event->peek() && images->running()) {
+    // Free images that weren't consumed by the encoder before it quit.
+    // This is critical to allow the display_t to be freed correctly.
+    while(images->peek()) {
+      images->pop();
+    }
+
     // Wait for the main capture event when the display is being reinitialized
     if(ref->reinit_event.peek()) {
       std::this_thread::sleep_for(100ms);
@@ -1622,12 +1628,6 @@ void capture_async(
       std::move(hwdevice),
       ref->reinit_event, *ref->encoder_p,
       channel_data);
-
-    // Free images that weren't consumed by the encoder before it quit.
-    // This is critical to allow the display_t to be freed correctly.
-    while(images->peek()) {
-      images->pop();
-    }
   }
 }
 
