@@ -5,6 +5,7 @@
 #include <thread>
 
 extern "C" {
+#include <libavutil/mastering_display_metadata.h>
 #include <libswscale/swscale.h>
 }
 
@@ -1178,6 +1179,37 @@ std::optional<session_t> make_session(platf::display_t *disp, const encoder_t &e
   frame->format = ctx->pix_fmt;
   frame->width  = ctx->width;
   frame->height = ctx->height;
+
+  // Attach HDR metadata to the AVFrame
+  if(config.dynamicRange && disp->is_hdr()) {
+    SS_HDR_METADATA hdr_metadata;
+    if(disp->get_hdr_metadata(hdr_metadata)) {
+      auto mdm = av_mastering_display_metadata_create_side_data(frame.get());
+
+      mdm->display_primaries[0][0] = av_make_q(hdr_metadata.displayPrimaries[0].x, 50000);
+      mdm->display_primaries[0][1] = av_make_q(hdr_metadata.displayPrimaries[0].y, 50000);
+      mdm->display_primaries[1][0] = av_make_q(hdr_metadata.displayPrimaries[1].x, 50000);
+      mdm->display_primaries[1][1] = av_make_q(hdr_metadata.displayPrimaries[1].y, 50000);
+      mdm->display_primaries[2][0] = av_make_q(hdr_metadata.displayPrimaries[2].x, 50000);
+      mdm->display_primaries[2][1] = av_make_q(hdr_metadata.displayPrimaries[2].y, 50000);
+
+      mdm->white_point[0] = av_make_q(hdr_metadata.whitePoint.x, 50000);
+      mdm->white_point[1] = av_make_q(hdr_metadata.whitePoint.y, 50000);
+
+      mdm->min_luminance = av_make_q(hdr_metadata.minDisplayLuminance, 10000);
+      mdm->max_luminance = av_make_q(hdr_metadata.maxDisplayLuminance, 1);
+
+      mdm->has_luminance = hdr_metadata.maxDisplayLuminance != 0 ? 1 : 0;
+      mdm->has_primaries = hdr_metadata.displayPrimaries[0].x != 0 ? 1 : 0;
+
+      if(hdr_metadata.maxContentLightLevel != 0 || hdr_metadata.maxFrameAverageLightLevel != 0) {
+        auto clm = av_content_light_metadata_create_side_data(frame.get());
+
+        clm->MaxCLL  = hdr_metadata.maxContentLightLevel;
+        clm->MaxFALL = hdr_metadata.maxFrameAverageLightLevel;
+      }
+    }
+  }
 
   std::shared_ptr<platf::hwdevice_t> device;
 
