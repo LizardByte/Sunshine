@@ -294,6 +294,18 @@ public:
     return false;
   }
 
+  std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
+    auto props = plane_props(plane_id);
+    for(auto &[prop, val] : props) {
+      if(prop->name == "rotation"sv) {
+        return val;
+      }
+    }
+
+    BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
+    return DRM_MODE_ROTATE_0;
+  }
+
   connector_interal_t connector(std::uint32_t id) {
     return drmModeGetConnector(fd.el, id);
   }
@@ -531,11 +543,25 @@ public:
         if(monitor != std::end(pos->crtc_to_monitor)) {
           auto &viewport = monitor->second.viewport;
 
-          width    = viewport.width;
-          height   = viewport.height;
+          width  = viewport.width;
+          height = viewport.height;
+
+          switch(card.get_panel_orientation(plane->plane_id)) {
+          case DRM_MODE_ROTATE_270:
+            BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+            width  = viewport.height;
+            height = viewport.width;
+            break;
+          case DRM_MODE_ROTATE_90:
+          case DRM_MODE_ROTATE_180:
+            BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
+            break;
+          }
+
           offset_x = viewport.offset_x;
           offset_y = viewport.offset_y;
         }
+
         // This code path shouldn't happend, but it's there just in case.
         // crtc_to_monitor is part of the guesswork after all.
         else {
