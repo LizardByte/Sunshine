@@ -56,7 +56,7 @@ void print_req(const req_https_t &request) {
   BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
 
   for(auto &[name, val] : request->header) {
-    BOOST_LOG(debug) << name << " -- " << val;
+    BOOST_LOG(debug) << name << " -- " << (name == "Authorization" ? "CREDENTIALS REDACTED" : val);
   }
 
   BOOST_LOG(debug) << " [--] "sv;
