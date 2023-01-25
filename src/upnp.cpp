@@ -132,19 +132,22 @@ std::unique_ptr<platf::deinit_t> start() {
     }
   }
 
-  auto rtsp     = std::to_string(map_port(stream::RTSP_SETUP_PORT));
-  auto video    = std::to_string(map_port(stream::VIDEO_STREAM_PORT));
-  auto audio    = std::to_string(map_port(stream::AUDIO_STREAM_PORT));
-  auto control  = std::to_string(map_port(stream::CONTROL_PORT));
-  auto gs_http  = std::to_string(map_port(nvhttp::PORT_HTTP));
-  auto gs_https = std::to_string(map_port(nvhttp::PORT_HTTPS));
-  auto wm_http  = std::to_string(map_port(confighttp::PORT_HTTPS));
+  auto rtsp       = std::to_string(map_port(stream::RTSP_SETUP_PORT));
+  auto video      = std::to_string(map_port(stream::VIDEO_STREAM_PORT));
+  auto audio      = std::to_string(map_port(stream::AUDIO_STREAM_PORT));
+  auto microphone = std::to_string(map_port(stream::MICROPHONE_STREAM_PORT));
+  auto control    = std::to_string(map_port(stream::CONTROL_PORT));
+  auto gs_http    = std::to_string(map_port(nvhttp::PORT_HTTP));
+  auto gs_https   = std::to_string(map_port(nvhttp::PORT_HTTPS));
+  auto wm_http    = std::to_string(map_port(confighttp::PORT_HTTPS));
 
   std::vector<mapping_t> mappings {
     { rtsp, rtsp, "RTSP setup port"s, true },
+    { rtsp, rtsp, "Fallback RTSP setup port"s, false },
     { video, video, "Video stream port"s, false },
-    { audio, audio, "Control stream port"s, false },
-    { control, control, "Audio stream port"s, false },
+    { audio, audio, "Audio stream port"s, false },
+    { microphone, microphone, "Microphone stream port"s, false },
+    { control, control, "Control stream port"s, false },
     { gs_http, gs_http, "Gamestream http port"s, true },
     { gs_https, gs_https, "Gamestream https port"s, true },
   };
