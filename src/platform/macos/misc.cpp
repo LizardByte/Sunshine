@@ -121,13 +121,23 @@ std::string get_mac_address(const std::string_view &address) {
   return "00:00:00:00:00:00"s;
 }
 
-bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec) {
+bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
   BOOST_LOG(warning) << "run_unprivileged() is not yet implemented for this platform. The new process will run with Sunshine's permissions."sv;
-  if(!file) {
-    return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
+  if(!group) {
+    if(!file) {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
+    }
+    else {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > file, bp::std_err > file, ec);
+    }
   }
   else {
-    return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > file, bp::std_err > file, ec);
+    if(!file) {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec, *group);
+    }
+    else {
+      return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > file, bp::std_err > file, ec, *group);
+    }
   }
 }
 
@@ -151,6 +161,18 @@ bool restart_supported() {
 bool restart() {
   // Restart not supported yet
   return false;
+}
+
+bool send_batch(batched_send_info_t &send_info) {
+  // Fall back to unbatched send calls
+  return false;
+}
+
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
+  // Unimplemented
+  //
+  // NB: When implementing, remember to consider that some routes can drop DSCP-tagged packets completely!
+  return nullptr;
 }
 
 } // namespace platf

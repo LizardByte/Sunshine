@@ -15,22 +15,37 @@
 #include "src/thread_safe.h"
 #include "src/utility.h"
 
+extern "C" {
+#include <moonlight-common-c/src/Limelight.h>
+}
+
 struct sockaddr;
 struct AVFrame;
+struct AVBufferRef;
+struct AVHWFramesContext;
 
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
 namespace boost {
+namespace asio {
+namespace ip {
+class address;
+} // namespace ip
+} // namespace asio
 namespace filesystem {
 class path;
 }
 namespace process {
 class child;
+class group;
 template<typename Char>
 class basic_environment;
 typedef basic_environment<char> environment;
 } // namespace process
 } // namespace boost
+namespace video {
+struct config_t;
+}
 
 namespace platf {
 constexpr auto MAX_GAMEPADS = 32;
@@ -196,12 +211,24 @@ struct hwdevice_t {
   /**
    * implementations must take ownership of 'frame'
    */
-  virtual int set_frame(AVFrame *frame) {
+  virtual int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
     BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
     return -1;
   };
 
   virtual void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
+
+  /**
+   * Implementations may set parameters during initialization of the hwframes context
+   */
+  virtual void init_hwframes(AVHWFramesContext *frames) {};
+
+  /**
+   * Implementations may make modifications required before context derivation
+   */
+  virtual int prepare_to_derive_context(int hw_device_type) {
+    return 0;
+  };
 
   virtual ~hwdevice_t() = default;
 };
@@ -250,6 +277,15 @@ public:
     return std::make_shared<hwdevice_t>();
   }
 
+  virtual bool is_hdr() {
+    return false;
+  }
+
+  virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
+    std::memset(&metadata, 0, sizeof(metadata));
+    return false;
+  }
+
   virtual ~display_t() = default;
 
   // Offsets for when streaming a specific monitor. By default, they are 0.
@@ -295,16 +331,16 @@ std::unique_ptr<audio_control_t> audio_control();
  *    If display_name is empty --> Use the first monitor that's compatible you can find
  *    If you require to use this parameter in a seperate thread --> make a copy of it.
  * 
- * framerate --> The peak number of images per second
+ * config --> Stream configuration
  * 
  * Returns display_t based on hwdevice_type
  */
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate);
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
 // A list of names of displays accepted as display_name with the mem_type_e
 std::vector<std::string> display_names(mem_type_e hwdevice_type);
 
-boost::process::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec);
+boost::process::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
 enum class thread_priority_e : int {
   low,
@@ -321,11 +357,29 @@ void streaming_will_stop();
 bool restart_supported();
 bool restart();
 
+struct batched_send_info_t {
+  const char *buffer;
+  size_t block_size;
+  size_t block_count;
+
+  std::uintptr_t native_socket;
+  boost::asio::ip::address &target_address;
+  uint16_t target_port;
+};
+bool send_batch(batched_send_info_t &send_info);
+
+enum class qos_data_type_e : int {
+  audio,
+  video
+};
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
+
 input_t input();
 void move_mouse(input_t &input, int deltaX, int deltaY);
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);
 void button_mouse(input_t &input, int button, bool release);
 void scroll(input_t &input, int distance);
+void hscroll(input_t &input, int distance);
 void keyboard(input_t &input, uint16_t modcode, bool release);
 void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
 void unicode(input_t &input, char *utf8, int size);

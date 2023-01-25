@@ -739,13 +739,14 @@ encoder
 .. table::
    :widths: auto
 
-   ========  ===========
-   Value     Description
-   ========  ===========
-   nvenc     For Nvidia graphics cards
-   amdvce    For AMD graphics cards
-   software  Encoding occurs on the CPU
-   ========  ===========
+   =========  ===========
+   Value      Description
+   =========  ===========
+   nvenc      For NVIDIA graphics cards
+   quicksync  For Intel graphics cards
+   amdvce     For AMD graphics cards
+   software   Encoding occurs on the CPU
+   =========  ===========
 
 **Default**
    Sunshine will use the first encoder that is available.
@@ -843,7 +844,8 @@ nv_preset
 **Description**
    The encoder preset to use.
 
-   .. Note:: This option only applies when using nvenc `encoder`_.
+   .. Note:: This option only applies when using nvenc `encoder`_. For more information on the presets, see
+      `nvenc preset migration guide <https://docs.nvidia.com/video-technologies/video-codec-sdk/nvenc-preset-migration-guide/>`_.
 
 **Choices**
 
@@ -957,6 +959,68 @@ nv_coder
    .. code-block:: text
 
       nv_coder = auto
+
+qsv_preset
+^^^^^^^^^^
+
+**Description**
+   The encoder preset to use.
+
+   .. Note:: This option only applies when using quicksync `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   veryfast   fastest (lowest quality)
+   faster     faster (lower quality)
+   fast       fast (low quality)
+   medium     medium (default)
+   slow       slow (good quality)
+   slower     slower (better quality)
+   veryslow   slowest (best quality)
+   ========== ===========
+
+**Default**
+   ``medium``
+
+**Example**
+   .. code-block:: text
+
+      qsv_preset = medium
+
+qsv_coder
+^^^^^^^^^
+
+**Description**
+   The entropy encoding to use.
+
+   .. Note:: This option only applies when using H264 with quicksync `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   auto       let ffmpeg decide
+   cabac      context adaptive binary arithmetic coding - higher quality
+   cavlc      context adaptive variable-length coding - faster decode
+   ========== ===========
+
+**Default**
+   ``auto``
+
+**Example**
+   .. code-block:: text
+
+      qsv_coder = auto
 
 amd_quality
 ^^^^^^^^^^^

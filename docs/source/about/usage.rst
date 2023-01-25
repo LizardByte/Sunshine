@@ -190,7 +190,7 @@ Shortcuts
 All shortcuts start with ``CTRL + ALT + SHIFT``, just like Moonlight
 
 - ``CTRL + ALT + SHIFT + N`` - Hide/Unhide the cursor (This may be useful for Remote Desktop Mode for Moonlight)
-- ``CTRL + ALT + SHIFT + F1/F13`` - Switch to different monitor for Streaming
+- ``CTRL + ALT + SHIFT + F1/F12`` - Switch to different monitor for Streaming
 
 Application List
 ----------------

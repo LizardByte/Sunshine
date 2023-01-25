@@ -417,6 +417,10 @@ void scroll(input_t &input, int high_res_distance) {
   CFRelease(upEvent);
 }
 
+void hscroll(input_t &input, int high_res_distance) {
+  // Unimplemented
+}
+
 input_t input() {
   input_t result { new macos_input_t() };
 

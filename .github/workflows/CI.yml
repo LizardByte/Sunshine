@@ -163,9 +163,10 @@ jobs:
             cmake
 
       - name: Configure PKGBUILD files
+        id: prepare
         run: |
           # variables for manifest
-          echo "aur_publish=false" >> $GITHUB_ENV
+          aur_publish=false
           aur_pkg=sunshine-dev
           sub_version=""
           conflicts="'sunshine'"
@@ -174,22 +175,20 @@ jobs:
           branch=${GITHUB_HEAD_REF}
 
           # check the branch variable
-          if [ -z "$branch" ]
-          then
+          if [ -z "$branch" ]; then
             echo "This is a PUSH event"
             commit=${{ github.sha }}
             clone_url=${{ github.event.repository.clone_url }}
 
-            if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
+            if [[ ${{ github.ref == 'refs/heads/master' }} == true ]]; then
+              echo "This is a main release event"
+              aur_publish=true
               aur_pkg=sunshine
               conflicts=""
               provides=""
-
-              echo "aur_publish=true" >> $GITHUB_ENV
-            elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
+            elif [[ ${{ github.ref == 'refs/heads/nightly' }} == true ]]; then
+              echo "This is a nightly release event"
               sub_version=".r${commit}"
-
-              echo "aur_publish=false" >> $GITHUB_ENV
             fi
           else
             echo "This is a PR event"
@@ -201,7 +200,8 @@ jobs:
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
 
-          echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
+          echo "aur_publish=${aur_publish}" >> $GITHUB_OUTPUT
+          echo "aur_pkg=${aur_pkg}" >> $GITHUB_OUTPUT
 
           mkdir -p artifacts
           mkdir -p build
@@ -237,10 +237,10 @@ jobs:
           path: artifacts/
 
       - name: Publish AUR package
-        if: ${{ env.aur_publish == 'true' }}
+        if: ${{ steps.prepare.outputs.aur_publish == 'true' }}
         uses: KSXGitHub/github-actions-deploy-aur@v2.6.0
         with:
-          pkgname: ${{ env.aur_pkg }}
+          pkgname: ${{ steps.prepare.outputs.aur_pkg }}
           pkgbuild: ./artifacts/PKGBUILD
           assets: |
             ./artifacts/*
@@ -363,12 +363,6 @@ jobs:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
         include:  # package these differently
-          - type: cpack
-            EXTRA_ARGS: ''
-            dist: 20.04
-          - type: cpack
-            EXTRA_ARGS: ''
-            dist: 22.04
           - type: appimage
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
             dist: 20.04
@@ -430,6 +424,7 @@ jobs:
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
+            libmfx-dev \
             libnuma-dev \
             libopus-dev \
             libpulse-dev \
@@ -459,9 +454,9 @@ jobs:
             --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
             --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
-          # Install CuDA
+          # Install CUDA
           sudo wget \
-            https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run \
+            https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run \
             --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
           sudo chmod a+x /root/cuda.run
           sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
@@ -886,6 +881,7 @@ jobs:
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
+            mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
