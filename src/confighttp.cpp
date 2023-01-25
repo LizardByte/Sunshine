@@ -260,12 +260,12 @@ void getNodeModules(resp_https_t response, req_https_t request) {
   auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
   // Don't do anything if file does not exist or is outside the node_modules directory
-  if(!fs::exists(filePath)) {
-    response->write(SimpleWeb::StatusCode::client_error_not_found);
-  }
-  else if(!isChildPath(filePath, nodeModulesPath)) {
+  if(!isChildPath(filePath, nodeModulesPath)) {
     BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
-    response->write(SimpleWeb::StatusCode::client_error_bad_request, "Not Authorized");
+    response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
+  }
+  else if(!fs::exists(filePath)) {
+    response->write(SimpleWeb::StatusCode::client_error_not_found);
   }
   else {
     auto relPath = fs::relative(filePath, webDirPath);
