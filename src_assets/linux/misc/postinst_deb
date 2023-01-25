@@ -1,0 +1,20 @@
+#!/bin/sh
+
+export GROUP_INPUT=input
+
+if [ -f /etc/group ]; then
+        if ! grep -q $GROUP_INPUT /etc/group; then
+                echo "Creating group $GROUP_INPUT"
+
+                groupadd $GROUP_INPUT
+        fi
+else
+        echo "Warning: /etc/group not found"
+fi
+
+# Ensure Sunshine can grab images from KMS
+path_to_setcap=$(which setcap)
+if [ -x "$path_to_setcap" ] ; then
+  echo "$path_to_setcap cap_sys_admin+p /usr/local/bin/sunshine"
+	$path_to_setcap cap_sys_admin+p $(readlink -f /usr/local/bin/sunshine)
+fi
