@@ -87,9 +87,13 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
             [Unit]
             Description=Sunshine self-hosted game stream host for Moonlight.
+            StartLimitIntervalSec=500
+            StartLimitBurst=5
 
             [Service]
             ExecStart=<see table>
+            Restart=on-failure
+            RestartSec=5s
             #Flatpak Only
             #ExecStop=flatpak kill dev.lizardbyte.sunshine
 
