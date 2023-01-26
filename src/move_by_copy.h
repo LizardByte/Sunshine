@@ -1,5 +1,4 @@
-#ifndef DOSSIER_MOVE_BY_COPY_H
-#define DOSSIER_MOVE_BY_COPY_H
+#pragma once
 
 #include <utility>
 namespace util {
@@ -48,4 +47,3 @@ MoveByCopy<T> const_cmove(const T &movable) {
   return MoveByCopy<T>(std::move(const_cast<T &>(movable)));
 }
 } // namespace util
-#endif

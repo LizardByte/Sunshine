@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_PLATFORM_LINUX_OPENGL_H
-#define SUNSHINE_PLATFORM_LINUX_OPENGL_H
+#pragma once
 
 #include <optional>
 #include <string_view>
@@ -315,5 +314,3 @@ public:
 
 bool fail();
 } // namespace egl
-
-#endif

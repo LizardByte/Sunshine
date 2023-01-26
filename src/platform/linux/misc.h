@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_PLATFORM_MISC_H
-#define SUNSHINE_PLATFORM_MISC_H
+#pragma once
 
 #include <unistd.h>
 #include <vector>
@@ -27,5 +26,3 @@ int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &f
 void *handle(const std::vector<const char *> &libs);
 
 } // namespace dyn
-
-#endif

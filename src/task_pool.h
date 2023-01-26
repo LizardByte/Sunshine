@@ -1,5 +1,4 @@
-#ifndef KITTY_TASK_POOL_H
-#define KITTY_TASK_POOL_H
+#pragma once
 
 #include <chrono>
 #include <deque>
@@ -242,4 +241,3 @@ private:
   }
 };
 } // namespace util
-#endif

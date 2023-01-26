@@ -1,5 +1,4 @@
-#ifndef av_img_t_h
-#define av_img_t_h
+#pragma once
 
 #include "src/platform/common.h"
 
@@ -14,5 +13,3 @@ struct av_img_t : public img_t {
   ~av_img_t();
 };
 } // namespace platf
-
-#endif /* av_img_t_h */

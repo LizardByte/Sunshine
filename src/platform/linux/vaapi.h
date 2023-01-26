@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_VAAPI_H
-#define SUNSHINE_VAAPI_H
+#pragma once
 
 #include "misc.h"
 #include "src/platform/common.h"
@@ -24,4 +23,3 @@ bool validate(int fd);
 
 int init();
 } // namespace va
-#endif

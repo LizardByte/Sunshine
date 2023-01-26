@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_WAYLAND_H
-#define SUNSHINE_WAYLAND_H
+#pragma once
 
 #include <bitset>
 
@@ -211,6 +210,4 @@ inline std::vector<std::unique_ptr<monitor_t>> monitors(const char *display_name
 
 inline int init() { return -1; }
 } // namespace wl
-#endif
-
 #endif

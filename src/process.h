@@ -1,7 +1,4 @@
-// Created by loki on 12/14/19.
-
-#ifndef SUNSHINE_PROCESS_H
-#define SUNSHINE_PROCESS_H
+#pragma once
 
 #ifndef __kernel_entry
 #define __kernel_entry
@@ -111,4 +108,3 @@ std::optional<proc::proc_t> parse(const std::string &file_name);
 
 extern proc_t proc;
 } // namespace proc
-#endif // SUNSHINE_PROCESS_H

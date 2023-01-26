@@ -1,9 +1,4 @@
-//
-// Created by loki on 6/21/19.
-//
-
-#ifndef SUNSHINE_COMMON_H
-#define SUNSHINE_COMMON_H
+#pragma once
 
 #include <bitset>
 #include <filesystem>
@@ -398,5 +393,3 @@ namespace publish {
 
 std::vector<std::string_view> &supported_gamepads();
 } // namespace platf
-
-#endif //SUNSHINE_COMMON_H

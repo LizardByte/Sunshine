@@ -1,7 +1,4 @@
-// Created by loki on 8-2-19.
-
-#ifndef T_MAN_UUID_H
-#define T_MAN_UUID_H
+#pragma once
 
 #include <random>
 
@@ -74,4 +71,3 @@ union uuid_t {
   }
 };
 } // namespace util
-#endif // T_MAN_UUID_H

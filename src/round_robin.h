@@ -1,5 +1,4 @@
-#ifndef KITTY_UTIL_ITERATOR_H
-#define KITTY_UTIL_ITERATOR_H
+#pragma once
 
 #include <iterator>
 
@@ -152,5 +151,3 @@ round_robin_t<V, It> make_round_robin(It begin, It end) {
   return round_robin_t<V, It>(begin, end);
 }
 } // namespace util
-
-#endif

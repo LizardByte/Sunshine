@@ -1,7 +1,4 @@
-// Created by loki on 6/1/19.
-
-#ifndef SUNSHINE_CRYPTO_H
-#define SUNSHINE_CRYPTO_H
+#pragma once
 
 #include <array>
 #include <openssl/evp.h>
@@ -131,5 +128,3 @@ public:
 };
 } // namespace cipher
 } // namespace crypto
-
-#endif //SUNSHINE_CRYPTO_H

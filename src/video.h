@@ -1,7 +1,4 @@
-// Created by loki on 6/9/19.
-
-#ifndef SUNSHINE_VIDEO_H
-#define SUNSHINE_VIDEO_H
+#pragma once
 
 #include "input.h"
 #include "platform/common.h"
@@ -91,5 +88,3 @@ void capture(
 
 int init();
 } // namespace video
-
-#endif // SUNSHINE_VIDEO_H

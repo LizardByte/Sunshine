@@ -1,5 +1,4 @@
-#ifndef UTILITY_H
-#define UTILITY_H
+#pragma once
 
 #include <algorithm>
 #include <condition_variable>
@@ -928,4 +927,3 @@ template<class T>
 inline auto big(T x) { return endian_helper<T>::big(x); }
 } // namespace endian
 } // namespace util
-#endif

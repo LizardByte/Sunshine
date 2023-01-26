@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_PLATFORM_AV_AUDIO_H
-#define SUNSHINE_PLATFORM_AV_AUDIO_H
+#pragma once
 
 #import <AVFoundation/AVFoundation.h>
 
@@ -22,5 +21,3 @@
 - (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
 
 @end
-
-#endif //SUNSHINE_PLATFORM_AV_AUDIO_H

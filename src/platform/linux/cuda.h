@@ -1,5 +1,4 @@
-#if !defined(SUNSHINE_PLATFORM_CUDA_H) && defined(SUNSHINE_BUILD_CUDA)
-#define SUNSHINE_PLATFORM_CUDA_H
+#pragma once
 
 #include <memory>
 #include <optional>
@@ -103,5 +102,3 @@ public:
   float scale;
 };
 } // namespace cuda
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_X11_GRAB
-#define SUNSHINE_X11_GRAB
+#pragma once
 
 #include <optional>
 
@@ -56,5 +55,3 @@ public:
 xdisplay_t make_display() { return nullptr; }
 #endif
 } // namespace platf::x11
-
-#endif

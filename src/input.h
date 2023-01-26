@@ -1,7 +1,4 @@
-// Created by loki on 6/20/19.
-
-#ifndef SUNSHINE_INPUT_H
-#define SUNSHINE_INPUT_H
+#pragma once
 
 #include <functional>
 
@@ -29,5 +26,3 @@ struct touch_port_t : public platf::touch_port_t {
   float scalar_inv;
 };
 } // namespace input
-
-#endif // SUNSHINE_INPUT_H

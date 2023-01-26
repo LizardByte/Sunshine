@@ -1,7 +1,4 @@
-// Created by loki on 12/22/19.
-
-#ifndef SUNSHINE_MAIN_H
-#define SUNSHINE_MAIN_H
+#pragma once
 
 #include <filesystem>
 #include <string_view>
@@ -54,4 +51,3 @@ MAIL(rumble);
 MAIL(hdr);
 #undef MAIL
 } // namespace mail
-#endif // SUNSHINE_MAIN_H

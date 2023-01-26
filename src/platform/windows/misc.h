@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_WINDOWS_MISC_H
-#define SUNSHINE_WINDOWS_MISC_H
+#pragma once
 
 #include <string_view>
 #include <windows.h>
@@ -9,5 +8,3 @@ namespace platf {
 void print_status(const std::string_view &prefix, HRESULT status);
 HDESK syncThreadDesktop();
 } // namespace platf
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef KITTY_THREAD_POOL_H
-#define KITTY_THREAD_POOL_H
+#pragma once
 
 #include "task_pool.h"
 #include <thread>
@@ -118,4 +117,3 @@ public:
   }
 };
 } // namespace util
-#endif

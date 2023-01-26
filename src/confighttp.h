@@ -1,7 +1,4 @@
-// Created by loki on 6/3/19.
-
-#ifndef SUNSHINE_CONFIGHTTP_H
-#define SUNSHINE_CONFIGHTTP_H
+#pragma once
 
 #include <functional>
 #include <string>
@@ -15,5 +12,3 @@ namespace confighttp {
 constexpr auto PORT_HTTPS = 1;
 void start();
 } // namespace confighttp
-
-#endif // SUNSHINE_CONFIGHTTP_H
