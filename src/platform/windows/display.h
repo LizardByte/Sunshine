@@ -151,6 +151,7 @@ protected:
   }
 
   const char *dxgi_format_to_string(DXGI_FORMAT format);
+  const char *colorspace_to_string(DXGI_COLOR_SPACE_TYPE type);
 
   virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
   virtual int complete_img(img_t *img, bool dummy)                                               = 0;

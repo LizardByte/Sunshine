@@ -1002,35 +1002,46 @@ std::optional<session_t> make_session(platf::display_t *disp, const encoder_t &e
   ctx->color_range = (config.encoderCscMode & 0x1) ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
 
   int sws_color_space;
-  switch(config.encoderCscMode >> 1) {
-  case 0:
-  default:
-    // Rec. 601
-    BOOST_LOG(info) << "Color coding [Rec. 601]"sv;
-    ctx->color_primaries = AVCOL_PRI_SMPTE170M;
-    ctx->color_trc       = AVCOL_TRC_SMPTE170M;
-    ctx->colorspace      = AVCOL_SPC_SMPTE170M;
-    sws_color_space      = SWS_CS_SMPTE170M;
-    break;
-
-  case 1:
-    // Rec. 709
-    BOOST_LOG(info) << "Color coding [Rec. 709]"sv;
-    ctx->color_primaries = AVCOL_PRI_BT709;
-    ctx->color_trc       = AVCOL_TRC_BT709;
-    ctx->colorspace      = AVCOL_SPC_BT709;
-    sws_color_space      = SWS_CS_ITU709;
-    break;
-
-  case 2:
-    // Rec. 2020
-    BOOST_LOG(info) << "Color coding [Rec. 2020]"sv;
+  if(config.dynamicRange && disp->is_hdr()) {
+    // When HDR is active, that overrides the colorspace the client requested
+    BOOST_LOG(info) << "HDR color coding [Rec. 2020 + SMPTE 2084 PQ]"sv;
     ctx->color_primaries = AVCOL_PRI_BT2020;
-    ctx->color_trc       = AVCOL_TRC_BT2020_10;
+    ctx->color_trc       = AVCOL_TRC_SMPTE2084;
     ctx->colorspace      = AVCOL_SPC_BT2020_NCL;
     sws_color_space      = SWS_CS_BT2020;
-    break;
   }
+  else {
+    switch(config.encoderCscMode >> 1) {
+    case 0:
+    default:
+      // Rec. 601
+      BOOST_LOG(info) << "SDR color coding [Rec. 601]"sv;
+      ctx->color_primaries = AVCOL_PRI_SMPTE170M;
+      ctx->color_trc       = AVCOL_TRC_SMPTE170M;
+      ctx->colorspace      = AVCOL_SPC_SMPTE170M;
+      sws_color_space      = SWS_CS_SMPTE170M;
+      break;
+
+    case 1:
+      // Rec. 709
+      BOOST_LOG(info) << "SDR color coding [Rec. 709]"sv;
+      ctx->color_primaries = AVCOL_PRI_BT709;
+      ctx->color_trc       = AVCOL_TRC_BT709;
+      ctx->colorspace      = AVCOL_SPC_BT709;
+      sws_color_space      = SWS_CS_ITU709;
+      break;
+
+    case 2:
+      // Rec. 2020
+      BOOST_LOG(info) << "SDR color coding [Rec. 2020]"sv;
+      ctx->color_primaries = AVCOL_PRI_BT2020;
+      ctx->color_trc       = AVCOL_TRC_BT2020_10;
+      ctx->colorspace      = AVCOL_SPC_BT2020_NCL;
+      sws_color_space      = SWS_CS_BT2020;
+      break;
+    }
+  }
+
   BOOST_LOG(info) << "Color range: ["sv << ((config.encoderCscMode & 0x1) ? "JPEG"sv : "MPEG"sv) << ']';
 
   AVPixelFormat sw_fmt;
@@ -1039,15 +1050,6 @@ std::optional<session_t> make_session(platf::display_t *disp, const encoder_t &e
   }
   else {
     sw_fmt = encoder.dynamic_pix_fmt;
-
-    // When HDR is active, that overrides the colorspace the client requested
-    if(disp->is_hdr()) {
-      BOOST_LOG(info) << "HDR color coding override [SMPTE ST 2084 PQ]"sv;
-      ctx->color_primaries = AVCOL_PRI_BT2020;
-      ctx->color_trc       = AVCOL_TRC_SMPTE2084;
-      ctx->colorspace      = AVCOL_SPC_BT2020_NCL;
-      sws_color_space      = SWS_CS_BT2020;
-    }
   }
 
   // Used by cbs::make_sps_hevc

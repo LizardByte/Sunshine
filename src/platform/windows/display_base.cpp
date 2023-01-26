@@ -563,6 +563,25 @@ int display_base_t::init(const ::video::config_t &config, const std::string &dis
   BOOST_LOG(info) << "Desktop resolution ["sv << dup_desc.ModeDesc.Width << 'x' << dup_desc.ModeDesc.Height << ']';
   BOOST_LOG(info) << "Desktop format ["sv << dxgi_format_to_string(dup_desc.ModeDesc.Format) << ']';
 
+  dxgi::output6_t output6 {};
+  status = output->QueryInterface(IID_IDXGIOutput6, (void **)&output6);
+  if(SUCCEEDED(status)) {
+    DXGI_OUTPUT_DESC1 desc1;
+    output6->GetDesc1(&desc1);
+
+    BOOST_LOG(info)
+      << std::endl
+      << "Colorspace         : "sv << colorspace_to_string(desc1.ColorSpace) << std::endl
+      << "Bits Per Color     : "sv << desc1.BitsPerColor << std::endl
+      << "Red Primary        : ["sv << desc1.RedPrimary[0] << ',' << desc1.RedPrimary[1] << ']' << std::endl
+      << "Green Primary      : ["sv << desc1.GreenPrimary[0] << ',' << desc1.GreenPrimary[1] << ']' << std::endl
+      << "Blue Primary       : ["sv << desc1.BluePrimary[0] << ',' << desc1.BluePrimary[1] << ']' << std::endl
+      << "White Point        : ["sv << desc1.WhitePoint[0] << ',' << desc1.WhitePoint[1] << ']' << std::endl
+      << "Min Luminance      : "sv << desc1.MinLuminance << " nits"sv << std::endl
+      << "Max Luminance      : "sv << desc1.MaxLuminance << " nits"sv << std::endl
+      << "Max Full Luminance : "sv << desc1.MaxFullFrameLuminance << " nits"sv;
+  }
+
   // Capture format will be determined from the first call to AcquireNextFrame()
   capture_format = DXGI_FORMAT_UNKNOWN;
 
@@ -597,6 +616,23 @@ bool display_base_t::get_hdr_metadata(SS_HDR_METADATA &metadata) {
 
   DXGI_OUTPUT_DESC1 desc1;
   output6->GetDesc1(&desc1);
+
+  // The primaries reported here seem to correspond to scRGB (Rec. 709)
+  // which we then convert to Rec 2020 in our scRGB FP16 -> PQ shader
+  // prior to encoding. It's not clear to me if we're supposed to report
+  // the primaries of the original colorspace or the one we've converted
+  // it to, but let's just report Rec 2020 primaries and D65 white level
+  // to avoid confusing clients by reporting Rec 709 primaries with a
+  // Rec 2020 colorspace. It seems like most clients ignore the primaries
+  // in the metadata anyway (luminance range is most important).
+  desc1.RedPrimary[0]   = 0.708f;
+  desc1.RedPrimary[1]   = 0.292f;
+  desc1.GreenPrimary[0] = 0.170f;
+  desc1.GreenPrimary[1] = 0.797f;
+  desc1.BluePrimary[0]  = 0.131f;
+  desc1.BluePrimary[1]  = 0.046f;
+  desc1.WhitePoint[0]   = 0.3127f;
+  desc1.WhitePoint[1]   = 0.3290f;
 
   metadata.displayPrimaries[0].x = desc1.RedPrimary[0] * 50000;
   metadata.displayPrimaries[0].y = desc1.RedPrimary[1] * 50000;
@@ -747,6 +783,43 @@ const char *format_str[] = {
 
 const char *display_base_t::dxgi_format_to_string(DXGI_FORMAT format) {
   return format_str[format];
+}
+
+const char *display_base_t::colorspace_to_string(DXGI_COLOR_SPACE_TYPE type) {
+  const char *type_str[] = {
+    "DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P2020",
+    "DXGI_COLOR_SPACE_RESERVED",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_NONE_P709_X601",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P601",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P601",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P709",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_LEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_GHLG_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_GHLG_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G24_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G24_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_LEFT_P709",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_LEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_TOPLEFT_P2020",
+  };
+
+  if(type < ARRAYSIZE(type_str)) {
+    return type_str[type];
+  }
+  else {
+    return "UNKNOWN";
+  }
 }
 
 } // namespace platf::dxgi

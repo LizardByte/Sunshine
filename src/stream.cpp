@@ -820,8 +820,11 @@ void controlBroadcastThread(control_server_t *server) {
           send_rumble(session, rumble->id, rumble->lowfreq, rumble->highfreq);
         }
 
+        // Unlike rumble which we send as best-effort, HDR state messages are critical
+        // for proper functioning of some clients. We must wait to pop entries from
+        // the queue until we're sure we have a peer to send them to.
         auto &hdr_queue = session->control.hdr_queue;
-        while(hdr_queue->peek()) {
+        while(session->control.peer && hdr_queue->peek()) {
           auto hdr_info = hdr_queue->pop();
 
           send_hdr_mode(session, std::move(hdr_info));
