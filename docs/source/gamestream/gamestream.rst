@@ -16,6 +16,5 @@ Limitations
 -----------
 Sunshine does have some limitations, as compared to Nvidia GameStream.
 
-- HDR support is limited and currently HDR is converted to SDR.
 - Automatic game/application list.
 - Changing game settings automatically, to optimize streaming.
