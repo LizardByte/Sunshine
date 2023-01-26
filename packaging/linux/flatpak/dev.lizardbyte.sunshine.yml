@@ -8,16 +8,16 @@ sdk-extensions:
 command: sunshine
 separate-locales: false
 finish-args:
-  - --device=all # access all devices
-  - --env=PULSE_PROP_media.category=Manager # allow sunshine to manage audio sinks
-  - --filesystem=home # need to save files in user's home directory
-  - --share=ipc # required for X11 shared memory extension
-  - --share=network # access network
-  - --socket=pulseaudio # play sounds using pulseaudio
-  - --socket=wayland # show windows using Wayland
-  - --socket=x11 # show windows using X11
-  - --system-talk-name=org.freedesktop.Avahi # talk to avahi on the system bus
-  - --talk-name=org.freedesktop.Flatpak # talk to flatpak on the session bus
+  - --device=all  # access all devices
+  - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
+  - --filesystem=home  # need to save files in user's home directory
+  - --share=ipc  # required for X11 shared memory extension
+  - --share=network  # access network
+  - --socket=pulseaudio  # play sounds using pulseaudio
+  - --socket=wayland  # show windows using Wayland
+  - --socket=x11  # show windows using X11
+  - --system-talk-name=org.freedesktop.Avahi  # talk to avahi on the system bus
+  - --talk-name=org.freedesktop.Flatpak  # talk to flatpak on the session bus
 
 cleanup:
   - /include
@@ -168,6 +168,7 @@ modules:
     cleanup:
       - "/bin"
 
+  # Caching is configured until here, not including CUDA 
   - name: cuda
     disabled: false
     buildsystem: simple
@@ -192,7 +193,7 @@ modules:
       - type: file
         only-arches:
           - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run # yamllint disable-line rule:line-length
+        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run  # yamllint disable-line rule:line-length
         sha256: e6e9a8d31163c9776b5e313fd7590877c5684e1ecddee741154f95704d4ed27c
         dest-filename: cuda.run
 
