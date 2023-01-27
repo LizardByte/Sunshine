@@ -20,7 +20,8 @@ RUN <<_DEPS
 apt-get update -y
 apt-get install -y --no-install-recommends \
   software-properties-common=0.96.24.32.18
-add-apt-repository ppa:ubuntu-toolchain-r/test
+add-apt-repository ppa:ubuntu-toolchain-r/test -y
+apt-get update -y
 apt-get install -y --no-install-recommends \
   bison=2:3.0.4* \
   build-essential=12.4* \
@@ -66,22 +67,15 @@ update-alternatives --install \
 _GCC_ALIAS
 
 # install boost
-# cannot install boost for aarch64 using ppa:savoury1/boost-defaults-1.71
-# otherwise add the repository and the following packages
-# libboost-filesystem1.71-dev=1.71.0* \
-# libboost-log1.71-dev=1.71.0* \
-# libboost-program-options1.71-dev=1.71.0* \
-# libboost-regex1.71-dev=1.71.0* \
-# libboost-thread1.71-dev=1.71.0* \
-WORKDIR /build/tmp
+WORKDIR /build/boost
+ENV BOOST_VERSION="1.81.0"
 RUN <<_INSTALL_BOOST
-url="https://boostorg.jfrog.io/artifactory/main/release/1.74.0/source/boost_1_74_0.tar.bz2"
+url="https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION//./_}.tar.bz2"
+echo "boost url: ${url}"
 wget "${url}" --progress=bar:force:noscroll -q --show-progress -O ./boost.tar.bz2
-tar --bzip2 -xf boost.tar.bz2 --directory /build
-mv /build/boost_*/ /build/boost
-ls -a /build/boost
-cd /build/boost
-./bootstrap.sh --with-libraries=system,thread,log,program_options && \
+tar --bzip2 -xf boost.tar.bz2
+cd boost_${BOOST_VERSION//./_}
+./bootstrap.sh --with-libraries=system,log,program_options && \
 ./b2 install variant=release link=static,shared runtime-link=shared -j "$(nproc)"
 _INSTALL_BOOST
 

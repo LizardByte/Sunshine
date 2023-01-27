@@ -22,10 +22,6 @@ apt-get install -y --no-install-recommends \
   build-essential=12.9* \
   cmake=3.22.1* \
   libavdevice-dev=7:4.4.* \
-  libboost-filesystem-dev=1.74.0* \
-  libboost-log-dev=1.74.0* \
-  libboost-program-options-dev=1.74.0* \
-  libboost-thread-dev=1.74.0* \
   libcap-dev=1:2.44* \
   libcurl4-openssl-dev=7.81.0* \
   libdrm-dev=2.4.113* \
@@ -54,6 +50,19 @@ fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
+
+# install boost
+WORKDIR /build/boost
+ENV BOOST_VERSION="1.81.0"
+RUN <<_INSTALL_BOOST
+url="https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION//./_}.tar.bz2"
+echo "boost url: ${url}"
+wget "${url}" --progress=bar:force:noscroll -q --show-progress -O ./boost.tar.bz2
+tar --bzip2 -xf boost.tar.bz2
+cd boost_${BOOST_VERSION//./_}
+./bootstrap.sh --with-libraries=system,log,program_options && \
+./b2 install variant=release link=static,shared runtime-link=shared -j "$(nproc)"
+_INSTALL_BOOST
 
 # install cuda
 WORKDIR /build/cuda

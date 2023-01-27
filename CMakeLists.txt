@@ -72,13 +72,15 @@ find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CURL REQUIRED libcurl)
 
+if(NOT APPLE)
+    set(Boost_USE_STATIC_LIBS ON) # cmake-lint: disable=C0103
+endif()
 if(WIN32)
-    set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
     # workaround to prevent link errors against icudata, icui18n
     set(Boost_NO_BOOST_CMAKE ON) # cmake-lint: disable=C0103
 endif()
 
-find_package(Boost COMPONENTS log filesystem program_options REQUIRED)
+find_package(Boost 1.81.0 COMPONENTS log filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
@@ -378,7 +380,6 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             third-party/glad/include/glad/egl.h)
 
     list(APPEND PLATFORM_LIBRARIES
-            Boost::dynamic_linking
             dl
             evdev
             numa
@@ -789,10 +790,6 @@ elseif(UNIX)
         set(CPACK_DEB_COMPONENT_INSTALL ON)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                 ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
-                libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, \
-                libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, \
-                libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, \
-                libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, \
                 libcap2, \
                 libcurl4, \
                 libdrm2, \
@@ -808,10 +805,6 @@ elseif(UNIX)
                 openssl | libssl3")
         set(CPACK_RPM_PACKAGE_REQUIRES "\
                 ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
-                boost-filesystem >= 1.67.0, \
-                boost-log >= 1.67.0, \
-                boost-program-options >= 1.67.0, \
-                boost-thread >= 1.67.0, \
                 libcap >= 2.22, \
                 libcurl >= 7.0, \
                 libdrm >= 2.4.97, \

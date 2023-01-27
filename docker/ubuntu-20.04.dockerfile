@@ -23,10 +23,6 @@ apt-get install -y --no-install-recommends \
   gcc-10=10.3.0* \
   g++-10=10.3.0* \
   libavdevice-dev=7:4.2.* \
-  libboost-filesystem-dev=1.71.0* \
-  libboost-log-dev=1.71.0* \
-  libboost-program-options-dev=1.71.0* \
-  libboost-thread-dev=1.71.0* \
   libcap-dev=1:2.32* \
   libcurl4-openssl-dev=7.68.0* \
   libdrm-dev=2.4.107* \
@@ -88,6 +84,19 @@ wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cmake.sh
 sh ./cmake.sh --prefix=/usr/local --skip-license
 cmake --version
 _INSTALL_CMAKE
+
+# install boost
+WORKDIR /build/boost
+ENV BOOST_VERSION="1.81.0"
+RUN <<_INSTALL_BOOST
+url="https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION//./_}.tar.bz2"
+echo "boost url: ${url}"
+wget "${url}" --progress=bar:force:noscroll -q --show-progress -O ./boost.tar.bz2
+tar --bzip2 -xf boost.tar.bz2
+cd boost_${BOOST_VERSION//./_}
+./bootstrap.sh --with-libraries=system,log,program_options && \
+./b2 install variant=release link=static,shared runtime-link=shared -j "$(nproc)"
+_INSTALL_BOOST
 
 # install cuda
 WORKDIR /build/cuda

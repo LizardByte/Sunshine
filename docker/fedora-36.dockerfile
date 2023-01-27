@@ -19,7 +19,6 @@ RUN <<_DEPS
 dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
-  boost-devel-1.76.0* \
   cmake-3.22.2* \
   gcc-12.0.1* \
   gcc-c++-12.0.1* \
@@ -52,6 +51,19 @@ fi
 dnf clean all
 rm -rf /var/cache/yum
 _DEPS
+
+# install boost
+WORKDIR /build/boost
+ENV BOOST_VERSION="1.81.0"
+RUN <<_INSTALL_BOOST
+url="https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION//./_}.tar.bz2"
+echo "boost url: ${url}"
+wget "${url}" --progress=bar:force:noscroll -q --show-progress -O ./boost.tar.bz2
+tar --bzip2 -xf boost.tar.bz2
+cd boost_${BOOST_VERSION//./_}
+./bootstrap.sh --with-libraries=system,log,program_options && \
+./b2 install variant=release link=static,shared runtime-link=shared -j "$(nproc)"
+_INSTALL_BOOST
 
 # install cuda
 WORKDIR /build/cuda

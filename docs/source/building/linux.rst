@@ -15,10 +15,6 @@ Install Requirements
           build-essential \
           cmake \
           libavdevice-dev \
-          libboost-filesystem-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
-          libboost-thread-dev \
           libcap-dev \  # KMS
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
@@ -30,14 +26,14 @@ Install Requirements
           libssl-dev \
           libva-dev \
           libvdpau-dev \
-          libwayland-dev \  # Wayland
-          libx11-dev \  # X11
-          libxcb-shm0-dev \  # X11
+          libwayland-dev \      # Wayland
+          libx11-dev \          # X11
+          libxcb-shm0-dev \     # X11
           libxcb-xfixes0-dev \  # X11
-          libxcb1-dev \  # X11
-          libxfixes-dev \  # X11
-          libxrandr-dev \  # X11
-          libxtst-dev \  # X11
+          libxcb1-dev \         # X11
+          libxfixes-dev \       # X11
+          libxrandr-dev \       # X11
+          libxtst-dev \         # X11
           nodejs \
           npm \
           nvidia-cuda-dev \  # Cuda, NvFBC
@@ -53,7 +49,6 @@ Install Requirements
       sudo dnf update && \
       sudo dnf group install "Development Tools" && \
       sudo dnf install \
-          boost-devel \
           cmake \
           gcc \
           gcc-c++ \
@@ -64,23 +59,23 @@ Install Requirements
           libevdev-devel \
           libva-devel \
           libvdpau-devel \
-          libX11-devel \  # X11
-          libxcb-devel \  # X11
-          libXcursor-devel \  # X11
-          libXfixes-devel \  # X11
-          libXi-devel \  # X11
-          libXinerama-devel \  # X11
-          libXrandr-devel \  # X11
-          libXtst-devel \  # X11
+          libX11-devel \        # X11
+          libxcb-devel \        # X11
+          libXcursor-devel \    # X11
+          libXfixes-devel \     # X11
+          libXi-devel \         # X11
+          libXinerama-devel \   # X11
+          libXrandr-devel \     # X11
+          libXtst-devel \       # X11
           mesa-libGL-devel \
           npm \
           numactl-devel \
           openssl-devel \
           opus-devel \
           pulseaudio-libs-devel \
-          rpm-build \  # if you want to build an RPM binary package
-          wget \  # necessary for cuda install with `run` file
-          which   # necessary for cuda install with `run` file
+          rpm-build \   # if you want to build an RPM binary package
+          wget \        # necessary for cuda/boost installation
+          which         # necessary for cuda install with `run` file
 
 Ubuntu 20.04
 ^^^^^^^^^^^^
@@ -94,10 +89,6 @@ Install Requirements
           cmake \
           g++-10 \
           libavdevice-dev \
-          libboost-filesystem-dev \
-          libboost-log-dev \
-          libboost-thread-dev \
-          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -108,14 +99,14 @@ Install Requirements
           libssl-dev \
           libva-dev \
           libvdpau-dev \
-          libwayland-dev \  # Wayland
-          libx11-dev \  # X11
-          libxcb-shm0-dev \  # X11
+          libwayland-dev \      # Wayland
+          libx11-dev \          # X11
+          libxcb-shm0-dev \     # X11
           libxcb-xfixes0-dev \  # X11
-          libxcb1-dev \  # X11
-          libxfixes-dev \  # X11
-          libxrandr-dev \  # X11
-          libxtst-dev \  # X11
+          libxcb1-dev \         # X11
+          libxfixes-dev \       # X11
+          libxrandr-dev \       # X11
+          libxtst-dev \         # X11
           nodejs \
           npm \
           wget  # necessary for cuda install with `run` file
@@ -141,10 +132,6 @@ Install Requirements
           build-essential \
           cmake \
           libavdevice-dev \
-          libboost-filesystem-dev \
-          libboost-log-dev \
-          libboost-thread-dev \
-          libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
@@ -153,18 +140,31 @@ Install Requirements
           libopus-dev \
           libpulse-dev \
           libssl-dev \
-          libwayland-dev \  # Wayland
-          libx11-dev \  # X11
-          libxcb-shm0-dev \  # X11
+          libwayland-dev \      # Wayland
+          libx11-dev \          # X11
+          libxcb-shm0-dev \     # X11
           libxcb-xfixes0-dev \  # X11
-          libxcb1-dev \  # X11
-          libxfixes-dev \  # X11
-          libxrandr-dev \  # X11
-          libxtst-dev \  # X11
+          libxcb1-dev \         # X11
+          libxfixes-dev \       # X11
+          libxrandr-dev \       # X11
+          libxtst-dev \         # X11
           nodejs \
           npm \
-          nvidia-cuda-dev \  # CUDA, NvFBC
-          nvidia-cuda-toolkit  # CUDA, NvFBC
+          nvidia-cuda-dev \     # CUDA, NvFBC
+          nvidia-cuda-toolkit   # CUDA, NvFBC
+
+Boost
+----
+Sunshine requires Boost >= 1.81.0. If this version isn't available with your distro, you will have to build boost manually.
+
+.. code-block:: bash
+    wget "https://boostorg.jfrog.io/artifactory/main/release/1.81.0/source/boost_1_81_0.tar.bz2" \
+        --progress=bar:force:noscroll -q --show-progress -O boost.tar.bz2
+    tar --bzip2 -xf boost.tar.bz2
+    cd /boost_1_81_0/
+    ./bootstrap.sh --with-libraries=system,log,program_options && \
+    ./b2 install variant=release link=static,shared runtime-link=shared -j "$(nproc)"
+
 
 CUDA
 ----

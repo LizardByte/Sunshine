@@ -375,20 +375,10 @@ jobs:
 
       - name: Setup Dependencies Linux
         run: |
+          sudo apt-get update -y
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
           if [[ ${{ matrix.dist }} == "18.04" ]]; then
-            # Ubuntu 18.04 packages
-            sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
-
-            sudo apt-get update -y
-            sudo apt-get install -y \
-              libboost-filesystem1.71-dev \
-              libboost-log1.71-dev \
-              libboost-regex1.71-dev \
-              libboost-thread1.71-dev \
-              libboost-program-options1.71-dev
-
             # Install cmake
             wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
             chmod +x cmake-3.22.2-linux-x86_64.sh
@@ -407,14 +397,10 @@ jobs:
           else
             # Ubuntu 20.04+ packages
             sudo apt-get update -y
-            sudo apt-get install -y \
-              cmake \
-              libboost-filesystem-dev \
-              libboost-log-dev \
-              libboost-thread-dev \
-              libboost-program-options-dev
+            sudo apt-get install -y cmake
           fi
 
+          sudo apt-get update -y
           sudo apt-get install -y \
             build-essential \
             gcc-10 \
@@ -454,13 +440,19 @@ jobs:
             --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
             --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
-          # Install CUDA
-          sudo wget \
-            https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run \
-            --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
-          sudo chmod a+x /root/cuda.run
-          sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
-          sudo rm /root/cuda.run
+      - name: Install Boost
+        uses: MarkusJx/install-boost@v2.4.4
+        with: 
+          boost_version: 1.81.0
+          toolset: gcc
+      
+      - name: Install CUDA
+        uses: Jimver/cuda-toolkit@v0.2.8
+        id: cuda-toolkit
+        with:
+          cuda: 11.8.0
+          method: network
+          sub-packages: '["nvcc"]'
 
       - name: Build Linux
         run: |
