@@ -668,12 +668,12 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
     set(CPACK_NSIS_CREATE_ICONS_EXTRA
         "${CPACK_NSIS_CREATE_ICONS_EXTRA}
-        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' \
+        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk' \
             '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
         ")
     set(CPACK_NSIS_DELETE_ICONS_EXTRA
         "${CPACK_NSIS_DELETE_ICONS_EXTRA}
-        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
+        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk'
         ")
 
     # Checking for previous installed versions
