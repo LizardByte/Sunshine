@@ -640,7 +640,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to install ViGEmBus? This is REQUIRED for gamepad support while streaming.' \
+        MessageBox MB_YESNO|MB_ICONQUESTION \
+            'Do you want to install ViGEmBus? This is REQUIRED for gamepad support while streaming.' \
             /SD IDNO IDNO NoController
             ExecShell 'open' 'https://github.com/ViGEm/ViGEmBus/releases/latest'; \
                 skipped if no
