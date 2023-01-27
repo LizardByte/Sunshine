@@ -386,11 +386,13 @@ public:
   va::display_t::pointer va_display;
   file_t file;
 
-  frame_t hwframe;
-
   gbm::gbm_t gbm;
   egl::display_t display;
   egl::ctx_t ctx;
+
+  // This must be destroyed before display_t to ensure the GPU
+  // driver is still loaded when vaDestroySurfaces() is called.
+  frame_t hwframe;
 
   egl::sws_t sws;
   egl::nv12_t nv12;
