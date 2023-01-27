@@ -633,15 +633,16 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Install service
     SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
             "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-        ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://sunshinestream.readthedocs.io/\\\"'
-        ExecWait 'icacls \\\"$INSTDIR\\\" /reset'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
-        ExecWait 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to add/update ViGEmBus (virtual controller support)?' \
-            IDNO NoController
-            ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://github.com/ViGEm/ViGEmBus/releases/latest\\\"'; \
+        IfSilent +2 0
+        ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
+        MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to install ViGEmBus? This is REQUIRED for gamepad support while streaming.' \
+            /SD IDNO IDNO NoController
+            ExecShell 'open' 'https://github.com/ViGEm/ViGEmBus/releases/latest'; \
                 skipped if no
         NoController:
         ")
@@ -650,8 +651,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Uninstall service
     set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
             /SD IDNO IDNO NoDelete
