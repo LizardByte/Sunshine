@@ -168,7 +168,7 @@ modules:
     cleanup:
       - "/bin"
 
-  # Caching is configured until here, not including CUDA 
+  # Caching is configured until here, not including CUDA
   - name: cuda
     disabled: false
     buildsystem: simple
