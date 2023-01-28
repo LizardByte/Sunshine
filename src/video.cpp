@@ -711,6 +711,7 @@ void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type,
       break;
     }
 
+    // The capture code depends on us to sleep between failures
     std::this_thread::sleep_for(200ms);
   }
 }
@@ -839,16 +840,15 @@ void captureThread(
       // Wait for the other shared_ptr's of display to be destroyed.
       // New displays will only be created in this thread.
       while(display_wp->use_count() != 1) {
-        std::this_thread::sleep_for(100ms);
+        std::this_thread::sleep_for(20ms);
       }
 
       while(capture_ctx_queue->running()) {
+        // reset_display() will sleep between retries
         reset_display(disp, encoder.base_dev_type, display_names[display_p], capture_ctxs.front().config);
-
         if(disp) {
           break;
         }
-        std::this_thread::sleep_for(200ms);
       }
       if(!disp) {
         return;
@@ -1399,12 +1399,11 @@ encode_e encode_run_sync(
   }
 
   while(encode_session_ctx_queue.running()) {
+    // reset_display() will sleep between retries
     reset_display(disp, encoder.base_dev_type, display_names[display_p], synced_session_ctxs.front()->config);
     if(disp) {
       break;
     }
-
-    std::this_thread::sleep_for(200ms);
   }
 
   if(!disp) {
@@ -1582,7 +1581,7 @@ void capture_async(
 
     // Wait for the main capture event when the display is being reinitialized
     if(ref->reinit_event.peek()) {
-      std::this_thread::sleep_for(100ms);
+      std::this_thread::sleep_for(20ms);
       continue;
     }
     // Wait for the display to be ready
