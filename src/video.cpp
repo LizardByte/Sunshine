@@ -1273,6 +1273,13 @@ void encode_run(
   auto packets        = mail::man->queue<packet_t>(mail::video_packets);
   auto idr_events     = mail->event<bool>(mail::idr);
 
+  // Load a dummy image into the AVFrame to ensure we have something to encode
+  // even if we time out waiting on the first frame.
+  auto dummy_img = disp->alloc_img();
+  if(!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
+    return;
+  }
+
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
       break;
@@ -1601,13 +1608,6 @@ void capture_async(
     if(!hwdevice) {
       return;
     }
-
-    auto dummy_img = display->alloc_img();
-    if(!dummy_img || display->dummy_img(dummy_img.get())) {
-      return;
-    }
-
-    images->raise(std::move(dummy_img));
 
     // absolute mouse coordinates require that the dimensions of the screen are known
     touch_port_event->raise(make_port(display.get(), config));
