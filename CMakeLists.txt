@@ -419,7 +419,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
     configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
-configure_file(src/version.h.in src/version.h @ONLY)
+configure_file(src/version.h.in version.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SUNSHINE_TARGET_FILES
