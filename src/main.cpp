@@ -96,7 +96,7 @@ int entry(const char *name, int argc, char *argv[]) {
 */
 namespace version {
 int entry(const char *name, int argc, char *argv[]) {
-  std::cout << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
+  std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
   return 0;
 }
 } // namespace version
