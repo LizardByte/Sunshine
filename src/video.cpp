@@ -840,6 +840,23 @@ void captureThread(
       // Wait for the other shared_ptr's of display to be destroyed.
       // New displays will only be created in this thread.
       while(display_wp->use_count() != 1) {
+        // Free images that weren't consumed by the encoders. These can reference the display and prevent
+        // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
+        // conditions where the encoding loop might free a good frame after reinitializing if we capture
+        // a new frame here before the encoder has finished reinitializing.
+        KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+          if(!capture_ctx->images->running()) {
+            capture_ctx = capture_ctxs.erase(capture_ctx);
+            continue;
+          }
+
+          while(capture_ctx->images->peek()) {
+            capture_ctx->images->pop();
+          }
+
+          ++capture_ctx;
+        });
+
         std::this_thread::sleep_for(20ms);
       }
 
@@ -1295,7 +1312,10 @@ void encode_run(
     // Encode at a minimum of 10 FPS to avoid image quality issues with static content
     if(!frame->key_frame || images->peek()) {
       if(auto img = images->pop(100ms)) {
-        session->device->convert(*img);
+        if(session->device->convert(*img)) {
+          BOOST_LOG(error) << "Could not convert image"sv;
+          return;
+        }
       }
       else if(!images->running()) {
         break;
@@ -1580,12 +1600,6 @@ void capture_async(
   platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(!shutdown_event->peek() && images->running()) {
-    // Free images that weren't consumed by the encoder before it quit.
-    // This is critical to allow the display_t to be freed correctly.
-    while(images->peek()) {
-      images->pop();
-    }
-
     // Wait for the main capture event when the display is being reinitialized
     if(ref->reinit_event.peek()) {
       std::this_thread::sleep_for(20ms);
