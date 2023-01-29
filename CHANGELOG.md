@@ -23,7 +23,7 @@ to the internet, or have ever uploaded your logs with verbose output to a public
 - (Misc) Rename "Steam BigPicture" to "Steam Big Picture" in default apps.json
 - (Security) Scrub basic authorization header from logs
 - (Linux) The systemd service will now restart in the event of a crash
-- (Video/KMS/Linux) Fixed error: "couldn't import RGB Image: 00003002 and 00003004"
+- (Video/KMS/Linux) Fixed error: `couldn't import RGB Image: 00003002 and 00003004`
 - (Video/Windows) Fix stream freezing triggered by the resolution changed
 - (Installer/Windows) Fixes silent installation and other miscellaneous improvements
 - (CPU) Significantly improved CPU usage
