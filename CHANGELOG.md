@@ -1,4 +1,31 @@
 # Changelog
+Attention, this release contains critical security fixes. Please update as soon as possible. Additionally, we are
+encouraging users to change your Sunshine password, especially if you expose the web UI (i.e. port 47790 by default)
+to the internet, or have ever uploaded your logs with verbose output to a public resource.
+
+## [0.18.0] - 2023-01-25
+### Added
+- (Windows) Add support for Intel QuickSync
+- (Linux) Added aarch64 deb and rpm packages
+- (Windows) Add support for hybrid graphics systems, such as laptops with both integrated and discrete GPUs
+- (Linux) Add support for streaming from Steam Deck Gaming Mode
+- (Windows) Add HDR support, see https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/usage.html#hdr-support
+### Fixed
+- (Network) Refactor code for UPnP port forwarding
+- (Video) Enforce 10 FPS encoding frame rate minimum to improve static image quality
+- (Linux) deb and rpm packages are now specific to destination distro and version
+- (Docs) Add nvidia/nvenc preset migration guide
+- (Network) Performance optimizations
+- (Video/Windows) Fix streaming to multiple clients from hardware encoder
+- (Linux) Fix child process spawning
+- (Security) Fix security vulnerability in implementation of SimpleWebServer
+- (Misc) Rename "Steam BigPicture" to "Steam Big Picture" in default apps.json
+- (Security) Scrub basic authorization header from logs
+- (Linux) The systemd service will now restart in the event of a crash
+- (Video/KMS/Linux) Fixed error: "couldn't import RGB Image: 00003002 and 00003004"
+- (Video/Windows) Fix stream freezing triggered by the resolution changed
+- (Installer/Windows) Fixes silent installation and other miscellaneous improvements
+- (CPU) Significantly improved CPU usage
 
 ## [0.17.0] - 2023-01-08
 If you are running Sunshine as a service on Windows, we are strongly urging you to update to v0.17.0 as soon as
@@ -272,3 +299,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.15.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.15.0
 [0.16.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.16.0
 [0.17.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.17.0
+[0.18.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.0
