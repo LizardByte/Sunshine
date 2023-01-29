@@ -1,9 +1,10 @@
 # Changelog
+
+## [0.18.0] - 2023-01-29
 Attention, this release contains critical security fixes. Please update as soon as possible. Additionally, we are
 encouraging users to change your Sunshine password, especially if you expose the web UI (i.e. port 47790 by default)
 to the internet, or have ever uploaded your logs with verbose output to a public resource.
 
-## [0.18.0] - 2023-01-25
 ### Added
 - (Windows) Add support for Intel QuickSync
 - (Linux) Added aarch64 deb and rpm packages
