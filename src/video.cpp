@@ -711,6 +711,7 @@ void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type,
       break;
     }
 
+    // The capture code depends on us to sleep between failures
     std::this_thread::sleep_for(200ms);
   }
 }
@@ -839,16 +840,32 @@ void captureThread(
       // Wait for the other shared_ptr's of display to be destroyed.
       // New displays will only be created in this thread.
       while(display_wp->use_count() != 1) {
-        std::this_thread::sleep_for(100ms);
+        // Free images that weren't consumed by the encoders. These can reference the display and prevent
+        // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
+        // conditions where the encoding loop might free a good frame after reinitializing if we capture
+        // a new frame here before the encoder has finished reinitializing.
+        KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+          if(!capture_ctx->images->running()) {
+            capture_ctx = capture_ctxs.erase(capture_ctx);
+            continue;
+          }
+
+          while(capture_ctx->images->peek()) {
+            capture_ctx->images->pop();
+          }
+
+          ++capture_ctx;
+        });
+
+        std::this_thread::sleep_for(20ms);
       }
 
       while(capture_ctx_queue->running()) {
+        // reset_display() will sleep between retries
         reset_display(disp, encoder.base_dev_type, display_names[display_p], capture_ctxs.front().config);
-
         if(disp) {
           break;
         }
-        std::this_thread::sleep_for(200ms);
       }
       if(!disp) {
         return;
@@ -1273,6 +1290,13 @@ void encode_run(
   auto packets        = mail::man->queue<packet_t>(mail::video_packets);
   auto idr_events     = mail->event<bool>(mail::idr);
 
+  // Load a dummy image into the AVFrame to ensure we have something to encode
+  // even if we time out waiting on the first frame.
+  auto dummy_img = disp->alloc_img();
+  if(!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
+    return;
+  }
+
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
       break;
@@ -1288,7 +1312,10 @@ void encode_run(
     // Encode at a minimum of 10 FPS to avoid image quality issues with static content
     if(!frame->key_frame || images->peek()) {
       if(auto img = images->pop(100ms)) {
-        session->device->convert(*img);
+        if(session->device->convert(*img)) {
+          BOOST_LOG(error) << "Could not convert image"sv;
+          return;
+        }
       }
       else if(!images->running()) {
         break;
@@ -1399,12 +1426,11 @@ encode_e encode_run_sync(
   }
 
   while(encode_session_ctx_queue.running()) {
+    // reset_display() will sleep between retries
     reset_display(disp, encoder.base_dev_type, display_names[display_p], synced_session_ctxs.front()->config);
     if(disp) {
       break;
     }
-
-    std::this_thread::sleep_for(200ms);
   }
 
   if(!disp) {
@@ -1574,15 +1600,9 @@ void capture_async(
   platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(!shutdown_event->peek() && images->running()) {
-    // Free images that weren't consumed by the encoder before it quit.
-    // This is critical to allow the display_t to be freed correctly.
-    while(images->peek()) {
-      images->pop();
-    }
-
     // Wait for the main capture event when the display is being reinitialized
     if(ref->reinit_event.peek()) {
-      std::this_thread::sleep_for(100ms);
+      std::this_thread::sleep_for(20ms);
       continue;
     }
     // Wait for the display to be ready
@@ -1602,13 +1622,6 @@ void capture_async(
     if(!hwdevice) {
       return;
     }
-
-    auto dummy_img = display->alloc_img();
-    if(!dummy_img || display->dummy_img(dummy_img.get())) {
-      return;
-    }
-
-    images->raise(std::move(dummy_img));
 
     // absolute mouse coordinates require that the dimensions of the screen are known
     touch_port_event->raise(make_port(display.get(), config));
