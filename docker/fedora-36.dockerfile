@@ -20,7 +20,6 @@ dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
   boost-devel-1.76.0* \
-  boost-static-1.76.0* \
   cmake-3.22.2* \
   gcc-12.0.1* \
   gcc-c++-12.0.1* \

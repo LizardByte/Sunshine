@@ -28,7 +28,7 @@ apt-get install -y --no-install-recommends \
   libboost-thread-dev=1.74.0* \
   libcap-dev=1:2.44* \
   libcurl4-openssl-dev=7.81.0* \
-  libdrm-dev=2.4.110* \
+  libdrm-dev=2.4.113* \
   libevdev-dev=1.12.1* \
   libnuma-dev=2.0.14* \
   libopus-dev=1.3.1* \
