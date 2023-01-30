@@ -10,7 +10,7 @@
 #include <d3dcommon.h>
 #include <dwmapi.h>
 #include <dxgi.h>
-#include <dxgi1_2.h>
+#include <dxgi1_6.h>
 
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -37,6 +37,7 @@ using adapter_t             = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter
 using output_t              = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
 using output1_t             = util::safe_ptr<IDXGIOutput1, Release<IDXGIOutput1>>;
 using output5_t             = util::safe_ptr<IDXGIOutput5, Release<IDXGIOutput5>>;
+using output6_t             = util::safe_ptr<IDXGIOutput6, Release<IDXGIOutput6>>;
 using dup_t                 = util::safe_ptr<IDXGIOutputDuplication, Release<IDXGIOutputDuplication>>;
 using texture2d_t           = util::safe_ptr<ID3D11Texture2D, Release<ID3D11Texture2D>>;
 using texture1d_t           = util::safe_ptr<ID3D11Texture1D, Release<ID3D11Texture1D>>;
@@ -115,7 +116,8 @@ public:
 
 class display_base_t : public display_t {
 public:
-  int init(int framerate, const std::string &display_name);
+  int init(const ::video::config_t &config, const std::string &display_name);
+  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
 
   std::chrono::nanoseconds delay;
 
@@ -140,29 +142,34 @@ public:
 
   typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
 
+  virtual bool is_hdr() override;
+  virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) override;
+
 protected:
   int get_pixel_pitch() {
     return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
   }
 
   const char *dxgi_format_to_string(DXGI_FORMAT format);
+  const char *colorspace_to_string(DXGI_COLOR_SPACE_TYPE type);
 
-  virtual int complete_img(img_t *img, bool dummy)                     = 0;
-  virtual std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() = 0;
+  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+  virtual int complete_img(img_t *img, bool dummy)                                               = 0;
+  virtual std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats()                           = 0;
+  virtual std::vector<DXGI_FORMAT> get_supported_hdr_capture_formats()                           = 0;
 };
 
 class display_ram_t : public display_base_t {
 public:
-  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
-  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible);
-
+  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img) override;
   int complete_img(img_t *img, bool dummy) override;
   std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() override;
+  std::vector<DXGI_FORMAT> get_supported_hdr_capture_formats() override;
 
-  int init(int framerate, const std::string &display_name);
+  int init(const ::video::config_t &config, const std::string &display_name);
 
   cursor_t cursor;
   D3D11_MAPPED_SUBRESOURCE img_info;
@@ -171,15 +178,15 @@ public:
 
 class display_vram_t : public display_base_t, public std::enable_shared_from_this<display_vram_t> {
 public:
-  capture_e capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
-  capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible);
+  virtual capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
   std::shared_ptr<img_t> alloc_img() override;
   int dummy_img(img_t *img_base) override;
   int complete_img(img_t *img_base, bool dummy) override;
   std::vector<DXGI_FORMAT> get_supported_sdr_capture_formats() override;
+  std::vector<DXGI_FORMAT> get_supported_hdr_capture_formats() override;
 
-  int init(int framerate, const std::string &display_name);
+  int init(const ::video::config_t &config, const std::string &display_name);
 
   std::shared_ptr<platf::hwdevice_t> make_hwdevice(pix_fmt_e pix_fmt) override;
 
@@ -196,6 +203,8 @@ public:
   gpu_cursor_t cursor_xor;
 
   texture2d_t last_frame_copy;
+
+  std::atomic<uint32_t> next_image_id;
 };
 } // namespace platf::dxgi
 

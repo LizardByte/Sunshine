@@ -5,6 +5,7 @@
 #include <thread>
 
 extern "C" {
+#include <libavutil/mastering_display_metadata.h>
 #include <libswscale/swscale.h>
 }
 
@@ -63,15 +64,29 @@ enum class profile_hevc_e : int {
 };
 } // namespace nv
 
+namespace qsv {
 
-platf::mem_type_e map_dev_type(AVHWDeviceType type);
+enum class profile_h264_e : int {
+  baseline = 66,
+  main     = 77,
+  high     = 100,
+};
+
+enum class profile_hevc_e : int {
+  main    = 1,
+  main_10 = 2,
+};
+} // namespace qsv
+
+
+platf::mem_type_e map_base_dev_type(AVHWDeviceType type);
 platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
 util::Either<buffer_t, int> dxgi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> vaapi_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 util::Either<buffer_t, int> cuda_make_hwdevice_ctx(platf::hwdevice_t *hwdevice_ctx);
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format);
+int hwframe_ctx(ctx_t &ctx, platf::hwdevice_t *hwdevice, buffer_t &hwdevice_ctx, AVPixelFormat format);
 
 class swdevice_t : public platf::hwdevice_t {
 public:
@@ -116,17 +131,16 @@ public:
     return 0;
   }
 
-  int set_frame(AVFrame *frame) {
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
     this->frame = frame;
 
     // If it's a hwframe, allocate buffers for hardware
-    if(frame->hw_frames_ctx) {
+    if(hw_frames_ctx) {
       hw_frame.reset(frame);
 
-      if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) return -1;
+      if(av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) return -1;
     }
-
-    if(!frame->hw_frames_ctx) {
+    else {
       sw_frame.reset(frame);
     }
 
@@ -181,9 +195,9 @@ public:
     return 0;
   }
 
-  int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format) {
+  int init(int in_width, int in_height, AVFrame *frame, AVPixelFormat format, bool hardware) {
     // If the device used is hardware, yet the image resides on main memory
-    if(frame->hw_frames_ctx) {
+    if(hardware) {
       sw_frame.reset(av_frame_alloc());
 
       sw_frame->width  = frame->width;
@@ -235,11 +249,14 @@ public:
 };
 
 enum flag_e {
-  DEFAULT           = 0x00,
-  PARALLEL_ENCODING = 0x01,
-  H264_ONLY         = 0x02, // When HEVC is too heavy
-  LIMITED_GOP_SIZE  = 0x04, // Some encoders don't like it when you have an infinite GOP_SIZE. *cough* VAAPI *cough*
-  SINGLE_SLICE_ONLY = 0x08, // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
+  DEFAULT            = 0x00,
+  PARALLEL_ENCODING  = 0x01,
+  H264_ONLY          = 0x02, // When HEVC is too heavy
+  LIMITED_GOP_SIZE   = 0x04, // Some encoders don't like it when you have an infinite GOP_SIZE. *cough* VAAPI *cough*
+  SINGLE_SLICE_ONLY  = 0x08, // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
+  CBR_WITH_VBR       = 0x10, // Use a VBR rate control mode to simulate CBR
+  RELAXED_COMPLIANCE = 0x20, // Use FF_COMPLIANCE_UNOFFICIAL compliance mode
+  NO_RC_BUF_LIMIT    = 0x40, // Don't set rc_buffer_size
 };
 
 struct encoder_t {
@@ -286,11 +303,10 @@ struct encoder_t {
     option_t(std::string &&name, decltype(value) &&value) : name { std::move(name) }, value { std::move(value) } {}
   };
 
-  AVHWDeviceType dev_type;
+  AVHWDeviceType base_dev_type, derived_dev_type;
   AVPixelFormat dev_pix_fmt;
 
-  AVPixelFormat static_pix_fmt;
-  AVPixelFormat dynamic_pix_fmt;
+  AVPixelFormat static_pix_fmt, dynamic_pix_fmt;
 
   struct {
     std::vector<option_t> common_options;
@@ -357,6 +373,7 @@ struct sync_session_ctx_t {
   safe::mail_raw_t::event_t<bool> shutdown_event;
   safe::mail_raw_t::queue_t<packet_t> packets;
   safe::mail_raw_t::event_t<bool> idr_events;
+  safe::mail_raw_t::event_t<hdr_info_t> hdr_events;
   safe::mail_raw_t::event_t<input::touch_port_t> touch_port_events;
 
   config_t config;
@@ -376,7 +393,7 @@ using encode_e                   = platf::capture_e;
 
 struct capture_ctx_t {
   img_event_t images;
-  int framerate;
+  config_t config;
 };
 
 struct capture_thread_async_ctx_t {
@@ -404,10 +421,10 @@ auto capture_thread_sync  = safe::make_shared<capture_thread_sync_ctx_t>(start_c
 static encoder_t nvenc {
   "nvenc"sv,
 #ifdef _WIN32
-  AV_HWDEVICE_TYPE_D3D11VA,
+  AV_HWDEVICE_TYPE_D3D11VA, AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_D3D11,
 #else
-  AV_HWDEVICE_TYPE_CUDA,
+  AV_HWDEVICE_TYPE_CUDA, AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_CUDA,
 #endif
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
@@ -459,9 +476,64 @@ static encoder_t nvenc {
 };
 
 #ifdef _WIN32
+static encoder_t quicksync {
+  "quicksync"sv,
+  AV_HWDEVICE_TYPE_D3D11VA,
+  AV_HWDEVICE_TYPE_QSV,
+  AV_PIX_FMT_QSV,
+  AV_PIX_FMT_NV12,
+  AV_PIX_FMT_P010,
+  {
+    // Common options
+    {
+      { "preset"s, &config::video.qsv.preset },
+      { "forced_idr"s, 1 },
+      { "async_depth"s, 1 },
+      { "low_delay_brc"s, 1 },
+      { "low_power"s, 1 },
+      { "recovery_point_sei"s, 0 },
+      { "pic_timing_sei"s, 0 },
+    },
+    // SDR-specific options
+    {
+      { "profile"s, (int)qsv::profile_hevc_e::main },
+    },
+    // HDR-specific options
+    {
+      { "profile"s, (int)qsv::profile_hevc_e::main_10 },
+    },
+    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    "hevc_qsv"s,
+  },
+  {
+    // Common options
+    {
+      { "preset"s, &config::video.qsv.preset },
+      { "cavlc"s, &config::video.qsv.cavlc },
+      { "forced_idr"s, 1 },
+      { "async_depth"s, 1 },
+      { "low_delay_brc"s, 1 },
+      { "low_power"s, 1 },
+      { "recovery_point_sei"s, 0 },
+      { "vcm"s, 1 },
+      { "pic_timing_sei"s, 0 },
+      { "max_dec_frame_buffering"s, 1 },
+    },
+    // SDR-specific options
+    {
+      { "profile"s, (int)qsv::profile_h264_e::high },
+    },
+    {}, // HDR-specific options
+    std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+    "h264_qsv"s,
+  },
+  PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT,
+  dxgi_make_hwdevice_ctx,
+};
+
 static encoder_t amdvce {
   "amdvce"sv,
-  AV_HWDEVICE_TYPE_D3D11VA,
+  AV_HWDEVICE_TYPE_D3D11VA, AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_D3D11,
   AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
   {
@@ -506,7 +578,7 @@ static encoder_t amdvce {
 
 static encoder_t software {
   "software"sv,
-  AV_HWDEVICE_TYPE_NONE,
+  AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_NONE,
   AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
   {
@@ -544,7 +616,7 @@ static encoder_t software {
 #ifdef __linux__
 static encoder_t vaapi {
   "vaapi"sv,
-  AV_HWDEVICE_TYPE_VAAPI,
+  AV_HWDEVICE_TYPE_VAAPI, AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_VAAPI,
   AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P10,
   {
@@ -580,7 +652,7 @@ static encoder_t vaapi {
 #ifdef __APPLE__
 static encoder_t videotoolbox {
   "videotoolbox"sv,
-  AV_HWDEVICE_TYPE_NONE,
+  AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
   AV_PIX_FMT_VIDEOTOOLBOX,
   AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
   {
@@ -618,6 +690,7 @@ static std::vector<encoder_t> encoders {
   nvenc,
 #endif
 #ifdef _WIN32
+  quicksync,
   amdvce,
 #endif
 #ifdef __linux__
@@ -629,15 +702,16 @@ static std::vector<encoder_t> encoders {
   software
 };
 
-void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, int framerate) {
+void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, const config_t &config) {
   // We try this twice, in case we still get an error on reinitialization
   for(int x = 0; x < 2; ++x) {
     disp.reset();
-    disp = platf::display(map_dev_type(type), display_name, framerate);
+    disp = platf::display(map_base_dev_type(type), display_name, config);
     if(disp) {
       break;
     }
 
+    // The capture code depends on us to sleep between failures
     std::this_thread::sleep_for(200ms);
   }
 }
@@ -665,7 +739,7 @@ void captureThread(
 
   // Get all the monitor names now, rather than at boot, to
   // get the most up-to-date list available monitors
-  auto display_names = platf::display_names(map_dev_type(encoder.dev_type));
+  auto display_names = platf::display_names(map_base_dev_type(encoder.base_dev_type));
   int display_p      = 0;
 
   if(display_names.empty()) {
@@ -684,7 +758,7 @@ void captureThread(
     capture_ctxs.emplace_back(std::move(*capture_ctx));
   }
 
-  auto disp = platf::display(map_dev_type(encoder.dev_type), display_names[display_p], capture_ctxs.front().framerate);
+  auto disp = platf::display(map_base_dev_type(encoder.base_dev_type), display_names[display_p], capture_ctxs.front().config);
   if(!disp) {
     return;
   }
@@ -766,16 +840,32 @@ void captureThread(
       // Wait for the other shared_ptr's of display to be destroyed.
       // New displays will only be created in this thread.
       while(display_wp->use_count() != 1) {
-        std::this_thread::sleep_for(100ms);
+        // Free images that weren't consumed by the encoders. These can reference the display and prevent
+        // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
+        // conditions where the encoding loop might free a good frame after reinitializing if we capture
+        // a new frame here before the encoder has finished reinitializing.
+        KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+          if(!capture_ctx->images->running()) {
+            capture_ctx = capture_ctxs.erase(capture_ctx);
+            continue;
+          }
+
+          while(capture_ctx->images->peek()) {
+            capture_ctx->images->pop();
+          }
+
+          ++capture_ctx;
+        });
+
+        std::this_thread::sleep_for(20ms);
       }
 
       while(capture_ctx_queue->running()) {
-        reset_display(disp, encoder.dev_type, display_names[display_p], capture_ctxs.front().framerate);
-
+        // reset_display() will sleep between retries
+        reset_display(disp, encoder.base_dev_type, display_names[display_p], capture_ctxs.front().config);
         if(disp) {
           break;
         }
-        std::this_thread::sleep_for(200ms);
       }
       if(!disp) {
         return;
@@ -868,8 +958,8 @@ int encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::m
   return 0;
 }
 
-std::optional<session_t> make_session(const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
-  bool hardware = encoder.dev_type != AV_HWDEVICE_TYPE_NONE;
+std::optional<session_t> make_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
+  bool hardware = encoder.base_dev_type != AV_HWDEVICE_TYPE_NONE;
 
   auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
   if(!video_format[encoder_t::PASSED]) {
@@ -929,35 +1019,46 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   ctx->color_range = (config.encoderCscMode & 0x1) ? AVCOL_RANGE_JPEG : AVCOL_RANGE_MPEG;
 
   int sws_color_space;
-  switch(config.encoderCscMode >> 1) {
-  case 0:
-  default:
-    // Rec. 601
-    BOOST_LOG(info) << "Color coding [Rec. 601]"sv;
-    ctx->color_primaries = AVCOL_PRI_SMPTE170M;
-    ctx->color_trc       = AVCOL_TRC_SMPTE170M;
-    ctx->colorspace      = AVCOL_SPC_SMPTE170M;
-    sws_color_space      = SWS_CS_SMPTE170M;
-    break;
-
-  case 1:
-    // Rec. 709
-    BOOST_LOG(info) << "Color coding [Rec. 709]"sv;
-    ctx->color_primaries = AVCOL_PRI_BT709;
-    ctx->color_trc       = AVCOL_TRC_BT709;
-    ctx->colorspace      = AVCOL_SPC_BT709;
-    sws_color_space      = SWS_CS_ITU709;
-    break;
-
-  case 2:
-    // Rec. 2020
-    BOOST_LOG(info) << "Color coding [Rec. 2020]"sv;
+  if(config.dynamicRange && disp->is_hdr()) {
+    // When HDR is active, that overrides the colorspace the client requested
+    BOOST_LOG(info) << "HDR color coding [Rec. 2020 + SMPTE 2084 PQ]"sv;
     ctx->color_primaries = AVCOL_PRI_BT2020;
-    ctx->color_trc       = AVCOL_TRC_BT2020_10;
+    ctx->color_trc       = AVCOL_TRC_SMPTE2084;
     ctx->colorspace      = AVCOL_SPC_BT2020_NCL;
     sws_color_space      = SWS_CS_BT2020;
-    break;
   }
+  else {
+    switch(config.encoderCscMode >> 1) {
+    case 0:
+    default:
+      // Rec. 601
+      BOOST_LOG(info) << "SDR color coding [Rec. 601]"sv;
+      ctx->color_primaries = AVCOL_PRI_SMPTE170M;
+      ctx->color_trc       = AVCOL_TRC_SMPTE170M;
+      ctx->colorspace      = AVCOL_SPC_SMPTE170M;
+      sws_color_space      = SWS_CS_SMPTE170M;
+      break;
+
+    case 1:
+      // Rec. 709
+      BOOST_LOG(info) << "SDR color coding [Rec. 709]"sv;
+      ctx->color_primaries = AVCOL_PRI_BT709;
+      ctx->color_trc       = AVCOL_TRC_BT709;
+      ctx->colorspace      = AVCOL_SPC_BT709;
+      sws_color_space      = SWS_CS_ITU709;
+      break;
+
+    case 2:
+      // Rec. 2020
+      BOOST_LOG(info) << "SDR color coding [Rec. 2020]"sv;
+      ctx->color_primaries = AVCOL_PRI_BT2020;
+      ctx->color_trc       = AVCOL_TRC_BT2020_10;
+      ctx->colorspace      = AVCOL_SPC_BT2020_NCL;
+      sws_color_space      = SWS_CS_BT2020;
+      break;
+    }
+  }
+
   BOOST_LOG(info) << "Color range: ["sv << ((config.encoderCscMode & 0x1) ? "JPEG"sv : "MPEG"sv) << ']';
 
   AVPixelFormat sw_fmt;
@@ -971,17 +1072,39 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   // Used by cbs::make_sps_hevc
   ctx->sw_pix_fmt = sw_fmt;
 
-  buffer_t hwdevice_ctx;
   if(hardware) {
+    buffer_t hwdevice_ctx;
+
     ctx->pix_fmt = encoder.dev_pix_fmt;
 
+    // Create the base hwdevice context
     auto buf_or_error = encoder.make_hwdevice_ctx(hwdevice.get());
     if(buf_or_error.has_right()) {
       return std::nullopt;
     }
-
     hwdevice_ctx = std::move(buf_or_error.left());
-    if(hwframe_ctx(ctx, hwdevice_ctx, sw_fmt)) {
+
+    // If this encoder requires derivation from the base, derive the desired type
+    if(encoder.derived_dev_type != AV_HWDEVICE_TYPE_NONE) {
+      buffer_t derived_hwdevice_ctx;
+
+      // Allow the hwdevice to prepare for this type of context to be derived
+      if(hwdevice->prepare_to_derive_context(encoder.derived_dev_type)) {
+        return std::nullopt;
+      }
+
+      auto err = av_hwdevice_ctx_create_derived(&derived_hwdevice_ctx, encoder.derived_dev_type, hwdevice_ctx.get(), 0);
+      if(err) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+        BOOST_LOG(error) << "Failed to derive device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+
+        return std::nullopt;
+      }
+
+      hwdevice_ctx = std::move(derived_hwdevice_ctx);
+    }
+
+    if(hwframe_ctx(ctx, hwdevice.get(), hwdevice_ctx, sw_fmt)) {
       return std::nullopt;
     }
 
@@ -1027,17 +1150,30 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     auto bitrate     = config.bitrate * 1000;
     ctx->rc_max_rate = bitrate;
     ctx->bit_rate    = bitrate;
-    ctx->rc_min_rate = bitrate;
 
-    if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
-      // Use a larger rc_buffer_size for software encoding when slices are enabled,
-      // because libx264 can severely degrade quality if the buffer is too small.
-      // libx265 encounters this issue more frequently, so always scale the
-      // buffer by 1.5x for software HEVC encoding.
-      ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+    if(encoder.flags & CBR_WITH_VBR) {
+      // Ensure rc_max_bitrate != bit_rate to force VBR mode
+      ctx->bit_rate--;
     }
     else {
-      ctx->rc_buffer_size = bitrate / config.framerate;
+      ctx->rc_min_rate = bitrate;
+    }
+
+    if(encoder.flags & RELAXED_COMPLIANCE) {
+      ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
+    }
+
+    if(!(encoder.flags & NO_RC_BUF_LIMIT)) {
+      if(!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
+        // Use a larger rc_buffer_size for software encoding when slices are enabled,
+        // because libx264 can severely degrade quality if the buffer is too small.
+        // libx265 encounters this issue more frequently, so always scale the
+        // buffer by 1.5x for software HEVC encoding.
+        ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+      }
+      else {
+        ctx->rc_buffer_size = bitrate / config.framerate;
+      }
     }
   }
   else if(video_format.qp) {
@@ -1063,9 +1199,35 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   frame->width  = ctx->width;
   frame->height = ctx->height;
 
+  // Attach HDR metadata to the AVFrame
+  if(config.dynamicRange && disp->is_hdr()) {
+    SS_HDR_METADATA hdr_metadata;
+    if(disp->get_hdr_metadata(hdr_metadata)) {
+      auto mdm = av_mastering_display_metadata_create_side_data(frame.get());
 
-  if(hardware) {
-    frame->hw_frames_ctx = av_buffer_ref(ctx->hw_frames_ctx);
+      mdm->display_primaries[0][0] = av_make_q(hdr_metadata.displayPrimaries[0].x, 50000);
+      mdm->display_primaries[0][1] = av_make_q(hdr_metadata.displayPrimaries[0].y, 50000);
+      mdm->display_primaries[1][0] = av_make_q(hdr_metadata.displayPrimaries[1].x, 50000);
+      mdm->display_primaries[1][1] = av_make_q(hdr_metadata.displayPrimaries[1].y, 50000);
+      mdm->display_primaries[2][0] = av_make_q(hdr_metadata.displayPrimaries[2].x, 50000);
+      mdm->display_primaries[2][1] = av_make_q(hdr_metadata.displayPrimaries[2].y, 50000);
+
+      mdm->white_point[0] = av_make_q(hdr_metadata.whitePoint.x, 50000);
+      mdm->white_point[1] = av_make_q(hdr_metadata.whitePoint.y, 50000);
+
+      mdm->min_luminance = av_make_q(hdr_metadata.minDisplayLuminance, 10000);
+      mdm->max_luminance = av_make_q(hdr_metadata.maxDisplayLuminance, 1);
+
+      mdm->has_luminance = hdr_metadata.maxDisplayLuminance != 0 ? 1 : 0;
+      mdm->has_primaries = hdr_metadata.displayPrimaries[0].x != 0 ? 1 : 0;
+
+      if(hdr_metadata.maxContentLightLevel != 0 || hdr_metadata.maxFrameAverageLightLevel != 0) {
+        auto clm = av_content_light_metadata_create_side_data(frame.get());
+
+        clm->MaxCLL  = hdr_metadata.maxContentLightLevel;
+        clm->MaxFALL = hdr_metadata.maxFrameAverageLightLevel;
+      }
+    }
   }
 
   std::shared_ptr<platf::hwdevice_t> device;
@@ -1073,7 +1235,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
   if(!hwdevice->data) {
     auto device_tmp = std::make_unique<swdevice_t>();
 
-    if(device_tmp->init(width, height, frame.get(), sw_fmt)) {
+    if(device_tmp->init(width, height, frame.get(), sw_fmt, hardware)) {
       return std::nullopt;
     }
 
@@ -1083,7 +1245,7 @@ std::optional<session_t> make_session(const encoder_t &encoder, const config_t &
     device = std::move(hwdevice);
   }
 
-  if(device->set_frame(frame.release())) {
+  if(device->set_frame(frame.release(), ctx->hw_frames_ctx)) {
     return std::nullopt;
   }
 
@@ -1111,13 +1273,13 @@ void encode_run(
   safe::mail_t mail,
   img_event_t images,
   config_t config,
-  int width, int height,
+  std::shared_ptr<platf::display_t> disp,
   std::shared_ptr<platf::hwdevice_t> &&hwdevice,
   safe::signal_t &reinit_event,
   const encoder_t &encoder,
   void *channel_data) {
 
-  auto session = make_session(encoder, config, width, height, std::move(hwdevice));
+  auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
   if(!session) {
     return;
   }
@@ -1127,6 +1289,13 @@ void encode_run(
   auto shutdown_event = mail->event<bool>(mail::shutdown);
   auto packets        = mail::man->queue<packet_t>(mail::video_packets);
   auto idr_events     = mail->event<bool>(mail::idr);
+
+  // Load a dummy image into the AVFrame to ensure we have something to encode
+  // even if we time out waiting on the first frame.
+  auto dummy_img = disp->alloc_img();
+  if(!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
+    return;
+  }
 
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
@@ -1140,14 +1309,15 @@ void encode_run(
       idr_events->pop();
     }
 
+    // Encode at a minimum of 10 FPS to avoid image quality issues with static content
     if(!frame->key_frame || images->peek()) {
       if(auto img = images->pop(100ms)) {
-        session->device->convert(*img);
+        if(session->device->convert(*img)) {
+          BOOST_LOG(error) << "Could not convert image"sv;
+          return;
+        }
       }
-      else if(images->running()) {
-        continue;
-      }
-      else {
+      else if(!images->running()) {
         break;
       }
     }
@@ -1204,7 +1374,15 @@ std::optional<sync_session_t> make_synced_session(platf::display_t *disp, const 
   // absolute mouse coordinates require that the dimensions of the screen are known
   ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
-  auto session = make_session(encoder, ctx.config, img.width, img.height, std::move(hwdevice));
+  // Update client with our current HDR display state
+  hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+  if(ctx.config.dynamicRange && disp->is_hdr()) {
+    disp->get_hdr_metadata(hdr_info->metadata);
+    hdr_info->enabled = true;
+  }
+  ctx.hdr_events->raise(std::move(hdr_info));
+
+  auto session = make_session(disp, encoder, ctx.config, img.width, img.height, std::move(hwdevice));
   if(!session) {
     return std::nullopt;
   }
@@ -1219,7 +1397,7 @@ encode_e encode_run_sync(
   encode_session_ctx_queue_t &encode_session_ctx_queue) {
 
   const auto &encoder = encoders.front();
-  auto display_names  = platf::display_names(map_dev_type(encoder.dev_type));
+  auto display_names  = platf::display_names(map_base_dev_type(encoder.base_dev_type));
   int display_p       = 0;
 
   if(display_names.empty()) {
@@ -1247,15 +1425,12 @@ encode_e encode_run_sync(
     synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*ctx)));
   }
 
-  int framerate = synced_session_ctxs.front()->config.framerate;
-
   while(encode_session_ctx_queue.running()) {
-    reset_display(disp, encoder.dev_type, display_names[display_p], framerate);
+    // reset_display() will sleep between retries
+    reset_display(disp, encoder.base_dev_type, display_names[display_p], synced_session_ctxs.front()->config);
     if(disp) {
       break;
     }
-
-    std::this_thread::sleep_for(200ms);
   }
 
   if(!disp) {
@@ -1410,8 +1585,7 @@ void capture_async(
     return;
   }
 
-  ref->capture_ctx_queue->raise(capture_ctx_t {
-    images, config.framerate });
+  ref->capture_ctx_queue->raise(capture_ctx_t { images, config });
 
   if(!ref->capture_ctx_queue->running()) {
     return;
@@ -1420,6 +1594,7 @@ void capture_async(
   int frame_nr = 1;
 
   auto touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
+  auto hdr_event        = mail->event<hdr_info_t>(mail::hdr);
 
   // Encoding takes place on this thread
   platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -1427,7 +1602,7 @@ void capture_async(
   while(!shutdown_event->peek() && images->running()) {
     // Wait for the main capture event when the display is being reinitialized
     if(ref->reinit_event.peek()) {
-      std::this_thread::sleep_for(100ms);
+      std::this_thread::sleep_for(20ms);
       continue;
     }
     // Wait for the display to be ready
@@ -1448,29 +1623,24 @@ void capture_async(
       return;
     }
 
-    auto dummy_img = display->alloc_img();
-    if(!dummy_img || display->dummy_img(dummy_img.get())) {
-      return;
-    }
-
-    images->raise(std::move(dummy_img));
-
     // absolute mouse coordinates require that the dimensions of the screen are known
     touch_port_event->raise(make_port(display.get(), config));
+
+    // Update client with our current HDR display state
+    hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
+    if(config.dynamicRange && display->is_hdr()) {
+      display->get_hdr_metadata(hdr_info->metadata);
+      hdr_info->enabled = true;
+    }
+    hdr_event->raise(std::move(hdr_info));
 
     encode_run(
       frame_nr,
       mail, images,
-      config, display->width, display->height,
+      config, display,
       std::move(hwdevice),
       ref->reinit_event, *ref->encoder_p,
       channel_data);
-
-    // Free images that weren't consumed by the encoder before it quit.
-    // This is critical to allow the display_t to be freed correctly.
-    while(images->peek()) {
-      images->pop();
-    }
   }
 }
 
@@ -1493,6 +1663,7 @@ void capture(
       mail->event<bool>(mail::shutdown),
       mail::man->queue<packet_t>(mail::video_packets),
       std::move(idr_events),
+      mail->event<hdr_info_t>(mail::hdr),
       mail->event<input::touch_port_t>(mail::touch_port),
       config,
       1,
@@ -1510,7 +1681,7 @@ enum validate_flag_e {
 };
 
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
-  reset_display(disp, encoder.dev_type, config::video.output_name, config.framerate);
+  reset_display(disp, encoder.base_dev_type, config::video.output_name, config);
   if(!disp) {
     return -1;
   }
@@ -1521,7 +1692,7 @@ int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &en
     return -1;
   }
 
-  auto session = make_session(encoder, config, disp->width, disp->height, std::move(hwdevice));
+  auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
   if(!session) {
     return -1;
   }
@@ -1812,8 +1983,8 @@ int init() {
   return 0;
 }
 
-int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
-  buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice.get()) };
+int hwframe_ctx(ctx_t &ctx, platf::hwdevice_t *hwdevice, buffer_t &hwdevice_ctx, AVPixelFormat format) {
+  buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice_ctx.get()) };
 
   auto frame_ctx               = (AVHWFramesContext *)frame_ref->data;
   frame_ctx->format            = ctx->pix_fmt;
@@ -1821,6 +1992,9 @@ int hwframe_ctx(ctx_t &ctx, buffer_t &hwdevice, AVPixelFormat format) {
   frame_ctx->height            = ctx->height;
   frame_ctx->width             = ctx->width;
   frame_ctx->initial_pool_size = 0;
+
+  // Allow the hwdevice to modify hwframe context parameters
+  hwdevice->init_hwframes(frame_ctx);
 
   if(auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
     return err;
@@ -1932,7 +2106,7 @@ int start_capture_sync(capture_thread_sync_ctx_t &ctx) {
 }
 void end_capture_sync(capture_thread_sync_ctx_t &ctx) {}
 
-platf::mem_type_e map_dev_type(AVHWDeviceType type) {
+platf::mem_type_e map_base_dev_type(AVHWDeviceType type) {
   switch(type) {
   case AV_HWDEVICE_TYPE_D3D11VA:
     return platf::mem_type_e::dxgi;

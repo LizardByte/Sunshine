@@ -523,6 +523,7 @@
         <select id="encoder" class="form-select" v-model="config.encoder">
           <option value>Autodetect</option>
           <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
+          <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
           <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
           <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
           <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
@@ -695,6 +696,29 @@
         </select>
       </div>
     </div>
+    <!--Intel Encoder Settings-->
+    <div v-if="currentTab === 'qsv'" class="config-page">
+      <div class="mb-3">
+        <label for="qsv_preset" class="form-label">QuickSync Preset</label>
+        <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
+          <option value="veryfast">fastest (lowest quality)</option>
+          <option value="faster">faster (lower quality)</option>
+          <option value="fast">fast (low quality)</option>
+          <option value="medium">medium (default)</option>
+          <option value="slow">slow (good quality)</option>
+          <option value="slower">slower (better quality)</option>
+          <option value="slowest">slowest (best quality)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="qsv_coder" class="form-label">QuickSync Coder (H264)</label>
+        <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
+          <option value="auto">auto -- let ffmpeg decide (default)</option>
+          <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
+          <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
+        </select>
+      </div>
+    </div>
     <!--AMD Encoder Settings-->
     <div v-if="currentTab === 'amd'" class="config-page">
       <!--Presets-->
@@ -821,6 +845,10 @@
             name: "NVIDIA NVENC Encoder",
           },
           {
+            id: "qsv",
+            name: "Intel QuickSync Encoder",
+          },
+          {
             id: "amd",
             name: "AMD AMF Encoder",
           },
@@ -855,12 +883,12 @@
           }
           if (this.platform == "linux") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "vt";
+              return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
             });
           }
           if (this.platform == "macos") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "nv" && el.id !== "va-api";
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "va-api";
             });
           }
 
@@ -884,6 +912,8 @@
           this.config.nv_tune = this.config.nv_tune || "ull";
           this.config.nv_coder = this.config.nv_coder || "auto";
           this.config.nv_rc = this.config.nv_rc || "cbr";
+          this.config.qsv_preset = this.config.qsv_preset || "medium";
+          this.config.qsv_coder = this.config.qsv_coder || "auto";
           this.config.amd_coder = this.config.amd_coder || "auto"
           this.config.amd_quality = this.config.amd_quality || "balanced";
           this.config.amd_rc = this.config.amd_rc || "vbr_latency";

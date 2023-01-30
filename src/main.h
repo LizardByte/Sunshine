@@ -51,6 +51,7 @@ MAIL(switch_display);
 MAIL(touch_port);
 MAIL(idr);
 MAIL(rumble);
+MAIL(hdr);
 #undef MAIL
 } // namespace mail
 #endif // SUNSHINE_MAIN_H

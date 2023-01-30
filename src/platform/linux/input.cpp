@@ -982,6 +982,19 @@ void scroll(input_t &input, int high_res_distance) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
+void hscroll(input_t &input, int high_res_distance) {
+  int distance = high_res_distance / 120;
+
+  auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
+  if(!mouse) {
+    return;
+  }
+
+  libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL, distance);
+  libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL_HI_RES, high_res_distance);
+  libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+}
+
 static keycode_t keysym(std::uint16_t modcode) {
   if(modcode <= keycodes.size()) {
     return keycodes[modcode];

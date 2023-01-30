@@ -1,8 +1,12 @@
 [Unit]
 Description=@PROJECT_DESCRIPTION@
+StartLimitIntervalSec=500
+StartLimitBurst=5
 
 [Service]
 ExecStart=@SUNSHINE_EXECUTABLE_PATH@
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=graphical-session.target

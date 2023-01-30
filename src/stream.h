@@ -23,6 +23,8 @@ struct config_t {
   int minRequiredFecPackets;
   int featureFlags;
   int controlProtocolType;
+  int audioQosType;
+  int videoQosType;
 
   std::optional<int> gcmap;
 };

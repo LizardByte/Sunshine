@@ -56,7 +56,7 @@ void print_req(const req_https_t &request) {
   BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
 
   for(auto &[name, val] : request->header) {
-    BOOST_LOG(debug) << name << " -- " << val;
+    BOOST_LOG(debug) << name << " -- " << (name == "Authorization" ? "CREDENTIALS REDACTED" : val);
   }
 
   BOOST_LOG(debug) << " [--] "sv;
@@ -246,23 +246,40 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
+bool isChildPath(fs::path const &base, fs::path const &query) {
+  auto relPath = fs::relative(base, query);
+  return *(relPath.begin()) != fs::path("..");
+}
+
 void getNodeModules(resp_https_t response, req_https_t request) {
   print_req(request);
+  fs::path webDirPath(WEB_DIR);
+  fs::path nodeModulesPath(webDirPath / "node_modules");
 
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  if(boost::algorithm::iends_with(request->path, ".ttf") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/ttf");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  // .relative_path is needed to shed any leading slash that might exist in the request path
+  auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
+
+  // Don't do anything if file does not exist or is outside the node_modules directory
+  if(!isChildPath(filePath, nodeModulesPath)) {
+    BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
+    response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
   }
-  else if(boost::algorithm::iends_with(request->path, ".woff2") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/woff2");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  else if(!fs::exists(filePath)) {
+    response->write(SimpleWeb::StatusCode::client_error_not_found);
   }
   else {
-    std::string content = read_file((WEB_DIR + request->path).c_str());
-    response->write(content);
+    auto relPath = fs::relative(filePath, webDirPath);
+    if(relPath.extension() == ".ttf" or relPath.extension() == ".woff2") {
+      // Fonts are read differntly
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      std::ifstream in((filePath).c_str(), std::ios::binary);
+      headers.emplace("Content-Type", "font/" + filePath.extension().string().substr(1));
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    }
+    else {
+      std::string content = read_file((filePath.string()).c_str());
+      response->write(content);
+    }
   }
 }
 

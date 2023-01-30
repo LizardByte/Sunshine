@@ -13,6 +13,7 @@ extern "C" {
 #include "graphics.h"
 #include "src/main.h"
 #include "src/utility.h"
+#include "src/video.h"
 #include "wayland.h"
 
 #define SUNSHINE_STRINGVIEW_HELPER(x) x##sv
@@ -94,20 +95,21 @@ public:
     return 0;
   }
 
-  int set_frame(AVFrame *frame) override {
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
     this->hwframe.reset(frame);
     this->frame = frame;
 
-    auto hwframe_ctx = (AVHWFramesContext *)frame->hw_frames_ctx->data;
+    auto hwframe_ctx = (AVHWFramesContext *)hw_frames_ctx->data;
     if(hwframe_ctx->sw_format != AV_PIX_FMT_NV12) {
       BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12"sv;
       return -1;
     }
 
-    if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
-      BOOST_LOG(error) << "Couldn't get hwframe for NVENC"sv;
-
-      return -1;
+    if(!frame->buf[0]) {
+      if(av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
+        BOOST_LOG(error) << "Couldn't get hwframe for NVENC"sv;
+        return -1;
+      }
     }
 
     auto cuda_ctx = (AVCUDADeviceContext *)hwframe_ctx->device_ctx->hwctx;
@@ -180,8 +182,8 @@ public:
     return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
   }
 
-  int set_frame(AVFrame *frame) {
-    if(cuda_t::set_frame(frame)) {
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    if(cuda_t::set_frame(frame, hw_frames_ctx)) {
       return -1;
     }
 
@@ -413,7 +415,7 @@ public:
 
 class display_t : public platf::display_t {
 public:
-  int init(const std::string_view &display_name, int framerate) {
+  int init(const std::string_view &display_name, const ::video::config_t &config) {
     auto handle = handle_t::make();
     if(!handle) {
       return -1;
@@ -443,14 +445,14 @@ public:
       }
     }
 
-    delay = std::chrono::nanoseconds { 1s } / framerate;
+    delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
     capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS { NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER };
 
     capture_params.eCaptureType                = NVFBC_CAPTURE_SHARED_CUDA;
     capture_params.bDisableAutoModesetRecovery = nv_bool(true);
 
-    capture_params.dwSamplingRateMs = 1000 /* ms */ / framerate;
+    capture_params.dwSamplingRateMs = 1000 /* ms */ / config.framerate;
 
     if(streamedMonitor != -1) {
       auto &output = status_params->outputs[streamedMonitor];
@@ -662,7 +664,7 @@ public:
 } // namespace cuda
 
 namespace platf {
-std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
   if(hwdevice_type != mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize nvfbc display with the given hw device type"sv;
     return nullptr;
@@ -670,7 +672,7 @@ std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::st
 
   auto display = std::make_shared<cuda::nvfbc::display_t>();
 
-  if(display->init(display_name, framerate)) {
+  if(display->init(display_name, config)) {
     return nullptr;
   }
 

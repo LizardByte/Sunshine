@@ -6,16 +6,25 @@
 #include <codecvt>
 #include <initguid.h>
 
+#include <boost/process.hpp>
+
+// We have to include boost/process.hpp before display.h due to WinSock.h,
+// but that prevents the definition of NTSTATUS so we must define it ourself.
+typedef long NTSTATUS;
+
 #include "display.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
+#include "src/video.h"
 
 namespace platf {
 using namespace std::literals;
 }
 namespace platf::dxgi {
+namespace bp = boost::process;
+
 capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p) {
   auto capture_status = release_frame();
   if(capture_status != capture_e::ok) {
@@ -79,7 +88,202 @@ duplication_t::~duplication_t() {
   release_frame();
 }
 
-int display_base_t::init(int framerate, const std::string &display_name) {
+capture_e display_base_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
+  auto next_frame = std::chrono::steady_clock::now();
+
+  // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
+  HANDLE timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+  if(!timer) {
+    timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+    if(!timer) {
+      auto winerr = GetLastError();
+      BOOST_LOG(error) << "Failed to create timer: "sv << winerr;
+      return capture_e::error;
+    }
+  }
+
+  auto close_timer = util::fail_guard([timer]() {
+    CloseHandle(timer);
+  });
+
+  while(img) {
+    // This will return false if the HDR state changes or for any number of other
+    // display or GPU changes. We should reinit to examine the updated state of
+    // the display subsystem. It is recommended to call this once per frame.
+    if(!factory->IsCurrent()) {
+      return platf::capture_e::reinit;
+    }
+
+    // If the wait time is between 1 us and 1 second, wait the specified time
+    // and offset the next frame time from the exact current frame time target.
+    auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
+    if(wait_time_us > 0 && wait_time_us < 1000000) {
+      LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
+      SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
+      WaitForSingleObject(timer, INFINITE);
+      next_frame += delay;
+    }
+    else {
+      // If the wait time is negative (meaning the frame is past due) or the
+      // computed wait time is beyond a second (meaning possible clock issues),
+      // just capture the frame now and resynchronize the frame interval with
+      // the current time.
+      next_frame = std::chrono::steady_clock::now() + delay;
+    }
+
+    auto status = snapshot(img.get(), 1000ms, *cursor);
+    switch(status) {
+    case platf::capture_e::reinit:
+    case platf::capture_e::error:
+      return status;
+    case platf::capture_e::timeout:
+      img = snapshot_cb(img, false);
+      break;
+    case platf::capture_e::ok:
+      img = snapshot_cb(img, true);
+      break;
+    default:
+      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
+      return status;
+    }
+  }
+
+  return capture_e::ok;
+}
+
+bool set_gpu_preference_on_self(int preference) {
+  // The GPU preferences key uses app path as the value name.
+  WCHAR sunshine_path[MAX_PATH];
+  GetModuleFileNameW(NULL, sunshine_path, ARRAYSIZE(sunshine_path));
+
+  WCHAR value_data[128];
+  swprintf_s(value_data, L"GpuPreference=%d;", preference);
+
+  auto status = RegSetKeyValueW(HKEY_CURRENT_USER,
+    L"Software\\Microsoft\\DirectX\\UserGpuPreferences",
+    sunshine_path,
+    REG_SZ,
+    value_data,
+    (wcslen(value_data) + 1) * sizeof(WCHAR));
+  if(status != ERROR_SUCCESS) {
+    BOOST_LOG(error) << "Failed to set GPU preference: "sv << status;
+    return false;
+  }
+
+  BOOST_LOG(info) << "Set GPU preference: "sv << preference;
+  return true;
+}
+
+// On hybrid graphics systems, Windows will change the order of GPUs reported by
+// DXGI in accordance with the user's GPU preference. If the selected GPU is a
+// render-only device with no displays, DXGI will add virtual outputs to the
+// that device to avoid confusing applications. While this works properly for most
+// applications, it breaks the Desktop Duplication API because DXGI doesn't proxy
+// the virtual DXGIOutput to the real GPU it is attached to. When trying to call
+// DuplicateOutput() on one of these virtual outputs, it fails with DXGI_ERROR_UNSUPPORTED
+// (even if you try sneaky stuff like passing the ID3D11Device for the iGPU and the
+// virtual DXGIOutput from the dGPU). Because the GPU preference is once-per-process,
+// we spawn a helper tool to probe for us before we set our own GPU preference.
+bool probe_for_gpu_preference(const std::string &display_name) {
+  // If we've already been through here, there's nothing to do this time.
+  static bool set_gpu_preference = false;
+  if(set_gpu_preference) {
+    return true;
+  }
+
+  std::string cmd = "tools\\ddprobe.exe";
+
+  // We start at 1 because 0 is automatic selection which can be overridden by
+  // the GPU driver control panel options. Since ddprobe.exe can have different
+  // GPU driver overrides than Sunshine.exe, we want to avoid a scenario where
+  // autoselection might work for ddprobe.exe but not for us.
+  for(int i = 1; i < 5; i++) {
+    // Run the probe tool. It returns the status of DuplicateOutput().
+    //
+    // Arg format: [GPU preference] [Display name]
+    HRESULT result;
+    try {
+      result = bp::system(cmd, std::to_string(i), display_name, bp::std_out > bp::null, bp::std_err > bp::null);
+    }
+    catch(bp::process_error &e) {
+      BOOST_LOG(error) << "Failed to start ddprobe.exe: "sv << e.what();
+      return false;
+    }
+
+    BOOST_LOG(info) << "ddprobe.exe ["sv << i << "] ["sv << display_name << "] returned: 0x"sv << util::hex(result).to_string_view();
+
+    // E_ACCESSDENIED can happen at the login screen. If we get this error,
+    // we know capture would have been supported, because DXGI_ERROR_UNSUPPORTED
+    // would have been raised first if it wasn't.
+    if(result == S_OK || result == E_ACCESSDENIED) {
+      // We found a working GPU preference, so set ourselves to use that.
+      if(set_gpu_preference_on_self(i)) {
+        set_gpu_preference = true;
+        return true;
+      }
+      else {
+        return false;
+      }
+    }
+    else {
+      // This configuration didn't work, so continue testing others
+      continue;
+    }
+  }
+
+  // If none of the manual options worked, leave the GPU preference alone
+  return false;
+}
+
+bool test_dxgi_duplication(adapter_t &adapter, output_t &output) {
+  D3D_FEATURE_LEVEL featureLevels[] {
+    D3D_FEATURE_LEVEL_11_1,
+    D3D_FEATURE_LEVEL_11_0,
+    D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL_10_0,
+    D3D_FEATURE_LEVEL_9_3,
+    D3D_FEATURE_LEVEL_9_2,
+    D3D_FEATURE_LEVEL_9_1
+  };
+
+  device_t device;
+  auto status = D3D11CreateDevice(
+    adapter.get(),
+    D3D_DRIVER_TYPE_UNKNOWN,
+    nullptr,
+    D3D11_CREATE_DEVICE_FLAGS,
+    featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+    D3D11_SDK_VERSION,
+    &device,
+    nullptr,
+    nullptr);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to create D3D11 device for DD test [0x"sv << util::hex(status).to_string_view() << ']';
+    return false;
+  }
+
+  output1_t output1;
+  status = output->QueryInterface(IID_IDXGIOutput1, (void **)&output1);
+  if(FAILED(status)) {
+    BOOST_LOG(error) << "Failed to query IDXGIOutput1 from the output"sv;
+    return false;
+  }
+
+  // Check if we can use the Desktop Duplication API on this output
+  for(int x = 0; x < 2; ++x) {
+    dup_t dup;
+    status = output1->DuplicateOutput((IUnknown *)device.get(), &dup);
+    if(SUCCEEDED(status)) {
+      return true;
+    }
+    Sleep(200);
+  }
+
+  BOOST_LOG(error) << "DuplicateOutput() test failed [0x"sv << util::hex(status).to_string_view() << ']';
+  return false;
+}
+
+int display_base_t::init(const ::video::config_t &config, const std::string &display_name) {
   std::once_flag windows_cpp_once_flag;
 
   std::call_once(windows_cpp_once_flag, []() {
@@ -99,13 +303,18 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   // Ensure we can duplicate the current display
   syncThreadDesktop();
 
-  delay = std::chrono::nanoseconds { 1s } / framerate;
+  delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
   // Get rectangle of full desktop for absolute mouse coordinates
   env_width  = GetSystemMetrics(SM_CXVIRTUALSCREEN);
   env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
   HRESULT status;
+
+  // We must set the GPU preference before calling any DXGI APIs!
+  if(!probe_for_gpu_preference(display_name)) {
+    BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
+  }
 
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
   if(FAILED(status)) {
@@ -140,7 +349,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
         continue;
       }
 
-      if(desc.AttachedToDesktop) {
+      if(desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
         output = std::move(output_tmp);
 
         offset_x = desc.DesktopCoordinates.left;
@@ -219,7 +428,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     << "Virtual Desktop    : "sv << env_width << 'x' << env_height;
 
   // Enable DwmFlush() only if the current refresh rate can match the client framerate.
-  auto refresh_rate = framerate;
+  auto refresh_rate = config.framerate;
   DWM_TIMING_INFO timing_info;
   timing_info.cbSize = sizeof(timing_info);
 
@@ -231,7 +440,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     refresh_rate = std::round((double)timing_info.rateRefresh.uiNumerator / (double)timing_info.rateRefresh.uiDenominator);
   }
 
-  dup.use_dwmflush = config::video.dwmflush && !(framerate > refresh_rate) ? true : false;
+  dup.use_dwmflush = config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false;
 
   // Bump up thread priority
   {
@@ -300,7 +509,7 @@ int display_base_t::init(int framerate, const std::string &display_name) {
     status = output->QueryInterface(IID_IDXGIOutput5, (void **)&output5);
     if(SUCCEEDED(status)) {
       // Ask the display implementation which formats it supports
-      auto supported_formats = get_supported_sdr_capture_formats();
+      auto supported_formats = config.dynamicRange ? get_supported_hdr_capture_formats() : get_supported_sdr_capture_formats();
       if(supported_formats.empty()) {
         BOOST_LOG(warning) << "No compatible capture formats for this encoder"sv;
         return -1;
@@ -354,10 +563,97 @@ int display_base_t::init(int framerate, const std::string &display_name) {
   BOOST_LOG(info) << "Desktop resolution ["sv << dup_desc.ModeDesc.Width << 'x' << dup_desc.ModeDesc.Height << ']';
   BOOST_LOG(info) << "Desktop format ["sv << dxgi_format_to_string(dup_desc.ModeDesc.Format) << ']';
 
+  dxgi::output6_t output6 {};
+  status = output->QueryInterface(IID_IDXGIOutput6, (void **)&output6);
+  if(SUCCEEDED(status)) {
+    DXGI_OUTPUT_DESC1 desc1;
+    output6->GetDesc1(&desc1);
+
+    BOOST_LOG(info)
+      << std::endl
+      << "Colorspace         : "sv << colorspace_to_string(desc1.ColorSpace) << std::endl
+      << "Bits Per Color     : "sv << desc1.BitsPerColor << std::endl
+      << "Red Primary        : ["sv << desc1.RedPrimary[0] << ',' << desc1.RedPrimary[1] << ']' << std::endl
+      << "Green Primary      : ["sv << desc1.GreenPrimary[0] << ',' << desc1.GreenPrimary[1] << ']' << std::endl
+      << "Blue Primary       : ["sv << desc1.BluePrimary[0] << ',' << desc1.BluePrimary[1] << ']' << std::endl
+      << "White Point        : ["sv << desc1.WhitePoint[0] << ',' << desc1.WhitePoint[1] << ']' << std::endl
+      << "Min Luminance      : "sv << desc1.MinLuminance << " nits"sv << std::endl
+      << "Max Luminance      : "sv << desc1.MaxLuminance << " nits"sv << std::endl
+      << "Max Full Luminance : "sv << desc1.MaxFullFrameLuminance << " nits"sv;
+  }
+
   // Capture format will be determined from the first call to AcquireNextFrame()
   capture_format = DXGI_FORMAT_UNKNOWN;
 
   return 0;
+}
+
+bool display_base_t::is_hdr() {
+  dxgi::output6_t output6 {};
+
+  auto status = output->QueryInterface(IID_IDXGIOutput6, (void **)&output6);
+  if(FAILED(status)) {
+    BOOST_LOG(warning) << "Failed to query IDXGIOutput6 from the output"sv;
+    return false;
+  }
+
+  DXGI_OUTPUT_DESC1 desc1;
+  output6->GetDesc1(&desc1);
+
+  return desc1.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
+}
+
+bool display_base_t::get_hdr_metadata(SS_HDR_METADATA &metadata) {
+  dxgi::output6_t output6 {};
+
+  std::memset(&metadata, 0, sizeof(metadata));
+
+  auto status = output->QueryInterface(IID_IDXGIOutput6, (void **)&output6);
+  if(FAILED(status)) {
+    BOOST_LOG(warning) << "Failed to query IDXGIOutput6 from the output"sv;
+    return false;
+  }
+
+  DXGI_OUTPUT_DESC1 desc1;
+  output6->GetDesc1(&desc1);
+
+  // The primaries reported here seem to correspond to scRGB (Rec. 709)
+  // which we then convert to Rec 2020 in our scRGB FP16 -> PQ shader
+  // prior to encoding. It's not clear to me if we're supposed to report
+  // the primaries of the original colorspace or the one we've converted
+  // it to, but let's just report Rec 2020 primaries and D65 white level
+  // to avoid confusing clients by reporting Rec 709 primaries with a
+  // Rec 2020 colorspace. It seems like most clients ignore the primaries
+  // in the metadata anyway (luminance range is most important).
+  desc1.RedPrimary[0]   = 0.708f;
+  desc1.RedPrimary[1]   = 0.292f;
+  desc1.GreenPrimary[0] = 0.170f;
+  desc1.GreenPrimary[1] = 0.797f;
+  desc1.BluePrimary[0]  = 0.131f;
+  desc1.BluePrimary[1]  = 0.046f;
+  desc1.WhitePoint[0]   = 0.3127f;
+  desc1.WhitePoint[1]   = 0.3290f;
+
+  metadata.displayPrimaries[0].x = desc1.RedPrimary[0] * 50000;
+  metadata.displayPrimaries[0].y = desc1.RedPrimary[1] * 50000;
+  metadata.displayPrimaries[1].x = desc1.GreenPrimary[0] * 50000;
+  metadata.displayPrimaries[1].y = desc1.GreenPrimary[1] * 50000;
+  metadata.displayPrimaries[2].x = desc1.BluePrimary[0] * 50000;
+  metadata.displayPrimaries[2].y = desc1.BluePrimary[1] * 50000;
+
+  metadata.whitePoint.x = desc1.WhitePoint[0] * 50000;
+  metadata.whitePoint.y = desc1.WhitePoint[1] * 50000;
+
+  metadata.maxDisplayLuminance = desc1.MaxLuminance;
+  metadata.minDisplayLuminance = desc1.MinLuminance * 10000;
+
+  // These are content-specific metadata parameters that this interface doesn't give us
+  metadata.maxContentLightLevel      = 0;
+  metadata.maxFrameAverageLightLevel = 0;
+
+  metadata.maxFullFrameLuminance = desc1.MaxFullFrameLuminance;
+
+  return true;
 }
 
 const char *format_str[] = {
@@ -489,21 +785,58 @@ const char *display_base_t::dxgi_format_to_string(DXGI_FORMAT format) {
   return format_str[format];
 }
 
+const char *display_base_t::colorspace_to_string(DXGI_COLOR_SPACE_TYPE type) {
+  const char *type_str[] = {
+    "DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P2020",
+    "DXGI_COLOR_SPACE_RESERVED",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_NONE_P709_X601",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P601",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P601",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P709",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_LEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_GHLG_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_FULL_GHLG_TOPLEFT_P2020",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G24_NONE_P709",
+    "DXGI_COLOR_SPACE_RGB_STUDIO_G24_NONE_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_LEFT_P709",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_LEFT_P2020",
+    "DXGI_COLOR_SPACE_YCBCR_STUDIO_G24_TOPLEFT_P2020",
+  };
+
+  if(type < ARRAYSIZE(type_str)) {
+    return type_str[type];
+  }
+  else {
+    return "UNKNOWN";
+  }
+}
+
 } // namespace platf::dxgi
 
 namespace platf {
-std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
   if(hwdevice_type == mem_type_e::dxgi) {
     auto disp = std::make_shared<dxgi::display_vram_t>();
 
-    if(!disp->init(framerate, display_name)) {
+    if(!disp->init(config, display_name)) {
       return disp;
     }
   }
   else if(hwdevice_type == mem_type_e::system) {
     auto disp = std::make_shared<dxgi::display_ram_t>();
 
-    if(!disp->init(framerate, display_name)) {
+    if(!disp->init(config, display_name)) {
       return disp;
     }
   }
@@ -520,10 +853,15 @@ std::vector<std::string> display_names(mem_type_e) {
 
   std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
+  // We must set the GPU preference before calling any DXGI APIs!
+  if(!dxgi::probe_for_gpu_preference(config::video.output_name)) {
+    BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
+  }
+
   dxgi::factory1_t factory;
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory);
   if(FAILED(status)) {
-    BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
+    BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']';
     return {};
   }
 
@@ -562,7 +900,10 @@ std::vector<std::string> display_names(mem_type_e) {
         << "    Resolution        : "sv << width << 'x' << height << std::endl
         << std::endl;
 
-      display_names.emplace_back(std::move(device_name));
+      // Don't include the display in the list if we can't actually capture it
+      if(desc.AttachedToDesktop && dxgi::test_dxgi_duplication(adapter, output)) {
+        display_names.emplace_back(std::move(device_name));
+      }
     }
   }
 

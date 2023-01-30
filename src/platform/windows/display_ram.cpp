@@ -165,37 +165,6 @@ void blend_cursor(const cursor_t &cursor, img_t &img) {
   }
 }
 
-capture_e display_ram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
-  auto next_frame = std::chrono::steady_clock::now();
-
-  while(img) {
-    auto now = std::chrono::steady_clock::now();
-    while(next_frame > now) {
-      now = std::chrono::steady_clock::now();
-    }
-    next_frame = now + delay;
-
-    auto status = snapshot(img.get(), 1000ms, *cursor);
-    switch(status) {
-    case platf::capture_e::reinit:
-    case platf::capture_e::error:
-      return status;
-    case platf::capture_e::timeout:
-      img = snapshot_cb(img, false);
-      std::this_thread::sleep_for(1ms);
-      break;
-    case platf::capture_e::ok:
-      img = snapshot_cb(img, true);
-      break;
-    default:
-      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
-      return status;
-    }
-  }
-
-  return capture_e::ok;
-}
-
 capture_e display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) {
   auto img = (img_t *)img_base;
 
@@ -380,11 +349,16 @@ int display_ram_t::dummy_img(platf::img_t *img) {
 }
 
 std::vector<DXGI_FORMAT> display_ram_t::get_supported_sdr_capture_formats() {
-  return std::vector { DXGI_FORMAT_B8G8R8A8_UNORM };
+  return { DXGI_FORMAT_B8G8R8A8_UNORM };
 }
 
-int display_ram_t::init(int framerate, const std::string &display_name) {
-  if(display_base_t::init(framerate, display_name)) {
+std::vector<DXGI_FORMAT> display_ram_t::get_supported_hdr_capture_formats() {
+  // HDR is unsupported
+  return {};
+}
+
+int display_ram_t::init(const ::video::config_t &config, const std::string &display_name) {
+  if(display_base_t::init(config, display_name)) {
     return -1;
   }
 

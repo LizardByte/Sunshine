@@ -19,6 +19,7 @@
 #include "src/config.h"
 #include "src/main.h"
 #include "src/task_pool.h"
+#include "src/video.h"
 
 #include "cuda.h"
 #include "graphics.h"
@@ -382,13 +383,13 @@ struct x11_attr_t : public display_t {
     x11::InitThreads();
   }
 
-  int init(const std::string &display_name, int framerate) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
     if(!xdisplay) {
       BOOST_LOG(error) << "Could not open X11 display"sv;
       return -1;
     }
 
-    delay = std::chrono::nanoseconds { 1s } / framerate;
+    delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
     xwindow = DefaultRootWindow(xdisplay.get());
 
@@ -641,8 +642,8 @@ struct shm_attr_t : public x11_attr_t {
     return 0;
   }
 
-  int init(const std::string &display_name, int framerate) {
-    if(x11_attr_t::init(display_name, framerate)) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
+    if(x11_attr_t::init(display_name, config)) {
       return 1;
     }
 
@@ -685,7 +686,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 };
 
-std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize x11 display with the given hw device type"sv;
     return nullptr;
@@ -700,7 +701,7 @@ std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const st
   // Attempt to use shared memory X11 to avoid copying the frame
   auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
 
-  auto status = shm_disp->init(display_name, framerate);
+  auto status = shm_disp->init(display_name, config);
   if(status > 0) {
     // x11_attr_t::init() failed, don't bother trying again.
     return nullptr;
@@ -712,7 +713,7 @@ std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const st
 
   // Fallback
   auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
-  if(x11_disp->init(display_name, framerate)) {
+  if(x11_disp->init(display_name, config)) {
     return nullptr;
   }
 

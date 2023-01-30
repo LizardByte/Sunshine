@@ -89,9 +89,12 @@ blend_t make_blend(device_t::pointer device, bool enable, bool invert) {
 
 blob_t convert_UV_vs_hlsl;
 blob_t convert_UV_ps_hlsl;
+blob_t convert_UV_PQ_ps_hlsl;
 blob_t scene_vs_hlsl;
 blob_t convert_Y_ps_hlsl;
+blob_t convert_Y_PQ_ps_hlsl;
 blob_t scene_ps_hlsl;
+blob_t scene_NW_ps_hlsl;
 
 struct img_d3d_t : public platf::img_t {
   std::shared_ptr<platf::display_t> display;
@@ -101,15 +104,15 @@ struct img_d3d_t : public platf::img_t {
   render_target_t capture_rt;
   keyed_mutex_t capture_mutex;
 
-  // These objects are owned by the hwdevice_t's ID3D11Device
-  texture2d_t encoder_texture;
-  shader_res_t encoder_input_res;
-  keyed_mutex_t encoder_mutex;
-
   // This is the shared handle used by hwdevice_t to open capture_texture
   HANDLE encoder_texture_handle = {};
 
+  // Set to true if the image corresponds to a dummy texture used prior to
+  // the first successful capture of a desktop frame
   bool dummy = false;
+
+  // Unique identifier for this image
+  uint32_t id = 0;
 
   virtual ~img_d3d_t() override {
     if(encoder_texture_handle) {
@@ -300,62 +303,40 @@ blob_t compile_vertex_shader(LPCSTR file) {
 class hwdevice_t : public platf::hwdevice_t {
 public:
   int convert(platf::img_t &img_base) override {
-    auto &img         = (img_d3d_t &)img_base;
-    auto back_d3d_img = (img_d3d_t *)back_img.get();
+    auto &img     = (img_d3d_t &)img_base;
+    auto &img_ctx = img_ctx_map[img.id];
 
     // Open the shared capture texture with our ID3D11Device
-    if(share_img(&img_base)) {
+    if(initialize_image_context(img, img_ctx)) {
       return -1;
     }
 
     // Acquire encoder mutex to synchronize with capture code
-    auto status = img.encoder_mutex->AcquireSync(0, INFINITE);
+    auto status = img_ctx.encoder_mutex->AcquireSync(0, INFINITE);
     if(status != S_OK) {
       BOOST_LOG(error) << "Failed to acquire encoder mutex [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    // Even though this image will never have racing updates, we must acquire the
-    // keyed mutex for PSSetShaderResources() to succeed.
-    status = back_d3d_img->encoder_mutex->AcquireSync(0, INFINITE);
-    if(status != S_OK) {
-      img.encoder_mutex->ReleaseSync(0);
-      BOOST_LOG(error) << "Failed to acquire back_d3d_img mutex [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    device_ctx->IASetInputLayout(input_layout.get());
-
-    _init_view_port(this->img.width, this->img.height);
     device_ctx->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
     device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(convert_Y_ps.get(), nullptr, 0);
-    device_ctx->PSSetShaderResources(0, 1, &back_d3d_img->encoder_input_res);
-    device_ctx->Draw(3, 0);
-
     device_ctx->RSSetViewports(1, &outY_view);
-    device_ctx->PSSetShaderResources(0, 1, &img.encoder_input_res);
+    device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
     device_ctx->Draw(3, 0);
 
     // Artifacts start appearing on the rendered image if Sunshine doesn't flush
     // before rendering on the UV part of the image.
     device_ctx->Flush();
 
-    _init_view_port(this->img.width / 2, this->img.height / 2);
     device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
     device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
     device_ctx->PSSetShader(convert_UV_ps.get(), nullptr, 0);
-    device_ctx->PSSetShaderResources(0, 1, &back_d3d_img->encoder_input_res);
-    device_ctx->Draw(3, 0);
-
     device_ctx->RSSetViewports(1, &outUV_view);
-    device_ctx->PSSetShaderResources(0, 1, &img.encoder_input_res);
     device_ctx->Draw(3, 0);
-    device_ctx->Flush();
 
-    // Release encoder mutexes to allow capture code to reuse this image
-    back_d3d_img->encoder_mutex->ReleaseSync(0);
-    img.encoder_mutex->ReleaseSync(0);
+    // Release encoder mutex to allow capture code to reuse this image
+    img_ctx.encoder_mutex->ReleaseSync(0);
 
     return 0;
   }
@@ -392,17 +373,80 @@ public:
     this->color_matrix = std::move(color_matrix);
   }
 
-  int set_frame(AVFrame *frame) {
+  void init_hwframes(AVHWFramesContext *frames) override {
+    // We may be called with a QSV or D3D11VA context
+    if(frames->device_ctx->type == AV_HWDEVICE_TYPE_D3D11VA) {
+      auto d3d11_frames = (AVD3D11VAFramesContext *)frames->hwctx;
+
+      // The encoder requires textures with D3D11_BIND_RENDER_TARGET set
+      d3d11_frames->BindFlags = D3D11_BIND_RENDER_TARGET;
+      d3d11_frames->MiscFlags = 0;
+    }
+
+    // We require a single texture
+    frames->initial_pool_size = 1;
+  }
+
+  int prepare_to_derive_context(int hw_device_type) override {
+    // QuickSync requires our device to be multithread-protected
+    if(hw_device_type == AV_HWDEVICE_TYPE_QSV) {
+      multithread_t mt;
+
+      auto status = device->QueryInterface(IID_ID3D11Multithread, (void **)&mt);
+      if(FAILED(status)) {
+        BOOST_LOG(warning) << "Failed to query ID3D11Multithread interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      mt->SetMultithreadProtected(TRUE);
+    }
+
+    return 0;
+  }
+
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
     this->hwframe.reset(frame);
     this->frame = frame;
+
+    // Populate this frame with a hardware buffer if one isn't there already
+    if(!frame->buf[0]) {
+      auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
+      if(err) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+        BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+        return -1;
+      }
+    }
+
+    // If this is a frame from a derived context, we'll need to map it to D3D11
+    ID3D11Texture2D *frame_texture;
+    if(frame->format != AV_PIX_FMT_D3D11) {
+      frame_t d3d11_frame { av_frame_alloc() };
+
+      d3d11_frame->format = AV_PIX_FMT_D3D11;
+
+      auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
+      if(err) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+        BOOST_LOG(error) << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+        return -1;
+      }
+
+      // Get the texture from the mapped frame
+      frame_texture = (ID3D11Texture2D *)d3d11_frame->data[0];
+    }
+    else {
+      // Otherwise, we can just use the texture inside the original frame
+      frame_texture = (ID3D11Texture2D *)frame->data[0];
+    }
 
     auto out_width  = frame->width;
     auto out_height = frame->height;
 
-    float in_width  = img.display->width;
-    float in_height = img.display->height;
+    float in_width  = display->width;
+    float in_height = display->height;
 
-    // // Ensure aspect ratio is maintained
+    // Ensure aspect ratio is maintained
     auto scalar       = std::fminf(out_width / in_width, out_height / in_height);
     auto out_width_f  = in_width * scalar;
     auto out_height_f = in_height * scalar;
@@ -414,27 +458,9 @@ public:
     outY_view  = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
     outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
-    D3D11_TEXTURE2D_DESC t {};
-    t.Width            = out_width;
-    t.Height           = out_height;
-    t.MipLevels        = 1;
-    t.ArraySize        = 1;
-    t.SampleDesc.Count = 1;
-    t.Usage            = D3D11_USAGE_DEFAULT;
-    t.Format           = format;
-    t.BindFlags        = D3D11_BIND_RENDER_TARGET;
-
-    auto status = device->CreateTexture2D(&t, nullptr, &img.encoder_texture);
-    if(FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create render target texture [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    img.width       = out_width;
-    img.height      = out_height;
-    img.data        = (std::uint8_t *)img.encoder_texture.get();
-    img.row_pitch   = out_width * 4;
-    img.pixel_pitch = 4;
+    // The underlying frame pool owns the texture, so we must reference it for ourselves
+    frame_texture->AddRef();
+    hwframe_texture.reset(frame_texture);
 
     float info_in[16 / sizeof(float)] { 1.0f / (float)out_width_f }; //aligned to 16-byte
     info_scene = make_buffer(device.get(), info_in);
@@ -449,7 +475,7 @@ public:
       D3D11_RTV_DIMENSION_TEXTURE2D
     };
 
-    status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
+    auto status = device->CreateRenderTargetView(hwframe_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -457,28 +483,17 @@ public:
 
     nv12_rt_desc.Format = (format == DXGI_FORMAT_P010) ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
 
-    status = device->CreateRenderTargetView(img.encoder_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
+    status = device->CreateRenderTargetView(hwframe_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    // Need to have something refcounted
-    if(!frame->buf[0]) {
-      frame->buf[0] = av_buffer_allocz(sizeof(AVD3D11FrameDescriptor));
-    }
-
-    auto desc     = (AVD3D11FrameDescriptor *)frame->buf[0]->data;
-    desc->texture = (ID3D11Texture2D *)img.data;
-    desc->index   = 0;
-
-    frame->data[0] = img.data;
-    frame->data[1] = 0;
-
-    frame->linesize[0] = img.row_pitch;
-
-    frame->height = img.height;
-    frame->width  = img.width;
+    // Clear the RTVs to ensure the aspect ratio padding is black
+    const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    device_ctx->ClearRenderTargetView(nv12_Y_rt.get(), y_black);
+    const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+    device_ctx->ClearRenderTargetView(nv12_UV_rt.get(), uv_black);
 
     return 0;
   }
@@ -534,28 +549,39 @@ public:
       return -1;
     }
 
-    status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
-    status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-
     status = device->CreateVertexShader(convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(), nullptr, &convert_UV_vs);
     if(status) {
       BOOST_LOG(error) << "Failed to create convertUV vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
-    status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
-    if(status) {
-      BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+    // If the display is in HDR and we're streaming HDR, we'll be converting scRGB to SMPTE 2084 PQ.
+    // NB: We can consume scRGB in SDR with our regular shaders because it behaves like UNORM input.
+    if(format == DXGI_FORMAT_P010 && display->is_hdr()) {
+      status = device->CreatePixelShader(convert_Y_PQ_ps_hlsl->GetBufferPointer(), convert_Y_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      status = device->CreatePixelShader(convert_UV_PQ_ps_hlsl->GetBufferPointer(), convert_UV_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+    }
+    else {
+      status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+      if(status) {
+        BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
 
     color_matrix = make_buffer(device.get(), ::video::colors[0]);
@@ -573,15 +599,7 @@ public:
       convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(),
       &input_layout);
 
-    img.display = std::move(display);
-
-    // Color the background black, so that the padding for keeping the aspect ratio
-    // is black
-    back_img = img.display->alloc_img();
-    if(img.display->dummy_img(back_img.get()) || share_img(back_img.get())) {
-      BOOST_LOG(warning) << "Couldn't create an image to set background color to black"sv;
-      return -1;
-    }
+    this->display = std::move(display);
 
     blend_disable = make_blend(device.get(), false, false);
     if(!blend_disable) {
@@ -615,27 +633,32 @@ public:
   }
 
 private:
-  void _init_view_port(float x, float y, float width, float height) {
-    D3D11_VIEWPORT view {
-      x, y,
-      width, height,
-      0.0f, 1.0f
-    };
+  struct encoder_img_ctx_t {
+    // Used to determine if the underlying texture changes.
+    // Not safe for actual use by the encoder!
+    texture2d_t::pointer capture_texture_p;
 
-    device_ctx->RSSetViewports(1, &view);
-  }
+    texture2d_t encoder_texture;
+    shader_res_t encoder_input_res;
+    keyed_mutex_t encoder_mutex;
 
-  void _init_view_port(float width, float height) {
-    _init_view_port(0.0f, 0.0f, width, height);
-  }
+    void reset() {
+      capture_texture_p = nullptr;
+      encoder_texture.reset();
+      encoder_input_res.reset();
+      encoder_mutex.reset();
+    }
+  };
 
-  int share_img(platf::img_t *img_base) {
-    auto img = (img_d3d_t *)img_base;
-
+  int initialize_image_context(const img_d3d_t &img, encoder_img_ctx_t &img_ctx) {
     // If we've already opened the shared texture, we're done
-    if(img->encoder_texture) {
+    if(img_ctx.encoder_texture && img.capture_texture.get() == img_ctx.capture_texture_p) {
       return 0;
     }
+
+    // Reset this image context in case it was used before with a different texture.
+    // Textures can change when transitioning from a dummy image to a real image.
+    img_ctx.reset();
 
     device1_t device1;
     auto status = device->QueryInterface(__uuidof(ID3D11Device1), (void **)&device1);
@@ -645,26 +668,27 @@ private:
     }
 
     // Open a handle to the shared texture
-    status = device1->OpenSharedResource1(img->encoder_texture_handle, __uuidof(ID3D11Texture2D), (void **)&img->encoder_texture);
+    status = device1->OpenSharedResource1(img.encoder_texture_handle, __uuidof(ID3D11Texture2D), (void **)&img_ctx.encoder_texture);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to open shared image texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
     // Get the keyed mutex to synchronize with the capture code
-    status = img->encoder_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&img->encoder_mutex);
+    status = img_ctx.encoder_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&img_ctx.encoder_mutex);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
     // Create the SRV for the encoder texture
-    status = device->CreateShaderResourceView(img->encoder_texture.get(), nullptr, &img->encoder_input_res);
+    status = device->CreateShaderResourceView(img_ctx.encoder_texture.get(), nullptr, &img_ctx.encoder_input_res);
     if(FAILED(status)) {
       BOOST_LOG(error) << "Failed to create shader resource view for encoding [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
+    img_ctx.capture_texture_p = img.capture_texture.get();
     return 0;
   }
 
@@ -685,16 +709,19 @@ public:
   render_target_t nv12_UV_rt;
 
   // The image referenced by hwframe
-  // The resulting image is stored here.
-  img_d3d_t img;
+  texture2d_t hwframe_texture;
 
-  // Clear nv12 render target to black
-  std::shared_ptr<img_t> back_img;
+  // d3d_img_t::id -> encoder_img_ctx_t
+  // These store the encoder textures for each img_t that passes through
+  // convert(). We can't store them in the img_t itself because it is shared
+  // amongst multiple hwdevice_t objects (and therefore multiple ID3D11Devices).
+  std::map<uint32_t, encoder_img_ctx_t> img_ctx_map;
+
+  std::shared_ptr<platf::display_t> display;
 
   vs_t convert_UV_vs;
   ps_t convert_UV_ps;
   ps_t convert_Y_ps;
-  ps_t scene_ps;
   vs_t scene_vs;
 
   D3D11_VIEWPORT outY_view;
@@ -705,37 +732,6 @@ public:
   device_t device;
   device_ctx_t device_ctx;
 };
-
-capture_e display_vram_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
-  auto next_frame = std::chrono::steady_clock::now();
-
-  while(img) {
-    auto now = std::chrono::steady_clock::now();
-    while(next_frame > now) {
-      now = std::chrono::steady_clock::now();
-    }
-    next_frame = now + delay;
-
-    auto status = snapshot(img.get(), 1000ms, *cursor);
-    switch(status) {
-    case platf::capture_e::reinit:
-    case platf::capture_e::error:
-      return status;
-    case platf::capture_e::timeout:
-      img = snapshot_cb(img, false);
-      std::this_thread::sleep_for(1ms);
-      break;
-    case platf::capture_e::ok:
-      img = snapshot_cb(img, true);
-      break;
-    default:
-      BOOST_LOG(error) << "Unrecognized capture status ["sv << (int)status << ']';
-      return status;
-    }
-  }
-
-  return capture_e::ok;
-}
 
 bool set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info) {
   // This cursor image may not be used
@@ -969,8 +965,8 @@ capture_e display_vram_t::snapshot(platf::img_t *img_base, std::chrono::millisec
   return capture_e::ok;
 }
 
-int display_vram_t::init(int framerate, const std::string &display_name) {
-  if(display_base_t::init(framerate, display_name)) {
+int display_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
+  if(display_base_t::init(config, display_name)) {
     return -1;
   }
 
@@ -995,10 +991,32 @@ int display_vram_t::init(int framerate, const std::string &display_name) {
     return -1;
   }
 
-  status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
-  if(status) {
-    BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-    return -1;
+  if(config.dynamicRange && is_hdr()) {
+    // This shader will normalize scRGB white levels to a user-defined white level
+    status = device->CreatePixelShader(scene_NW_ps_hlsl->GetBufferPointer(), scene_NW_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
+
+    // Use a 300 nit target for the mouse cursor. We should really get
+    // the user's SDR white level in nits, but there is no API that
+    // provides that information to Win32 apps.
+    float sdr_multiplier_data[16 / sizeof(float)] { 300.0f / 80.f }; // aligned to 16-byte
+    auto sdr_multiplier = make_buffer(device.get(), sdr_multiplier_data);
+    if(!sdr_multiplier) {
+      BOOST_LOG(warning) << "Failed to create SDR multiplier"sv;
+      return -1;
+    }
+
+    device_ctx->PSSetConstantBuffers(0, 1, &sdr_multiplier);
+  }
+  else {
+    status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+    if(status) {
+      BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+      return -1;
+    }
   }
 
   blend_alpha   = make_blend(device.get(), true, false);
@@ -1023,6 +1041,7 @@ std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {
   img->width   = width;
   img->height  = height;
   img->display = shared_from_this();
+  img->id      = next_image_id++;
 
   return img;
 }
@@ -1046,9 +1065,6 @@ int display_vram_t::complete_img(platf::img_t *img_base, bool dummy) {
   img->capture_texture.reset();
   img->capture_rt.reset();
   img->capture_mutex.reset();
-  img->encoder_texture.reset();
-  img->encoder_input_res.reset();
-  img->encoder_mutex.reset();
   img->data = nullptr;
   if(img->encoder_texture_handle) {
     CloseHandle(img->encoder_texture_handle);
@@ -1123,7 +1139,29 @@ int display_vram_t::dummy_img(platf::img_t *img_base) {
 }
 
 std::vector<DXGI_FORMAT> display_vram_t::get_supported_sdr_capture_formats() {
-  return std::vector { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
+  return { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
+}
+
+std::vector<DXGI_FORMAT> display_vram_t::get_supported_hdr_capture_formats() {
+  return {
+    // scRGB FP16 is the desired format for HDR content. This will also handle
+    // 10-bit SDR displays with the increased precision of FP16 vs 8-bit UNORMs.
+    DXGI_FORMAT_R16G16B16A16_FLOAT,
+
+    // DXGI_FORMAT_R10G10B10A2_UNORM seems like it might give us frames already
+    // converted to SMPTE 2084 PQ, however it seems to actually just clamp the
+    // scRGB FP16 values that DWM is using when the desktop format is scRGB FP16.
+    //
+    // If there is a case where the desktop format is really SMPTE 2084 PQ, it
+    // might make sense to support capturing it without conversion to scRGB,
+    // but we avoid it for now.
+
+    // We include the 8-bit modes too for when the display is in SDR mode,
+    // while the client stream is HDR-capable. These UNORM formats behave
+    // like a degenerate case of scRGB FP16 with values between 0.0f-1.0f.
+    DXGI_FORMAT_B8G8R8A8_UNORM,
+    DXGI_FORMAT_R8G8B8A8_UNORM,
+  };
 }
 
 std::shared_ptr<platf::hwdevice_t> display_vram_t::make_hwdevice(pix_fmt_e pix_fmt) {
@@ -1159,8 +1197,18 @@ int init() {
     return -1;
   }
 
+  convert_Y_PQ_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertYPS_PQ.hlsl");
+  if(!convert_Y_PQ_ps_hlsl) {
+    return -1;
+  }
+
   convert_UV_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS.hlsl");
   if(!convert_UV_ps_hlsl) {
+    return -1;
+  }
+
+  convert_UV_PQ_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS_PQ.hlsl");
+  if(!convert_UV_PQ_ps_hlsl) {
     return -1;
   }
 
@@ -1171,6 +1219,11 @@ int init() {
 
   scene_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ScenePS.hlsl");
   if(!scene_ps_hlsl) {
+    return -1;
+  }
+
+  scene_NW_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ScenePS_NW.hlsl");
+  if(!scene_NW_ps_hlsl) {
     return -1;
   }
   BOOST_LOG(info) << "Compiled shaders"sv;

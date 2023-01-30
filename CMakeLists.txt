@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.18)
+# `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
-project(Sunshine VERSION 0.17.0
+project(Sunshine VERSION 0.18.0
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
 
@@ -15,6 +16,11 @@ option(SUNSHINE_CONFIGURE_FLATPAK_MAN "Configure manifest file required for Flat
 option(SUNSHINE_CONFIGURE_FLATPAK "Configuration specific for Flatpak." OFF)
 option(SUNSHINE_CONFIGURE_PORTFILE "Configure macOS Portfile." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to 'Release' as none was specified.")
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+endif()
 
 if(${SUNSHINE_CONFIGURE_APPIMAGE})
     configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
@@ -64,7 +70,7 @@ include_directories(third-party/miniupnp/miniupnpc/include)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules (CURL REQUIRED libcurl)
+pkg_check_modules(CURL REQUIRED libcurl)
 
 if(NOT APPLE)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
@@ -197,12 +203,70 @@ else()
         check_language(CUDA)
 
         if(CMAKE_CUDA_COMPILER)
-            if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-                set(CMAKE_CUDA_ARCHITECTURES 35)
-            endif()
-
             set(CUDA_FOUND ON)
             enable_language(CUDA)
+
+            message(STATUS "CUDA Compiler Version: ${CMAKE_CUDA_COMPILER_VERSION}")
+            set(CMAKE_CUDA_ARCHITECTURES "")
+
+            # https://tech.amikelive.com/node-930/cuda-compatibility-of-nvidia-display-gpu-drivers/
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 6.5)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 10)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_10,code=sm_10")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 6.5)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 50 52)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_50,code=sm_50")
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_52,code=sm_52")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 7.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 11)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_11,code=sm_11")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER 7.6)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 60 61 62)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_60,code=sm_60")
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_61,code=sm_61")
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_62,code=sm_62")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 9.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 20)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_20,code=sm_20")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 9.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 70)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_70,code=sm_70")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 75)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_75,code=sm_75")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 11.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 30)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_30,code=sm_30")
+            elseif(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 80)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_80,code=sm_80")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.1)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 86)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_86,code=sm_86")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 11.8)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 90)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_90,code=sm_90")
+            endif()
+
+            if(CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 12.0)
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 35)
+                # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -gencode arch=compute_35,code=sm_35")
+            endif()
+
+            # message(STATUS "CUDA NVCC Flags: ${CUDA_NVCC_FLAGS}")
+            message(STATUS "CUDA Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
         endif()
     endif()
     if(${SUNSHINE_ENABLE_DRM})
@@ -337,8 +401,8 @@ configure_file(version.h.in version.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SUNSHINE_TARGET_FILES
-        third-party/moonlight-common-c/reedsolomon/rs.c
-        third-party/moonlight-common-c/reedsolomon/rs.h
+        third-party/nanors/rs.c
+        third-party/nanors/rs.h
         third-party/moonlight-common-c/src/Input.h
         third-party/moonlight-common-c/src/Rtsp.h
         third-party/moonlight-common-c/src/RtspParser.c
@@ -385,10 +449,13 @@ set(SUNSHINE_TARGET_FILES
 
 set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
+set_source_files_properties(third-party/nanors/rs.c
+        PROPERTIES COMPILE_FLAGS "-include deps/obl/autoshim.h -ftree-vectorize")
+
 # Pre-compiled binaries
 if(WIN32)
     set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-windows-x86_64")
-    set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid)
+    set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid mfx)
 elseif(APPLE)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-aarch64")
@@ -396,12 +463,13 @@ elseif(APPLE)
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-macos-x86_64")
     endif()
 else()
+    set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
     if (CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-aarch64")
     else()
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
+        list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
     endif()
-    set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
 endif()
 set(FFMPEG_INCLUDE_DIRS
         ${FFMPEG_PREPARED_BINARIES}/include)
@@ -424,20 +492,19 @@ include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/reedsolomon
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/nanors
+        ${CMAKE_CURRENT_SOURCE_DIR}/third-party/nanors/deps/obl
         ${FFMPEG_INCLUDE_DIRS}
         ${PLATFORM_INCLUDE_DIRS}
 )
 
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
-    list(APPEND SUNSHINE_COMPILE_OPTIONS -O0 -ggdb3)
     if(WIN32)
         set_source_files_properties(src/nvhttp.cpp PROPERTIES COMPILE_FLAGS -O2)
     endif()
 else()
     add_definitions(-DNDEBUG)
-    list(APPEND SUNSHINE_COMPILE_OPTIONS -O3)
 endif()
 
 # setup assets directory
@@ -475,6 +542,8 @@ add_executable(sunshine ${SUNSHINE_TARGET_FILES})
 
 if(WIN32)
     set_target_properties(sunshine PROPERTIES LINK_SEARCH_START_STATIC 1)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".dll")
+    find_library(ZLIB ZLIB1)
 endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
@@ -521,10 +590,16 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/node_modules"
 if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
     install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 
+    # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
+    install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
+
     # Adding tools
     install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
     install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
+
+    # Mandatory tools
+    install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
 
     # scripts
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
@@ -558,15 +633,17 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Install service
     SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
             "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-        ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://sunshinestream.readthedocs.io/\\\"'
-        ExecWait 'icacls \\\"$INSTDIR\\\" /reset'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
-        ExecWait 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        MessageBox MB_YESNO|MB_ICONQUESTION 'Do you want to add/update ViGEmBus (virtual controller support)?' \
-            IDNO NoController
-            ExecWait '\\\"$SYSDIR\\\\cmd.exe\\\" /c \\\"start https://github.com/ViGEm/ViGEmBus/releases/latest\\\"'; \
+        IfSilent +2 0
+        ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
+        MessageBox MB_YESNO|MB_ICONQUESTION \
+            'Do you want to install ViGEmBus? This is REQUIRED for gamepad support while streaming.' \
+            /SD IDNO IDNO NoController
+            ExecShell 'open' 'https://github.com/ViGEm/ViGEmBus/releases/latest'; \
                 skipped if no
         NoController:
         ")
@@ -575,8 +652,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Uninstall service
     set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
-        ExecWait '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
             /SD IDNO IDNO NoDelete
@@ -592,12 +669,12 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
     set(CPACK_NSIS_CREATE_ICONS_EXTRA
         "${CPACK_NSIS_CREATE_ICONS_EXTRA}
-        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' \
+        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk' \
             '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
         ")
     set(CPACK_NSIS_DELETE_ICONS_EXTRA
         "${CPACK_NSIS_DELETE_ICONS_EXTRA}
-        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
+        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk'
         ")
 
     # Checking for previous installed versions

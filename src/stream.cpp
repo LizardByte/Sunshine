@@ -33,6 +33,7 @@ extern "C" {
 #define IDX_PERIODIC_PING 8
 #define IDX_REQUEST_IDR_FRAME 9
 #define IDX_ENCRYPTED 10
+#define IDX_HDR_MODE 11
 
 static const short packetTypes[] = {
   0x0305, // Start A
@@ -46,6 +47,7 @@ static const short packetTypes[] = {
   0x0200, // Periodic Ping
   0x0302, // IDR frame
   0x0001, // fully encrypted
+  0x010e, // HDR mode
 };
 
 namespace asio = boost::asio;
@@ -129,6 +131,15 @@ struct control_rumble_t {
   std::uint16_t id;
   std::uint16_t lowfreq;
   std::uint16_t highfreq;
+};
+
+struct control_hdr_mode_t {
+  control_header_v2 header;
+
+  std::uint8_t enabled;
+
+  // Sunshine protocol extension
+  SS_HDR_METADATA metadata;
 };
 
 typedef struct control_encrypted_t {
@@ -287,6 +298,7 @@ struct session_t {
     int lowseq;
     udp::endpoint peer;
     safe::mail_raw_t::event_t<bool> idr_events;
+    std::unique_ptr<platf::deinit_t> qos;
   } video;
 
   struct {
@@ -302,6 +314,7 @@ struct session_t {
     util::buffer_t<uint8_t *> shards_p;
 
     audio_fec_packet_t fec_packet;
+    std::unique_ptr<platf::deinit_t> qos;
   } audio;
 
   struct {
@@ -312,6 +325,7 @@ struct session_t {
     std::uint8_t seq;
 
     platf::rumble_queue_t rumble_queue;
+    safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
   } control;
 
   safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -397,13 +411,12 @@ session_t *control_server_t::get_session(const net::peer_t peer) {
 void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload) {
   auto cb = _map_type_cb.find(type);
   if(cb == std::end(_map_type_cb)) {
-    BOOST_LOG(warning)
+    BOOST_LOG(debug)
       << "type [Unknown] { "sv << util::hex(type).to_string_view() << " }"sv << std::endl
       << "---data---"sv << std::endl
       << util::hex_vec(payload) << std::endl
       << "---end data---"sv;
   }
-
   else {
     cb->second(session, payload);
   }
@@ -606,6 +619,36 @@ int send_rumble(session_t *session, std::uint16_t id, std::uint16_t lowfreq, std
   return 0;
 }
 
+int send_hdr_mode(session_t *session, video::hdr_info_t hdr_info) {
+  if(!session->control.peer) {
+    BOOST_LOG(warning) << "Couldn't send HDR mode, still waiting for PING from Moonlight"sv;
+    // Still waiting for PING from Moonlight
+    return -1;
+  }
+
+  control_hdr_mode_t plaintext {};
+  plaintext.header.type          = packetTypes[IDX_HDR_MODE];
+  plaintext.header.payloadLength = sizeof(control_hdr_mode_t) - sizeof(control_header_v2);
+
+  plaintext.enabled  = hdr_info->enabled;
+  plaintext.metadata = hdr_info->metadata;
+
+  std::array<std::uint8_t,
+    sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+    encrypted_payload;
+
+  auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
+  if(session->broadcast_ref->control_server.send(payload, session->control.peer)) {
+    TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *)&session->control.peer->address.address));
+    BOOST_LOG(warning) << "Couldn't send HDR mode to ["sv << addr << ':' << port << ']';
+
+    return -1;
+  }
+
+  BOOST_LOG(debug) << "Sent HDR mode: " << hdr_info->enabled;
+  return 0;
+}
+
 void controlBroadcastThread(control_server_t *server) {
   server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
     BOOST_LOG(verbose) << "type [IDX_START_A]"sv;
@@ -762,7 +805,10 @@ void controlBroadcastThread(control_server_t *server) {
         if(session->state.load(std::memory_order_acquire) == session::state_e::STOPPING) {
           pos = server->_map_addr_session->erase(pos);
 
-          enet_peer_disconnect_now(session->control.peer, 0);
+          if(session->control.peer) {
+            enet_peer_disconnect_now(session->control.peer, 0);
+          }
+
           session->controlEnd.raise(true);
           continue;
         }
@@ -772,6 +818,16 @@ void controlBroadcastThread(control_server_t *server) {
           auto rumble = rumble_queue->pop();
 
           send_rumble(session, rumble->id, rumble->lowfreq, rumble->highfreq);
+        }
+
+        // Unlike rumble which we send as best-effort, HDR state messages are critical
+        // for proper functioning of some clients. We must wait to pop entries from
+        // the queue until we're sure we have a peer to send them to.
+        auto &hdr_queue = session->control.hdr_queue;
+        while(session->control.peer && hdr_queue->peek()) {
+          auto hdr_info = hdr_queue->pop();
+
+          send_hdr_mode(session, std::move(hdr_info));
         }
 
         ++pos;
@@ -1036,8 +1092,25 @@ void videoBroadcastThread(udp::socket &sock) {
 
           inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
           inspect->packet.frameIndex     = av_packet->pts;
+        }
 
-          sock.send_to(asio::buffer(shards[x]), session->video.peer);
+        auto peer_address = session->video.peer.address();
+        auto batch_info   = platf::batched_send_info_t {
+          shards.shards.begin(),
+          shards.blocksize,
+          shards.nr_shards,
+          (uintptr_t)sock.native_handle(),
+          peer_address,
+          session->video.peer.port(),
+        };
+
+        // Use a batched send if it's supported on this platform
+        if(!platf::send_batch(batch_info)) {
+          // Batched send is not available, so send each packet individually
+          BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
+          for(auto x = 0; x < shards.size(); ++x) {
+            sock.send_to(asio::buffer(shards[x]), session->video.peer);
+          }
         }
 
         if(av_packet->flags & AV_PKT_FLAG_KEY) {
@@ -1077,8 +1150,7 @@ void audioBroadcastThread(udp::socket &sock) {
   // works correctly. This is possible because the data and FEC shard count is
   // constant and known in advance.
   const unsigned char parity[] = { 0x77, 0x40, 0x38, 0x0e, 0xc7, 0xa7, 0x0d, 0x6c };
-  memcpy(&rs.get()->m[16], parity, sizeof(parity));
-  memcpy(rs.get()->parity, parity, sizeof(parity));
+  memcpy(rs.get()->p, parity, sizeof(parity));
 
   audio_packet->rtp.header     = 0x80;
   audio_packet->rtp.packetType = 97;
@@ -1319,6 +1391,13 @@ void videoThread(session_t *session) {
     return;
   }
 
+  // Enable QoS tagging on video traffic if requested by the client
+  if(session->config.videoQosType) {
+    auto address       = session->video.peer.address();
+    session->video.qos = std::move(platf::enable_socket_qos(ref->video_sock.native_handle(), address,
+      session->video.peer.port(), platf::qos_data_type_e::video));
+  }
+
   BOOST_LOG(debug) << "Start capturing Video"sv;
   video::capture(session->mail, session->config.monitor, session);
 }
@@ -1334,6 +1413,13 @@ void audioThread(session_t *session) {
   auto port = recv_ping(ref, socket_e::audio, session->audio.peer, config::stream.ping_timeout);
   if(port < 0) {
     return;
+  }
+
+  // Enable QoS tagging on audio traffic if requested by the client
+  if(session->config.audioQosType) {
+    auto address       = session->audio.peer.address();
+    session->audio.qos = std::move(platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
+      session->audio.peer.port(), platf::qos_data_type_e::audio));
   }
 
   BOOST_LOG(debug) << "Start capturing Audio"sv;
@@ -1479,6 +1565,7 @@ std::shared_ptr<session_t> alloc(config_t &config, crypto::aes_t &gcm_key, crypt
   session->config = config;
 
   session->control.rumble_queue = mail->queue<platf::rumble_t>(mail::rumble);
+  session->control.hdr_queue    = mail->event<video::hdr_info_t>(mail::hdr);
   session->control.iv           = iv;
   session->control.cipher       = crypto::cipher::gcm_t {
     gcm_key, false

@@ -40,6 +40,12 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
         sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0-17ubuntu1.debian.tar.xz
+        sha256: 22e623d98c84eb3fec57e19ea371157a5bc8225ba4c5907f7e5155072317a31d
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
   - name: avahi
     disabled: false
@@ -74,6 +80,13 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8-6ubuntu1.debian.tar.xz
+        sha256: ebf1dfe5e853b6bc6843e3bd784cb6af632041f305abd0e5415114f80c1dcea4
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+          - autoreconf -ivf
 
   - name: libevdev
     disabled: false
@@ -87,34 +100,56 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
         sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg-1.debian.tar.xz
+        sha256: d33c56acbbfff2dc540e45c57a38d92210b5e7fd0947ac47fbe48183468aad74
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
-  - name: cuda
+  - name: intel-mediasdk
     disabled: false
-    buildsystem: simple
+    buildsystem: cmake
+    config-opts:
+      - -DENABLE_OPENCL=ON
+      - -DENABLE_X11_DRI3=ON
+      - -DENABLE_WAYLAND=ON
+      - -DENABLE_ITT=OFF
+      - -DENABLE_TEXTLOG=OFF
+      - -DENABLE_STAT=OFF
+      - -DBUILD_ALL=OFF
+      - -DBUILD_RUNTIME=ON
+      - -DBUILD_SAMPLES=OFF
+      - -DBUILD_TESTS=OFF
+      - -DBUILD_TOOLS=OFF
+      - -DUSE_SYSTEM_GTEST=OFF
+      - -DMFX_ENABLE_KERNELS=ON
     only-arches:
       - x86_64
-      - aarch64
-    cleanup:
-      - '*'
-    build-commands:
-      - chmod u+x ./cuda.run
-      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm
-        --tmpdir=$FLATPAK_BUILDER_BUILDDIR
-      - rm -r $FLATPAK_DEST/cuda/nsight-systems-2021.3.2
-      - rm ./cuda.run
     sources:
-      - type: file
-        only-arches:
-          - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run
-        sha256: bbd87ca0e913f837454a796367473513cddef555082e4d86ed9a38659cc81f0a
-        dest-filename: cuda.run
-      - type: file
-        only-arches:
-          - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux_sbsa.run  # yamllint disable-line rule:line-length
-        sha256: f2c4a52e06329606c8dfb7c5ea3f4cb4c0b28f9d3fdffeeb734fcc98daf580d8
-        dest-filename: cuda.run
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/universe/i/intel-mediasdk/intel-mediasdk_22.3.0.orig.tar.gz
+        sha256: e1e74229f409e969b70c2b35b1955068de3d40db85ecc42bd6ff501468bc76d7
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/universe/i/intel-mediasdk/intel-mediasdk_22.3.0-1.debian.tar.xz
+        sha256: 024d98d2f63443d2765a90cfe997d104e7b897694889f199ca8fb4d9ffdcf1dc
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+    modules:
+      - name: libdrm
+        disabled: false
+        buildsystem: meson
+        sources:
+          - type: archive
+            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110.orig.tar.xz
+            sha256: eecee4c4b47ed6d6ce1a9be3d6d92102548ea35e442282216d47d05293cf9737
+          - type: archive
+            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110-1ubuntu1.debian.tar.xz
+            sha256: 464b9553861f39beddfaee6b8924734b02a0febfae3968e4ca1360f2972bba8b
+          - type: shell
+            commands:
+              - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
   - name: numactl
     buildsystem: autotools
@@ -124,8 +159,43 @@ modules:
       - type: archive
         url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14.orig.tar.gz
         sha256: 1ee27abd07ff6ba140aaf9bc6379b37825e54496e01d6f7343330cf1a4487035
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14-3ubuntu2.debian.tar.xz
+        sha256: 49089e5be5367f6367f8b0389d1d523944432607783b53f0605705792e1015ee
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
     cleanup:
       - "/bin"
+
+  # Caching is configured until here, not including CUDA
+  - name: cuda
+    disabled: false
+    buildsystem: simple
+    only-arches:
+      - x86_64
+      - aarch64
+    cleanup:
+      - "*"
+    build-commands:
+      - chmod u+x ./cuda.run
+      - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm
+        --tmpdir=$FLATPAK_BUILDER_BUILDDIR
+      - rm -r $FLATPAK_DEST/cuda/nsight-systems-*
+      - rm ./cuda.run
+    sources:
+      - type: file
+        only-arches:
+          - x86_64
+        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run
+        sha256: 9223c4af3aebe4a7bbed9abd9b163b03a1b34b855fbc2b4a0d1b706ac09a5a16
+        dest-filename: cuda.run
+      - type: file
+        only-arches:
+          - aarch64
+        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run  # yamllint disable-line rule:line-length
+        sha256: e6e9a8d31163c9776b5e313fd7590877c5684e1ecddee741154f95704d4ed27c
+        dest-filename: cuda.run
 
   - name: sunshine
     disabled: false
@@ -156,9 +226,9 @@ modules:
       - -DSUNSHINE_CONFIGURE_FLATPAK=ON
     sources:
       - type: git
-        url: '@GITHUB_CLONE_URL@'
-        branch: '@GITHUB_BRANCH@'
-        commit: '@GITHUB_COMMIT@'
+        url: "@GITHUB_CLONE_URL@"
+        branch: "@GITHUB_BRANCH@"
+        commit: "@GITHUB_COMMIT@"
     post-install:
       # use `sed` to update apps.json with prefixes required for flatpak
       # -r (regex)
