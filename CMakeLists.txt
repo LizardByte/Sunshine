@@ -72,10 +72,8 @@ find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CURL REQUIRED libcurl)
 
-if(NOT APPLE)
-    set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
-endif()
 if(WIN32)
+    set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
     # workaround to prevent link errors against icudata, icui18n
     set(Boost_NO_BOOST_CMAKE ON) # cmake-lint: disable=C0103
 endif()
@@ -380,6 +378,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             third-party/glad/include/glad/egl.h)
 
     list(APPEND PLATFORM_LIBRARIES
+            Boost::dynamic_linking
             dl
             evdev
             numa
@@ -795,25 +794,33 @@ elseif(UNIX)
                 libcurl4, \
                 libdrm2, \
                 libevdev2, \
+                libmfx1, \
+                libnuma1, \
                 libopus0, \
                 libpulse0, \
-                libxcb-shm0, \
-                libxcb-xfixes0, \
-                libxtst6, \
-                openssl")
+                libva2, \
+                libva-drm2, \
+                libvdpau1, \
+                libwayland-client0, \
+                libx11-6, \
+                openssl | libssl3")
         set(CPACK_RPM_PACKAGE_REQUIRES "\
                 boost-filesystem >= 1.67.0, \
                 boost-log >= 1.67.0, \
                 boost-program-options >= 1.67.0, \
                 boost-thread >= 1.67.0, \
+                intel-mediasdk >= 22.3.0, \
                 libcap >= 2.22, \
                 libcurl >= 7.0, \
                 libdrm >= 2.4.97, \
                 libevdev >= 1.5.6, \
                 libopusenc >= 0.2.1, \
-                libxcb >= 1.13, \
-                libXtst >= 1.2.3, \
-                openssl >= 1.1, \
+                libva >= 2.14.0, \
+                libvdpau >= 1.5, \
+                libwayland-client >= 1.20.0, \
+                libX11 >= 1.7.3.1, \
+                numactl-libs >= 2.0.14, \
+                openssl >= 3.0.2, \
                 pulseaudio-libs >= 10.0")
         # This should automatically figure out dependencies, doesn't work with the current config
         set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
