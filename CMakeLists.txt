@@ -468,6 +468,8 @@ else()
     else()
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
         list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
+        set(CPACK_DEB_PLATFORM_PACKAGE_DEPENDS "libmfx1,")
+        set(CPACK_RPM_PLATFORM_PACKAGE_REQUIRES "intel-mediasdk >= 22.3.0,")
     endif()
 endif()
 set(FFMPEG_INCLUDE_DIRS
@@ -786,6 +788,7 @@ elseif(UNIX)
         # Dependencies
         set(CPACK_DEB_COMPONENT_INSTALL ON)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
                 libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, \
                 libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, \
                 libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, \
@@ -794,7 +797,6 @@ elseif(UNIX)
                 libcurl4, \
                 libdrm2, \
                 libevdev2, \
-                libmfx1, \
                 libnuma1, \
                 libopus0, \
                 libpulse0, \
@@ -805,11 +807,11 @@ elseif(UNIX)
                 libx11-6, \
                 openssl | libssl3")
         set(CPACK_RPM_PACKAGE_REQUIRES "\
+                ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
                 boost-filesystem >= 1.67.0, \
                 boost-log >= 1.67.0, \
                 boost-program-options >= 1.67.0, \
                 boost-thread >= 1.67.0, \
-                intel-mediasdk >= 22.3.0, \
                 libcap >= 2.22, \
                 libcurl >= 7.0, \
                 libdrm >= 2.4.97, \
