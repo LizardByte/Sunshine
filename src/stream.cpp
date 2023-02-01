@@ -463,6 +463,37 @@ public:
     }
   }
 
+  it = std::end(_map_addr_session.raw);
+  BOOST_LOG(info) << "try ipv6 prefix match";
+  //try ipv6 prefix match
+  if(peer->address.address.ss_family == AF_INET6) {
+    for(auto pos = std::begin(_map_addr_session.raw); pos != std::end(_map_addr_session.raw); ++pos) {
+      auto &&ip = pos->first;
+      if(!platf::match_ipv6_prefix64(ip, addr_string)) {
+        continue;
+      }
+
+      TUPLE_2D_REF(session_port, session_p, pos->second);
+      if(session_port == port) {
+        return session_p;
+      }
+      else if(session_port == 0) {
+        it = pos;
+      }
+    }
+
+    if(it != std::end(_map_addr_session.raw)) {
+      TUPLE_2D_REF(session_port, session_p, it->second);
+
+      session_p->control.peer = peer;
+      session_port            = port;
+      //Do relocation for ipv6
+      _map_addr_session.raw.erase(it);
+      _map_addr_session.raw.emplace(addr_string, std::make_pair(session_port, session_p));
+      return session_p;
+    }
+  }
+
   return nullptr;
 }
 
@@ -1024,6 +1055,23 @@ public:
       if(it != std::end(peer_to_session)) {
         BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
         it->second->raise(peer.port(), std::string { buf[buf_elem].data(), bytes }, peer.address());
+      }
+      else if(peer.address().is_v6()) {
+        //IPv6 relocation
+        stream::message_queue_t relocation_queue = nullptr;
+        auto peer_address_string                 = peer.address().to_string();
+
+        for(auto &&[ip, queue] : peer_to_session) {
+          if(platf::match_ipv6_prefix64(ip.to_string(), peer_address_string)) {
+            BOOST_LOG(debug) << "RAISE: "sv << peer_address_string << ':' << peer.port() << " :: " << type_str;
+            relocation_queue = queue;
+            queue->raise(peer.port(), std::string { buf[buf_elem].data(), bytes }, peer.address());
+            break;
+          }
+        }
+        if(relocation_queue != nullptr) {
+          peer_to_session.emplace(peer.address(), relocation_queue);
+        }
       }
       else if(peer.address().is_v6()) {
         //IPv6 relocation

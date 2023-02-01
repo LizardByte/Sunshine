@@ -149,6 +149,7 @@ namespace config {
     } cmd;
 
   std::uint16_t port;
+  std::string address_family;
   std::string log_file;
   std::string address_family;
   std::vector<prep_cmd_t> prep_cmds;

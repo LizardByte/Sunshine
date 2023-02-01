@@ -453,6 +453,7 @@ sunshine_t sunshine {
   platf::appdata().string() + "/sunshine.conf", // config file
   {},                                           // cmd args
   47989,
+  "ipv4",
   platf::appdata().string() + "/sunshine.log", // log file
   "ipv4",
   {},  // prep commands
@@ -1040,9 +1041,9 @@ sunshine_t sunshine {
     bool_f(vars, "keyboard", input.keyboard);
     bool_f(vars, "controller", input.controller);
 
-    int port = sunshine.port;
+    int port = config::sunshine.port;
     int_f(vars, "port"s, port);
-    sunshine.port = (std::uint16_t) port;
+    config::sunshine.port = (std::uint16_t) port;
 
     string_restricted_f(vars, "address_family", config::sunshine.address_family, { "ipv4"sv, "both"sv });
     bool upnp = false;

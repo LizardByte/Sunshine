@@ -365,6 +365,8 @@ namespace platf {
 
 bool match_ipv6_prefix64(const std::string & address_one, const std::string & address_two);
 
+bool match_ipv6_prefix64(const std::string & address_one, const std::string & address_two);
+
 std::unique_ptr<audio_control_t> audio_control();
 
   /**
