@@ -71,7 +71,7 @@ public:
 
   void cancel(
     zwlr_export_dmabuf_frame_v1 *frame,
-    zwlr_export_dmabuf_frame_v1_cancel_reason reason);
+    std::uint32_t reason);
 
   inline frame_t *get_next_frame() {
     return current_frame == &frames[0] ? &frames[1] : &frames[0];
