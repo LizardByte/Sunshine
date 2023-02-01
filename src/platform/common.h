@@ -363,8 +363,9 @@ namespace platf {
   std::pair<std::uint16_t, std::string>
   from_sockaddr_ex(const sockaddr *const);
 
-  std::unique_ptr<audio_control_t>
-  audio_control();
+bool match_ipv6_prefix64(const std::string & address_one, const std::string & address_two);
+
+std::unique_ptr<audio_control_t> audio_control();
 
   /**
    * display_name --> The name of the monitor that SHOULD be displayed

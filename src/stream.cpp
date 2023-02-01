@@ -193,8 +193,8 @@ namespace stream {
   using audio_fec_packet_t = util::c_ptr<audio_fec_packet_raw_t>;
   using audio_aes_t = std::array<char, round_to_pkcs7_padded(MAX_AUDIO_PACKET_SIZE)>;
 
-  using message_queue_t = std::shared_ptr<safe::queue_t<std::pair<std::uint16_t, std::string>>>;
-  using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e, asio::ip::address, message_queue_t>>>;
+using message_queue_t       = std::shared_ptr<safe::queue_t<std::tuple<std::uint16_t, std::string, asio::ip::address>>>;
+using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e, asio::ip::address, message_queue_t>>>;
 
   // return bytes written on success
   // return -1 on error
@@ -219,11 +219,10 @@ namespace stream {
     }
   }
 
-  class control_server_t {
-  public:
-    int
-    bind(std::uint16_t port) {
-      _host = net::host_create(_addr, config::stream.channels, port);
+class control_server_t {
+public:
+  int bind(net::af_e address_family, std::uint16_t port) {
+    _host = net::host_create(address_family, _addr, config::stream.channels, port);
 
       return !(bool) _host;
     }
@@ -433,8 +432,39 @@ namespace stream {
       return session_p;
     }
 
-    return nullptr;
+  it = std::end(_map_addr_session.raw);
+  BOOST_LOG(info) << "try ipv6 prefix match";
+  //try ipv6 prefix match
+  if(peer->address.address.ss_family == AF_INET6) {
+    for(auto pos = std::begin(_map_addr_session.raw); pos != std::end(_map_addr_session.raw); ++pos) {
+      auto &&ip = pos->first;
+      if(!platf::match_ipv6_prefix64(ip, addr_string)) {
+        continue;
+      }
+
+      TUPLE_2D_REF(session_port, session_p, pos->second);
+      if(session_port == port) {
+        return session_p;
+      }
+      else if(session_port == 0) {
+        it = pos;
+      }
+    }
+
+    if(it != std::end(_map_addr_session.raw)) {
+      TUPLE_2D_REF(session_port, session_p, it->second);
+
+      session_p->control.peer = peer;
+      session_port            = port;
+      //Do relocation for ipv6
+      _map_addr_session.raw.erase(it);
+      _map_addr_session.raw.emplace(addr_string, std::make_pair(session_port, session_p));
+      return session_p;
+    }
   }
+
+  return nullptr;
+}
 
   void
   control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload) {
@@ -978,7 +1008,7 @@ namespace stream {
         auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
         BOOST_LOG(verbose) << "Recv: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
 
-        populate_peer_to_session();
+      populate_peer_to_session();
 
         // No data, yet no error
         if (ec == boost::system::errc::connection_refused || ec == boost::system::errc::connection_reset) {
@@ -990,13 +1020,30 @@ namespace stream {
           return;
         }
 
-        auto it = peer_to_session.find(peer.address());
-        if (it != std::end(peer_to_session)) {
-          BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
-          it->second->raise(peer.port(), std::string { buf[buf_elem].data(), bytes });
+      auto it = peer_to_session.find(peer.address());
+      if(it != std::end(peer_to_session)) {
+        BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+        it->second->raise(peer.port(), std::string { buf[buf_elem].data(), bytes }, peer.address());
+      }
+      else if(peer.address().is_v6()) {
+        //IPv6 relocation
+        stream::message_queue_t relocation_queue = nullptr;
+        auto peer_address_string                 = peer.address().to_string();
+
+        for(auto &&[ip, queue] : peer_to_session) {
+          if(platf::match_ipv6_prefix64(ip.to_string(), peer_address_string)) {
+            BOOST_LOG(debug) << "RAISE: "sv << peer_address_string << ':' << peer.port() << " :: " << type_str;
+            relocation_queue = queue;
+            queue->raise(peer.port(), std::string { buf[buf_elem].data(), bytes }, peer.address());
+            break;
+          }
         }
-      };
+        if(relocation_queue != nullptr) {
+          peer_to_session.emplace(peer.address(), relocation_queue);
+        }
+      }
     };
+  };
 
     recv_func_init(video_sock, 0, peer_to_video_session);
     recv_func_init(audio_sock, 1, peer_to_audio_session);
@@ -1301,43 +1348,44 @@ namespace stream {
     shutdown_event->raise(true);
   }
 
-  int
-  start_broadcast(broadcast_ctx_t &ctx) {
-    auto control_port = map_port(CONTROL_PORT);
-    auto video_port = map_port(VIDEO_STREAM_PORT);
-    auto audio_port = map_port(AUDIO_STREAM_PORT);
+int start_broadcast(broadcast_ctx_t &ctx) {
+  auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+  auto protocol       = address_family == net::IPV4 ? udp::v4() : udp::v6();
+  auto control_port   = map_port(CONTROL_PORT);
+  auto video_port     = map_port(VIDEO_STREAM_PORT);
+  auto audio_port     = map_port(AUDIO_STREAM_PORT);
 
-    if (ctx.control_server.bind(control_port)) {
-      BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
-
-      return -1;
-    }
-
-    boost::system::error_code ec;
-    ctx.video_sock.open(udp::v4(), ec);
-    if (ec) {
-      BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
+  if(ctx.control_server.bind(address_family, control_port)) {
+    BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
 
       return -1;
     }
 
-    ctx.video_sock.bind(udp::endpoint(udp::v4(), video_port), ec);
-    if (ec) {
-      BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
+  boost::system::error_code ec;
+  ctx.video_sock.open(protocol, ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.audio_sock.open(udp::v4(), ec);
-    if (ec) {
-      BOOST_LOG(fatal) << "Couldn't open socket for Audio server: "sv << ec.message();
+  ctx.video_sock.bind(udp::endpoint(protocol, video_port), ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.audio_sock.bind(udp::endpoint(udp::v4(), audio_port), ec);
-    if (ec) {
-      BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
+  ctx.audio_sock.open(protocol, ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't open socket for Audio server: "sv << ec.message();
+
+      return -1;
+    }
+
+  ctx.audio_sock.bind(udp::endpoint(protocol, audio_port), ec);
+  if(ec) {
+    BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
 
       return -1;
     }
@@ -1413,46 +1461,50 @@ namespace stream {
         break;
       }
 
-      TUPLE_2D_REF(port, msg, *msg_opt);
-      if (msg == ping) {
-        BOOST_LOG(debug) << "Received ping from "sv << peer.address() << ':' << port << " ["sv << util::hex_vec(msg) << ']';
+    TUPLE_3D_REF(port, msg, final_address, *msg_opt);
+    if(msg == ping) {
+      BOOST_LOG(debug) << "Received ping from "sv << peer.address() << ':' << port << " ["sv << util::hex_vec(msg) << ']';
+      // Update connection details.
+      {
+        auto addressChanged = peer.address() != final_address;
 
-        // Update connection details.
-        {
-          auto addr_str = peer.address().to_string();
+        auto &connections = ref->audio_video_connections;
+        auto lg           = connections.lock();
 
-          auto &connections = ref->audio_video_connections;
-
-          auto lg = connections.lock();
-
+        if(addressChanged) {
+          BOOST_LOG(info) << "Address changed to "sv << final_address.to_string();
+          peer.port(port);
+          peer.address(final_address);
+          connections->emplace_back(final_address.to_string(), port);
+        }
+        else {
+          auto addr_str                                                 = peer.address().to_string();
           std::remove_reference_t<decltype(*connections)>::iterator pos = std::end(*connections);
-
-          for (auto it = std::begin(*connections); it != std::end(*connections); ++it) {
+          for(auto it = std::begin(*connections); it != std::end(*connections); ++it) {
             TUPLE_2D_REF(addr, port_ref, *it);
 
-            if (!port_ref && addr_str == addr) {
+            if(!port_ref && addr_str == addr) {
               pos = it;
             }
-            else if (port_ref == port) {
+            else if(port_ref == port) {
               break;
             }
           }
 
-          if (pos == std::end(*connections)) {
+          if(pos == std::end(*connections)) {
             continue;
           }
 
           pos->second = port;
           peer.port(port);
         }
-
-        return port;
       }
-
-      BOOST_LOG(debug) << "Received non-ping from "sv << peer.address() << ':' << port << " ["sv << util::hex_vec(msg) << ']';
-
-      current_time = std::chrono::steady_clock::now();
+      return port;
     }
+
+    BOOST_LOG(debug) << "Received non-ping from "sv << peer.address() << ':' << port << " ["sv << util::hex_vec(msg) << ']';
+    current_time = std::chrono::steady_clock::now();
+  }
 
     BOOST_LOG(error) << "Initial Ping Timeout"sv;
     return -1;

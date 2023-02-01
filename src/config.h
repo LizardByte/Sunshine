@@ -148,11 +148,11 @@ namespace config {
       char **argv;
     } cmd;
 
-    std::uint16_t port;
-    std::string log_file;
-
-    std::vector<prep_cmd_t> prep_cmds;
-  };
+  std::uint16_t port;
+  std::string log_file;
+  std::string address_family;
+  std::vector<prep_cmd_t> prep_cmds;
+};
 
   extern video_t video;
   extern audio_t audio;

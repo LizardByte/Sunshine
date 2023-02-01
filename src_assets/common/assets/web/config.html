@@ -598,6 +598,17 @@
       </div>
     </div>
     <div v-if="currentTab === 'advanced'" class="config-page">
+       <!--Address family-->
+        <div class="mb-3">
+            <label for="address_family" class="form-label">Address Family</label>
+            <select id="address_family"
+                    class="form-select"
+                    v-model="config.address_family">
+                <option value="ipv4">IPv4 only</option>
+                <option value="both">IPv4+IPv6</option>
+            </select>
+            <div class="form-text">Set the address family used by Sunshine</div>
+        </div>
       <!--Port family-->
       <div class="mb-3">
         <label for="port" class="form-label">Port</label>
