@@ -457,11 +457,33 @@ class display_t : public platf::display_t {
 public:
   display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
 
+  int crtcid_fromindex(kms::card_t &card, int index) {
+    // sort the crtc ids here to hopefully return the correct display index
+    std::set<uint32_t> crtcids;
+    for(auto plane = std::begin(card); plane != std::end(card); ++plane) {
+      if(card.is_cursor(plane->plane_id)) {
+        continue;
+      }
+
+      crtcids.insert(plane->crtc_id);
+    }
+
+    if(index >= 0 && index < crtcids.size()) {
+      auto c = crtcids.begin();
+      std::advance(c, index);
+      if(c != crtcids.end()) {
+        return *c;
+      }
+    }
+
+    return -1;
+  }
+
   int init(const std::string &display_name, const ::video::config_t &config) {
     delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
-    int monitor_index = util::from_view(display_name);
-    int monitor       = 0;
+    int display_index  = util::from_view(display_name);
+    int monitor_crtcid = -1;
 
     fs::path card_dir { "/dev/dri"sv };
     for(auto &entry : fs::directory_iterator { card_dir }) {
@@ -477,14 +499,19 @@ public:
         return {};
       }
 
+      monitor_crtcid = crtcid_fromindex(card, display_index);
+      if(monitor_crtcid < 0) {
+        BOOST_LOG(error) << "Couldn't find monitor ["sv << display_index << ']';
+        return -1;
+      }
+
       auto end = std::end(card);
       for(auto plane = std::begin(card); plane != end; ++plane) {
         if(card.is_cursor(plane->plane_id)) {
           continue;
         }
 
-        if(monitor != monitor_index) {
-          ++monitor;
+        if(plane->crtc_id != monitor_crtcid) {
           continue;
         }
 
@@ -582,8 +609,8 @@ public:
 
   // Neatly break from nested for loop
   break_loop:
-    if(monitor != monitor_index) {
-      BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
+    if(monitor_crtcid < 0) {
+      BOOST_LOG(error) << "Couldn't find monitor ["sv << display_index << ']';
 
       return -1;
     }
@@ -998,6 +1025,7 @@ std::vector<std::string> kms_display_names() {
 
   kms::conn_type_count_t conn_type_count;
 
+  std::set<uint32_t> crtcids;
   std::vector<kms::card_descriptor_t> cds;
   std::vector<std::string> display_names;
 
@@ -1057,13 +1085,20 @@ std::vector<std::string> kms_display_names() {
 
       kms::print(plane.get(), fb.get(), crtc.get());
 
-      display_names.emplace_back(std::to_string(count++));
+      crtcids.insert(plane->crtc_id);
     }
 
     cds.emplace_back(kms::card_descriptor_t {
       std::move(file),
       std::move(crtc_to_monitor),
     });
+  }
+
+  // sort the crtcs by id
+  if(!crtcids.empty()) {
+    for(const auto& id: crtcids) {
+      display_names.emplace_back(std::to_string(count++));
+    }
   }
 
   if(!wl::init()) {
