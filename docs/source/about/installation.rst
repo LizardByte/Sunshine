@@ -28,7 +28,7 @@ This refers to the method used to grab the frames before encoding. The supported
 
 **NvFBC**
 
-For Nvidia cards only it is the fastest and least CPU intensive method. Normally this is only available on profession (Quadro) cards and disabled by Nvidia drivers on consumer (GeForce) cards. To enable its use on consumer cards it is necessary to patch the Nvidia drivers. The original patch tool is available at https://github.com/keylase/nvidia-patch, and an alternative tool building on the orginal is available at https://github.com/illnyang/nvlax
+For Nvidia cards only and is the fastest and least CPU intensive method. Normally this is only available on profession (Quadro) cards and disabled by Nvidia drivers on consumer (GeForce) cards. To enable its use on consumer cards it is necessary to patch the Nvidia drivers. The original patch tool is available at https://github.com/keylase/nvidia-patch, and an alternative tool building on the orginal is available at https://github.com/illnyang/nvlax
 
 On Arch Linux nvidia-utils-nvlax is a ready patched version of nvidia-utils available in the AUR. It is kept up to date with the latest nvidia drivers. On other distros is will be necessary to repatch each time the driver is updated.
 
