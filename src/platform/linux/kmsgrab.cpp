@@ -755,6 +755,12 @@ public:
     auto &rgb = *rgb_opt;
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
+
+    int w, h;
+    gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+    gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+    BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;
+
     gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
 
     if(cursor_opt && cursor) {
