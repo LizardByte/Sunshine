@@ -21,13 +21,36 @@ See :ref:`Docker <about/docker:docker>` for additional information.
 
 Linux
 -----
+Capture Methods
+^^^^^^^^^^^^^^^
+
+This refers to the method used to grab the frames before encoding. The supported methods are NvFBC, Wayland, KMS and X11 in that order of presidence. The mechanism used is not configurable and Sunshine will choose the first one it detects as working during the initialisation process. The method used will be identified in the log files stating ¨Screencasting with xxx¨.
+
+**NvFBC**
+
+For Nvidia cards only it is the fastest and least CPU intensive method. Normally this is only available on profession (Quadro) cards and disabled by Nvidia drivers on consumer (GeForce) cards. To enable its use on consumer cards it is necessary to patch the Nvidia drivers. The original patch tool is available at https://github.com/keylase/nvidia-patch, and an alternative tool building on the orginal is available at https://github.com/illnyang/nvlax
+
+On Arch Linux nvidia-utils-nvlax is a ready patched version of nvidia-utils available in the AUR. It is kept up to date with the latest nvidia drivers. On other distros is will be necessary to repatch each time the driver is updated.
+
+This also requires CUDA as the frame is captured to cuda memory. See `CUDA GPUS <https://developer.nvidia.com/cuda-gpus>`_ to cross reference Compute Capability to your GPU.
+
+**Wayland**
+
+Captures from DMABUF.
+
+**KMS**
+
+DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability. 
+
+**X11**
+
+Uses XCB to capture frames.
+
+Packages
+^^^^^^^^
+
 Follow the instructions for your preferred package type below.
 
-**CUDA Compatibility**
-
-CUDA is used for NVFBC capture.
-
-.. Tip:: See `CUDA GPUS <https://developer.nvidia.com/cuda-gpus>`_ to cross reference Compute Capability to your GPU.
 
 .. table::
    :widths: auto
