@@ -144,6 +144,7 @@ void not_found(resp_https_t response, req_https_t request) {
             << data.str();
 }
 
+// todo - combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
 void getIndexPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -229,6 +230,8 @@ void getTroubleshootingPage(resp_https_t response, req_https_t request) {
 }
 
 void getFaviconImage(resp_https_t response, req_https_t request) {
+  // todo - combine function with getSunshineLogoImage and possibly getNodeModules
+  // todo - use mime_types map
   print_req(request);
 
   std::ifstream in(WEB_DIR "images/favicon.ico", std::ios::binary);
@@ -238,6 +241,8 @@ void getFaviconImage(resp_https_t response, req_https_t request) {
 }
 
 void getSunshineLogoImage(resp_https_t response, req_https_t request) {
+  // todo - combine function with getFaviconImage and possibly getNodeModules
+  // todo - use mime_types map
   print_req(request);
 
   std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
@@ -269,17 +274,18 @@ void getNodeModules(resp_https_t response, req_https_t request) {
   }
   else {
     auto relPath = fs::relative(filePath, webDirPath);
-    if(relPath.extension() == ".ttf" or relPath.extension() == ".woff2") {
-      // Fonts are read differntly
+    // get the mime type from the file extension mime_types map
+    // remove the leading period from the extension
+    auto mimeType = mime_types.find(relPath.extension().string().substr(1));
+    // check if the extension is in the map at the x position
+    if(mimeType != mime_types.end()) {
+      // if it is, set the content type to the mime type
       SimpleWeb::CaseInsensitiveMultimap headers;
-      std::ifstream in((filePath).c_str(), std::ios::binary);
-      headers.emplace("Content-Type", "font/" + filePath.extension().string().substr(1));
+      headers.emplace("Content-Type", mimeType->second);
+      std::ifstream in(filePath.string(), std::ios::binary);
       response->write(SimpleWeb::StatusCode::success_ok, in, headers);
     }
-    else {
-      std::string content = read_file((filePath.string()).c_str());
-      response->write(content);
-    }
+    // do not return any file if the type is not in the map
   }
 }
 
