@@ -2,6 +2,9 @@
 Description=@PROJECT_DESCRIPTION@
 StartLimitIntervalSec=500
 StartLimitBurst=5
+PartOf=graphical-session.target
+Wants=xdg-desktop-autostart.target
+After=xdg-desktop-autostart.target
 
 [Service]
 ExecStart=@SUNSHINE_EXECUTABLE_PATH@
@@ -9,4 +12,4 @@ Restart=on-failure
 RestartSec=5s
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=xdg-desktop-autostart.target
