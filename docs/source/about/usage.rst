@@ -146,8 +146,7 @@ macOS
 ^^^^^
 Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
 `Soundflower <https://github.com/mattingalls/Soundflower>`_ or
-`BlackHole <https://github.com/ExistentialAudio/BlackHole>`_ and
-select their sink as audio device in `sunshine.conf`.
+`BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
 
 .. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
