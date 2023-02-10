@@ -369,6 +369,29 @@
           <br />
         </div>
       </div>
+      <div class="mb-3" v-if="platform === 'macos'">
+        <label for="audio_sink" class="form-label">Audio Sink</label>
+        <input
+          type="text"
+          class="form-control"
+          id="audio_sink"
+          placeholder="BlackHole 2ch"
+          v-model="config.audio_sink"
+        />
+        <div class="form-text">
+          The name of the audio sink used for Audio Loopback<br />
+          Sunshine can only access microphones on macOS due to system limitations.<br />
+          To stream system audio using <a
+            href="https://github.com/mattingalls/Soundflower"
+            target="_blank">
+            Soundflower
+          </a> or <a
+            href="https://github.com/ExistentialAudio/BlackHole"
+            target="_blank">
+            BlackHole
+          </a>.
+        </div>
+      </div>
       <!--Virtual Sink-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="virtual_sink" class="form-label">Virtual Sink</label>
