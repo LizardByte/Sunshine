@@ -49,14 +49,6 @@ void process_end(bp::child &proc, bp::group &proc_handle) {
   proc.wait();
 }
 
-int exe_with_full_privs(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
-  if(!file) {
-    return bp::system(cmd, env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
-  }
-
-  return bp::system(cmd, env, bp::std_out > file.get(), bp::std_err > file.get(), ec);
-}
-
 boost::filesystem::path find_working_directory(const std::string &cmd, bp::environment &env) {
   // Parse the raw command string into parts to get the actual command portion
 #ifdef _WIN32
@@ -88,7 +80,7 @@ boost::filesystem::path find_working_directory(const std::string &cmd, bp::envir
 }
 
 int proc_t::execute(int app_id) {
-  // Ensure starting from a clean slate
+  // Ensure starting from a clean slate.
   terminate();
 
   auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
@@ -100,25 +92,28 @@ int proc_t::execute(int app_id) {
     return 404;
   }
 
-  _app_id    = app_id;
-  auto &proc = *iter;
+  _app_id = app_id;
+  _app   = *iter;
 
-  _undo_begin = std::begin(proc.prep_cmds);
-  _undo_it    = _undo_begin;
+  _app_prep_begin = std::begin(_app.prep_cmds);
+  _app_prep_it    = _app_prep_begin;
 
-  if(!proc.output.empty() && proc.output != "null"sv) {
+  _global_prep_begin = std::begin(_prep_cmds);
+  _global_prep_it    = _global_prep_begin;
+
+  if(!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
     // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
     // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-    auto woutput = converter.from_bytes(proc.output);
+    auto woutput = converter.from_bytes(_app.output);
 
     // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
     // still open from a previous execution. This is required to handle the case of a
     // detached process executing again while the previous process is still running.
     _pipe.reset(_wfsopen(woutput.c_str(), L"a", _SH_DENYNO));
 #else
-    _pipe.reset(fopen(proc.output.c_str(), "a"));
+    _pipe.reset(fopen(_app.output.c_str(), "a"));
 #endif
   }
 
@@ -128,16 +123,50 @@ int proc_t::execute(int app_id) {
     terminate();
   });
 
-  for(; _undo_it != std::end(proc.prep_cmds); ++_undo_it) {
-    auto &cmd = _undo_it->do_cmd;
+  // Execute global prep commands if enabled
+  if (_app.include_global_prep)
+  {
+    for(; _global_prep_it != std::end(_prep_cmds); ++_global_prep_it) {
+      auto &cmd = _global_prep_it->do_cmd;
 
-    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
-    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
+      boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                              find_working_directory(cmd, _env) :
+                                              boost::filesystem::path(_app.working_dir);
+      BOOST_LOG(info) << "Executing Global Do Cmd: ["sv << cmd << ']';
+      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+
+      if(ec) {
+        BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
+        return -1;
+      }
+
+      child.wait();
+      auto ret = child.exit_code();
+
+      if(ret != 0) {
+        BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
+        return -1;
+      }
+    }
+  }
+
+  // Execute app prep commands                 
+  for(; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
+    auto &cmd = _app_prep_it->do_cmd;
+
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                            find_working_directory(cmd, _env) :
+                                            boost::filesystem::path(_app.working_dir);
+    BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd << ']';
+    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
     if(ec) {
       BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
       return -1;
     }
+
+    child.wait();
+    auto ret = child.exit_code();
 
     if(ret != 0) {
       BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
@@ -145,10 +174,10 @@ int proc_t::execute(int app_id) {
     }
   }
 
-  for(auto &cmd : proc.detached) {
-    boost::filesystem::path working_dir = proc.working_dir.empty() ?
+  for(auto &cmd : _app.detached) {
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                             find_working_directory(cmd, _env) :
-                                            boost::filesystem::path(proc.working_dir);
+                                            boost::filesystem::path(_app.working_dir);
     BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
     auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
     if(ec) {
@@ -159,18 +188,18 @@ int proc_t::execute(int app_id) {
     }
   }
 
-  if(proc.cmd.empty()) {
+  if(_app.cmd.empty()) {
     BOOST_LOG(info) << "Executing [Desktop]"sv;
     placebo = true;
   }
   else {
-    boost::filesystem::path working_dir = proc.working_dir.empty() ?
-                                            find_working_directory(proc.cmd, _env) :
-                                            boost::filesystem::path(proc.working_dir);
-    BOOST_LOG(info) << "Executing: ["sv << proc.cmd << "] in ["sv << working_dir << ']';
-    _process = platf::run_unprivileged(proc.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                            find_working_directory(_app.cmd, _env) :
+                                            boost::filesystem::path(_app.working_dir);
+    BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
+    _process = platf::run_unprivileged(_app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
     if(ec) {
-      BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
+      BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
       return -1;
     }
   }
@@ -203,23 +232,57 @@ void proc_t::terminate() {
   _process_handle = bp::group();
   _app_id         = -1;
 
-  for(; _undo_it != _undo_begin; --_undo_it) {
-    auto &cmd = (_undo_it - 1)->undo_cmd;
+  for(; _app_prep_it != _app_prep_begin; --_app_prep_it) {
+    auto &cmd = (_app_prep_it - 1)->undo_cmd;
 
     if(cmd.empty()) {
       continue;
     }
 
-    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
-
-    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                            find_working_directory(cmd, _env) :
+                                            boost::filesystem::path(_app.working_dir);
+    BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd << ']';
+    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
     if(ec) {
       BOOST_LOG(warning) << "System: "sv << ec.message();
     }
+    
+    child.wait();    
+    auto ret = child.exit_code();
 
     if(ret != 0) {
       BOOST_LOG(warning) << "Return code ["sv << ret << ']';
+    }
+  }
+  
+  // Execute global prep commands if enabled
+  if (_app.include_global_prep)
+  {
+    for(; _global_prep_it != _global_prep_begin; --_global_prep_it) {
+      auto &cmd = (_global_prep_it - 1)->undo_cmd;
+
+      if(cmd.empty()) {
+        continue;
+      }
+
+      boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                              find_working_directory(cmd, _env) :
+                                              boost::filesystem::path(_app.working_dir);
+      BOOST_LOG(info) << "Executing Global Undo Cmd: ["sv << cmd << ']';
+      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+
+      if(ec) {
+        BOOST_LOG(warning) << "System: "sv << ec.message();
+      }
+      
+      child.wait();    
+      auto ret = child.exit_code();
+
+      if(ret != 0) {
+        BOOST_LOG(warning) << "Return code ["sv << ret << ']';
+      }
     }
   }
 
@@ -439,13 +502,33 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
   try {
     pt::read_json(file_name, tree);
 
-    auto &apps_node = tree.get_child("apps"s);
-    auto &env_vars  = tree.get_child("env"s);
+    auto &apps_node            = tree.get_child("apps"s);
+    auto &env_vars             = tree.get_child("env"s);
+    auto global_prep_nodes_opt = tree.get_child_optional("global-prep-cmd"s);
 
     auto this_env = boost::this_process::environment();
 
     for(auto &[name, val] : env_vars) {
       this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
+    }
+
+    
+    std::vector<proc::cmd_t> global_prep_cmds;
+    if(global_prep_nodes_opt) {
+      auto &global_prep_nodes = *global_prep_nodes_opt;
+
+      global_prep_cmds.reserve(global_prep_nodes.size());
+      for(auto &[_, prep_node] : global_prep_nodes) {
+        auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
+        auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
+
+        if(undo_cmd) {
+          global_prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
+        }
+        else {
+          global_prep_cmds.emplace_back(std::move(do_cmd));
+        }
+      }
     }
 
     std::set<std::string> ids;
@@ -454,13 +537,14 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
     for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
 
-      auto prep_nodes_opt     = app_node.get_child_optional("prep-cmd"s);
-      auto detached_nodes_opt = app_node.get_child_optional("detached"s);
-      auto output             = app_node.get_optional<std::string>("output"s);
-      auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
-      auto cmd                = app_node.get_optional<std::string>("cmd"s);
-      auto image_path         = app_node.get_optional<std::string>("image-path"s);
-      auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
+      auto prep_nodes_opt      = app_node.get_child_optional("prep-cmd"s);
+      auto detached_nodes_opt  = app_node.get_child_optional("detached"s);
+      auto include_global_prep = app_node.get_optional<bool>("include-global-prep-cmd"s);
+      auto output              = app_node.get_optional<std::string>("output"s);
+      auto name                = parse_env_val(this_env, app_node.get<std::string>("name"s));
+      auto cmd                 = app_node.get_optional<std::string>("cmd"s);
+      auto image_path          = app_node.get_optional<std::string>("image-path"s);
+      auto working_dir         = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
       if(prep_nodes_opt) {
@@ -506,6 +590,10 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
+      if(include_global_prep) {
+        ctx.include_global_prep = *include_global_prep;
+      }
+
       auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
       if(ids.count(std::get<0>(possible_ids)) == 0) {
         // Avoid using index to generate id if possible
@@ -525,7 +613,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
     }
 
     return proc::proc_t {
-      std::move(this_env), std::move(apps)
+      std::move(this_env), std::move(apps), std::move(global_prep_cmds)
     };
   }
   catch(std::exception &e) {

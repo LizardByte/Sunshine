@@ -39,6 +39,8 @@ struct cmd_t {
  *    filename -- The output of the commands are appended to filename
  */
 struct ctx_t {
+  ctx_t() : include_global_prep(true) {}
+
   std::vector<cmd_t> prep_cmds;
 
   /**
@@ -55,6 +57,7 @@ struct ctx_t {
   std::string output;
   std::string image_path;
   std::string id;
+  bool include_global_prep;
 };
 
 class proc_t {
@@ -63,9 +66,11 @@ public:
 
   proc_t(
     boost::process::environment &&env,
-    std::vector<ctx_t> &&apps) : _app_id(0),
+    std::vector<ctx_t> &&apps,
+    std::vector<proc::cmd_t> &&prep_cmds) : _app_id(0),
                                  _env(std::move(env)),
-                                 _apps(std::move(apps)) {}
+                                 _apps(std::move(apps)),
+                                 _prep_cmds(std::move(prep_cmds)) {}
 
   int execute(int app_id);
 
@@ -87,6 +92,8 @@ private:
 
   boost::process::environment _env;
   std::vector<ctx_t> _apps;
+  ctx_t _app;
+  std::vector<proc::cmd_t> _prep_cmds;
 
   // If no command associated with _app_id, yet it's still running
   bool placebo {};
@@ -95,8 +102,10 @@ private:
   boost::process::group _process_handle;
 
   file_t _pipe;
-  std::vector<cmd_t>::const_iterator _undo_it;
-  std::vector<cmd_t>::const_iterator _undo_begin;
+  std::vector<cmd_t>::const_iterator _app_prep_it;
+  std::vector<cmd_t>::const_iterator _app_prep_begin;
+  std::vector<cmd_t>::const_iterator _global_prep_it;
+  std::vector<cmd_t>::const_iterator _global_prep_begin;
 };
 
 /**
