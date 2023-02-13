@@ -23,8 +23,9 @@ ENTRYPOINT steam && sunshine
 - commit hash
 
 ### SUNSHINE_OS
-Sunshine images are available, based on the following base images.
+Sunshine images are available with the following tag suffixes, based on their respective base images.
 
+- `archlinux`
 - `debian-bullseye`
 - `fedora-36`
 - `fedora-37`
@@ -126,9 +127,13 @@ If you want to change the PUID or PGID after the image has been built, it will r
 Specifying `lizardbyte/sunshine:latest-<SUNSHINE_OS>` or `ghcr.io/lizardbyte/sunshine:latest-<SUNSHINE_OS>` should
 retrieve the correct image for your architecture.
 
-The architectures supported by these images are:
+The architectures supported by these images are shown in the table below.
 
-|  Architecture   | Available |
-|:---------------:|:---------:|
-| amd64 / x86_64  |     ✅     |
-| arm64 / aarch64 |     ✅     |
+| tag suffix      | amd64/x86_64 | arm64/aarch64 |
+|-----------------|--------------|---------------|
+| archlinux       | ✅            | ❌             |
+| debian-bullseye | ✅            | ✅             |
+| fedora-36       | ✅            | ✅             |
+| fedora-37       | ✅            | ✅             |
+| ubuntu-20.04    | ✅            | ✅             |
+| ubuntu-22.04    | ✅            | ✅             |

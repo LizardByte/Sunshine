@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.3] - 2023-02-13
+### Added
+- (Linux) Added PKGBUILD for Archlinux based distros to releases
+- (Linux) Added precompiled package for Archlinux based distros to releases
+- (Docker) Added archlinux docker image (x86_64 only)
+
 ## [0.18.2] - 2023-02-13
 ### Fixed
 - (Video/KMV/Linux) Fixed wayland capture on Nvidia for KMS
@@ -317,3 +323,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.18.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.0
 [0.18.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.1
 [0.18.2]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.2
+[0.18.3]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.3

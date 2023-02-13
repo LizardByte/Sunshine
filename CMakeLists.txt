@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
-project(Sunshine VERSION 0.18.2
+project(Sunshine VERSION 0.18.3
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
 
