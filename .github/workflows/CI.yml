@@ -946,7 +946,7 @@ jobs:
     runs-on: windows-latest  # the required action can only be run on Windows
     steps:
       - name: Release to WinGet
-        uses: vedantmgoyal2009/winget-releaser@v1
+        uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: LizardByte.Sunshine
           release-tag: ${{ needs.setup_release.outputs.release_tag }}
