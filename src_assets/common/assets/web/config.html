@@ -369,6 +369,29 @@
           <br />
         </div>
       </div>
+      <div class="mb-3" v-if="platform === 'macos'">
+        <label for="audio_sink" class="form-label">Audio Sink</label>
+        <input
+          type="text"
+          class="form-control"
+          id="audio_sink"
+          placeholder="BlackHole 2ch"
+          v-model="config.audio_sink"
+        />
+        <div class="form-text">
+          The name of the audio sink used for Audio Loopback<br />
+          Sunshine can only access microphones on macOS due to system limitations.<br />
+          To stream system audio using <a
+            href="https://github.com/mattingalls/Soundflower"
+            target="_blank">
+            Soundflower
+          </a> or <a
+            href="https://github.com/ExistentialAudio/BlackHole"
+            target="_blank">
+            BlackHole
+          </a>.
+        </div>
+      </div>
       <!--Virtual Sink-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="virtual_sink" class="form-label">Virtual Sink</label>
@@ -743,6 +766,29 @@
         </select>
       </div>
       <div class="mb-3">
+        <label for="amd_usage" class="form-label">AMF Usage</label>
+        <select id="amd_usage" class="form-select" v-model="config.amd_usage">
+          <option value="transcoding">transcoding -- transcoding (slowest)</option>
+          <option value="webcam">webcam -- webcam (slow)</option>
+          <option value="lowlatency">lowlatency - low latency (fast)</option>
+          <option value="ultralowlatency">ultralowlatency - ultra low latency (fastest)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
+        <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
+          <option value="enabled">enabled</option>
+          <option value="disabled">disabled (default)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
+        <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
+          <option value="enabled">enabled (default)</option>
+          <option value="disabled">disabled</option>
+        </select>
+      </div>
+      <div class="mb-3">
         <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
         <select id="amd_coder" class="form-select" v-model="config.amd_coder">
           <option value="auto">auto -- let ffmpeg decide (default)</option>
@@ -915,8 +961,11 @@
           this.config.qsv_preset = this.config.qsv_preset || "medium";
           this.config.qsv_coder = this.config.qsv_coder || "auto";
           this.config.amd_coder = this.config.amd_coder || "auto"
+          this.config.amd_preanalysis = this.config.amd_preanalysis || "disabled";
           this.config.amd_quality = this.config.amd_quality || "balanced";
           this.config.amd_rc = this.config.amd_rc || "vbr_latency";
+          this.config.amd_usage = this.config.amd_usage || "ultralowlatency";
+          this.config.amd_vbaq = this.config.amd_vbaq || "enabled";
           this.config.vt_coder = this.config.vt_coder || "auto";
           this.config.vt_software = this.config.vt_software || "auto";
           this.config.vt_realtime = this.config.vt_realtime || "enabled";

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.2] - 2023-02-13
+### Fixed
+- (Video/KMV/Linux) Fixed wayland capture on Nvidia for KMS
+- (Video/Linux) Implement vaSyncBuffer stuf for libva <2.9.0
+- (UI) Fix issue where mime type was not being set for node_modules when using a reverse proxy
+- (UI/macOS) Added missing audio sink config options
+- (Linux) Specify correct Boost dependency versions
+- (Video/AMF) Add missing encoder tunables
+
 ## [0.18.1] - 2023-01-31
 ### Fixed
 - (Linux) Fixed missing dependencies for deb and rpm packages
@@ -307,3 +316,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.17.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.17.0
 [0.18.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.0
 [0.18.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.1
+[0.18.2]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.2

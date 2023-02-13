@@ -539,15 +539,16 @@ static encoder_t amdvce {
   {
     // Common options
     {
-      { "enforce_hrd"s, true },
+      { "filler_data"s, true },
       { "gops_per_idr"s, 1 },
       { "header_insertion_mode"s, "idr"s },
+      { "preanalysis"s, &config::video.amd.preanalysis },
       { "qmax"s, 51 },
       { "qmin"s, 0 },
       { "quality"s, &config::video.amd.quality_hevc },
       { "rc"s, &config::video.amd.rc_hevc },
-      { "usage"s, "ultralowlatency"s },
-      { "vbaq"s, true },
+      { "usage"s, &config::video.amd.usage_hevc },
+      { "vbaq"s, &config::video.amd.vbaq },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -557,14 +558,15 @@ static encoder_t amdvce {
   {
     // Common options
     {
-      { "enforce_hrd"s, true },
+      { "filler_data"s, true },
       { "log_to_dbg"s, "1"s },
+      { "preanalysis"s, &config::video.amd.preanalysis },
       { "qmax"s, 51 },
       { "qmin"s, 0 },
       { "quality"s, &config::video.amd.quality_h264 },
       { "rc"s, &config::video.amd.rc_h264 },
-      { "usage"s, "ultralowlatency"s },
-      { "vbaq"s, true },
+      { "usage"s, &config::video.amd.usage_h264 },
+      { "vbaq"s, &config::video.amd.vbaq },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options

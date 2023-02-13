@@ -38,6 +38,10 @@ struct video_t {
     std::optional<int> quality_hevc;
     std::optional<int> rc_h264;
     std::optional<int> rc_hevc;
+    std::optional<int> usage_h264;
+    std::optional<int> usage_hevc;
+    std::optional<int> preanalysis;
+    std::optional<int> vbaq;
     int coder;
   } amd;
 
