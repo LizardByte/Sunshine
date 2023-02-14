@@ -1,7 +1,7 @@
 ---
 app-id: dev.lizardbyte.sunshine
 runtime: org.freedesktop.Platform
-runtime-version: "21.08"
+runtime-version: "22.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node18
@@ -187,14 +187,14 @@ modules:
       - type: file
         only-arches:
           - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run
-        sha256: 9223c4af3aebe4a7bbed9abd9b163b03a1b34b855fbc2b4a0d1b706ac09a5a16
+        url: https://developer.download.nvidia.com/compute/cuda/12.0.1/local_installers/cuda_12.0.1_525.85.12_linux.run
+        sha256: 1b205a06272f1463f477276fdab903f3f666917c068e520738001e69c7a1875b
         dest-filename: cuda.run
       - type: file
         only-arches:
           - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run  # yamllint disable-line rule:line-length
-        sha256: e6e9a8d31163c9776b5e313fd7590877c5684e1ecddee741154f95704d4ed27c
+        url: https://developer.download.nvidia.com/compute/cuda/12.0.1/local_installers/cuda_12.0.1_525.85.12_linux_sbsa.run  # yamllint disable-line rule:line-length
+        sha256: 835270a8db419b9dbaefc1bab8fe5caf6f2caf381975c4b0d35cc0718c26074a
         dest-filename: cuda.run
 
   - name: sunshine
