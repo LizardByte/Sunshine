@@ -15,13 +15,14 @@ class cursor_t;
 
 namespace platf::x11 {
 
+void freeDisplay(_XDisplay *xdisplay);
+using xdisplay_t   = util::safe_ptr<_XDisplay, freeDisplay>;
+
 #ifdef SUNSHINE_BUILD_X11
 struct cursor_ctx_raw_t;
 void freeCursorCtx(cursor_ctx_raw_t *ctx);
-void freeDisplay(_XDisplay *xdisplay);
 
 using cursor_ctx_t = util::safe_ptr<cursor_ctx_raw_t, freeCursorCtx>;
-using xdisplay_t   = util::safe_ptr<_XDisplay, freeDisplay>;
 
 class cursor_t {
 public:
@@ -43,7 +44,6 @@ public:
 xdisplay_t make_display();
 #else
 // It's never something different from nullptr
-util::safe_ptr<_XDisplay, std::default_delete<_XDisplay>>;
 
 class cursor_t {
 public:
