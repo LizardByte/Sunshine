@@ -17,6 +17,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
 RUN <<_DEPS
 #!/bin/bash
+set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential=12.8* \
@@ -60,6 +61,7 @@ _DEPS
 # https://stackoverflow.com/a/70653945/11214013
 RUN <<_GCC_ALIAS
 #!/bin/bash
+set -e
 update-alternatives --install \
   /usr/bin/gcc gcc /usr/bin/gcc-10 100 \
   --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
@@ -76,6 +78,7 @@ ENV CMAKE_VERSION="3.25.1"
 # hadolint ignore=SC3010
 RUN <<_INSTALL_CMAKE
 #!/bin/bash
+set -e
 cmake_prefix="https://github.com/Kitware/CMake/releases/download/v"
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   cmake_arch="x86_64"
@@ -97,6 +100,7 @@ ENV CUDA_BUILD="520.61.05"
 # hadolint ignore=SC3010
 RUN <<_INSTALL_CUDA
 #!/bin/bash
+set -e
 cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
 if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
@@ -123,6 +127,7 @@ WORKDIR /build/sunshine/build
 # cmake and cpack
 RUN <<_MAKE
 #!/bin/bash
+set -e
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
@@ -152,6 +157,7 @@ COPY --from=artifacts /sunshine*.deb /sunshine.deb
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
+set -e
 apt-get update -y
 apt-get install -y --no-install-recommends /sunshine.deb
 apt-get clean
@@ -176,6 +182,8 @@ ENV HOME=/home/$UNAME
 
 # setup user
 RUN <<_SETUP_USER
+#!/bin/bash
+set -e
 groupadd -f -g "${PGID}" "${UNAME}"
 useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine
