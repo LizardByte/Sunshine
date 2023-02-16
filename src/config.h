@@ -100,6 +100,10 @@ struct input_t {
   std::chrono::duration<double> key_repeat_period;
 
   std::string gamepad;
+
+  bool suppress_keyboard;
+  bool suppress_mouse;
+  bool suppress_gamepad;
 };
 
 namespace flag {
