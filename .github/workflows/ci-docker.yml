@@ -269,7 +269,10 @@ jobs:
             elif [[ $line == "# artifacts: "* && $ARTIFACTS == "" ]]; then
               # echo the line and use `sed` to remove the custom directive
               ARTIFACTS=$(echo -e "$line" | sed 's/# artifacts: //')
-            elif [[ $PLATFORMS != "" && $ARTIFACTS != "" ]]; then
+            elif [[ $line == "# no-cache-filters: "* && $NO_CACHE_FILTERS == "" ]]; then
+              # echo the line and use `sed` to remove the custom directive
+              NO_CACHE_FILTERS=$(echo -e "$line" | sed 's/# no-cache-filters: //')
+            elif [[ $PLATFORMS != "" && $ARTIFACTS != "" && $NO_CACHE_FILTERS != "" ]]; then
               # break while loop once all custom directives are found
               break
             fi
@@ -290,6 +293,7 @@ jobs:
           echo "clone_url=${CLONE_URL}" >> $GITHUB_OUTPUT
           echo "release=${RELEASE}" >> $GITHUB_OUTPUT
           echo "artifacts=${ARTIFACTS}" >> $GITHUB_OUTPUT
+          echo "no_cache_filters=${NO_CACHE_FILTERS}" >> $GITHUB_OUTPUT
           echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
           echo "push=${PUSH}" >> $GITHUB_OUTPUT
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
@@ -345,6 +349,7 @@ jobs:
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+          no-cache-filters: ${{ steps.prepare.outputs.no_cache_filters }}
 
       - name: Build and push
         id: build
@@ -368,6 +373,7 @@ jobs:
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+          no-cache-filters: ${{ steps.prepare.outputs.no_cache_filters }}
 
       - name: Arrange Artifacts
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
@@ -377,6 +383,9 @@ jobs:
           # so move files to the artifacts directory
           # https://unix.stackexchange.com/a/52816
           find ./ -type f -exec mv -t ./ -n '{}' +
+
+          # remove provenance file
+          rm -f ./provenance.json
 
       - name: Upload Artifacts
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}

@@ -2,6 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64
 # archlinux does not have an arm64 base image
+# no-cache-filters: sunshine-base,artifacts,uploader,sunshine
 ARG BASE=archlinux
 ARG TAG=base-devel
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -12,30 +13,14 @@ RUN <<_DEPS
 set -e
 pacman -Syu --noconfirm \
   archlinux-keyring \
-  git
+  git \
+  openssh
 _DEPS
 
 # Setup builder user, arch prevents running makepkg as root
 RUN useradd -m builder && \
     echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-WORKDIR /home/builder
-USER builder
-
-# install paru
-WORKDIR /tmp
-RUN git clone https://aur.archlinux.org/paru.git
-WORKDIR /tmp/paru
-RUN makepkg -si --noconfirm
-
-# install optional dependencies
-RUN paru -Syu --noconfirm \
-  cuda \
-  libcap \
-  libdrm
-
-# switch back to root user, hadolint will complain if last user is root
-# hadolint ignore=DL3002
-USER root
+# makepkg is used in sunshine-build and uploader build stages
 
 FROM sunshine-base as sunshine-build
 
@@ -46,12 +31,16 @@ ARG CLONE_URL
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
+# cuda, libcap, and libdrm are optional dependencies for PKGBUILD
 RUN <<_DEPS
 #!/bin/bash
 set -e
 pacman -Syu --noconfirm \
   base-devel \
   cmake \
+  cuda \
+  libcap \
+  libdrm \
   namcap
 _DEPS
 
@@ -60,7 +49,7 @@ USER builder
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY .. .
+COPY --link .. .
 
 # setup build directory
 WORKDIR /build/sunshine/build
@@ -97,8 +86,8 @@ _PKGBUILD
 
 FROM scratch as artifacts
 
-COPY --from=sunshine-build /build/sunshine/pkg/PKGBUILD /PKGBUILD
-COPY --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
+COPY --link --from=sunshine-build /build/sunshine/pkg/PKGBUILD /PKGBUILD
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
 
 FROM sunshine-base as uploader
 
@@ -109,27 +98,26 @@ ARG BUILD_VERSION
 ARG RELEASE
 ARG TARGETPLATFORM
 
-# Setup builder user
-WORKDIR /home/builder
-USER builder
-
 # hadolint ignore=SC3010
 RUN <<_SSH_CONFIG
 #!/bin/bash
 set -e
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  echo "Host aur.archlinux.org"; echo "  IdentityFile ~/.ssh/aur"; echo "  User aur" >>~/.ssh/config
+  # must create the directory first
+  mkdir -p ~/.ssh
+  # `echo` will not expand \n, so use `printf`
+  printf "Host aur.archlinux.org\n    IdentityFile ~/.ssh/aur\n    User aur" > ~/.ssh/config
 fi
 _SSH_CONFIG
 
-# create and apply secrets, hadolint is giving a false positive
-# hadolint ignore=SC1133
-RUN --mount=type=secret,id=AUR_EMAIL,target=/secrets/AUR_EMAIL \
-    --mount=type=secret,id=AUR_SSH_PRIVATE_KEY,target=/secrets/AUR_SSH_PRIVATE_KEY \
-    --mount=type=secret,id=AUR_USERNAME,target=/secrets/AUR_USERNAME && \
-    cat /secrets/AUR_SSH_PRIVATE_KEY >~/.ssh/aur && \
-    git config --global user.name "$(cat /secrets/AUR_USERNAME)" && \
-    git config --global user.email "$(cat /secrets/AUR_EMAIL)"
+# create and apply secrets
+WORKDIR /home/builder/secrets
+RUN --mount=type=secret,id=AUR_EMAIL \
+    --mount=type=secret,id=AUR_SSH_PRIVATE_KEY \
+    --mount=type=secret,id=AUR_USERNAME \
+    cat /run/secrets/AUR_SSH_PRIVATE_KEY > ~/.ssh/aur && \
+    git config --global user.name "$(cat /run/secrets/AUR_USERNAME)" && \
+    git config --global user.email "$(cat /run/secrets/AUR_EMAIL)"
 
 WORKDIR /tmp
 
@@ -141,25 +129,28 @@ set -e
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   # Adding aur.archlinux.org to known hosts
   ssh_keyscan_types="rsa,dsa,ecdsa,ed25519"
-  ssh-keyscan -v -t "$ssh_keyscan_types" aur.archlinux.org >>~/.ssh/known_hosts
+  ssh-keyscan -v -t "$ssh_keyscan_types" aur.archlinux.org >> ~/.ssh/known_hosts
 
   # Importing private key
   chmod -vR 600 ~/.ssh/aur*
-  ssh-keygen -vy -f ~/.ssh/aur >~/.ssh/aur.pub
+  ssh-keygen -vy -f ~/.ssh/aur > ~/.ssh/aur.pub
 
   # Clone AUR package
   mkdir -p /tmp/local-repo
   git clone -v "https://aur.archlinux.org/sunshine.git" /tmp/local-repo
-
-  # Copy built package
-  COPY --from=artifacts /PRKBUILD /tmp/local-repo/
 fi
 _AUR_SETUP
 
+# Copy built package
+COPY --link --from=artifacts /PRKBUILD /tmp/local-repo/
+COPY --link --from=artifacts /sunshine.pkg.tar.zst /
+
 WORKDIR /tmp/local-repo
-# aur upload if release event
+# Setup builder user, must use non root user for makepkg
+USER builder
+# aur update if release event
 # hadolint ignore=SC3010
-RUN <<_AUR_UPLOAD
+RUN <<_AUR_UPDATE
 #!/bin/bash
 set -e
 if [[ "${RELEASE}" == "true" && "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
@@ -167,8 +158,19 @@ if [[ "${RELEASE}" == "true" && "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   updpkgsums
 
   # generate srcinfo
-  makepkg --printsrcinfo >.SRCINFO
+  makepkg --printsrcinfo > .SRCINFO
+fi
+_AUR_UPDATE
 
+# switch back to root user, since git config is under root, hadolint will complain if last user in stage is root
+# hadolint ignore=DL3002
+USER root
+# aur upload if release event
+# hadolint ignore=SC3010
+RUN <<_AUR_UPLOAD
+#!/bin/bash
+set -e
+if [[ "${RELEASE}" == "true" && "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   # commit changes
   git add --all
 
@@ -181,12 +183,10 @@ if [[ "${RELEASE}" == "true" && "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
 fi
 _AUR_UPLOAD
 
-# remove secrets
-RUN rm -rf /secrets
-
 FROM sunshine-base as sunshine
 
-COPY --from=artifacts /sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
+# copy from uploader instead of artifacts or uploader stage will not run
+COPY --link --from=uploader /sunshine.pkg.tar.zst /
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
@@ -216,7 +216,7 @@ ENV HOME=/home/$UNAME
 RUN <<_SETUP_USER
 #!/bin/bash
 set -e
-# first delete the builder
+# first delete the builder user
 userdel -r builder
 
 # then create the lizard user
