@@ -669,6 +669,21 @@ public:
     return 0;
   }
 
+  int update_gamepad(int nr, rumble_queue_t &&rumble_queue) {
+    TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
+
+    rumble_ctx->rumble_queue_queue.raise(
+      nr,
+      input.get(),
+      std::move(rumble_queue),
+      pollfd_t {
+        dup(libevdev_uinput_get_fd(input.get())),
+        (std::int16_t)POLLIN,
+        (std::int16_t)0,
+      });
+  }
+
+
   void clear() {
     clear_touchscreen();
     clear_keyboard();

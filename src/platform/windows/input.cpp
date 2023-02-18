@@ -97,6 +97,12 @@ public:
     return 0;
   }
 
+  int update_gamepad_interal(int nr, rumble_queue_t &rumble_queue, VIGEM_TARGET_TYPE gp_type) {
+    auto &[rumble, gp] = gamepads[nr];
+    rumble = std::move(rumble_queue);
+    return 0;
+  }
+
   void free_target(int nr) {
     auto &[_, gp] = gamepads[nr];
 
@@ -400,6 +406,16 @@ int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   }
 
   return raw->vigem->alloc_gamepad_interal(nr, rumble_queue, map(config::input.gamepad));
+}
+
+int update_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
+  auto raw = (input_raw_t *)input.get();
+
+  if(!raw->vigem) {
+    return 0;
+  }
+
+  return raw->vigem->update_gamepad_interal(nr, rumble_queue, map(config::input.gamepad));
 }
 
 void free_gamepad(input_t &input, int nr) {

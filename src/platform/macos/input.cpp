@@ -286,6 +286,11 @@ int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   return -1;
 }
 
+int update_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
+  BOOST_LOG(info) << "update_gamepad: Gamepad not yet implemented for MacOS."sv;
+  return -1;
+}
+
 void free_gamepad(input_t &input, int nr) {
   BOOST_LOG(info) << "free_gamepad: Gamepad not yet implemented for MacOS."sv;
 }

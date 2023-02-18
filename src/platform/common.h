@@ -385,6 +385,7 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
 void unicode(input_t &input, char *utf8, int size);
 
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue);
+int update_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue);
 void free_gamepad(input_t &input, int nr);
 
 #define SERVICE_NAME "Sunshine"

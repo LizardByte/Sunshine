@@ -40,11 +40,43 @@ enum class button_state_e {
   UP
 };
 
+static util::TaskPool::task_id_t key_press_repeat_id {};
+static std::unordered_map<short, bool> key_press {};
+static std::array<std::uint8_t, 5> mouse_press {};
+
+static platf::input_t platf_input;
+static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
+static std::bitset<platf::MAX_GAMEPADS> allocatedGamepads {};
+
+/**
+ * This function generates a stream-independent ID for the gamepad
+ * It allocates the gamepad too, if necessary
+ * @tparam N
+ * @param gamepad_mask the global-level gamepad mask for the currently active gamepads
+ * @param allocated_gamepads the global-level gamepad mask for the currently allocated gamepads
+ * @param rumble_queue the stream rumble queue
+ * @return the stream indipendent gamepad id.
+ */
 template<std::size_t N>
-int alloc_id(std::bitset<N> &gamepad_mask) {
+int alloc_id(std::bitset<N> &gamepad_mask, std::bitset<N> &allocated_gamepads, const platf::rumble_queue_t &rumble_queue) {
   for(int x = 0; x < gamepad_mask.size(); ++x) {
     if(!gamepad_mask[x]) {
-      gamepad_mask[x] = true;
+      //Allocate the gamepad if it has not been - if not we reuse the already existing one
+      auto status = -1;
+      if(allocated_gamepads[x]) {
+        status = platf::update_gamepad(platf_input, x, rumble_queue);
+      }
+      else {
+        status = platf::alloc_gamepad(platf_input, x, rumble_queue);
+      }
+      if(status) {
+        gamepad_mask[x] = false;
+        // allocating a gamepad failed: solution: ignore gamepads
+        // The implementations of platf::alloc_gamepad already has logging
+        return -1;
+      }
+      allocated_gamepads[x] = true;
+      gamepad_mask[x]       = true;
       return x;
     }
   }
@@ -52,30 +84,30 @@ int alloc_id(std::bitset<N> &gamepad_mask) {
   return -1;
 }
 
+/**
+ * Frees and resets the gamepad state
+ * @tparam N
+ * @param gamepad_mask the stream gamepad mask
+ * @param id the stream-independent controller id
+ */
 template<std::size_t N>
-void free_id(std::bitset<N> &gamepad_mask, int id) {
+void free_gamepad(std::bitset<N> &gamepad_mask, std::bitset<N> &allocated_gamepads, int id) {
+  platf::gamepad(platf_input, id, platf::gamepad_state_t {});
+
+  if(id != 0 && config::input.keep_first_gamepad) {
+    platf::free_gamepad(platf_input, id);
+    allocated_gamepads[id] = false;
+  }
+
   gamepad_mask[id] = false;
 }
 
-static util::TaskPool::task_id_t key_press_repeat_id {};
-static std::unordered_map<short, bool> key_press {};
-static std::array<std::uint8_t, 5> mouse_press {};
-
-static platf::input_t platf_input;
-static std::bitset<platf::MAX_GAMEPADS> gamepadMask {};
-
-void free_gamepad(platf::input_t &platf_input, int id) {
-  platf::gamepad(platf_input, id, platf::gamepad_state_t {});
-  platf::free_gamepad(platf_input, id);
-
-  free_id(gamepadMask, id);
-}
 struct gamepad_t {
   gamepad_t() : gamepad_state {}, back_timeout_id {}, id { -1 }, back_button_state { button_state_e::NONE } {}
   ~gamepad_t() {
     if(id >= 0) {
       task_pool.push([id = this->id]() {
-        free_gamepad(platf_input, id);
+        free_gamepad(gamepadMask, allocatedGamepads, id);
       });
     }
   }
@@ -494,24 +526,16 @@ int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std
           return -1;
         }
 
-        free_gamepad(platf_input, gamepad.id);
+        free_gamepad(gamepadMask, allocatedGamepads, gamepad.id);
         gamepad.id = -1;
       }
       else {
-        auto id = alloc_id(gamepadMask);
+        auto id = alloc_id(gamepadMask, allocatedGamepads, rumble_queue);
 
         if(id < 0) {
           // Out of gamepads
           return -1;
         }
-
-        if(platf::alloc_gamepad(platf_input, id, rumble_queue)) {
-          free_id(gamepadMask, id);
-          // allocating a gamepad failed: solution: ignore gamepads
-          // The implementations of platf::alloc_gamepad already has logging
-          return -1;
-        }
-
         gamepad.id = id;
       }
     }
@@ -686,6 +710,16 @@ public:
 [[nodiscard]] std::unique_ptr<platf::deinit_t> init() {
   platf_input = platf::input();
 
+  if(config::input.keep_first_gamepad) {
+    //Create a dummy first gamepad that does not disconnect across sessions
+    auto dummy_mail = std::make_shared<safe::mail_raw_t>();
+    auto input      = std::make_shared<input_t>(
+      dummy_mail->event<input::touch_port_t>(mail::touch_port),
+      dummy_mail->queue<platf::rumble_t>(mail::rumble));
+    if(!platf::alloc_gamepad(platf_input, 0, input->rumble_queue)) {
+      allocatedGamepads[0] = true;
+    }
+  }
   return std::make_unique<deinit_t>();
 }
 

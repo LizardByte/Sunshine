@@ -99,6 +99,18 @@
         </select>
         <div class="form-text">Choose which type of gamepad to Emulate on the host</div>
       </div>
+      <!--Keep First Gamepad-->
+      <div class="mb-3">
+        <label for="keep_first_gamepad" class="form-label">Keep First Gamepad Connected</label>
+        <select id="keep_first_gamepad" class="form-select" v-model="config.keep_first_gamepad">
+          <option value="enabled">Enabled</option>
+          <option value="disabled">Disabled</option>
+        </select>
+        <div class="form-text">
+          If enabled, Sunshine creates a gamepad on start and keeps it connected across sessions.<br>
+          It can be useful if streaming games that do not behave correctly with controller hotplugging.
+        </div>
+      </div>
       <!--Ping Timeout-->
       <div class="mb-3">
         <label for="ping_timeout" class="form-label">Ping Timeout</label>
@@ -922,6 +934,7 @@
           this.config.key_rightalt_to_key_win =
             this.config.key_rightalt_to_key_win || "disabled";
           this.config.gamepad = this.config.gamepad || "x360";
+          this.config.keep_first_gamepad = this.config.keep_first_gamepad || "disabled";
           this.config.upnp = this.config.upnp || "disabled";
           this.config.dwmflush = this.config.dwmflush || "enabled";
           this.config.min_log_level = this.config.min_log_level || 2;
