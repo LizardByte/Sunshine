@@ -813,8 +813,8 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows.exe
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows.zip
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
