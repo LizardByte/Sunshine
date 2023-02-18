@@ -16,6 +16,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3041
 RUN <<_DEPS
 #!/bin/bash
+set -e
 dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
@@ -61,6 +62,7 @@ ENV CUDA_BUILD="525.60.13"
 # hadolint ignore=SC3010
 RUN <<_INSTALL_CUDA
 #!/bin/bash
+set -e
 cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
 if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
@@ -87,6 +89,7 @@ WORKDIR /build/sunshine/build
 # cmake and cpack
 RUN <<_MAKE
 #!/bin/bash
+set -e
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
@@ -116,6 +119,7 @@ COPY --from=artifacts /sunshine*.rpm /sunshine.rpm
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
+set -e
 dnf -y update
 dnf -y install /sunshine.rpm
 dnf clean all
@@ -140,6 +144,8 @@ ENV HOME=/home/$UNAME
 
 # setup user
 RUN <<_SETUP_USER
+#!/bin/bash
+set -e
 groupadd -f -g "${PGID}" "${UNAME}"
 useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine

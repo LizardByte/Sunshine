@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
-project(Sunshine VERSION 0.18.1
+project(Sunshine VERSION 0.18.3
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
 
@@ -789,10 +789,10 @@ elseif(UNIX)
         set(CPACK_DEB_COMPONENT_INSTALL ON)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                 ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
-                libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, \
-                libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, \
-                libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, \
-                libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, \
+                libboost-filesystem${Boost_VERSION}, \
+                libboost-log${Boost_VERSION}, \
+                libboost-program-options${Boost_VERSION}, \
+                libboost-thread${Boost_VERSION}, \
                 libcap2, \
                 libcurl4, \
                 libdrm2, \
@@ -808,10 +808,10 @@ elseif(UNIX)
                 openssl | libssl3")
         set(CPACK_RPM_PACKAGE_REQUIRES "\
                 ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
-                boost-filesystem >= 1.67.0, \
-                boost-log >= 1.67.0, \
-                boost-program-options >= 1.67.0, \
-                boost-thread >= 1.67.0, \
+                boost-filesystem >= ${Boost_VERSION}, \
+                boost-log >= ${Boost_VERSION}, \
+                boost-program-options >= ${Boost_VERSION}, \
+                boost-thread >= ${Boost_VERSION}, \
                 libcap >= 2.22, \
                 libcurl >= 7.0, \
                 libdrm >= 2.4.97, \
