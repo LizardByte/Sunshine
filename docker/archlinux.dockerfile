@@ -2,7 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64
 # archlinux does not have an arm64 base image
-# no-cache-filters: sunshine-base,artifacts,uploader,sunshine
+# no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=archlinux
 ARG TAG=base-devel
 FROM ${BASE}:${TAG} AS sunshine-base

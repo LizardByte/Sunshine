@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.18.4] - 2023-02-16
+## [0.18.4] - 2023-02-20
 ### Fixed
 - (Linux/AUR) Drop support of AUR package
 - (Docker) General enhancements to docker images
