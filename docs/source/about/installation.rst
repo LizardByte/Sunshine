@@ -238,7 +238,7 @@ Windows
 
 Installer
 ^^^^^^^^^
-#. Download and install ``sunshine-windows.exe``
+#. Download and install ``sunshine-windows-installer.exe``
 
 .. Attention:: You should carefully select or unselect the options you want to install. Do not blindly install or enable
    features.
@@ -248,7 +248,7 @@ menu. Different versions of Windows may provide slightly different steps for uni
 
 Standalone
 ^^^^^^^^^^
-#. Download and extract ``sunshine-windows.zip``
+#. Download and extract ``sunshine-windows-portable.zip``
 
 To uninstall, delete the extracted directory which contains the ``sunshine.exe`` file.
 
