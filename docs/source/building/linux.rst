@@ -16,6 +16,7 @@ Install Requirements
           cmake \
           libavdevice-dev \
           libboost-filesystem-dev \
+          libboost-locale-dev \
           libboost-log-dev \
           libboost-program-options-dev \
           libboost-thread-dev \

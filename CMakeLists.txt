@@ -78,7 +78,7 @@ if(WIN32)
     set(Boost_NO_BOOST_CMAKE ON) # cmake-lint: disable=C0103
 endif()
 
-find_package(Boost COMPONENTS log filesystem program_options REQUIRED)
+find_package(Boost COMPONENTS log filesystem program_options locale REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
