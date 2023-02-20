@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.18.4] - 2023-02-20
+### Fixed
+- (Linux/AUR) Drop support of AUR package
+- (Docker) General enhancements to docker images
+
 ## [0.18.3] - 2023-02-13
 ### Added
 - (Linux) Added PKGBUILD for Archlinux based distros to releases
