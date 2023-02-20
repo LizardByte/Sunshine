@@ -366,10 +366,6 @@ jobs:
             COMMIT=${{ steps.prepare.outputs.commit }}
             CLONE_URL=${{ steps.prepare.outputs.clone_url }}
             RELEASE=${{ steps.prepare.outputs.release }}
-          secrets: |
-            "AUR_EMAIL=${{ secrets.AUR_EMAIL }}"
-            "AUR_SSH_PRIVATE_KEY=${{ secrets.AUR_SSH_PRIVATE_KEY }}"
-            "AUR_USERNAME=${{ secrets.AUR_USERNAME }}"
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache

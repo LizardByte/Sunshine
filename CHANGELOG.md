@@ -2,7 +2,7 @@
 
 ## [0.18.4] - 2023-02-16
 ### Fixed
-- (Linux/AUR) Attempt to fix publishing of AUR package
+- (Linux/AUR) Drop support of AUR package
 - (Docker) General enhancements to docker images
 
 ## [0.18.3] - 2023-02-13
