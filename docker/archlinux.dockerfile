@@ -12,9 +12,7 @@ RUN <<_DEPS
 #!/bin/bash
 set -e
 pacman -Syu --noconfirm \
-  archlinux-keyring \
-  git \
-  openssh
+  archlinux-keyring
 _DEPS
 
 # Setup builder user, arch prevents running makepkg as root
