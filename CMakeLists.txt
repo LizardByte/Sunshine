@@ -233,7 +233,7 @@ elseif(APPLE)
             src/platform/macos/display.mm
             src/platform/macos/input.cpp
             src/platform/macos/microphone.mm
-            src/platform/macos/misc.cpp
+            src/platform/macos/misc.mm
             src/platform/macos/misc.h
             src/platform/macos/nv12_zero_device.cpp
             src/platform/macos/nv12_zero_device.h
@@ -620,6 +620,8 @@ endif()
 
 if(APPLE)
     target_link_options(sunshine PRIVATE LINKER:-sectcreate,__TEXT,__info_plist,${APPLE_PLIST_FILE})
+    # Tell linker to dynamically load these symbols at runtime, in case they're unavailable:
+    target_link_options(sunshine PRIVATE -Wl,-U,_CGPreflightScreenCaptureAccess -Wl,-U,_CGRequestScreenCaptureAccess)
 endif()
 
 foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
