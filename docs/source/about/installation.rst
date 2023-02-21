@@ -35,8 +35,7 @@ CUDA is used for NVFBC capture.
    ===========================================  ==============   ==============    ================================
    Package                                      CUDA Version     Min Driver        CUDA Compute Capabilities
    ===========================================  ==============   ==============    ================================
-   https://aur.archlinux.org/packages/sunshine  User dependent   User dependent    User dependent
-   PKGBUILD                                     11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
+   PKGBUILD                                     User dependent   User dependent    User dependent
    sunshine.AppImage                            11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
    sunshine.pkg.tar.zst                         11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
    sunshine_{arch}.flatpak                      11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
@@ -79,21 +78,6 @@ Uninstall:
    .. code-block:: bash
 
       ./sunshine.AppImage --remove
-
-Archlinux AUR Package
-^^^^^^^^^^^^^^^^^^^^^
-#. Open terminal and run the following code.
-
-   .. code-block:: bash
-
-      git clone https://aur.archlinux.org/sunshine.git
-      cd sunshine
-      makepkg -fi
-
-Uninstall:
-   .. code-block:: bash
-
-      pacman -R sunshine
 
 Archlinux PKGBUILD
 ^^^^^^^^^^^^^^^^^^
@@ -254,7 +238,7 @@ Windows
 
 Installer
 ^^^^^^^^^
-#. Download and install ``sunshine-windows.exe``
+#. Download and install ``sunshine-windows-installer.exe``
 
 .. Attention:: You should carefully select or unselect the options you want to install. Do not blindly install or enable
    features.
@@ -264,7 +248,7 @@ menu. Different versions of Windows may provide slightly different steps for uni
 
 Standalone
 ^^^^^^^^^^
-#. Download and extract ``sunshine-windows.zip``
+#. Download and extract ``sunshine-windows-portable.zip``
 
 To uninstall, delete the extracted directory which contains the ``sunshine.exe`` file.
 

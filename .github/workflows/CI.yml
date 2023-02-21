@@ -477,7 +477,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl node opus
+          brew install boost cmake curl node opus pkg-config
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
@@ -813,8 +813,8 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows.exe
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows.zip
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
