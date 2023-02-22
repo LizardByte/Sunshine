@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -10,17 +11,27 @@
     <link href="/node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
     <script src="/node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/node_modules/vue/dist/vue.min.js"></script>
+    <script src="/styles/main.css"></script>
+
   </head>
 
   <body>
-    <nav
-      class="navbar navbar-expand-lg navbar-light"
-      style="background-color: #ffc400"
-    >
+    <nav class="navbar navbar-expand-lg bg-primary">
       <div class="container-fluid">
         <a class="navbar-brand" href="/" title="Sunshine">
           <img src="/images/logo-sunshine-45.png" height="45" alt="Sunshine">
         </a>
+        <div id="toggleTheme" class="dropdown">
+          <button class="btn btn-primary dropdown-toggle" type="button" id="toggleThemeMenu" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-fw fa-brush"></i>
+            <span class="sr-only">Theme</span>
+          </button>
+          <ul class="dropdown-menu" aria-labelledby="toggleThemeMenu">
+            <li><button data-bs-theme="light" class="dropdown-item active"><i class="fas fa-fw fa-sun"></i>Light</button></li>
+            <li><button data-bs-theme="dark" class="dropdown-item"><i class="fas fa-fw fa-moon"></i>Dark</button></li>
+            <li><button data-bs-theme="auto" class="dropdown-item"><i class="fas fa-fw fa-adjust"></i>Auto</button></li>
+          </ul>
+        </div>
         <button
           class="navbar-toggler"
           type="button"
@@ -56,25 +67,7 @@
         </div>
       </div>
     </nav>
-  </body>
-</html>
 
-<script>
-  let el = document.querySelector("a[href='"+document.location.pathname+"']");
-  if(el)el.classList.add("active")
-</script>
 
-<style>
-  .nav-link.active {
-    font-weight: 500;
-  }
-</style>
 
-<!-- Discord WidgetBot Crate-->
-<script src="https://cdn.jsdelivr.net/npm/@widgetbot/crate@3" async defer>
-  new Crate({
-    server: '804382334370578482',
-    channel: '804383092822900797',
-    defer: false,
-  })
-</script>
+

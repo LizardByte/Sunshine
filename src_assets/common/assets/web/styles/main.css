@@ -1,0 +1,35 @@
+.nav-link.active {
+  font-weight: 500;
+}
+
+
+
+
+:root,
+[data-bs-theme=light] {
+  --bs-primary-rgb: 255, 196, 0;
+}
+
+[data-bs-theme=dark] {
+  --bs-primary-rgb: 25, 27, 30;
+}
+
+
+#toggleTheme {
+  margin-left: auto;
+  margin-right: 10px;
+}
+
+#toggleTheme .dropdown-menu {
+  left: unset;
+  right: 0;
+}
+
+@media(min-width:992px) {
+  #toggleTheme {
+    position: absolute;
+    right: 0;
+  }
+}
+
+html[data-bs-theme="dark"] .bg-primary {}
