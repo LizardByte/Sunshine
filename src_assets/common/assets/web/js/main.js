@@ -1,4 +1,3 @@
-
 var sunshineUI = {
   init: function(){
     sunshineUI.toggleTheme();
@@ -32,7 +31,6 @@ var sunshineUI = {
       element.classList.remove('active');
     });
     
-    
     //If it's the auto theme, determine what the computer prefers
     if(theme == "auto"){
       if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
@@ -50,7 +48,6 @@ var sunshineUI = {
 	}
 }
 
-
 //document click events
 document.addEventListener('click', function (event) {
   //Toggle: Theme picker
@@ -61,7 +58,6 @@ document.addEventListener('click', function (event) {
 }, false);
 
 sunshineUI.init();
-
 
 function getCookie (name) {
 	let value = `; ${document.cookie}`;

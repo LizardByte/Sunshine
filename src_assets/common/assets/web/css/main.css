@@ -2,9 +2,7 @@
   font-weight: 500;
 }
 
-
-
-
+/*Theme specific styles*/
 :root,
 [data-bs-theme=light] {
   --bs-primary-rgb: 255, 196, 0;
@@ -15,6 +13,7 @@
 }
 
 
+/*Toggle theme menu*/
 #toggleTheme {
   margin-left: auto;
   margin-right: 10px;
@@ -32,4 +31,5 @@
   }
 }
 
+/*For future use, if needed*/
 html[data-bs-theme="dark"] .bg-primary {}
