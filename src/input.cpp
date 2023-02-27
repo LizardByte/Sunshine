@@ -263,7 +263,7 @@ void print(void *payload) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
-  if(config::input.suppress_mouse) {
+  if(!config::input.mouse) {
     return;
   }
 
@@ -272,7 +272,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET pack
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
-  if(config::input.suppress_mouse) {
+  if(!config::input.mouse) {
     return;
   }
 
@@ -321,7 +321,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
-  if(config::input.suppress_mouse) {
+  if(!config::input.mouse) {
     return;
   }
 
@@ -442,7 +442,7 @@ void repeat_key(short key_code) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
-  if(config::input.suppress_keyboard) {
+  if(!config::input.keyboard) {
     return;
   }
 
@@ -483,7 +483,7 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
 }
 
 void passthrough(PNV_SCROLL_PACKET packet) {
-  if(config::input.suppress_mouse) {
+  if(!config::input.mouse) {
     return;
   }
 
@@ -491,7 +491,7 @@ void passthrough(PNV_SCROLL_PACKET packet) {
 }
 
 void passthrough(PSS_HSCROLL_PACKET packet) {
-  if(config::input.suppress_mouse) {
+  if(!config::input.mouse) {
     return;
   }
 
@@ -499,7 +499,7 @@ void passthrough(PSS_HSCROLL_PACKET packet) {
 }
 
 void passthrough(PNV_UNICODE_PACKET packet) {
-  if(config::input.suppress_keyboard) {
+  if(!config::input.keyboard) {
     return;
   }
 
@@ -549,7 +549,7 @@ int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
-  if(config::input.suppress_gamepad) {
+  if(!config::input.controller) {
     return;
   }
 

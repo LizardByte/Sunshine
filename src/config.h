@@ -101,9 +101,9 @@ struct input_t {
 
   std::string gamepad;
 
-  bool suppress_keyboard;
-  bool suppress_mouse;
-  bool suppress_gamepad;
+  bool keyboard;
+  bool mouse;
+  bool controller;
 };
 
 namespace flag {

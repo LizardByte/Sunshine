@@ -951,9 +951,9 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 
   string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
 
-  bool_f(vars, "suppress_mouse", input.suppress_mouse);
-  bool_f(vars, "suppress_keyboard", input.suppress_keyboard);
-  bool_f(vars, "suppress_gamepad", input.suppress_gamepad);
+  bool_f(vars, "mouse", input.mouse);
+  bool_f(vars, "keyboard", input.keyboard);
+  bool_f(vars, "controller", input.controller);
 
   int port = sunshine.port;
   int_f(vars, "port"s, port);

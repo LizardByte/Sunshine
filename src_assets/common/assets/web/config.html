@@ -297,55 +297,55 @@
           If back_button_timeout &lt; 0, then the Home/Guide button will not be emulated<br />
         </div>
       </div>
-      <!--Suppress Mouse Input-->
+      <!--Enable Mouse Input-->
       <div class="mb-3">
-        <label for="suppress_mouse" class="form-label"
-          >Suppress Mouse Input</label
+        <label for="mouse" class="form-label"
+          >Enable Mouse Input</label
         >
         <select
-          id="suppress_mouse"
+          id="mouse"
           class="form-select"
-          v-model="config.suppress_mouse"
+          v-model="config.mouse"
         >
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
         <div class="form-text">
-          When enabled, prevents guests from being able to control the host system with the mouse
+          Allows guests to control the host system with the mouse
         </div>
       </div>
-      <!--Suppress Keyboard Input-->
+      <!--Enable Keyboard Input-->
       <div class="mb-3">
-        <label for="suppress_keyboard" class="form-label"
-          >Suppress keyboard Input</label
+        <label for="keyboard" class="form-label"
+          >Enable Keyboard Input</label
         >
         <select
-          id="suppress_keyboard"
+          id="keyboard"
           class="form-select"
-          v-model="config.suppress_keyboard"
+          v-model="config.keyboard"
         >
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
         <div class="form-text">
-          When enabled, prevents guests from being able to control the host system with the keyboard
+          Allows guests to control the host system with the keyboard
         </div>
       </div>
-      <!--Suppress Gamepad Input-->
+      <!--Enable Gamepad Input-->
       <div class="mb-3">
-        <label for="suppress_gamepad" class="form-label"
-          >Suppress Gamepad Input</label
+        <label for="gamepad" class="form-label"
+          >Enable Gamepad Input</label
         >
         <select
-          id="suppress_gamepad"
+          id="gamepad"
           class="form-select"
-          v-model="config.suppress_gamepad"
+          v-model="config.controller"
         >
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
         <div class="form-text">
-          When enabled, prevents guests from being able to control the host system with a gamepad
+          Allows guests to control the host system with a gamepad / controller
         </div>
       </div>
       <!-- Key Repeat Delay-->
@@ -1003,9 +1003,9 @@
             this.config.origin_pin_allowed || "pc";
           this.config.origin_web_ui_allowed =
             this.config.origin_web_ui_allowed || "lan";
-          this.config.suppress_mouse = this.config.suppress_mouse || "disabled";
-          this.config.suppress_keyboard = this.config.suppress_keyboard || "disabled";
-          this.config.suppress_gamepad = this.config.suppress_gamepad || "disabled";
+          this.config.mouse = this.config.mouse || "enabled";
+          this.config.keyboard = this.config.keyboard || "enabled";
+          this.config.controller = this.config.controller || "enabled";
           this.config.hevc_mode = this.config.hevc_mode || 0;
           this.config.encoder = this.config.encoder || "";
           this.config.nv_preset = this.config.nv_preset || "p4";
