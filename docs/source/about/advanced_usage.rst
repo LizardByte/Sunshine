@@ -436,6 +436,9 @@ virtual_sink
 **Description**
    The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio, while muting
    the speakers.
+   
+   If you don't have a secondary audio device to asign here, you need to install something like `VB Cable <https://vb-audio.com/Cable/index.htm>`_. 
+   You'll want to restart your computer, run audio-info and get the ID of the new audio device to use as virtual_sink. You also need to leave audio_sink empty for it to work properly. 
 
    .. Tip:: See `audio_sink`_!
 
