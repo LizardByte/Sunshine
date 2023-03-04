@@ -760,6 +760,10 @@ public:
     for(int x = 0; x < gamepads.size(); ++x) {
       clear_gamepad(x);
     }
+    if (display) {
+      x11::CloseDisplay(display);
+      display = nullptr;
+    }
   }
 
   ~input_raw_t() {
@@ -987,6 +991,9 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
 
 static void x_abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if (!xdisplay) {
+    return;
+  }
   x11::tst::FakeMotionEvent(xdisplay, -1, x, y, CurrentTime);
   x11::Flush(xdisplay);
 }
@@ -1011,6 +1018,9 @@ void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y)
 
 static void x_move_mouse(input_t &input, int deltaX, int deltaY) {
   Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if (!xdisplay) {
+    return;
+  }
   x11::tst::FakeRelativeMotionEvent(xdisplay, deltaX, deltaY, CurrentTime);
   x11::Flush(xdisplay);
 }
@@ -1055,6 +1065,9 @@ static void x_button_mouse(input_t &input, int button, bool release) {
   }
 
   Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if (!xdisplay) {
+    return;
+  }
   x11::tst::FakeButtonEvent(xdisplay, x_button, !release, CurrentTime);
   x11::Flush(xdisplay);
 }
@@ -1096,8 +1109,12 @@ void button_mouse(input_t &input, int button, bool release) {
 }
 
 static void x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
-  const int button = distance > 0 ? button_pos : button_neg;
   Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if (!xdisplay) {
+    return;
+  }
+
+  const int button = distance > 0 ? button_pos : button_neg;
   for (int i = 0; i < abs(distance); i++) {
     x11::tst::FakeButtonEvent(xdisplay, button, true, CurrentTime);
     x11::tst::FakeButtonEvent(xdisplay, button, false, CurrentTime);
@@ -1148,6 +1165,9 @@ static void x_keyboard(input_t &input, uint16_t modcode, bool release) {
   }
 
   Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if (!xdisplay) {
+    return;
+  }
 
   const auto keycode_x = XKeysymToKeycode(xdisplay, keycode.keysym);
   if (keycode_x == 0) {
@@ -1433,24 +1453,27 @@ input_t input() {
   gp.gamepads.resize(MAX_GAMEPADS);
 
   // Ensure starting from clean slate
-  x11::init();
-  x11::tst::init();
-
-  x11::InitThreads();
   gp.clear();
   gp.keyboard_dev = keyboard();
   gp.touch_dev    = touchscreen();
   gp.mouse_dev    = mouse();
   gp.gamepad_dev  = x360();
-  gp.display      = x11::OpenDisplay(NULL);
 
   gp.create_mouse();
   gp.create_touchscreen();
   gp.create_keyboard();
 
   // If we do not have a keyboard, touchscreen, or mouse, fall back to XTest
-  if(!gp.mouse_input && !gp.touch_input && !gp.keyboard_input) {
-    BOOST_LOG(error) << "Unable to create any input devices! Falling back to XTest! Are you a member of the 'input' group?"sv;
+  if(!gp.mouse_input || !gp.touch_input || !gp.keyboard_input) {
+    BOOST_LOG(error) << "Unable to create some input devices! Are you a member of the 'input' group?"sv;
+
+    if (x11::init() || x11::tst::init()) {
+      BOOST_LOG(error) << "Unable to initialize X11 and/or XTest fallback"sv;
+    } else {
+      BOOST_LOG(info) << "Falling back to XTest"sv;
+      x11::InitThreads();
+      gp.display = x11::OpenDisplay(NULL);
+    }
   }
 
   return result;
@@ -1458,9 +1481,6 @@ input_t input() {
 
 void freeInput(void *p) {
   auto *input = (input_raw_t *)p;
-  if (input->display) {
-    x11::CloseDisplay(input->display);
-  }
   delete input;
 }
 
