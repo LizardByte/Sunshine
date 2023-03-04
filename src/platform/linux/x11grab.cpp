@@ -66,7 +66,7 @@ _FN(FreeScreenResources, void, (XRRScreenResources * resources));
 _FN(FreeOutputInfo, void, (XRROutputInfo * outputInfo));
 _FN(FreeCrtcInfo, void, (XRRCrtcInfo * crtcInfo));
 
-int init() {
+static int init() {
   static void *handle { nullptr };
   static bool funcs_loaded = false;
 
@@ -100,7 +100,7 @@ int init() {
 namespace fix {
 _FN(GetCursorImage, XFixesCursorImage *, (Display * dpy));
 
-int init() {
+static int init() {
   static void *handle { nullptr };
   static bool funcs_loaded = false;
 
@@ -126,7 +126,7 @@ int init() {
 }
 } // namespace fix
 
-int init() {
+static int init() {
   static void *handle { nullptr };
   static bool funcs_loaded = false;
 

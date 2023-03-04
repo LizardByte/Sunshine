@@ -19,6 +19,8 @@
 
 #include "src/platform/common.h"
 
+#include "misc.h"
+
 // Support older versions
 #ifndef REL_HWHEEL_HI_RES
 #define REL_HWHEEL_HI_RES 0x0c
@@ -29,7 +31,82 @@
 #endif
 
 using namespace std::literals;
+
 namespace platf {
+namespace x11 {
+#define _FN(x, ret, args)    \
+  typedef ret(*x##_fn) args; \
+  static x##_fn x
+
+_FN(OpenDisplay, Display *, (_Xconst char *display_name));
+_FN(CloseDisplay, int, (Display * display));
+_FN(InitThreads, Status, (void));
+_FN(Flush, int, (Display *));
+
+namespace tst {
+_FN(FakeMotionEvent, int, (Display * dpy, int screen_numer, int x, int y, unsigned long delay));
+_FN(FakeRelativeMotionEvent, int, (Display * dpy, int deltaX, int deltaY, unsigned long delay));
+_FN(FakeButtonEvent, int, (Display * dpy, unsigned int button, Bool is_press, unsigned long delay));
+_FN(FakeKeyEvent, int, (Display * dpy, unsigned int keycode, Bool is_press, unsigned long delay));
+
+static int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libXtst.so.6", "libXtst.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&FakeMotionEvent, "XTestFakeMotionEvent" },
+    { (dyn::apiproc *)&FakeRelativeMotionEvent, "XTestFakeRelativeMotionEvent" },
+    { (dyn::apiproc *)&FakeButtonEvent, "XTestFakeButtonEvent" },
+    { (dyn::apiproc *)&FakeKeyEvent, "XTestFakeKeyEvent" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+} // namespace tst
+
+static int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libX11.so.6", "libX11.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&OpenDisplay, "XOpenDisplay" },
+    { (dyn::apiproc *)&CloseDisplay, "XCloseDisplay" },
+    { (dyn::apiproc *)&InitThreads, "XInitThreads" },
+    { (dyn::apiproc *)&Flush, "XFlush" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+} // namespace x11
+
 constexpr auto mail_evdev = "platf::evdev"sv;
 
 using evdev_t  = util::safe_ptr<libevdev, libevdev_free>;
@@ -910,8 +987,8 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
 
 static void x_abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   Display *xdisplay = ((input_raw_t *)input.get())->display;
-  XTestFakeMotionEvent(xdisplay, -1, x, y, CurrentTime);
-  XFlush(xdisplay);
+  x11::tst::FakeMotionEvent(xdisplay, -1, x, y, CurrentTime);
+  x11::Flush(xdisplay);
 }
 
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
@@ -934,8 +1011,8 @@ void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y)
 
 static void x_move_mouse(input_t &input, int deltaX, int deltaY) {
   Display *xdisplay = ((input_raw_t *)input.get())->display;
-  XTestFakeRelativeMotionEvent(xdisplay, deltaX, deltaY, CurrentTime);
-  XFlush(xdisplay);
+  x11::tst::FakeRelativeMotionEvent(xdisplay, deltaX, deltaY, CurrentTime);
+  x11::Flush(xdisplay);
 }
 
 void move_mouse(input_t &input, int deltaX, int deltaY) {
@@ -978,8 +1055,8 @@ static void x_button_mouse(input_t &input, int button, bool release) {
   }
 
   Display *xdisplay = ((input_raw_t *)input.get())->display;
-  XTestFakeButtonEvent(xdisplay, x_button, !release, CurrentTime);
-  XFlush(xdisplay);
+  x11::tst::FakeButtonEvent(xdisplay, x_button, !release, CurrentTime);
+  x11::Flush(xdisplay);
 }
 
 void button_mouse(input_t &input, int button, bool release) {
@@ -1022,10 +1099,10 @@ static void x_scroll(input_t &input, int distance, int button_pos, int button_ne
   const int button = distance > 0 ? button_pos : button_neg;
   Display *xdisplay = ((input_raw_t *)input.get())->display;
   for (int i = 0; i < abs(distance); i++) {
-    XTestFakeButtonEvent(xdisplay, button, true, CurrentTime);
-    XTestFakeButtonEvent(xdisplay, button, false, CurrentTime);
+    x11::tst::FakeButtonEvent(xdisplay, button, true, CurrentTime);
+    x11::tst::FakeButtonEvent(xdisplay, button, false, CurrentTime);
   }
-  XFlush(xdisplay);
+  x11::Flush(xdisplay);
 }
 
 void scroll(input_t &input, int high_res_distance) {
@@ -1077,8 +1154,8 @@ static void x_keyboard(input_t &input, uint16_t modcode, bool release) {
     return;
   }
 
-  XTestFakeKeyEvent(xdisplay, keycode_x, !release, CurrentTime);
-  XFlush(xdisplay);
+  x11::tst::FakeKeyEvent(xdisplay, keycode_x, !release, CurrentTime);
+  x11::Flush(xdisplay);
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
@@ -1356,13 +1433,16 @@ input_t input() {
   gp.gamepads.resize(MAX_GAMEPADS);
 
   // Ensure starting from clean slate
-  XInitThreads();
+  x11::init();
+  x11::tst::init();
+
+  x11::InitThreads();
   gp.clear();
   gp.keyboard_dev = keyboard();
   gp.touch_dev    = touchscreen();
   gp.mouse_dev    = mouse();
   gp.gamepad_dev  = x360();
-  gp.display      = XOpenDisplay(NULL);
+  gp.display      = x11::OpenDisplay(NULL);
 
   gp.create_mouse();
   gp.create_touchscreen();
@@ -1379,7 +1459,7 @@ input_t input() {
 void freeInput(void *p) {
   auto *input = (input_raw_t *)p;
   if (input->display) {
-    XCloseDisplay(input->display);
+    x11::CloseDisplay(input->display);
   }
   delete input;
 }

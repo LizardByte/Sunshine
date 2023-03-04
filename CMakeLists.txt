@@ -296,8 +296,6 @@ else()
         add_compile_definitions(SUNSHINE_BUILD_CUDA)
     endif()
 
-    list(APPEND PLATFORM_LIBRARIES Xtst)
-
     if(LIBDRM_FOUND AND LIBCAP_FOUND)
         add_compile_definitions(SUNSHINE_BUILD_DRM)
         include_directories(${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
