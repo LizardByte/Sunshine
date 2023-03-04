@@ -4,10 +4,13 @@
 
 #include <libevdev/libevdev-uinput.h>
 #include <libevdev/libevdev.h>
+
+#ifdef SUNSHINE_BUILD_X11
 #include <X11/extensions/XTest.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <X11/keysymdef.h>
+#endif
 
 #include <cmath>
 #include <cstring>
@@ -128,7 +131,10 @@ using mail_evdev_t = std::tuple<int, uinput_t::pointer, rumble_queue_t, pollfd_t
 struct keycode_t {
   std::uint32_t keycode;
   std::uint32_t scancode;
+
+#ifdef SUNSHINE_BUILD_X11
   KeySym keysym;
+#endif
 };
 
 constexpr auto UNKNOWN = 0;
@@ -136,10 +142,17 @@ constexpr auto UNKNOWN = 0;
 static constexpr std::array<keycode_t, 0xE3> init_keycodes() {
   std::array<keycode_t, 0xE3> keycodes {};
 
-#define __CONVERT(wincode, linuxcode, scancode, keysym)                                       \
+#ifdef SUNSHINE_BUILD_X11
+#define __CONVERT(wincode, linuxcode, scancode, keysym)                               \
   static_assert(wincode < keycodes.size(), "Keycode doesn't fit into keycode array"); \
   static_assert(wincode >= 0, "Are you mad?, keycode needs to be greater than zero"); \
   keycodes[wincode] = keycode_t { linuxcode, scancode, keysym };
+#else
+#define __CONVERT(wincode, linuxcode, scancode)                                       \
+  static_assert(wincode < keycodes.size(), "Keycode doesn't fit into keycode array"); \
+  static_assert(wincode >= 0, "Are you mad?, keycode needs to be greater than zero"); \
+  keycodes[wincode] = keycode_t { linuxcode, scancode };
+#endif
 
 __CONVERT(0x08 /* VKEY_BACK */, KEY_BACKSPACE, 0x7002A, XK_BackSpace);
 __CONVERT(0x09 /* VKEY_TAB */, KEY_TAB, 0x7002B, XK_Tab);
@@ -762,10 +775,13 @@ public:
     for(int x = 0; x < gamepads.size(); ++x) {
       clear_gamepad(x);
     }
+
+#ifdef SUNSHINE_BUILD_X11
     if (display) {
       x11::CloseDisplay(display);
       display = nullptr;
     }
+#endif
   }
 
   ~input_raw_t() {
@@ -784,7 +800,9 @@ public:
   evdev_t mouse_dev;
   evdev_t keyboard_dev;
 
+#ifdef SUNSHINE_BUILD_X11
   Display *display;
+#endif
 };
 
 inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
