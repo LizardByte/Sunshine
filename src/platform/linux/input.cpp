@@ -33,6 +33,7 @@
 using namespace std::literals;
 
 namespace platf {
+#ifdef SUNSHINE_BUILD_X11
 namespace x11 {
 #define _FN(x, ret, args)    \
   typedef ret(*x##_fn) args; \
@@ -106,6 +107,7 @@ static int init() {
   return 0;
 }
 } // namespace x11
+#endif
 
 constexpr auto mail_evdev = "platf::evdev"sv;
 
@@ -989,6 +991,8 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
   }
 }
 
+
+#ifdef SUNSHINE_BUILD_X11
 static void x_abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   Display *xdisplay = ((input_raw_t *)input.get())->display;
   if (!xdisplay) {
@@ -998,24 +1002,6 @@ static void x_abs_mouse(input_t &input, const touch_port_t &touch_port, float x,
   x11::Flush(xdisplay);
 }
 
-void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
-  auto touchscreen = ((input_raw_t *)input.get())->touch_input.get();
-  if(!touchscreen) {
-    x_abs_mouse(input, touch_port, x, y);
-    return;
-  }
-
-  auto scaled_x = (int)std::lround((x + touch_port.offset_x) * ((float)target_touch_port.width / (float)touch_port.width));
-  auto scaled_y = (int)std::lround((y + touch_port.offset_y) * ((float)target_touch_port.height / (float)touch_port.height));
-
-  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, scaled_x);
-  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, scaled_y);
-  libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 1);
-  libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 0);
-
-  libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
-}
-
 static void x_move_mouse(input_t &input, int deltaX, int deltaY) {
   Display *xdisplay = ((input_raw_t *)input.get())->display;
   if (!xdisplay) {
@@ -1023,24 +1009,6 @@ static void x_move_mouse(input_t &input, int deltaX, int deltaY) {
   }
   x11::tst::FakeRelativeMotionEvent(xdisplay, deltaX, deltaY, CurrentTime);
   x11::Flush(xdisplay);
-}
-
-void move_mouse(input_t &input, int deltaX, int deltaY) {
-  auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
-  if(!mouse) {
-    x_move_mouse(input, deltaX, deltaY);
-    return;
-  }
-
-  if(deltaX) {
-    libevdev_uinput_write_event(mouse, EV_REL, REL_X, deltaX);
-  }
-
-  if(deltaY) {
-    libevdev_uinput_write_event(mouse, EV_REL, REL_Y, deltaY);
-  }
-
-  libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
 static void x_button_mouse(input_t &input, int button, bool release) {
@@ -1070,6 +1038,83 @@ static void x_button_mouse(input_t &input, int button, bool release) {
   }
   x11::tst::FakeButtonEvent(xdisplay, x_button, !release, CurrentTime);
   x11::Flush(xdisplay);
+}
+
+static void x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
+  Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if (!xdisplay) {
+    return;
+  }
+
+  const int button = distance > 0 ? button_pos : button_neg;
+  for (int i = 0; i < abs(distance); i++) {
+    x11::tst::FakeButtonEvent(xdisplay, button, true, CurrentTime);
+    x11::tst::FakeButtonEvent(xdisplay, button, false, CurrentTime);
+  }
+  x11::Flush(xdisplay);
+}
+
+static void x_keyboard(input_t &input, uint16_t modcode, bool release) {
+  auto keycode = keysym(modcode);
+  if(keycode.keysym == UNKNOWN) {
+    return;
+  }
+
+  Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if (!xdisplay) {
+    return;
+  }
+
+  const auto keycode_x = XKeysymToKeycode(xdisplay, keycode.keysym);
+  if (keycode_x == 0) {
+    return;
+  }
+
+  x11::tst::FakeKeyEvent(xdisplay, keycode_x, !release, CurrentTime);
+  x11::Flush(xdisplay);
+}
+#else
+static void x_abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {}
+static void x_move_mouse(input_t &input, int deltaX, int deltaY) {}
+static void x_button_mouse(input_t &input, int button, bool release) {}
+static void x_scroll(input_t &input, int distance, int button_pos, int button_neg) {}
+static void x_keyboard(input_t &input, uint16_t modcode, bool release) {}
+#endif
+
+void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+  auto touchscreen = ((input_raw_t *)input.get())->touch_input.get();
+  if(!touchscreen) {
+    x_abs_mouse(input, touch_port, x, y);
+    return;
+  }
+
+  auto scaled_x = (int)std::lround((x + touch_port.offset_x) * ((float)target_touch_port.width / (float)touch_port.width));
+  auto scaled_y = (int)std::lround((y + touch_port.offset_y) * ((float)target_touch_port.height / (float)touch_port.height));
+
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, scaled_x);
+  libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, scaled_y);
+  libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 1);
+  libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 0);
+
+  libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
+}
+
+void move_mouse(input_t &input, int deltaX, int deltaY) {
+  auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
+  if(!mouse) {
+    x_move_mouse(input, deltaX, deltaY);
+    return;
+  }
+
+  if(deltaX) {
+    libevdev_uinput_write_event(mouse, EV_REL, REL_X, deltaX);
+  }
+
+  if(deltaY) {
+    libevdev_uinput_write_event(mouse, EV_REL, REL_Y, deltaY);
+  }
+
+  libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
 void button_mouse(input_t &input, int button, bool release) {
@@ -1108,20 +1153,6 @@ void button_mouse(input_t &input, int button, bool release) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
-static void x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
-  Display *xdisplay = ((input_raw_t *)input.get())->display;
-  if (!xdisplay) {
-    return;
-  }
-
-  const int button = distance > 0 ? button_pos : button_neg;
-  for (int i = 0; i < abs(distance); i++) {
-    x11::tst::FakeButtonEvent(xdisplay, button, true, CurrentTime);
-    x11::tst::FakeButtonEvent(xdisplay, button, false, CurrentTime);
-  }
-  x11::Flush(xdisplay);
-}
-
 void scroll(input_t &input, int high_res_distance) {
   int distance = high_res_distance / 120;
 
@@ -1156,26 +1187,6 @@ static keycode_t keysym(std::uint16_t modcode) {
   }
 
   return {};
-}
-
-static void x_keyboard(input_t &input, uint16_t modcode, bool release) {
-  auto keycode = keysym(modcode);
-  if(keycode.keysym == UNKNOWN) {
-    return;
-  }
-
-  Display *xdisplay = ((input_raw_t *)input.get())->display;
-  if (!xdisplay) {
-    return;
-  }
-
-  const auto keycode_x = XKeysymToKeycode(xdisplay, keycode.keysym);
-  if (keycode_x == 0) {
-    return;
-  }
-
-  x11::tst::FakeKeyEvent(xdisplay, keycode_x, !release, CurrentTime);
-  x11::Flush(xdisplay);
 }
 
 void keyboard(input_t &input, uint16_t modcode, bool release) {
@@ -1467,6 +1478,7 @@ input_t input() {
   if(!gp.mouse_input || !gp.touch_input || !gp.keyboard_input) {
     BOOST_LOG(error) << "Unable to create some input devices! Are you a member of the 'input' group?"sv;
 
+#ifdef SUNSHINE_BUILD_X11
     if (x11::init() || x11::tst::init()) {
       BOOST_LOG(error) << "Unable to initialize X11 and/or XTest fallback"sv;
     } else {
@@ -1474,6 +1486,7 @@ input_t input() {
       x11::InitThreads();
       gp.display = x11::OpenDisplay(NULL);
     }
+#endif
   }
 
   return result;
