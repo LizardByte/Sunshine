@@ -7,6 +7,7 @@
    about/docker
    about/third_party_packages
    about/usage
+   about/app_examples
    about/advanced_usage
 
 .. toctree::
