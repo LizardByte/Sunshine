@@ -36,7 +36,7 @@ safe::mail_t mail::man;
 using namespace std::literals;
 namespace bl = boost::log;
 
-util::ThreadPool task_pool;
+thread_pool_util::ThreadPool task_pool;
 bl::sources::severity_logger<int> verbose(0); // Dominating output
 bl::sources::severity_logger<int> debug(1);   // Follow what is happening
 bl::sources::severity_logger<int> info(2);    // Should be informed about
@@ -55,9 +55,8 @@ struct NoDelete {
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
-/** Print the help to stdout.
-
-    This function prints output to stdout.
+/**
+  Print the help to stdout.
 */
 void print_help(const char *name) {
   std::cout
@@ -157,7 +156,7 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 #endif
 
 int main(int argc, char *argv[]) {
-  util::TaskPool::task_id_t force_shutdown = nullptr;
+  task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
   // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
@@ -344,7 +343,7 @@ int main(int argc, char *argv[]) {
   std::thread httpThread { nvhttp::start };
   std::thread configThread { confighttp::start };
 
-  stream::rtpThread();
+  rtsp_stream::rtpThread();
 
   httpThread.join();
   configThread.join();

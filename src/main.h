@@ -11,7 +11,7 @@
 
 #include <boost/log/common.hpp>
 
-extern util::ThreadPool task_pool;
+extern thread_pool_util::ThreadPool task_pool;
 extern bool display_cursor;
 
 extern boost::log::sources::severity_logger<int> verbose;

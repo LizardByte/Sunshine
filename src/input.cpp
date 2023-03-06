@@ -21,7 +21,7 @@ using namespace std::literals;
 namespace input {
 
 constexpr auto MAX_GAMEPADS = std::min((std::size_t)platf::MAX_GAMEPADS, sizeof(std::int16_t) * 8);
-#define DISABLE_LEFT_BUTTON_DELAY ((util::ThreadPool::task_id_t)0x01)
+#define DISABLE_LEFT_BUTTON_DELAY ((thread_pool_util::ThreadPool::task_id_t)0x01)
 #define ENABLE_LEFT_BUTTON_DELAY nullptr
 
 constexpr auto VKEY_SHIFT    = 0x10;
@@ -57,7 +57,7 @@ void free_id(std::bitset<N> &gamepad_mask, int id) {
   gamepad_mask[id] = false;
 }
 
-static util::TaskPool::task_id_t key_press_repeat_id {};
+static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
 static std::unordered_map<short, bool> key_press {};
 static std::array<std::uint8_t, 5> mouse_press {};
 
@@ -82,7 +82,7 @@ struct gamepad_t {
 
   platf::gamepad_state_t gamepad_state;
 
-  util::ThreadPool::task_id_t back_timeout_id;
+  thread_pool_util::ThreadPool::task_id_t back_timeout_id;
 
   int id;
 
@@ -123,7 +123,7 @@ struct input_t {
   safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;
   platf::rumble_queue_t rumble_queue;
 
-  util::ThreadPool::task_id_t mouse_left_button_timeout;
+  thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;
 
   input::touch_port_t touch_port;
 };
@@ -653,7 +653,7 @@ void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t
 }
 
 void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
-  task_pool.push(passthrough_helper, input, util::cmove(input_data));
+  task_pool.push(passthrough_helper, input, move_by_copy_util::cmove(input_data));
 }
 
 void reset(std::shared_ptr<input_t> &input) {

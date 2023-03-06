@@ -8,7 +8,7 @@
 #include "crypto.h"
 #include "thread_safe.h"
 
-namespace stream {
+namespace rtsp_stream {
 constexpr auto RTSP_SETUP_PORT = 21;
 
 struct launch_session_t {
@@ -23,6 +23,6 @@ int session_count();
 
 void rtpThread();
 
-} // namespace stream
+} // namespace rtsp_stream
 
 #endif // SUNSHINE_RTSP_H

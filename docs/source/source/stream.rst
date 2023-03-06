@@ -1,0 +1,4 @@
+stream
+======
+
+.. doxygenfile:: stream.h
