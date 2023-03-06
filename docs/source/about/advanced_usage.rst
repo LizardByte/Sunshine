@@ -7,7 +7,7 @@ Performance Tips
 
 AMD
 ^^^
-In Windows, enabling `Enahanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
+In Windows, enabling `Enhanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
 applies to `amfenc` and `libx264`.
 
 Nvidia
@@ -411,6 +411,8 @@ audio_sink
 
             tools\audio-info.exe
 
+   .. Tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
+
 **Default**
    Sunshine will select the default audio device.
 
@@ -439,8 +441,13 @@ virtual_sink
 
    .. Tip:: See `audio_sink`_!
 
-**Default**
-   .. Todo:: Unknown
+   .. Tip:: These are some options for virtual sound devices.
+
+      - Stream Streaming Speakers (Linux, macOS, Windows)
+
+        - To use this option, you must have Steam installed and have used Stream remote play at least once.
+
+      - `Virtual Audio Cable <https://vb-audio.com/Cable/>`_ (macOS, Windows)
 
 **Example**
    .. code-block:: text
