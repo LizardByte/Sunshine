@@ -284,7 +284,7 @@ TAB_SIZE               = 4
 # @} or use a double escape (\\{ and \\})
 
 # https://breathe.readthedocs.io/en/latest/markups.html#aliases
-ALIASES = "rst=^^\verbatim embed:rst^^"
+ALIASES = "rst=^^\verbatim embed:rst:leading-asterisk^^"
 ALIASES += "endrst=\endverbatim"
 
 # Set the OPTIMIZE_OUTPUT_FOR_C tag to YES if your project consists of C sources

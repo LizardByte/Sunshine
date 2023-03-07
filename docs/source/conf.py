@@ -86,6 +86,8 @@ html_theme_options = {
 # extension config options
 autosectionlabel_prefix_document = True  # Make sure the target is unique
 breathe_default_project = 'src'
+breathe_implementation_filename_extensions = ['.c', '.cc', '.cpp', '.mm']
+breathe_order_parameters_first = False
 breathe_projects = dict(
     src="../build/doxyxml"
 )

@@ -1,31 +1,35 @@
-// Created by loki on 5/30/19.
+/**
+ * @file main.cpp
+ */
 
-#include "process.h"
-
+// standard includes
 #include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <thread>
 
+// lib includes
 #include <boost/log/attributes/clock.hpp>
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 
+// local includes
 #include "config.h"
 #include "confighttp.h"
 #include "httpcommon.h"
 #include "main.h"
 #include "nvhttp.h"
+#include "platform/common.h"
+#include "process.h"
 #include "rtsp.h"
 #include "thread_pool.h"
 #include "upnp.h"
 #include "version.h"
 #include "video.h"
 
-#include "platform/common.h"
 extern "C" {
 #include <libavutil/log.h>
 #include <rs.h>
@@ -56,8 +60,14 @@ struct NoDelete {
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
 /**
-  Print the help to stdout.
-*/
+ * @brief Print help to stdout.
+ * @param name The name of the program.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * print_help("sunshine");
+ * ```
+ */
 void print_help(const char *name) {
   std::cout
     << "Usage: "sv << name << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
@@ -78,10 +88,6 @@ void print_help(const char *name) {
     << std::endl;
 }
 
-/** Call the print_help function.
-
-    Calls the print_help function and then exits.
-*/
 namespace help {
 int entry(const char *name, int argc, char *argv[]) {
   print_help(name);
@@ -89,10 +95,6 @@ int entry(const char *name, int argc, char *argv[]) {
 }
 } // namespace help
 
-/** Print the version details to stdout.
-
-    This function prints the version details to stdout and then exits.
-*/
 namespace version {
 int entry(const char *name, int argc, char *argv[]) {
   std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
@@ -101,6 +103,14 @@ int entry(const char *name, int argc, char *argv[]) {
 } // namespace version
 
 
+/**
+ * @brief Flush the log.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * log_flush();
+ * ```
+ */
 void log_flush() {
   sink->flush();
 }
@@ -155,6 +165,16 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
 }
 #endif
 
+/**
+ * @brief Main application entry point.
+ * @param argc The number of arguments.
+ * @param argv The arguments.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * main(1, const char* args[] = {"sunshine", nullptr});
+ * ```
+ */
 int main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
@@ -354,6 +374,16 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+/**
+ * @brief Read a file to string.
+ * @param path The path of the file.
+ * @return `std::string` : The contents of the file.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * std::string contents = read_file("path/to/file");
+ * ```
+ */
 std::string read_file(const char *path) {
   if(!std::filesystem::exists(path)) {
     BOOST_LOG(debug) << "Missing file: " << path;
@@ -373,6 +403,17 @@ std::string read_file(const char *path) {
   return base64_cert;
 }
 
+/**
+ * @brief Writes a file.
+ * @param path The path of the file.
+ * @param contents The contents to write.
+ * @return `int` : `0` on success, `-1` on failure.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * int write_status = write_file("path/to/file", "file contents");
+ * ```
+ */
 int write_file(const char *path, const std::string_view &contents) {
   std::ofstream out(path);
 
@@ -385,6 +426,18 @@ int write_file(const char *path, const std::string_view &contents) {
   return 0;
 }
 
+/**
+ * @brief Map a specified port based on the base port.
+ * @param port The port to map as a difference from the base port.
+ * @return `std:uint16_t` : The mapped port number.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * std::uint16_t mapped_port = map_port(1);
+ * ```
+ */
 std::uint16_t map_port(int port) {
+  // TODO: Ensure port is in the range of 21-65535
+  // TODO: Ensure port is not already in use by another application
   return (std::uint16_t)((int)config::sunshine.port + port);
 }
