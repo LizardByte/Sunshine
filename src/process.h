@@ -39,8 +39,6 @@ struct cmd_t {
  *    filename -- The output of the commands are appended to filename
  */
 struct ctx_t {
-  ctx_t() : include_global_prep(true) {}
-
   std::vector<cmd_t> prep_cmds;
 
   /**
@@ -57,7 +55,7 @@ struct ctx_t {
   std::string output;
   std::string image_path;
   std::string id;
-  bool include_global_prep;
+  bool exclude_global_prep;
 };
 
 class proc_t {

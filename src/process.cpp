@@ -124,7 +124,7 @@ int proc_t::execute(int app_id) {
   });
 
   // Execute global prep commands if enabled
-  if (_app.include_global_prep)
+  if (!_app.exclude_global_prep)
   {
     for(; _global_prep_it != std::end(_prep_cmds); ++_global_prep_it) {
       auto &cmd = _global_prep_it->do_cmd;
@@ -258,7 +258,7 @@ void proc_t::terminate() {
   }
   
   // Execute global prep commands if enabled
-  if (_app.include_global_prep)
+  if (!_app.exclude_global_prep)
   {
     for(; _global_prep_it != _global_prep_begin; --_global_prep_it) {
       auto &cmd = (_global_prep_it - 1)->undo_cmd;
@@ -539,7 +539,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
       auto prep_nodes_opt      = app_node.get_child_optional("prep-cmd"s);
       auto detached_nodes_opt  = app_node.get_child_optional("detached"s);
-      auto include_global_prep = app_node.get_optional<bool>("include-global-prep-cmd"s);
+      auto exclude_global_prep = app_node.get_optional<bool>("exclude-global-prep-cmd"s);
       auto output              = app_node.get_optional<std::string>("output"s);
       auto name                = parse_env_val(this_env, app_node.get<std::string>("name"s));
       auto cmd                 = app_node.get_optional<std::string>("cmd"s);
@@ -590,8 +590,8 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
-      if(include_global_prep) {
-        ctx.include_global_prep = *include_global_prep;
+      if(exclude_global_prep) {
+        ctx.exclude_global_prep = *exclude_global_prep;
       }
 
       auto possible_ids = calculate_app_id(name, ctx.image_path, i++);

@@ -73,9 +73,9 @@
           <!--prep-cmd-->
           <div class="mb-3 d-flex flex-column">
             <div class="mb-3">
-              <label for="includeGlobalPrep" class="form-label">Global Prep Commands</label>
-              <select id="includeGlobalPrep" class="form-select" v-model="editForm['include-global-prep-cmd']">
-                <option v-for="val in [true, false]" :value="val">{{ val ? 'Enabled' : 'Disabled' }}</option>
+              <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
+              <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
+                <option v-for="val in [false, true]" :value="val">{{ !val ? 'Enabled' : 'Disabled' }}</option>
               </select>
               <div class="form-text">
                 Enable/Disable the execution of Global Prep Commands for this application.
@@ -354,7 +354,7 @@
           output: "",
           cmd: [],
           index: -1,
-          "include-global-prep-cmd": true,
+          "exclude-global-prep-cmd": false,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -369,8 +369,8 @@
           this.$set(this.editForm, "prep-cmd", []);
         if (this.editForm["detached"] === undefined)
           this.$set(this.editForm, "detached", []);
-        if (this.editForm["include-global-prep-cmd"] === undefined)
-          this.$set(this.editForm, "include-global-prep-cmd", true);
+        if (this.editForm["exclude-global-prep-cmd"] === undefined)
+          this.$set(this.editForm, "exclude-global-prep-cmd", false);
         this.showEditForm = true;
       },
       showDeleteForm(id) {
