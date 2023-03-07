@@ -98,9 +98,6 @@ int proc_t::execute(int app_id) {
   _app_prep_begin = std::begin(_app.prep_cmds);
   _app_prep_it    = _app_prep_begin;
 
-  _global_prep_begin = std::begin(_prep_cmds);
-  _global_prep_it    = _global_prep_begin;
-
   if(!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
     // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
@@ -122,33 +119,6 @@ int proc_t::execute(int app_id) {
   auto fg = util::fail_guard([&]() {
     terminate();
   });
-
-  // Execute global prep commands if enabled
-  if (!_app.exclude_global_prep)
-  {
-    for(; _global_prep_it != std::end(_prep_cmds); ++_global_prep_it) {
-      auto &cmd = _global_prep_it->do_cmd;
-
-      boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
-                                              boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Global Do Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
-
-      if(ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
-        return -1;
-      }
-
-      child.wait();
-      auto ret = child.exit_code();
-
-      if(ret != 0) {
-        BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
-        return -1;
-      }
-    }
-  }
 
   // Execute app prep commands                 
   for(; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
@@ -254,35 +224,6 @@ void proc_t::terminate() {
 
     if(ret != 0) {
       BOOST_LOG(warning) << "Return code ["sv << ret << ']';
-    }
-  }
-  
-  // Execute global prep commands if enabled
-  if (!_app.exclude_global_prep)
-  {
-    for(; _global_prep_it != _global_prep_begin; --_global_prep_it) {
-      auto &cmd = (_global_prep_it - 1)->undo_cmd;
-
-      if(cmd.empty()) {
-        continue;
-      }
-
-      boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
-                                              boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Global Undo Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
-
-      if(ec) {
-        BOOST_LOG(warning) << "System: "sv << ec.message();
-      }
-      
-      child.wait();    
-      auto ret = child.exit_code();
-
-      if(ret != 0) {
-        BOOST_LOG(warning) << "Return code ["sv << ret << ']';
-      }
     }
   }
 
@@ -513,23 +454,6 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
     }
 
     
-    std::vector<proc::cmd_t> global_prep_cmds;
-    if(global_prep_nodes_opt) {
-      auto &global_prep_nodes = *global_prep_nodes_opt;
-
-      global_prep_cmds.reserve(global_prep_nodes.size());
-      for(auto &[_, prep_node] : global_prep_nodes) {
-        auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
-        auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
-
-        if(undo_cmd) {
-          global_prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
-        }
-        else {
-          global_prep_cmds.emplace_back(std::move(do_cmd));
-        }
-      }
-    }
 
     std::set<std::string> ids;
     std::vector<proc::ctx_t> apps;
@@ -547,10 +471,27 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto working_dir         = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
+      if(global_prep_nodes_opt && !exclude_global_prep.value_or(false)) {
+        auto &global_prep_nodes = *global_prep_nodes_opt;
+
+        prep_cmds.reserve(global_prep_nodes.size());
+        for(auto &[_, prep_node] : global_prep_nodes) {
+          auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
+          auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
+
+          if(undo_cmd) {
+            prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
+          }
+          else {
+            prep_cmds.emplace_back(std::move(do_cmd));
+          }
+        }
+      }
+
       if(prep_nodes_opt) {
         auto &prep_nodes = *prep_nodes_opt;
 
-        prep_cmds.reserve(prep_nodes.size());
+        prep_cmds.reserve(prep_cmds.size() + prep_nodes.size());
         for(auto &[_, prep_node] : prep_nodes) {
           auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
           auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
@@ -613,7 +554,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
     }
 
     return proc::proc_t {
-      std::move(this_env), std::move(apps), std::move(global_prep_cmds)
+      std::move(this_env), std::move(apps)
     };
   }
   catch(std::exception &e) {

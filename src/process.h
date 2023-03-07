@@ -64,11 +64,9 @@ public:
 
   proc_t(
     boost::process::environment &&env,
-    std::vector<ctx_t> &&apps,
-    std::vector<proc::cmd_t> &&prep_cmds) : _app_id(0),
+    std::vector<ctx_t> &&apps) : _app_id(0),
                                  _env(std::move(env)),
-                                 _apps(std::move(apps)),
-                                 _prep_cmds(std::move(prep_cmds)) {}
+                                 _apps(std::move(apps)) {}
 
   int execute(int app_id);
 
@@ -91,7 +89,6 @@ private:
   boost::process::environment _env;
   std::vector<ctx_t> _apps;
   ctx_t _app;
-  std::vector<proc::cmd_t> _prep_cmds;
 
   // If no command associated with _app_id, yet it's still running
   bool placebo {};
@@ -102,8 +99,6 @@ private:
   file_t _pipe;
   std::vector<cmd_t>::const_iterator _app_prep_it;
   std::vector<cmd_t>::const_iterator _app_prep_begin;
-  std::vector<cmd_t>::const_iterator _global_prep_it;
-  std::vector<cmd_t>::const_iterator _global_prep_begin;
 };
 
 /**
