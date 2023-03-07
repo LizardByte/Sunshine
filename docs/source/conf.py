@@ -48,6 +48,7 @@ extensions = [
     'm2r2',  # enable markdown files
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',  # enable to-do sections
+    'sphinx.ext.graphviz',  # enable graphs for breathe
     'sphinx.ext.viewcode',  # add links to view source code
     'sphinx_copybutton',  # add a copy button to code blocks
 ]
@@ -86,7 +87,7 @@ html_theme_options = {
 autosectionlabel_prefix_document = True  # Make sure the target is unique
 breathe_default_project = 'src'
 breathe_projects = dict(
-    src="../build/xml"
+    src="../build/doxyxml"
 )
 todo_include_todos = True
 

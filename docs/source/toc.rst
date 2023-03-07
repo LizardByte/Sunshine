@@ -9,6 +9,7 @@
    about/usage
    about/app_examples
    about/advanced_usage
+   about/changelog
 
 .. toctree::
    :maxdepth: 2
