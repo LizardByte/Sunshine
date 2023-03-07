@@ -55,7 +55,6 @@ struct ctx_t {
   std::string output;
   std::string image_path;
   std::string id;
-  bool exclude_global_prep;
 };
 
 class proc_t {

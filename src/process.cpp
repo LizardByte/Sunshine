@@ -531,10 +531,6 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
         ctx.image_path = parse_env_val(this_env, *image_path);
       }
 
-      if(exclude_global_prep) {
-        ctx.exclude_global_prep = *exclude_global_prep;
-      }
-
       auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
       if(ids.count(std::get<0>(possible_ids)) == 0) {
         // Avoid using index to generate id if possible
