@@ -75,3 +75,4 @@
    source/utility
    source/uuid
    source/video
+   source/platform
