@@ -18,7 +18,7 @@ if(GIT_EXECUTABLE)
     get_filename_component(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
     #Get current Branch
     execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD 
+        COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
         #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
         RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
