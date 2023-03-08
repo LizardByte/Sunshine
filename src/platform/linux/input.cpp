@@ -5,6 +5,7 @@
 #include <libevdev/libevdev-uinput.h>
 #include <libevdev/libevdev.h>
 
+#include <boost/locale.hpp>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -1024,8 +1025,77 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
   keycode.pressed = 1;
 }
 
+void keyboard_ev(libevdev_uinput *keyboard, int linux_code, int event_code = 1) {
+  libevdev_uinput_write_event(keyboard, EV_KEY, linux_code, event_code);
+  libevdev_uinput_write_event(keyboard, EV_SYN, SYN_REPORT, 0);
+}
+
+/**
+ * Takes an UTF-32 encoded string and returns a hex string representation of the bytes (uppercase)
+ *
+ * ex: ['👱'] = "1F471" // see UTF encoding at https://www.compart.com/en/unicode/U+1F471
+ *
+ * adapted from: https://stackoverflow.com/a/7639754
+ */
+std::string to_hex(const std::basic_string<char32_t> &str) {
+  std::stringstream ss;
+  ss << std::hex << std::setfill('0');
+  for(const auto &ch : str) {
+    ss << ch;
+  }
+
+  std::string hex_unicode(ss.str());
+  std::transform(hex_unicode.begin(), hex_unicode.end(), hex_unicode.begin(), ::toupper);
+  return hex_unicode;
+}
+
+/**
+ * Here we receive a single UTF-8 encoded char at a time,
+ * the trick is to convert it to UTF-32 then send CTRL+SHIFT+U+<HEXCODE> in order to produce any
+ * unicode character, see: https://en.wikipedia.org/wiki/Unicode_input
+ *
+ * ex:
+ * - when receiving UTF-8 [0xF0 0x9F 0x91 0xB1] (which is '👱')
+ * - we'll convert it to UTF-32 [0x1F471]
+ * - then type: CTRL+SHIFT+U+1F471
+ * see the conversion at: https://www.compart.com/en/unicode/U+1F471
+ */
 void unicode(input_t &input, char *utf8, int size) {
-  BOOST_LOG(info) << "unicode: Unicode input not yet implemented for Linux."sv;
+  auto kb = ((input_raw_t *)input.get())->keyboard_input.get();
+  if(!kb) {
+    return;
+  }
+
+  /* Reading input text as UTF-8 */
+  auto utf8_str = boost::locale::conv::to_utf<wchar_t>(utf8, utf8 + size, "UTF-8");
+  /* Converting to UTF-32 */
+  auto utf32_str = boost::locale::conv::utf_to_utf<char32_t>(utf8_str);
+  /* To HEX string */
+  auto hex_unicode = to_hex(utf32_str);
+  BOOST_LOG(debug) << "Unicode, typing U+"sv << hex_unicode;
+
+  /* pressing <CTRL> + <SHIFT> + U */
+  keyboard_ev(kb, KEY_LEFTCTRL, 1);
+  keyboard_ev(kb, KEY_LEFTSHIFT, 1);
+  keyboard_ev(kb, KEY_U, 1);
+  keyboard_ev(kb, KEY_U, 0);
+
+  /* input each HEX character */
+  for(auto &ch : hex_unicode) {
+    auto key_str = "KEY_"s + ch;
+    auto keycode = libevdev_event_code_from_name(EV_KEY, key_str.c_str());
+    if(keycode == -1) {
+      BOOST_LOG(warning) << "Unicode, unable to find keycode for: "sv << ch;
+    }
+    else {
+      keyboard_ev(kb, keycode, 1);
+      keyboard_ev(kb, keycode, 0);
+    }
+  }
+
+  /* releasing <SHIFT> and <CTRL> */
+  keyboard_ev(kb, KEY_LEFTSHIFT, 0);
+  keyboard_ev(kb, KEY_LEFTCTRL, 0);
 }
 
 int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
