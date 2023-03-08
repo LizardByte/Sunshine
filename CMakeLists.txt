@@ -11,7 +11,7 @@ Moonlight client on a variety of devices. A web UI is provided to allow configur
 your favorite web browser. Pair from the local server or any mobile device.")
 
 #If BRANCH and BUILD_VERSION are both defined, then we are building a master branch
-if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION})) # cmake-lint: disable=W0106
+if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}))
     MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
     set(PROJECT_VERSION $ENV{BUILD_VERSION})
 #If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
