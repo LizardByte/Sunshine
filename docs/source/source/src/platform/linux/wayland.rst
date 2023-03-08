@@ -1,4 +1,4 @@
 wayland
 =======
 
-.. Todo:: Add wayland.h
+.. doxygenfile:: platform/linux/wayland.h
