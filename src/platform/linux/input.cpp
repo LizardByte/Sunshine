@@ -139,6 +139,10 @@ struct keycode_t {
 
 constexpr auto UNKNOWN = 0;
 
+/**
+ * @brief Initializes the keycode constants for translating
+ *        moonlight keycodes to linux/X11 keycodes
+ */
 static constexpr std::array<keycode_t, 0xE3> init_keycodes() {
   std::array<keycode_t, 0xE3> keycodes {};
 
@@ -1011,8 +1015,18 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
   }
 }
 
-
-static void x_abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+/**
+ * @brief XTest absolute mouse move.
+ * @param input The input_t instance to use.
+ * @param x Absolute x position.
+ * @param y Absolute y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_abs_mouse(input, 0, 0);
+ * ```
+ */
+static void x_abs_mouse(input_t &input, float x, float y) {
 #ifdef SUNSHINE_BUILD_X11
   Display *xdisplay = ((input_raw_t *)input.get())->display;
   if(!xdisplay) {
@@ -1023,10 +1037,22 @@ static void x_abs_mouse(input_t &input, const touch_port_t &touch_port, float x,
 #endif
 }
 
+/**
+ * @brief Absolute mouse move.
+ * @param input The input_t instance to use.
+ * @param touch_port The touch_port instance to use.
+ * @param x Absolute x position.
+ * @param y Absolute y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * abs_mouse(input, touch_port, 0, 0);
+ * ```
+ */
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   auto touchscreen = ((input_raw_t *)input.get())->touch_input.get();
   if(!touchscreen) {
-    x_abs_mouse(input, touch_port, x, y);
+    x_abs_mouse(input, x, y);
     return;
   }
 
@@ -1041,6 +1067,17 @@ void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y)
   libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief XTest relative mouse move.
+ * @param input The input_t instance to use.
+ * @param deltaX Relative x position.
+ * @param deltaY Relative y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
+ * ```
+ */
 static void x_move_mouse(input_t &input, int deltaX, int deltaY) {
 #ifdef SUNSHINE_BUILD_X11
   Display *xdisplay = ((input_raw_t *)input.get())->display;
@@ -1052,6 +1089,17 @@ static void x_move_mouse(input_t &input, int deltaX, int deltaY) {
 #endif
 }
 
+/**
+ * @brief Relative mouse move.
+ * @param input The input_t instance to use.
+ * @param deltaX Relative x position.
+ * @param deltaY Relative y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
+ * ```
+ */
 void move_mouse(input_t &input, int deltaX, int deltaY) {
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
   if(!mouse) {
@@ -1070,6 +1118,17 @@ void move_mouse(input_t &input, int deltaX, int deltaY) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief XTest mouse button press/release.
+ * @param input The input_t instance to use.
+ * @param button Which mouse button to emulate.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_button_mouse(input, 1, false); // Press left mouse button
+ * ```
+ */
 static void x_button_mouse(input_t &input, int button, bool release) {
 #ifdef SUNSHINE_BUILD_X11
   unsigned int x_button = 0;
@@ -1101,6 +1160,17 @@ static void x_button_mouse(input_t &input, int button, bool release) {
 #endif
 }
 
+/**
+ * @brief Mouse button press/release.
+ * @param input The input_t instance to use.
+ * @param button Which mouse button to emulate.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * button_mouse(input, 1, false); // Press left mouse button
+ * ```
+ */
 void button_mouse(input_t &input, int button, bool release) {
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
   if(!mouse) {
@@ -1137,6 +1207,18 @@ void button_mouse(input_t &input, int button, bool release) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief XTest mouse scroll.
+ * @param input The input_t instance to use.
+ * @param distance How far to scroll
+ * @param button_pos Which mouse button to emulate for positive scroll.
+ * @param button_neg Which mouse button to emulate for negative scroll.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_scroll(input, 10, 4, 5);
+ * ```
+ */
 static void x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
 #ifdef SUNSHINE_BUILD_X11
   Display *xdisplay = ((input_raw_t *)input.get())->display;
@@ -1153,6 +1235,16 @@ static void x_scroll(input_t &input, int distance, int button_pos, int button_ne
 #endif
 }
 
+/**
+ * @brief Vertical mouse scroll.
+ * @param input The input_t instance to use.
+ * @param high_res_distance How far to scroll
+ *
+ * EXAMPLES:
+ * ```cpp
+ * scroll(input, 1200);
+ * ```
+ */
 void scroll(input_t &input, int high_res_distance) {
   int distance = high_res_distance / 120;
 
@@ -1167,6 +1259,16 @@ void scroll(input_t &input, int high_res_distance) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief Horizontal mouse scroll.
+ * @param input The input_t instance to use.
+ * @param high_res_distance How far to scroll
+ *
+ * EXAMPLES:
+ * ```cpp
+ * hscroll(input, 1200);
+ * ```
+ */
 void hscroll(input_t &input, int high_res_distance) {
   int distance = high_res_distance / 120;
 
@@ -1189,6 +1291,17 @@ static keycode_t keysym(std::uint16_t modcode) {
   return {};
 }
 
+/**
+ * @brief XTest keyboard emulation.
+ * @param input The input_t instance to use.
+ * @param modcode The moonlight key code.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_keyboard(input, 0x5A, false); // Press Z
+ * ```
+ */
 static void x_keyboard(input_t &input, uint16_t modcode, bool release) {
 #ifdef SUNSHINE_BUILD_X11
   auto keycode = keysym(modcode);
@@ -1211,6 +1324,17 @@ static void x_keyboard(input_t &input, uint16_t modcode, bool release) {
 #endif
 }
 
+/**
+ * @brief Keyboard emulation.
+ * @param input The input_t instance to use.
+ * @param modcode The moonlight key code.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * keyboard(input, 0x5A, false); // Press Z
+ * ```
+ */
 void keyboard(input_t &input, uint16_t modcode, bool release) {
   auto keyboard = ((input_raw_t *)input.get())->keyboard_input.get();
   if(!keyboard) {
@@ -1305,6 +1429,14 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief Initalize a new keyboard and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_keyboard = keyboard();
+ * ```
+ */
 evdev_t keyboard() {
   evdev_t dev { libevdev_new() };
 
@@ -1325,6 +1457,14 @@ evdev_t keyboard() {
   return dev;
 }
 
+/**
+ * @brief Initalize a new uinput virtual mouse and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_mouse = mouse();
+ * ```
+ */
 evdev_t mouse() {
   evdev_t dev { libevdev_new() };
 
@@ -1367,6 +1507,14 @@ evdev_t mouse() {
   return dev;
 }
 
+/**
+ * @brief Initalize a new uinput virtual touchscreen and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_touchscreen = touchscreen();
+ * ```
+ */
 evdev_t touchscreen() {
   evdev_t dev { libevdev_new() };
 
@@ -1409,6 +1557,14 @@ evdev_t touchscreen() {
   return dev;
 }
 
+/**
+ * @brief Initalize a new uinput virtual X360 gamepad and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_x360 = x360();
+ * ```
+ */
 evdev_t x360() {
   evdev_t dev { libevdev_new() };
 
@@ -1477,6 +1633,14 @@ evdev_t x360() {
   return dev;
 }
 
+/**
+ * @brief Initalize the input system and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_input = input();
+ * ```
+ */
 input_t input() {
   input_t result { new input_raw_t() };
   auto &gp = *(input_raw_t *)result.get();
