@@ -78,7 +78,7 @@ if(WIN32)
     set(Boost_NO_BOOST_CMAKE ON) # cmake-lint: disable=C0103
 endif()
 
-find_package(Boost COMPONENTS log filesystem program_options locale REQUIRED)
+find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
@@ -790,6 +790,7 @@ elseif(UNIX)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                 ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
                 libboost-filesystem${Boost_VERSION}, \
+                libboost-locale${Boost_VERSION}, \
                 libboost-log${Boost_VERSION}, \
                 libboost-program-options${Boost_VERSION}, \
                 libboost-thread${Boost_VERSION}, \
@@ -809,6 +810,7 @@ elseif(UNIX)
         set(CPACK_RPM_PACKAGE_REQUIRES "\
                 ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
                 boost-filesystem >= ${Boost_VERSION}, \
+                boost-locale >= ${Boost_VERSION}, \
                 boost-log >= ${Boost_VERSION}, \
                 boost-program-options >= ${Boost_VERSION}, \
                 boost-thread >= ${Boost_VERSION}, \
