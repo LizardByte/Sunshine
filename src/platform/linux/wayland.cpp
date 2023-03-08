@@ -22,12 +22,12 @@ using namespace std::literals;
 namespace wl {
 
 // Helper to call C++ method from wayland C callback
-template<class T, class Method, Method m, class ...Params>
+template<class T, class Method, Method m, class... Params>
 static auto classCall(void *data, Params... params) -> decltype(((*reinterpret_cast<T *>(data)).*m)(params...)) {
   return ((*reinterpret_cast<T *>(data)).*m)(params...);
 }
 
-#define CLASS_CALL(c,m) classCall<c, decltype(&c::m), &c::m>
+#define CLASS_CALL(c, m) classCall<c, decltype(&c::m), &c::m>
 
 int display_t::init(const char *display_name) {
   if(!display_name) {
@@ -60,12 +60,12 @@ wl_registry *display_t::registry() {
 
 inline monitor_t::monitor_t(wl_output *output)
     : output { output }, listener {
-      &CLASS_CALL(monitor_t, xdg_position),
-      &CLASS_CALL(monitor_t, xdg_size),
-      &CLASS_CALL(monitor_t, xdg_done),
-      &CLASS_CALL(monitor_t, xdg_name),
-      &CLASS_CALL(monitor_t, xdg_description)
-    } {}
+        &CLASS_CALL(monitor_t, xdg_position),
+        &CLASS_CALL(monitor_t, xdg_size),
+        &CLASS_CALL(monitor_t, xdg_done),
+        &CLASS_CALL(monitor_t, xdg_name),
+        &CLASS_CALL(monitor_t, xdg_description)
+      } {}
 
 inline void monitor_t::xdg_name(zxdg_output_v1 *, const char *name) {
   this->name = name;
