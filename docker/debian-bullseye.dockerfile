@@ -23,6 +23,7 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential=12.9* \
   cmake=3.18.4* \
+  git=1:2.30.2* \
   libavdevice-dev=7:4.3.* \
   libboost-filesystem-dev=1.74.0* \
   libboost-locale-dev=1.74.0* \

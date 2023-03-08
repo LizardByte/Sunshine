@@ -52,6 +52,8 @@ if(GIT_EXECUTABLE)
     else()
         MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
     endif()
+else()
+    MESSAGE(WARNING ": Git not found, cannot fetch git version!")
 endif()
 
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configuration specific for AppImage." OFF)

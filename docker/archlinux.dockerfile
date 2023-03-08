@@ -37,6 +37,7 @@ pacman -Syu --noconfirm \
   base-devel \
   cmake \
   cuda \
+  git \
   libcap \
   libdrm \
   namcap

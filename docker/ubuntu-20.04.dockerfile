@@ -24,6 +24,7 @@ apt-get install -y --no-install-recommends \
   build-essential=12.8* \
   gcc-10=10.3.0* \
   g++-10=10.3.0* \
+  git=1:2.25.1* \
   libavdevice-dev=7:4.2.* \
   libboost-filesystem-dev=1.71.0* \
   libboost-locale-dev=1.71.0* \
