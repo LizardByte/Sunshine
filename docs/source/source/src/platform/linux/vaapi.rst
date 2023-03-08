@@ -1,4 +1,4 @@
 vaapi
 =====
 
-.. Todo:: Add vaapi.h
+.. doxygenfile:: platform/linux/vaapi.h

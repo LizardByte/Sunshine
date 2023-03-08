@@ -1,4 +1,4 @@
 cuda
 ====
 
-.. Todo:: Add cuda.h
+.. doxygenfile:: platform/linux/cuda.h
