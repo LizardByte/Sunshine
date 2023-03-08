@@ -408,6 +408,10 @@ input_t input {
     platf::supported_gamepads().front().data(),
     platf::supported_gamepads().front().size(),
   }, // Default gamepad
+
+  false,
+  false,
+  false,
 };
 
 sunshine_t sunshine {
@@ -946,6 +950,10 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
+
+  bool_f(vars, "mouse", input.mouse);
+  bool_f(vars, "keyboard", input.keyboard);
+  bool_f(vars, "controller", input.controller);
 
   int port = sunshine.port;
   int_f(vars, "port"s, port);
