@@ -46,6 +46,7 @@ jobs:
       last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
       release_body: ${{ steps.verify_changelog.outputs.changelog_parser_description }}
 
+  # todo - remove this job once versioning is fully automated by cmake
   check_versions:
     name: Check Versions
     runs-on: ubuntu-latest

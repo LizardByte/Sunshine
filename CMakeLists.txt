@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
+# todo - set version to 0.0.0 once confident in automated versioning
 project(Sunshine VERSION 0.18.4
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
@@ -10,14 +11,17 @@ and Nvidia GPUs for hardware encoding. Software encoding is also available. You 
 Moonlight client on a variety of devices. A web UI is provided to allow configuration, and client pairing, from \
 your favorite web browser. Pair from the local server or any mobile device.")
 
-#If BRANCH and BUILD_VERSION are both defined, then we are building a master branch
-if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}))
-    MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
-    set(PROJECT_VERSION $ENV{BUILD_VERSION})
-#If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
-elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
-    MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")
-    set(PROJECT_VERSION ${PROJECT_VERSION}-g$ENV{COMMIT})
+# Check if env vars are defined before attempting to access them, variables will be defined even if blank
+if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMIT}))  # cmake-lint: disable=W0106
+    # If BRANCH is "master" and BUILD_VERSION is not empty, then we are building a master branch
+    if(($ENV{BRANCH} STREQUAL "master") AND (NOT $ENV{BUILD_VERSION} STREQUAL ""))
+        MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
+        set(PROJECT_VERSION $ENV{BUILD_VERSION})
+    #If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
+    elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
+        MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")
+        set(PROJECT_VERSION ${PROJECT_VERSION}-g$ENV{COMMIT})
+    endif()
 # Generate Sunshine Version based of the git tag
 # https://github.com/nocnokneo/cmake-git-versioning-example/blob/master/LICENSE
 else()
@@ -129,7 +133,7 @@ pkg_check_modules(CURL REQUIRED libcurl)
 if(WIN32)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
     # workaround to prevent link errors against icudata, icui18n
-    set(Boost_NO_BOOST_CMAKE ON) # cmake-lint: disable=C0103
+    set(Boost_NO_BOOST_CMAKE ON)  # cmake-lint: disable=C0103
 endif()
 
 find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
