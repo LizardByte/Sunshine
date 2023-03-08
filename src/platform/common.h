@@ -45,7 +45,7 @@ typedef basic_environment<char> environment;
 } // namespace boost
 namespace video {
 struct config_t;
-}
+} // namespace video
 
 namespace platf {
 constexpr auto MAX_GAMEPADS = 32;

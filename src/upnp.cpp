@@ -132,7 +132,7 @@ std::unique_ptr<platf::deinit_t> start() {
     }
   }
 
-  auto rtsp     = std::to_string(map_port(stream::RTSP_SETUP_PORT));
+  auto rtsp     = std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT));
   auto video    = std::to_string(map_port(stream::VIDEO_STREAM_PORT));
   auto audio    = std::to_string(map_port(stream::AUDIO_STREAM_PORT));
   auto control  = std::to_string(map_port(stream::CONTROL_PORT));

@@ -494,7 +494,7 @@ struct x11_attr_t : public display_t {
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
     refresh();
 
-    //The whole X server changed, so we gotta reinit everything
+    //The whole X server changed, so we must reinit everything
     if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
       return capture_e::reinit;
@@ -550,7 +550,7 @@ struct shm_attr_t : public x11_attr_t {
 
   shm_data_t data;
 
-  util::TaskPool::task_id_t refresh_task_id;
+  task_pool_util::TaskPool::task_id_t refresh_task_id;
 
   void delayed_refresh() {
     refresh();
@@ -603,7 +603,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 
   capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) {
-    //The whole X server changed, so we gotta reinit everything
+    //The whole X server changed, so we must reinit everything
     if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
       return capture_e::reinit;

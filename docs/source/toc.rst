@@ -9,6 +9,7 @@
    about/usage
    about/app_examples
    about/advanced_usage
+   about/changelog
 
 .. toctree::
    :maxdepth: 2
@@ -47,3 +48,9 @@
    :caption: Legal
 
    legal/legal
+
+.. toctree::
+   :maxdepth: 2
+   :caption: source
+
+   source/src

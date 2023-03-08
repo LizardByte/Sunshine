@@ -4,12 +4,12 @@
 #include "task_pool.h"
 #include <thread>
 
-namespace util {
+namespace thread_pool_util {
 /*
  * Allow threads to execute unhindered
  * while keeping full control over the threads.
  */
-class ThreadPool : public TaskPool {
+class ThreadPool : public task_pool_util::TaskPool {
 public:
   typedef TaskPool::__task __task;
 
@@ -117,5 +117,5 @@ public:
     }
   }
 };
-} // namespace util
+} // namespace thread_pool_util
 #endif

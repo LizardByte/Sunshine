@@ -252,7 +252,7 @@ public:
   std::unordered_map<std::uint16_t, std::function<void(session_t *, const std::string_view &)>> _map_type_cb;
 
   // Mapping ip:port to session
-  util::sync_t<std::unordered_multimap<std::string, std::pair<std::uint16_t, session_t *>>> _map_addr_session;
+  sync_util::sync_t<std::unordered_multimap<std::string, std::pair<std::uint16_t, session_t *>>> _map_addr_session;
 
   ENetAddress _addr;
   net::host_t _host;
@@ -275,7 +275,7 @@ struct broadcast_ctx_t {
   //   It's possible two instances of Moonlight are behind a NAT.
   //   From Sunshine's point of view, the ip addresses are identical
   //   We need some way to know what ports are already used for different streams
-  util::sync_t<std::vector<std::pair<std::string, std::uint16_t>>> audio_video_connections;
+  sync_util::sync_t<std::vector<std::pair<std::string, std::uint16_t>>> audio_video_connections;
 
   control_server_t control_server;
 };

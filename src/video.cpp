@@ -402,7 +402,7 @@ struct capture_thread_async_ctx_t {
 
   safe::signal_t reinit_event;
   const encoder_t *encoder_p;
-  util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
+  sync_util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
 };
 
 struct capture_thread_sync_ctx_t {
@@ -434,9 +434,9 @@ static encoder_t nvenc {
       { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
-      { "preset"s, &config::video.nv.preset },
-      { "tune"s, &config::video.nv.tune },
-      { "rc"s, &config::video.nv.rc },
+      { "preset"s, &config::video.nv.nv_preset },
+      { "tune"s, &config::video.nv.nv_tune },
+      { "rc"s, &config::video.nv.nv_rc },
     },
     // SDR-specific options
     {
@@ -454,10 +454,10 @@ static encoder_t nvenc {
       { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
-      { "preset"s, &config::video.nv.preset },
-      { "tune"s, &config::video.nv.tune },
-      { "rc"s, &config::video.nv.rc },
-      { "coder"s, &config::video.nv.coder },
+      { "preset"s, &config::video.nv.nv_preset },
+      { "tune"s, &config::video.nv.nv_tune },
+      { "rc"s, &config::video.nv.nv_rc },
+      { "coder"s, &config::video.nv.nv_coder },
     },
     // SDR-specific options
     {
@@ -486,7 +486,7 @@ static encoder_t quicksync {
   {
     // Common options
     {
-      { "preset"s, &config::video.qsv.preset },
+      { "preset"s, &config::video.qsv.qsv_preset },
       { "forced_idr"s, 1 },
       { "async_depth"s, 1 },
       { "low_delay_brc"s, 1 },
@@ -508,8 +508,8 @@ static encoder_t quicksync {
   {
     // Common options
     {
-      { "preset"s, &config::video.qsv.preset },
-      { "cavlc"s, &config::video.qsv.cavlc },
+      { "preset"s, &config::video.qsv.qsv_preset },
+      { "cavlc"s, &config::video.qsv.qsv_cavlc },
       { "forced_idr"s, 1 },
       { "async_depth"s, 1 },
       { "low_delay_brc"s, 1 },
@@ -542,13 +542,13 @@ static encoder_t amdvce {
       { "filler_data"s, true },
       { "gops_per_idr"s, 1 },
       { "header_insertion_mode"s, "idr"s },
-      { "preanalysis"s, &config::video.amd.preanalysis },
+      { "preanalysis"s, &config::video.amd.amd_preanalysis },
       { "qmax"s, 51 },
       { "qmin"s, 0 },
-      { "quality"s, &config::video.amd.quality_hevc },
-      { "rc"s, &config::video.amd.rc_hevc },
-      { "usage"s, &config::video.amd.usage_hevc },
-      { "vbaq"s, &config::video.amd.vbaq },
+      { "quality"s, &config::video.amd.amd_quality_hevc },
+      { "rc"s, &config::video.amd.amd_rc_hevc },
+      { "usage"s, &config::video.amd.amd_usage_hevc },
+      { "vbaq"s, &config::video.amd.amd_vbaq },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -560,13 +560,13 @@ static encoder_t amdvce {
     {
       { "filler_data"s, true },
       { "log_to_dbg"s, "1"s },
-      { "preanalysis"s, &config::video.amd.preanalysis },
+      { "preanalysis"s, &config::video.amd.amd_preanalysis },
       { "qmax"s, 51 },
       { "qmin"s, 0 },
-      { "quality"s, &config::video.amd.quality_h264 },
-      { "rc"s, &config::video.amd.rc_h264 },
-      { "usage"s, &config::video.amd.usage_h264 },
-      { "vbaq"s, &config::video.amd.vbaq },
+      { "quality"s, &config::video.amd.amd_quality_h264 },
+      { "rc"s, &config::video.amd.amd_rc_h264 },
+      { "usage"s, &config::video.amd.amd_usage_h264 },
+      { "vbaq"s, &config::video.amd.amd_vbaq },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -591,8 +591,8 @@ static encoder_t software {
     {
       { "forced-idr"s, 1 },
       { "x265-params"s, "info=0:keyint=-1"s },
-      { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune },
+      { "preset"s, &config::video.sw.sw_preset },
+      { "tune"s, &config::video.sw.sw_tune },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -602,8 +602,8 @@ static encoder_t software {
   {
     // Common options
     {
-      { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune },
+      { "preset"s, &config::video.sw.sw_preset },
+      { "tune"s, &config::video.sw.sw_tune },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -660,9 +660,9 @@ static encoder_t videotoolbox {
   {
     // Common options
     {
-      { "allow_sw"s, &config::video.vt.allow_sw },
-      { "require_sw"s, &config::video.vt.require_sw },
-      { "realtime"s, &config::video.vt.realtime },
+      { "allow_sw"s, &config::video.vt.vt_allow_sw },
+      { "require_sw"s, &config::video.vt.vt_require_sw },
+      { "realtime"s, &config::video.vt.vt_realtime },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -672,9 +672,9 @@ static encoder_t videotoolbox {
   {
     // Common options
     {
-      { "allow_sw"s, &config::video.vt.allow_sw },
-      { "require_sw"s, &config::video.vt.require_sw },
-      { "realtime"s, &config::video.vt.realtime },
+      { "allow_sw"s, &config::video.vt.vt_allow_sw },
+      { "require_sw"s, &config::video.vt.vt_require_sw },
+      { "realtime"s, &config::video.vt.vt_realtime },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -720,7 +720,7 @@ void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type,
 
 void captureThread(
   std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
-  util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
+  sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
   safe::signal_t &reinit_event,
   const encoder_t &encoder) {
   std::vector<capture_ctx_t> capture_ctxs;
@@ -767,7 +767,7 @@ void captureThread(
   display_wp = disp;
 
   std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+  auto round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
 
   for(auto &img : imgs) {
     img = disp->alloc_img();
@@ -1293,7 +1293,7 @@ void encode_run(
   auto idr_events     = mail->event<bool>(mail::idr);
 
   // Load a dummy image into the AVFrame to ensure we have something to encode
-  // even if we time out waiting on the first frame.
+  // even if we timeout waiting on the first frame.
   auto dummy_img = disp->alloc_img();
   if(!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
     return;
@@ -1905,7 +1905,7 @@ int init() {
 
   BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
-  // If we haven't found an encoder yet but we want one with HDR support, search for that now.
+  // If we haven't found an encoder yet, but we want one with HDR support, search for that now.
   if(!encoder_found && config::video.hevc_mode == 3) {
     KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
       auto encoder = *pos;
