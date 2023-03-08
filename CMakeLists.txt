@@ -10,47 +10,57 @@ and Nvidia GPUs for hardware encoding. Software encoding is also available. You 
 Moonlight client on a variety of devices. A web UI is provided to allow configuration, and client pairing, from \
 your favorite web browser. Pair from the local server or any mobile device.")
 
+#If BRANCH and BUILD_VERSION are both defined, then we are building a master branch
+if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION})) # cmake-lint: disable=W0106
+    MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
+    set(PROJECT_VERSION $ENV{BUILD_VERSION})
+#If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
+elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
+    MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")
+    set(PROJECT_VERSION ${PROJECT_VERSION}-g$ENV{COMMIT})
 # Generate Sunshine Version based of the git tag
 # https://github.com/nocnokneo/cmake-git-versioning-example/blob/master/LICENSE
-find_package(Git)
-if(GIT_EXECUTABLE)
-    MESSAGE("${CMAKE_CURRENT_SOURCE_DIR}")
-    get_filename_component(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
-    #Get current Branch
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD 
-        #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
-        RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    # Gather current commit
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-        #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
-        RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    # Check if Dirty
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
-        #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        RESULT_VARIABLE GIT_IS_DIRTY
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    if(NOT GIT_DESCRIBE_ERROR_CODE)
-        MESSAGE(Sunshine Branch: ${GIT_DESCRIBE_BRANCH})
-        if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
-            set(PROJECT_VERSION ${PROJECT_VERSION}-g${GIT_DESCRIBE_VERSION})
-            MESSAGE(Sunshine Version: ${GIT_DESCRIBE_VERSION})
+else()
+    find_package(Git)
+    if(GIT_EXECUTABLE)
+        MESSAGE("${CMAKE_CURRENT_SOURCE_DIR}")
+        get_filename_component(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+        #Get current Branch
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
+            #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
+            RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        # Gather current commit
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+            #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
+            RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        # Check if Dirty
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
+            #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE GIT_IS_DIRTY
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(NOT GIT_DESCRIBE_ERROR_CODE)
+            MESSAGE(Sunshine Branch: ${GIT_DESCRIBE_BRANCH})
+            if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
+                set(PROJECT_VERSION ${PROJECT_VERSION}-g${GIT_DESCRIBE_VERSION})
+                MESSAGE(Sunshine Version: ${GIT_DESCRIBE_VERSION})
+            endif()
+            if(GIT_IS_DIRTY)
+                set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
+                MESSAGE(Git tree is dirty!)
+            endif()
+        else()
+            MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
         endif()
-        if(GIT_IS_DIRTY)
-            set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
-            MESSAGE(Git tree is dirty!)
-        endif()
-    else()
-        MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
     endif()
 endif()
 
