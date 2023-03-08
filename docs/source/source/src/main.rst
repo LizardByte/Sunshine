@@ -1,0 +1,4 @@
+main
+====
+
+.. doxygenfile:: main.h

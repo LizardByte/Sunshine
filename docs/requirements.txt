@@ -1,3 +1,4 @@
+breathe==4.35.0
 furo==2022.12.7
 m2r2==0.3.3.post2
 Sphinx==6.1.3

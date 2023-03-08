@@ -18,13 +18,11 @@ static int openssl_verify_cb(int ok, X509_STORE_CTX *ctx) {
   int err_code = X509_STORE_CTX_get_error(ctx);
 
   switch(err_code) {
-  // FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get mmonlight-embedded to work on the raspberry pi
-  case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
-    return 1;
-
   // Expired or not-yet-valid certificates are fine. Sometimes Moonlight is running on embedded devices
   // that don't have accurate clocks (or haven't yet synchronized by the time Moonlight first runs).
   // This behavior also matches what GeForce Experience does.
+  // FIXME: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get moonlight-embedded to work on the raspberry pi
+  case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
   case X509_V_ERR_CERT_NOT_YET_VALID:
   case X509_V_ERR_CERT_HAS_EXPIRED:
     return 1;
