@@ -29,7 +29,6 @@
     return [AVCaptureDevice devicesWithMediaType:AVMediaTypeAudio];
 #pragma clang diagnostic pop
   }
-
 }
 
 + (NSArray<NSString *> *)microphoneNames {
