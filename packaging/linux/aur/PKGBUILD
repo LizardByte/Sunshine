@@ -1,11 +1,11 @@
 # Edit on github: https://github.com/LizardByte/Sunshine/tree/nightly/packaging/linux/aur/PKGBUILD
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
-pkgname=@SUNSHINE_AUR_PKG@
+pkgname='sunshine'
 pkgver=@PROJECT_VERSION@@SUNSHINE_SUB_VERSION@
 pkgrel=1
 pkgdesc="@PROJECT_DESCRIPTION@"
-arch=('x86_64' 'i686')
+arch=('x86_64' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
 
@@ -15,8 +15,7 @@ optdepends=('cuda: NvFBC capture support'
             'libcap'
             'libdrm')
 
-provides=(@SUNSHINE_AUR_PROVIDES@)
-conflicts=(@SUNSHINE_AUR_CONFLICTS@)
+provides=('sunshine')
 
 source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
 sha256sums=('SKIP')

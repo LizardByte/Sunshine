@@ -2,6 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64
+# no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=fedora
 ARG TAG=36
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -16,6 +17,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # hadolint ignore=DL3041
 RUN <<_DEPS
 #!/bin/bash
+set -e
 dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
@@ -23,6 +25,7 @@ dnf -y install \
   cmake-3.22.2* \
   gcc-12.0.1* \
   gcc-c++-12.0.1* \
+  git-2.39.2* \
   libcap-devel-2.48* \
   libcurl-devel-7.82.0* \
   libdrm-devel-2.4.110* \
@@ -61,6 +64,7 @@ ENV CUDA_BUILD="525.60.13"
 # hadolint ignore=SC3010
 RUN <<_INSTALL_CUDA
 #!/bin/bash
+set -e
 cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
 if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
@@ -76,7 +80,7 @@ _INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY .. .
+COPY --link .. .
 
 # setup npm dependencies
 RUN npm install
@@ -87,6 +91,7 @@ WORKDIR /build/sunshine/build
 # cmake and cpack
 RUN <<_MAKE
 #!/bin/bash
+set -e
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
@@ -106,16 +111,17 @@ FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
-COPY --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
 FROM sunshine-base as sunshine
 
 # copy deb from builder
-COPY --from=artifacts /sunshine*.rpm /sunshine.rpm
+COPY --link --from=artifacts /sunshine*.rpm /sunshine.rpm
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
+set -e
 dnf -y update
 dnf -y install /sunshine.rpm
 dnf clean all
@@ -140,6 +146,8 @@ ENV HOME=/home/$UNAME
 
 # setup user
 RUN <<_SETUP_USER
+#!/bin/bash
+set -e
 groupadd -f -g "${PGID}" "${UNAME}"
 useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine

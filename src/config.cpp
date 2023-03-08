@@ -130,6 +130,14 @@ namespace amd {
 #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR 1
 #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
 #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 3
+#define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCONDING 0
+#define AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY 1
+#define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY 2
+#define AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM 3
+#define AMF_VIDEO_ENCODER_USAGE_TRANSCONDING 0
+#define AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY 1
+#define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY 2
+#define AMF_VIDEO_ENCODER_USAGE_WEBCAM 3
 #define AMF_VIDEO_ENCODER_UNDEFINED 0
 #define AMF_VIDEO_ENCODER_CABAC 1
 #define AMF_VIDEO_ENCODER_CALV 2
@@ -164,6 +172,20 @@ enum class rc_h264_e : int {
   cbr         = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR
 };
 
+enum class usage_hevc_e : int {
+  transcoding     = AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCONDING,
+  webcam          = AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM,
+  lowlatency      = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY,
+  ultralowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY
+};
+
+enum class usage_h264_e : int {
+  transcoding     = AMF_VIDEO_ENCODER_USAGE_TRANSCONDING,
+  webcam          = AMF_VIDEO_ENCODER_USAGE_WEBCAM,
+  lowlatency      = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY,
+  ultralowlatency = AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY
+};
+
 enum coder_e : int {
   _auto = AMF_VIDEO_ENCODER_UNDEFINED,
   cabac = AMF_VIDEO_ENCODER_CABAC,
@@ -187,6 +209,17 @@ std::optional<int> rc_from_view(const std::string_view &rc, int codec) {
   _CONVERT_(vbr_latency);
   _CONVERT_(vbr_peak);
   _CONVERT_(cbr);
+#undef _CONVERT_
+  return std::nullopt;
+}
+
+std::optional<int> usage_from_view(const std::string_view &rc, int codec) {
+#define _CONVERT_(x) \
+  if(rc == #x##sv) return codec == 0 ? (int)usage_hevc_e::x : (int)usage_h264_e::x
+  _CONVERT_(transcoding);
+  _CONVERT_(webcam);
+  _CONVERT_(lowlatency);
+  _CONVERT_(ultralowlatency);
 #undef _CONVERT_
   return std::nullopt;
 }
@@ -300,12 +333,16 @@ video_t video {
   },             // qsv
 
   {
-    (int)amd::quality_h264_e::balanced, // quality (h264)
-    (int)amd::quality_hevc_e::balanced, // quality (hevc)
-    (int)amd::rc_h264_e::vbr_latency,   // rate control (h264)
-    (int)amd::rc_hevc_e::vbr_latency,   // rate control (hevc)
-    (int)amd::coder_e::_auto,           // coder
-  },                                    // amd
+    (int)amd::quality_h264_e::balanced,      // quality (h264)
+    (int)amd::quality_hevc_e::balanced,      // quality (hevc)
+    (int)amd::rc_h264_e::vbr_latency,        // rate control (h264)
+    (int)amd::rc_hevc_e::vbr_latency,        // rate control (hevc)
+    (int)amd::usage_h264_e::ultralowlatency, // usage (h264)
+    (int)amd::usage_hevc_e::ultralowlatency, // usage (hevc)
+    0,                                       // preanalysis
+    1,                                       // vbaq
+    (int)amd::coder_e::_auto,                // coder
+  },                                         // amd
 
   {
     0,
@@ -371,6 +408,10 @@ input_t input {
     platf::supported_gamepads().front().data(),
     platf::supported_gamepads().front().size(),
   }, // Default gamepad
+
+  false,
+  false,
+  false,
 };
 
 sunshine_t sunshine {
@@ -801,35 +842,45 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "qp", video.qp);
   int_f(vars, "min_threads", video.min_threads);
   int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
-  string_f(vars, "sw_preset", video.sw.preset);
-  string_f(vars, "sw_tune", video.sw.tune);
-  int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
-  int_f(vars, "nv_tune", video.nv.tune, nv::tune_from_view);
-  int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
-  int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+  string_f(vars, "sw_preset", video.sw.sw_preset);
+  string_f(vars, "sw_tune", video.sw.sw_tune);
+  int_f(vars, "nv_preset", video.nv.nv_preset, nv::preset_from_view);
+  int_f(vars, "nv_tune", video.nv.nv_tune, nv::tune_from_view);
+  int_f(vars, "nv_rc", video.nv.nv_rc, nv::rc_from_view);
+  int_f(vars, "nv_coder", video.nv.nv_coder, nv::coder_from_view);
 
-  int_f(vars, "qsv_preset", video.qsv.preset, qsv::preset_from_view);
-  int_f(vars, "qsv_coder", video.qsv.cavlc, qsv::coder_from_view);
+  int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
+  int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
 
   std::string quality;
   string_f(vars, "amd_quality", quality);
   if(!quality.empty()) {
-    video.amd.quality_h264 = amd::quality_from_view(quality, 1);
-    video.amd.quality_hevc = amd::quality_from_view(quality, 0);
+    video.amd.amd_quality_h264 = amd::quality_from_view(quality, 1);
+    video.amd.amd_quality_hevc = amd::quality_from_view(quality, 0);
   }
 
   std::string rc;
   string_f(vars, "amd_rc", rc);
-  int_f(vars, "amd_coder", video.amd.coder, amd::coder_from_view);
+  int_f(vars, "amd_coder", video.amd.amd_coder, amd::coder_from_view);
   if(!rc.empty()) {
-    video.amd.rc_h264 = amd::rc_from_view(rc, 1);
-    video.amd.rc_hevc = amd::rc_from_view(rc, 0);
+    video.amd.amd_rc_h264 = amd::rc_from_view(rc, 1);
+    video.amd.amd_rc_hevc = amd::rc_from_view(rc, 0);
   }
 
-  int_f(vars, "vt_coder", video.vt.coder, vt::coder_from_view);
-  int_f(vars, "vt_software", video.vt.allow_sw, vt::allow_software_from_view);
-  int_f(vars, "vt_software", video.vt.require_sw, vt::force_software_from_view);
-  int_f(vars, "vt_realtime", video.vt.realtime, vt::rt_from_view);
+  std::string usage;
+  string_f(vars, "amd_usage", usage);
+  if(!usage.empty()) {
+    video.amd.amd_usage_h264 = amd::usage_from_view(rc, 1);
+    video.amd.amd_usage_hevc = amd::usage_from_view(rc, 0);
+  }
+
+  bool_f(vars, "amd_preanalysis", (bool &)video.amd.amd_preanalysis);
+  bool_f(vars, "amd_vbaq", (bool &)video.amd.amd_vbaq);
+
+  int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
+  int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
+  int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
+  int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);
@@ -899,6 +950,10 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
+
+  bool_f(vars, "mouse", input.mouse);
+  bool_f(vars, "keyboard", input.keyboard);
+  bool_f(vars, "controller", input.controller);
 
   int port = sunshine.port;
   int_f(vars, "port"s, port);

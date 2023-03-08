@@ -147,109 +147,6 @@ jobs:
     outputs:
       matrix: ${{ steps.flatpak_matrix.outputs.matrix }}
 
-  build_linux_aur:
-    name: Linux AUR
-    runs-on: ubuntu-latest
-    needs: setup_release
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup Dependencies Linux AUR
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            cmake
-
-      - name: Configure PKGBUILD files
-        id: prepare
-        run: |
-          # variables for manifest
-          aur_publish=false
-          aur_pkg=sunshine-dev
-          sub_version=""
-          conflicts="'sunshine'"
-          provides="'sunshine'"
-
-          branch=${GITHUB_HEAD_REF}
-
-          # check the branch variable
-          if [ -z "$branch" ]; then
-            echo "This is a PUSH event"
-            commit=${{ github.sha }}
-            clone_url=${{ github.event.repository.clone_url }}
-
-            if [[ ${{ github.ref == 'refs/heads/master' }} == true ]]; then
-              echo "This is a main release event"
-              aur_publish=true
-              aur_pkg=sunshine
-              conflicts=""
-              provides=""
-            elif [[ ${{ github.ref == 'refs/heads/nightly' }} == true ]]; then
-              echo "This is a nightly release event"
-              sub_version=".r${commit}"
-            fi
-          else
-            echo "This is a PR event"
-            commit=${{ github.event.pull_request.head.sha }}
-            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
-
-            sub_version=".r${commit}"
-          fi
-          echo "Commit: ${commit}"
-          echo "Clone URL: ${clone_url}"
-
-          echo "aur_publish=${aur_publish}" >> $GITHUB_OUTPUT
-          echo "aur_pkg=${aur_pkg}" >> $GITHUB_OUTPUT
-
-          mkdir -p artifacts
-          mkdir -p build
-
-          cd build
-          cmake -DSUNSHINE_CONFIGURE_AUR=ON \
-            -DSUNSHINE_AUR_PKG=${aur_pkg} \
-            -DSUNSHINE_SUB_VERSION=${sub_version} \
-            -DSUNSHINE_AUR_CONFLICTS=${conflicts} \
-            -DSUNSHINE_AUR_PROVIDES=${provides} \
-            -DGITHUB_CLONE_URL=${clone_url} \
-            -DGITHUB_COMMIT=${commit} \
-            -DSUNSHINE_CONFIGURE_ONLY=ON \
-            ..
-          cd ..
-
-          mv ./build/PKGBUILD ./artifacts/
-
-      - name: Validate package
-        uses: LizardByte/archlinux-package-action@master
-        with:
-          path: artifacts
-          flags: '--syncdeps --noconfirm'
-          namcap: true
-          srcinfo: true
-          aur: true  # workaround mirror problem
-
-      - name: Upload Artifacts
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: sunshine-linux-aur
-          path: artifacts/
-
-      - name: Publish AUR package
-        if: ${{ steps.prepare.outputs.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.6.0
-        with:
-          pkgname: ${{ steps.prepare.outputs.aur_pkg }}
-          pkgbuild: ./artifacts/PKGBUILD
-          assets: |
-            ./artifacts/*
-          commit_username: ${{ secrets.AUR_USERNAME }}
-          commit_email: ${{ secrets.AUR_EMAIL }}
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: Automatic update from GitHub ${{ github.repository }} per ${{ github.ref }}
-          allow_empty_commits: false
-
   build_linux_flatpak:
     name: Linux Flatpak
     runs-on: ubuntu-22.04
@@ -384,6 +281,7 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y \
               libboost-filesystem1.71-dev \
+              libboost-locale1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
               libboost-thread1.71-dev \
@@ -410,6 +308,7 @@ jobs:
             sudo apt-get install -y \
               cmake \
               libboost-filesystem-dev \
+              libboost-locale-dev \
               libboost-log-dev \
               libboost-thread-dev \
               libboost-program-options-dev
@@ -580,7 +479,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl node opus
+          brew install boost cmake curl node opus pkg-config
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
@@ -916,8 +815,8 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows.exe
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows.zip
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -946,7 +845,7 @@ jobs:
     runs-on: windows-latest  # the required action can only be run on Windows
     steps:
       - name: Release to WinGet
-        uses: vedantmgoyal2009/winget-releaser@v1
+        uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: LizardByte.Sunshine
           release-tag: ${{ needs.setup_release.outputs.release_tag }}

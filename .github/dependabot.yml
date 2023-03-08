@@ -29,7 +29,7 @@ updates:
     target-branch: "nightly"
     open-pull-requests-limit: 10
 
-  - package-ecosystem: "pip"
+  - package-ecosystem: "nuget"
     directory: "/"
     schedule:
       interval: "daily"
@@ -37,10 +37,18 @@ updates:
     target-branch: "nightly"
     open-pull-requests-limit: 10
 
-  - package-ecosystem: "gitsubmodule"
+  - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "daily"
       time: "10:00"
+    target-branch: "nightly"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "10:30"
     target-branch: "nightly"
     open-pull-requests-limit: 10

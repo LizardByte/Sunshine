@@ -205,9 +205,20 @@ jobs:
           # get branch name
           BRANCH=${GITHUB_HEAD_REF}
 
+          RELEASE=false
+
           if [ -z "$BRANCH" ]; then
             echo "This is a PUSH event"
             BRANCH=${{ github.ref_name }}
+            COMMIT=${{ github.sha }}
+            CLONE_URL=${{ github.event.repository.clone_url }}
+            if [[ $BRANCH == "master" ]]; then
+              RELEASE=true
+            fi
+          else
+            echo "This is a PULL REQUEST event"
+            COMMIT=${{ github.event.pull_request.head.sha }}
+            CLONE_URL=${{ github.event.pull_request.head.repo.clone_url }}
           fi
 
           # determine to push image to dockerhub and ghcr or not
@@ -220,7 +231,6 @@ jobs:
           # setup the tags
           REPOSITORY=${{ github.repository }}
           BASE_TAG=$(echo $REPOSITORY | tr '[:upper:]' '[:lower:]')
-          COMMIT=${{ github.sha }}
 
           TAGS="${BASE_TAG}:${COMMIT:0:7}${{ matrix.tag }},ghcr.io/${BASE_TAG}:${COMMIT:0:7}${{ matrix.tag }}"
 
@@ -259,7 +269,10 @@ jobs:
             elif [[ $line == "# artifacts: "* && $ARTIFACTS == "" ]]; then
               # echo the line and use `sed` to remove the custom directive
               ARTIFACTS=$(echo -e "$line" | sed 's/# artifacts: //')
-            elif [[ $PLATFORMS != "" && $ARTIFACTS != "" ]]; then
+            elif [[ $line == "# no-cache-filters: "* && $NO_CACHE_FILTERS == "" ]]; then
+              # echo the line and use `sed` to remove the custom directive
+              NO_CACHE_FILTERS=$(echo -e "$line" | sed 's/# no-cache-filters: //')
+            elif [[ $PLATFORMS != "" && $ARTIFACTS != "" && $NO_CACHE_FILTERS != "" ]]; then
               # break while loop once all custom directives are found
               break
             fi
@@ -277,7 +290,10 @@ jobs:
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
           echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "clone_url=${CLONE_URL}" >> $GITHUB_OUTPUT
+          echo "release=${RELEASE}" >> $GITHUB_OUTPUT
           echo "artifacts=${ARTIFACTS}" >> $GITHUB_OUTPUT
+          echo "no_cache_filters=${NO_CACHE_FILTERS}" >> $GITHUB_OUTPUT
           echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
           echo "push=${PUSH}" >> $GITHUB_OUTPUT
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
@@ -315,7 +331,7 @@ jobs:
       - name: Build artifacts
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
         id: build_artifacts
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: ./
           file: ${{ matrix.dockerfile }}
@@ -328,13 +344,16 @@ jobs:
             BUILD_DATE=${{ steps.prepare.outputs.build_date }}
             BUILD_VERSION=${{ needs.check_changelog.outputs.next_version }}
             COMMIT=${{ steps.prepare.outputs.commit }}
+            CLONE_URL=${{ steps.prepare.outputs.clone_url }}
+            RELEASE=${{ steps.prepare.outputs.release }}
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+          no-cache-filters: ${{ steps.prepare.outputs.no_cache_filters }}
 
       - name: Build and push
         id: build
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v4
         with:
           context: ./
           file: ${{ matrix.dockerfile }}
@@ -345,9 +364,12 @@ jobs:
             BUILD_DATE=${{ steps.prepare.outputs.build_date }}
             BUILD_VERSION=${{ needs.check_changelog.outputs.next_version }}
             COMMIT=${{ steps.prepare.outputs.commit }}
+            CLONE_URL=${{ steps.prepare.outputs.clone_url }}
+            RELEASE=${{ steps.prepare.outputs.release }}
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
+          no-cache-filters: ${{ steps.prepare.outputs.no_cache_filters }}
 
       - name: Arrange Artifacts
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
@@ -358,11 +380,14 @@ jobs:
           # https://unix.stackexchange.com/a/52816
           find ./ -type f -exec mv -t ./ -n '{}' +
 
+          # remove provenance file
+          rm -f ./provenance.json
+
       - name: Upload Artifacts
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sunshine${{ matrix.tag }}
+          name: Docker${{ matrix.tag }}
           path: artifacts/
 
       - name: Create/Update GitHub Release

@@ -52,7 +52,7 @@ using __float4 = float[4];
 using __float3 = float[3];
 using __float2 = float[2];
 
-struct __attribute__((__aligned__(16))) color_t {
+struct alignas(16) color_t {
   float4 color_vec_y;
   float4 color_vec_u;
   float4 color_vec_v;
@@ -60,7 +60,7 @@ struct __attribute__((__aligned__(16))) color_t {
   float2 range_uv;
 };
 
-struct __attribute__((__aligned__(16))) color_extern_t {
+struct alignas(16) color_extern_t {
   __float4 color_vec_y;
   __float4 color_vec_u;
   __float4 color_vec_v;

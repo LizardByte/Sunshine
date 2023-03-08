@@ -2,6 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64
+# no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=debian
 ARG TAG=bullseye
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -17,12 +18,15 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
 RUN <<_DEPS
 #!/bin/bash
+set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential=12.9* \
   cmake=3.18.4* \
+  git=1:2.30.2* \
   libavdevice-dev=7:4.3.* \
   libboost-filesystem-dev=1.74.0* \
+  libboost-locale-dev=1.74.0* \
   libboost-log-dev=1.74.0* \
   libboost-program-options-dev=1.74.0* \
   libboost-thread-dev=1.74.0* \
@@ -63,6 +67,7 @@ ENV CUDA_BUILD="520.61.05"
 # hadolint ignore=SC3010
 RUN <<_INSTALL_CUDA
 #!/bin/bash
+set -e
 cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
 if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
@@ -78,7 +83,7 @@ _INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY .. .
+COPY --link .. .
 
 # setup npm dependencies
 RUN npm install
@@ -89,6 +94,7 @@ WORKDIR /build/sunshine/build
 # cmake and cpack
 RUN <<_MAKE
 #!/bin/bash
+set -e
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
@@ -108,16 +114,17 @@ FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
-COPY --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
 
 FROM sunshine-base as sunshine
 
 # copy deb from builder
-COPY --from=artifacts /sunshine*.deb /sunshine.deb
+COPY --link --from=artifacts /sunshine*.deb /sunshine.deb
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
+set -e
 apt-get update -y
 apt-get install -y --no-install-recommends /sunshine.deb
 apt-get clean
@@ -142,6 +149,8 @@ ENV HOME=/home/$UNAME
 
 # setup user
 RUN <<_SETUP_USER
+#!/bin/bash
+set -e
 groupadd -f -g "${PGID}" "${UNAME}"
 useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine

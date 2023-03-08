@@ -3,7 +3,7 @@
 
 #include <iterator>
 
-namespace util {
+namespace round_robin_util {
 template<class V, class T>
 class it_wrap_t : public std::iterator<std::random_access_iterator_tag, V> {
 public:
@@ -151,6 +151,6 @@ template<class V, class It>
 round_robin_t<V, It> make_round_robin(It begin, It end) {
   return round_robin_t<V, It>(begin, end);
 }
-} // namespace util
+} // namespace round_robin_util
 
 #endif

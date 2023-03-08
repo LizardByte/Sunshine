@@ -57,6 +57,8 @@ body:
         - macOS
         - Windows
         - other, n/a
+    validations:
+      required: true
   - type: input
     id: os-version
     attributes:
@@ -73,11 +75,13 @@ body:
         - 64 bit
         - arm
         - other, n/a
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
       label: Sunshine commit or version
-      placeholder: eg. 0.16.0
+      placeholder: eg. 0.18.0
     validations:
       required: true
   - type: dropdown
@@ -87,20 +91,28 @@ body:
       description: The package you installed
       options:
         - Linux - AppImage
-        - Linux - AUR
-        - Linux - 20.04-deb
-        - Linux - 22.04-deb
+        - Linux - AUR (Third Party)
+        - Linux - deb
         - Linux - Docker
         - Linux - flatpak
+        - Linux - nixpkgs (Third Party)
+        - Linux - PKGBUILD
+        - Linux - pkg.tar.zst
         - Linux - rpm
+        - Linux - solus (Third Party)
         - macOS - dmg
         - macOS - Portfile
         - macOS - pkg
+        - Windows - Chocolatey (Third Party)
         - Windows - installer
         - Windows - portable
+        - Windows - Scoop (Third Party)
+        - Windows - Winget (Third Party)
         - other (not listed)
         - other (self built)
         - other (fork of this repo)
+    validations:
+      required: true
   - type: dropdown
     id: graphics_type
     attributes:
@@ -111,6 +123,8 @@ body:
         - Intel
         - Nvidia
         - none (software encoding)
+    validations:
+      required: true
   - type: input
     id: graphics_model
     attributes:
@@ -136,15 +150,30 @@ body:
     validations:
       required: false
   - type: textarea
+    id: config
+    attributes:
+      label: Config
+      description: |
+        Please copy and paste your config (`sunshine.conf`) file.
+      render: Shell
+    validations:
+      required: true
+  - type: textarea
+    id: apps
+    attributes:
+      label: Apps
+      description: |
+        If this is an issue with launching a game or app, please copy and paste your `apps.json` file.
+      render: json
+    validations:
+      required: false
+  - type: textarea
     id: logs
     attributes:
       label: Relevant log output
       description: |
         Please copy and paste any relevant log output. This will be automatically formatted into code,
         so no need for backticks.
-      render: Shell
-  - type: markdown
-    attributes:
-      value: |
-        Make sure to close your issue when it's solved! If you found the solution yourself please comment
-        so that others benefit from it.
+      render: shell
+    validations:
+      required: true
