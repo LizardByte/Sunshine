@@ -5,6 +5,13 @@
 #include <libevdev/libevdev-uinput.h>
 #include <libevdev/libevdev.h>
 
+#ifdef SUNSHINE_BUILD_X11
+#include <X11/Xutil.h>
+#include <X11/extensions/XTest.h>
+#include <X11/keysym.h>
+#include <X11/keysymdef.h>
+#endif
+
 #include <boost/locale.hpp>
 #include <cmath>
 #include <cstring>
@@ -16,6 +23,8 @@
 
 #include "src/platform/common.h"
 
+#include "misc.h"
+
 // Support older versions
 #ifndef REL_HWHEEL_HI_RES
 #define REL_HWHEEL_HI_RES 0x0c
@@ -26,7 +35,84 @@
 #endif
 
 using namespace std::literals;
+
 namespace platf {
+#ifdef SUNSHINE_BUILD_X11
+namespace x11 {
+#define _FN(x, ret, args)    \
+  typedef ret(*x##_fn) args; \
+  static x##_fn x
+
+_FN(OpenDisplay, Display *, (_Xconst char *display_name));
+_FN(CloseDisplay, int, (Display * display));
+_FN(InitThreads, Status, (void));
+_FN(Flush, int, (Display *));
+
+namespace tst {
+_FN(FakeMotionEvent, int, (Display * dpy, int screen_numer, int x, int y, unsigned long delay));
+_FN(FakeRelativeMotionEvent, int, (Display * dpy, int deltaX, int deltaY, unsigned long delay));
+_FN(FakeButtonEvent, int, (Display * dpy, unsigned int button, Bool is_press, unsigned long delay));
+_FN(FakeKeyEvent, int, (Display * dpy, unsigned int keycode, Bool is_press, unsigned long delay));
+
+static int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libXtst.so.6", "libXtst.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&FakeMotionEvent, "XTestFakeMotionEvent" },
+    { (dyn::apiproc *)&FakeRelativeMotionEvent, "XTestFakeRelativeMotionEvent" },
+    { (dyn::apiproc *)&FakeButtonEvent, "XTestFakeButtonEvent" },
+    { (dyn::apiproc *)&FakeKeyEvent, "XTestFakeKeyEvent" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+} // namespace tst
+
+static int init() {
+  static void *handle { nullptr };
+  static bool funcs_loaded = false;
+
+  if(funcs_loaded) return 0;
+
+  if(!handle) {
+    handle = dyn::handle({ "libX11.so.6", "libX11.so" });
+    if(!handle) {
+      return -1;
+    }
+  }
+
+  std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    { (dyn::apiproc *)&OpenDisplay, "XOpenDisplay" },
+    { (dyn::apiproc *)&CloseDisplay, "XCloseDisplay" },
+    { (dyn::apiproc *)&InitThreads, "XInitThreads" },
+    { (dyn::apiproc *)&Flush, "XFlush" },
+  };
+
+  if(dyn::load(handle, funcs)) {
+    return -1;
+  }
+
+  funcs_loaded = true;
+  return 0;
+}
+} // namespace x11
+#endif
+
 constexpr auto mail_evdev = "platf::evdev"sv;
 
 using evdev_t  = util::safe_ptr<libevdev, libevdev_free>;
@@ -47,144 +133,163 @@ struct keycode_t {
   std::uint32_t keycode;
   std::uint32_t scancode;
 
-  int pressed;
+#ifdef SUNSHINE_BUILD_X11
+  KeySym keysym;
+#endif
 };
 
 constexpr auto UNKNOWN = 0;
 
+/**
+ * @brief Initializes the keycode constants for translating
+ *        moonlight keycodes to linux/X11 keycodes
+ */
 static constexpr std::array<keycode_t, 0xE3> init_keycodes() {
   std::array<keycode_t, 0xE3> keycodes {};
 
-#define __CONVERT(wincode, linuxcode, scancode)                                       \
+#ifdef SUNSHINE_BUILD_X11
+#define __CONVERT_UNSAFE(wincode, linuxcode, scancode, keysym) \
+  keycodes[wincode] = keycode_t { linuxcode, scancode, keysym };
+#else
+#define __CONVERT_UNSAFE(wincode, linuxcode, scancode, keysym) \
+  keycodes[wincode] = keycode_t { linuxcode, scancode };
+#endif
+
+#define __CONVERT(wincode, linuxcode, scancode, keysym)                               \
   static_assert(wincode < keycodes.size(), "Keycode doesn't fit into keycode array"); \
   static_assert(wincode >= 0, "Are you mad?, keycode needs to be greater than zero"); \
-  keycodes[wincode] = keycode_t { linuxcode, scancode };
+  __CONVERT_UNSAFE(wincode, linuxcode, scancode, keysym)
 
-  constexpr auto VK_NUMPAD = 0x60;
-  constexpr auto VK_F1     = 0x70;
-  constexpr auto VK_F13    = 0x7C;
-  constexpr auto VK_0      = 0x30;
-
-  for(auto x = 0; x < 9; ++x) {
-    keycodes[x + VK_NUMPAD + 1] = keycode_t { (std::uint32_t)KEY_KP1 + x, (std::uint32_t)0x70059 + x };
-    keycodes[x + VK_0 + 1]      = keycode_t { (std::uint32_t)KEY_1 + x, (std::uint32_t)0x7001E + x };
-  }
-
-  for(auto x = 0; x < 10; ++x) {
-    keycodes[x + VK_F1] = keycode_t { (std::uint32_t)KEY_F1 + x, (std::uint32_t)0x70046 + x };
-  }
-
-  for(auto x = 0; x < 12; ++x) {
-    keycodes[x + VK_F13] = keycode_t { (std::uint32_t)KEY_F13 + x, (std::uint32_t)0x7003A + x };
-  }
-
-  __CONVERT(0x08 /* VKEY_BACK */, KEY_BACKSPACE, 0x7002A);
-  __CONVERT(0x09 /* VKEY_TAB */, KEY_TAB, 0x7002B);
-  __CONVERT(0x0C /* VKEY_CLEAR */, KEY_CLEAR, UNKNOWN);
-  __CONVERT(0x0D /* VKEY_RETURN */, KEY_ENTER, 0x70028);
-  __CONVERT(0x10 /* VKEY_SHIFT */, KEY_LEFTSHIFT, 0x700E1);
-  __CONVERT(0x11 /* VKEY_CONTROL */, KEY_LEFTCTRL, 0x700E0);
-  __CONVERT(0x12 /* VKEY_MENU */, KEY_LEFTALT, UNKNOWN);
-  __CONVERT(0x13 /* VKEY_PAUSE */, KEY_PAUSE, UNKNOWN);
-  __CONVERT(0x14 /* VKEY_CAPITAL */, KEY_CAPSLOCK, 0x70039);
-  __CONVERT(0x15 /* VKEY_KANA */, KEY_KATAKANAHIRAGANA, UNKNOWN);
-  __CONVERT(0x16 /* VKEY_HANGUL */, KEY_HANGEUL, UNKNOWN);
-  __CONVERT(0x17 /* VKEY_JUNJA */, KEY_HANJA, UNKNOWN);
-  __CONVERT(0x19 /* VKEY_KANJI */, KEY_KATAKANA, UNKNOWN);
-  __CONVERT(0x1B /* VKEY_ESCAPE */, KEY_ESC, 0x70029);
-  __CONVERT(0x20 /* VKEY_SPACE */, KEY_SPACE, 0x7002C);
-  __CONVERT(0x21 /* VKEY_PRIOR */, KEY_PAGEUP, 0x7004B);
-  __CONVERT(0x22 /* VKEY_NEXT */, KEY_PAGEDOWN, 0x7004E);
-  __CONVERT(0x23 /* VKEY_END */, KEY_END, 0x7004D);
-  __CONVERT(0x24 /* VKEY_HOME */, KEY_HOME, 0x7004A);
-  __CONVERT(0x25 /* VKEY_LEFT */, KEY_LEFT, 0x70050);
-  __CONVERT(0x26 /* VKEY_UP */, KEY_UP, 0x70052);
-  __CONVERT(0x27 /* VKEY_RIGHT */, KEY_RIGHT, 0x7004F);
-  __CONVERT(0x28 /* VKEY_DOWN */, KEY_DOWN, 0x70051);
-  __CONVERT(0x29 /* VKEY_SELECT */, KEY_SELECT, UNKNOWN);
-  __CONVERT(0x2A /* VKEY_PRINT */, KEY_PRINT, UNKNOWN);
-  __CONVERT(0x2C /* VKEY_SNAPSHOT */, KEY_SYSRQ, 0x70046);
-  __CONVERT(0x2D /* VKEY_INSERT */, KEY_INSERT, 0x70049);
-  __CONVERT(0x2E /* VKEY_DELETE */, KEY_DELETE, 0x7004C);
-  __CONVERT(0x2F /* VKEY_HELP */, KEY_HELP, UNKNOWN);
-  __CONVERT(0x30 /* VKEY_0 */, KEY_0, 0x70027);
-  __CONVERT(0x31 /* VKEY_1 */, KEY_1, 0x7001E);
-  __CONVERT(0x32 /* VKEY_2 */, KEY_2, 0x7001F);
-  __CONVERT(0x33 /* VKEY_3 */, KEY_3, 0x70020);
-  __CONVERT(0x34 /* VKEY_4 */, KEY_4, 0x70021);
-  __CONVERT(0x35 /* VKEY_5 */, KEY_5, 0x70022);
-  __CONVERT(0x36 /* VKEY_6 */, KEY_6, 0x70023);
-  __CONVERT(0x37 /* VKEY_7 */, KEY_7, 0x70024);
-  __CONVERT(0x38 /* VKEY_8 */, KEY_8, 0x70025);
-  __CONVERT(0x39 /* VKEY_9 */, KEY_9, 0x70026);
-  __CONVERT(0x41 /* VKEY_A */, KEY_A, 0x70004);
-  __CONVERT(0x42 /* VKEY_B */, KEY_B, 0x70005);
-  __CONVERT(0x43 /* VKEY_C */, KEY_C, 0x70006);
-  __CONVERT(0x44 /* VKEY_D */, KEY_D, 0x70007);
-  __CONVERT(0x45 /* VKEY_E */, KEY_E, 0x70008);
-  __CONVERT(0x46 /* VKEY_F */, KEY_F, 0x70009);
-  __CONVERT(0x47 /* VKEY_G */, KEY_G, 0x7000A);
-  __CONVERT(0x48 /* VKEY_H */, KEY_H, 0x7000B);
-  __CONVERT(0x49 /* VKEY_I */, KEY_I, 0x7000C);
-  __CONVERT(0x4A /* VKEY_J */, KEY_J, 0x7000D);
-  __CONVERT(0x4B /* VKEY_K */, KEY_K, 0x7000E);
-  __CONVERT(0x4C /* VKEY_L */, KEY_L, 0x7000F);
-  __CONVERT(0x4D /* VKEY_M */, KEY_M, 0x70010);
-  __CONVERT(0x4E /* VKEY_N */, KEY_N, 0x70011);
-  __CONVERT(0x4F /* VKEY_O */, KEY_O, 0x70012);
-  __CONVERT(0x50 /* VKEY_P */, KEY_P, 0x70013);
-  __CONVERT(0x51 /* VKEY_Q */, KEY_Q, 0x70014);
-  __CONVERT(0x52 /* VKEY_R */, KEY_R, 0x70015);
-  __CONVERT(0x53 /* VKEY_S */, KEY_S, 0x70016);
-  __CONVERT(0x54 /* VKEY_T */, KEY_T, 0x70017);
-  __CONVERT(0x55 /* VKEY_U */, KEY_U, 0x70018);
-  __CONVERT(0x56 /* VKEY_V */, KEY_V, 0x70019);
-  __CONVERT(0x57 /* VKEY_W */, KEY_W, 0x7001A);
-  __CONVERT(0x58 /* VKEY_X */, KEY_X, 0x7001B);
-  __CONVERT(0x59 /* VKEY_Y */, KEY_Y, 0x7001C);
-  __CONVERT(0x5A /* VKEY_Z */, KEY_Z, 0x7001D);
-  __CONVERT(0x5B /* VKEY_LWIN */, KEY_LEFTMETA, 0x700E3);
-  __CONVERT(0x5C /* VKEY_RWIN */, KEY_RIGHTMETA, 0x700E7);
-  __CONVERT(0x5F /* VKEY_SLEEP */, KEY_SLEEP, UNKNOWN);
-  __CONVERT(0x60 /* VKEY_NUMPAD0 */, KEY_KP0, 0x70062);
-  __CONVERT(0x61 /* VKEY_NUMPAD1 */, KEY_KP1, 0x70059);
-  __CONVERT(0x62 /* VKEY_NUMPAD2 */, KEY_KP2, 0x7005A);
-  __CONVERT(0x63 /* VKEY_NUMPAD3 */, KEY_KP3, 0x7005B);
-  __CONVERT(0x64 /* VKEY_NUMPAD4 */, KEY_KP4, 0x7005C);
-  __CONVERT(0x65 /* VKEY_NUMPAD5 */, KEY_KP5, 0x7005D);
-  __CONVERT(0x66 /* VKEY_NUMPAD6 */, KEY_KP6, 0x7005E);
-  __CONVERT(0x67 /* VKEY_NUMPAD7 */, KEY_KP7, 0x7005F);
-  __CONVERT(0x68 /* VKEY_NUMPAD8 */, KEY_KP8, 0x70060);
-  __CONVERT(0x69 /* VKEY_NUMPAD9 */, KEY_KP9, 0x70061);
-  __CONVERT(0x6A /* VKEY_MULTIPLY */, KEY_KPASTERISK, 0x70055);
-  __CONVERT(0x6B /* VKEY_ADD */, KEY_KPPLUS, 0x70057);
-  __CONVERT(0x6C /* VKEY_SEPARATOR */, KEY_KPCOMMA, UNKNOWN);
-  __CONVERT(0x6D /* VKEY_SUBTRACT */, KEY_KPMINUS, 0x70056);
-  __CONVERT(0x6E /* VKEY_DECIMAL */, KEY_KPDOT, 0x70063);
-  __CONVERT(0x6F /* VKEY_DIVIDE */, KEY_KPSLASH, 0x70054);
-  __CONVERT(0x7A /* VKEY_F11 */, KEY_F11, 70044);
-  __CONVERT(0x7B /* VKEY_F12 */, KEY_F12, 70045);
-  __CONVERT(0x90 /* VKEY_NUMLOCK */, KEY_NUMLOCK, 0x70053);
-  __CONVERT(0x91 /* VKEY_SCROLL */, KEY_SCROLLLOCK, 0x70047);
-  __CONVERT(0xA0 /* VKEY_LSHIFT */, KEY_LEFTSHIFT, 0x700E1);
-  __CONVERT(0xA1 /* VKEY_RSHIFT */, KEY_RIGHTSHIFT, 0x700E5);
-  __CONVERT(0xA2 /* VKEY_LCONTROL */, KEY_LEFTCTRL, 0x700E0);
-  __CONVERT(0xA3 /* VKEY_RCONTROL */, KEY_RIGHTCTRL, 0x700E4);
-  __CONVERT(0xA4 /* VKEY_LMENU */, KEY_LEFTALT, 0x7002E);
-  __CONVERT(0xA5 /* VKEY_RMENU */, KEY_RIGHTALT, 0x700E6);
-  __CONVERT(0xBA /* VKEY_OEM_1 */, KEY_SEMICOLON, 0x70033);
-  __CONVERT(0xBB /* VKEY_OEM_PLUS */, KEY_EQUAL, 0x7002E);
-  __CONVERT(0xBC /* VKEY_OEM_COMMA */, KEY_COMMA, 0x70036);
-  __CONVERT(0xBD /* VKEY_OEM_MINUS */, KEY_MINUS, 0x7002D);
-  __CONVERT(0xBE /* VKEY_OEM_PERIOD */, KEY_DOT, 0x70037);
-  __CONVERT(0xBF /* VKEY_OEM_2 */, KEY_SLASH, 0x70038);
-  __CONVERT(0xC0 /* VKEY_OEM_3 */, KEY_GRAVE, 0x70035);
-  __CONVERT(0xDB /* VKEY_OEM_4 */, KEY_LEFTBRACE, 0x7002F);
-  __CONVERT(0xDC /* VKEY_OEM_5 */, KEY_BACKSLASH, 0x70031);
-  __CONVERT(0xDD /* VKEY_OEM_6 */, KEY_RIGHTBRACE, 0x70030);
-  __CONVERT(0xDE /* VKEY_OEM_7 */, KEY_APOSTROPHE, 0x70034);
-  __CONVERT(0xE2 /* VKEY_NON_US_BACKSLASH */, KEY_102ND, 0x70064);
+  __CONVERT(0x08 /* VKEY_BACK */, KEY_BACKSPACE, 0x7002A, XK_BackSpace);
+  __CONVERT(0x09 /* VKEY_TAB */, KEY_TAB, 0x7002B, XK_Tab);
+  __CONVERT(0x0C /* VKEY_CLEAR */, KEY_CLEAR, UNKNOWN, XK_Clear);
+  __CONVERT(0x0D /* VKEY_RETURN */, KEY_ENTER, 0x70028, XK_Return);
+  __CONVERT(0x10 /* VKEY_SHIFT */, KEY_LEFTSHIFT, 0x700E1, XK_Shift_L);
+  __CONVERT(0x11 /* VKEY_CONTROL */, KEY_LEFTCTRL, 0x700E0, XK_Control_L);
+  __CONVERT(0x12 /* VKEY_MENU */, KEY_LEFTALT, UNKNOWN, XK_Alt_L);
+  __CONVERT(0x13 /* VKEY_PAUSE */, KEY_PAUSE, UNKNOWN, XK_Pause);
+  __CONVERT(0x14 /* VKEY_CAPITAL */, KEY_CAPSLOCK, 0x70039, XK_Caps_Lock);
+  __CONVERT(0x15 /* VKEY_KANA */, KEY_KATAKANAHIRAGANA, UNKNOWN, XK_Kana_Shift);
+  __CONVERT(0x16 /* VKEY_HANGUL */, KEY_HANGEUL, UNKNOWN, XK_Hangul);
+  __CONVERT(0x17 /* VKEY_JUNJA */, KEY_HANJA, UNKNOWN, XK_Hangul_Jeonja);
+  __CONVERT(0x19 /* VKEY_KANJI */, KEY_KATAKANA, UNKNOWN, XK_Kanji);
+  __CONVERT(0x1B /* VKEY_ESCAPE */, KEY_ESC, 0x70029, XK_Escape);
+  __CONVERT(0x20 /* VKEY_SPACE */, KEY_SPACE, 0x7002C, XK_space);
+  __CONVERT(0x21 /* VKEY_PRIOR */, KEY_PAGEUP, 0x7004B, XK_Page_Up);
+  __CONVERT(0x22 /* VKEY_NEXT */, KEY_PAGEDOWN, 0x7004E, XK_Page_Down);
+  __CONVERT(0x23 /* VKEY_END */, KEY_END, 0x7004D, XK_End);
+  __CONVERT(0x24 /* VKEY_HOME */, KEY_HOME, 0x7004A, XK_Home);
+  __CONVERT(0x25 /* VKEY_LEFT */, KEY_LEFT, 0x70050, XK_Left);
+  __CONVERT(0x26 /* VKEY_UP */, KEY_UP, 0x70052, XK_Up);
+  __CONVERT(0x27 /* VKEY_RIGHT */, KEY_RIGHT, 0x7004F, XK_Right);
+  __CONVERT(0x28 /* VKEY_DOWN */, KEY_DOWN, 0x70051, XK_Down);
+  __CONVERT(0x29 /* VKEY_SELECT */, KEY_SELECT, UNKNOWN, XK_Select);
+  __CONVERT(0x2A /* VKEY_PRINT */, KEY_PRINT, UNKNOWN, XK_Print);
+  __CONVERT(0x2C /* VKEY_SNAPSHOT */, KEY_SYSRQ, 0x70046, XK_Sys_Req);
+  __CONVERT(0x2D /* VKEY_INSERT */, KEY_INSERT, 0x70049, XK_Insert);
+  __CONVERT(0x2E /* VKEY_DELETE */, KEY_DELETE, 0x7004C, XK_Delete);
+  __CONVERT(0x2F /* VKEY_HELP */, KEY_HELP, UNKNOWN, XK_Help);
+  __CONVERT(0x30 /* VKEY_0 */, KEY_0, 0x70027, XK_0);
+  __CONVERT(0x31 /* VKEY_1 */, KEY_1, 0x7001E, XK_1);
+  __CONVERT(0x32 /* VKEY_2 */, KEY_2, 0x7001F, XK_2);
+  __CONVERT(0x33 /* VKEY_3 */, KEY_3, 0x70020, XK_3);
+  __CONVERT(0x34 /* VKEY_4 */, KEY_4, 0x70021, XK_4);
+  __CONVERT(0x35 /* VKEY_5 */, KEY_5, 0x70022, XK_5);
+  __CONVERT(0x36 /* VKEY_6 */, KEY_6, 0x70023, XK_6);
+  __CONVERT(0x37 /* VKEY_7 */, KEY_7, 0x70024, XK_7);
+  __CONVERT(0x38 /* VKEY_8 */, KEY_8, 0x70025, XK_8);
+  __CONVERT(0x39 /* VKEY_9 */, KEY_9, 0x70026, XK_9);
+  __CONVERT(0x41 /* VKEY_A */, KEY_A, 0x70004, XK_A);
+  __CONVERT(0x42 /* VKEY_B */, KEY_B, 0x70005, XK_B);
+  __CONVERT(0x43 /* VKEY_C */, KEY_C, 0x70006, XK_C);
+  __CONVERT(0x44 /* VKEY_D */, KEY_D, 0x70007, XK_D);
+  __CONVERT(0x45 /* VKEY_E */, KEY_E, 0x70008, XK_E);
+  __CONVERT(0x46 /* VKEY_F */, KEY_F, 0x70009, XK_F);
+  __CONVERT(0x47 /* VKEY_G */, KEY_G, 0x7000A, XK_G);
+  __CONVERT(0x48 /* VKEY_H */, KEY_H, 0x7000B, XK_H);
+  __CONVERT(0x49 /* VKEY_I */, KEY_I, 0x7000C, XK_I);
+  __CONVERT(0x4A /* VKEY_J */, KEY_J, 0x7000D, XK_J);
+  __CONVERT(0x4B /* VKEY_K */, KEY_K, 0x7000E, XK_K);
+  __CONVERT(0x4C /* VKEY_L */, KEY_L, 0x7000F, XK_L);
+  __CONVERT(0x4D /* VKEY_M */, KEY_M, 0x70010, XK_M);
+  __CONVERT(0x4E /* VKEY_N */, KEY_N, 0x70011, XK_N);
+  __CONVERT(0x4F /* VKEY_O */, KEY_O, 0x70012, XK_O);
+  __CONVERT(0x50 /* VKEY_P */, KEY_P, 0x70013, XK_P);
+  __CONVERT(0x51 /* VKEY_Q */, KEY_Q, 0x70014, XK_Q);
+  __CONVERT(0x52 /* VKEY_R */, KEY_R, 0x70015, XK_R);
+  __CONVERT(0x53 /* VKEY_S */, KEY_S, 0x70016, XK_S);
+  __CONVERT(0x54 /* VKEY_T */, KEY_T, 0x70017, XK_T);
+  __CONVERT(0x55 /* VKEY_U */, KEY_U, 0x70018, XK_U);
+  __CONVERT(0x56 /* VKEY_V */, KEY_V, 0x70019, XK_V);
+  __CONVERT(0x57 /* VKEY_W */, KEY_W, 0x7001A, XK_W);
+  __CONVERT(0x58 /* VKEY_X */, KEY_X, 0x7001B, XK_X);
+  __CONVERT(0x59 /* VKEY_Y */, KEY_Y, 0x7001C, XK_Y);
+  __CONVERT(0x5A /* VKEY_Z */, KEY_Z, 0x7001D, XK_Z);
+  __CONVERT(0x5B /* VKEY_LWIN */, KEY_LEFTMETA, 0x700E3, XK_Meta_L);
+  __CONVERT(0x5C /* VKEY_RWIN */, KEY_RIGHTMETA, 0x700E7, XK_Meta_R);
+  __CONVERT(0x5F /* VKEY_SLEEP */, KEY_SLEEP, UNKNOWN, UNKNOWN);
+  __CONVERT(0x60 /* VKEY_NUMPAD0 */, KEY_KP0, 0x70062, XK_KP_0);
+  __CONVERT(0x61 /* VKEY_NUMPAD1 */, KEY_KP1, 0x70059, XK_KP_1);
+  __CONVERT(0x62 /* VKEY_NUMPAD2 */, KEY_KP2, 0x7005A, XK_KP_2);
+  __CONVERT(0x63 /* VKEY_NUMPAD3 */, KEY_KP3, 0x7005B, XK_KP_3);
+  __CONVERT(0x64 /* VKEY_NUMPAD4 */, KEY_KP4, 0x7005C, XK_KP_4);
+  __CONVERT(0x65 /* VKEY_NUMPAD5 */, KEY_KP5, 0x7005D, XK_KP_5);
+  __CONVERT(0x66 /* VKEY_NUMPAD6 */, KEY_KP6, 0x7005E, XK_KP_6);
+  __CONVERT(0x67 /* VKEY_NUMPAD7 */, KEY_KP7, 0x7005F, XK_KP_7);
+  __CONVERT(0x68 /* VKEY_NUMPAD8 */, KEY_KP8, 0x70060, XK_KP_8);
+  __CONVERT(0x69 /* VKEY_NUMPAD9 */, KEY_KP9, 0x70061, XK_KP_9);
+  __CONVERT(0x6A /* VKEY_MULTIPLY */, KEY_KPASTERISK, 0x70055, XK_KP_Multiply);
+  __CONVERT(0x6B /* VKEY_ADD */, KEY_KPPLUS, 0x70057, XK_KP_Add);
+  __CONVERT(0x6C /* VKEY_SEPARATOR */, KEY_KPCOMMA, UNKNOWN, XK_KP_Separator);
+  __CONVERT(0x6D /* VKEY_SUBTRACT */, KEY_KPMINUS, 0x70056, XK_KP_Subtract);
+  __CONVERT(0x6E /* VKEY_DECIMAL */, KEY_KPDOT, 0x70063, XK_KP_Decimal);
+  __CONVERT(0x6F /* VKEY_DIVIDE */, KEY_KPSLASH, 0x70054, XK_KP_Divide);
+  __CONVERT(0x70 /* VKEY_F1 */, KEY_F1, 0x70046, XK_F1);
+  __CONVERT(0x71 /* VKEY_F2 */, KEY_F2, 0x70047, XK_F2);
+  __CONVERT(0x72 /* VKEY_F3 */, KEY_F3, 0x70048, XK_F3);
+  __CONVERT(0x73 /* VKEY_F4 */, KEY_F4, 0x70049, XK_F4);
+  __CONVERT(0x74 /* VKEY_F5 */, KEY_F5, 0x7004a, XK_F5);
+  __CONVERT(0x75 /* VKEY_F6 */, KEY_F6, 0x7004b, XK_F6);
+  __CONVERT(0x76 /* VKEY_F7 */, KEY_F7, 0x7004c, XK_F7);
+  __CONVERT(0x77 /* VKEY_F8 */, KEY_F8, 0x7004d, XK_F8);
+  __CONVERT(0x78 /* VKEY_F9 */, KEY_F9, 0x7004e, XK_F9);
+  __CONVERT(0x79 /* VKEY_F10 */, KEY_F10, 0x70044, XK_F10);
+  __CONVERT(0x7A /* VKEY_F11 */, KEY_F11, 0x70044, XK_F11);
+  __CONVERT(0x7B /* VKEY_F12 */, KEY_F12, 0x70045, XK_F12);
+  __CONVERT(0x7C /* VKEY_F13 */, KEY_F13, 0x7003a, XK_F13);
+  __CONVERT(0x7D /* VKEY_F14 */, KEY_F14, 0x7003b, XK_F14);
+  __CONVERT(0x7E /* VKEY_F15 */, KEY_F15, 0x7003c, XK_F15);
+  __CONVERT(0x7F /* VKEY_F16 */, KEY_F16, 0x7003d, XK_F16);
+  __CONVERT(0x80 /* VKEY_F17 */, KEY_F17, 0x7003e, XK_F17);
+  __CONVERT(0x81 /* VKEY_F18 */, KEY_F18, 0x7003f, XK_F18);
+  __CONVERT(0x82 /* VKEY_F19 */, KEY_F19, 0x70040, XK_F19);
+  __CONVERT(0x83 /* VKEY_F20 */, KEY_F20, 0x70041, XK_F20);
+  __CONVERT(0x84 /* VKEY_F21 */, KEY_F21, 0x70042, XK_F21);
+  __CONVERT(0x85 /* VKEY_F22 */, KEY_F12, 0x70043, XK_F12);
+  __CONVERT(0x86 /* VKEY_F23 */, KEY_F23, 0x70044, XK_F23);
+  __CONVERT(0x87 /* VKEY_F24 */, KEY_F24, 0x70045, XK_F24);
+  __CONVERT(0x90 /* VKEY_NUMLOCK */, KEY_NUMLOCK, 0x70053, XK_Num_Lock);
+  __CONVERT(0x91 /* VKEY_SCROLL */, KEY_SCROLLLOCK, 0x70047, XK_Scroll_Lock);
+  __CONVERT(0xA0 /* VKEY_LSHIFT */, KEY_LEFTSHIFT, 0x700E1, XK_Shift_L);
+  __CONVERT(0xA1 /* VKEY_RSHIFT */, KEY_RIGHTSHIFT, 0x700E5, XK_Shift_R);
+  __CONVERT(0xA2 /* VKEY_LCONTROL */, KEY_LEFTCTRL, 0x700E0, XK_Control_L);
+  __CONVERT(0xA3 /* VKEY_RCONTROL */, KEY_RIGHTCTRL, 0x700E4, XK_Control_R);
+  __CONVERT(0xA4 /* VKEY_LMENU */, KEY_LEFTALT, 0x7002E, XK_Alt_L);
+  __CONVERT(0xA5 /* VKEY_RMENU */, KEY_RIGHTALT, 0x700E6, XK_Alt_R);
+  __CONVERT(0xBA /* VKEY_OEM_1 */, KEY_SEMICOLON, 0x70033, XK_semicolon);
+  __CONVERT(0xBB /* VKEY_OEM_PLUS */, KEY_EQUAL, 0x7002E, XK_equal);
+  __CONVERT(0xBC /* VKEY_OEM_COMMA */, KEY_COMMA, 0x70036, XK_comma);
+  __CONVERT(0xBD /* VKEY_OEM_MINUS */, KEY_MINUS, 0x7002D, XK_minus);
+  __CONVERT(0xBE /* VKEY_OEM_PERIOD */, KEY_DOT, 0x70037, XK_period);
+  __CONVERT(0xBF /* VKEY_OEM_2 */, KEY_SLASH, 0x70038, XK_slash);
+  __CONVERT(0xC0 /* VKEY_OEM_3 */, KEY_GRAVE, 0x70035, XK_grave);
+  __CONVERT(0xDB /* VKEY_OEM_4 */, KEY_LEFTBRACE, 0x7002F, XK_braceleft);
+  __CONVERT(0xDC /* VKEY_OEM_5 */, KEY_BACKSLASH, 0x70031, XK_backslash);
+  __CONVERT(0xDD /* VKEY_OEM_6 */, KEY_RIGHTBRACE, 0x70030, XK_braceright);
+  __CONVERT(0xDE /* VKEY_OEM_7 */, KEY_APOSTROPHE, 0x70034, XK_apostrophe);
+  __CONVERT(0xE2 /* VKEY_NON_US_BACKSLASH */, KEY_102ND, 0x70064, XK_backslash);
 #undef __CONVERT
+#undef __CONVERT_UNSAFE
 
   return keycodes;
 }
@@ -677,6 +782,13 @@ public:
     for(int x = 0; x < gamepads.size(); ++x) {
       clear_gamepad(x);
     }
+
+#ifdef SUNSHINE_BUILD_X11
+    if(display) {
+      x11::CloseDisplay(display);
+      display = nullptr;
+    }
+#endif
   }
 
   ~input_raw_t() {
@@ -694,6 +806,10 @@ public:
   evdev_t touch_dev;
   evdev_t mouse_dev;
   evdev_t keyboard_dev;
+
+#ifdef SUNSHINE_BUILD_X11
+  Display *display;
+#endif
 };
 
 inline void rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
@@ -900,10 +1016,44 @@ void broadcastRumble(safe::queue_t<mail_evdev_t> &rumble_queue_queue) {
   }
 }
 
+/**
+ * @brief XTest absolute mouse move.
+ * @param input The input_t instance to use.
+ * @param x Absolute x position.
+ * @param y Absolute y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_abs_mouse(input, 0, 0);
+ * ```
+ */
+static void x_abs_mouse(input_t &input, float x, float y) {
+#ifdef SUNSHINE_BUILD_X11
+  Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if(!xdisplay) {
+    return;
+  }
+  x11::tst::FakeMotionEvent(xdisplay, -1, x, y, CurrentTime);
+  x11::Flush(xdisplay);
+#endif
+}
 
+/**
+ * @brief Absolute mouse move.
+ * @param input The input_t instance to use.
+ * @param touch_port The touch_port instance to use.
+ * @param x Absolute x position.
+ * @param y Absolute y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * abs_mouse(input, touch_port, 0, 0);
+ * ```
+ */
 void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
   auto touchscreen = ((input_raw_t *)input.get())->touch_input.get();
   if(!touchscreen) {
+    x_abs_mouse(input, x, y);
     return;
   }
 
@@ -918,9 +1068,43 @@ void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y)
   libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief XTest relative mouse move.
+ * @param input The input_t instance to use.
+ * @param deltaX Relative x position.
+ * @param deltaY Relative y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
+ * ```
+ */
+static void x_move_mouse(input_t &input, int deltaX, int deltaY) {
+#ifdef SUNSHINE_BUILD_X11
+  Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if(!xdisplay) {
+    return;
+  }
+  x11::tst::FakeRelativeMotionEvent(xdisplay, deltaX, deltaY, CurrentTime);
+  x11::Flush(xdisplay);
+#endif
+}
+
+/**
+ * @brief Relative mouse move.
+ * @param input The input_t instance to use.
+ * @param deltaX Relative x position.
+ * @param deltaY Relative y position.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
+ * ```
+ */
 void move_mouse(input_t &input, int deltaX, int deltaY) {
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
   if(!mouse) {
+    x_move_mouse(input, deltaX, deltaY);
     return;
   }
 
@@ -935,7 +1119,66 @@ void move_mouse(input_t &input, int deltaX, int deltaY) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief XTest mouse button press/release.
+ * @param input The input_t instance to use.
+ * @param button Which mouse button to emulate.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_button_mouse(input, 1, false); // Press left mouse button
+ * ```
+ */
+static void x_button_mouse(input_t &input, int button, bool release) {
+#ifdef SUNSHINE_BUILD_X11
+  unsigned int x_button = 0;
+  switch(button) {
+  case BUTTON_LEFT:
+    x_button = 1;
+    break;
+  case BUTTON_MIDDLE:
+    x_button = 2;
+    break;
+  case BUTTON_RIGHT:
+    x_button = 3;
+    break;
+  default:
+    x_button = (button - 4) + 8; // Button 4 (Moonlight) starts at index 8 (X11)
+    break;
+  }
+
+  if(x_button < 1 || x_button > 31) {
+    return;
+  }
+
+  Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if(!xdisplay) {
+    return;
+  }
+  x11::tst::FakeButtonEvent(xdisplay, x_button, !release, CurrentTime);
+  x11::Flush(xdisplay);
+#endif
+}
+
+/**
+ * @brief Mouse button press/release.
+ * @param input The input_t instance to use.
+ * @param button Which mouse button to emulate.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * button_mouse(input, 1, false); // Press left mouse button
+ * ```
+ */
 void button_mouse(input_t &input, int button, bool release) {
+  auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
+  if(!mouse) {
+    x_button_mouse(input, button, release);
+    return;
+  }
+
   int btn_type;
   int scan;
 
@@ -960,21 +1203,55 @@ void button_mouse(input_t &input, int button, bool release) {
     scan     = 90005;
   }
 
-  auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
-  if(!mouse) {
-    return;
-  }
-
   libevdev_uinput_write_event(mouse, EV_MSC, MSC_SCAN, scan);
   libevdev_uinput_write_event(mouse, EV_KEY, btn_type, release ? 0 : 1);
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief XTest mouse scroll.
+ * @param input The input_t instance to use.
+ * @param distance How far to scroll
+ * @param button_pos Which mouse button to emulate for positive scroll.
+ * @param button_neg Which mouse button to emulate for negative scroll.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_scroll(input, 10, 4, 5);
+ * ```
+ */
+static void x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
+#ifdef SUNSHINE_BUILD_X11
+  Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if(!xdisplay) {
+    return;
+  }
+
+  const int button = distance > 0 ? button_pos : button_neg;
+  for(int i = 0; i < abs(distance); i++) {
+    x11::tst::FakeButtonEvent(xdisplay, button, true, CurrentTime);
+    x11::tst::FakeButtonEvent(xdisplay, button, false, CurrentTime);
+  }
+  x11::Flush(xdisplay);
+#endif
+}
+
+/**
+ * @brief Vertical mouse scroll.
+ * @param input The input_t instance to use.
+ * @param high_res_distance How far to scroll
+ *
+ * EXAMPLES:
+ * ```cpp
+ * scroll(input, 1200);
+ * ```
+ */
 void scroll(input_t &input, int high_res_distance) {
   int distance = high_res_distance / 120;
 
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
   if(!mouse) {
+    x_scroll(input, distance, 4, 5);
     return;
   }
 
@@ -983,11 +1260,22 @@ void scroll(input_t &input, int high_res_distance) {
   libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief Horizontal mouse scroll.
+ * @param input The input_t instance to use.
+ * @param high_res_distance How far to scroll
+ *
+ * EXAMPLES:
+ * ```cpp
+ * hscroll(input, 1200);
+ * ```
+ */
 void hscroll(input_t &input, int high_res_distance) {
   int distance = high_res_distance / 120;
 
   auto mouse = ((input_raw_t *)input.get())->mouse_input.get();
   if(!mouse) {
+    x_scroll(input, distance, 6, 7);
     return;
   }
 
@@ -1004,9 +1292,54 @@ static keycode_t keysym(std::uint16_t modcode) {
   return {};
 }
 
+/**
+ * @brief XTest keyboard emulation.
+ * @param input The input_t instance to use.
+ * @param modcode The moonlight key code.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * x_keyboard(input, 0x5A, false); // Press Z
+ * ```
+ */
+static void x_keyboard(input_t &input, uint16_t modcode, bool release) {
+#ifdef SUNSHINE_BUILD_X11
+  auto keycode = keysym(modcode);
+  if(keycode.keysym == UNKNOWN) {
+    return;
+  }
+
+  Display *xdisplay = ((input_raw_t *)input.get())->display;
+  if(!xdisplay) {
+    return;
+  }
+
+  const auto keycode_x = XKeysymToKeycode(xdisplay, keycode.keysym);
+  if(keycode_x == 0) {
+    return;
+  }
+
+  x11::tst::FakeKeyEvent(xdisplay, keycode_x, !release, CurrentTime);
+  x11::Flush(xdisplay);
+#endif
+}
+
+/**
+ * @brief Keyboard emulation.
+ * @param input The input_t instance to use.
+ * @param modcode The moonlight key code.
+ * @param release Whether the event was a press (false) or a release (true)
+ *
+ * EXAMPLES:
+ * ```cpp
+ * keyboard(input, 0x5A, false); // Press Z
+ * ```
+ */
 void keyboard(input_t &input, uint16_t modcode, bool release) {
   auto keyboard = ((input_raw_t *)input.get())->keyboard_input.get();
   if(!keyboard) {
+    x_keyboard(input, modcode, release);
     return;
   }
 
@@ -1015,14 +1348,12 @@ void keyboard(input_t &input, uint16_t modcode, bool release) {
     return;
   }
 
-  if(keycode.scancode != UNKNOWN && (release || !keycode.pressed)) {
+  if(keycode.scancode != UNKNOWN) {
     libevdev_uinput_write_event(keyboard, EV_MSC, MSC_SCAN, keycode.scancode);
   }
 
-  libevdev_uinput_write_event(keyboard, EV_KEY, keycode.keycode, release ? 0 : (1 + keycode.pressed));
+  libevdev_uinput_write_event(keyboard, EV_KEY, keycode.keycode, release ? 0 : 1);
   libevdev_uinput_write_event(keyboard, EV_SYN, SYN_REPORT, 0);
-
-  keycode.pressed = 1;
 }
 
 void keyboard_ev(libevdev_uinput *keyboard, int linux_code, int event_code = 1) {
@@ -1168,6 +1499,14 @@ void gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
   libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
 }
 
+/**
+ * @brief Initalize a new keyboard and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_keyboard = keyboard();
+ * ```
+ */
 evdev_t keyboard() {
   evdev_t dev { libevdev_new() };
 
@@ -1188,6 +1527,14 @@ evdev_t keyboard() {
   return dev;
 }
 
+/**
+ * @brief Initalize a new uinput virtual mouse and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_mouse = mouse();
+ * ```
+ */
 evdev_t mouse() {
   evdev_t dev { libevdev_new() };
 
@@ -1230,6 +1577,14 @@ evdev_t mouse() {
   return dev;
 }
 
+/**
+ * @brief Initalize a new uinput virtual touchscreen and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_touchscreen = touchscreen();
+ * ```
+ */
 evdev_t touchscreen() {
   evdev_t dev { libevdev_new() };
 
@@ -1272,6 +1627,14 @@ evdev_t touchscreen() {
   return dev;
 }
 
+/**
+ * @brief Initalize a new uinput virtual X360 gamepad and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_x360 = x360();
+ * ```
+ */
 evdev_t x360() {
   evdev_t dev { libevdev_new() };
 
@@ -1340,6 +1703,14 @@ evdev_t x360() {
   return dev;
 }
 
+/**
+ * @brief Initalize the input system and return it.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * auto my_input = input();
+ * ```
+ */
 input_t input() {
   input_t result { new input_raw_t() };
   auto &gp = *(input_raw_t *)result.get();
@@ -1359,9 +1730,20 @@ input_t input() {
   gp.create_touchscreen();
   gp.create_keyboard();
 
-  // If we do not have a keyboard, touchscreen, or mouse, no input is possible
-  if(!gp.mouse_input && !gp.touch_input && !gp.keyboard_input) {
-    BOOST_LOG(error) << "Unable to create any input devices! Are you a member of the 'input' group?"sv;
+  // If we do not have a keyboard, touchscreen, or mouse, fall back to XTest
+  if(!gp.mouse_input || !gp.touch_input || !gp.keyboard_input) {
+    BOOST_LOG(error) << "Unable to create some input devices! Are you a member of the 'input' group?"sv;
+
+#ifdef SUNSHINE_BUILD_X11
+    if(x11::init() || x11::tst::init()) {
+      BOOST_LOG(error) << "Unable to initialize X11 and/or XTest fallback"sv;
+    }
+    else {
+      BOOST_LOG(info) << "Falling back to XTest"sv;
+      x11::InitThreads();
+      gp.display = x11::OpenDisplay(NULL);
+    }
+#endif
   }
 
   return result;
