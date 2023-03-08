@@ -22,10 +22,15 @@ RUN useradd -m builder && \
 
 FROM sunshine-base as sunshine-build
 
+ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
 ARG CLONE_URL
 # note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies

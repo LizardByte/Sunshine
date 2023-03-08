@@ -12,6 +12,15 @@ FROM sunshine-base as sunshine-build
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
 
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
 # hadolint ignore=DL3041

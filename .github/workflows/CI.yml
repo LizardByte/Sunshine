@@ -362,6 +362,10 @@ jobs:
           sudo rm /root/cuda.run
 
       - name: Build Linux
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir -p build
           mkdir -p artifacts
@@ -485,6 +489,10 @@ jobs:
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
       - name: Build MacOS
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           npm install
 
@@ -641,6 +649,8 @@ jobs:
           echo "subportlist=${subportlist}" >> $GITHUB_OUTPUT
 
       - name: Run port lint for all subports
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
         run: |
           set -eu
           fail=0
@@ -662,10 +672,13 @@ jobs:
             echo "::endgroup::"
           done
           exit "$fail"
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
 
       - name: Build subports
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -eu
           fail=0
@@ -714,8 +727,6 @@ jobs:
             echo "::endgroup::"
           done
           exit "$fail"
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
 
       - name: Package
         run: |
@@ -795,6 +806,10 @@ jobs:
 
       - name: Build Windows
         shell: msys2 {0}
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir build
           cd build
