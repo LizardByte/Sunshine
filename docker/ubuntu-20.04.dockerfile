@@ -26,6 +26,7 @@ apt-get install -y --no-install-recommends \
   g++-10=10.3.0* \
   libavdevice-dev=7:4.2.* \
   libboost-filesystem-dev=1.71.0* \
+  libboost-locale-dev=1.71.0* \
   libboost-log-dev=1.71.0* \
   libboost-program-options-dev=1.71.0* \
   libboost-thread-dev=1.71.0* \

@@ -25,6 +25,7 @@ apt-get install -y --no-install-recommends \
   cmake=3.18.4* \
   libavdevice-dev=7:4.3.* \
   libboost-filesystem-dev=1.74.0* \
+  libboost-locale-dev=1.74.0* \
   libboost-log-dev=1.74.0* \
   libboost-program-options-dev=1.74.0* \
   libboost-thread-dev=1.74.0* \

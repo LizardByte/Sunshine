@@ -263,11 +263,19 @@ void print(void *payload) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   input->mouse_left_button_timeout = DISABLE_LEFT_BUTTON_DELAY;
   platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   if(input->mouse_left_button_timeout == DISABLE_LEFT_BUTTON_DELAY) {
     input->mouse_left_button_timeout = ENABLE_LEFT_BUTTON_DELAY;
   }
@@ -313,6 +321,10 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   auto release = util::endian::little(packet->header.magic) == MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5;
   auto button  = util::endian::big(packet->button);
   if(button > 0 && button < mouse_press.size()) {
@@ -430,6 +442,10 @@ void repeat_key(short key_code) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
+  if(!config::input.keyboard) {
+    return;
+  }
+
   auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
   auto keyCode = packet->keyCode & 0x00FF;
 
@@ -467,14 +483,26 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
 }
 
 void passthrough(PNV_SCROLL_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
 }
 
 void passthrough(PSS_HSCROLL_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
 }
 
 void passthrough(PNV_UNICODE_PACKET packet) {
+  if(!config::input.keyboard) {
+    return;
+  }
+
   auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
   platf::unicode(platf_input, packet->text, size);
 }
@@ -521,6 +549,10 @@ int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+  if(!config::input.controller) {
+    return;
+  }
+
   if(updateGamepads(input->gamepads, input->active_gamepad_state, packet->activeGamepadMask, input->rumble_queue)) {
     return;
   }
