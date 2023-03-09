@@ -87,7 +87,6 @@ private:
 
   boost::process::environment _env;
   std::vector<ctx_t> _apps;
-  ctx_t _app;
 
   // If no command associated with _app_id, yet it's still running
   bool placebo {};
@@ -96,8 +95,8 @@ private:
   boost::process::group _process_handle;
 
   file_t _pipe;
-  std::vector<cmd_t>::const_iterator _app_prep_it;
-  std::vector<cmd_t>::const_iterator _app_prep_begin;
+  std::vector<cmd_t>::const_iterator _undo_it;
+  std::vector<cmd_t>::const_iterator _undo_begin;
 };
 
 /**
