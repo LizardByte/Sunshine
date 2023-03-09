@@ -97,17 +97,29 @@
       this.loading = false;
     },
     computed: {
+      // Check for new stable version
       hasNewStable() {
+        // If we can't get versions, return false
         if (!this.githubVersion || !this.version) return false;
+        // If built with dirty git tree, return false
         if (this.version.indexOf("dirty") !== -1) return false;
+        // Get the GitHub version tag
         let v = this.githubVersion.name;
+        // If the version starts with a v, remove it
         if (v.indexOf("v") === 0) v = v.substring(1);
-        return v !== this.version.split("-")[0];
+        // return true if the version is different, otherwise false
+        return v !== this.version.split(".")[0];
       },
+      // Check for new nightly version
       hasNewNightly() {
-        if (!this.version || !this.nightlyData || this.version.split("-g").length === 1) return false;
+        // If we're not on a nightly build, just return false
+        // If length of version split is 3, we're on a stable build
+        if (!this.version || !this.nightlyData || this.version.split(".").length === 3) return false;
+        // If built with dirty git tree, return false
         if (this.version.indexOf("dirty") !== -1) return false;
-        let commit = this.version.split("-g")[1].split("-")[0];
+        // Get the commit hash
+        let commit = this.version.split(".")[-1];
+        // return true if the commit hash is different, otherwise false
         return this.nightlyData.head_sha.indexOf(commit) !== 0;
       }
     }
