@@ -973,25 +973,27 @@
           this.restart_supported = (this.config.restart_supported === "true");
 
           var app = document.getElementById("app");
-          if (this.platform == "windows") {
+          if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "va-api" && el.id !== "vt";
             });
           }
-          if (this.platform == "linux") {
+          if (this.platform === "linux") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
             });
           }
-          if (this.platform == "macos") {
+          if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "va-api";
             });
           }
 
-          delete this.config.status;
+          // remove values we don't want in the config file
           delete this.config.platform;
           delete this.config.restart_supported;
+          delete this.config.status;
+          delete this.config.version;
           //Populate default values if not present in config
           this.config.key_rightalt_to_key_win =
             this.config.key_rightalt_to_key_win || "disabled";
@@ -1057,7 +1059,7 @@
           method: "POST",
           body: JSON.stringify(this.config),
         }).then((r) => {
-          if (r.status == 200) this.saved = true;
+          if (r.status === 200) this.saved = true;
         });
       },
       apply() {
@@ -1067,11 +1069,11 @@
           method: "POST",
           body: JSON.stringify(this.config),
         }).then((r) => {
-          if (r.status == 200) {
+          if (r.status === 200) {
             fetch("/api/restart", {
               method: "POST",
             }).then((r) => {
-              if (r.status == 200) this.restarted = true;
+              if (r.status === 200) this.restarted = true;
             });
           }
         });
