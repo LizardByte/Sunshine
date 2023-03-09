@@ -20,7 +20,7 @@ if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMI
     #If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
     elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
         MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")
-        set(PROJECT_VERSION ${PROJECT_VERSION}-g$ENV{COMMIT})
+        set(PROJECT_VERSION ${PROJECT_VERSION}.$ENV{COMMIT})
     endif()
 # Generate Sunshine Version based of the git tag
 # https://github.com/nocnokneo/cmake-git-versioning-example/blob/master/LICENSE
@@ -55,11 +55,11 @@ else()
         if(NOT GIT_DESCRIBE_ERROR_CODE)
             MESSAGE(Sunshine Branch: ${GIT_DESCRIBE_BRANCH})
             if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
-                set(PROJECT_VERSION ${PROJECT_VERSION}-g${GIT_DESCRIBE_VERSION})
+                set(PROJECT_VERSION ${PROJECT_VERSION}.${GIT_DESCRIBE_VERSION})
                 MESSAGE(Sunshine Version: ${GIT_DESCRIBE_VERSION})
             endif()
             if(GIT_IS_DIRTY)
-                set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
+                set(PROJECT_VERSION ${PROJECT_VERSION}.dirty)
                 MESSAGE(Git tree is dirty!)
             endif()
         else()
