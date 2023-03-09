@@ -599,7 +599,8 @@ jobs:
 
           mkdir build
           cd build
-          cmake -DGITHUB_COMMIT=${commit} \
+          cmake \
+            -DGITHUB_COMMIT=${commit} \
             -DGITHUB_CLONE_URL=${clone_url} \
             -DSUNSHINE_CONFIGURE_PORTFILE=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
@@ -677,9 +678,6 @@ jobs:
       - name: Build subports
         env:
           subportlist: ${{ steps.subportlist.outputs.subportlist }}
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
-          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -eu
           fail=0

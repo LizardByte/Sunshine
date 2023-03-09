@@ -13,12 +13,12 @@ your favorite web browser. Pair from the local server or any mobile device.")
 
 # Check if env vars are defined before attempting to access them, variables will be defined even if blank
 if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMIT}))  # cmake-lint: disable=W0106
-    # If BRANCH is "master" and BUILD_VERSION is not empty, then we are building a master branch
     if(($ENV{BRANCH} STREQUAL "master") AND (NOT $ENV{BUILD_VERSION} STREQUAL ""))
+        # If BRANCH is "master" and BUILD_VERSION is not empty, then we are building a master branch
         MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
         set(PROJECT_VERSION $ENV{BUILD_VERSION})
-    #If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
     elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
+        # If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
         MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")
         set(PROJECT_VERSION ${PROJECT_VERSION}.$ENV{COMMIT})
     endif()
@@ -53,18 +53,20 @@ else()
             OUTPUT_STRIP_TRAILING_WHITESPACE
         )
         if(NOT GIT_DESCRIBE_ERROR_CODE)
-            MESSAGE(Sunshine Branch: ${GIT_DESCRIBE_BRANCH})
+            MESSAGE("Sunshine Branch: ${GIT_DESCRIBE_BRANCH}")
             if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
                 set(PROJECT_VERSION ${PROJECT_VERSION}.${GIT_DESCRIBE_VERSION})
-                MESSAGE(Sunshine Version: ${GIT_DESCRIBE_VERSION})
+                MESSAGE("Sunshine Version: ${GIT_DESCRIBE_VERSION}")
             endif()
             if(GIT_IS_DIRTY)
                 set(PROJECT_VERSION ${PROJECT_VERSION}.dirty)
-                MESSAGE(Git tree is dirty!)
+                MESSAGE("Git tree is dirty!")
             endif()
         else()
             MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
         endif()
+    else()
+        MESSAGE(WARNING ": Git not found, cannot find git version")
     endif()
 endif()
 
