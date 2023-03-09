@@ -12,6 +12,15 @@ FROM sunshine-base as sunshine-build
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
 
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
 # hadolint ignore=DL3041
@@ -25,6 +34,7 @@ dnf -y install \
   cmake-3.24.1* \
   gcc-12.2.1* \
   gcc-c++-12.2.1* \
+  git-2.39.2* \
   libcap-devel-2.48* \
   libcurl-devel-7.85.0* \
   libdrm-devel-2.4.112* \

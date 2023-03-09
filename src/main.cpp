@@ -298,7 +298,7 @@ int main(int argc, char *argv[]) {
 
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
-
+  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
   // Create signal handler after logging has been initialized
