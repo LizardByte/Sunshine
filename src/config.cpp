@@ -409,9 +409,9 @@ input_t input {
     platf::supported_gamepads().front().size(),
   }, // Default gamepad
 
-  false,
-  false,
-  false,
+  true, // keyboard enabled
+  true, // mouse enabled
+  true, // controller enabled
 };
 
 sunshine_t sunshine {
