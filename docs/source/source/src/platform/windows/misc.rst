@@ -1,4 +1,4 @@
 misc
 ====
 
-.. Todo:: Add misc.h
+.. doxygenfile:: platform/windows/misc.h
