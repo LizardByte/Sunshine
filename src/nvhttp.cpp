@@ -1,22 +1,23 @@
-// Created by loki on 6/3/19.
+/**
+* @file nvhttp.h
+*/
 
+// macros
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
-#include "process.h"
-
+// standard includes
 #include <filesystem>
 
+// lib includes
+#include <Simple-Web-Server/server_http.hpp>
+#include <Simple-Web-Server/server_https.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/context_base.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 
-#include <boost/asio/ssl/context.hpp>
-
-#include <Simple-Web-Server/server_http.hpp>
-#include <Simple-Web-Server/server_https.hpp>
-#include <boost/asio/ssl/context_base.hpp>
-
-
+// local includes
 #include "config.h"
 #include "crypto.h"
 #include "httpcommon.h"
@@ -24,16 +25,13 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "process.h"
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
 
 using namespace std::literals;
 namespace nvhttp {
-
-// The negative 4th version number tells Moonlight that this is Sunshine
-constexpr auto VERSION     = "7.1.431.-1";
-constexpr auto GFE_VERSION = "3.23.0.74";
 
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
@@ -512,6 +510,16 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
   }
 }
 
+/**
+ * @brief Compare the user supplied pin to the Moonlight pin.
+ * @param pin The user supplied pin.
+ * @return `true` if the pin is correct, `false` otherwise.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * bool pin_status = nvhttp::pin("1234");
+ * ```
+ */
 bool pin(std::string pin) {
   pt::ptree tree;
   if(map_id_sess.empty()) {
@@ -845,6 +853,14 @@ void appasset(resp_https_t response, req_https_t request) {
   response->close_connection_after_response = true;
 }
 
+/**
+ * @brief Start the nvhttp server.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * nvhttp::start();
+ * ```
+ */
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -892,8 +908,7 @@ void start() {
 
       X509_NAME_oneline(X509_get_subject_name(x509), subject_name, sizeof(subject_name));
 
-
-      BOOST_LOG(info) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
+      BOOST_LOG(debug) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
     });
 
     while(add_cert->peek()) {
@@ -984,6 +999,14 @@ void start() {
   tcp.join();
 }
 
+/**
+ * @brief Remove all paired clients.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * nvhttp::erase_all_clients();
+ * ```
+ */
 void erase_all_clients() {
   map_id_client.clear();
   save_state();
