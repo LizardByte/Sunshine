@@ -35,6 +35,7 @@ apt-get install -y --no-install-recommends \
   git=1:2.30.2* \
   libavdevice-dev=7:4.3.* \
   libboost-filesystem-dev=1.74.0* \
+  libboost-json-dev=1.74.0* \
   libboost-locale-dev=1.74.0* \
   libboost-log-dev=1.74.0* \
   libboost-program-options-dev=1.74.0* \

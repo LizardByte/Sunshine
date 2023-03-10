@@ -16,6 +16,7 @@ Install Requirements
           cmake \
           libavdevice-dev \
           libboost-filesystem-dev \
+          libboost-json-dev \
           libboost-locale-dev \
           libboost-log-dev \
           libboost-program-options-dev \
@@ -96,6 +97,7 @@ Install Requirements
           g++-10 \
           libavdevice-dev \
           libboost-filesystem-dev \
+          libboost-json-dev \
           libboost-locale-dev \
           libboost-log-dev \
           libboost-thread-dev \
@@ -144,6 +146,7 @@ Install Requirements
           cmake \
           libavdevice-dev \
           libboost-filesystem-dev \
+          libboost-json-dev \
           libboost-locale-dev \
           libboost-log-dev \
           libboost-thread-dev \

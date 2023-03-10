@@ -282,6 +282,7 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y \
               libboost-filesystem1.71-dev \
+              libboost-json1.71-dev \
               libboost-locale1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
@@ -309,6 +310,7 @@ jobs:
             sudo apt-get install -y \
               cmake \
               libboost-filesystem-dev \
+              libboost-json-dev \
               libboost-locale-dev \
               libboost-log-dev \
               libboost-thread-dev \
