@@ -29,7 +29,7 @@ using asio::ip::udp;
 
 using namespace std::literals;
 
-namespace stream {
+namespace rtsp_stream {
 void free_msg(PRTSP_MESSAGE msg) {
   freeMessage(msg);
 
@@ -290,7 +290,7 @@ public:
     _map_cmd_cb.emplace(type, std::move(cb));
   }
 
-  void session_raise(launch_session_t launch_session) {
+  void session_raise(rtsp_stream::launch_session_t launch_session) {
     auto now = std::chrono::steady_clock::now();
 
     // If a launch event is still pending, don't overwrite it.
@@ -307,7 +307,7 @@ public:
     return config::stream.channels - _slot_count;
   }
 
-  safe::event_t<launch_session_t> launch_event;
+  safe::event_t<rtsp_stream::launch_session_t> launch_event;
 
   void clear(bool all = true) {
     // if a launch event timed out --> Remove it.
@@ -321,9 +321,9 @@ public:
     auto lg = _session_slots.lock();
 
     for(auto &slot : *_session_slots) {
-      if(slot && (all || session::state(*slot) == session::state_e::STOPPING)) {
-        session::stop(*slot);
-        session::join(*slot);
+      if(slot && (all || stream::session::state(*slot) == stream::session::state_e::STOPPING)) {
+        stream::session::stop(*slot);
+        stream::session::join(*slot);
 
         slot.reset();
 
@@ -336,7 +336,7 @@ public:
     }
   }
 
-  void clear(std::shared_ptr<session_t> *session_p) {
+  void clear(std::shared_ptr<stream::session_t> *session_p) {
     auto lg = _session_slots.lock();
 
     session_p->reset();
@@ -344,7 +344,7 @@ public:
     ++_slot_count;
   }
 
-  std::shared_ptr<session_t> *accept(std::shared_ptr<session_t> &session) {
+  std::shared_ptr<stream::session_t> *accept(std::shared_ptr<stream::session_t> &session) {
     auto lg = _session_slots.lock();
 
     for(auto &slot : *_session_slots) {
@@ -360,7 +360,7 @@ public:
 private:
   std::unordered_map<std::string_view, cmd_func_t> _map_cmd_cb;
 
-  util::sync_t<std::vector<std::shared_ptr<session_t>>> _session_slots;
+  sync_util::sync_t<std::vector<std::shared_ptr<stream::session_t>>> _session_slots;
 
   std::chrono::steady_clock::time_point raised_timeout;
   int _slot_count;
@@ -373,7 +373,7 @@ private:
 
 rtsp_server_t server {};
 
-void launch_session_raise(launch_session_t launch_session) {
+void launch_session_raise(rtsp_stream::launch_session_t launch_session) {
   server.session_raise(launch_session);
 }
 
@@ -613,8 +613,10 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
   args.try_emplace("x-nv-general.useReliableUdp"sv, "1"sv);
   args.try_emplace("x-nv-vqos[0].fec.minRequiredFecPackets"sv, "0"sv);
   args.try_emplace("x-nv-general.featureFlags"sv, "135"sv);
+  args.try_emplace("x-nv-vqos[0].qosTrafficType"sv, "5"sv);
+  args.try_emplace("x-nv-aqos.qosTrafficType"sv, "4"sv);
 
-  config_t config;
+  stream::config_t config;
 
   config.audio.flags[audio::config_t::HOST_AUDIO] = launch_session->host_audio;
   try {
@@ -629,6 +631,8 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
     config.packetsize            = util::from_view(args.at("x-nv-video[0].packetSize"sv));
     config.minRequiredFecPackets = util::from_view(args.at("x-nv-vqos[0].fec.minRequiredFecPackets"sv));
     config.featureFlags          = util::from_view(args.at("x-nv-general.featureFlags"sv));
+    config.audioQosType          = util::from_view(args.at("x-nv-aqos.qosTrafficType"sv));
+    config.videoQosType          = util::from_view(args.at("x-nv-vqos[0].qosTrafficType"sv));
 
     config.monitor.height         = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
     config.monitor.width          = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
@@ -666,7 +670,7 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
     return;
   }
 
-  auto session = session::alloc(config, launch_session->gcm_key, launch_session->iv);
+  auto session = stream::session::alloc(config, launch_session->gcm_key, launch_session->iv);
 
   auto slot = server->accept(session);
   if(!slot) {
@@ -676,7 +680,7 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
     return;
   }
 
-  if(session::start(*session, sock.remote_endpoint().address().to_string())) {
+  if(stream::session::start(*session, sock.remote_endpoint().address().to_string())) {
     BOOST_LOG(error) << "Failed to start a streaming session"sv;
 
     server->clear(slot);
@@ -711,8 +715,8 @@ void rtpThread() {
   server.map("PLAY"sv, &cmd_play);
 
   boost::system::error_code ec;
-  if(server.bind(map_port(RTSP_SETUP_PORT), ec)) {
-    BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << map_port(RTSP_SETUP_PORT) << "], " << ec.message();
+  if(server.bind(map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
+    BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << map_port(rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
     shutdown_event->raise(true);
 
     return;
@@ -776,4 +780,4 @@ void print_msg(PRTSP_MESSAGE msg) {
                    << messageBuffer << std::endl
                    << "---End MessageBuffer---"sv << std::endl;
 }
-} // namespace stream
+} // namespace rtsp_stream

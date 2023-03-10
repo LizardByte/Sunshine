@@ -46,6 +46,7 @@ jobs:
       last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
       release_body: ${{ steps.verify_changelog.outputs.changelog_parser_description }}
 
+  # todo - remove this job once versioning is fully automated by cmake
   check_versions:
     name: Check Versions
     runs-on: ubuntu-latest
@@ -146,109 +147,6 @@ jobs:
 
     outputs:
       matrix: ${{ steps.flatpak_matrix.outputs.matrix }}
-
-  build_linux_aur:
-    name: Linux AUR
-    runs-on: ubuntu-latest
-    needs: setup_release
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup Dependencies Linux AUR
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            cmake
-
-      - name: Configure PKGBUILD files
-        run: |
-          # variables for manifest
-          echo "aur_publish=false" >> $GITHUB_ENV
-          aur_pkg=sunshine-dev
-          sub_version=""
-          conflicts="'sunshine'"
-          provides="'sunshine'"
-
-          branch=${GITHUB_HEAD_REF}
-
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
-            echo "This is a PUSH event"
-            commit=${{ github.sha }}
-            clone_url=${{ github.event.repository.clone_url }}
-
-            if [[ ${{ github.ref == 'refs/heads/master' }} ]]; then
-              aur_pkg=sunshine
-              conflicts=""
-              provides=""
-
-              echo "aur_publish=true" >> $GITHUB_ENV
-            elif [[ ${{ github.ref == 'refs/heads/nightly' }} ]]; then
-              sub_version=".r${commit}"
-
-              echo "aur_publish=false" >> $GITHUB_ENV
-            fi
-          else
-            echo "This is a PR event"
-            commit=${{ github.event.pull_request.head.sha }}
-            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
-
-            sub_version=".r${commit}"
-          fi
-          echo "Commit: ${commit}"
-          echo "Clone URL: ${clone_url}"
-
-          echo "aur_pkg=${aur_pkg}" >> $GITHUB_ENV
-
-          mkdir -p artifacts
-          mkdir -p build
-
-          cd build
-          cmake -DSUNSHINE_CONFIGURE_AUR=ON \
-            -DSUNSHINE_AUR_PKG=${aur_pkg} \
-            -DSUNSHINE_SUB_VERSION=${sub_version} \
-            -DSUNSHINE_AUR_CONFLICTS=${conflicts} \
-            -DSUNSHINE_AUR_PROVIDES=${provides} \
-            -DGITHUB_CLONE_URL=${clone_url} \
-            -DGITHUB_COMMIT=${commit} \
-            -DSUNSHINE_CONFIGURE_ONLY=ON \
-            ..
-          cd ..
-
-          mv ./build/PKGBUILD ./artifacts/
-
-      - name: Validate package
-        uses: LizardByte/archlinux-package-action@master
-        with:
-          path: artifacts
-          flags: '--syncdeps --noconfirm'
-          namcap: true
-          srcinfo: true
-          aur: true  # workaround mirror problem
-
-      - name: Upload Artifacts
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: sunshine-linux-aur
-          path: artifacts/
-
-      - name: Publish AUR package
-        if: ${{ env.aur_publish == 'true' }}
-        uses: KSXGitHub/github-actions-deploy-aur@v2.6.0
-        with:
-          pkgname: ${{ env.aur_pkg }}
-          pkgbuild: ./artifacts/PKGBUILD
-          assets: |
-            ./artifacts/*
-          commit_username: ${{ secrets.AUR_USERNAME }}
-          commit_email: ${{ secrets.AUR_EMAIL }}
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          commit_message: Automatic update from GitHub ${{ github.repository }} per ${{ github.ref }}
-          allow_empty_commits: false
 
   build_linux_flatpak:
     name: Linux Flatpak
@@ -363,12 +261,6 @@ jobs:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
         include:  # package these differently
-          - type: cpack
-            EXTRA_ARGS: ''
-            dist: 20.04
-          - type: cpack
-            EXTRA_ARGS: ''
-            dist: 22.04
           - type: appimage
             EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
             dist: 20.04
@@ -390,6 +282,7 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y \
               libboost-filesystem1.71-dev \
+              libboost-locale1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
               libboost-thread1.71-dev \
@@ -416,6 +309,7 @@ jobs:
             sudo apt-get install -y \
               cmake \
               libboost-filesystem-dev \
+              libboost-locale-dev \
               libboost-log-dev \
               libboost-thread-dev \
               libboost-program-options-dev
@@ -430,6 +324,7 @@ jobs:
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
+            libmfx-dev \
             libnuma-dev \
             libopus-dev \
             libpulse-dev \
@@ -459,15 +354,19 @@ jobs:
             --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
             --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
-          # Install CuDA
+          # Install CUDA
           sudo wget \
-            https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run \
+            https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run \
             --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
           sudo chmod a+x /root/cuda.run
           sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
           sudo rm /root/cuda.run
 
       - name: Build Linux
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir -p build
           mkdir -p artifacts
@@ -585,12 +484,16 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl node opus
+          brew install boost cmake curl node opus pkg-config
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
       - name: Build MacOS
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           npm install
 
@@ -696,7 +599,8 @@ jobs:
 
           mkdir build
           cd build
-          cmake -DGITHUB_COMMIT=${commit} \
+          cmake \
+            -DGITHUB_COMMIT=${commit} \
             -DGITHUB_CLONE_URL=${clone_url} \
             -DSUNSHINE_CONFIGURE_PORTFILE=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
@@ -747,6 +651,8 @@ jobs:
           echo "subportlist=${subportlist}" >> $GITHUB_OUTPUT
 
       - name: Run port lint for all subports
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
         run: |
           set -eu
           fail=0
@@ -768,10 +674,10 @@ jobs:
             echo "::endgroup::"
           done
           exit "$fail"
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
 
       - name: Build subports
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
         run: |
           set -eu
           fail=0
@@ -820,8 +726,6 @@ jobs:
             echo "::endgroup::"
           done
           exit "$fail"
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
 
       - name: Package
         run: |
@@ -886,6 +790,7 @@ jobs:
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
+            mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
@@ -900,6 +805,10 @@ jobs:
 
       - name: Build Windows
         shell: msys2 {0}
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir build
           cd build
@@ -920,8 +829,8 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows.exe
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows.zip
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -950,7 +859,7 @@ jobs:
     runs-on: windows-latest  # the required action can only be run on Windows
     steps:
       - name: Release to WinGet
-        uses: vedantmgoyal2009/winget-releaser@v1
+        uses: vedantmgoyal2009/winget-releaser@v2
         with:
           identifier: LizardByte.Sunshine
           release-tag: ${{ needs.setup_release.outputs.release_tag }}

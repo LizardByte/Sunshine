@@ -19,6 +19,7 @@
 #include "src/config.h"
 #include "src/main.h"
 #include "src/task_pool.h"
+#include "src/video.h"
 
 #include "cuda.h"
 #include "graphics.h"
@@ -65,7 +66,7 @@ _FN(FreeScreenResources, void, (XRRScreenResources * resources));
 _FN(FreeOutputInfo, void, (XRROutputInfo * outputInfo));
 _FN(FreeCrtcInfo, void, (XRRCrtcInfo * crtcInfo));
 
-int init() {
+static int init() {
   static void *handle { nullptr };
   static bool funcs_loaded = false;
 
@@ -99,7 +100,7 @@ int init() {
 namespace fix {
 _FN(GetCursorImage, XFixesCursorImage *, (Display * dpy));
 
-int init() {
+static int init() {
   static void *handle { nullptr };
   static bool funcs_loaded = false;
 
@@ -125,7 +126,7 @@ int init() {
 }
 } // namespace fix
 
-int init() {
+static int init() {
   static void *handle { nullptr };
   static bool funcs_loaded = false;
 
@@ -382,13 +383,13 @@ struct x11_attr_t : public display_t {
     x11::InitThreads();
   }
 
-  int init(const std::string &display_name, int framerate) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
     if(!xdisplay) {
       BOOST_LOG(error) << "Could not open X11 display"sv;
       return -1;
     }
 
-    delay = std::chrono::nanoseconds { 1s } / framerate;
+    delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
     xwindow = DefaultRootWindow(xdisplay.get());
 
@@ -493,7 +494,7 @@ struct x11_attr_t : public display_t {
   capture_e snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
     refresh();
 
-    //The whole X server changed, so we gotta reinit everything
+    //The whole X server changed, so we must reinit everything
     if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
       return capture_e::reinit;
@@ -549,7 +550,7 @@ struct shm_attr_t : public x11_attr_t {
 
   shm_data_t data;
 
-  util::TaskPool::task_id_t refresh_task_id;
+  task_pool_util::TaskPool::task_id_t refresh_task_id;
 
   void delayed_refresh() {
     refresh();
@@ -602,7 +603,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 
   capture_e snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) {
-    //The whole X server changed, so we gotta reinit everything
+    //The whole X server changed, so we must reinit everything
     if(xattr.width != env_width || xattr.height != env_height) {
       BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
       return capture_e::reinit;
@@ -641,8 +642,8 @@ struct shm_attr_t : public x11_attr_t {
     return 0;
   }
 
-  int init(const std::string &display_name, int framerate) {
-    if(x11_attr_t::init(display_name, framerate)) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
+    if(x11_attr_t::init(display_name, config)) {
       return 1;
     }
 
@@ -685,7 +686,7 @@ struct shm_attr_t : public x11_attr_t {
   }
 };
 
-std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
   if(hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
     BOOST_LOG(error) << "Could not initialize x11 display with the given hw device type"sv;
     return nullptr;
@@ -700,7 +701,7 @@ std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const st
   // Attempt to use shared memory X11 to avoid copying the frame
   auto shm_disp = std::make_shared<shm_attr_t>(hwdevice_type);
 
-  auto status = shm_disp->init(display_name, framerate);
+  auto status = shm_disp->init(display_name, config);
   if(status > 0) {
     // x11_attr_t::init() failed, don't bother trying again.
     return nullptr;
@@ -712,7 +713,7 @@ std::shared_ptr<display_t> x11_display(platf::mem_type_e hwdevice_type, const st
 
   // Fallback
   auto x11_disp = std::make_shared<x11_attr_t>(hwdevice_type);
-  if(x11_disp->init(display_name, framerate)) {
+  if(x11_disp->init(display_name, config)) {
     return nullptr;
   }
 

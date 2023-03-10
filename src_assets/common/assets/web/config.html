@@ -297,6 +297,57 @@
           If back_button_timeout &lt; 0, then the Home/Guide button will not be emulated<br />
         </div>
       </div>
+      <!--Enable Mouse Input-->
+      <div class="mb-3">
+        <label for="mouse" class="form-label"
+          >Enable Mouse Input</label
+        >
+        <select
+          id="mouse"
+          class="form-select"
+          v-model="config.mouse"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with the mouse
+        </div>
+      </div>
+      <!--Enable Keyboard Input-->
+      <div class="mb-3">
+        <label for="keyboard" class="form-label"
+          >Enable Keyboard Input</label
+        >
+        <select
+          id="keyboard"
+          class="form-select"
+          v-model="config.keyboard"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with the keyboard
+        </div>
+      </div>
+      <!--Enable Gamepad Input-->
+      <div class="mb-3">
+        <label for="gamepad" class="form-label"
+          >Enable Gamepad Input</label
+        >
+        <select
+          id="gamepad"
+          class="form-select"
+          v-model="config.controller"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with a gamepad / controller
+        </div>
+      </div>
       <!-- Key Repeat Delay-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="key_repeat_delay" class="form-label"
@@ -369,6 +420,29 @@
           <br />
         </div>
       </div>
+      <div class="mb-3" v-if="platform === 'macos'">
+        <label for="audio_sink" class="form-label">Audio Sink</label>
+        <input
+          type="text"
+          class="form-control"
+          id="audio_sink"
+          placeholder="BlackHole 2ch"
+          v-model="config.audio_sink"
+        />
+        <div class="form-text">
+          The name of the audio sink used for Audio Loopback<br />
+          Sunshine can only access microphones on macOS due to system limitations.<br />
+          To stream system audio using <a
+            href="https://github.com/mattingalls/Soundflower"
+            target="_blank">
+            Soundflower
+          </a> or <a
+            href="https://github.com/ExistentialAudio/BlackHole"
+            target="_blank">
+            BlackHole
+          </a>.
+        </div>
+      </div>
       <!--Virtual Sink-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="virtual_sink" class="form-label">Virtual Sink</label>
@@ -411,7 +485,7 @@
           v-model="config.output_name"
         />
         <div class="form-text">
-          You can select the video card you want to stream:<br />
+          You can select the display you want to stream:<br />
           The appropriate values can be found using the following command:<br />
           tools\dxgi-info.exe<br />
         </div>
@@ -523,6 +597,7 @@
         <select id="encoder" class="form-select" v-model="config.encoder">
           <option value>Autodetect</option>
           <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
+          <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
           <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
           <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
           <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
@@ -695,6 +770,29 @@
         </select>
       </div>
     </div>
+    <!--Intel Encoder Settings-->
+    <div v-if="currentTab === 'qsv'" class="config-page">
+      <div class="mb-3">
+        <label for="qsv_preset" class="form-label">QuickSync Preset</label>
+        <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
+          <option value="veryfast">fastest (lowest quality)</option>
+          <option value="faster">faster (lower quality)</option>
+          <option value="fast">fast (low quality)</option>
+          <option value="medium">medium (default)</option>
+          <option value="slow">slow (good quality)</option>
+          <option value="slower">slower (better quality)</option>
+          <option value="slowest">slowest (best quality)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="qsv_coder" class="form-label">QuickSync Coder (H264)</label>
+        <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
+          <option value="auto">auto -- let ffmpeg decide (default)</option>
+          <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
+          <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
+        </select>
+      </div>
+    </div>
     <!--AMD Encoder Settings-->
     <div v-if="currentTab === 'amd'" class="config-page">
       <!--Presets-->
@@ -716,6 +814,29 @@
           <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
           <option value="vbr_peak">vbr_peak -- peak contrained variable bitrate</option>
           <option value="cbr">cbr -- constant bitrate</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="amd_usage" class="form-label">AMF Usage</label>
+        <select id="amd_usage" class="form-select" v-model="config.amd_usage">
+          <option value="transcoding">transcoding -- transcoding (slowest)</option>
+          <option value="webcam">webcam -- webcam (slow)</option>
+          <option value="lowlatency">lowlatency - low latency (fast)</option>
+          <option value="ultralowlatency">ultralowlatency - ultra low latency (fastest)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
+        <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
+          <option value="enabled">enabled</option>
+          <option value="disabled">disabled (default)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
+        <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
+          <option value="enabled">enabled (default)</option>
+          <option value="disabled">disabled</option>
         </select>
       </div>
       <div class="mb-3">
@@ -821,6 +942,10 @@
             name: "NVIDIA NVENC Encoder",
           },
           {
+            id: "qsv",
+            name: "Intel QuickSync Encoder",
+          },
+          {
             id: "amd",
             name: "AMD AMF Encoder",
           },
@@ -848,25 +973,27 @@
           this.restart_supported = (this.config.restart_supported === "true");
 
           var app = document.getElementById("app");
-          if (this.platform == "windows") {
+          if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "va-api" && el.id !== "vt";
             });
           }
-          if (this.platform == "linux") {
+          if (this.platform === "linux") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "vt";
+              return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
             });
           }
-          if (this.platform == "macos") {
+          if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "nv" && el.id !== "va-api";
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "va-api";
             });
           }
 
-          delete this.config.status;
+          // remove values we don't want in the config file
           delete this.config.platform;
           delete this.config.restart_supported;
+          delete this.config.status;
+          delete this.config.version;
           //Populate default values if not present in config
           this.config.key_rightalt_to_key_win =
             this.config.key_rightalt_to_key_win || "disabled";
@@ -878,15 +1005,23 @@
             this.config.origin_pin_allowed || "pc";
           this.config.origin_web_ui_allowed =
             this.config.origin_web_ui_allowed || "lan";
+          this.config.mouse = this.config.mouse || "enabled";
+          this.config.keyboard = this.config.keyboard || "enabled";
+          this.config.controller = this.config.controller || "enabled";
           this.config.hevc_mode = this.config.hevc_mode || 0;
           this.config.encoder = this.config.encoder || "";
           this.config.nv_preset = this.config.nv_preset || "p4";
           this.config.nv_tune = this.config.nv_tune || "ull";
           this.config.nv_coder = this.config.nv_coder || "auto";
           this.config.nv_rc = this.config.nv_rc || "cbr";
+          this.config.qsv_preset = this.config.qsv_preset || "medium";
+          this.config.qsv_coder = this.config.qsv_coder || "auto";
           this.config.amd_coder = this.config.amd_coder || "auto"
+          this.config.amd_preanalysis = this.config.amd_preanalysis || "disabled";
           this.config.amd_quality = this.config.amd_quality || "balanced";
           this.config.amd_rc = this.config.amd_rc || "vbr_latency";
+          this.config.amd_usage = this.config.amd_usage || "ultralowlatency";
+          this.config.amd_vbaq = this.config.amd_vbaq || "enabled";
           this.config.vt_coder = this.config.vt_coder || "auto";
           this.config.vt_software = this.config.vt_software || "auto";
           this.config.vt_realtime = this.config.vt_realtime || "enabled";
@@ -924,7 +1059,7 @@
           method: "POST",
           body: JSON.stringify(this.config),
         }).then((r) => {
-          if (r.status == 200) this.saved = true;
+          if (r.status === 200) this.saved = true;
         });
       },
       apply() {
@@ -934,11 +1069,11 @@
           method: "POST",
           body: JSON.stringify(this.config),
         }).then((r) => {
-          if (r.status == 200) {
+          if (r.status === 200) {
             fetch("/api/restart", {
               method: "POST",
             }).then((r) => {
-              if (r.status == 200) this.restarted = true;
+              if (r.status === 200) this.restarted = true;
             });
           }
         });

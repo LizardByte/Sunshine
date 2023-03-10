@@ -4,6 +4,7 @@
 #include <sstream>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <boost/process.hpp>
 
 // prevent clang format from "optimizing" the header include order
@@ -16,11 +17,26 @@
 #include <userenv.h>
 #include <dwmapi.h>
 #include <timeapi.h>
+#include <wlanapi.h>
 // clang-format on
 
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+
+// UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
+#ifndef UDP_SEND_MSG_SIZE
+#define UDP_SEND_MSG_SIZE 2
+#endif
+
+// MinGW headers are missing qWAVE stuff
+typedef UINT32 QOS_FLOWID, *PQOS_FLOWID;
+#define QOS_NON_ADAPTIVE_FLOW 0x00000002
+#include <qos2.h>
+
+#ifndef WLAN_API_MAKE_VERSION
+#define WLAN_API_MAKE_VERSION(_major, _minor) (((DWORD)(_minor)) << 16 | (_major))
+#endif
 
 namespace bp = boost::process;
 
@@ -30,6 +46,20 @@ using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
 bool enabled_mouse_keys = false;
 MOUSEKEYS previous_mouse_keys_state;
+
+HANDLE qos_handle = nullptr;
+
+decltype(QOSCreateHandle) *fn_QOSCreateHandle                 = nullptr;
+decltype(QOSAddSocketToFlow) *fn_QOSAddSocketToFlow           = nullptr;
+decltype(QOSRemoveSocketFromFlow) *fn_QOSRemoveSocketFromFlow = nullptr;
+
+HANDLE wlan_handle = nullptr;
+
+decltype(WlanOpenHandle) *fn_WlanOpenHandle         = nullptr;
+decltype(WlanCloseHandle) *fn_WlanCloseHandle       = nullptr;
+decltype(WlanFreeMemory) *fn_WlanFreeMemory         = nullptr;
+decltype(WlanEnumInterfaces) *fn_WlanEnumInterfaces = nullptr;
+decltype(WlanSetInterface) *fn_WlanSetInterface     = nullptr;
 
 std::filesystem::path appdata() {
   WCHAR sunshine_path[MAX_PATH];
@@ -345,7 +375,7 @@ void free_proc_thread_attr_list(LPPROC_THREAD_ATTRIBUTE_LIST list) {
   HeapFree(GetProcessHeap(), 0, list);
 }
 
-bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec) {
+bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
   HANDLE shell_token = duplicate_shell_token();
   if(!shell_token) {
     // This can happen if the shell has crashed. Fail the launch rather than risking launching with
@@ -460,6 +490,9 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
     // Since we are always spawning a process with a less privileged token than ourselves,
     // bp::child() should have no problem opening it with any access rights it wants.
     auto child = bp::child((bp::pid_t)process_info.dwProcessId);
+    if(group) {
+      group->add(child);
+    }
 
     // Only close handles after bp::child() has opened the process. If the process terminates
     // quickly, the PID could be reused if we close the process handle.
@@ -507,6 +540,35 @@ void adjust_thread_priority(thread_priority_e priority) {
 }
 
 void streaming_will_start() {
+  static std::once_flag load_wlanapi_once_flag;
+  std::call_once(load_wlanapi_once_flag, []() {
+    // wlanapi.dll is not installed by default on Windows Server, so we load it dynamically
+    HMODULE wlanapi = LoadLibraryExA("wlanapi.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if(!wlanapi) {
+      BOOST_LOG(debug) << "wlanapi.dll is not available on this OS"sv;
+      return;
+    }
+
+    fn_WlanOpenHandle     = (decltype(fn_WlanOpenHandle))GetProcAddress(wlanapi, "WlanOpenHandle");
+    fn_WlanCloseHandle    = (decltype(fn_WlanCloseHandle))GetProcAddress(wlanapi, "WlanCloseHandle");
+    fn_WlanFreeMemory     = (decltype(fn_WlanFreeMemory))GetProcAddress(wlanapi, "WlanFreeMemory");
+    fn_WlanEnumInterfaces = (decltype(fn_WlanEnumInterfaces))GetProcAddress(wlanapi, "WlanEnumInterfaces");
+    fn_WlanSetInterface   = (decltype(fn_WlanSetInterface))GetProcAddress(wlanapi, "WlanSetInterface");
+
+    if(!fn_WlanOpenHandle || !fn_WlanCloseHandle || !fn_WlanFreeMemory || !fn_WlanEnumInterfaces || !fn_WlanSetInterface) {
+      BOOST_LOG(error) << "wlanapi.dll is missing exports?"sv;
+
+      fn_WlanOpenHandle     = nullptr;
+      fn_WlanCloseHandle    = nullptr;
+      fn_WlanFreeMemory     = nullptr;
+      fn_WlanEnumInterfaces = nullptr;
+      fn_WlanSetInterface   = nullptr;
+
+      FreeLibrary(wlanapi);
+      return;
+    }
+  });
+
   // Enable MMCSS scheduling for DWM
   DwmEnableMMCSS(true);
 
@@ -515,6 +577,39 @@ void streaming_will_start() {
 
   // Promote ourselves to high priority class
   SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+
+  // Enable low latency mode on all connected WLAN NICs if wlanapi.dll is available
+  if(fn_WlanOpenHandle) {
+    DWORD negotiated_version;
+
+    if(fn_WlanOpenHandle(WLAN_API_MAKE_VERSION(2, 0), nullptr, &negotiated_version, &wlan_handle) == ERROR_SUCCESS) {
+      PWLAN_INTERFACE_INFO_LIST wlan_interface_list;
+
+      if(fn_WlanEnumInterfaces(wlan_handle, nullptr, &wlan_interface_list) == ERROR_SUCCESS) {
+        for(DWORD i = 0; i < wlan_interface_list->dwNumberOfItems; i++) {
+          if(wlan_interface_list->InterfaceInfo[i].isState == wlan_interface_state_connected) {
+            // Enable media streaming mode for 802.11 wireless interfaces to reduce latency and
+            // unneccessary background scanning operations that cause packet loss and jitter.
+            //
+            // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
+            // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
+            BOOL value = TRUE;
+            auto error = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid,
+              wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
+            if(error == ERROR_SUCCESS) {
+              BOOST_LOG(info) << "WLAN interface "sv << i << " is now in low latency mode"sv;
+            }
+          }
+        }
+
+        fn_WlanFreeMemory(wlan_interface_list);
+      }
+      else {
+        fn_WlanCloseHandle(wlan_handle, nullptr);
+        wlan_handle = NULL;
+      }
+    }
+  }
 
   // If there is no mouse connected, enable Mouse Keys to force the cursor to appear
   if(!GetSystemMetrics(SM_MOUSEPRESENT)) {
@@ -556,6 +651,12 @@ void streaming_will_stop() {
   // Disable MMCSS scheduling for DWM
   DwmEnableMMCSS(false);
 
+  // Closing our WLAN client handle will undo our optimizations
+  if(wlan_handle != nullptr) {
+    fn_WlanCloseHandle(wlan_handle, nullptr);
+    wlan_handle = nullptr;
+  }
+
   // Restore Mouse Keys back to the previous settings if we turned it on
   if(enabled_mouse_keys) {
     enabled_mouse_keys = false;
@@ -576,6 +677,168 @@ bool restart() {
   // restart us in a few seconds.
   std::raise(SIGINT);
   return true;
+}
+
+SOCKADDR_IN to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
+  SOCKADDR_IN saddr_v4 = {};
+
+  saddr_v4.sin_family = AF_INET;
+  saddr_v4.sin_port   = htons(port);
+
+  auto addr_bytes = address.to_bytes();
+  memcpy(&saddr_v4.sin_addr, addr_bytes.data(), sizeof(saddr_v4.sin_addr));
+
+  return saddr_v4;
+}
+
+SOCKADDR_IN6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
+  SOCKADDR_IN6 saddr_v6 = {};
+
+  saddr_v6.sin6_family   = AF_INET6;
+  saddr_v6.sin6_port     = htons(port);
+  saddr_v6.sin6_scope_id = address.scope_id();
+
+  auto addr_bytes = address.to_bytes();
+  memcpy(&saddr_v6.sin6_addr, addr_bytes.data(), sizeof(saddr_v6.sin6_addr));
+
+  return saddr_v6;
+}
+
+// Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
+// hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
+bool send_batch(batched_send_info_t &send_info) {
+  WSAMSG msg;
+
+  // Convert the target address into a SOCKADDR
+  SOCKADDR_IN saddr_v4;
+  SOCKADDR_IN6 saddr_v6;
+  if(send_info.target_address.is_v6()) {
+    saddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
+
+    msg.name    = (PSOCKADDR)&saddr_v6;
+    msg.namelen = sizeof(saddr_v6);
+  }
+  else {
+    saddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
+
+    msg.name    = (PSOCKADDR)&saddr_v4;
+    msg.namelen = sizeof(saddr_v4);
+  }
+
+  WSABUF buf;
+  buf.buf = (char *)send_info.buffer;
+  buf.len = send_info.block_size * send_info.block_count;
+
+  msg.lpBuffers     = &buf;
+  msg.dwBufferCount = 1;
+  msg.dwFlags       = 0;
+
+  char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD))];
+  msg.Control.buf = cmbuf;
+  msg.Control.len = 0;
+
+  if(send_info.block_count > 1) {
+    msg.Control.len += WSA_CMSG_SPACE(sizeof(DWORD));
+
+    auto cm                       = WSA_CMSG_FIRSTHDR(&msg);
+    cm->cmsg_level                = IPPROTO_UDP;
+    cm->cmsg_type                 = UDP_SEND_MSG_SIZE;
+    cm->cmsg_len                  = WSA_CMSG_LEN(sizeof(DWORD));
+    *((DWORD *)WSA_CMSG_DATA(cm)) = send_info.block_size;
+  }
+
+  // If USO is not supported, this will fail and the caller will fall back to unbatched sends.
+  DWORD bytes_sent;
+  return WSASendMsg((SOCKET)send_info.native_socket, &msg, 1, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
+}
+
+class qos_t : public deinit_t {
+public:
+  qos_t(QOS_FLOWID flow_id) : flow_id(flow_id) {}
+
+  virtual ~qos_t() {
+    if(!fn_QOSRemoveSocketFromFlow(qos_handle, (SOCKET)NULL, flow_id, 0)) {
+      auto winerr = GetLastError();
+      BOOST_LOG(warning) << "QOSRemoveSocketFromFlow() failed: "sv << winerr;
+    }
+  }
+
+private:
+  QOS_FLOWID flow_id;
+};
+
+std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
+  SOCKADDR_IN saddr_v4;
+  SOCKADDR_IN6 saddr_v6;
+  PSOCKADDR dest_addr;
+
+  static std::once_flag load_qwave_once_flag;
+  std::call_once(load_qwave_once_flag, []() {
+    // qWAVE is not installed by default on Windows Server, so we load it dynamically
+    HMODULE qwave = LoadLibraryExA("qwave.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if(!qwave) {
+      BOOST_LOG(debug) << "qwave.dll is not available on this OS"sv;
+      return;
+    }
+
+    fn_QOSCreateHandle         = (decltype(fn_QOSCreateHandle))GetProcAddress(qwave, "QOSCreateHandle");
+    fn_QOSAddSocketToFlow      = (decltype(fn_QOSAddSocketToFlow))GetProcAddress(qwave, "QOSAddSocketToFlow");
+    fn_QOSRemoveSocketFromFlow = (decltype(fn_QOSRemoveSocketFromFlow))GetProcAddress(qwave, "QOSRemoveSocketFromFlow");
+
+    if(!fn_QOSCreateHandle || !fn_QOSAddSocketToFlow || !fn_QOSRemoveSocketFromFlow) {
+      BOOST_LOG(error) << "qwave.dll is missing exports?"sv;
+
+      fn_QOSCreateHandle         = nullptr;
+      fn_QOSAddSocketToFlow      = nullptr;
+      fn_QOSRemoveSocketFromFlow = nullptr;
+
+      FreeLibrary(qwave);
+      return;
+    }
+
+    QOS_VERSION qos_version { 1, 0 };
+    if(!fn_QOSCreateHandle(&qos_version, &qos_handle)) {
+      auto winerr = GetLastError();
+      BOOST_LOG(warning) << "QOSCreateHandle() failed: "sv << winerr;
+      return;
+    }
+  });
+
+  // If qWAVE is unavailable, just return
+  if(!fn_QOSAddSocketToFlow || !qos_handle) {
+    return nullptr;
+  }
+
+  if(address.is_v6()) {
+    saddr_v6  = to_sockaddr(address.to_v6(), port);
+    dest_addr = (PSOCKADDR)&saddr_v6;
+  }
+  else {
+    saddr_v4  = to_sockaddr(address.to_v4(), port);
+    dest_addr = (PSOCKADDR)&saddr_v4;
+  }
+
+  QOS_TRAFFIC_TYPE traffic_type;
+  switch(data_type) {
+  case qos_data_type_e::audio:
+    traffic_type = QOSTrafficTypeVoice;
+    break;
+  case qos_data_type_e::video:
+    traffic_type = QOSTrafficTypeAudioVideo;
+    break;
+  default:
+    BOOST_LOG(error) << "Unknown traffic type: "sv << (int)data_type;
+    return nullptr;
+  }
+
+  QOS_FLOWID flow_id = 0;
+  if(!fn_QOSAddSocketToFlow(qos_handle, (SOCKET)native_socket, dest_addr, traffic_type, QOS_NON_ADAPTIVE_FLOW, &flow_id)) {
+    auto winerr = GetLastError();
+    BOOST_LOG(warning) << "QOSAddSocketToFlow() failed: "sv << winerr;
+    return nullptr;
+  }
+
+  return std::make_unique<qos_t>(flow_id);
 }
 
 } // namespace platf

@@ -87,9 +87,13 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
             [Unit]
             Description=Sunshine self-hosted game stream host for Moonlight.
+            StartLimitIntervalSec=500
+            StartLimitBurst=5
 
             [Service]
             ExecStart=<see table>
+            Restart=on-failure
+            RestartSec=5s
             #Flatpak Only
             #ExecStop=flatpak kill dev.lizardbyte.sunshine
 
@@ -142,8 +146,7 @@ macOS
 ^^^^^
 Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
 `Soundflower <https://github.com/mattingalls/Soundflower>`_ or
-`BlackHole <https://github.com/ExistentialAudio/BlackHole>`_ and
-select their sink as audio device in `sunshine.conf`.
+`BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
 
 .. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
@@ -190,7 +193,7 @@ Shortcuts
 All shortcuts start with ``CTRL + ALT + SHIFT``, just like Moonlight
 
 - ``CTRL + ALT + SHIFT + N`` - Hide/Unhide the cursor (This may be useful for Remote Desktop Mode for Moonlight)
-- ``CTRL + ALT + SHIFT + F1/F13`` - Switch to different monitor for Streaming
+- ``CTRL + ALT + SHIFT + F1/F12`` - Switch to different monitor for Streaming
 
 Application List
 ----------------
@@ -203,7 +206,7 @@ Application List
 - ``"Variable name":"Variable value"``
 - ``apps`` - The list of applications
 - Advanced users may want to edit the application list manually. The format is ``json``.
-- Example application:
+- Example ``json`` application:
    .. code-block:: json
 
       {
@@ -245,6 +248,8 @@ Application List
 
    - ``working-dir`` - The working directory to use. If not specified, Sunshine will use the application directory.
 
+- For more examples see :ref:`app examples <about/app_examples:app examples>`.
+
 Considerations
 --------------
 - When an application is started, if there is an application already running, it will be terminated.
@@ -253,9 +258,22 @@ Considerations
   - For example, if you attempt to run ``steam`` as a ``cmd`` instead of ``detached`` the stream will immediately fail.
     This is due to the method in which the steam process is executed. Other applications may behave similarly.
 
-- In addition to the apps listed, one app "Desktop" is hardcoded into Sunshine. It does not start an application,
-  instead it simply starts a stream.
+- The "Desktop" app works the same as any other application except it has no commands. It does not start an application,
+  instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
+  the name "Desktop" and "desktop.png" as the image path.
 - For the Linux flatpak you must prepend commands with ``flatpak-spawn --host``.
+
+HDR Support
+-----------
+Streaming HDR content is supported for Windows hosts with NVIDIA, AMD, or Intel GPUs that support encoding HEVC Main 10.
+You must have an HDR-capable display or EDID emulator dongle connected to your host PC to activate HDR in Windows.
+
+- Ensure you enable the HDR option in your Moonlight client settings, otherwise the stream will be SDR.
+- A good HDR experience relies on proper HDR display calibration both in Windows and in game. HDR calibration can differ significantly between client and host displays.
+- We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
+- You may also need to tune the brightness slider or HDR calibration options in game to the different HDR brightness capabilities of your client's display.
+- Older games that use NVIDIA-specific NVAPI HDR rather than native Windows 10 OS HDR support may not display in HDR.
+- Some GPUs can produce lower image quality or encoding performance when streaming in HDR compared to SDR.
 
 Tutorials
 ---------

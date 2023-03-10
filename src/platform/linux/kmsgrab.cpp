@@ -12,6 +12,7 @@
 #include "src/platform/common.h"
 #include "src/round_robin.h"
 #include "src/utility.h"
+#include "src/video.h"
 
 // Cursor rendering support through x11
 #include "graphics.h"
@@ -171,7 +172,7 @@ static std::uint32_t from_view(const std::string_view &string) {
   return DRM_MODE_CONNECTOR_Unknown;
 }
 
-class plane_it_t : public util::it_wrap_t<plane_t::element_type, plane_it_t> {
+class plane_it_t : public round_robin_util::it_wrap_t<plane_t::element_type, plane_it_t> {
 public:
   plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end)
       : fd { fd }, plane_p { plane_p }, end { end } {
@@ -291,6 +292,18 @@ public:
     }
 
     return false;
+  }
+
+  std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
+    auto props = plane_props(plane_id);
+    for(auto &[prop, val] : props) {
+      if(prop->name == "rotation"sv) {
+        return val;
+      }
+    }
+
+    BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
+    return DRM_MODE_ROTATE_0;
   }
 
   connector_interal_t connector(std::uint32_t id) {
@@ -444,8 +457,8 @@ class display_t : public platf::display_t {
 public:
   display_t(mem_type_e mem_type) : platf::display_t(), mem_type { mem_type } {}
 
-  int init(const std::string &display_name, int framerate) {
-    delay = std::chrono::nanoseconds { 1s } / framerate;
+  int init(const std::string &display_name, const ::video::config_t &config) {
+    delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
     int monitor_index = util::from_view(display_name);
     int monitor       = 0;
@@ -530,11 +543,25 @@ public:
         if(monitor != std::end(pos->crtc_to_monitor)) {
           auto &viewport = monitor->second.viewport;
 
-          width    = viewport.width;
-          height   = viewport.height;
+          width  = viewport.width;
+          height = viewport.height;
+
+          switch(card.get_panel_orientation(plane->plane_id)) {
+          case DRM_MODE_ROTATE_270:
+            BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+            width  = viewport.height;
+            height = viewport.width;
+            break;
+          case DRM_MODE_ROTATE_90:
+          case DRM_MODE_ROTATE_180:
+            BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
+            break;
+          }
+
           offset_x = viewport.offset_x;
           offset_y = viewport.offset_y;
         }
+
         // This code path shouldn't happend, but it's there just in case.
         // crtc_to_monitor is part of the guesswork after all.
         else {
@@ -583,9 +610,12 @@ public:
 
     for(int y = 0; y < 4; ++y) {
       if(!fb->handles[y]) {
-        // It's not clear wheter there could still be valid handles left.
+        // setting sd->fds[y] to a negative value indicates that sd->offsets[y] and sd->pitches[y]
+        // are uninitialized and contain invalid values.
+        sd->fds[y] = -1;
+        // It's not clear whether there could still be valid handles left.
         // So, continue anyway.
-        // TODO: Is this redundent?
+        // TODO: Is this redundant?
         continue;
       }
 
@@ -632,13 +662,13 @@ class display_ram_t : public display_t {
 public:
   display_ram_t(mem_type_e mem_type) : display_t(mem_type) {}
 
-  int init(const std::string &display_name, int framerate) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
     if(!gbm::create_device) {
       BOOST_LOG(warning) << "libgbm not initialized"sv;
       return -1;
     }
 
-    if(display_t::init(display_name, framerate)) {
+    if(display_t::init(display_name, config)) {
       return -1;
     }
 
@@ -725,6 +755,12 @@ public:
     auto &rgb = *rgb_opt;
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
+
+    int w, h;
+    gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+    gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+    BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;
+
     gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
 
     if(cursor_opt && cursor) {
@@ -852,8 +888,8 @@ public:
     return capture_e::ok;
   }
 
-  int init(const std::string &display_name, int framerate) {
-    if(display_t::init(display_name, framerate)) {
+  int init(const std::string &display_name, const ::video::config_t &config) {
+    if(display_t::init(display_name, config)) {
       return -1;
     }
 
@@ -872,11 +908,11 @@ public:
 
 } // namespace kms
 
-std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, int framerate) {
+std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
   if(hwdevice_type == mem_type_e::vaapi) {
     auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
-    if(!disp->init(display_name, framerate)) {
+    if(!disp->init(display_name, config)) {
       return disp;
     }
 
@@ -885,7 +921,7 @@ std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::stri
 
   auto disp = std::make_shared<kms::display_ram_t>(hwdevice_type);
 
-  if(disp->init(display_name, framerate)) {
+  if(disp->init(display_name, config)) {
     return nullptr;
   }
 

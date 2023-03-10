@@ -17,30 +17,39 @@ struct video_t {
 
   int min_threads; // Minimum number of threads/slices for CPU encoding
   struct {
-    std::string preset;
-    std::string tune;
+    std::string sw_preset;
+    std::string sw_tune;
   } sw;
 
   struct {
-    std::optional<int> preset;
-    std::optional<int> tune;
-    std::optional<int> rc;
-    int coder;
+    std::optional<int> nv_preset;
+    std::optional<int> nv_tune;
+    std::optional<int> nv_rc;
+    int nv_coder;
   } nv;
 
   struct {
-    std::optional<int> quality_h264;
-    std::optional<int> quality_hevc;
-    std::optional<int> rc_h264;
-    std::optional<int> rc_hevc;
-    int coder;
+    std::optional<int> qsv_preset;
+    std::optional<int> qsv_cavlc;
+  } qsv;
+
+  struct {
+    std::optional<int> amd_quality_h264;
+    std::optional<int> amd_quality_hevc;
+    std::optional<int> amd_rc_h264;
+    std::optional<int> amd_rc_hevc;
+    std::optional<int> amd_usage_h264;
+    std::optional<int> amd_usage_hevc;
+    std::optional<int> amd_preanalysis;
+    std::optional<int> amd_vbaq;
+    int amd_coder;
   } amd;
 
   struct {
-    int allow_sw;
-    int require_sw;
-    int realtime;
-    int coder;
+    int vt_allow_sw;
+    int vt_require_sw;
+    int vt_realtime;
+    int vt_coder;
   } vt;
 
   std::string encoder;
@@ -91,6 +100,10 @@ struct input_t {
   std::chrono::duration<double> key_repeat_period;
 
   std::string gamepad;
+
+  bool keyboard;
+  bool mouse;
+  bool controller;
 };
 
 namespace flag {

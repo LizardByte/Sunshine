@@ -5,6 +5,17 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <va/va.h>
+#if !VA_CHECK_VERSION(1, 9, 0)
+/* vaSyncBuffer stub allows Sunshine built against libva <2.9.0
+   to link against ffmpeg on libva 2.9.0 or later */
+VAStatus vaSyncBuffer(
+  VADisplay dpy,
+  VABufferID buf_id,
+  uint64_t timeout_ns) {
+  return VA_STATUS_ERROR_UNIMPLEMENTED;
+}
+#endif
 }
 
 #include "graphics.h"
@@ -313,14 +324,15 @@ public:
     return 0;
   }
 
-  int set_frame(AVFrame *frame) override {
+  int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
     this->hwframe.reset(frame);
     this->frame = frame;
 
-    if(av_hwframe_get_buffer(frame->hw_frames_ctx, frame, 0)) {
-      BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
-
-      return -1;
+    if(!frame->buf[0]) {
+      if(av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
+        BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
+        return -1;
+      }
     }
 
     va::DRMPRIMESurfaceDescriptor prime;
@@ -385,11 +397,13 @@ public:
   va::display_t::pointer va_display;
   file_t file;
 
-  frame_t hwframe;
-
   gbm::gbm_t gbm;
   egl::display_t display;
   egl::ctx_t ctx;
+
+  // This must be destroyed before display_t to ensure the GPU
+  // driver is still loaded when vaDestroySurfaces() is called.
+  frame_t hwframe;
 
   egl::sws_t sws;
   egl::nv12_t nv12;

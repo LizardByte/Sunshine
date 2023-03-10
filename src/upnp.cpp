@@ -91,6 +91,10 @@ static std::string_view status_string(int status) {
 }
 
 std::unique_ptr<platf::deinit_t> start() {
+  if(!config::sunshine.flags[config::flag::UPNP]) {
+    return nullptr;
+  }
+
   int err {};
 
   device_t device { upnpDiscover(2000, nullptr, nullptr, 0, IPv4, 2, &err) };
@@ -128,11 +132,7 @@ std::unique_ptr<platf::deinit_t> start() {
     }
   }
 
-  if(!config::sunshine.flags[config::flag::UPNP]) {
-    return nullptr;
-  }
-
-  auto rtsp     = std::to_string(map_port(stream::RTSP_SETUP_PORT));
+  auto rtsp     = std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT));
   auto video    = std::to_string(map_port(stream::VIDEO_STREAM_PORT));
   auto audio    = std::to_string(map_port(stream::AUDIO_STREAM_PORT));
   auto control  = std::to_string(map_port(stream::CONTROL_PORT));

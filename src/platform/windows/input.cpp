@@ -177,6 +177,7 @@ struct input_raw_t {
 
   vigem_t *vigem;
   HKL keyboard_layout;
+  HKL active_layout;
 };
 
 input_t input() {
@@ -194,6 +195,13 @@ input_t input() {
   raw.keyboard_layout = LoadKeyboardLayoutA("00000409", 0);
   if(!raw.keyboard_layout || LOWORD(raw.keyboard_layout) != 0x409) {
     BOOST_LOG(warning) << "Unable to load US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
+    raw.keyboard_layout = NULL;
+  }
+
+  // Activate layout for current process only
+  raw.active_layout = ActivateKeyboardLayout(raw.keyboard_layout, KLF_SETFORPROCESS);
+  if(!raw.active_layout) {
+    BOOST_LOG(warning) << "Unable to activate US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
     raw.keyboard_layout = NULL;
   }
 
@@ -298,6 +306,18 @@ void scroll(input_t &input, int distance) {
   auto &mi = i.mi;
 
   mi.dwFlags   = MOUSEEVENTF_WHEEL;
+  mi.mouseData = distance;
+
+  send_input(i);
+}
+
+void hscroll(input_t &input, int distance) {
+  INPUT i {};
+
+  i.type   = INPUT_MOUSE;
+  auto &mi = i.mi;
+
+  mi.dwFlags   = MOUSEEVENTF_HWHEEL;
   mi.mouseData = distance;
 
   send_input(i);

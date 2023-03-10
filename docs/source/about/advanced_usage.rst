@@ -7,7 +7,7 @@ Performance Tips
 
 AMD
 ^^^
-In Windows, enabling `Enahanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
+In Windows, enabling `Enhanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
 applies to `amfenc` and `libx264`.
 
 Nvidia
@@ -411,6 +411,8 @@ audio_sink
 
             tools\audio-info.exe
 
+   .. Tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
+
 **Default**
    Sunshine will select the default audio device.
 
@@ -439,8 +441,13 @@ virtual_sink
 
    .. Tip:: See `audio_sink`_!
 
-**Default**
-   .. Todo:: Unknown
+   .. Tip:: These are some options for virtual sound devices.
+
+      - Stream Streaming Speakers (Linux, macOS, Windows)
+
+        - To use this option, you must have Steam installed and have used Stream remote play at least once.
+
+      - `Virtual Audio Cable <https://vb-audio.com/Cable/>`_ (macOS, Windows)
 
 **Example**
    .. code-block:: text
@@ -739,13 +746,14 @@ encoder
 .. table::
    :widths: auto
 
-   ========  ===========
-   Value     Description
-   ========  ===========
-   nvenc     For Nvidia graphics cards
-   amdvce    For AMD graphics cards
-   software  Encoding occurs on the CPU
-   ========  ===========
+   =========  ===========
+   Value      Description
+   =========  ===========
+   nvenc      For NVIDIA graphics cards
+   quicksync  For Intel graphics cards
+   amdvce     For AMD graphics cards
+   software   Encoding occurs on the CPU
+   =========  ===========
 
 **Default**
    Sunshine will use the first encoder that is available.
@@ -843,7 +851,8 @@ nv_preset
 **Description**
    The encoder preset to use.
 
-   .. Note:: This option only applies when using nvenc `encoder`_.
+   .. Note:: This option only applies when using nvenc `encoder`_. For more information on the presets, see
+      `nvenc preset migration guide <https://docs.nvidia.com/video-technologies/video-codec-sdk/nvenc-preset-migration-guide/>`_.
 
 **Choices**
 
@@ -958,6 +967,68 @@ nv_coder
 
       nv_coder = auto
 
+qsv_preset
+^^^^^^^^^^
+
+**Description**
+   The encoder preset to use.
+
+   .. Note:: This option only applies when using quicksync `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   veryfast   fastest (lowest quality)
+   faster     faster (lower quality)
+   fast       fast (low quality)
+   medium     medium (default)
+   slow       slow (good quality)
+   slower     slower (better quality)
+   veryslow   slowest (best quality)
+   ========== ===========
+
+**Default**
+   ``medium``
+
+**Example**
+   .. code-block:: text
+
+      qsv_preset = medium
+
+qsv_coder
+^^^^^^^^^
+
+**Description**
+   The entropy encoding to use.
+
+   .. Note:: This option only applies when using H264 with quicksync `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   auto       let ffmpeg decide
+   cabac      context adaptive binary arithmetic coding - higher quality
+   cavlc      context adaptive variable-length coding - faster decode
+   ========== ===========
+
+**Default**
+   ``auto``
+
+**Example**
+   .. code-block:: text
+
+      qsv_coder = auto
+
 amd_quality
 ^^^^^^^^^^^
 
@@ -1016,6 +1087,68 @@ amd_rc
    .. code-block:: text
 
       amd_rc = vbr_latency
+
+amd_usage
+^^^^^^^^^
+
+**Description**
+   The encoder usage profile, used to balance latency with encoding quality.
+
+   .. Note:: This option only applies when using amdvce `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =============== ===========
+   Value           Description
+   =============== ===========
+   transcoding     transcoding (slowest)
+   webcam          webcam (slow)
+   lowlatency      low latency (fast)
+   ultralowlatency ultra low latency (fastest)
+   =============== ===========
+
+**Default**
+   ``ultralowlatency``
+
+**Example**
+   .. code-block:: text
+
+      amd_usage = ultralowlatency
+
+amd_preanalysis
+^^^^^^^^^^^^^^^
+
+**Description**
+   Preanalysis can increase encoding quality at the cost of latency.
+
+   .. Note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_preanalysis = disabled
+
+amd_vbaq
+^^^^^^^^
+
+**Description**
+   Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality.
+
+   .. Note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_vbaq = enabled
 
 amd_coder
 ^^^^^^^^^

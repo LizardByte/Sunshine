@@ -33,6 +33,7 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
+#include "version.h"
 
 using namespace std::literals;
 
@@ -56,7 +57,7 @@ void print_req(const req_https_t &request) {
   BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
 
   for(auto &[name, val] : request->header) {
-    BOOST_LOG(debug) << name << " -- " << val;
+    BOOST_LOG(debug) << name << " -- " << (name == "Authorization" ? "CREDENTIALS REDACTED" : val);
   }
 
   BOOST_LOG(debug) << " [--] "sv;
@@ -144,6 +145,7 @@ void not_found(resp_https_t response, req_https_t request) {
             << data.str();
 }
 
+// todo - combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
 void getIndexPage(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -229,6 +231,8 @@ void getTroubleshootingPage(resp_https_t response, req_https_t request) {
 }
 
 void getFaviconImage(resp_https_t response, req_https_t request) {
+  // todo - combine function with getSunshineLogoImage and possibly getNodeModules
+  // todo - use mime_types map
   print_req(request);
 
   std::ifstream in(WEB_DIR "images/favicon.ico", std::ios::binary);
@@ -238,6 +242,8 @@ void getFaviconImage(resp_https_t response, req_https_t request) {
 }
 
 void getSunshineLogoImage(resp_https_t response, req_https_t request) {
+  // todo - combine function with getFaviconImage and possibly getNodeModules
+  // todo - use mime_types map
   print_req(request);
 
   std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
@@ -246,23 +252,41 @@ void getSunshineLogoImage(resp_https_t response, req_https_t request) {
   response->write(SimpleWeb::StatusCode::success_ok, in, headers);
 }
 
+bool isChildPath(fs::path const &base, fs::path const &query) {
+  auto relPath = fs::relative(base, query);
+  return *(relPath.begin()) != fs::path("..");
+}
+
 void getNodeModules(resp_https_t response, req_https_t request) {
   print_req(request);
+  fs::path webDirPath(WEB_DIR);
+  fs::path nodeModulesPath(webDirPath / "node_modules");
 
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  if(boost::algorithm::iends_with(request->path, ".ttf") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/ttf");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  // .relative_path is needed to shed any leading slash that might exist in the request path
+  auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
+
+  // Don't do anything if file does not exist or is outside the node_modules directory
+  if(!isChildPath(filePath, nodeModulesPath)) {
+    BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
+    response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
   }
-  else if(boost::algorithm::iends_with(request->path, ".woff2") == 1) {
-    std::ifstream in((WEB_DIR + request->path).c_str(), std::ios::binary);
-    headers.emplace("Content-Type", "font/woff2");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  else if(!fs::exists(filePath)) {
+    response->write(SimpleWeb::StatusCode::client_error_not_found);
   }
   else {
-    std::string content = read_file((WEB_DIR + request->path).c_str());
-    response->write(content);
+    auto relPath = fs::relative(filePath, webDirPath);
+    // get the mime type from the file extension mime_types map
+    // remove the leading period from the extension
+    auto mimeType = mime_types.find(relPath.extension().string().substr(1));
+    // check if the extension is in the map at the x position
+    if(mimeType != mime_types.end()) {
+      // if it is, set the content type to the mime type
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", mimeType->second);
+      std::ifstream in(filePath.string(), std::ios::binary);
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    }
+    // do not return any file if the type is not in the map
   }
 }
 
@@ -480,6 +504,7 @@ void getConfig(resp_https_t response, req_https_t request) {
 
   outputTree.put("status", "true");
   outputTree.put("platform", SUNSHINE_PLATFORM);
+  outputTree.put("version", PROJECT_VER);
   outputTree.put("restart_supported", platf::restart_supported());
 
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));

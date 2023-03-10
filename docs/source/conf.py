@@ -8,6 +8,7 @@
 from datetime import datetime
 import os
 import re
+import subprocess
 
 
 # -- Path setup --------------------------------------------------------------
@@ -43,9 +44,11 @@ To use cmake method for obtaining version instead of regex,
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'breathe',  # c++ support for sphinx with doxygen
     'm2r2',  # enable markdown files
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',  # enable to-do sections
+    'sphinx.ext.graphviz',  # enable graphs for breathe
     'sphinx.ext.viewcode',  # add links to view source code
     'sphinx_copybutton',  # add a copy button to code blocks
 ]
@@ -82,4 +85,12 @@ html_theme_options = {
 
 # extension config options
 autosectionlabel_prefix_document = True  # Make sure the target is unique
+breathe_default_project = 'src'
+breathe_implementation_filename_extensions = ['.c', '.cc', '.cpp', '.mm']
+breathe_order_parameters_first = False
+breathe_projects = dict(
+    src="../build/doxyxml"
+)
 todo_include_todos = True
+
+subprocess.run('doxygen', shell=True, cwd=source_dir)

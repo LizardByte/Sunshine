@@ -42,3 +42,7 @@
 	path = third-party/ffmpeg-macos-aarch64
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-macos-aarch64
+[submodule "third-party/nanors"]
+	path = third-party/nanors
+	url = https://github.com/sleepybishop/nanors.git
+	branch = master
