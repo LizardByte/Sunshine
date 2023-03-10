@@ -21,7 +21,8 @@ source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
 sha256sums=('SKIP')
 
 prepare() {
-# Skip submodules that we don't want
+    cd "$pkgname"
+    # Skip submodules that we don't want
     if [[ $CARCH == "x86_64" ]]; then
         git -c submodule."ffmpeg-macos-x86_64".update=none \
             -c submodule."ffmpeg-windows-x86_64".update=none \
@@ -35,9 +36,13 @@ prepare() {
             -c submodule."ffmpeg-macos-aarch64".update=none \
             submodule update --recursive --init
 
-# It's unlikely that someone could get this far on a system with an incorrect arch, but we should handle it anyway; pull everything
+    # It's unlikely that someone could get this far on a system with an incorrect arch, but we should handle it anyway
+    # Pull linux ffmpeg submodules
     else
-        git submodule update --recursive --init
+        git -c submodule."ffmpeg-macos-x86_64".update=none \
+            -c submodule."ffmpeg-windows-x86_64".update=none \
+            -c submodule."ffmpeg-macos-aarch64".update=none \
+            submodule update --recursive --init
     fi
 }
 
