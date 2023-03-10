@@ -11,7 +11,7 @@ FROM ${BASE}:${TAG} AS sunshine-base
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --noconfirm \
+pacman -Syu --disable-download-timeout --noconfirm \
   archlinux-keyring
 _DEPS
 
@@ -38,7 +38,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --noconfirm \
+pacman -Syu --disable-download-timeout --noconfirm \
   base-devel \
   cmake \
   cuda \
@@ -102,7 +102,7 @@ COPY --link --from=artifacts /sunshine.pkg.tar.zst /
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
-pacman -U --noconfirm \
+pacman -U --disable-download-timeout --noconfirm \
   /sunshine.pkg.tar.zst
 _INSTALL_SUNSHINE
 
