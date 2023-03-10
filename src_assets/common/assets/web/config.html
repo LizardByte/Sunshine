@@ -902,6 +902,39 @@
 </div>
 
 <script>
+  // create dictionary for defaultConfig
+  const defaultConfig = {
+    "amd_coder": "auto",
+    "amd_preanalysis": "disabled",
+    "amd_quality": "balanced",
+    "amd_rc": "vbr_latency",
+    "amd_usage": "ultralowlatency",
+    "amd_vbaq": "enabled",
+    "controller": "enabled",
+    "dwmflush": "enabled",
+    "encoder": "",
+    "fps": "[10,30,60,90,120]",
+    "gamepad": "x360",
+    "hevc_mode": 0,
+    "key_rightalt_to_key_win": "disabled",
+    "keyboard": "enabled",
+    "min_log_level": 2,
+    "mouse": "enabled",
+    "nv_coder": "auto",
+    "nv_preset": "p4",
+    "nv_rc": "cbr",
+    "nv_tune": "ull",
+    "origin_pin_allowed": "pc",
+    "origin_web_ui_allowed": "lan",
+    "qsv_coder": "auto",
+    "qsv_preset": "medium",
+    "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]",
+    "upnp": "disabled",
+    "vt_coder": "auto",
+    "vt_realtime": "enabled",
+    "vt_software": "auto",
+  }
+
   new Vue({
     el: "#app",
     data() {
@@ -995,40 +1028,12 @@
           delete this.config.status;
           delete this.config.version;
           //Populate default values if not present in config
-          this.config.key_rightalt_to_key_win =
-            this.config.key_rightalt_to_key_win || "disabled";
-          this.config.gamepad = this.config.gamepad || "x360";
-          this.config.upnp = this.config.upnp || "disabled";
-          this.config.dwmflush = this.config.dwmflush || "enabled";
-          this.config.min_log_level = this.config.min_log_level || 2;
-          this.config.origin_pin_allowed =
-            this.config.origin_pin_allowed || "pc";
-          this.config.origin_web_ui_allowed =
-            this.config.origin_web_ui_allowed || "lan";
-          this.config.mouse = this.config.mouse || "enabled";
-          this.config.keyboard = this.config.keyboard || "enabled";
-          this.config.controller = this.config.controller || "enabled";
-          this.config.hevc_mode = this.config.hevc_mode || 0;
-          this.config.encoder = this.config.encoder || "";
-          this.config.nv_preset = this.config.nv_preset || "p4";
-          this.config.nv_tune = this.config.nv_tune || "ull";
-          this.config.nv_coder = this.config.nv_coder || "auto";
-          this.config.nv_rc = this.config.nv_rc || "cbr";
-          this.config.qsv_preset = this.config.qsv_preset || "medium";
-          this.config.qsv_coder = this.config.qsv_coder || "auto";
-          this.config.amd_coder = this.config.amd_coder || "auto"
-          this.config.amd_preanalysis = this.config.amd_preanalysis || "disabled";
-          this.config.amd_quality = this.config.amd_quality || "balanced";
-          this.config.amd_rc = this.config.amd_rc || "vbr_latency";
-          this.config.amd_usage = this.config.amd_usage || "ultralowlatency";
-          this.config.amd_vbaq = this.config.amd_vbaq || "enabled";
-          this.config.vt_coder = this.config.vt_coder || "auto";
-          this.config.vt_software = this.config.vt_software || "auto";
-          this.config.vt_realtime = this.config.vt_realtime || "enabled";
-          this.config.fps = this.config.fps || "[10, 30, 60, 90, 120]";
-          this.config.resolutions =
-            this.config.resolutions ||
-            "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]";
+          for (let key in defaultConfig) {
+            if (this.config[key] === undefined) {
+              this.config[key] = defaultConfig[key]
+            }
+          }
+
           this.fps = JSON.parse(this.config.fps);
           //Resolutions should be fixed because are not valid JSON
           let res = this.config.resolutions.substring(
@@ -1050,33 +1055,57 @@
           this.resolutions.join("," + nl + "    ") +
           nl +
           "]";
-        this.config.fps = JSON.stringify(this.fps);
+        // remove quotes from values in fps
+        this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
       },
       save() {
         this.saved = this.restarted = false;
         this.serialize();
+
+        // create a temp copy of this.config to use for the post request
+        let config = JSON.parse(JSON.stringify(this.config))
+
+        // delete default values from this.config
+        for (let key in defaultConfig) {
+          let delete_value = false
+          if (key === "resolutions" || key === "fps") {
+            let regex = /([\d]+x[\d]+)/g
+            // Use a regular expression to find each value and replace it with a quoted version
+
+            let config_value = JSON.parse(config[key].replace(regex, '"$1"')).toString()
+            let default_value = JSON.parse(defaultConfig[key].replace(regex, '"$1"')).toString()
+
+            if (config_value === default_value) {
+              delete_value = true
+            }
+          }
+
+          if (config[key] === defaultConfig[key]) {
+            delete_value = true
+          }
+
+          if (delete_value) {
+            delete config[key]
+          }
+        }
+
         fetch("/api/config", {
           method: "POST",
-          body: JSON.stringify(this.config),
+          body: JSON.stringify(config),
         }).then((r) => {
           if (r.status === 200) this.saved = true;
         });
       },
       apply() {
         this.saved = this.restarted = false;
-        this.serialize();
-        fetch("/api/config", {
-          method: "POST",
-          body: JSON.stringify(this.config),
-        }).then((r) => {
-          if (r.status === 200) {
-            fetch("/api/restart", {
-              method: "POST",
-            }).then((r) => {
-              if (r.status === 200) this.restarted = true;
-            });
-          }
-        });
+        this.save();
+        if (this.saved === true) {
+          fetch("/api/restart", {
+            method: "POST",
+          }).then((r) => {
+            if (r.status === 200) this.restarted = true;
+          });
+        }
       },
     },
   });
