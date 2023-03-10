@@ -7,6 +7,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/json.hpp>
 
 #include "config.h"
 #include "main.h"
@@ -425,7 +426,8 @@ sunshine_t sunshine {
   platf::appdata().string() + "/sunshine.conf", // config file
   {},                                           // cmd args
   47989,
-  platf::appdata().string() + "/sunshine.log", // log file
+  platf::appdata().string() + "/sunshine.log", // log file,
+  {}
 };
 
 bool endline(char ch) {
@@ -759,6 +761,30 @@ void list_string_f(std::unordered_map<std::string, std::string> &vars, const std
     input.emplace_back(begin, pos);
   }
 }
+void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
+  std::string string;
+  string_f(vars, name, string);
+
+  auto json = boost::json::parse(string);
+  
+  if (json.if_array()) {
+    auto list = json.as_array();
+
+    for(auto &el : list) {
+      if (el.is_object()) {
+        auto cmd = el.as_object();
+
+        input.emplace_back(
+          cmd.if_contains("do") ? cmd.at("do").as_string().c_str() : "",
+          cmd.if_contains("undo") ? cmd.at("undo").as_string().c_str() : ""
+        );
+      }
+      else {
+        continue;
+      }
+    }
+  }
+}
 
 void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
   std::vector<std::string> list;
@@ -902,6 +928,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "external_ip", nvhttp.external_ip);
   list_string_f(vars, "resolutions"s, nvhttp.resolutions);
   list_int_f(vars, "fps"s, nvhttp.fps);
+  list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
 
   string_f(vars, "audio_sink", audio.sink);
   string_f(vars, "virtual_sink", audio.virtual_sink);

@@ -489,45 +489,6 @@ void uploadCover(resp_https_t response, req_https_t request) {
   outputTree.put("path", path);
 }
 
-void savePrepCmd(resp_https_t response, req_https_t request) {
-  if(!authenticate(response, request)) return;
-
-  print_req(request);
-
-  std::stringstream ss;
-  ss << request->content.rdbuf();
-
-  pt::ptree outputTree;
-  auto g = util::fail_guard([&]() {
-    std::ostringstream data;
-
-    pt::write_json(data, outputTree);
-    response->write(data.str());
-  });
-
-  pt::ptree inputTree, fileTree;
-
-  BOOST_LOG(fatal) << config::stream.file_apps;
-  try {
-    pt::read_json(ss, inputTree);
-    pt::read_json(config::stream.file_apps, fileTree);
-    fileTree.erase("global-prep-cmd");
-    fileTree.push_back(std::make_pair("global-prep-cmd", inputTree));
-    pt::write_json(config::stream.file_apps, fileTree);
-  }
-  catch(std::exception &e) {
-    BOOST_LOG(warning) << "saveGlobalPrepCmd: "sv << e.what();
-
-    outputTree.put("status", "false");
-    outputTree.put("error", "Invalid Input JSON");
-    return;
-  }
-
-  outputTree.put("status", "true");
-  proc::refresh(config::stream.file_apps);
-}
-
-
 void getConfig(resp_https_t response, req_https_t request) {
   if(!authenticate(response, request)) return;
 
@@ -758,7 +719,6 @@ void start() {
   server.resource["^/api/apps$"]["GET"]                    = getApps;
   server.resource["^/api/logs$"]["GET"]                    = getLogs;
   server.resource["^/api/apps$"]["POST"]                   = saveApp;
-  server.resource["^/api/apps/prep$"]["POST"]              = savePrepCmd;
   server.resource["^/api/config$"]["GET"]                  = getConfig;
   server.resource["^/api/config$"]["POST"]                 = saveConfig;
   server.resource["^/api/restart$"]["POST"]                = restart;

@@ -13,19 +13,12 @@
 #include <boost/process.hpp>
 
 #include "utility.h"
+#include "config.h"
 
 namespace proc {
 using file_t = util::safe_ptr_v2<FILE, int, fclose>;
 
-struct cmd_t {
-  cmd_t(std::string &&do_cmd, std::string &&undo_cmd) : do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)) {}
-  explicit cmd_t(std::string &&do_cmd) : do_cmd(std::move(do_cmd)) {}
-
-  std::string do_cmd;
-
-  // Executed when proc_t has finished running, meant to reverse 'do_cmd' if applicable
-  std::string undo_cmd;
-};
+typedef config::prep_cmd_t cmd_t;
 /*
  * pre_cmds -- guaranteed to be executed unless any of the commands fail.
  * detached -- commands detached from Sunshine

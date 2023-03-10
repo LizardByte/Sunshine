@@ -22,6 +22,7 @@
 #include "main.h"
 #include "platform/common.h"
 #include "utility.h"
+#include "config.h"
 
 #ifdef _WIN32
 // _SH constants for _wfsopen()
@@ -441,7 +442,6 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
 
     auto &apps_node            = tree.get_child("apps"s);
     auto &env_vars             = tree.get_child("env"s);
-    auto global_prep_nodes_opt = tree.get_child_optional("global-prep-cmd"s);
 
     auto this_env = boost::this_process::environment();
 
@@ -465,20 +465,13 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto working_dir         = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
-      if(global_prep_nodes_opt && !exclude_global_prep.value_or(false)) {
-        auto &global_prep_nodes = *global_prep_nodes_opt;
+      if (!exclude_global_prep.value_or(false)) {
+        prep_cmds.reserve(config::sunshine.prep_cmds.size());
+        for(auto &prep_cmd : config::sunshine.prep_cmds) {
+          auto do_cmd   = parse_env_val(this_env, prep_cmd.do_cmd);
+          auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 
-        prep_cmds.reserve(global_prep_nodes.size());
-        for(auto &[_, prep_node] : global_prep_nodes) {
-          auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
-          auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
-
-          if(undo_cmd) {
-            prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
-          }
-          else {
-            prep_cmds.emplace_back(std::move(do_cmd));
-          }
+          prep_cmds.emplace_back(std::move(do_cmd), std::move(undo_cmd));
         }
       }
 
