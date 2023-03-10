@@ -230,44 +230,23 @@ void getTroubleshootingPage(resp_https_t response, req_https_t request) {
   response->write(header + content);
 }
 
-void getFaviconImage(resp_https_t response, req_https_t request) {
-  // todo - combine function with getSunshineLogoImage and possibly getNodeModules
-  // todo - use mime_types map
-  print_req(request);
-
-  std::ifstream in(WEB_DIR "images/favicon.ico", std::ios::binary);
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", "image/x-icon");
-  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-}
-
-void getSunshineLogoImage(resp_https_t response, req_https_t request) {
-  // todo - combine function with getFaviconImage and possibly getNodeModules
-  // todo - use mime_types map
-  print_req(request);
-
-  std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
-  SimpleWeb::CaseInsensitiveMultimap headers;
-  headers.emplace("Content-Type", "image/png");
-  response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-}
-
 bool isChildPath(fs::path const &base, fs::path const &query) {
   auto relPath = fs::relative(base, query);
   return *(relPath.begin()) != fs::path("..");
 }
 
-void getNodeModules(resp_https_t response, req_https_t request) {
+void getServerAsset(resp_https_t response, req_https_t request) {
   print_req(request);
   fs::path webDirPath(WEB_DIR);
   fs::path nodeModulesPath(webDirPath / "node_modules");
+  fs::path imagesPath(webDirPath / "images");
 
   // .relative_path is needed to shed any leading slash that might exist in the request path
   auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
-  // Don't do anything if file does not exist or is outside the node_modules directory
-  if(!isChildPath(filePath, nodeModulesPath)) {
-    BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
+  // Don't do anything if file does not exist or is outside the web directory
+  if(!isChildPath(filePath, nodeModulesPath) && !isChildPath(filePath, imagesPath)) {
+    BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the web directory";
     response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
   }
   else if(!fs::exists(filePath)) {
@@ -706,33 +685,31 @@ void start() {
   auto port_https = map_port(PORT_HTTPS);
 
   https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
-  server.default_resource["GET"]                           = not_found;
-  server.resource["^/$"]["GET"]                            = getIndexPage;
-  server.resource["^/pin$"]["GET"]                         = getPinPage;
-  server.resource["^/apps$"]["GET"]                        = getAppsPage;
-  server.resource["^/clients$"]["GET"]                     = getClientsPage;
-  server.resource["^/config$"]["GET"]                      = getConfigPage;
-  server.resource["^/password$"]["GET"]                    = getPasswordPage;
-  server.resource["^/welcome$"]["GET"]                     = getWelcomePage;
-  server.resource["^/troubleshooting$"]["GET"]             = getTroubleshootingPage;
-  server.resource["^/api/pin$"]["POST"]                    = savePin;
-  server.resource["^/api/apps$"]["GET"]                    = getApps;
-  server.resource["^/api/logs$"]["GET"]                    = getLogs;
-  server.resource["^/api/apps$"]["POST"]                   = saveApp;
-  server.resource["^/api/config$"]["GET"]                  = getConfig;
-  server.resource["^/api/config$"]["POST"]                 = saveConfig;
-  server.resource["^/api/restart$"]["POST"]                = restart;
-  server.resource["^/api/password$"]["POST"]               = savePassword;
-  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]        = deleteApp;
-  server.resource["^/api/clients/unpair$"]["POST"]         = unpairAll;
-  server.resource["^/api/apps/close$"]["POST"]             = closeApp;
-  server.resource["^/api/covers/upload$"]["POST"]          = uploadCover;
-  server.resource["^/images/favicon.ico$"]["GET"]          = getFaviconImage;
-  server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-  server.resource["^/node_modules\\/.+$"]["GET"]           = getNodeModules;
-  server.config.reuse_address                              = true;
-  server.config.address                                    = "0.0.0.0"s;
-  server.config.port                                       = port_https;
+  server.default_resource["GET"]                            = not_found;
+  server.resource["^/$"]["GET"]                             = getIndexPage;
+  server.resource["^/pin$"]["GET"]                          = getPinPage;
+  server.resource["^/apps$"]["GET"]                         = getAppsPage;
+  server.resource["^/clients$"]["GET"]                      = getClientsPage;
+  server.resource["^/config$"]["GET"]                       = getConfigPage;
+  server.resource["^/password$"]["GET"]                     = getPasswordPage;
+  server.resource["^/welcome$"]["GET"]                      = getWelcomePage;
+  server.resource["^/troubleshooting$"]["GET"]              = getTroubleshootingPage;
+  server.resource["^/api/pin$"]["POST"]                     = savePin;
+  server.resource["^/api/apps$"]["GET"]                     = getApps;
+  server.resource["^/api/logs$"]["GET"]                     = getLogs;
+  server.resource["^/api/apps$"]["POST"]                    = saveApp;
+  server.resource["^/api/config$"]["GET"]                   = getConfig;
+  server.resource["^/api/config$"]["POST"]                  = saveConfig;
+  server.resource["^/api/restart$"]["POST"]                 = restart;
+  server.resource["^/api/password$"]["POST"]                = savePassword;
+  server.resource["^/api/apps/([0-9]+)$"]["DELETE"]         = deleteApp;
+  server.resource["^/api/clients/unpair$"]["POST"]          = unpairAll;
+  server.resource["^/api/apps/close$"]["POST"]              = closeApp;
+  server.resource["^/api/covers/upload$"]["POST"]           = uploadCover;
+  server.resource["^/(node_modules)|(images)\\/.+$"]["GET"] = getServerAsset;
+  server.config.reuse_address                               = true;
+  server.config.address                                     = "0.0.0.0"s;
+  server.config.port                                        = port_https;
 
   auto accept_and_run = [&](auto *server) {
     try {
