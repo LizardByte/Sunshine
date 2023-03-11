@@ -705,16 +705,34 @@ static std::vector<encoder_t> encoders {
 };
 
 void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, const config_t &config) {
-  // We try this twice, in case we still get an error on reinitialization
-  for(int x = 0; x < 2; ++x) {
+  int reset_count                    = 0;
+  const int max_reset_count          = 2;
+  bool possible_invalid_display_name = false;
+
+  // We are going to try to reset the display up to 2 times.
+  // Just in case if the display failed initialization.
+  while(reset_count < max_reset_count) {
     disp.reset();
-    disp = platf::display(map_base_dev_type(type), display_name, config);
-    if(disp) {
-      break;
+    disp = platf::display(map_base_dev_type(type), possible_invalid_display_name ? "" : display_name, config);
+
+    if(!disp) {
+      reset_count++;
+    }
+
+    // If we reached the maximum attempts and user configured a display name, it might be invalid.
+    if(reset_count == 2 && !disp && !display_name.empty()) {
+      possible_invalid_display_name = true;
+      BOOST_LOG(warning) << "Failed to set display preference for: " << display_name << " falling back to next available display"sv;
+      reset_count = 0;
     }
 
     // The capture code depends on us to sleep between failures
     std::this_thread::sleep_for(200ms);
+
+    if(disp) {
+      // No need to try again if we succeded the first attempt.
+      break;
+    }
   }
 }
 
@@ -1685,11 +1703,6 @@ enum validate_flag_e {
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
   reset_display(disp, encoder.base_dev_type, config::video.output_name, config);
 
-  // User probably put in an invalid output name, let's try it again without it.
-  if(!disp && !config::video.output_name.empty()) {
-    BOOST_LOG(warning) << "Failed to open display with output name '" << config::video.output_name << "', falling back to using the next available display.";
-    reset_display(disp, encoder.base_dev_type, "", config);
-  }
 
   if(!disp) {
     return -1;
