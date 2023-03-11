@@ -149,5 +149,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  return 0;
+  // In order to prevent potential false positives, we will return an error here.
+  return -1;
 }

@@ -1684,6 +1684,13 @@ enum validate_flag_e {
 
 int validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
   reset_display(disp, encoder.base_dev_type, config::video.output_name, config);
+
+  // User probably put in an invalid output name, let's try it again without it.
+  if(!disp && !config::video.output_name.empty()) {
+    BOOST_LOG(warning) << "Failed to open display with output name '" << config::video.output_name << "', falling back to using the next available display.";
+    reset_display(disp, encoder.base_dev_type, "", config);
+  }
+
   if(!disp) {
     return -1;
   }
