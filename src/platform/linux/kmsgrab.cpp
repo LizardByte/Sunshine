@@ -995,6 +995,7 @@ std::vector<std::string> kms_display_names() {
 
   if(!fs::exists("/dev/dri")) {
     BOOST_LOG(warning) << "Couldn't find /dev/dri, kmsgrab won't be enabled"sv;
+    return {};
   }
 
   if(!gbm::create_device) {
