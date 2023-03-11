@@ -218,7 +218,7 @@ void proc_t::terminate() {
     if(ec) {
       BOOST_LOG(warning) << "System: "sv << ec.message();
     }
-    
+
     if(ret != 0) {
       BOOST_LOG(warning) << "Return code ["sv << ret << ']';
     }
@@ -440,8 +440,8 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
   try {
     pt::read_json(file_name, tree);
 
-    auto &apps_node            = tree.get_child("apps"s);
-    auto &env_vars             = tree.get_child("env"s);
+    auto &apps_node = tree.get_child("apps"s);
+    auto &env_vars  = tree.get_child("env"s);
 
     auto this_env = boost::this_process::environment();
 
