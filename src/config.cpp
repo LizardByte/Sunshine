@@ -426,8 +426,8 @@ sunshine_t sunshine {
   platf::appdata().string() + "/sunshine.conf", // config file
   {},                                           // cmd args
   47989,
-  platf::appdata().string() + "/sunshine.log", // log file,
-  {}
+  platf::appdata().string() + "/sunshine.log",  // log file
+  {},                                           // prep commands
 };
 
 bool endline(char ch) {
