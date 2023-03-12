@@ -8,6 +8,8 @@
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/json.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 #include "config.h"
 #include "main.h"
@@ -765,24 +767,22 @@ void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const s
   std::string string;
   string_f(vars, name, string);
 
-  auto json = boost::json::parse(string);
+  std::stringstream jsonStream;
   
-  if (json.if_array()) {
-    auto list = json.as_array();
+  // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
+  jsonStream << "{\"prep_cmd\":" << string << "}";
 
-    for(auto &el : list) {
-      if (el.is_object()) {
-        auto cmd = el.as_object();
+  boost::property_tree::ptree jsonTree;
+  boost::property_tree::read_json(jsonStream, jsonTree);
 
-        input.emplace_back(
-          cmd.if_contains("do") ? cmd.at("do").as_string().c_str() : "",
-          cmd.if_contains("undo") ? cmd.at("undo").as_string().c_str() : ""
-        );
-      }
-      else {
-        continue;
-      }
-    }
+  for(auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
+    auto do_cmd = prep_cmd.get<std::string>("do"s);
+    auto undo_cmd = prep_cmd.get<std::string>("undo"s);
+    
+    input.emplace_back(
+      std::move(do_cmd),
+      std::move(undo_cmd)
+    );
   }
 }
 
