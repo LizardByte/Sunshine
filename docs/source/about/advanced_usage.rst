@@ -107,6 +107,20 @@ log_path
 
       log_path = sunshine.log
 
+global_prep_cmd
+^^^^^^^^^^^^^^^
+
+**Description**
+   A list of commands to be run before/after all applications. If any of the prep-commands fail, starting the application is aborted.
+
+**Default**
+   ``[]``
+
+**Example**
+   .. code-block:: text
+
+      global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
+
 Controls
 --------
 
