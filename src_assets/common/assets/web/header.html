@@ -18,17 +18,11 @@
         <a class="navbar-brand" href="/" title="Sunshine">
           <img src="/images/logo-sunshine-45.png" height="45" alt="Sunshine">
         </a>
-        <div id="toggleTheme" class="dropdown">
-          <button class="btn btn-primary dropdown-toggle" type="button" id="toggleThemeMenu" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="fas fa-fw fa-brush"></i>
-            <span class="sr-only">Theme</span>
-          </button>
-          <ul class="dropdown-menu" aria-labelledby="toggleThemeMenu">
-            <li><button data-bs-theme="light" class="dropdown-item active"><i class="fas fa-fw fa-sun"></i>Light</button></li>
-            <li><button data-bs-theme="dark" class="dropdown-item"><i class="fas fa-fw fa-moon"></i>Dark</button></li>
-            <li><button data-bs-theme="auto" class="dropdown-item"><i class="fas fa-fw fa-adjust"></i>Auto</button></li>
-          </ul>
-        </div>
+        <button class="btn" type="button" id="toggleTheme">
+          <span data-bs-theme="light"><i class="fas fa-fw fa-sun"></i></span>
+          <span data-bs-theme="dark"><i class="fas fa-fw fa-moon"></i></span>
+          <span data-bs-theme="auto" class="active"><i class="fas fa-fw fa-adjust"></i></span>
+        </button>
         <button
           class="navbar-toggler"
           type="button"

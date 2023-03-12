@@ -1,35 +1,24 @@
-.nav-link.active {
-  font-weight: 500;
-}
-
-/*Theme specific styles*/
-:root,
-[data-bs-theme=light] {
+:root, [data-bs-theme=light]{
   --bs-primary-rgb: 255, 196, 0;
 }
-
-[data-bs-theme=dark] {
+[data-bs-theme=dark]{
   --bs-primary-rgb: 25, 27, 30;
 }
 
-
-/*Toggle theme menu*/
-#toggleTheme {
-  margin-left: auto;
-  margin-right: 10px;
+#toggleTheme{
+  margin-left:auto;
+  margin-right:10px;
 }
-
-#toggleTheme .dropdown-menu {
-  left: unset;
-  right: 0;
+#toggleTheme span:not(.active){
+  display:none;
 }
-
-@media(min-width:992px) {
-  #toggleTheme {
-    position: absolute;
-    right: 0;
+@media(min-width:992px){
+  #toggleTheme{
+    position:absolute;
+    right:0;
   }
 }
 
-/*For future use, if needed*/
-html[data-bs-theme="dark"] .bg-primary {}
+html[data-bs-theme="dark"] #toggleTheme i{
+  color:#fff;
+}
