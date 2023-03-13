@@ -469,42 +469,31 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
 
     if(!ret) {
       auto error_code = GetLastError();
+
       // Create a vector to hold the argument tokens
       std::vector<std::wstring> args;
       int argcount;
       std::wstring merged_args;
 
-      // Use the CommandLineToArgvW function to tokenize the command string
+      // need to convert the command line to an array of arguments
       LPWSTR *argv = CommandLineToArgvW(wcmd.c_str(), &argcount);
       if(argv != NULL) {
         for(int i = 0; i < argcount; i++) {
           args.push_back(argv[i]);
         }
 
-        // Free the memory allocated by CommandLineToArgvW
         LocalFree(argv);
       }
 
-      //loop through the args and merge them into a single string
-      // Skip first command as it is already included in call_command
+      // Skip first argument as it is already included in call_command
       for(int i = 1; i < args.size(); i++) {
         merged_args.append(L" " + args.at(i) + L" ");
       }
-
-
 
       // Creates a hidden powershell window to run the command as administrator, waiting for it to finish. This should cause a UAC prompt to appear.
       std::wstring call_command = L"powershell.exe -windowstyle hidden -Command \"Start-Process '" + args.at(0) + L"' " + L"-ArgumentList '" + merged_args + L"' -verb runas -Wait\"";
       // If the error code is 740, the user does not have permission to run the command.
       if(error_code == 740) {
-        BOOST_LOG(info) << "Start directory: "sv << start_dir;
-        //log environment block
-        BOOST_LOG(info) << "Environment block: "sv;
-        for(int i = 0; i < env_block.size(); i++) {
-          BOOST_LOG(info) << env_block[i];
-        }
-
-        BOOST_LOG(info) << call_command;
         BOOST_LOG(info) << "Command failed because it required elevation. Trying again with elevation, this will require user interaction for security reasons.";
         ret = CreateProcessAsUserW(shell_token,
           NULL,
