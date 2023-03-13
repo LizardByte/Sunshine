@@ -23,6 +23,8 @@
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include <Shellapi.h>
+#include <iterator>
 
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
 #ifndef UDP_SEND_MSG_SIZE
@@ -463,6 +465,60 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
       start_dir.empty() ? NULL : start_dir.c_str(),
       (LPSTARTUPINFOW)&startup_info,
       &process_info);
+
+
+    if(!ret) {
+      auto error_code = GetLastError();
+      // Create a vector to hold the argument tokens
+      std::vector<std::wstring> args;
+      int argcount;
+      std::wstring merged_args;
+
+      // Use the CommandLineToArgvW function to tokenize the command string
+      LPWSTR *argv = CommandLineToArgvW(wcmd.c_str(), &argcount);
+      if(argv != NULL) {
+        for(int i = 0; i < argcount; i++) {
+          args.push_back(argv[i]);
+        }
+
+        // Free the memory allocated by CommandLineToArgvW
+        LocalFree(argv);
+      }
+
+      //loop through the args and merge them into a single string
+      // Skip first command as it is already included in call_command
+      for(int i = 1; i < args.size(); i++) {
+        merged_args.append(L" " + args.at(i) + L" ");
+      }
+
+
+
+      // Creates a hidden powershell window to run the command as administrator, waiting for it to finish. This should cause a UAC prompt to appear.
+      std::wstring call_command = L"powershell.exe -windowstyle hidden -Command \"Start-Process '" + args.at(0) + L"' " + L"-ArgumentList '" + merged_args + L"' -verb runas -Wait\"";
+      // If the error code is 740, the user does not have permission to run the command.
+      if(error_code == 740) {
+        BOOST_LOG(info) << "Start directory: "sv << start_dir;
+        //log environment block
+        BOOST_LOG(info) << "Environment block: "sv;
+        for(int i = 0; i < env_block.size(); i++) {
+          BOOST_LOG(info) << env_block[i];
+        }
+
+        BOOST_LOG(info) << call_command;
+        BOOST_LOG(info) << "Command failed because it required elevation. Trying again with elevation, this will require user interaction for security reasons.";
+        ret = CreateProcessAsUserW(shell_token,
+          NULL,
+          (LPWSTR)call_command.c_str(),
+          NULL,
+          NULL,
+          !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+          EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+          env_block.data(),
+          start_dir.empty() ? NULL : start_dir.c_str(),
+          (LPSTARTUPINFOW)&startup_info,
+          &process_info);
+      }
+    }
 
     // End impersonation of the logged on user. If this fails (which is extremely unlikely),
     // we will be running with an unknown user token. The only safe thing to do in that case
