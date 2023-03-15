@@ -35,6 +35,7 @@ dnf -y install \
   gcc-12.2.1* \
   gcc-c++-12.2.1* \
   git-2.39.2* \
+  libappindicator-gtk3-devel-12.10.1* \
   libcap-devel-2.48* \
   libcurl-devel-7.85.0* \
   libdrm-devel-2.4.112* \

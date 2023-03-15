@@ -142,6 +142,9 @@ find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
 
+# enable system tray, we will disable this later if we cannot find the required package config on linux
+set(SUNSHINE_TRAY 1)
+
 if(WIN32)
     enable_language(RC)
     set(CMAKE_RC_COMPILER windres)
@@ -168,6 +171,7 @@ if(WIN32)
             src/platform/windows/display_vram.cpp
             src/platform/windows/display_ram.cpp
             src/platform/windows/audio.cpp
+            third-party/tray/tray_windows.c
             third-party/ViGEmClient/src/ViGEmClient.cpp
             third-party/ViGEmClient/include/ViGEm/Client.h
             third-party/ViGEmClient/include/ViGEm/Common.h
@@ -207,6 +211,7 @@ elseif(APPLE)
 
     FIND_LIBRARY(APP_SERVICES_LIBRARY ApplicationServices )
     FIND_LIBRARY(AV_FOUNDATION_LIBRARY AVFoundation )
+    FIND_LIBRARY(COCOA Cocoa REQUIRED )  # tray icon
     FIND_LIBRARY(CORE_MEDIA_LIBRARY CoreMedia )
     FIND_LIBRARY(CORE_VIDEO_LIBRARY CoreVideo )
     FIND_LIBRARY(VIDEO_TOOLBOX_LIBRARY VideoToolbox )
@@ -214,6 +219,7 @@ elseif(APPLE)
     list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
             ${APP_SERVICES_LIBRARY}
             ${AV_FOUNDATION_LIBRARY}
+            ${COCOA}
             ${CORE_MEDIA_LIBRARY}
             ${CORE_VIDEO_LIBRARY}
             ${VIDEO_TOOLBOX_LIBRARY}
@@ -240,6 +246,7 @@ elseif(APPLE)
             src/platform/macos/publish.cpp
             third-party/TPCircularBuffer/TPCircularBuffer.c
             third-party/TPCircularBuffer/TPCircularBuffer.h
+            third-party/tray/tray_darwin.m
             ${APPLE_PLIST_FILE})
 else()
     add_compile_definitions(SUNSHINE_PLATFORM="linux")
@@ -248,6 +255,7 @@ else()
     option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
     option(SUNSHINE_ENABLE_WAYLAND "Enable building wayland specific code" ON)
     option(SUNSHINE_ENABLE_CUDA "Enable cuda specific code" ON)
+    option(SUNSHINE_ENABLE_TRAY "Enable tray icon" ON)
 
     if(${SUNSHINE_ENABLE_X11})
         find_package(X11)
@@ -413,8 +421,25 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
                 src/platform/linux/wlgrab.cpp
                 src/platform/linux/wayland.cpp)
     endif()
-    if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND} AND NOT ${})
+    if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND})
         message(FATAL_ERROR "Couldn't find either x11, wayland, cuda or (libdrm and libcap)")
+    endif()
+
+    # tray icon
+    if(${SUNSHINE_ENABLE_TRAY})
+        pkg_check_modules(APPINDICATOR appindicator3-0.1)
+        if(NOT APPINDICATOR_FOUND)
+            message(WARNING "Couldn't find appindicator, disabling tray icon")
+            set(SUNSHINE_TRAY 0)
+        else()
+            include_directories(${APPINDICATOR_INCLUDE_DIRS})
+            link_directories(${APPINDICATOR_LIBRARY_DIRS})
+
+            list(APPEND PLATFORM_TARGET_FILES third-party/tray/tray_linux.c)
+            list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES})
+        endif()
+    else()
+        set(SUNSHINE_TRAY 0)
     endif()
 
     list(APPEND PLATFORM_TARGET_FILES
@@ -466,6 +491,7 @@ set(SUNSHINE_TARGET_FILES
         third-party/moonlight-common-c/src/Rtsp.h
         third-party/moonlight-common-c/src/RtspParser.c
         third-party/moonlight-common-c/src/Video.h
+        third-party/tray/tray.h
         src/upnp.cpp
         src/upnp.h
         src/cbs.cpp
@@ -499,6 +525,8 @@ set(SUNSHINE_TARGET_FILES
         src/network.cpp
         src/network.h
         src/move_by_copy.h
+        src/system_tray.cpp
+        src/system_tray.h
         src/task_pool.h
         src/thread_pool.h
         src/thread_safe.h
@@ -510,6 +538,8 @@ set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
 set_source_files_properties(third-party/nanors/rs.c
         PROPERTIES COMPILE_FLAGS "-include deps/obl/autoshim.h -ftree-vectorize")
+
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_TRAY=${SUNSHINE_TRAY})
 
 # Pre-compiled binaries
 if(WIN32)
@@ -890,6 +920,18 @@ elseif(UNIX)
                 pulseaudio-libs >= 10.0")
         # This should automatically figure out dependencies, doesn't work with the current config
         set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+
+        if(${SUNSHINE_TRAY} STREQUAL 1)
+            install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+                    DESTINATION "/usr/share/icons")
+
+            set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                    ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
+                    libappindicator3-1")
+            set(CPACK_RPM_PACKAGE_REQUIRES "\
+                    ${CPACK_RPM_PACKAGE_REQUIRES}, \
+                    libappindicator-gtk3 >= 12.10.0")
+        endif()
     endif()
 endif()
 

@@ -25,6 +25,7 @@
 #include "platform/common.h"
 #include "process.h"
 #include "rtsp.h"
+#include "system_tray.h"
 #include "thread_pool.h"
 #include "upnp.h"
 #include "version.h"
@@ -301,6 +302,11 @@ int main(int argc, char *argv[]) {
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+  // create tray thread and detach it
+  system_tray::run_tray();
+#endif
+
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [&force_shutdown, shutdown_event]() {
@@ -370,6 +376,11 @@ int main(int argc, char *argv[]) {
 
   task_pool.stop();
   task_pool.join();
+
+  // stop system tray
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+  system_tray::end_tray();
+#endif
 
   return 0;
 }

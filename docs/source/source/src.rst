@@ -75,6 +75,7 @@ Code
    src/rtsp
    src/stream
    src/sync
+   src/system_tray
    src/task_pool
    src/thread_pool
    src/thread_safe

@@ -30,6 +30,13 @@ extern boost::log::sources::severity_logger<int> fatal;
 // functions
 int main(int argc, char *argv[]);
 void log_flush();
+void open_url(const std::string &url);
+void tray_open_ui_cb(struct tray_menu *item);
+void tray_donate_github_cb(struct tray_menu *item);
+void tray_donate_mee6_cb(struct tray_menu *item);
+void tray_donate_patreon_cb(struct tray_menu *item);
+void tray_donate_paypal_cb(struct tray_menu *item);
+void tray_quit_cb(struct tray_menu *item);
 void print_help(const char *name);
 std::string read_file(const char *path);
 int write_file(const char *path, const std::string_view &contents);
