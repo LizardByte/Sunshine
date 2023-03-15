@@ -59,6 +59,7 @@ Install Requirements
           gcc \
           gcc-c++ \
           intel-mediasdk-devel \ # x86_64 only
+          libappindicator-gtk3-devel \
           libcap-devel \
           libcurl-devel \
           libdrm-devel \
@@ -94,6 +95,7 @@ Install Requirements
           build-essential \
           cmake \
           g++-10 \
+          libappindicator3-dev \
           libavdevice-dev \
           libboost-filesystem-dev \
           libboost-locale-dev \
@@ -142,6 +144,7 @@ Install Requirements
       sudo apt update && sudo apt install \
           build-essential \
           cmake \
+          libappindicator3-dev \
           libavdevice-dev \
           libboost-filesystem-dev \
           libboost-locale-dev \

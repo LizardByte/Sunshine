@@ -319,6 +319,7 @@ jobs:
             build-essential \
             gcc-10 \
             g++-10 \
+            libappindicator3-dev \
             libavdevice-dev \
             libcap-dev \
             libcurl4-openssl-dev \
