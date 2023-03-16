@@ -691,7 +691,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
     install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
     install(TARGETS elevator RUNTIME DESTINATION "tools" COMPONENT elevator)
-    
+
     # Mandatory tools
     install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
 
@@ -804,7 +804,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 
     # elevation tool
     set(CPACK_COMPONENT_ELEVATION_DISPLAY_NAME "elevator")
-    set(CPACK_COMPONENT_ELEVATION_DESCRIPTION "CLI tool providing ability to elevate Sunshine in a safe manner when ran as a service.")
+    set(CPACK_COMPONENT_ELEVATION_DESCRIPTION "CLI tool that assists with elevating commands when permissions have been denied.")
     set(CPACK_COMPONENT_ELEVATION_GROUP "tools")
 
     # display tool
