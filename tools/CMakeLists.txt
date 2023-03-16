@@ -39,7 +39,7 @@ target_compile_options(ddprobe PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 
 add_executable(elevator elevator.cpp)
 set_target_properties(elevator PROPERTIES CXX_STANDARD 17)
-target_link_libraries(elevator 
+target_link_libraries(elevator
         shell32
         ${PLATFORM_LIBRARIES})
 target_compile_options(elevator PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
