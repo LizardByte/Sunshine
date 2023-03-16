@@ -804,7 +804,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 
     # elevation tool
     set(CPACK_COMPONENT_ELEVATION_DISPLAY_NAME "elevator")
-    set(CPACK_COMPONENT_ELEVATION_DESCRIPTION "CLI tool that assists with elevating commands when permissions have been denied.")
+    set(CPACK_COMPONENT_ELEVATION_DESCRIPTION "CLI tool that assists with elevating \
+     commands when permissions have been denied.")
     set(CPACK_COMPONENT_ELEVATION_GROUP "tools")
 
     # display tool
