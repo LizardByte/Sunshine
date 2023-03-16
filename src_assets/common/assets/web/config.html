@@ -475,7 +475,7 @@
         </div>
       </div>
       <!--Output Name -->
-      <div class="mb-3" class="config-page" v-if="platform === 'windows'">
+      <div class="mb-3 config-page" v-if="platform === 'windows'">
         <label for="output_name" class="form-label">Output Name</label>
         <input
           type="text"
@@ -502,7 +502,7 @@
           Disable if you encounter any VSync-related issues.
         </div>
       </div>
-      <div class="mb-3" class="config-page" v-if="platform === 'linux'">
+      <div class="mb-3 config-page" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
         <input
           type="text"
@@ -1059,7 +1059,8 @@
         this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
       },
       save() {
-        this.saved = this.restarted = false;
+        this.saved = false;
+        this.restarted = false;
         this.serialize();
 
         // create a temp copy of this.config to use for the post request
@@ -1089,23 +1090,32 @@
           }
         }
 
-        fetch("/api/config", {
+        return fetch("/api/config", {
           method: "POST",
           body: JSON.stringify(config),
         }).then((r) => {
-          if (r.status === 200) this.saved = true;
+          if (r.status === 200) {
+            this.saved = true
+            return this.saved
+          }
+          else {
+            return false
+          }
         });
       },
       apply() {
         this.saved = this.restarted = false;
-        this.save();
-        if (this.saved === true) {
-          fetch("/api/restart", {
-            method: "POST",
-          }).then((r) => {
-            if (r.status === 200) this.restarted = true;
-          });
-        }
+        let saved = this.save();
+
+        saved.then((result) => {
+          if (result === true) {
+            fetch("/api/restart", {
+              method: "POST"
+            }).then((r) => {
+              if (r.status === 200) this.restarted = true;
+            });
+          }
+        });
       },
     },
   });
