@@ -690,7 +690,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
     install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
-
+    install(TARGETS elevator RUNTIME DESTINATION "tools" COMPONENT elevator)
+    
     # Mandatory tools
     install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
 
@@ -800,6 +801,11 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info")
     set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
     set(CPACK_COMPONENT_AUDIO_GROUP "tools")
+
+    # elevation tool
+    set(CPACK_COMPONENT_ELEVATION_DISPLAY_NAME "elevator")
+    set(CPACK_COMPONENT_ELEVATION_DESCRIPTION "CLI tool providing ability to elevate Sunshine in a safe manner when ran as a service.")
+    set(CPACK_COMPONENT_ELEVATION_GROUP "tools")
 
     # display tool
     set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")

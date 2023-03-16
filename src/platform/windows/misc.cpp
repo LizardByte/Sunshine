@@ -466,37 +466,26 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
       (LPSTARTUPINFOW)&startup_info,
       &process_info);
 
-
     if(!ret) {
-      auto error_code = GetLastError();
+      auto error = GetLastError();
 
-      // If the error code is 740, the user does not have permission to run the command.
-      if(error_code == 740) {
-        std::vector<std::wstring> args;
-        int argcount;
-        std::wstring merged_args;
 
-        // need to convert the command line to an array of arguments
-        LPWSTR *argv = CommandLineToArgvW(wcmd.c_str(), &argcount);
-        if(argv != NULL) {
-          for(int i = 0; i < argcount; i++) {
-            args.push_back(argv[i]);
-          }
+      if(error == 740) {
+        BOOST_LOG(info) << "Could not execute previous command because it required elevation. Running the command again with elevation, for security reasons this will prompt user interaction."sv;
+        startup_info.StartupInfo.wShowWindow = SW_HIDE;
+        startup_info.StartupInfo.dwFlags     = startup_info.StartupInfo.dwFlags | STARTF_USESHOWWINDOW;
+        std::wstring elevated_command        = L"tools\\elevator.exe ";
+        elevated_command += wcmd;
 
-          LocalFree(argv);
-        }
+        // For security reasons, Windows enforces that an application can only have one "interactive thread," responsible for processing input from the user and managing the user interface (UI).
+        // Since UAC prompts are interactive, we can't have a UAC prompt while Sunshine is already running because it would block the thread.
+        // To workaround this, we launch a separate process that will prompt the user for elevation and then launch the actual command.
+        // It's pretty much a workaround for restriction on Windows.
+        // Since user has to confirm the UAC prompt, we are retaining a secure method of elevation.
 
-        // Skip first argument as it is already included in call_command
-        for(int i = 1; i < args.size(); i++) {
-          merged_args.append(L" " + args.at(i) + L" ");
-        }
-
-        // Creates a hidden powershell window to run the command as administrator, waiting for it to finish. This should cause a UAC prompt to appear.
-        std::wstring call_command = L"powershell.exe -windowstyle hidden -Command \"Start-Process '" + args.at(0) + L"' " + L"-ArgumentList '" + merged_args + L"' -verb runas -Wait\"";
-        BOOST_LOG(info) << "Command failed because it required elevation. Trying again with elevation, this will require user interaction for security reasons.";
         ret = CreateProcessAsUserW(shell_token,
           NULL,
-          (LPWSTR)call_command.c_str(),
+          (LPWSTR)elevated_command.c_str(),
           NULL,
           NULL,
           !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
