@@ -265,24 +265,23 @@ bool isChildPath(fs::path const &base, fs::path const &query) {
   return *(relPath.begin()) != fs::path("..");
 }
 
-void getNodeModules(resp_https_t response, req_https_t request) {
+void getWebAsset(resp_https_t response, req_https_t request) {
   print_req(request);
-  fs::path webDirPath(WEB_DIR);
-  fs::path nodeModulesPath(webDirPath / "node_modules");
+  fs::path assetsDirPath(SUNSHINE_ASSETS_DIR);
 
   // .relative_path is needed to shed any leading slash that might exist in the request path
-  auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
+  auto filePath = fs::weakly_canonical(assetsDirPath / fs::path(request->path).relative_path());
 
-  // Don't do anything if file does not exist or is outside the node_modules directory
-  if(!isChildPath(filePath, nodeModulesPath)) {
-    BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
+  // Don't do anything if file does not exist or is outside the assets directory
+  if(!isChildPath(filePath, assetsDirPath)) {
+    BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets directory";
     response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
   }
   else if(!fs::exists(filePath)) {
     response->write(SimpleWeb::StatusCode::client_error_not_found);
   }
   else {
-    auto relPath = fs::relative(filePath, webDirPath);
+    auto relPath = fs::relative(filePath, assetsDirPath);
     // get the mime type from the file extension mime_types map
     // remove the leading period from the extension
     auto mimeType = mime_types.find(relPath.extension().string().substr(1));
@@ -737,7 +736,7 @@ void start() {
   server.resource["^/api/covers/upload$"]["POST"]          = uploadCover;
   server.resource["^/images/favicon.ico$"]["GET"]          = getFaviconImage;
   server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-  server.resource["^/node_modules\\/.+$"]["GET"]           = getNodeModules;
+  server.resource["^/(web)\\/.+$"]["GET"]                  = getWebAsset;
   server.config.reuse_address                              = true;
   server.config.address                                    = "0.0.0.0"s;
   server.config.port                                       = port_https;
