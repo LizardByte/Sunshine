@@ -477,11 +477,10 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
         std::wstring elevated_command        = L"tools\\elevator.exe ";
         elevated_command += wcmd;
 
-        // For security reasons, Windows enforces that an application can only have one "interactive thread," responsible for processing input from the user and managing the user interface (UI).
-        // Since UAC prompts are interactive, we can't have a UAC prompt while Sunshine is already running because it would block the thread.
-        // To workaround this issue, we will launch a separate process that will elevate the command which will prompt for user to confirm the elevation.
-        // This is our intended behavior, to require interaction before elevating the command.
-
+        // For security reasons, Windows enforces that an application can have only one "interactive thread" responsible for processing user input and managing the user interface (UI).
+        // Since UAC prompts are interactive, we cannot have a UAC prompt while Sunshine is already running because it would block the thread.
+        // To work around this issue, we will launch a separate process that will elevate the command, which will prompt the user to confirm the elevation.
+        // This is our intended behavior: to require interaction before elevating the command.
         ret = CreateProcessAsUserW(shell_token,
           NULL,
           (LPWSTR)elevated_command.c_str(),
