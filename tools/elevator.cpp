@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   SHELLEXECUTEINFOW info = { sizeof(SHELLEXECUTEINFOW) };
   info.lpVerb            = L"runas"; // Request elevation
   info.lpFile            = command.c_str();
-  info.lpParameters      = arguments.empty() ? NULL : arguments.c_str();
+  info.lpParameters      = arguments.empty() ? nullptr : arguments.c_str();
   info.nShow             = SW_SHOW;
   info.fMask             = SEE_MASK_NOCLOSEPROCESS; // So we can wait for the process to finish
 
