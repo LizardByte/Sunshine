@@ -23,7 +23,6 @@
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
-#include <Shellapi.h>
 #include <iterator>
 
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
@@ -479,9 +478,8 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
 
         // For security reasons, Windows enforces that an application can only have one "interactive thread," responsible for processing input from the user and managing the user interface (UI).
         // Since UAC prompts are interactive, we can't have a UAC prompt while Sunshine is already running because it would block the thread.
-        // To workaround this, we launch a separate process that will prompt the user for elevation and then launch the actual command.
-        // It's pretty much a workaround for restriction on Windows.
-        // Since user has to confirm the UAC prompt, we are retaining a secure method of elevation.
+        // To workaround this issue, we will launch a separate process that will elevate the command which will prompt for user to confirm the elevation.
+        // This is our intended behavior, to require interaction before elevating the command.
 
         ret = CreateProcessAsUserW(shell_token,
           NULL,
@@ -491,7 +489,7 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
           !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
           EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
           env_block.data(),
-          start_dir.empty() ? NULL : start_dir.c_str(),
+          start_dir.empty() ? nullptr : start_dir.c_str(),
           (LPSTARTUPINFOW)&startup_info,
           &process_info);
       }
