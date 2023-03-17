@@ -6,7 +6,6 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #define TRAY_ICON WEB_DIR "images/favicon.ico"
-#include <windows.h>
 #elif defined(__linux__) || defined(linux) || defined(__linux)
 #define TRAY_ICON "sunshine"
 #elif defined(__APPLE__) || defined(__MACH__)
@@ -20,14 +19,14 @@
 
 // lib includes
 #include "tray/tray.h"
+#include <boost/filesystem.hpp>
+#include <boost/process/environment.hpp>
 
 // local includes
 #include "confighttp.h"
 #include "main.h"
-
-// local includes
-//#include "platform/common.h"
-//#include "process.h"
+#include "platform/common.h"
+#include "process.h"
 
 using namespace std::literals;
 
@@ -39,12 +38,32 @@ namespace system_tray {
  * @param url The url to open.
  */
 void open_url(const std::string &url) {
-// if windows
+  boost::filesystem::path working_dir;
+
+  // if windows
 #if defined(_WIN32) || defined(_WIN64)
-  ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+  // set working dir to Windows system directory
+  working_dir = boost::filesystem::path(std::getenv("SystemRoot"));
+
+  // this isn't ideal as it briefly shows a command window
+  // but start a command built into cmd, not an executable
+  std::string cmd = R"(cmd /C "start )" + url + R"(")";
 #else // if unix
-  system(("open "s + url).c_str());
+  // set working dir to user home directory
+  working_dir     = boost::filesystem::path(std::getenv("HOME"));
+  std::string cmd = R"(open ")" + url + R"(")";
 #endif
+
+  boost::process::environment _env = boost::this_process::environment();
+  std::error_code ec;
+  auto child = platf::run_unprivileged(cmd, working_dir, _env, nullptr, ec, nullptr);
+  if(ec) {
+    BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+  }
+  else {
+    BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+    child.detach();
+  }
 }
 
 /**
