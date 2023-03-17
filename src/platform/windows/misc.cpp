@@ -469,7 +469,6 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
     if(!ret) {
       auto error = GetLastError();
 
-
       if(error == 740) {
         BOOST_LOG(info) << "Could not execute previous command because it required elevation. Running the command again with elevation, for security reasons this will prompt user interaction."sv;
         startup_info.StartupInfo.wShowWindow = SW_HIDE;
