@@ -9,15 +9,16 @@
 
 // prevent clang format from "optimizing" the header include order
 // clang-format off
-#include <winsock2.h>
+#include <dwmapi.h>
 #include <iphlpapi.h>
+#include <iterator>
+#include <timeapi.h>
+#include <userenv.h>
+#include <winsock2.h>
 #include <windows.h>
 #include <winuser.h>
-#include <ws2tcpip.h>
-#include <userenv.h>
-#include <dwmapi.h>
-#include <timeapi.h>
 #include <wlanapi.h>
+#include <ws2tcpip.h>
 // clang-format on
 
 #include "src/main.h"
