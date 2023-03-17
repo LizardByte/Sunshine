@@ -481,10 +481,10 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
         // To work around this issue, we will launch a separate process that will elevate the command, which will prompt the user to confirm the elevation.
         // This is our intended behavior: to require interaction before elevating the command.
         ret = CreateProcessAsUserW(shell_token,
-          NULL,
+          nullptr,
           (LPWSTR)elevated_command.c_str(),
-          NULL,
-          NULL,
+          nullptr,
+          nullptr,
           !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
           EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
           env_block.data(),
