@@ -12,6 +12,13 @@ target_link_libraries(dxgi-info
         ${PLATFORM_LIBRARIES})
 target_compile_options(dxgi-info PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 
+add_executable(elevator elevator.cpp)
+set_target_properties(elevator PROPERTIES CXX_STANDARD 17)
+target_link_libraries(elevator
+        shell32
+        ${PLATFORM_LIBRARIES})
+target_compile_options(elevator PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
+
 add_executable(audio-info audio.cpp)
 set_target_properties(audio-info PROPERTIES CXX_STANDARD 17)
 target_link_libraries(audio-info
@@ -37,9 +44,3 @@ target_link_libraries(ddprobe
         ${PLATFORM_LIBRARIES})
 target_compile_options(ddprobe PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 
-add_executable(elevator elevator.cpp)
-set_target_properties(elevator PROPERTIES CXX_STANDARD 17)
-target_link_libraries(elevator
-        shell32
-        ${PLATFORM_LIBRARIES})
-target_compile_options(elevator PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
