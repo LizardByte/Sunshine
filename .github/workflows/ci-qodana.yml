@@ -117,7 +117,9 @@ jobs:
           echo "client_payload=$client_payload" >> $GITHUB_OUTPUT
 
       - name: Repository Dispatch
-        if: ${{ steps.prepare.outputs.files != '' }}
+        if: >-
+          startsWith(github.event_name, 'pull_request') &&
+          steps.prepare.outputs.files != ''
         uses: peter-evans/repository-dispatch@v2.1.1
         with:
           token: ${{ secrets.GH_BOT_TOKEN }}
