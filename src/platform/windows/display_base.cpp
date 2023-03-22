@@ -24,6 +24,10 @@ using namespace std::literals;
 }
 namespace platf::dxgi {
 namespace bp = boost::process;
+// Avoid compilation errors for low system versions
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
 
 capture_e duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p) {
   auto capture_status = release_frame();
