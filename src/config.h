@@ -52,6 +52,7 @@ struct video_t {
     int vt_coder;
   } vt;
 
+  std::string capture;;
   std::string encoder;
   std::string adapter_name;
   std::string output_name;

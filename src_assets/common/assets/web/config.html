@@ -591,7 +591,21 @@
           HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
         </div>
       </div>
-      <!--Encoder -->
+      <!--Capture-->
+      <div class="mb-3" v-if="platform === 'linux'">
+        <label for="capture" class="form-label">Force a Specific Capture Method</label>
+        <select id="capture" class="form-select" v-model="config.capture">
+          <option value>Autodetect</option>
+          <option value="nvfbc">NvFBC</option>
+          <option value="wlr">wlroots</option>
+          <option value="kms">KMS</option>
+          <option value="x11">X11</option>
+        </select>
+        <div class="form-text">
+          Force a specific capture method, otherwise Sunshine will use the first one that works. NvFBC requires patched nvidia drivers.
+        </div>
+      </div>
+      <!--Encoder-->
       <div class="mb-3">
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
@@ -911,6 +925,7 @@
     "amd_rc": "vbr_latency",
     "amd_usage": "ultralowlatency",
     "amd_vbaq": "enabled",
+    "capture": "",
     "controller": "enabled",
     "dwmflush": "enabled",
     "encoder": "",
