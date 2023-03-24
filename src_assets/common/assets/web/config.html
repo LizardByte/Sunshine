@@ -628,7 +628,7 @@
         <label for="sw_preset" class="form-label">SW Presets</label>
         <select id="sw_preset" class="form-select" v-model="config.sw_preset">
           <option value="ultrafast">ultrafast</option>
-          <option value="superfast">superfast</option>
+          <option value="superfast">superfast (default)</option>
           <option value="veryfast">veryfast</option>
           <option value="faster">faster</option>
           <option value="fast">fast</option>
@@ -649,7 +649,7 @@
           <option value="grain">grain -- preserves the grain structure in old, grainy film material</option>
           <option value="stillimage">stillimage -- good for slideshow-like content</option>
           <option value="fastdecode">fastdecode -- allows faster decoding by disabling certain filters</option>
-          <option value="zerolatency">zerolatency -- good for fast encoding and low-latency streaming</option>
+          <option value="zerolatency">zerolatency -- good for fast encoding and low-latency streaming (default)</option>
         </select>
         <div class="form-text">
           Tuning options, which are applied after the preset. Defaults to zerolatency.
