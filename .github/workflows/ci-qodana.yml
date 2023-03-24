@@ -86,8 +86,8 @@ jobs:
 
           echo "reports_markdown=$REPORTS_MARKDOWN" >> $GITHUB_OUTPUT
 
-      - name: Setup initial notification client payload
-        id: client_payload
+      - name: Setup initial notification inputs
+        id: inputs
         if: >-
           startsWith(github.event_name, 'pull_request') &&
           steps.prepare.outputs.files != ''
@@ -106,26 +106,44 @@ jobs:
           # escape json control characters
           message=$(jq -n --arg message "$message" '$message' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
 
-          client_payload=$(echo '{
+          secondary_inputs=$(echo '{
             "issue_message": "'"${message}"'",
             "issue_message_id": "'"qodana"'",
-            "issue_number": "'"${{ github.event.number }}"'"
+            "issue_number": "'"${{ github.event.number }}"'",
+            "issue_repo_owner": "'"${{ github.repository_owner }}"'",
+            "issue_repo_name": "'"${{ github.event.repository.name }}"'"
+          }' | jq -r .)
+
+          #escape json control characters
+          secondary_inputs=$(jq -n --arg secondary_inputs "$secondary_inputs" '$secondary_inputs' \
+            | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+
+          echo $secondary_inputs
+
+          # secondary input as string, not JSON
+          # todo - change dispatch_ref to master instead of nightly
+          primary_inputs=$(echo '{
+            "dispatch_repository": "'"${{ github.repository_owner }}/.github"'",
+            "dispatch_workflow": "'"dispatch-issue-comment.yml"'",
+            "dispatch_ref": "'"nightly"'",
+            "dispatch_inputs": "'"${secondary_inputs}"'"
           }' | jq -c .)
 
-          echo $client_payload
-          echo $client_payload | jq .
-          echo "client_payload=$client_payload" >> $GITHUB_OUTPUT
+          echo $primary_inputs
+          echo $primary_inputs | jq .
+          echo "primary_inputs=$primary_inputs" >> $GITHUB_OUTPUT
 
-      - name: Repository Dispatch
+      - name: Workflow Dispatch
         if: >-
           startsWith(github.event_name, 'pull_request') &&
           steps.prepare.outputs.files != ''
-        uses: peter-evans/repository-dispatch@v2.1.1
+        uses: benc-uk/workflow-dispatch@v1.2.2
+        continue-on-error: true  # this might error if the workflow is not found, but we still want to run the next job
         with:
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          repository: ${{ github.repository_owner }}/.github
-          event-type: issue-pr-comment
-          client-payload: ${{ steps.client_payload.outputs.client_payload }}
+          ref: ${{ github.base_ref || github.ref_name }}  # base ref for PR and branch name for push
+          workflow: dispatcher.yml
+          inputs: ${{ steps.inputs.outputs.primary_inputs }}
+          token: ${{ github.token }}
 
     outputs:
       destination: ${{ steps.prepare.outputs.destination }}
@@ -219,8 +237,8 @@ jobs:
     name: Dispatch Qodana
     if: ${{ needs.qodana_initial_check.outputs.files != '' }}
     steps:
-      - name: Setup client payload
-        id: client_payload
+      - name: Setup qodana publish inputs
+        id: inputs
         run: |
           # get the artifacts
           artifacts=${{ toJson(steps.artifacts.outputs.result) }}
@@ -233,7 +251,7 @@ jobs:
           destination=${{ needs.qodana_initial_check.outputs.destination }}
 
           # client payload
-          client_payload=$(echo '{
+          secondary_inputs=$(echo '{
             "destination": "'"${destination}"'",
             "ref": "'"${{ github.ref }}"'",
             "repo": "'"${{ github.repository }}"'",
@@ -241,16 +259,30 @@ jobs:
             "run_id": "'"${{ github.run_id }}"'",
             "reports_markdown": "'"${{ needs.qodana_initial_check.outputs.reports_markdown }}"'",
             "status": "'"${{ needs.qodana.outputs.qodana_status }}"'"
+          }' | jq -r .)
+
+          #escape json control characters
+          secondary_inputs=$(jq -n --arg secondary_inputs "$secondary_inputs" '$secondary_inputs' \
+            | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+
+          echo $secondary_inputs
+
+          primary_inputs=$(echo '{
+            "dispatch_repository": "'"${{ github.repository_owner }}/qodana-reports"'",
+            "dispatch_workflow": "'"dispatch-qodana.yml"'",
+            "dispatch_ref": "'"master"'",
+            "dispatch_inputs": "'"$secondary_inputs"'"
           }' | jq -c .)
 
-          echo $client_payload
-          echo $client_payload | jq .
-          echo "client_payload=$client_payload" >> $GITHUB_OUTPUT
+          echo $primary_inputs
+          echo $primary_inputs | jq .
+          echo "primary_inputs=$primary_inputs" >> $GITHUB_OUTPUT
 
-      - name: Repository Dispatch
-        uses: peter-evans/repository-dispatch@v2.1.1
+      - name: Workflow Dispatch
+        uses: benc-uk/workflow-dispatch@v1.2.2
+        continue-on-error: true  # this might error if the workflow is not found, but we don't want to fail the workflow
         with:
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          repository: ${{ github.repository_owner }}/qodana-reports
-          event-type: qodana-publish
-          client-payload: ${{ steps.client_payload.outputs.client_payload }}
+          ref: ${{ github.base_ref || github.ref_name }}  # base ref for PR and branch name for push
+          workflow: dispatcher.yml
+          inputs: ${{ steps.inputs.outputs.primary_inputs }}
+          token: ${{ github.token }}
