@@ -752,6 +752,36 @@ hevc_mode
 
       hevc_mode = 2
 
+capture
+^^^^^^^
+
+**Description**
+   Force specific screen capture method. If set to automatic then Sunshine will attempt to find a capture method in the order of the table below, otherwise it will only attempt to capture via the method specified.
+
+   .. Caution:: Applies to Linux only.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =========  ===========
+   Value      Description
+   =========  ===========
+   nvfbc      Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for NVIDIA cards. For GeForce cards it will only work with drivers patched with `nvidia-patch <https://github.com/keylase/nvidia-patch/>`_ or `nvlax <https://github.com/keylase/nvidia-patch/>`_.
+   wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
+   kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability. See :ref:`Linux Setup <about/usage:setup`.
+   x11        Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
+   =========  ===========
+   
+**Default**
+   Automatic
+
+**Example**
+   .. code-block:: text
+
+      capture = kms
+      
 encoder
 ^^^^^^^
 
