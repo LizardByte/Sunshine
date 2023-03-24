@@ -756,7 +756,7 @@ capture
 ^^^^^^^
 
 **Description**
-   Force specific screen capture method. If set to automatic then Sunshine will attempt to find a capture method in the order of the table below, otherwise it will only attempt to capture via the method specified.
+   Force specific screen capture method.
 
    .. Caution:: Applies to Linux only.
 
@@ -775,7 +775,7 @@ capture
    =========  ===========
    
 **Default**
-   Automatic
+   Automatic. Sunshine will use the first capture method available in the order of the table above.
 
 **Example**
    .. code-block:: text
