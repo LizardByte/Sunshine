@@ -784,11 +784,9 @@ sw_preset
    ultrafast fastest
    superfast
    veryfast
-   superfast
    faster
    fast
    medium
-   slow
    slow
    slower
    veryslow  slowest
