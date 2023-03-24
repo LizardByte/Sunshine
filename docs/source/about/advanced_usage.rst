@@ -770,7 +770,7 @@ capture
    =========  ===========
    nvfbc      Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for NVIDIA cards. For GeForce cards it will only work with drivers patched with `nvidia-patch <https://github.com/keylase/nvidia-patch/>`_ or `nvlax <https://github.com/keylase/nvidia-patch/>`_.
    wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
-   kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability. See :ref:`Linux Setup <about/usage:setup`.
+   kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability. See :ref:`Linux Setup <about/usage:setup>`.
    x11        Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
    =========  ===========
    
