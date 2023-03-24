@@ -626,32 +626,33 @@
     <div v-if="currentTab === 'sw'" class="config-page">
       <div class="mb-3">
         <label for="sw_preset" class="form-label">SW Presets</label>
-        <input
-          class="form-control"
-          id="sw_preset"
-          placeholder="superfast"
-          v-model="config.sw_preset"
-        />
+        <select id="sw_preset" class="form-select" v-model="config.sw_preset">
+          <option value="ultrafast">ultrafast</option>
+          <option value="superfast">superfast</option>
+          <option value="veryfast">veryfast</option>
+          <option value="faster">faster</option>
+          <option value="fast">fast</option>
+          <option value="medium">medium</option>
+          <option value="slow">slow</option>
+          <option value="slower">slower</option>
+          <option value="veryslow">veryslow</option>
+        </select>
         <div class="form-text">
-          Available Values: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+          Optimize the trade-off between x265 encoding speed (encoded frames per second) and compression efficiency (quality per bit in the bitstream). Defaults to superfast.
         </div>
       </div>
       <div class="mb-3">
         <label for="sw_tune" class="form-label">SW Tune</label>
-        <input
-          class="form-control"
-          id="sw_tune"
-          placeholder="zerolatency"
-          v-model="config.sw_tune"
-        />
+        <select id="sw_tune" class="form-select" v-model="config.sw_tune">
+          <option value="film">film -- use for high quality movie content; lowers deblocking</option>
+          <option value="animation">animation -- good for cartoons; uses higher deblocking and more reference frames</option>
+          <option value="grain">grain -- preserves the grain structure in old, grainy film material</option>
+          <option value="stillimage">stillimage -- good for slideshow-like content</option>
+          <option value="fastdecode">fastdecode -- allows faster decoding by disabling certain filters</option>
+          <option value="zerolatency">zerolatency -- good for fast encoding and low-latency streaming</option>
+        </select>
         <div class="form-text">
-          Available Tune settings: <br>
-          film - use for high quality movie content; lowers deblocking<br>
-          animation - good for cartoons; uses higher deblocking and more reference frames<br>
-          grain - preserves the grain structure in old, grainy film material<br>
-          stillimage - good for slideshow-like content<br>
-          fastdecode - allows faster decoding by disabling certain filters<br>
-          zerolatency - good for fast encoding and low-latency streaming<br>
+          x265 tuning options, which are applied after the preset. Defaults to zerolatency.
         </div>
       </div>
     </div>
