@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.18)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
-project(Sunshine VERSION 0.17.0
+# todo - set version to 0.0.0 once confident in automated versioning
+project(Sunshine VERSION 0.18.4
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
 
@@ -9,6 +10,65 @@ set(PROJECT_LONG_DESCRIPTION "Offering low latency, cloud gaming server capabili
 and Nvidia GPUs for hardware encoding. Software encoding is also available. You can connect to Sunshine from any \
 Moonlight client on a variety of devices. A web UI is provided to allow configuration, and client pairing, from \
 your favorite web browser. Pair from the local server or any mobile device.")
+
+# Check if env vars are defined before attempting to access them, variables will be defined even if blank
+if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMIT}))  # cmake-lint: disable=W0106
+    if(($ENV{BRANCH} STREQUAL "master") AND (NOT $ENV{BUILD_VERSION} STREQUAL ""))
+        # If BRANCH is "master" and BUILD_VERSION is not empty, then we are building a master branch
+        MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
+        set(PROJECT_VERSION $ENV{BUILD_VERSION})
+    elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
+        # If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
+        MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")
+        set(PROJECT_VERSION ${PROJECT_VERSION}.$ENV{COMMIT})
+    endif()
+# Generate Sunshine Version based of the git tag
+# https://github.com/nocnokneo/cmake-git-versioning-example/blob/master/LICENSE
+else()
+    find_package(Git)
+    if(GIT_EXECUTABLE)
+        MESSAGE("${CMAKE_CURRENT_SOURCE_DIR}")
+        get_filename_component(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+        #Get current Branch
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
+            #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
+            RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        # Gather current commit
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
+            #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
+            RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        # Check if Dirty
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
+            #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE GIT_IS_DIRTY
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(NOT GIT_DESCRIBE_ERROR_CODE)
+            MESSAGE("Sunshine Branch: ${GIT_DESCRIBE_BRANCH}")
+            if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
+                set(PROJECT_VERSION ${PROJECT_VERSION}.${GIT_DESCRIBE_VERSION})
+                MESSAGE("Sunshine Version: ${GIT_DESCRIBE_VERSION}")
+            endif()
+            if(GIT_IS_DIRTY)
+                set(PROJECT_VERSION ${PROJECT_VERSION}.dirty)
+                MESSAGE("Git tree is dirty!")
+            endif()
+        else()
+            MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
+        endif()
+    else()
+        MESSAGE(WARNING ": Git not found, cannot find git version")
+    endif()
+endif()
 
 option(SUNSHINE_CONFIGURE_APPIMAGE "Configuration specific for AppImage." OFF)
 option(SUNSHINE_CONFIGURE_AUR "Configure files required for AUR." OFF)
@@ -72,17 +132,18 @@ find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CURL REQUIRED libcurl)
 
-if(NOT APPLE)
-    set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
-endif()
 if(WIN32)
+    set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
     # workaround to prevent link errors against icudata, icui18n
-    set(Boost_NO_BOOST_CMAKE ON) # cmake-lint: disable=C0103
+    set(Boost_NO_BOOST_CMAKE ON)  # cmake-lint: disable=C0103
 endif()
 
-find_package(Boost COMPONENTS log filesystem program_options REQUIRED)
+find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
+
+# enable system tray, we will disable this later if we cannot find the required package config on linux
+set(SUNSHINE_TRAY 1)
 
 if(WIN32)
     enable_language(RC)
@@ -110,6 +171,7 @@ if(WIN32)
             src/platform/windows/display_vram.cpp
             src/platform/windows/display_ram.cpp
             src/platform/windows/audio.cpp
+            third-party/tray/tray_windows.c
             third-party/ViGEmClient/src/ViGEmClient.cpp
             third-party/ViGEmClient/include/ViGEm/Client.h
             third-party/ViGEmClient/include/ViGEm/Common.h
@@ -149,6 +211,7 @@ elseif(APPLE)
 
     FIND_LIBRARY(APP_SERVICES_LIBRARY ApplicationServices )
     FIND_LIBRARY(AV_FOUNDATION_LIBRARY AVFoundation )
+    FIND_LIBRARY(COCOA Cocoa REQUIRED )  # tray icon
     FIND_LIBRARY(CORE_MEDIA_LIBRARY CoreMedia )
     FIND_LIBRARY(CORE_VIDEO_LIBRARY CoreVideo )
     FIND_LIBRARY(VIDEO_TOOLBOX_LIBRARY VideoToolbox )
@@ -156,6 +219,7 @@ elseif(APPLE)
     list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
             ${APP_SERVICES_LIBRARY}
             ${AV_FOUNDATION_LIBRARY}
+            ${COCOA}
             ${CORE_MEDIA_LIBRARY}
             ${CORE_VIDEO_LIBRARY}
             ${VIDEO_TOOLBOX_LIBRARY}
@@ -175,13 +239,14 @@ elseif(APPLE)
             src/platform/macos/display.mm
             src/platform/macos/input.cpp
             src/platform/macos/microphone.mm
-            src/platform/macos/misc.cpp
+            src/platform/macos/misc.mm
             src/platform/macos/misc.h
             src/platform/macos/nv12_zero_device.cpp
             src/platform/macos/nv12_zero_device.h
             src/platform/macos/publish.cpp
             third-party/TPCircularBuffer/TPCircularBuffer.c
             third-party/TPCircularBuffer/TPCircularBuffer.h
+            third-party/tray/tray_darwin.m
             ${APPLE_PLIST_FILE})
 else()
     add_compile_definitions(SUNSHINE_PLATFORM="linux")
@@ -190,6 +255,7 @@ else()
     option(SUNSHINE_ENABLE_X11 "Enable X11 grab if available" ON)
     option(SUNSHINE_ENABLE_WAYLAND "Enable building wayland specific code" ON)
     option(SUNSHINE_ENABLE_CUDA "Enable cuda specific code" ON)
+    option(SUNSHINE_ENABLE_TRAY "Enable tray icon" ON)
 
     if(${SUNSHINE_ENABLE_X11})
         find_package(X11)
@@ -355,8 +421,25 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
                 src/platform/linux/wlgrab.cpp
                 src/platform/linux/wayland.cpp)
     endif()
-    if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND} AND NOT ${})
+    if(NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}) AND NOT ${WAYLAND_FOUND})
         message(FATAL_ERROR "Couldn't find either x11, wayland, cuda or (libdrm and libcap)")
+    endif()
+
+    # tray icon
+    if(${SUNSHINE_ENABLE_TRAY})
+        pkg_check_modules(APPINDICATOR appindicator3-0.1)
+        if(NOT APPINDICATOR_FOUND)
+            message(WARNING "Couldn't find appindicator, disabling tray icon")
+            set(SUNSHINE_TRAY 0)
+        else()
+            include_directories(${APPINDICATOR_INCLUDE_DIRS})
+            link_directories(${APPINDICATOR_LIBRARY_DIRS})
+
+            list(APPEND PLATFORM_TARGET_FILES third-party/tray/tray_linux.c)
+            list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES})
+        endif()
+    else()
+        set(SUNSHINE_TRAY 0)
     endif()
 
     list(APPEND PLATFORM_TARGET_FILES
@@ -380,6 +463,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             third-party/glad/include/glad/egl.h)
 
     list(APPEND PLATFORM_LIBRARIES
+            Boost::dynamic_linking
             dl
             evdev
             numa
@@ -397,7 +481,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
     configure_file(sunshine.service.in sunshine.service @ONLY)
 endif()
 
-configure_file(version.h.in version.h @ONLY)
+configure_file(src/version.h.in version.h @ONLY)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(SUNSHINE_TARGET_FILES
@@ -407,6 +491,7 @@ set(SUNSHINE_TARGET_FILES
         third-party/moonlight-common-c/src/Rtsp.h
         third-party/moonlight-common-c/src/RtspParser.c
         third-party/moonlight-common-c/src/Video.h
+        third-party/tray/tray.h
         src/upnp.cpp
         src/upnp.h
         src/cbs.cpp
@@ -440,6 +525,8 @@ set(SUNSHINE_TARGET_FILES
         src/network.cpp
         src/network.h
         src/move_by_copy.h
+        src/system_tray.cpp
+        src/system_tray.h
         src/task_pool.h
         src/thread_pool.h
         src/thread_safe.h
@@ -451,6 +538,8 @@ set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
 set_source_files_properties(third-party/nanors/rs.c
         PROPERTIES COMPILE_FLAGS "-include deps/obl/autoshim.h -ftree-vectorize")
+
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_TRAY=${SUNSHINE_TRAY})
 
 # Pre-compiled binaries
 if(WIN32)
@@ -469,6 +558,8 @@ else()
     else()
         set(FFMPEG_PREPARED_BINARIES "${CMAKE_CURRENT_SOURCE_DIR}/third-party/ffmpeg-linux-x86_64")
         list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
+        set(CPACK_DEB_PLATFORM_PACKAGE_DEPENDS "libmfx1,")
+        set(CPACK_RPM_PLATFORM_PACKAGE_REQUIRES "intel-mediasdk >= 22.3.0,")
     endif()
 endif()
 set(FFMPEG_INCLUDE_DIRS
@@ -559,6 +650,8 @@ endif()
 
 if(APPLE)
     target_link_options(sunshine PRIVATE LINKER:-sectcreate,__TEXT,__info_plist,${APPLE_PLIST_FILE})
+    # Tell linker to dynamically load these symbols at runtime, in case they're unavailable:
+    target_link_options(sunshine PRIVATE -Wl,-U,_CGPreflightScreenCaptureAccess -Wl,-U,_CGRequestScreenCaptureAccess)
 endif()
 
 foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
@@ -787,36 +880,58 @@ elseif(UNIX)
         # Dependencies
         set(CPACK_DEB_COMPONENT_INSTALL ON)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
-                libboost-filesystem1.67.0 | libboost-filesystem1.71.0 | libboost-filesystem1.74.0, \
-                libboost-log1.67.0 | libboost-log1.71.0 | libboost-log1.74.0, \
-                libboost-program-options1.67.0 | libboost-program-options1.71.0 | libboost-program-options1.74.0, \
-                libboost-thread1.67.0 | libboost-thread1.71.0 | libboost-thread1.74.0, \
+                ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
+                libboost-filesystem${Boost_VERSION}, \
+                libboost-locale${Boost_VERSION}, \
+                libboost-log${Boost_VERSION}, \
+                libboost-program-options${Boost_VERSION}, \
+                libboost-thread${Boost_VERSION}, \
                 libcap2, \
                 libcurl4, \
                 libdrm2, \
                 libevdev2, \
+                libnuma1, \
                 libopus0, \
                 libpulse0, \
-                libxcb-shm0, \
-                libxcb-xfixes0, \
-                libxtst6, \
-                openssl")
+                libva2, \
+                libva-drm2, \
+                libvdpau1, \
+                libwayland-client0, \
+                libx11-6, \
+                openssl | libssl3")
         set(CPACK_RPM_PACKAGE_REQUIRES "\
-                boost-filesystem >= 1.67.0, \
-                boost-log >= 1.67.0, \
-                boost-program-options >= 1.67.0, \
-                boost-thread >= 1.67.0, \
+                ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
+                boost-filesystem >= ${Boost_VERSION}, \
+                boost-locale >= ${Boost_VERSION}, \
+                boost-log >= ${Boost_VERSION}, \
+                boost-program-options >= ${Boost_VERSION}, \
+                boost-thread >= ${Boost_VERSION}, \
                 libcap >= 2.22, \
                 libcurl >= 7.0, \
                 libdrm >= 2.4.97, \
                 libevdev >= 1.5.6, \
                 libopusenc >= 0.2.1, \
-                libxcb >= 1.13, \
-                libXtst >= 1.2.3, \
-                openssl >= 1.1, \
+                libva >= 2.14.0, \
+                libvdpau >= 1.5, \
+                libwayland-client >= 1.20.0, \
+                libX11 >= 1.7.3.1, \
+                numactl-libs >= 2.0.14, \
+                openssl >= 3.0.2, \
                 pulseaudio-libs >= 10.0")
         # This should automatically figure out dependencies, doesn't work with the current config
         set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+
+        if(${SUNSHINE_TRAY} STREQUAL 1)
+            install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+                    DESTINATION "/usr/share/icons")
+
+            set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                    ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
+                    libappindicator3-1")
+            set(CPACK_RPM_PACKAGE_REQUIRES "\
+                    ${CPACK_RPM_PACKAGE_REQUIRES}, \
+                    libappindicator-gtk3 >= 12.10.0")
+        endif()
     endif()
 endif()
 

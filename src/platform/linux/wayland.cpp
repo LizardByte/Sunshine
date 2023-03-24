@@ -20,6 +20,15 @@ using namespace std::literals;
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
 
 namespace wl {
+
+// Helper to call C++ method from wayland C callback
+template<class T, class Method, Method m, class... Params>
+static auto classCall(void *data, Params... params) -> decltype(((*reinterpret_cast<T *>(data)).*m)(params...)) {
+  return ((*reinterpret_cast<T *>(data)).*m)(params...);
+}
+
+#define CLASS_CALL(c, m) classCall<c, decltype(&c::m), &c::m>
+
 int display_t::init(const char *display_name) {
   if(!display_name) {
     display_name = std::getenv("WAYLAND_DISPLAY");
@@ -49,7 +58,14 @@ wl_registry *display_t::registry() {
   return wl_display_get_registry(display_internal.get());
 }
 
-inline monitor_t::monitor_t(wl_output *output) : output { output } {}
+inline monitor_t::monitor_t(wl_output *output)
+    : output { output }, listener {
+        &CLASS_CALL(monitor_t, xdg_position),
+        &CLASS_CALL(monitor_t, xdg_size),
+        &CLASS_CALL(monitor_t, xdg_done),
+        &CLASS_CALL(monitor_t, xdg_name),
+        &CLASS_CALL(monitor_t, xdg_description)
+      } {}
 
 inline void monitor_t::xdg_name(zxdg_output_v1 *, const char *name) {
   this->name = name;
@@ -83,23 +99,13 @@ void monitor_t::xdg_done(zxdg_output_v1 *) {
 
 void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
   auto xdg_output = zxdg_output_manager_v1_get_xdg_output(output_manager, output);
-
-#define CLASS_CALL(x, y) x = (decltype(x))&y
-
-  CLASS_CALL(listener.name, monitor_t::xdg_name);
-  CLASS_CALL(listener.logical_size, monitor_t::xdg_size);
-  CLASS_CALL(listener.logical_position, monitor_t::xdg_position);
-  CLASS_CALL(listener.done, monitor_t::xdg_done);
-  CLASS_CALL(listener.description, monitor_t::xdg_description);
-
-#undef CLASS_CALL
   zxdg_output_v1_add_listener(xdg_output, &listener, this);
 }
 
 interface_t::interface_t() noexcept
     : output_manager { nullptr }, listener {
-        (decltype(wl_registry_listener::global))&interface_t::add_interface,
-        (decltype(wl_registry_listener::global_remove))&interface_t::del_interface,
+        &CLASS_CALL(interface_t, add_interface),
+        &CLASS_CALL(interface_t, del_interface)
       } {}
 
 void interface_t::listen(wl_registry *registry) {
@@ -135,10 +141,10 @@ void interface_t::del_interface(wl_registry *registry, uint32_t id) {
 
 dmabuf_t::dmabuf_t()
     : status { READY }, frames {}, current_frame { &frames[0] }, listener {
-        (decltype(zwlr_export_dmabuf_frame_v1_listener::frame))&dmabuf_t::frame,
-        (decltype(zwlr_export_dmabuf_frame_v1_listener::object))&dmabuf_t::object,
-        (decltype(zwlr_export_dmabuf_frame_v1_listener::ready))&dmabuf_t::ready,
-        (decltype(zwlr_export_dmabuf_frame_v1_listener::cancel))&dmabuf_t::cancel,
+        &CLASS_CALL(dmabuf_t, frame),
+        &CLASS_CALL(dmabuf_t, object),
+        &CLASS_CALL(dmabuf_t, ready),
+        &CLASS_CALL(dmabuf_t, cancel)
       } {
 }
 
@@ -200,7 +206,7 @@ void dmabuf_t::ready(
 
 void dmabuf_t::cancel(
   zwlr_export_dmabuf_frame_v1 *frame,
-  zwlr_export_dmabuf_frame_v1_cancel_reason reason) {
+  std::uint32_t reason) {
 
   zwlr_export_dmabuf_frame_v1_destroy(frame);
 

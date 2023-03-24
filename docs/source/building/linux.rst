@@ -16,6 +16,7 @@ Install Requirements
           cmake \
           libavdevice-dev \
           libboost-filesystem-dev \
+          libboost-locale-dev \
           libboost-log-dev \
           libboost-program-options-dev \
           libboost-thread-dev \
@@ -54,10 +55,11 @@ Install Requirements
       sudo dnf group install "Development Tools" && \
       sudo dnf install \
           boost-devel \
-          boost-static \
           cmake \
           gcc \
           gcc-c++ \
+          intel-mediasdk-devel \ # x86_64 only
+          libappindicator-gtk3-devel \
           libcap-devel \
           libcurl-devel \
           libdrm-devel \
@@ -80,9 +82,7 @@ Install Requirements
           pulseaudio-libs-devel \
           rpm-build \  # if you want to build an RPM binary package
           wget \  # necessary for cuda install with `run` file
-          which \  # necessary for cuda install with `run` file
-          # libmfx-devel is not listed for fedora, this is for x86_64 only
-          https://kojipkgs.fedoraproject.org//packages/libmfx/1.25/4.el8/x86_64/libmfx-devel-1.25-4.el8.x86_64.rpm
+          which   # necessary for cuda install with `run` file
 
 Ubuntu 20.04
 ^^^^^^^^^^^^
@@ -95,8 +95,10 @@ Install Requirements
           build-essential \
           cmake \
           g++-10 \
+          libappindicator3-dev \
           libavdevice-dev \
           libboost-filesystem-dev \
+          libboost-locale-dev \
           libboost-log-dev \
           libboost-thread-dev \
           libboost-program-options-dev \
@@ -142,8 +144,10 @@ Install Requirements
       sudo apt update && sudo apt install \
           build-essential \
           cmake \
+          libappindicator3-dev \
           libavdevice-dev \
           libboost-filesystem-dev \
+          libboost-locale-dev \
           libboost-log-dev \
           libboost-thread-dev \
           libboost-program-options-dev \

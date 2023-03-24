@@ -74,7 +74,7 @@ using float4 = float[4];
 using float3 = float[3];
 using float2 = float[2];
 
-struct __attribute__((__aligned__(16))) color_t {
+struct alignas(16) color_t {
   float4 color_vec_y;
   float4 color_vec_u;
   float4 color_vec_v;

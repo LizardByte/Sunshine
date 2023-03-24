@@ -33,8 +33,8 @@ modules:
     buildsystem: simple
     build-commands:
       - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
-      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log,program_options || cat bootstrap.log
-      - ./b2 install variant=release link=static,shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
+      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=locale,log,program_options,system,thread
+      - ./b2 install variant=release link=shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
         -j $FLATPAK_BUILDER_N_JOBS
     sources:
       - type: archive
@@ -107,24 +107,7 @@ modules:
         commands:
           - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
-  - name: libdrm
-    # libdrm-intel is needed for libmfx-dev
-    disabled: false
-    buildsystem: meson
-    only-arches:
-      - x86_64
-    sources:
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110.orig.tar.xz
-        sha256: eecee4c4b47ed6d6ce1a9be3d6d92102548ea35e442282216d47d05293cf9737
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110-1ubuntu1.debian.tar.xz
-        sha256: 464b9553861f39beddfaee6b8924734b02a0febfae3968e4ca1360f2972bba8b
-      - type: shell
-        commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
-
-  - name: libmfx-dev
+  - name: intel-mediasdk
     disabled: false
     buildsystem: cmake
     config-opts:
@@ -153,7 +136,39 @@ modules:
       - type: shell
         commands:
           - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+    modules:
+      - name: libdrm
+        disabled: false
+        buildsystem: meson
+        sources:
+          - type: archive
+            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110.orig.tar.xz
+            sha256: eecee4c4b47ed6d6ce1a9be3d6d92102548ea35e442282216d47d05293cf9737
+          - type: archive
+            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110-1ubuntu1.debian.tar.xz
+            sha256: 464b9553861f39beddfaee6b8924734b02a0febfae3968e4ca1360f2972bba8b
+          - type: shell
+            commands:
+              - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
+  - name: numactl
+    buildsystem: autotools
+    make-args:
+      - install
+    sources:
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14.orig.tar.gz
+        sha256: 1ee27abd07ff6ba140aaf9bc6379b37825e54496e01d6f7343330cf1a4487035
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14-3ubuntu2.debian.tar.xz
+        sha256: 49089e5be5367f6367f8b0389d1d523944432607783b53f0605705792e1015ee
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+    cleanup:
+      - "/bin"
+
+  # Caching is configured until here, not including CUDA
   - name: cuda
     disabled: false
     buildsystem: simple
@@ -161,7 +176,7 @@ modules:
       - x86_64
       - aarch64
     cleanup:
-      - '*'
+      - "*"
     build-commands:
       - chmod u+x ./cuda.run
       - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm
@@ -181,23 +196,6 @@ modules:
         url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run  # yamllint disable-line rule:line-length
         sha256: e6e9a8d31163c9776b5e313fd7590877c5684e1ecddee741154f95704d4ed27c
         dest-filename: cuda.run
-
-  - name: numactl
-    buildsystem: autotools
-    make-args:
-      - install
-    sources:
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14.orig.tar.gz
-        sha256: 1ee27abd07ff6ba140aaf9bc6379b37825e54496e01d6f7343330cf1a4487035
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14-3ubuntu2.debian.tar.xz
-        sha256: 49089e5be5367f6367f8b0389d1d523944432607783b53f0605705792e1015ee
-      - type: shell
-        commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
-    cleanup:
-      - "/bin"
 
   - name: sunshine
     disabled: false
@@ -228,9 +226,9 @@ modules:
       - -DSUNSHINE_CONFIGURE_FLATPAK=ON
     sources:
       - type: git
-        url: '@GITHUB_CLONE_URL@'
-        branch: '@GITHUB_BRANCH@'
-        commit: '@GITHUB_COMMIT@'
+        url: "@GITHUB_CLONE_URL@"
+        branch: "@GITHUB_BRANCH@"
+        commit: "@GITHUB_COMMIT@"
     post-install:
       # use `sed` to update apps.json with prefixes required for flatpak
       # -r (regex)

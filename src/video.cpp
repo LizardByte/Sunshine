@@ -402,7 +402,7 @@ struct capture_thread_async_ctx_t {
 
   safe::signal_t reinit_event;
   const encoder_t *encoder_p;
-  util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
+  sync_util::sync_t<std::weak_ptr<platf::display_t>> display_wp;
 };
 
 struct capture_thread_sync_ctx_t {
@@ -434,9 +434,9 @@ static encoder_t nvenc {
       { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
-      { "preset"s, &config::video.nv.preset },
-      { "tune"s, &config::video.nv.tune },
-      { "rc"s, &config::video.nv.rc },
+      { "preset"s, &config::video.nv.nv_preset },
+      { "tune"s, &config::video.nv.nv_tune },
+      { "rc"s, &config::video.nv.nv_rc },
     },
     // SDR-specific options
     {
@@ -454,10 +454,10 @@ static encoder_t nvenc {
       { "delay"s, 0 },
       { "forced-idr"s, 1 },
       { "zerolatency"s, 1 },
-      { "preset"s, &config::video.nv.preset },
-      { "tune"s, &config::video.nv.tune },
-      { "rc"s, &config::video.nv.rc },
-      { "coder"s, &config::video.nv.coder },
+      { "preset"s, &config::video.nv.nv_preset },
+      { "tune"s, &config::video.nv.nv_tune },
+      { "rc"s, &config::video.nv.nv_rc },
+      { "coder"s, &config::video.nv.nv_coder },
     },
     // SDR-specific options
     {
@@ -486,7 +486,7 @@ static encoder_t quicksync {
   {
     // Common options
     {
-      { "preset"s, &config::video.qsv.preset },
+      { "preset"s, &config::video.qsv.qsv_preset },
       { "forced_idr"s, 1 },
       { "async_depth"s, 1 },
       { "low_delay_brc"s, 1 },
@@ -508,8 +508,8 @@ static encoder_t quicksync {
   {
     // Common options
     {
-      { "preset"s, &config::video.qsv.preset },
-      { "cavlc"s, &config::video.qsv.cavlc },
+      { "preset"s, &config::video.qsv.qsv_preset },
+      { "cavlc"s, &config::video.qsv.qsv_cavlc },
       { "forced_idr"s, 1 },
       { "async_depth"s, 1 },
       { "low_delay_brc"s, 1 },
@@ -539,15 +539,16 @@ static encoder_t amdvce {
   {
     // Common options
     {
-      { "enforce_hrd"s, true },
+      { "filler_data"s, true },
       { "gops_per_idr"s, 1 },
       { "header_insertion_mode"s, "idr"s },
+      { "preanalysis"s, &config::video.amd.amd_preanalysis },
       { "qmax"s, 51 },
       { "qmin"s, 0 },
-      { "quality"s, &config::video.amd.quality_hevc },
-      { "rc"s, &config::video.amd.rc_hevc },
-      { "usage"s, "ultralowlatency"s },
-      { "vbaq"s, true },
+      { "quality"s, &config::video.amd.amd_quality_hevc },
+      { "rc"s, &config::video.amd.amd_rc_hevc },
+      { "usage"s, &config::video.amd.amd_usage_hevc },
+      { "vbaq"s, &config::video.amd.amd_vbaq },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -557,14 +558,15 @@ static encoder_t amdvce {
   {
     // Common options
     {
-      { "enforce_hrd"s, true },
+      { "filler_data"s, true },
       { "log_to_dbg"s, "1"s },
+      { "preanalysis"s, &config::video.amd.amd_preanalysis },
       { "qmax"s, 51 },
       { "qmin"s, 0 },
-      { "quality"s, &config::video.amd.quality_h264 },
-      { "rc"s, &config::video.amd.rc_h264 },
-      { "usage"s, "ultralowlatency"s },
-      { "vbaq"s, true },
+      { "quality"s, &config::video.amd.amd_quality_h264 },
+      { "rc"s, &config::video.amd.amd_rc_h264 },
+      { "usage"s, &config::video.amd.amd_usage_h264 },
+      { "vbaq"s, &config::video.amd.amd_vbaq },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -589,8 +591,8 @@ static encoder_t software {
     {
       { "forced-idr"s, 1 },
       { "x265-params"s, "info=0:keyint=-1"s },
-      { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune },
+      { "preset"s, &config::video.sw.sw_preset },
+      { "tune"s, &config::video.sw.sw_tune },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -600,8 +602,8 @@ static encoder_t software {
   {
     // Common options
     {
-      { "preset"s, &config::video.sw.preset },
-      { "tune"s, &config::video.sw.tune },
+      { "preset"s, &config::video.sw.sw_preset },
+      { "tune"s, &config::video.sw.sw_tune },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -658,9 +660,9 @@ static encoder_t videotoolbox {
   {
     // Common options
     {
-      { "allow_sw"s, &config::video.vt.allow_sw },
-      { "require_sw"s, &config::video.vt.require_sw },
-      { "realtime"s, &config::video.vt.realtime },
+      { "allow_sw"s, &config::video.vt.vt_allow_sw },
+      { "require_sw"s, &config::video.vt.vt_require_sw },
+      { "realtime"s, &config::video.vt.vt_realtime },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -670,9 +672,9 @@ static encoder_t videotoolbox {
   {
     // Common options
     {
-      { "allow_sw"s, &config::video.vt.allow_sw },
-      { "require_sw"s, &config::video.vt.require_sw },
-      { "realtime"s, &config::video.vt.realtime },
+      { "allow_sw"s, &config::video.vt.vt_allow_sw },
+      { "require_sw"s, &config::video.vt.vt_require_sw },
+      { "realtime"s, &config::video.vt.vt_realtime },
     },
     {}, // SDR-specific options
     {}, // HDR-specific options
@@ -711,13 +713,14 @@ void reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type,
       break;
     }
 
+    // The capture code depends on us to sleep between failures
     std::this_thread::sleep_for(200ms);
   }
 }
 
 void captureThread(
   std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
-  util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
+  sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
   safe::signal_t &reinit_event,
   const encoder_t &encoder) {
   std::vector<capture_ctx_t> capture_ctxs;
@@ -764,7 +767,7 @@ void captureThread(
   display_wp = disp;
 
   std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-  auto round_robin = util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+  auto round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
 
   for(auto &img : imgs) {
     img = disp->alloc_img();
@@ -839,16 +842,32 @@ void captureThread(
       // Wait for the other shared_ptr's of display to be destroyed.
       // New displays will only be created in this thread.
       while(display_wp->use_count() != 1) {
-        std::this_thread::sleep_for(100ms);
+        // Free images that weren't consumed by the encoders. These can reference the display and prevent
+        // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
+        // conditions where the encoding loop might free a good frame after reinitializing if we capture
+        // a new frame here before the encoder has finished reinitializing.
+        KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+          if(!capture_ctx->images->running()) {
+            capture_ctx = capture_ctxs.erase(capture_ctx);
+            continue;
+          }
+
+          while(capture_ctx->images->peek()) {
+            capture_ctx->images->pop();
+          }
+
+          ++capture_ctx;
+        });
+
+        std::this_thread::sleep_for(20ms);
       }
 
       while(capture_ctx_queue->running()) {
+        // reset_display() will sleep between retries
         reset_display(disp, encoder.base_dev_type, display_names[display_p], capture_ctxs.front().config);
-
         if(disp) {
           break;
         }
-        std::this_thread::sleep_for(200ms);
       }
       if(!disp) {
         return;
@@ -1273,6 +1292,13 @@ void encode_run(
   auto packets        = mail::man->queue<packet_t>(mail::video_packets);
   auto idr_events     = mail->event<bool>(mail::idr);
 
+  // Load a dummy image into the AVFrame to ensure we have something to encode
+  // even if we timeout waiting on the first frame.
+  auto dummy_img = disp->alloc_img();
+  if(!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
+    return;
+  }
+
   while(true) {
     if(shutdown_event->peek() || reinit_event.peek() || !images->running()) {
       break;
@@ -1288,7 +1314,10 @@ void encode_run(
     // Encode at a minimum of 10 FPS to avoid image quality issues with static content
     if(!frame->key_frame || images->peek()) {
       if(auto img = images->pop(100ms)) {
-        session->device->convert(*img);
+        if(session->device->convert(*img)) {
+          BOOST_LOG(error) << "Could not convert image"sv;
+          return;
+        }
       }
       else if(!images->running()) {
         break;
@@ -1399,12 +1428,11 @@ encode_e encode_run_sync(
   }
 
   while(encode_session_ctx_queue.running()) {
+    // reset_display() will sleep between retries
     reset_display(disp, encoder.base_dev_type, display_names[display_p], synced_session_ctxs.front()->config);
     if(disp) {
       break;
     }
-
-    std::this_thread::sleep_for(200ms);
   }
 
   if(!disp) {
@@ -1574,15 +1602,9 @@ void capture_async(
   platf::adjust_thread_priority(platf::thread_priority_e::high);
 
   while(!shutdown_event->peek() && images->running()) {
-    // Free images that weren't consumed by the encoder before it quit.
-    // This is critical to allow the display_t to be freed correctly.
-    while(images->peek()) {
-      images->pop();
-    }
-
     // Wait for the main capture event when the display is being reinitialized
     if(ref->reinit_event.peek()) {
-      std::this_thread::sleep_for(100ms);
+      std::this_thread::sleep_for(20ms);
       continue;
     }
     // Wait for the display to be ready
@@ -1602,13 +1624,6 @@ void capture_async(
     if(!hwdevice) {
       return;
     }
-
-    auto dummy_img = display->alloc_img();
-    if(!dummy_img || display->dummy_img(dummy_img.get())) {
-      return;
-    }
-
-    images->raise(std::move(dummy_img));
 
     // absolute mouse coordinates require that the dimensions of the screen are known
     touch_port_event->raise(make_port(display.get(), config));
@@ -1890,7 +1905,7 @@ int init() {
 
   BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
-  // If we haven't found an encoder yet but we want one with HDR support, search for that now.
+  // If we haven't found an encoder yet, but we want one with HDR support, search for that now.
   if(!encoder_found && config::video.hevc_mode == 3) {
     KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
       auto encoder = *pos;

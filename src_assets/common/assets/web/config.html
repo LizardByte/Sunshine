@@ -297,6 +297,57 @@
           If back_button_timeout &lt; 0, then the Home/Guide button will not be emulated<br />
         </div>
       </div>
+      <!--Enable Mouse Input-->
+      <div class="mb-3">
+        <label for="mouse" class="form-label"
+          >Enable Mouse Input</label
+        >
+        <select
+          id="mouse"
+          class="form-select"
+          v-model="config.mouse"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with the mouse
+        </div>
+      </div>
+      <!--Enable Keyboard Input-->
+      <div class="mb-3">
+        <label for="keyboard" class="form-label"
+          >Enable Keyboard Input</label
+        >
+        <select
+          id="keyboard"
+          class="form-select"
+          v-model="config.keyboard"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with the keyboard
+        </div>
+      </div>
+      <!--Enable Gamepad Input-->
+      <div class="mb-3">
+        <label for="gamepad" class="form-label"
+          >Enable Gamepad Input</label
+        >
+        <select
+          id="gamepad"
+          class="form-select"
+          v-model="config.controller"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with a gamepad / controller
+        </div>
+      </div>
       <!-- Key Repeat Delay-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="key_repeat_delay" class="form-label"
@@ -369,6 +420,29 @@
           <br />
         </div>
       </div>
+      <div class="mb-3" v-if="platform === 'macos'">
+        <label for="audio_sink" class="form-label">Audio Sink</label>
+        <input
+          type="text"
+          class="form-control"
+          id="audio_sink"
+          placeholder="BlackHole 2ch"
+          v-model="config.audio_sink"
+        />
+        <div class="form-text">
+          The name of the audio sink used for Audio Loopback<br />
+          Sunshine can only access microphones on macOS due to system limitations.<br />
+          To stream system audio using <a
+            href="https://github.com/mattingalls/Soundflower"
+            target="_blank">
+            Soundflower
+          </a> or <a
+            href="https://github.com/ExistentialAudio/BlackHole"
+            target="_blank">
+            BlackHole
+          </a>.
+        </div>
+      </div>
       <!--Virtual Sink-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="virtual_sink" class="form-label">Virtual Sink</label>
@@ -401,7 +475,7 @@
         </div>
       </div>
       <!--Output Name -->
-      <div class="mb-3" class="config-page" v-if="platform === 'windows'">
+      <div class="mb-3 config-page" v-if="platform === 'windows'">
         <label for="output_name" class="form-label">Output Name</label>
         <input
           type="text"
@@ -411,7 +485,7 @@
           v-model="config.output_name"
         />
         <div class="form-text">
-          You can select the video card you want to stream:<br />
+          You can select the display you want to stream:<br />
           The appropriate values can be found using the following command:<br />
           tools\dxgi-info.exe<br />
         </div>
@@ -428,7 +502,7 @@
           Disable if you encounter any VSync-related issues.
         </div>
       </div>
-      <div class="mb-3" class="config-page" v-if="platform === 'linux'">
+      <div class="mb-3 config-page" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
         <input
           type="text"
@@ -744,6 +818,29 @@
         </select>
       </div>
       <div class="mb-3">
+        <label for="amd_usage" class="form-label">AMF Usage</label>
+        <select id="amd_usage" class="form-select" v-model="config.amd_usage">
+          <option value="transcoding">transcoding -- transcoding (slowest)</option>
+          <option value="webcam">webcam -- webcam (slow)</option>
+          <option value="lowlatency">lowlatency - low latency (fast)</option>
+          <option value="ultralowlatency">ultralowlatency - ultra low latency (fastest)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
+        <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
+          <option value="enabled">enabled</option>
+          <option value="disabled">disabled (default)</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
+        <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
+          <option value="enabled">enabled (default)</option>
+          <option value="disabled">disabled</option>
+        </select>
+      </div>
+      <div class="mb-3">
         <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
         <select id="amd_coder" class="form-select" v-model="config.amd_coder">
           <option value="auto">auto -- let ffmpeg decide (default)</option>
@@ -806,6 +903,39 @@
 </div>
 
 <script>
+  // create dictionary for defaultConfig
+  const defaultConfig = {
+    "amd_coder": "auto",
+    "amd_preanalysis": "disabled",
+    "amd_quality": "balanced",
+    "amd_rc": "vbr_latency",
+    "amd_usage": "ultralowlatency",
+    "amd_vbaq": "enabled",
+    "controller": "enabled",
+    "dwmflush": "enabled",
+    "encoder": "",
+    "fps": "[10,30,60,90,120]",
+    "gamepad": "x360",
+    "hevc_mode": 0,
+    "key_rightalt_to_key_win": "disabled",
+    "keyboard": "enabled",
+    "min_log_level": 2,
+    "mouse": "enabled",
+    "nv_coder": "auto",
+    "nv_preset": "p4",
+    "nv_rc": "cbr",
+    "nv_tune": "ull",
+    "origin_pin_allowed": "pc",
+    "origin_web_ui_allowed": "lan",
+    "qsv_coder": "auto",
+    "qsv_preset": "medium",
+    "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]",
+    "upnp": "disabled",
+    "vt_coder": "auto",
+    "vt_realtime": "enabled",
+    "vt_software": "auto",
+  }
+
   new Vue({
     el: "#app",
     data() {
@@ -877,56 +1007,34 @@
           this.restart_supported = (this.config.restart_supported === "true");
 
           var app = document.getElementById("app");
-          if (this.platform == "windows") {
+          if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "va-api" && el.id !== "vt";
             });
           }
-          if (this.platform == "linux") {
+          if (this.platform === "linux") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
             });
           }
-          if (this.platform == "macos") {
+          if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "va-api";
             });
           }
 
-          delete this.config.status;
+          // remove values we don't want in the config file
           delete this.config.platform;
           delete this.config.restart_supported;
+          delete this.config.status;
+          delete this.config.version;
           //Populate default values if not present in config
-          this.config.key_rightalt_to_key_win =
-            this.config.key_rightalt_to_key_win || "disabled";
-          this.config.gamepad = this.config.gamepad || "x360";
-          this.config.upnp = this.config.upnp || "disabled";
-          this.config.dwmflush = this.config.dwmflush || "enabled";
-          this.config.min_log_level = this.config.min_log_level || 2;
-          this.config.origin_pin_allowed =
-            this.config.origin_pin_allowed || "pc";
-          this.config.origin_web_ui_allowed =
-            this.config.origin_web_ui_allowed || "lan";
-          this.config.hevc_mode = this.config.hevc_mode || 0;
-          this.config.encoder = this.config.encoder || "";
-          this.config.nv_preset = this.config.nv_preset || "p4";
-          this.config.nv_tune = this.config.nv_tune || "ull";
-          this.config.nv_coder = this.config.nv_coder || "auto";
-          this.config.nv_rc = this.config.nv_rc || "cbr";
-          this.config.qsv_preset = this.config.qsv_preset || "medium";
-          this.config.qsv_coder = this.config.qsv_coder || "auto";
-          this.config.amd_coder = this.config.amd_coder || "auto"
-          this.config.amd_quality = this.config.amd_quality || "balanced";
-          this.config.amd_rc = this.config.amd_rc || "vbr_latency";
-          this.config.vt_coder = this.config.vt_coder || "auto";
-          this.config.vt_software = this.config.vt_software || "auto";
-          this.config.vt_realtime = this.config.vt_realtime || "enabled";
-          this.config.sw_preset = this.config.sw_preset || "superfast";
-          this.config.sw_tune = this.config.sw_tune || "zerolatency";
-          this.config.fps = this.config.fps || "[10, 30, 60, 90, 120]";
-          this.config.resolutions =
-            this.config.resolutions ||
-            "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]";
+          for (let key in defaultConfig) {
+            if (this.config[key] === undefined) {
+              this.config[key] = defaultConfig[key]
+            }
+          }
+
           this.fps = JSON.parse(this.config.fps);
           //Resolutions should be fixed because are not valid JSON
           let res = this.config.resolutions.substring(
@@ -948,30 +1056,64 @@
           this.resolutions.join("," + nl + "    ") +
           nl +
           "]";
-        this.config.fps = JSON.stringify(this.fps);
+        // remove quotes from values in fps
+        this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
       },
       save() {
-        this.saved = this.restarted = false;
+        this.saved = false;
+        this.restarted = false;
         this.serialize();
-        fetch("/api/config", {
+
+        // create a temp copy of this.config to use for the post request
+        let config = JSON.parse(JSON.stringify(this.config))
+
+        // delete default values from this.config
+        for (let key in defaultConfig) {
+          let delete_value = false
+          if (key === "resolutions" || key === "fps") {
+            let regex = /([\d]+x[\d]+)/g
+            // Use a regular expression to find each value and replace it with a quoted version
+
+            let config_value = JSON.parse(config[key].replace(regex, '"$1"')).toString()
+            let default_value = JSON.parse(defaultConfig[key].replace(regex, '"$1"')).toString()
+
+            if (config_value === default_value) {
+              delete_value = true
+            }
+          }
+
+          if (config[key] === defaultConfig[key]) {
+            delete_value = true
+          }
+
+          if (delete_value) {
+            delete config[key]
+          }
+        }
+
+        return fetch("/api/config", {
           method: "POST",
-          body: JSON.stringify(this.config),
+          body: JSON.stringify(config),
         }).then((r) => {
-          if (r.status == 200) this.saved = true;
+          if (r.status === 200) {
+            this.saved = true
+            return this.saved
+          }
+          else {
+            return false
+          }
         });
       },
       apply() {
         this.saved = this.restarted = false;
-        this.serialize();
-        fetch("/api/config", {
-          method: "POST",
-          body: JSON.stringify(this.config),
-        }).then((r) => {
-          if (r.status == 200) {
+        let saved = this.save();
+
+        saved.then((result) => {
+          if (result === true) {
             fetch("/api/restart", {
-              method: "POST",
+              method: "POST"
             }).then((r) => {
-              if (r.status == 200) this.restarted = true;
+              if (r.status === 200) this.restarted = true;
             });
           }
         });

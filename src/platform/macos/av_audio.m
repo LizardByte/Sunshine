@@ -3,11 +3,32 @@
 @implementation AVAudio
 
 + (NSArray<AVCaptureDevice *> *)microphones {
-  AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone,
-    AVCaptureDeviceTypeExternalUnknown]
-                                                                                                             mediaType:AVMediaTypeAudio
-                                                                                                              position:AVCaptureDevicePositionUnspecified];
-  return discoverySession.devices;
+
+  if([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) { 10, 15, 0 })]) {
+    // This will generate a warning about AVCaptureDeviceDiscoverySession being
+    // unavailable before macOS 10.15, but we have a guard to prevent it from
+    // being called on those earlier systems.
+    // Unfortunately the supported way to silence this warning, using @available,
+    // produces linker errors for __isPlatformVersionAtLeast, so we have to use
+    // a different method.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone,
+      AVCaptureDeviceTypeExternalUnknown]
+                                                                                                               mediaType:AVMediaTypeAudio
+                                                                                                                position:AVCaptureDevicePositionUnspecified];
+    return discoverySession.devices;
+#pragma clang diagnostic pop
+  }
+  else {
+    // We're intentionally using a deprecated API here specifically for versions
+    // of macOS where it's not deprecated, so we can ignore any deprecation
+    // warnings:
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    return [AVCaptureDevice devicesWithMediaType:AVMediaTypeAudio];
+#pragma clang diagnostic pop
+  }
 }
 
 + (NSArray<NSString *> *)microphoneNames {

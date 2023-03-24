@@ -7,7 +7,7 @@
 #include <mutex>
 #include <utility>
 
-namespace util {
+namespace sync_util {
 
 template<class T, class M = std::mutex>
 class sync_t {
@@ -87,7 +87,7 @@ private:
   mutex_t _lock;
 };
 
-} // namespace util
+} // namespace sync_util
 
 
 #endif // SUNSHINE_SYNC_H
