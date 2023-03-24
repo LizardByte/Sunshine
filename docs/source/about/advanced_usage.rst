@@ -160,7 +160,7 @@ key_repeat_delay
 ^^^^^^^^^^^^^^^^
 
 **Description**
-   The initial delay in milliseconds before repeating keys. Controls how fast keys will repeat themselves.
+   The initial delay, in milliseconds, before repeating keys. Controls how fast keys will repeat themselves.
 
 **Default**
    ``500``
@@ -179,7 +179,7 @@ key_repeat_frequency
    .. Tip:: This configurable option supports decimals.
 
 **Default**
-   .. Todo:: Unknown
+   ``24.9``
 
 **Example**
    .. code-block:: text
@@ -197,7 +197,11 @@ keybindings
    .. Hint:: keybindings needs to have a multiple of two elements.
 
 **Default**
-   None
+   .. code-block:: text
+
+      0x10, 0xA0,
+      0x11, 0xA2,
+      0x12, 0xA4
 
 **Example**
    .. code-block:: text
@@ -217,7 +221,7 @@ key_rightalt_to_key_win
    make Sunshine think the Right Alt key is the Windows key.
 
 **Default**
-   None
+   ``disabled``
 
 **Example**
    .. code-block:: text
@@ -322,7 +326,7 @@ fps
       fps is supported.
 
 **Default**
-   .. Todo:: Unknown
+   ``[10, 30, 60, 90, 120]``
 
 **Example**
    .. code-block:: text
@@ -339,7 +343,20 @@ resolutions
       resolution is supported.
 
 **Default**
-   .. Todo:: Unknown
+   .. code-block:: text
+
+      [
+        352x240,
+        480x360,
+        858x480,
+        1280x720,
+        1920x1080,
+        2560x1080,
+        3440x1440,
+        1920x1200,
+        3860x2160,
+        3840x1600,
+      ]
 
 **Example**
    .. code-block:: text
@@ -493,7 +510,7 @@ port
    Mic (unused)     48002 UDP    +13
    ================ ============ ===========================
 
-.. Attention:: Custom ports are only allowed on select Moonlight clients.
+.. Attention:: Custom ports may not be supported by all Moonlight clients.
 
 **Default**
    ``47989``
@@ -510,7 +527,7 @@ pkey
    The private key. This must be 2048 bits.
 
 **Default**
-   .. Todo:: Unknown
+   ``credentials/cakey.pem``
 
 **Example**
    .. code-block:: text
@@ -524,7 +541,7 @@ cert
    The certificate. Must be signed with a 2048 bit key.
 
 **Default**
-   .. Todo:: Unknown
+   ``credentials/cacert.pem``
 
 **Example**
    .. code-block:: text
@@ -604,7 +621,7 @@ upnp
    =====     ===========
 
 **Default**
-   ``off``
+   ``disabled``
 
 **Example**
    .. code-block:: text
@@ -615,7 +632,7 @@ ping_timeout
 ^^^^^^^^^^^^
 
 **Description**
-   How long to wait in milliseconds for data from Moonlight before shutting down the stream.
+   How long to wait, in milliseconds, for data from Moonlight before shutting down the stream.
 
 **Default**
    ``10000``
