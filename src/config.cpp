@@ -351,7 +351,7 @@ video_t video {
     -1,
   }, // vt
 
-  {},  // capture method
+  {},  // capture
   {},  // encoder
   {},  // adapter_name
   {},  // output_name
