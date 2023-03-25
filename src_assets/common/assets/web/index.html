@@ -24,7 +24,18 @@
             <a class="btn btn-success m-1" :href="nightlyData.html_url" target="_blank">Download</a>
           </div>
           <pre><b>{{nightlyData.head_sha}}</b></pre>
-          <pre>{{nightlyData.display_title}}</pre>
+
+          <h4>Change Log</h4>
+          <div v-if="nightlyCommitCount > nightlyCommitLimit">You are currently {{nightlyCommitCount}} revisions behind.</div>
+          <div class="alert alert-danger">WARNING: You are currently {{nightlyCommitLimit}} or more revisions behind.
+            <p>The change log only shows up to {{nightlyCommitLimit}} changes from your current version, and will not accurately
+              reflect the latest features available. Please update to ensure you recieve the latest features.</p>
+          </div>
+          <ul>
+            <li v-for="(message, index) in nightlyCommitMessages" :key="index">
+              {{ message }}
+            </li>
+          </ul>
         </div>
       </div>
       <div v-if="stableBuildAvailable">
@@ -83,6 +94,8 @@
         githubVersion: null,
         nightlyData: null,
         loading: true,
+        nightlyCommitMessages: [],
+        nightlyCommitLimit: 20,
       }
     },
     async created() {
@@ -91,8 +104,9 @@
         this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
         if (this.version.split(".").length > 1) {
           this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&status=success&per_page=1").then((r) => r.json())).workflow_runs[0];
+          this.nightlyCommitMessages = await this.retrieveNightlyChangelog();
         }
-      } catch(e){
+      } catch (e) {
       }
       this.loading = false;
     },
@@ -124,11 +138,63 @@
         let commit = this.version.split(".").pop();
         // return true if the commit hash is different, otherwise false
         return this.nightlyData.head_sha.indexOf(commit) !== 0;
+      },
+      nightlyCommitCount() {
+        return this.nightlyCommitMessages.length;
       }
     },
     methods: {
       buildVersionIsStable() {
         return !this.version || !this.nightlyData || this.version.split(".").length === 3;
+      },
+      async retrieveNightlyChangelog() {
+        // Fetches the most recent commits for the "nightly" branch of the "LizardByte/Sunshine" repository using the GitHub API
+        const commits = await fetch(`https://api.github.com/repos/LizardByte/Sunshine/commits?sha=nightly&per_page=${this.nightlyCommitLimit}`).then(r => r.json());
+
+        // Defines a function that takes a commit SHA as an argument and returns the corresponding commit object from the fetched data
+        function findCommitById(commitSha) {
+          return commits.find(commit => commit.sha === commitSha);
+        }
+
+        // Using the commit object, return all the following commits after the provided one up to the maximum specified count.
+        function getNextCommits(commit, count) {
+          const nextCommits = [];
+          let currentCommit = commit;
+
+          // Iterates over the next commits using a loop that runs "count" number of times
+          for (let i = 0; i < count; i++) {
+            // Finds the parent commit of the current commit using the "findCommitById" function
+            const parentCommit = findCommitById(currentCommit.parents[0].sha);
+
+            // If there are no more parent commits, breaks the loop
+            if (!parentCommit) {
+              break;
+            }
+
+            // Adds the parent commit to the "nextCommits" array and sets it as the current commit
+            nextCommits.push(parentCommit);
+            currentCommit = parentCommit;
+          }
+
+          // Returns the array of next commits
+          return nextCommits;
+        }
+
+        // Calls the "findCommitById" function to get the current commit object based on the "nightlyData.head_sha" property, which is used to determine the current commit of this build.
+        const currentCommit = findCommitById(this.nightlyData.head_sha);
+
+        // If the current commit exists, calls the "getNextCommits" function to get an array of the next variable amount of commits after the current one
+        // This can be adjusted by changing the nightly commit limit.
+        if (currentCommit) {
+          const nextCommits = getNextCommits(currentCommit, this.nightlyCommitLimit);
+          // Maps over the commit objects to extract the commit messages, which are stored in an array
+          const commitMessages = nextCommits.map(commit => commit.commit.message);
+          // Returns the array of commit messages
+          return commitMessages;
+        } else {
+          // If the current commit does not exist, returns an empty array instead
+          return [];
+        }
       }
     }
   });
