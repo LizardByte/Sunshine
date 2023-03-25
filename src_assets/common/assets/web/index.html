@@ -26,14 +26,22 @@
           <pre><b>{{nightlyData.head_sha}}</b></pre>
 
           <h4>Change Log</h4>
-          <div v-if="nightlyCommitCount > nightlyCommitLimit">You are currently {{nightlyCommitCount}} revisions behind.</div>
-          <div class="alert alert-danger">WARNING: You are currently {{nightlyCommitLimit}} or more revisions behind.
-            <p>The change log only shows up to {{nightlyCommitLimit}} changes from your current version, and will not accurately
-              reflect the latest features available. Please update to ensure you recieve the latest features.</p>
+          <div v-if="nightlyCommitCount < nightlyCommitLimit">You are currently {{nightlyCommitCount}} revisions behind.
+          </div>
+          <div v-else class="alert alert-danger">WARNING: You are currently {{nightlyCommitLimit}} or more revisions
+            behind.
+            <p>The change log only shows up to {{nightlyCommitLimit}} changes from the most recent version, and will not
+              accurately reflect the latest features available.</p>
           </div>
           <ul>
             <li v-for="(message, index) in nightlyCommitMessages" :key="index">
-              {{ message }}
+              <!-- Save the result of getPrNumber to a variable, so we don't have to call it twice -->
+              <template v-if="(prNumber = getPrNumber(message))">
+                <a target="_blank" :href="`https://github.com/LizardByte/Sunshine/pulls/${prNumber}`">{{ message }}</a>
+              </template>
+              <template v-else>
+                {{ message }}
+              </template>
             </li>
           </ul>
         </div>
@@ -148,53 +156,39 @@
         return !this.version || !this.nightlyData || this.version.split(".").length === 3;
       },
       async retrieveNightlyChangelog() {
-        // Fetches the most recent commits for the "nightly" branch of the "LizardByte/Sunshine" repository using the GitHub API
-        const commits = await fetch(`https://api.github.com/repos/LizardByte/Sunshine/commits?sha=nightly&per_page=${this.nightlyCommitLimit}`).then(r => r.json());
-
-        // Defines a function that takes a commit SHA as an argument and returns the corresponding commit object from the fetched data
-        function findCommitById(commitSha) {
-          return commits.find(commit => commit.sha === commitSha);
-        }
-
-        // Using the commit object, return all the following commits after the provided one up to the maximum specified count.
-        function getNextCommits(commit, count) {
-          const nextCommits = [];
-          let currentCommit = commit;
-
-          // Iterates over the next commits using a loop that runs "count" number of times
-          for (let i = 0; i < count; i++) {
-            // Finds the parent commit of the current commit using the "findCommitById" function
-            const parentCommit = findCommitById(currentCommit.parents[0].sha);
-
-            // If there are no more parent commits, breaks the loop
-            if (!parentCommit) {
-              break;
-            }
-
-            // Adds the parent commit to the "nextCommits" array and sets it as the current commit
-            nextCommits.push(parentCommit);
-            currentCommit = parentCommit;
-          }
-
-          // Returns the array of next commits
-          return nextCommits;
-        }
-
-        // Calls the "findCommitById" function to get the current commit object based on the "nightlyData.head_sha" property, which is used to determine the current commit of this build.
-        const currentCommit = findCommitById(this.nightlyData.head_sha);
-
-        // If the current commit exists, calls the "getNextCommits" function to get an array of the next variable amount of commits after the current one
-        // This can be adjusted by changing the nightly commit limit.
-        if (currentCommit) {
-          const nextCommits = getNextCommits(currentCommit, this.nightlyCommitLimit);
-          // Maps over the commit objects to extract the commit messages, which are stored in an array
-          const commitMessages = nextCommits.map(commit => commit.commit.message);
-          // Returns the array of commit messages
-          return commitMessages;
-        } else {
-          // If the current commit does not exist, returns an empty array instead
+        // This shouldn't happen, but just in case we will return back empty commit log.
+        if(buildVersionIsStable()){
           return [];
         }
+
+        // Fetches the commits for the nightly build from the GitHub API
+        const commits = await fetch(`https://api.github.com/repos/LizardByte/Sunshine/commits?sha=nightly&per_page=${this.nightlyCommitLimit}`).then(r => r.json());
+
+        // Finds the currently installed commit by using the fourth split of the version number as its SHA
+        const currentlyInstalledCommit = commits.find(commit => commit.sha === this.version.split('.')[3]);
+
+        // If the currently installed commit is found, retrieve the commit messages for the commits since it was installed
+        if (currentlyInstalledCommit) {
+          const commitCount = commits.indexOf(currentlyInstalledCommit);
+          const nextCommits = commits.slice(0, commitCount);
+          return nextCommits.map(commit => commit.commit.message);
+        }
+        // If the currently installed commit is not found, return all commits as this means the user has a build older than the defined limit.
+        else {
+          return commits.map(commit => commit.commit.message);
+        }
+      },
+      getPrNumber(commitMessage) {
+        // Use a regular expression to search for a PR number in the commit message
+        const match = /#(\d+)/.exec(commitMessage);    // If a match is found, return the PR number as an integer
+        if (match) {
+          // The PR number is the first captured group in the match, which is the digits after the "#" character
+          const prNumber = parseInt(match[1]);
+          return prNumber;
+        }
+
+        // If no match was found, return 0
+        return 0;
       }
     }
   });
