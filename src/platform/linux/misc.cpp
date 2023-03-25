@@ -561,7 +561,7 @@ std::unique_ptr<deinit_t> init() {
 #endif
 
   if(sources.none()) {
-    BOOST_LOG(error) << "Unable to initialize capture method";
+    BOOST_LOG(error) << "Unable to initialize capture method"sv;
     return nullptr;
   }
 
