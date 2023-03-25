@@ -595,7 +595,7 @@
       <div class="mb-3" v-if="platform === 'linux'">
         <label for="capture" class="form-label">Force a Specific Capture Method</label>
         <select id="capture" class="form-select" v-model="config.capture">
-          <option value>Autodetect</option>
+          <option value="">Autodetect</option>
           <option value="nvfbc">NvFBC</option>
           <option value="wlr">wlroots</option>
           <option value="kms">KMS</option>
@@ -609,7 +609,7 @@
       <div class="mb-3">
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
-          <option value>Autodetect</option>
+          <option value="">Autodetect</option>
           <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
           <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
           <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
