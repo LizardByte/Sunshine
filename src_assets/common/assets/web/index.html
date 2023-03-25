@@ -117,7 +117,7 @@
         return v !== this.version.split(".")[0];
       },
       nightlyBuildAvailable() {
-        if (this.buildVersionIsStable()) { return false };
+        if (this.buildVersionIsStable()) return false;
         // If built with dirty git tree, return false
         if (this.version.indexOf("dirty") !== -1) return false;
         // Get the commit hash
