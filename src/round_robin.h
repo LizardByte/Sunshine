@@ -5,14 +5,15 @@
 
 namespace round_robin_util {
 template<class V, class T>
-class it_wrap_t : public std::iterator<std::random_access_iterator_tag, V> {
+class it_wrap_t {
 public:
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = V;
+  using difference_type = V;
+  using pointer = V*;
+  using reference = V&;
+
   typedef T iterator;
-  typedef typename std::iterator<std::random_access_iterator_tag, V>::value_type class_t;
-
-  typedef class_t &reference;
-  typedef class_t *pointer;
-
   typedef std::ptrdiff_t diff_t;
 
   iterator operator+=(diff_t step) {
