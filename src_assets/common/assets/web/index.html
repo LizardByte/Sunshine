@@ -107,10 +107,16 @@
         let v = this.githubVersion.name;
         // If the version starts with a v, remove it
         if (v.indexOf("v") === 0) v = v.substring(1);
+
+        // if nightly, we do an additional check to make sure its an actual upgrade.
+        if (this.version.split('.').length > 3) {
+          const stableVersion = this.version.split('.').slice(0, 3).join('.');
+          return this.githubVersion.tag_name.substring(1) > stableVersion;
+        }
+
         // return true if the version is different, otherwise false
         return v !== this.version.split(".")[0];
       },
-      // Check for new nightly version
       hasNewNightly() {
         // If we're not on a nightly build, just return false
         // If length of version split is 3, we're on a stable build
@@ -118,7 +124,7 @@
         // If built with dirty git tree, return false
         if (this.version.indexOf("dirty") !== -1) return false;
         // Get the commit hash
-        let commit = this.version.split(".")[-1];
+        let commit = this.version.split(".").pop();
         // return true if the commit hash is different, otherwise false
         return this.nightlyData.head_sha.indexOf(commit) !== 0;
       }
