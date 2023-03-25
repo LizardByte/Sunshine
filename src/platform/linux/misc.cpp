@@ -1,3 +1,11 @@
+/**
+ * @file misc.cpp
+ */
+
+// standard includes
+#include <fstream>
+
+// lib includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -5,8 +13,8 @@
 #include <netinet/udp.h>
 #include <pwd.h>
 #include <unistd.h>
-
-#include <fstream>
+#include <boost/asio/ip/address.hpp>
+#include <boost/process.hpp>
 
 // local includes
 #include "graphics.h"
@@ -15,10 +23,6 @@
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
-
-// lib includes
-#include <boost/asio/ip/address.hpp>
-#include <boost/process.hpp>
 
 #ifdef __GNUC__
 #define SUNSHINE_GNUC_EXTENSION __extension__
