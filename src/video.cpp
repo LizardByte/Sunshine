@@ -766,7 +766,7 @@ void captureThread(
   }
   display_wp = disp;
 
-  std::vector<std::shared_ptr<platf::img_t>> imgs(12);
+  std::vector<std::shared_ptr<platf::img_t>> imgs(config::video.preloaded_frames);
   auto round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
 
   for(auto &img : imgs) {

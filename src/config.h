@@ -16,6 +16,7 @@ struct video_t {
   int hevc_mode;
 
   int min_threads; // Minimum number of threads/slices for CPU encoding
+  int preloaded_frames; // Number of frames to preload in the image buffer
   struct {
     std::string sw_preset;
     std::string sw_tune;
@@ -56,6 +57,7 @@ struct video_t {
   std::string encoder;
   std::string adapter_name;
   std::string output_name;
+
   bool dwmflush;
 };
 

@@ -517,6 +517,20 @@
           <pre>   0: +HDMI-1 1920/518x1200/324+0+0 HDMI-1</pre>
         </div>
       </div>
+      <div class="mb-3">
+          <label for="qp" class="form-label">Preloaded Frame Count</label>
+          <input
+            type="number"
+            class="form-control"
+            id="min_fps_target"
+            placeholder="3"
+            v-model="config.preloaded_frames"
+          />
+          <div class="form-text">
+            Preloaded frames improve stability of streams but at the expense of using more VRAM. <br/>
+            The more frames preloaded, the more stable the stream will be but it will consume a large amount of VRAM. <br/>
+            Stronger hardware can handle fewer preloaded frames and users should experiment to find the best balance for their system.
+          </div>
     </div>
     <div v-if="currentTab === 'advanced'" class="config-page">
       <!--Port family-->
@@ -942,6 +956,7 @@
     "nv_tune": "ull",
     "origin_pin_allowed": "pc",
     "origin_web_ui_allowed": "lan",
+    "preloaded_frames": 12,
     "qsv_coder": "auto",
     "qsv_preset": "medium",
     "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]",
