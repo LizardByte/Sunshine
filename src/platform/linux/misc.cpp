@@ -1,4 +1,14 @@
+/**
+ * @file misc.cpp
+ */
+
+// standard includes
+#include <fstream>
+
+// lib includes
 #include <arpa/inet.h>
+#include <boost/asio/ip/address.hpp>
+#include <boost/process.hpp>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
@@ -6,17 +16,13 @@
 #include <pwd.h>
 #include <unistd.h>
 
-#include <fstream>
-
+// local includes
 #include "graphics.h"
 #include "misc.h"
-#include "vaapi.h"
-
+#include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
-
-#include <boost/asio/ip/address.hpp>
-#include <boost/process.hpp>
+#include "vaapi.h"
 
 #ifdef __GNUC__
 #define SUNSHINE_GNUC_EXTENSION __extension__
@@ -518,34 +524,44 @@ std::unique_ptr<deinit_t> init() {
     window_system = window_system_e::X11;
   }
 #endif
+
 #ifdef SUNSHINE_BUILD_CUDA
-  if(verify_nvfbc()) {
-    sources[source::NVFBC] = true;
+  if(config::video.capture.empty() || config::video.capture == "nvfbc") {
+    if(verify_nvfbc()) {
+      sources[source::NVFBC] = true;
+    }
   }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-  if(verify_wl()) {
-    sources[source::WAYLAND] = true;
+  if(config::video.capture.empty() || config::video.capture == "wlr") {
+    if(verify_wl()) {
+      sources[source::WAYLAND] = true;
+    }
   }
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-  if(verify_kms()) {
-    if(window_system == window_system_e::WAYLAND) {
-      // On Wayland, using KMS, the cursor is unreliable.
-      // Hide it by default
-      display_cursor = false;
+  if(config::video.capture.empty() || config::video.capture == "kms") {
+    if(verify_kms()) {
+      if(window_system == window_system_e::WAYLAND) {
+        // On Wayland, using KMS, the cursor is unreliable.
+        // Hide it by default
+        display_cursor = false;
+      }
     }
 
     sources[source::KMS] = true;
   }
 #endif
 #ifdef SUNSHINE_BUILD_X11
-  if(verify_x11()) {
-    sources[source::X11] = true;
+  if(config::video.capture.empty() || config::video.capture == "x11") {
+    if(verify_x11()) {
+      sources[source::X11] = true;
+    }
   }
 #endif
 
   if(sources.none()) {
+    BOOST_LOG(error) << "Unable to initialize capture method"sv;
     return nullptr;
   }
 

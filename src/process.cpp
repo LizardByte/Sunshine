@@ -71,9 +71,9 @@ boost::filesystem::path find_working_directory(const std::string &cmd, bp::envir
 
   BOOST_LOG(debug) << "Parsed executable ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
 
-  // If the cmd path is not a complete path, resolve it using our PATH variable
+  // If the cmd path is not an absolute path, resolve it using our PATH variable
   boost::filesystem::path cmd_path(parts.at(0));
-  if(!cmd_path.is_complete()) {
+  if(!cmd_path.is_absolute()) {
     cmd_path = boost::process::search_path(parts.at(0));
     if(cmd_path.empty()) {
       BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
