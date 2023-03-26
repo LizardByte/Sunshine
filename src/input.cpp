@@ -21,7 +21,7 @@ using namespace std::literals;
 namespace input {
 
 constexpr auto MAX_GAMEPADS = std::min((std::size_t)platf::MAX_GAMEPADS, sizeof(std::int16_t) * 8);
-#define DISABLE_LEFT_BUTTON_DELAY ((util::ThreadPool::task_id_t)0x01)
+#define DISABLE_LEFT_BUTTON_DELAY ((thread_pool_util::ThreadPool::task_id_t)0x01)
 #define ENABLE_LEFT_BUTTON_DELAY nullptr
 
 constexpr auto VKEY_SHIFT    = 0x10;
@@ -57,7 +57,7 @@ void free_id(std::bitset<N> &gamepad_mask, int id) {
   gamepad_mask[id] = false;
 }
 
-static util::TaskPool::task_id_t key_press_repeat_id {};
+static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
 static std::unordered_map<short, bool> key_press {};
 static std::array<std::uint8_t, 5> mouse_press {};
 
@@ -82,7 +82,7 @@ struct gamepad_t {
 
   platf::gamepad_state_t gamepad_state;
 
-  util::ThreadPool::task_id_t back_timeout_id;
+  thread_pool_util::ThreadPool::task_id_t back_timeout_id;
 
   int id;
 
@@ -123,7 +123,7 @@ struct input_t {
   safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;
   platf::rumble_queue_t rumble_queue;
 
-  util::ThreadPool::task_id_t mouse_left_button_timeout;
+  thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;
 
   input::touch_port_t touch_port;
 };
@@ -263,11 +263,19 @@ void print(void *payload) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   input->mouse_left_button_timeout = DISABLE_LEFT_BUTTON_DELAY;
   platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   if(input->mouse_left_button_timeout == DISABLE_LEFT_BUTTON_DELAY) {
     input->mouse_left_button_timeout = ENABLE_LEFT_BUTTON_DELAY;
   }
@@ -313,6 +321,10 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET pack
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   auto release = util::endian::little(packet->header.magic) == MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5;
   auto button  = util::endian::big(packet->button);
   if(button > 0 && button < mouse_press.size()) {
@@ -430,6 +442,10 @@ void repeat_key(short key_code) {
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
+  if(!config::input.keyboard) {
+    return;
+  }
+
   auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
   auto keyCode = packet->keyCode & 0x00FF;
 
@@ -467,14 +483,26 @@ void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
 }
 
 void passthrough(PNV_SCROLL_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
 }
 
 void passthrough(PSS_HSCROLL_PACKET packet) {
+  if(!config::input.mouse) {
+    return;
+  }
+
   platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
 }
 
 void passthrough(PNV_UNICODE_PACKET packet) {
+  if(!config::input.keyboard) {
+    return;
+  }
+
   auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
   platf::unicode(platf_input, packet->text, size);
 }
@@ -521,6 +549,10 @@ int updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std
 }
 
 void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+  if(!config::input.controller) {
+    return;
+  }
+
   if(updateGamepads(input->gamepads, input->active_gamepad_state, packet->activeGamepadMask, input->rumble_queue)) {
     return;
   }
@@ -653,7 +685,7 @@ void passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t
 }
 
 void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
-  task_pool.push(passthrough_helper, input, util::cmove(input_data));
+  task_pool.push(passthrough_helper, input, move_by_copy_util::cmove(input_data));
 }
 
 void reset(std::shared_ptr<input_t> &input) {

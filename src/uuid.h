@@ -5,7 +5,7 @@
 
 #include <random>
 
-namespace util {
+namespace uuid_util {
 union uuid_t {
   std::uint8_t b8[16];
   std::uint16_t b16[8];
@@ -73,5 +73,5 @@ union uuid_t {
     return (b64[0] > other.b64[0] || (b64[0] == other.b64[0] && b64[1] > other.b64[1]));
   }
 };
-} // namespace util
+} // namespace uuid_util
 #endif // T_MAN_UUID_H

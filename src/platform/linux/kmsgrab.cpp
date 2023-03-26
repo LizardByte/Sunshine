@@ -172,7 +172,7 @@ static std::uint32_t from_view(const std::string_view &string) {
   return DRM_MODE_CONNECTOR_Unknown;
 }
 
-class plane_it_t : public util::it_wrap_t<plane_t::element_type, plane_it_t> {
+class plane_it_t : public round_robin_util::it_wrap_t<plane_t::element_type, plane_it_t> {
 public:
   plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end)
       : fd { fd }, plane_p { plane_p }, end { end } {
@@ -995,6 +995,7 @@ std::vector<std::string> kms_display_names() {
 
   if(!fs::exists("/dev/dri")) {
     BOOST_LOG(warning) << "Couldn't find /dev/dri, kmsgrab won't be enabled"sv;
+    return {};
   }
 
   if(!gbm::create_device) {

@@ -1,0 +1,4 @@
+config
+======
+
+.. doxygenfile:: config.h

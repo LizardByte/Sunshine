@@ -13,7 +13,7 @@
 
 #include "move_by_copy.h"
 #include "utility.h"
-namespace util {
+namespace task_pool_util {
 
 class _ImplBase {
 public:
@@ -241,5 +241,5 @@ private:
     return std::make_unique<_Impl<Function>>(std::forward<Function &&>(f));
   }
 };
-} // namespace util
+} // namespace task_pool_util
 #endif

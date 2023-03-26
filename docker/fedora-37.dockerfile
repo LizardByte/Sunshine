@@ -2,6 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64
+# no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=fedora
 ARG TAG=37
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -10,6 +11,15 @@ FROM sunshine-base as sunshine-build
 
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
+
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
@@ -24,6 +34,8 @@ dnf -y install \
   cmake-3.24.1* \
   gcc-12.2.1* \
   gcc-c++-12.2.1* \
+  git-2.39.2* \
+  libappindicator-gtk3-devel-12.10.1* \
   libcap-devel-2.48* \
   libcurl-devel-7.85.0* \
   libdrm-devel-2.4.112* \
@@ -78,7 +90,7 @@ _INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY .. .
+COPY --link .. .
 
 # setup npm dependencies
 RUN npm install
@@ -109,12 +121,12 @@ FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
-COPY --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
 FROM sunshine-base as sunshine
 
 # copy deb from builder
-COPY --from=artifacts /sunshine*.rpm /sunshine.rpm
+COPY --link --from=artifacts /sunshine*.rpm /sunshine.rpm
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE

@@ -8,6 +8,7 @@
 from datetime import datetime
 import os
 import re
+import subprocess
 
 
 # -- Path setup --------------------------------------------------------------
@@ -43,9 +44,11 @@ To use cmake method for obtaining version instead of regex,
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'breathe',  # c++ support for sphinx with doxygen
     'm2r2',  # enable markdown files
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.todo',  # enable to-do sections
+    'sphinx.ext.graphviz',  # enable graphs for breathe
     'sphinx.ext.viewcode',  # add links to view source code
     'sphinx_copybutton',  # add a copy button to code blocks
 ]
@@ -64,12 +67,14 @@ source_suffix = ['.rst', '.md']
 
 # -- Options for HTML output -------------------------------------------------
 
+# images
+html_favicon = os.path.join(root_dir, 'src_assets', 'common', 'assets', 'web', 'images', 'favicon.ico')
+html_logo = os.path.join(root_dir, 'sunshine.png')
+
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 # html_static_path = ['_static']
-
-html_logo = os.path.join(root_dir, 'sunshine.png')
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
@@ -82,4 +87,12 @@ html_theme_options = {
 
 # extension config options
 autosectionlabel_prefix_document = True  # Make sure the target is unique
+breathe_default_project = 'src'
+breathe_implementation_filename_extensions = ['.c', '.cc', '.cpp', '.mm']
+breathe_order_parameters_first = False
+breathe_projects = dict(
+    src="../build/doxyxml"
+)
 todo_include_todos = True
+
+subprocess.run('doxygen', shell=True, cwd=source_dir)

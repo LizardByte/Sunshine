@@ -2,6 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64
+# no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=debian
 ARG TAG=bullseye
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -13,6 +14,15 @@ FROM sunshine-base as sunshine-build
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
 
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
 RUN <<_DEPS
@@ -22,8 +32,10 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential=12.9* \
   cmake=3.18.4* \
+  git=1:2.30.2* \
   libavdevice-dev=7:4.3.* \
   libboost-filesystem-dev=1.74.0* \
+  libboost-locale-dev=1.74.0* \
   libboost-log-dev=1.74.0* \
   libboost-program-options-dev=1.74.0* \
   libboost-thread-dev=1.74.0* \
@@ -80,7 +92,7 @@ _INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY .. .
+COPY --link .. .
 
 # setup npm dependencies
 RUN npm install
@@ -111,12 +123,12 @@ FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
-COPY --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
 
 FROM sunshine-base as sunshine
 
 # copy deb from builder
-COPY --from=artifacts /sunshine*.deb /sunshine.deb
+COPY --link --from=artifacts /sunshine*.deb /sunshine.deb
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE

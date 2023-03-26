@@ -7,7 +7,7 @@ Performance Tips
 
 AMD
 ^^^
-In Windows, enabling `Enahanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
+In Windows, enabling `Enhanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
 applies to `amfenc` and `libx264`.
 
 Nvidia
@@ -160,7 +160,7 @@ key_repeat_delay
 ^^^^^^^^^^^^^^^^
 
 **Description**
-   The initial delay in milliseconds before repeating keys. Controls how fast keys will repeat themselves.
+   The initial delay, in milliseconds, before repeating keys. Controls how fast keys will repeat themselves.
 
 **Default**
    ``500``
@@ -179,7 +179,7 @@ key_repeat_frequency
    .. Tip:: This configurable option supports decimals.
 
 **Default**
-   .. Todo:: Unknown
+   ``24.9``
 
 **Example**
    .. code-block:: text
@@ -197,7 +197,11 @@ keybindings
    .. Hint:: keybindings needs to have a multiple of two elements.
 
 **Default**
-   None
+   .. code-block:: text
+
+      0x10, 0xA0,
+      0x11, 0xA2,
+      0x12, 0xA4
 
 **Example**
    .. code-block:: text
@@ -217,7 +221,7 @@ key_rightalt_to_key_win
    make Sunshine think the Right Alt key is the Windows key.
 
 **Default**
-   None
+   ``disabled``
 
 **Example**
    .. code-block:: text
@@ -322,7 +326,7 @@ fps
       fps is supported.
 
 **Default**
-   .. Todo:: Unknown
+   ``[10, 30, 60, 90, 120]``
 
 **Example**
    .. code-block:: text
@@ -339,7 +343,20 @@ resolutions
       resolution is supported.
 
 **Default**
-   .. Todo:: Unknown
+   .. code-block:: text
+
+      [
+        352x240,
+        480x360,
+        858x480,
+        1280x720,
+        1920x1080,
+        2560x1080,
+        3440x1440,
+        1920x1200,
+        3860x2160,
+        3840x1600,
+      ]
 
 **Example**
    .. code-block:: text
@@ -411,6 +428,8 @@ audio_sink
 
             tools\audio-info.exe
 
+   .. Tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
+
 **Default**
    Sunshine will select the default audio device.
 
@@ -439,8 +458,13 @@ virtual_sink
 
    .. Tip:: See `audio_sink`_!
 
-**Default**
-   .. Todo:: Unknown
+   .. Tip:: These are some options for virtual sound devices.
+
+      - Stream Streaming Speakers (Linux, macOS, Windows)
+
+        - To use this option, you must have Steam installed and have used Stream remote play at least once.
+
+      - `Virtual Audio Cable <https://vb-audio.com/Cable/>`_ (macOS, Windows)
 
 **Example**
    .. code-block:: text
@@ -486,7 +510,7 @@ port
    Mic (unused)     48002 UDP    +13
    ================ ============ ===========================
 
-.. Attention:: Custom ports are only allowed on select Moonlight clients.
+.. Attention:: Custom ports may not be supported by all Moonlight clients.
 
 **Default**
    ``47989``
@@ -503,7 +527,7 @@ pkey
    The private key. This must be 2048 bits.
 
 **Default**
-   .. Todo:: Unknown
+   ``credentials/cakey.pem``
 
 **Example**
    .. code-block:: text
@@ -517,7 +541,7 @@ cert
    The certificate. Must be signed with a 2048 bit key.
 
 **Default**
-   .. Todo:: Unknown
+   ``credentials/cacert.pem``
 
 **Example**
    .. code-block:: text
@@ -597,7 +621,7 @@ upnp
    =====     ===========
 
 **Default**
-   ``off``
+   ``disabled``
 
 **Example**
    .. code-block:: text
@@ -608,7 +632,7 @@ ping_timeout
 ^^^^^^^^^^^^
 
 **Description**
-   How long to wait in milliseconds for data from Moonlight before shutting down the stream.
+   How long to wait, in milliseconds, for data from Moonlight before shutting down the stream.
 
 **Default**
    ``10000``
@@ -728,6 +752,40 @@ hevc_mode
 
       hevc_mode = 2
 
+capture
+^^^^^^^
+
+**Description**
+   Force specific screen capture method.
+
+   .. Caution:: Applies to Linux only.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =========  ===========
+   Value      Description
+   =========  ===========
+   nvfbc      Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for
+              NVIDIA cards. For GeForce cards it will only work with drivers patched with
+              `nvidia-patch <https://github.com/keylase/nvidia-patch/>`_
+              or `nvlax <https://github.com/keylase/nvidia-patch/>`_.
+   wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
+   kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability.
+              See :ref:`Linux Setup <about/usage:setup>`.
+   x11        Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
+   =========  ===========
+   
+**Default**
+   Automatic. Sunshine will use the first capture method available in the order of the table above.
+
+**Example**
+   .. code-block:: text
+
+      capture = kms
+      
 encoder
 ^^^^^^^
 
@@ -784,11 +842,9 @@ sw_preset
    ultrafast fastest
    superfast
    veryfast
-   superfast
    faster
    fast
    medium
-   slow
    slow
    slower
    veryslow  slowest

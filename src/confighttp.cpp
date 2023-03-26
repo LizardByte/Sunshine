@@ -33,6 +33,7 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
+#include "version.h"
 
 using namespace std::literals;
 
@@ -503,6 +504,7 @@ void getConfig(resp_https_t response, req_https_t request) {
 
   outputTree.put("status", "true");
   outputTree.put("platform", SUNSHINE_PLATFORM);
+  outputTree.put("version", PROJECT_VER);
   outputTree.put("restart_supported", platf::restart_supported());
 
   auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));

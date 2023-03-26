@@ -1,22 +1,23 @@
-// Created by loki on 6/3/19.
+/**
+* @file nvhttp.h
+*/
 
+// macros
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
-#include "process.h"
-
+// standard includes
 #include <filesystem>
 
+// lib includes
+#include <Simple-Web-Server/server_http.hpp>
+#include <Simple-Web-Server/server_https.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/context_base.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 
-#include <boost/asio/ssl/context.hpp>
-
-#include <Simple-Web-Server/server_http.hpp>
-#include <Simple-Web-Server/server_https.hpp>
-#include <boost/asio/ssl/context_base.hpp>
-
-
+// local includes
 #include "config.h"
 #include "crypto.h"
 #include "httpcommon.h"
@@ -24,16 +25,13 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "process.h"
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
 
 using namespace std::literals;
 namespace nvhttp {
-
-// The negative 4th version number tells Moonlight that this is Sunshine
-constexpr auto VERSION     = "7.1.431.-1";
-constexpr auto GFE_VERSION = "3.23.0.74";
 
 namespace fs = std::filesystem;
 namespace pt = boost::property_tree;
@@ -202,7 +200,7 @@ void save_state() {
 void load_state() {
   if(!fs::exists(config::nvhttp.file_state)) {
     BOOST_LOG(info) << "File "sv << config::nvhttp.file_state << " doesn't exist"sv;
-    http::unique_id = util::uuid_t::generate().string();
+    http::unique_id = uuid_util::uuid_t::generate().string();
     return;
   }
 
@@ -219,7 +217,7 @@ void load_state() {
   auto unique_id_p = root.get_optional<std::string>("root.uniqueid");
   if(!unique_id_p) {
     // This file doesn't contain moonlight credentials
-    http::unique_id = util::uuid_t::generate().string();
+    http::unique_id = uuid_util::uuid_t::generate().string();
     return;
   }
   http::unique_id = std::move(*unique_id_p);
@@ -255,8 +253,8 @@ void update_id_client(const std::string &uniqueID, std::string &&cert, op_e op) 
   }
 }
 
-stream::launch_session_t make_launch_session(bool host_audio, const args_t &args) {
-  stream::launch_session_t launch_session;
+rtsp_stream::launch_session_t make_launch_session(bool host_audio, const args_t &args) {
+  rtsp_stream::launch_session_t launch_session;
 
   launch_session.host_audio = host_audio;
   launch_session.gcm_key    = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
@@ -512,6 +510,16 @@ void pair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_
   }
 }
 
+/**
+ * @brief Compare the user supplied pin to the Moonlight pin.
+ * @param pin The user supplied pin.
+ * @return `true` if the pin is correct, `false` otherwise.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * bool pin_status = nvhttp::pin("1234");
+ * ```
+ */
 bool pin(std::string pin) {
   pt::ptree tree;
   if(map_id_sess.empty()) {
@@ -707,7 +715,7 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
     response->close_connection_after_response = true;
   });
 
-  if(stream::session_count() == config::stream.channels) {
+  if(rtsp_stream::session_count() == config::stream.channels) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
@@ -748,10 +756,10 @@ void launch(bool &host_audio, resp_https_t response, req_https_t request) {
   }
 
   host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-  stream::launch_session_raise(make_launch_session(host_audio, args));
+  rtsp_stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
-  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
+  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
   tree.put("root.gamesession", 1);
 }
 
@@ -769,7 +777,7 @@ void resume(bool &host_audio, resp_https_t response, req_https_t request) {
 
   // It is possible that due a race condition that this if-statement gives a false negative,
   // that is automatically resolved in rtsp_server_t
-  if(stream::session_count() == config::stream.channels) {
+  if(rtsp_stream::session_count() == config::stream.channels) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
@@ -795,10 +803,10 @@ void resume(bool &host_audio, resp_https_t response, req_https_t request) {
     return;
   }
 
-  stream::launch_session_raise(make_launch_session(host_audio, args));
+  rtsp_stream::launch_session_raise(make_launch_session(host_audio, args));
 
   tree.put("root.<xmlattr>.status_code", 200);
-  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(stream::RTSP_SETUP_PORT)));
+  tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
   tree.put("root.resume", 1);
 }
 
@@ -816,7 +824,7 @@ void cancel(resp_https_t response, req_https_t request) {
 
   // It is possible that due a race condition that this if-statement gives a false positive,
   // the client should try again
-  if(stream::session_count() != 0) {
+  if(rtsp_stream::session_count() != 0) {
     tree.put("root.resume", 0);
     tree.put("root.<xmlattr>.status_code", 503);
 
@@ -845,6 +853,14 @@ void appasset(resp_https_t response, req_https_t request) {
   response->close_connection_after_response = true;
 }
 
+/**
+ * @brief Start the nvhttp server.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * nvhttp::start();
+ * ```
+ */
 void start() {
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -892,8 +908,7 @@ void start() {
 
       X509_NAME_oneline(X509_get_subject_name(x509), subject_name, sizeof(subject_name));
 
-
-      BOOST_LOG(info) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
+      BOOST_LOG(debug) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
     });
 
     while(add_cert->peek()) {
@@ -984,6 +999,14 @@ void start() {
   tcp.join();
 }
 
+/**
+ * @brief Remove all paired clients.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * nvhttp::erase_all_clients();
+ * ```
+ */
 void erase_all_clients() {
   map_id_client.clear();
   save_state();

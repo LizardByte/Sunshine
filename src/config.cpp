@@ -351,6 +351,7 @@ video_t video {
     -1,
   }, // vt
 
+  {},  // capture
   {},  // encoder
   {},  // adapter_name
   {},  // output_name
@@ -408,6 +409,10 @@ input_t input {
     platf::supported_gamepads().front().data(),
     platf::supported_gamepads().front().size(),
   }, // Default gamepad
+
+  true, // keyboard enabled
+  true, // mouse enabled
+  true, // controller enabled
 };
 
 sunshine_t sunshine {
@@ -838,46 +843,47 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "qp", video.qp);
   int_f(vars, "min_threads", video.min_threads);
   int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
-  string_f(vars, "sw_preset", video.sw.preset);
-  string_f(vars, "sw_tune", video.sw.tune);
-  int_f(vars, "nv_preset", video.nv.preset, nv::preset_from_view);
-  int_f(vars, "nv_tune", video.nv.tune, nv::tune_from_view);
-  int_f(vars, "nv_rc", video.nv.rc, nv::rc_from_view);
-  int_f(vars, "nv_coder", video.nv.coder, nv::coder_from_view);
+  string_f(vars, "sw_preset", video.sw.sw_preset);
+  string_f(vars, "sw_tune", video.sw.sw_tune);
+  int_f(vars, "nv_preset", video.nv.nv_preset, nv::preset_from_view);
+  int_f(vars, "nv_tune", video.nv.nv_tune, nv::tune_from_view);
+  int_f(vars, "nv_rc", video.nv.nv_rc, nv::rc_from_view);
+  int_f(vars, "nv_coder", video.nv.nv_coder, nv::coder_from_view);
 
-  int_f(vars, "qsv_preset", video.qsv.preset, qsv::preset_from_view);
-  int_f(vars, "qsv_coder", video.qsv.cavlc, qsv::coder_from_view);
+  int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
+  int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
 
   std::string quality;
   string_f(vars, "amd_quality", quality);
   if(!quality.empty()) {
-    video.amd.quality_h264 = amd::quality_from_view(quality, 1);
-    video.amd.quality_hevc = amd::quality_from_view(quality, 0);
+    video.amd.amd_quality_h264 = amd::quality_from_view(quality, 1);
+    video.amd.amd_quality_hevc = amd::quality_from_view(quality, 0);
   }
 
   std::string rc;
   string_f(vars, "amd_rc", rc);
-  int_f(vars, "amd_coder", video.amd.coder, amd::coder_from_view);
+  int_f(vars, "amd_coder", video.amd.amd_coder, amd::coder_from_view);
   if(!rc.empty()) {
-    video.amd.rc_h264 = amd::rc_from_view(rc, 1);
-    video.amd.rc_hevc = amd::rc_from_view(rc, 0);
+    video.amd.amd_rc_h264 = amd::rc_from_view(rc, 1);
+    video.amd.amd_rc_hevc = amd::rc_from_view(rc, 0);
   }
 
   std::string usage;
   string_f(vars, "amd_usage", usage);
   if(!usage.empty()) {
-    video.amd.usage_h264 = amd::usage_from_view(rc, 1);
-    video.amd.usage_hevc = amd::usage_from_view(rc, 0);
+    video.amd.amd_usage_h264 = amd::usage_from_view(rc, 1);
+    video.amd.amd_usage_hevc = amd::usage_from_view(rc, 0);
   }
 
-  bool_f(vars, "amd_preanalysis", (bool &)video.amd.preanalysis);
-  bool_f(vars, "amd_vbaq", (bool &)video.amd.vbaq);
+  bool_f(vars, "amd_preanalysis", (bool &)video.amd.amd_preanalysis);
+  bool_f(vars, "amd_vbaq", (bool &)video.amd.amd_vbaq);
 
-  int_f(vars, "vt_coder", video.vt.coder, vt::coder_from_view);
-  int_f(vars, "vt_software", video.vt.allow_sw, vt::allow_software_from_view);
-  int_f(vars, "vt_software", video.vt.require_sw, vt::force_software_from_view);
-  int_f(vars, "vt_realtime", video.vt.realtime, vt::rt_from_view);
+  int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
+  int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
+  int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
+  int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
+  string_f(vars, "capture", video.capture);
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
@@ -946,6 +952,10 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   }
 
   string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
+
+  bool_f(vars, "mouse", input.mouse);
+  bool_f(vars, "keyboard", input.keyboard);
+  bool_f(vars, "controller", input.controller);
 
   int port = sunshine.port;
   int_f(vars, "port"s, port);

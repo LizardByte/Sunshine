@@ -3,16 +3,17 @@
 
 #include <iterator>
 
-namespace util {
+namespace round_robin_util {
 template<class V, class T>
-class it_wrap_t : public std::iterator<std::random_access_iterator_tag, V> {
+class it_wrap_t {
 public:
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type        = V;
+  using difference_type   = V;
+  using pointer           = V *;
+  using reference         = V &;
+
   typedef T iterator;
-  typedef typename std::iterator<std::random_access_iterator_tag, V>::value_type class_t;
-
-  typedef class_t &reference;
-  typedef class_t *pointer;
-
   typedef std::ptrdiff_t diff_t;
 
   iterator operator+=(diff_t step) {
@@ -151,6 +152,6 @@ template<class V, class It>
 round_robin_t<V, It> make_round_robin(It begin, It end) {
   return round_robin_t<V, It>(begin, end);
 }
-} // namespace util
+} // namespace round_robin_util
 
 #endif
