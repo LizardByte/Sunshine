@@ -89,7 +89,7 @@
       try {
         this.version = (await fetch("/api/config").then((r) => r.json())).version;
         this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
-        if (!this.buildVersionIsStable()) {
+        if (this.buildVersionIsNightly()) {
           this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&status=success&per_page=1").then((r) => r.json())).workflow_runs[0];
         }
       } catch(e){
@@ -108,7 +108,7 @@
         if (v.indexOf("v") === 0) v = v.substring(1);
 
         // if nightly, we do an additional check to make sure its an actual upgrade.
-        if (!this.buildVersionIsStable()) {
+        if (this.buildVersionIsNightly()) {
           const stableVersion = this.version.split('.').slice(0, 3).join('.');
           return this.githubVersion.tag_name.substring(1) > stableVersion;
         }
@@ -117,18 +117,23 @@
         return v !== this.version.split(".")[0];
       },
       nightlyBuildAvailable() {
-        if (this.buildVersionIsStable()) return false;
+        // Verify nightly data is available and the build version is not stable
+        // This is important to ensure the UI does not try to load undefined values.
+        if (!this.nightlyData || this.buildVersionIsStable()) return false;
         // If built with dirty git tree, return false
-        if (this.version.indexOf("dirty") !== -1) return false;
+        if (this.version?.indexOf("dirty") !== -1) return false;
         // Get the commit hash
-        let commit = this.version.split(".").pop();
+        let commit = this.version?.split(".").pop();
         // return true if the commit hash is different, otherwise false
         return this.nightlyData.head_sha.indexOf(commit) !== 0;
       }
     },
     methods: {
       buildVersionIsStable() {
-        return this.version.split(".").length === 3 || !this.version || !this.nightlyData;
+        return this.version?.split(".").length === 3;
+      },
+      buildVersionIsNightly() {
+        return this.version?.split(".").length === 4
       }
     }
   });
