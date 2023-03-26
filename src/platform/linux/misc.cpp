@@ -7,22 +7,22 @@
 
 // lib includes
 #include <arpa/inet.h>
+#include <boost/asio/ip/address.hpp>
+#include <boost/process.hpp>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
 #include <netinet/udp.h>
 #include <pwd.h>
 #include <unistd.h>
-#include <boost/asio/ip/address.hpp>
-#include <boost/process.hpp>
 
 // local includes
 #include "graphics.h"
 #include "misc.h"
-#include "vaapi.h"
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
+#include "vaapi.h"
 
 #ifdef __GNUC__
 #define SUNSHINE_GNUC_EXTENSION __extension__
