@@ -530,12 +530,6 @@ std::unique_ptr<deinit_t> init() {
 #endif
 #ifdef SUNSHINE_BUILD_DRM
   if(verify_kms()) {
-    if(window_system == window_system_e::WAYLAND) {
-      // On Wayland, using KMS, the cursor is unreliable.
-      // Hide it by default
-      display_cursor = false;
-    }
-
     sources[source::KMS] = true;
   }
 #endif
