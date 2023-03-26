@@ -12,12 +12,12 @@
       <div v-if="loading">
         Loading Latest Release...
       </div>
-      <div v-else-if="!hasNewNightly && !hasNewStable">
+      <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable">
         <div class="alert alert-success">
           You're running the latest version of Sunshine
         </div>
       </div>
-      <div v-if="hasNewNightly">
+      <div v-if="nightlyBuildAvailable">
         <div class="alert alert-warning">
           <div class="d-flex justify-content-between">
             <div class="my-2">A new <b>Nightly</b> Version is Available!</div>
@@ -27,7 +27,7 @@
           <pre>{{nightlyData.display_title}}</pre>
         </div>
       </div>
-      <div v-if="hasNewStable">
+      <div v-if="stableBuildAvailable">
         <div class="alert alert-warning">
           <div class="d-flex justify-content-between">
             <div class="my-2">A new <b>Stable</b> Version is Available!</div>
@@ -89,7 +89,7 @@
       try {
         this.version = (await fetch("/api/config").then((r) => r.json())).version;
         this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
-        if (this.version.split("-g").length > 1) {
+        if (this.buildVersionIsNightly()) {
           this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&status=success&per_page=1").then((r) => r.json())).workflow_runs[0];
         }
       } catch(e){
@@ -97,8 +97,7 @@
       this.loading = false;
     },
     computed: {
-      // Check for new stable version
-      hasNewStable() {
+      stableBuildAvailable() {
         // If we can't get versions, return false
         if (!this.githubVersion || !this.version) return false;
         // If built with dirty git tree, return false
@@ -107,20 +106,34 @@
         let v = this.githubVersion.name;
         // If the version starts with a v, remove it
         if (v.indexOf("v") === 0) v = v.substring(1);
+
+        // if nightly, we do an additional check to make sure its an actual upgrade.
+        if (this.buildVersionIsNightly()) {
+          const stableVersion = this.version.split('.').slice(0, 3).join('.');
+          return this.githubVersion.tag_name.substring(1) > stableVersion;
+        }
+
         // return true if the version is different, otherwise false
         return v !== this.version.split(".")[0];
       },
-      // Check for new nightly version
-      hasNewNightly() {
-        // If we're not on a nightly build, just return false
-        // If length of version split is 3, we're on a stable build
-        if (!this.version || !this.nightlyData || this.version.split(".").length === 3) return false;
+      nightlyBuildAvailable() {
+        // Verify nightly data is available and the build version is not stable
+        // This is important to ensure the UI does not try to load undefined values.
+        if (!this.nightlyData || this.buildVersionIsStable()) return false;
         // If built with dirty git tree, return false
-        if (this.version.indexOf("dirty") !== -1) return false;
+        if (this.version?.indexOf("dirty") !== -1) return false;
         // Get the commit hash
-        let commit = this.version.split(".")[-1];
+        let commit = this.version?.split(".").pop();
         // return true if the commit hash is different, otherwise false
         return this.nightlyData.head_sha.indexOf(commit) !== 0;
+      }
+    },
+    methods: {
+      buildVersionIsStable() {
+        return this.version?.split(".").length === 3;
+      },
+      buildVersionIsNightly() {
+        return this.version?.split(".").length === 4
       }
     }
   });
