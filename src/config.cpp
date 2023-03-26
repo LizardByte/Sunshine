@@ -351,6 +351,7 @@ video_t video {
     -1,
   }, // vt
 
+  {},  // capture
   {},  // encoder
   {},  // adapter_name
   {},  // output_name
@@ -882,6 +883,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
   int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
+  string_f(vars, "capture", video.capture);
   string_f(vars, "encoder", video.encoder);
   string_f(vars, "adapter_name", video.adapter_name);
   string_f(vars, "output_name", video.output_name);
