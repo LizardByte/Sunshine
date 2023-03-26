@@ -57,7 +57,6 @@ struct video_t {
   std::string encoder;
   std::string adapter_name;
   std::string output_name;
-
   bool dwmflush;
 };
 
