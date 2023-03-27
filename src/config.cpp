@@ -778,7 +778,7 @@ void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const s
   for(auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
     auto do_cmd   = prep_cmd.get<std::string>("do"s);
     auto undo_cmd = prep_cmd.get<std::string>("undo"s);
-    
+
     input.emplace_back(
       std::move(do_cmd),
       std::move(undo_cmd));
