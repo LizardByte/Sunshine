@@ -93,7 +93,7 @@ int proc_t::execute(int app_id) {
   }
 
   _app_id = app_id;
-  _app   = *iter;
+  _app    = *iter;
 
   _app_prep_begin = std::begin(_app.prep_cmds);
   _app_prep_it    = _app_prep_begin;
@@ -217,8 +217,8 @@ void proc_t::terminate() {
     if(ec) {
       BOOST_LOG(warning) << "System: "sv << ec.message();
     }
-    
-    child.wait();    
+
+    child.wait();
     auto ret = child.exit_code();
 
     if(ret != 0) {
