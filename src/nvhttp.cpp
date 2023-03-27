@@ -758,7 +758,8 @@ namespace nvhttp {
     }
 
     if (appid > 0) {
-      auto err = proc::proc.execute(appid);
+      auto mode = get_arg(args, "mode");
+      auto err = proc::proc.execute(appid, mode);
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);
         tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");

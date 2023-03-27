@@ -100,10 +100,27 @@ namespace proc {
     return cmd_path.parent_path();
   }
 
-  int
-  proc_t::execute(int app_id) {
+void
+proc_t::replace_cmd_variables(std::string &cmd) {
+  boost::algorithm::replace_all(cmd, "$CLIENT_WIDTH", _mode_width);
+  boost::algorithm::replace_all(cmd, "$CLIENT_HEIGHT", _mode_height);
+  boost::algorithm::replace_all(cmd, "$CLIENT_REFRESH", _mode_refresh);
+}
+
+int
+proc_t::execute(int app_id, std::string mode) {
     // Ensure starting from a clean slate
     terminate();
+
+    // mode formatted as 1280x720x60
+    std::vector<std::string> modeSplit;
+    boost::split(modeSplit, mode, boost::is_any_of("x"));
+
+    if(modeSplit.size() > 2) {
+      _mode_width   = modeSplit[0];
+      _mode_height  = modeSplit[1];
+      _mode_refresh = modeSplit[2];
+    }
 
     auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
       return app.id == std::to_string(app_id);
@@ -150,14 +167,17 @@ namespace proc {
         continue;
       }
 
+      auto do_cmd = cmd.do_cmd;
+      replace_cmd_variables(do_cmd);
+
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.do_cmd, _env) :
+                                              find_working_directory(do_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
-      auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Do Cmd: ["sv << do_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, true, do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
+        BOOST_LOG(error) << "Couldn't run ["sv << do_cmd << "]: System: "sv << ec.message();
         return -1;
       }
 
@@ -165,12 +185,13 @@ namespace proc {
       auto ret = child.exit_code();
 
       if (ret != 0) {
-        BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
+        BOOST_LOG(error) << '[' << do_cmd << "] failed with code ["sv << ret << ']';
         return -1;
       }
     }
 
-    for (auto &cmd : _app.detached) {
+    for(auto cmd : _app.detached) {
+      replace_cmd_variables(cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
@@ -189,13 +210,15 @@ namespace proc {
       placebo = true;
     }
     else {
+      auto cmd = _app.cmd;
+      replace_cmd_variables(cmd);
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(_app.cmd, _env) :
+                                              find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+      BOOST_LOG(info) << "Executing: ["sv << cmd << "] in ["sv << working_dir << ']';
+      _process = platf::run_command(_app.elevated, true, cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
       if (ec) {
-        BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
+        BOOST_LOG(warning) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
         return -1;
       }
     }
@@ -237,11 +260,14 @@ namespace proc {
         continue;
       }
 
+      auto undo_cmd = cmd.undo_cmd;
+      replace_cmd_variables(undo_cmd);
+
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.undo_cmd, _env) :
+                                              find_working_directory(undo_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
-      auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << undo_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, true, undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
         BOOST_LOG(warning) << "System: "sv << ec.message();
@@ -254,6 +280,10 @@ namespace proc {
         BOOST_LOG(warning) << "Return code ["sv << ret << ']';
       }
     }
+
+    _mode_width   = "";
+    _mode_height  = "";
+    _mode_refresh = "";
 
     _pipe.reset();
   }

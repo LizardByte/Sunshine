@@ -65,7 +65,7 @@ namespace proc {
         _apps(std::move(apps)) {}
 
     int
-    execute(int app_id);
+    execute(int app_id, std::string mode);
 
     /**
      * @return _app_id if a process is running, otherwise returns 0
@@ -98,9 +98,16 @@ namespace proc {
     boost::process::child _process;
     boost::process::group _process_handle;
 
+    std::string _mode_width;
+    std::string _mode_height;
+    std::string _mode_refresh;
+
     file_t _pipe;
     std::vector<cmd_t>::const_iterator _app_prep_it;
     std::vector<cmd_t>::const_iterator _app_prep_begin;
+
+    void
+    replace_cmd_variables(std::string &cmd);
   };
 
   /**
