@@ -15,11 +15,11 @@
 #define MULTICLICK_DELAY_NS 500000000
 
 // For gamepad emulation
-// https://github.com/kotleni/VirtualHID-macOS
-#define VIRTGAMEPAD_NAME "Sunshine Gamepad"
-#define VIRTGAMEPAD_SN "SG 0001"          // serial number
-#define VIRTGAMEPAD_INPUT_COUNT 16        // gamepad buttons count
-#define SERVICE_NAME "it_kotleni_virthid" // virthid service id
+// https://github.com/kotleni/foohid
+#define VIRTGAMEPAD_NAME "DualShock 4"    // gamepad name (only device names supported by macos)
+#define VIRTGAMEPAD_SN "CUH-ZCT1x"        // serial number
+#define VIRTGAMEPAD_INPUT_COUNT 8         // device arguments count
+#define SERVICE_NAME "it_unbit_foohid"    // virthid service id
 #define FOOHID_CREATE 0                   // create selector
 #define FOOHID_SEND 2                     // send selector
 
@@ -400,8 +400,8 @@ int alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
   virtgamepad_input[3] = sizeof(gamepad_report_descriptor);    // report descriptor len
   virtgamepad_input[4] = (uint64_t)strdup(VIRTGAMEPAD_SN);     // serial number
   virtgamepad_input[5] = strlen((char *)virtgamepad_input[4]); // serial number len
-  virtgamepad_input[6] = (uint64_t)0xdead;                     // vendor ID
-  virtgamepad_input[7] = (uint64_t)0xbeef;                     // device ID
+  virtgamepad_input[6] = (uint64_t)0x054c;                     // vendor ID
+  virtgamepad_input[7] = (uint64_t)0x05c4;                     // device ID
 
   ret = IOConnectCallScalarMethod(virtgamepad_connect, FOOHID_CREATE, virtgamepad_input, VIRTGAMEPAD_INPUT_COUNT, NULL, 0);
   if(ret != KERN_SUCCESS) {
