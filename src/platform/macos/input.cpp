@@ -16,7 +16,7 @@
 
 // For gamepad emulation
 // https://github.com/kotleni/foohid
-#define VIRTGAMEPAD_NAME "DualShock 4"    // gamepad name (only device names supported by macos)
+#define VIRTGAMEPAD_NAME "DualShock 4"    // gamepad name
 #define VIRTGAMEPAD_SN "CUH-ZCT1x"        // serial number
 #define VIRTGAMEPAD_INPUT_COUNT 8         // device arguments count
 #define SERVICE_NAME "it_unbit_foohid"    // virthid service id
