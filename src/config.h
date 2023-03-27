@@ -144,7 +144,7 @@ struct sunshine_t {
 
   std::uint16_t port;
   std::string log_file;
-  
+
   std::vector<prep_cmd_t> prep_cmds;
 };
 

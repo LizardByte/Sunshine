@@ -18,11 +18,11 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
+#include "config.h"
 #include "crypto.h"
 #include "main.h"
 #include "platform/common.h"
 #include "utility.h"
-#include "config.h"
 
 #ifdef _WIN32
 // _SH constants for _wfsopen()
@@ -465,7 +465,7 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
       auto working_dir         = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
-      if (!exclude_global_prep.value_or(false)) {
+      if(!exclude_global_prep.value_or(false)) {
         prep_cmds.reserve(config::sunshine.prep_cmds.size());
         for(auto &prep_cmd : config::sunshine.prep_cmds) {
           auto do_cmd   = parse_env_val(this_env, prep_cmd.do_cmd);

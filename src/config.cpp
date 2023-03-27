@@ -428,8 +428,8 @@ sunshine_t sunshine {
   platf::appdata().string() + "/sunshine.conf", // config file
   {},                                           // cmd args
   47989,
-  platf::appdata().string() + "/sunshine.log",  // log file
-  {},                                           // prep commands
+  platf::appdata().string() + "/sunshine.log", // log file
+  {},                                          // prep commands
 };
 
 bool endline(char ch) {
@@ -768,7 +768,7 @@ void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const s
   string_f(vars, name, string);
 
   std::stringstream jsonStream;
-  
+
   // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
   jsonStream << "{\"prep_cmd\":" << string << "}";
 
@@ -776,13 +776,12 @@ void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const s
   boost::property_tree::read_json(jsonStream, jsonTree);
 
   for(auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
-    auto do_cmd = prep_cmd.get<std::string>("do"s);
+    auto do_cmd   = prep_cmd.get<std::string>("do"s);
     auto undo_cmd = prep_cmd.get<std::string>("undo"s);
     
     input.emplace_back(
       std::move(do_cmd),
-      std::move(undo_cmd)
-    );
+      std::move(undo_cmd));
   }
 }
 
