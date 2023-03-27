@@ -50,14 +50,6 @@ void process_end(bp::child &proc, bp::group &proc_handle) {
   proc.wait();
 }
 
-int exe_with_full_privs(const std::string &cmd, bp::environment &env, file_t &file, std::error_code &ec) {
-  if(!file) {
-    return bp::system(cmd, env, bp::std_out > bp::null, bp::std_err > bp::null, ec);
-  }
-
-  return bp::system(cmd, env, bp::std_out > file.get(), bp::std_err > file.get(), ec);
-}
-
 boost::filesystem::path find_working_directory(const std::string &cmd, bp::environment &env) {
   // Parse the raw command string into parts to get the actual command portion
 #ifdef _WIN32
@@ -101,25 +93,25 @@ int proc_t::execute(int app_id) {
     return 404;
   }
 
-  _app_id    = app_id;
-  auto &proc = *iter;
+  _app_id = app_id;
+  _app    = *iter;
 
-  _undo_begin = std::begin(proc.prep_cmds);
-  _undo_it    = _undo_begin;
+  _app_prep_begin = std::begin(_app.prep_cmds);
+  _app_prep_it    = _app_prep_begin;
 
-  if(!proc.output.empty() && proc.output != "null"sv) {
+  if(!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
     // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
     // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-    auto woutput = converter.from_bytes(proc.output);
+    auto woutput = converter.from_bytes(_app.output);
 
     // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
     // still open from a previous execution. This is required to handle the case of a
     // detached process executing again while the previous process is still running.
     _pipe.reset(_wfsopen(woutput.c_str(), L"a", _SH_DENYNO));
 #else
-    _pipe.reset(fopen(proc.output.c_str(), "a"));
+    _pipe.reset(fopen(_app.output.c_str(), "a"));
 #endif
   }
 
@@ -129,16 +121,22 @@ int proc_t::execute(int app_id) {
     terminate();
   });
 
-  for(; _undo_it != std::end(proc.prep_cmds); ++_undo_it) {
-    auto &cmd = _undo_it->do_cmd;
+  for(; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
+    auto &cmd = _app_prep_it->do_cmd;
 
-    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
-    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                            find_working_directory(cmd, _env) :
+                                            boost::filesystem::path(_app.working_dir);
+    BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd << ']';
+    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
     if(ec) {
       BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
       return -1;
     }
+
+    child.wait();
+    auto ret = child.exit_code();
 
     if(ret != 0) {
       BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
@@ -146,10 +144,10 @@ int proc_t::execute(int app_id) {
     }
   }
 
-  for(auto &cmd : proc.detached) {
-    boost::filesystem::path working_dir = proc.working_dir.empty() ?
+  for(auto &cmd : _app.detached) {
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                             find_working_directory(cmd, _env) :
-                                            boost::filesystem::path(proc.working_dir);
+                                            boost::filesystem::path(_app.working_dir);
     BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
     auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
     if(ec) {
@@ -160,18 +158,18 @@ int proc_t::execute(int app_id) {
     }
   }
 
-  if(proc.cmd.empty()) {
+  if(_app.cmd.empty()) {
     BOOST_LOG(info) << "Executing [Desktop]"sv;
     placebo = true;
   }
   else {
-    boost::filesystem::path working_dir = proc.working_dir.empty() ?
-                                            find_working_directory(proc.cmd, _env) :
-                                            boost::filesystem::path(proc.working_dir);
-    BOOST_LOG(info) << "Executing: ["sv << proc.cmd << "] in ["sv << working_dir << ']';
-    _process = platf::run_unprivileged(proc.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                            find_working_directory(_app.cmd, _env) :
+                                            boost::filesystem::path(_app.working_dir);
+    BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
+    _process = platf::run_unprivileged(_app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
     if(ec) {
-      BOOST_LOG(warning) << "Couldn't run ["sv << proc.cmd << "]: System: "sv << ec.message();
+      BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
       return -1;
     }
   }
@@ -204,20 +202,25 @@ void proc_t::terminate() {
   _process_handle = bp::group();
   _app_id         = -1;
 
-  for(; _undo_it != _undo_begin; --_undo_it) {
-    auto &cmd = (_undo_it - 1)->undo_cmd;
+  for(; _app_prep_it != _app_prep_begin; --_app_prep_it) {
+    auto &cmd = (_app_prep_it - 1)->undo_cmd;
 
     if(cmd.empty()) {
       continue;
     }
 
-    BOOST_LOG(info) << "Executing: ["sv << cmd << ']';
-
-    auto ret = exe_with_full_privs(cmd, _env, _pipe, ec);
+    boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                            find_working_directory(cmd, _env) :
+                                            boost::filesystem::path(_app.working_dir);
+    BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd << ']';
+    auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
     if(ec) {
       BOOST_LOG(warning) << "System: "sv << ec.message();
     }
+
+    child.wait();
+    auto ret = child.exit_code();
 
     if(ret != 0) {
       BOOST_LOG(warning) << "Return code ["sv << ret << ']';
