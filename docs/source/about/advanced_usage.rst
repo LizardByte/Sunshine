@@ -395,6 +395,34 @@ dwmflush
 
       dwmflush = enabled
 
+
+preloaded_frames
+-----------------
+
+**Description**
+   This option specifies the number of frames to preload in the image buffer. 
+   Preloading frames improves stream stability at the expense of increased VRAM usage. 
+   If configured with fewer frames, VRAM usage will significantly decrease, but this may cause performance issues.
+   
+   .. Note:: If you're streaming at 4k with HDR enabled, the default setting will reserve roughly 1.8GB of VRAM.
+      It is recommended to reduce the preloaded frames, especially if streaming with those settings and playing modern games.
+
+**Default**
+   ``12``
+
+**Values**
+   An integer value between ``2`` and ``12``, inclusive.
+
+**Example**
+   To set the number of preloaded frames to 6, add the following line to the configuration file:
+
+   .. code-block:: text
+
+      preloaded_frames = 6
+
+   This will preload 6 frames in the image buffer, reducing VRAM usage but potentially decreasing stream stability.
+
+
 Audio
 -----
 
