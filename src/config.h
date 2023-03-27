@@ -118,6 +118,13 @@ enum flag_e : std::size_t {
 };
 }
 
+struct prep_cmd_t {
+  prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd) : do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)) {}
+  explicit prep_cmd_t(std::string &&do_cmd) : do_cmd(std::move(do_cmd)) {}
+  std::string do_cmd;
+  std::string undo_cmd;
+};
+
 struct sunshine_t {
   int min_log_level;
   std::bitset<flag::FLAG_SIZE> flags;
@@ -137,6 +144,8 @@ struct sunshine_t {
 
   std::uint16_t port;
   std::string log_file;
+
+  std::vector<prep_cmd_t> prep_cmds;
 };
 
 extern video_t video;

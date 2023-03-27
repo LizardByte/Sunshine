@@ -18,6 +18,7 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
+#include "config.h"
 #include "crypto.h"
 #include "main.h"
 #include "platform/common.h"
@@ -457,19 +458,30 @@ std::optional<proc::proc_t> parse(const std::string &file_name) {
     for(auto &[_, app_node] : apps_node) {
       proc::ctx_t ctx;
 
-      auto prep_nodes_opt     = app_node.get_child_optional("prep-cmd"s);
-      auto detached_nodes_opt = app_node.get_child_optional("detached"s);
-      auto output             = app_node.get_optional<std::string>("output"s);
-      auto name               = parse_env_val(this_env, app_node.get<std::string>("name"s));
-      auto cmd                = app_node.get_optional<std::string>("cmd"s);
-      auto image_path         = app_node.get_optional<std::string>("image-path"s);
-      auto working_dir        = app_node.get_optional<std::string>("working-dir"s);
+      auto prep_nodes_opt      = app_node.get_child_optional("prep-cmd"s);
+      auto detached_nodes_opt  = app_node.get_child_optional("detached"s);
+      auto exclude_global_prep = app_node.get_optional<bool>("exclude-global-prep-cmd"s);
+      auto output              = app_node.get_optional<std::string>("output"s);
+      auto name                = parse_env_val(this_env, app_node.get<std::string>("name"s));
+      auto cmd                 = app_node.get_optional<std::string>("cmd"s);
+      auto image_path          = app_node.get_optional<std::string>("image-path"s);
+      auto working_dir         = app_node.get_optional<std::string>("working-dir"s);
 
       std::vector<proc::cmd_t> prep_cmds;
+      if(!exclude_global_prep.value_or(false)) {
+        prep_cmds.reserve(config::sunshine.prep_cmds.size());
+        for(auto &prep_cmd : config::sunshine.prep_cmds) {
+          auto do_cmd   = parse_env_val(this_env, prep_cmd.do_cmd);
+          auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
+
+          prep_cmds.emplace_back(std::move(do_cmd), std::move(undo_cmd));
+        }
+      }
+
       if(prep_nodes_opt) {
         auto &prep_nodes = *prep_nodes_opt;
 
-        prep_cmds.reserve(prep_nodes.size());
+        prep_cmds.reserve(prep_cmds.size() + prep_nodes.size());
         for(auto &[_, prep_node] : prep_nodes) {
           auto do_cmd   = parse_env_val(this_env, prep_node.get<std::string>("do"s));
           auto undo_cmd = prep_node.get_optional<std::string>("undo"s);

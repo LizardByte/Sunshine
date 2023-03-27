@@ -7,6 +7,8 @@
 
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 #include "config.h"
 #include "main.h"
@@ -426,6 +428,7 @@ sunshine_t sunshine {
   {},                                           // cmd args
   47989,
   platf::appdata().string() + "/sunshine.log", // log file
+  {},                                          // prep commands
 };
 
 bool endline(char ch) {
@@ -759,6 +762,27 @@ void list_string_f(std::unordered_map<std::string, std::string> &vars, const std
     input.emplace_back(begin, pos);
   }
 }
+void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
+  std::string string;
+  string_f(vars, name, string);
+
+  std::stringstream jsonStream;
+
+  // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
+  jsonStream << "{\"prep_cmd\":" << string << "}";
+
+  boost::property_tree::ptree jsonTree;
+  boost::property_tree::read_json(jsonStream, jsonTree);
+
+  for(auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
+    auto do_cmd   = prep_cmd.get<std::string>("do"s);
+    auto undo_cmd = prep_cmd.get<std::string>("undo"s);
+
+    input.emplace_back(
+      std::move(do_cmd),
+      std::move(undo_cmd));
+  }
+}
 
 void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
   std::vector<std::string> list;
@@ -902,6 +926,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
   string_f(vars, "external_ip", nvhttp.external_ip);
   list_string_f(vars, "resolutions"s, nvhttp.resolutions);
   list_int_f(vars, "fps"s, nvhttp.fps);
+  list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
 
   string_f(vars, "audio_sink", audio.sink);
   string_f(vars, "virtual_sink", audio.virtual_sink);
