@@ -762,11 +762,17 @@ void list_string_f(std::unordered_map<std::string, std::string> &vars, const std
     input.emplace_back(begin, pos);
   }
 }
+
 void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
   std::string string;
   string_f(vars, name, string);
 
   std::stringstream jsonStream;
+
+  // check if string is empty, i.e. when the value doesn't exist in the config file
+  if(string.empty()) {
+    return;
+  }
 
   // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
   jsonStream << "{\"prep_cmd\":" << string << "}";
