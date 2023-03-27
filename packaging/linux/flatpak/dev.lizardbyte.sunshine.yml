@@ -187,14 +187,14 @@ modules:
       - type: file
         only-arches:
           - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/12.0.1/local_installers/cuda_12.0.1_525.85.12_linux.run
-        sha256: 1b205a06272f1463f477276fdab903f3f666917c068e520738001e69c7a1875b
+        url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
+        sha256: 905e9b9516900839fb76064719db752439f38b8cb730b49335d8bd53ddfad392
         dest-filename: cuda.run
       - type: file
         only-arches:
           - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/12.0.1/local_installers/cuda_12.0.1_525.85.12_linux_sbsa.run  # yamllint disable-line rule:line-length
-        sha256: 835270a8db419b9dbaefc1bab8fe5caf6f2caf381975c4b0d35cc0718c26074a
+        url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux_sbsa.run  # yamllint disable-line rule:line-length
+        sha256: cd13e9c65d4c8f895a968706f46064d536be09f9706bce081cc864b7e4fa4544
         dest-filename: cuda.run
 
   - name: sunshine
