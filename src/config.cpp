@@ -843,7 +843,7 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
 
   int_f(vars, "qp", video.qp);
   int_f(vars, "min_threads", video.min_threads);
-  int_f(vars, "preloaded_frames", video.preloaded_frames);
+  int_between_f(vars, "preloaded_frames", video.preloaded_frames, { 2, 12 });
   int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
   string_f(vars, "sw_preset", video.sw.sw_preset);
   string_f(vars, "sw_tune", video.sw.sw_tune);

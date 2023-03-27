@@ -522,14 +522,16 @@
           <input
             type="number"
             class="form-control"
-            id="min_fps_target"
-            placeholder="3"
+            id="preloaded_frames"
+            placeholder="12"
+            min="2"
+            max="12"
             v-model="config.preloaded_frames"
           />
           <div class="form-text">
-            Preloaded frames improve stability of streams but at the expense of using more VRAM. <br/>
-            The more frames preloaded, the more stable the stream will be but it will consume a large amount of VRAM. <br/>
-            Stronger hardware can handle fewer preloaded frames and users should experiment to find the best balance for their system.
+            Preloaded frames improve stream stability at the expense of increased VRAM usage. <br/>
+            If configured with fewer frames, VRAM usage will significantly decrease, but this may cause performance issues. <br/>
+            Stronger hardware can handle fewer frames, and users are encouraged to experiment to find the perfect balance for their system.
           </div>
       </div>
     </div>
