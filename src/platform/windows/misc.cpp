@@ -9,20 +9,22 @@
 
 // prevent clang format from "optimizing" the header include order
 // clang-format off
-#include <winsock2.h>
+#include <dwmapi.h>
 #include <iphlpapi.h>
+#include <iterator>
+#include <timeapi.h>
+#include <userenv.h>
+#include <winsock2.h>
 #include <windows.h>
 #include <winuser.h>
-#include <ws2tcpip.h>
-#include <userenv.h>
-#include <dwmapi.h>
-#include <timeapi.h>
 #include <wlanapi.h>
+#include <ws2tcpip.h>
 // clang-format on
 
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include <iterator>
 
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
 #ifndef UDP_SEND_MSG_SIZE
@@ -463,6 +465,34 @@ bp::child run_unprivileged(const std::string &cmd, boost::filesystem::path &work
       start_dir.empty() ? NULL : start_dir.c_str(),
       (LPSTARTUPINFOW)&startup_info,
       &process_info);
+
+    if(!ret) {
+      auto error = GetLastError();
+
+      if(error == 740) {
+        BOOST_LOG(info) << "Could not execute previous command because it required elevation. Running the command again with elevation, for security reasons this will prompt user interaction."sv;
+        startup_info.StartupInfo.wShowWindow = SW_HIDE;
+        startup_info.StartupInfo.dwFlags     = startup_info.StartupInfo.dwFlags | STARTF_USESHOWWINDOW;
+        std::wstring elevated_command        = L"tools\\elevator.exe ";
+        elevated_command += wcmd;
+
+        // For security reasons, Windows enforces that an application can have only one "interactive thread" responsible for processing user input and managing the user interface (UI).
+        // Since UAC prompts are interactive, we cannot have a UAC prompt while Sunshine is already running because it would block the thread.
+        // To work around this issue, we will launch a separate process that will elevate the command, which will prompt the user to confirm the elevation.
+        // This is our intended behavior: to require interaction before elevating the command.
+        ret = CreateProcessAsUserW(shell_token,
+          nullptr,
+          (LPWSTR)elevated_command.c_str(),
+          nullptr,
+          nullptr,
+          !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+          EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+          env_block.data(),
+          start_dir.empty() ? nullptr : start_dir.c_str(),
+          (LPSTARTUPINFOW)&startup_info,
+          &process_info);
+      }
+    }
 
     // End impersonation of the logged on user. If this fails (which is extremely unlikely),
     // we will be running with an unknown user token. The only safe thing to do in that case
