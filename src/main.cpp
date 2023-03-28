@@ -346,18 +346,20 @@ main(int argc, char *argv[]) {
 
   proc::refresh(config::stream.file_apps);
 
-  auto deinit_guard = platf::init();
-  if (!deinit_guard) {
-    return 4;
+  // If any of the following fail, we log an error and continue event though sunshine will not function correctly.
+  // This allows access to the UI to fix configuration problems or view the logs.
+  if (!platf::init()) {
+    BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
   reed_solomon_init();
   auto input_deinit_guard = input::init();
   if (video::init()) {
-    return 2;
+    BOOST_LOG(error) << "Video failed to initialize"sv;
   }
+
   if (http::init()) {
-    return 3;
+    BOOST_LOG(error) << "http failed to initialize"sv;
   }
 
   std::unique_ptr<platf::deinit_t> mDNS;
