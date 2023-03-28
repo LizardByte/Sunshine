@@ -427,7 +427,7 @@ namespace platf {
         int monitor = 0;
         for (int x = 0; x < output; ++x) {
           output_info_t out_info { x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
-          if (out_info && out_info->connection == RR_Connected) {
+          if (out_info) {
             if (monitor++ == streamedMonitor) {
               result = std::move(out_info);
               break;
@@ -761,7 +761,7 @@ namespace platf {
       return {};
     }
 
-    BOOST_LOG(info) << "Detecting connected monitors"sv;
+    BOOST_LOG(info) << "Detecting monitors"sv;
 
     x11::xdisplay_t xdisplay { x11::OpenDisplay(nullptr) };
     if (!xdisplay) {
@@ -775,7 +775,8 @@ namespace platf {
     int monitor = 0;
     for (int x = 0; x < output; ++x) {
       output_info_t out_info { x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
-      if (out_info && out_info->connection == RR_Connected) {
+      if (out_info) {
+        BOOST_LOG(info) << "Detected monitor "sv << monitor << ": "sv << out_info->name << ", connected: "sv << (out_info->connection == RR_Connected);
         ++monitor;
       }
     }

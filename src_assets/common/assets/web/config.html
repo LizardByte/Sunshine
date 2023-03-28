@@ -560,9 +560,17 @@
           v-model="config.output_name"
         />
         <div class="form-text">
-          xrandr --listmonitors<br />
-          Example output:
-          <pre>   0: +HDMI-1 1920/518x1200/324+0+0 HDMI-1</pre>
+          During Sunshine startup, you should see the list of detected monitors, e.g.:<br />
+          <br />
+          <pre style="white-space: pre-line;">
+            Info: Detecting connected monitors
+            Info: Detected monitor 0: DVI-D-0, connected: false
+            Info: Detected monitor 1: HDMI-0, connected: true
+            Info: Detected monitor 2: DP-0, connected: true
+            Info: Detected monitor 3: DP-1, connected: false
+            Info: Detected monitor 4: DVI-D-1, connected: false
+          </pre>
+          You need to use the value before the colon in the output, e.g. <b>1</b>.
         </div>
       </div>
     </div>
