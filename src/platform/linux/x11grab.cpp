@@ -776,6 +776,7 @@ namespace platf {
     for (int x = 0; x < output; ++x) {
       output_info_t out_info { x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
       if (out_info) {
+        BOOST_LOG(info) << "Detected monitor "sv << monitor << ": "sv << out_info->name << ", connected: "sv << (out_info->connection == RR_Connected);
         ++monitor;
       }
     }
