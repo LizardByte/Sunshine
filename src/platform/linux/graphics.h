@@ -17,303 +17,340 @@
 #define gl_drain_errors_helper(x) gl::drain_errors(x)
 #define gl_drain_errors gl_drain_errors_helper(__FILE__ ":" SUNSHINE_STRINGIFY(__LINE__))
 
-extern "C" int close(int __fd);
+extern "C" int
+close(int __fd);
 
 // X11 Display
 extern "C" struct _XDisplay;
 
 struct AVFrame;
-void free_frame(AVFrame *frame);
+void
+free_frame(AVFrame *frame);
 
 using frame_t = util::safe_ptr<AVFrame, free_frame>;
 
 namespace gl {
-extern GladGLContext ctx;
-void drain_errors(const std::string_view &prefix);
+  extern GladGLContext ctx;
+  void
+  drain_errors(const std::string_view &prefix);
 
-class tex_t : public util::buffer_t<GLuint> {
-  using util::buffer_t<GLuint>::buffer_t;
+  class tex_t: public util::buffer_t<GLuint> {
+    using util::buffer_t<GLuint>::buffer_t;
 
-public:
-  tex_t(tex_t &&)            = default;
-  tex_t &operator=(tex_t &&) = default;
+  public:
+    tex_t(tex_t &&) = default;
+    tex_t &
+    operator=(tex_t &&) = default;
 
-  ~tex_t();
+    ~tex_t();
 
-  static tex_t make(std::size_t count);
-};
+    static tex_t
+    make(std::size_t count);
+  };
 
-class frame_buf_t : public util::buffer_t<GLuint> {
-  using util::buffer_t<GLuint>::buffer_t;
+  class frame_buf_t: public util::buffer_t<GLuint> {
+    using util::buffer_t<GLuint>::buffer_t;
 
-public:
-  frame_buf_t(frame_buf_t &&)            = default;
-  frame_buf_t &operator=(frame_buf_t &&) = default;
+  public:
+    frame_buf_t(frame_buf_t &&) = default;
+    frame_buf_t &
+    operator=(frame_buf_t &&) = default;
 
-  ~frame_buf_t();
+    ~frame_buf_t();
 
-  static frame_buf_t make(std::size_t count);
+    static frame_buf_t
+    make(std::size_t count);
 
-  inline void bind(std::nullptr_t, std::nullptr_t) {
-    int x = 0;
-    for(auto fb : (*this)) {
-      ctx.BindFramebuffer(GL_FRAMEBUFFER, fb);
-      ctx.FramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, 0, 0);
+    inline void
+    bind(std::nullptr_t, std::nullptr_t) {
+      int x = 0;
+      for (auto fb : (*this)) {
+        ctx.BindFramebuffer(GL_FRAMEBUFFER, fb);
+        ctx.FramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, 0, 0);
 
-      ++x;
-    }
-    return;
-  }
-
-  template<class It>
-  void bind(It it_begin, It it_end) {
-    using namespace std::literals;
-    if(std::distance(it_begin, it_end) > size()) {
-      BOOST_LOG(warning) << "To many elements to bind"sv;
+        ++x;
+      }
       return;
     }
 
-    int x = 0;
-    std::for_each(it_begin, it_end, [&](auto tex) {
-      ctx.BindFramebuffer(GL_FRAMEBUFFER, (*this)[x]);
-      ctx.BindTexture(GL_TEXTURE_2D, tex);
+    template <class It>
+    void
+    bind(It it_begin, It it_end) {
+      using namespace std::literals;
+      if (std::distance(it_begin, it_end) > size()) {
+        BOOST_LOG(warning) << "To many elements to bind"sv;
+        return;
+      }
 
-      ctx.FramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, tex, 0);
+      int x = 0;
+      std::for_each(it_begin, it_end, [&](auto tex) {
+        ctx.BindFramebuffer(GL_FRAMEBUFFER, (*this)[x]);
+        ctx.BindTexture(GL_TEXTURE_2D, tex);
 
-      ++x;
-    });
-  }
+        ctx.FramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + x, tex, 0);
 
-  /**
+        ++x;
+      });
+    }
+
+    /**
    * Copies a part of the framebuffer to texture
    */
-  void copy(int id, int texture, int offset_x, int offset_y, int width, int height);
-};
+    void
+    copy(int id, int texture, int offset_x, int offset_y, int width, int height);
+  };
 
-class shader_t {
-  KITTY_USING_MOVE_T(shader_internal_t, GLuint, std::numeric_limits<GLuint>::max(), {
-    if(el != std::numeric_limits<GLuint>::max()) {
-      ctx.DeleteShader(el);
-    }
-  });
+  class shader_t {
+    KITTY_USING_MOVE_T(shader_internal_t, GLuint, std::numeric_limits<GLuint>::max(), {
+      if (el != std::numeric_limits<GLuint>::max()) {
+        ctx.DeleteShader(el);
+      }
+    });
 
-public:
-  std::string err_str();
+  public:
+    std::string
+    err_str();
 
-  static util::Either<shader_t, std::string> compile(const std::string_view &source, GLenum type);
+    static util::Either<shader_t, std::string>
+    compile(const std::string_view &source, GLenum type);
 
-  GLuint handle() const;
+    GLuint
+    handle() const;
 
-private:
-  shader_internal_t _shader;
-};
+  private:
+    shader_internal_t _shader;
+  };
 
-class buffer_t {
-  KITTY_USING_MOVE_T(buffer_internal_t, GLuint, std::numeric_limits<GLuint>::max(), {
-    if(el != std::numeric_limits<GLuint>::max()) {
-      ctx.DeleteBuffers(1, &el);
-    }
-  });
+  class buffer_t {
+    KITTY_USING_MOVE_T(buffer_internal_t, GLuint, std::numeric_limits<GLuint>::max(), {
+      if (el != std::numeric_limits<GLuint>::max()) {
+        ctx.DeleteBuffers(1, &el);
+      }
+    });
 
-public:
-  static buffer_t make(util::buffer_t<GLint> &&offsets, const char *block, const std::string_view &data);
+  public:
+    static buffer_t
+    make(util::buffer_t<GLint> &&offsets, const char *block, const std::string_view &data);
 
-  GLuint handle() const;
+    GLuint
+    handle() const;
 
-  const char *block() const;
+    const char *
+    block() const;
 
-  void update(const std::string_view &view, std::size_t offset = 0);
-  void update(std::string_view *members, std::size_t count, std::size_t offset = 0);
+    void
+    update(const std::string_view &view, std::size_t offset = 0);
+    void
+    update(std::string_view *members, std::size_t count, std::size_t offset = 0);
 
-private:
-  const char *_block;
+  private:
+    const char *_block;
 
-  std::size_t _size;
+    std::size_t _size;
 
-  util::buffer_t<GLint> _offsets;
+    util::buffer_t<GLint> _offsets;
 
-  buffer_internal_t _buffer;
-};
+    buffer_internal_t _buffer;
+  };
 
-class program_t {
-  KITTY_USING_MOVE_T(program_internal_t, GLuint, std::numeric_limits<GLuint>::max(), {
-    if(el != std::numeric_limits<GLuint>::max()) {
-      ctx.DeleteProgram(el);
-    }
-  });
+  class program_t {
+    KITTY_USING_MOVE_T(program_internal_t, GLuint, std::numeric_limits<GLuint>::max(), {
+      if (el != std::numeric_limits<GLuint>::max()) {
+        ctx.DeleteProgram(el);
+      }
+    });
 
-public:
-  std::string err_str();
+  public:
+    std::string
+    err_str();
 
-  static util::Either<program_t, std::string> link(const shader_t &vert, const shader_t &frag);
+    static util::Either<program_t, std::string>
+    link(const shader_t &vert, const shader_t &frag);
 
-  void bind(const buffer_t &buffer);
+    void
+    bind(const buffer_t &buffer);
 
-  std::optional<buffer_t> uniform(const char *block, std::pair<const char *, std::string_view> *members, std::size_t count);
+    std::optional<buffer_t>
+    uniform(const char *block, std::pair<const char *, std::string_view> *members, std::size_t count);
 
-  GLuint handle() const;
+    GLuint
+    handle() const;
 
-private:
-  program_internal_t _program;
-};
-} // namespace gl
+  private:
+    program_internal_t _program;
+  };
+}  // namespace gl
 
 namespace gbm {
-struct device;
-typedef void (*device_destroy_fn)(device *gbm);
-typedef device *(*create_device_fn)(int fd);
+  struct device;
+  typedef void (*device_destroy_fn)(device *gbm);
+  typedef device *(*create_device_fn)(int fd);
 
-extern device_destroy_fn device_destroy;
-extern create_device_fn create_device;
+  extern device_destroy_fn device_destroy;
+  extern create_device_fn create_device;
 
-using gbm_t = util::dyn_safe_ptr<device, &device_destroy>;
+  using gbm_t = util::dyn_safe_ptr<device, &device_destroy>;
 
-int init();
+  int
+  init();
 
-} // namespace gbm
+}  // namespace gbm
 
 namespace egl {
-using display_t = util::dyn_safe_ptr_v2<void, EGLBoolean, &eglTerminate>;
+  using display_t = util::dyn_safe_ptr_v2<void, EGLBoolean, &eglTerminate>;
 
-struct rgb_img_t {
-  display_t::pointer display;
-  EGLImage xrgb8;
+  struct rgb_img_t {
+    display_t::pointer display;
+    EGLImage xrgb8;
 
-  gl::tex_t tex;
-};
+    gl::tex_t tex;
+  };
 
-struct nv12_img_t {
-  display_t::pointer display;
-  EGLImage r8;
-  EGLImage bg88;
+  struct nv12_img_t {
+    display_t::pointer display;
+    EGLImage r8;
+    EGLImage bg88;
 
-  gl::tex_t tex;
-  gl::frame_buf_t buf;
+    gl::tex_t tex;
+    gl::frame_buf_t buf;
 
-  // sizeof(va::DRMPRIMESurfaceDescriptor::objects) / sizeof(va::DRMPRIMESurfaceDescriptor::objects[0]);
-  static constexpr std::size_t num_fds = 4;
+    // sizeof(va::DRMPRIMESurfaceDescriptor::objects) / sizeof(va::DRMPRIMESurfaceDescriptor::objects[0]);
+    static constexpr std::size_t num_fds = 4;
 
-  std::array<file_t, num_fds> fds;
-};
+    std::array<file_t, num_fds> fds;
+  };
 
-KITTY_USING_MOVE_T(rgb_t, rgb_img_t, , {
-  if(el.xrgb8) {
-    eglDestroyImage(el.display, el.xrgb8);
-  }
-});
+  KITTY_USING_MOVE_T(rgb_t, rgb_img_t, , {
+    if (el.xrgb8) {
+      eglDestroyImage(el.display, el.xrgb8);
+    }
+  });
 
-KITTY_USING_MOVE_T(nv12_t, nv12_img_t, , {
-  if(el.r8) {
-    eglDestroyImage(el.display, el.r8);
-  }
+  KITTY_USING_MOVE_T(nv12_t, nv12_img_t, , {
+    if (el.r8) {
+      eglDestroyImage(el.display, el.r8);
+    }
 
-  if(el.bg88) {
-    eglDestroyImage(el.display, el.bg88);
-  }
-});
+    if (el.bg88) {
+      eglDestroyImage(el.display, el.bg88);
+    }
+  });
 
-KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
-  TUPLE_2D_REF(disp, ctx, el);
-  if(ctx) {
-    eglMakeCurrent(disp, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    eglDestroyContext(disp, ctx);
-  }
-});
+  KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
+    TUPLE_2D_REF(disp, ctx, el);
+    if (ctx) {
+      eglMakeCurrent(disp, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+      eglDestroyContext(disp, ctx);
+    }
+  });
 
-struct surface_descriptor_t {
-  int width;
-  int height;
-  int fds[4];
-  std::uint32_t fourcc;
-  std::uint64_t modifier;
-  std::uint32_t pitches[4];
-  std::uint32_t offsets[4];
-};
+  struct surface_descriptor_t {
+    int width;
+    int height;
+    int fds[4];
+    std::uint32_t fourcc;
+    std::uint64_t modifier;
+    std::uint32_t pitches[4];
+    std::uint32_t offsets[4];
+  };
 
-display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display);
-std::optional<ctx_t> make_ctx(display_t::pointer display);
+  display_t
+  make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display);
+  std::optional<ctx_t>
+  make_ctx(display_t::pointer display);
 
-std::optional<rgb_t> import_source(
-  display_t::pointer egl_display,
-  const surface_descriptor_t &xrgb);
+  std::optional<rgb_t>
+  import_source(
+    display_t::pointer egl_display,
+    const surface_descriptor_t &xrgb);
 
-std::optional<nv12_t> import_target(
-  display_t::pointer egl_display,
-  std::array<file_t, nv12_img_t::num_fds> &&fds,
-  const surface_descriptor_t &r8, const surface_descriptor_t &gr88);
+  std::optional<nv12_t>
+  import_target(
+    display_t::pointer egl_display,
+    std::array<file_t, nv12_img_t::num_fds> &&fds,
+    const surface_descriptor_t &r8, const surface_descriptor_t &gr88);
 
-class cursor_t : public platf::img_t {
-public:
-  int x, y;
+  class cursor_t: public platf::img_t {
+  public:
+    int x, y;
 
-  unsigned long serial;
+    unsigned long serial;
 
-  std::vector<std::uint8_t> buffer;
-};
+    std::vector<std::uint8_t> buffer;
+  };
 
-// Allow cursor and the underlying image to be kept together
-class img_descriptor_t : public cursor_t {
-public:
-  ~img_descriptor_t() {
-    reset();
-  }
+  // Allow cursor and the underlying image to be kept together
+  class img_descriptor_t: public cursor_t {
+  public:
+    ~img_descriptor_t() {
+      reset();
+    }
 
-  void reset() {
-    for(auto x = 0; x < 4; ++x) {
-      if(sd.fds[x] >= 0) {
-        close(sd.fds[x]);
+    void
+    reset() {
+      for (auto x = 0; x < 4; ++x) {
+        if (sd.fds[x] >= 0) {
+          close(sd.fds[x]);
 
-        sd.fds[x] = -1;
+          sd.fds[x] = -1;
+        }
       }
     }
-  }
 
-  surface_descriptor_t sd;
+    surface_descriptor_t sd;
 
-  // Increment sequence when new rgb_t needs to be created
-  std::uint64_t sequence;
-};
+    // Increment sequence when new rgb_t needs to be created
+    std::uint64_t sequence;
+  };
 
-class sws_t {
-public:
-  static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex);
-  static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_heigth);
+  class sws_t {
+  public:
+    static std::optional<sws_t>
+    make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex);
+    static std::optional<sws_t>
+    make(int in_width, int in_height, int out_width, int out_heigth);
 
-  // Convert the loaded image into the first two framebuffers
-  int convert(gl::frame_buf_t &fb);
+    // Convert the loaded image into the first two framebuffers
+    int
+    convert(gl::frame_buf_t &fb);
 
-  // Make an area of the image black
-  int blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
+    // Make an area of the image black
+    int
+    blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
 
-  void load_ram(platf::img_t &img);
-  void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
+    void
+    load_ram(platf::img_t &img);
+    void
+    load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
 
-  void set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
+    void
+    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
 
-  // The first texture is the monitor image.
-  // The second texture is the cursor image
-  gl::tex_t tex;
+    // The first texture is the monitor image.
+    // The second texture is the cursor image
+    gl::tex_t tex;
 
-  // The cursor image will be blended into this framebuffer
-  gl::frame_buf_t cursor_framebuffer;
-  gl::frame_buf_t copy_framebuffer;
+    // The cursor image will be blended into this framebuffer
+    gl::frame_buf_t cursor_framebuffer;
+    gl::frame_buf_t copy_framebuffer;
 
-  // Y - shader, UV - shader, Cursor - shader
-  gl::program_t program[3];
-  gl::buffer_t color_matrix;
+    // Y - shader, UV - shader, Cursor - shader
+    gl::program_t program[3];
+    gl::buffer_t color_matrix;
 
-  int out_width, out_height;
-  int in_width, in_height;
-  int offsetX, offsetY;
+    int out_width, out_height;
+    int in_width, in_height;
+    int offsetX, offsetY;
 
-  // Pointer to the texture to be converted to nv12
-  int loaded_texture;
+    // Pointer to the texture to be converted to nv12
+    int loaded_texture;
 
-  // Store latest cursor for load_vram
-  std::uint64_t serial;
-};
+    // Store latest cursor for load_vram
+    std::uint64_t serial;
+  };
 
-bool fail();
-} // namespace egl
+  bool
+  fail();
+}  // namespace egl
 
 #endif

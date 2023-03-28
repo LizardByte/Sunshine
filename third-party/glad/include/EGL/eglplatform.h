@@ -28,11 +28,11 @@
  */
 
 #ifndef EGLAPI
-#define EGLAPI KHRONOS_APICALL
+  #define EGLAPI KHRONOS_APICALL
 #endif
 
 #ifndef EGLAPIENTRY
-#define EGLAPIENTRY KHRONOS_APIENTRY
+  #define EGLAPIENTRY KHRONOS_APIENTRY
 #endif
 #define EGLAPIENTRYP EGLAPIENTRY *
 
@@ -55,10 +55,10 @@ typedef void *EGLNativePixmapType;
 typedef void *EGLNativeWindowType;
 
 #elif defined(_WIN32) || defined(__VC32__) && !defined(__CYGWIN__) && !defined(__SCITECH_SNAP__) /* Win32 and WinCE */
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN 1
-#endif
-#include <windows.h>
+  #ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN 1
+  #endif
+  #include <windows.h>
 
 typedef HDC EGLNativeDisplayType;
 typedef HBITMAP EGLNativePixmapType;
@@ -111,9 +111,9 @@ typedef khronos_uintptr_t EGLNativeWindowType;
 
 #elif defined(__unix__) || defined(USE_X11)
 
-/* X11 (tentative)  */
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
+  /* X11 (tentative)  */
+  #include <X11/Xlib.h>
+  #include <X11/Xutil.h>
 
 typedef Display *EGLNativeDisplayType;
 typedef Pixmap EGLNativePixmapType;
@@ -127,7 +127,7 @@ typedef void *EGLNativeWindowType;
 
 #elif defined(__HAIKU__)
 
-#include <kernel/image.h>
+  #include <kernel/image.h>
 
 typedef void *EGLNativeDisplayType;
 typedef khronos_uintptr_t EGLNativePixmapType;
@@ -140,14 +140,13 @@ typedef khronos_uintptr_t EGLNativePixmapType;
 typedef khronos_uintptr_t EGLNativeWindowType;
 
 #else
-#error "Platform not recognized"
+  #error "Platform not recognized"
 #endif
 
 /* EGL 1.2 types, renamed for consistency in EGL 1.3 */
 typedef EGLNativeDisplayType NativeDisplayType;
 typedef EGLNativePixmapType NativePixmapType;
 typedef EGLNativeWindowType NativeWindowType;
-
 
 /* Define EGLint. This must be a signed integral type large enough to contain
  * all legal attribute names and values passed into and out of EGL, whether
@@ -158,12 +157,11 @@ typedef EGLNativeWindowType NativeWindowType;
  */
 typedef khronos_int32_t EGLint;
 
-
 /* C++ / C typecast macros for special EGL handle values */
 #if defined(__cplusplus)
-#define EGL_CAST(type, value) (static_cast<type>(value))
+  #define EGL_CAST(type, value) (static_cast<type>(value))
 #else
-#define EGL_CAST(type, value) ((type)(value))
+  #define EGL_CAST(type, value) ((type) (value))
 #endif
 
 #endif /* __eglplatform_h */

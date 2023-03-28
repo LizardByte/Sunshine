@@ -19,9 +19,10 @@
  * To run a command, such as 'ipconfig /flushdns', with administrative privileges, execute:
  *   elevator.exe cmd /C "ipconfig /flushdns"
  */
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[]) {
   // Check if the user provided at least one argument (the command to run)
-  if(argc < 2) {
+  if (argc < 2) {
     std::cout << "Usage: " << argv[0] << " <command> [arguments]" << std::endl;
     return 1;
   }
@@ -31,23 +32,23 @@ int main(int argc, char *argv[]) {
   std::wstring arguments;
 
   // Concatenate the remaining arguments (if any) into a single wstring
-  for(int i = 2; i < argc; ++i) {
+  for (int i = 2; i < argc; ++i) {
     arguments += std::wstring(argv[i], argv[i] + strlen(argv[i]));
-    if(i < argc - 1) {
+    if (i < argc - 1) {
       arguments += L" ";
     }
   }
 
   // Prepare the SHELLEXECUTEINFOW structure with the necessary information
   SHELLEXECUTEINFOW info = { sizeof(SHELLEXECUTEINFOW) };
-  info.lpVerb            = L"runas"; // Request elevation
-  info.lpFile            = command.c_str();
-  info.lpParameters      = arguments.empty() ? nullptr : arguments.c_str();
-  info.nShow             = SW_SHOW;
-  info.fMask             = SEE_MASK_NOCLOSEPROCESS; // So we can wait for the process to finish
+  info.lpVerb = L"runas";  // Request elevation
+  info.lpFile = command.c_str();
+  info.lpParameters = arguments.empty() ? nullptr : arguments.c_str();
+  info.nShow = SW_SHOW;
+  info.fMask = SEE_MASK_NOCLOSEPROCESS;  // So we can wait for the process to finish
 
   // Attempt to execute the command with elevation
-  if(!ShellExecuteExW(&info)) {
+  if (!ShellExecuteExW(&info)) {
     std::cout << "Error: ShellExecuteExW failed with code " << GetLastError() << std::endl;
     return 1;
   }
@@ -58,7 +59,7 @@ int main(int argc, char *argv[]) {
   DWORD exitCode = 0;
 
   // Retrieve the exit code of the launched process
-  if(!GetExitCodeProcess(info.hProcess, &exitCode)) {
+  if (!GetExitCodeProcess(info.hProcess, &exitCode)) {
     std::cout << "Error: GetExitCodeProcess failed with code " << GetLastError() << std::endl;
   }
 
