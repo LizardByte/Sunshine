@@ -273,6 +273,7 @@
           output: "",
           cmd: [],
           index: -1,
+          "exclude-global-prep-cmd": false,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -287,6 +288,8 @@
           this.$set(this.editForm, "prep-cmd", []);
         if (this.editForm["detached"] === undefined)
           this.$set(this.editForm, "detached", []);
+        if (this.editForm["exclude-global-prep-cmd"] === undefined)
+          this.$set(this.editForm, "exclude-global-prep-cmd", false);
         this.showEditForm = true;
       },
       showDeleteForm(id) {
