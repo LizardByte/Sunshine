@@ -53,6 +53,8 @@ namespace system_tray {
     // set working dir to user home directory
     working_dir = boost::filesystem::path(std::getenv("HOME"));
     std::string cmd = R"(xdg-open ")" + url + R"(")";
+  #elif defined(__APPLE__) || defined(__MACH__)
+    std::string cmd = R"(open ")" + url + R"(")";
   #endif
 
     boost::process::environment _env = boost::this_process::environment();
