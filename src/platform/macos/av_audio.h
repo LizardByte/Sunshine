@@ -7,14 +7,14 @@
 
 #define kBufferLength 2048
 
-@interface AVAudio : NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
+@interface AVAudio: NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
 @public
   TPCircularBuffer audioSampleBuffer;
 }
 
-@property(nonatomic, assign) AVCaptureSession *audioCaptureSession;
-@property(nonatomic, assign) AVCaptureConnection *audioConnection;
-@property(nonatomic, assign) NSCondition *samplesArrivedSignal;
+@property (nonatomic, assign) AVCaptureSession *audioCaptureSession;
+@property (nonatomic, assign) AVCaptureConnection *audioConnection;
+@property (nonatomic, assign) NSCondition *samplesArrivedSignal;
 
 + (NSArray *)microphoneNames;
 + (AVCaptureDevice *)findMicrophone:(NSString *)name;
@@ -23,4 +23,4 @@
 
 @end
 
-#endif //SUNSHINE_PLATFORM_AV_AUDIO_H
+#endif  //SUNSHINE_PLATFORM_AV_AUDIO_H
