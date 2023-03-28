@@ -49,7 +49,7 @@ namespace system_tray {
     // this isn't ideal as it briefly shows a command window
     // but start a command built into cmd, not an executable
     std::string cmd = R"(cmd /C "start )" + url + R"(")";
-  #else  // if unix
+  #elif defined(__linux__) || defined(linux) || defined(__linux)
     // set working dir to user home directory
     working_dir = boost::filesystem::path(std::getenv("HOME"));
     std::string cmd = R"(xdg-open ")" + url + R"(")";
