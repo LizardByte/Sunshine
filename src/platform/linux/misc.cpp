@@ -578,9 +578,8 @@ namespace platf {
           // Hide it by default
           display_cursor = false;
         }
+        sources[source::KMS] = true;
       }
-
-      sources[source::KMS] = true;
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
