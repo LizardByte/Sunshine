@@ -13,6 +13,7 @@
 - (Linux/Windows) Add system tray icon
 - (Windows) Added ability to safely elevate commands that fail due to insufficient permissions when running as a service
 - (Config) Added global prep commands, and ability to exclude an app from using global prep commands
+- (Installer/Windows) Automatically install ViGEmBus if selected
 
 **Changed**
 - (Logging) Changed client verified messages to debug to prevent spamming the log
