@@ -723,10 +723,10 @@ namespace platf {
       }
 
       capture_e
-      capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
+      capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
         auto next_frame = std::chrono::steady_clock::now();
 
-        while (img) {
+        while (true) {
           auto now = std::chrono::steady_clock::now();
 
           if (next_frame > now) {
@@ -738,16 +738,22 @@ namespace platf {
           }
           next_frame = now + delay;
 
-          auto status = snapshot(img.get(), 1000ms, *cursor);
+          std::shared_ptr<platf::img_t> img_out;
+          auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
           switch (status) {
             case platf::capture_e::reinit:
             case platf::capture_e::error:
+            case platf::capture_e::interrupted:
               return status;
             case platf::capture_e::timeout:
-              img = snapshot_cb(img, false);
+              if (!push_captured_image_cb(std::move(img_out), false)) {
+                return platf::capture_e::ok;
+              }
               break;
             case platf::capture_e::ok:
-              img = snapshot_cb(img, true);
+              if (!push_captured_image_cb(std::move(img_out), true)) {
+                return platf::capture_e::ok;
+              }
               break;
             default:
               BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
@@ -768,7 +774,7 @@ namespace platf {
       }
 
       capture_e
-      snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
+      snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
         file_t fb_fd[4];
 
         egl::surface_descriptor_t sd;
@@ -793,10 +799,14 @@ namespace platf {
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
         BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;
 
-        gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out_base->height * img_out_base->row_pitch, img_out_base->data);
+        if (!pull_free_image_cb(img_out)) {
+          return platf::capture_e::interrupted;
+        }
+
+        gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
 
         if (cursor_opt && cursor) {
-          cursor_opt->blend(*img_out_base, img_offset_x, img_offset_y);
+          cursor_opt->blend(*img_out, img_offset_x, img_offset_y);
         }
 
         return capture_e::ok;
@@ -855,14 +865,23 @@ namespace platf {
 
       int
       dummy_img(platf::img_t *img) override {
-        return snapshot(img, 1s, false) != capture_e::ok;
+        // TODO: stop cheating and give black image
+        if (!img) {
+          return -1;
+        };
+        auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+          img_out = img->shared_from_this();
+          return true;
+        };
+        std::shared_ptr<platf::img_t> img_out;
+        return snapshot(pull_dummy_img_callback, img_out, 1s, false) != platf::capture_e::ok;
       }
 
       capture_e
-      capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) {
+      capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
         auto next_frame = std::chrono::steady_clock::now();
 
-        while (img) {
+        while (true) {
           auto now = std::chrono::steady_clock::now();
 
           if (next_frame > now) {
@@ -874,16 +893,22 @@ namespace platf {
           }
           next_frame = now + delay;
 
-          auto status = snapshot(img.get(), 1000ms, *cursor);
+          std::shared_ptr<platf::img_t> img_out;
+          auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
           switch (status) {
             case platf::capture_e::reinit:
             case platf::capture_e::error:
+            case platf::capture_e::interrupted:
               return status;
             case platf::capture_e::timeout:
-              img = snapshot_cb(img, false);
+              if (!push_captured_image_cb(std::move(img_out), false)) {
+                return platf::capture_e::ok;
+              }
               break;
             case platf::capture_e::ok:
-              img = snapshot_cb(img, true);
+              if (!push_captured_image_cb(std::move(img_out), true)) {
+                return platf::capture_e::ok;
+              }
               break;
             default:
               BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
@@ -895,10 +920,13 @@ namespace platf {
       }
 
       capture_e
-      snapshot(img_t *img_out_base, std::chrono::milliseconds /* timeout */, bool cursor) {
+      snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
         file_t fb_fd[4];
 
-        auto img = (egl::img_descriptor_t *) img_out_base;
+        if (!pull_free_image_cb(img_out)) {
+          return platf::capture_e::interrupted;
+        }
+        auto img = (egl::img_descriptor_t *) img_out.get();
         img->reset();
 
         auto status = refresh(fb_fd, &img->sd);
@@ -909,7 +937,7 @@ namespace platf {
         img->sequence = ++sequence;
 
         if (!cursor || !cursor_opt) {
-          img_out_base->data = nullptr;
+          img->data = nullptr;
 
           for (auto x = 0; x < 4; ++x) {
             fb_fd[x].release();

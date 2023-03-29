@@ -92,7 +92,7 @@ namespace platf::dxgi {
   }
 
   capture_e
-  display_base_t::capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<::platf::img_t> img, bool *cursor) {
+  display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
     auto next_frame = std::chrono::steady_clock::now();
 
     // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
@@ -110,7 +110,7 @@ namespace platf::dxgi {
       CloseHandle(timer);
     });
 
-    while (img) {
+    while (true) {
       // This will return false if the HDR state changes or for any number of other
       // display or GPU changes. We should reinit to examine the updated state of
       // the display subsystem. It is recommended to call this once per frame.
@@ -135,16 +135,22 @@ namespace platf::dxgi {
         next_frame = std::chrono::steady_clock::now() + delay;
       }
 
-      auto status = snapshot(img.get(), 1000ms, *cursor);
+      std::shared_ptr<img_t> img_out;
+      auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
       switch (status) {
         case platf::capture_e::reinit:
         case platf::capture_e::error:
+        case platf::capture_e::interrupted:
           return status;
         case platf::capture_e::timeout:
-          img = snapshot_cb(img, false);
+          if (!push_captured_image_cb(std::move(img_out), false)) {
+            return capture_e::ok;
+          }
           break;
         case platf::capture_e::ok:
-          img = snapshot_cb(img, true);
+          if (!push_captured_image_cb(std::move(img_out), true)) {
+            return capture_e::ok;
+          }
           break;
         default:
           BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';

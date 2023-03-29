@@ -125,8 +125,9 @@ namespace platf::dxgi {
   public:
     int
     init(const ::video::config_t &config, const std::string &display_name);
+
     capture_e
-    capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
+    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
 
     std::chrono::nanoseconds delay;
 
@@ -168,7 +169,7 @@ namespace platf::dxgi {
     colorspace_to_string(DXGI_COLOR_SPACE_TYPE type);
 
     virtual capture_e
-    snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
     virtual int
     complete_img(img_t *img, bool dummy) = 0;
     virtual std::vector<DXGI_FORMAT>
@@ -178,7 +179,7 @@ namespace platf::dxgi {
   class display_ram_t: public display_base_t {
   public:
     virtual capture_e
-    snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
     std::shared_ptr<img_t>
     alloc_img() override;
@@ -200,7 +201,7 @@ namespace platf::dxgi {
   class display_vram_t: public display_base_t, public std::enable_shared_from_this<display_vram_t> {
   public:
     virtual capture_e
-    snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
     std::shared_ptr<img_t>
     alloc_img() override;
