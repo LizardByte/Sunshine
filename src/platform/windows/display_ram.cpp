@@ -171,9 +171,7 @@ namespace platf::dxgi {
   }
 
   capture_e
-  display_ram_t::snapshot(::platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) {
-    auto img = (img_t *) img_base;
-
+  display_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     HRESULT status;
 
     DXGI_OUTDUPL_FRAME_INFO frame_info;
@@ -268,6 +266,11 @@ namespace platf::dxgi {
         device_ctx->CopyResource(texture.get(), src.get());
       }
     }
+
+    if (!pull_free_image_cb(img_out)) {
+      return capture_e::interrupted;
+    }
+    auto img = (img_t *) img_out.get();
 
     // If we don't know the final capture format yet, encode a dummy image
     if (capture_format == DXGI_FORMAT_UNKNOWN) {

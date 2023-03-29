@@ -476,10 +476,10 @@ namespace platf {
     }
 
     capture_e
-    capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
+    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
-      while (img) {
+      while (true) {
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
@@ -491,16 +491,22 @@ namespace platf {
         }
         next_frame = now + delay;
 
-        auto status = snapshot(img.get(), 1000ms, *cursor);
+        std::shared_ptr<platf::img_t> img_out;
+        auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
         switch (status) {
           case platf::capture_e::reinit:
           case platf::capture_e::error:
+          case platf::capture_e::interrupted:
             return status;
           case platf::capture_e::timeout:
-            img = snapshot_cb(img, false);
+            if (!push_captured_image_cb(std::move(img_out), false)) {
+              return platf::capture_e::ok;
+            }
             break;
           case platf::capture_e::ok:
-            img = snapshot_cb(img, true);
+            if (!push_captured_image_cb(std::move(img_out), true)) {
+              return platf::capture_e::ok;
+            }
             break;
           default:
             BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
@@ -512,7 +518,7 @@ namespace platf {
     }
 
     capture_e
-    snapshot(img_t *img_out_base, std::chrono::milliseconds timeout, bool cursor) {
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       refresh();
 
       //The whole X server changed, so we must reinit everything
@@ -520,18 +526,23 @@ namespace platf {
         BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
         return capture_e::reinit;
       }
-      XImage *img { x11::GetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
 
-      auto img_out = (x11_img_t *) img_out_base;
-      img_out->width = img->width;
-      img_out->height = img->height;
-      img_out->data = (uint8_t *) img->data;
-      img_out->row_pitch = img->bytes_per_line;
-      img_out->pixel_pitch = img->bits_per_pixel / 8;
-      img_out->img.reset(img);
+      if (!pull_free_image_cb(img_out)) {
+        return platf::capture_e::interrupted;
+      }
+      auto img = (x11_img_t *) img_out.get();
+
+      XImage *x_img { x11::GetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
+
+      img->width = x_img->width;
+      img->height = x_img->height;
+      img->data = (uint8_t *) x_img->data;
+      img->row_pitch = x_img->bytes_per_line;
+      img->pixel_pitch = x_img->bits_per_pixel / 8;
+      img->img.reset(x_img);
 
       if (cursor) {
-        blend_cursor(xdisplay.get(), *img_out_base, offset_x, offset_y);
+        blend_cursor(xdisplay.get(), *img, offset_x, offset_y);
       }
 
       return capture_e::ok;
@@ -559,7 +570,16 @@ namespace platf {
 
     int
     dummy_img(img_t *img) override {
-      snapshot(img, 0s, true);
+      // TODO: stop cheating and give black image
+      if (!img) {
+        return -1;
+      };
+      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+        img_out = img->shared_from_this();
+        return true;
+      };
+      std::shared_ptr<platf::img_t> img_out;
+      snapshot(pull_dummy_img_callback, img_out, 0s, true);
       return 0;
     }
   };
@@ -594,10 +614,10 @@ namespace platf {
     }
 
     capture_e
-    capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
+    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
-      while (img) {
+      while (true) {
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
@@ -609,16 +629,22 @@ namespace platf {
         }
         next_frame = now + delay;
 
-        auto status = snapshot(img.get(), 1000ms, *cursor);
+        std::shared_ptr<platf::img_t> img_out;
+        auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
         switch (status) {
           case platf::capture_e::reinit:
           case platf::capture_e::error:
+          case platf::capture_e::interrupted:
             return status;
           case platf::capture_e::timeout:
-            img = snapshot_cb(img, false);
+            if (!push_captured_image_cb(std::move(img_out), false)) {
+              return platf::capture_e::ok;
+            }
             break;
           case platf::capture_e::ok:
-            img = snapshot_cb(img, true);
+            if (!push_captured_image_cb(std::move(img_out), true)) {
+              return platf::capture_e::ok;
+            }
             break;
           default:
             BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
@@ -630,7 +656,7 @@ namespace platf {
     }
 
     capture_e
-    snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor) {
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       //The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
         BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
@@ -645,10 +671,14 @@ namespace platf {
           return capture_e::reinit;
         }
 
-        std::copy_n((std::uint8_t *) data.data, frame_size(), img->data);
+        if (!pull_free_image_cb(img_out)) {
+          return platf::capture_e::interrupted;
+        }
+
+        std::copy_n((std::uint8_t *) data.data, frame_size(), img_out->data);
 
         if (cursor) {
-          blend_cursor(shm_xdisplay.get(), *img, offset_x, offset_y);
+          blend_cursor(shm_xdisplay.get(), *img_out, offset_x, offset_y);
         }
 
         return capture_e::ok;

@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <bitset>
+#include <list>
 #include <thread>
 
 extern "C" {
@@ -14,7 +15,6 @@ extern "C" {
 #include "input.h"
 #include "main.h"
 #include "platform/common.h"
-#include "round_robin.h"
 #include "sync.h"
 #include "video.h"
 
@@ -791,16 +791,45 @@ namespace video {
     }
     display_wp = disp;
 
-    std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-    auto round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+    constexpr auto capture_buffer_normal_size = 1;
+    constexpr auto capture_buffer_size = 12;
+    std::list<std::shared_ptr<platf::img_t>> imgs(capture_buffer_size);
 
-    for (auto &img : imgs) {
-      img = disp->alloc_img();
-      if (!img) {
-        BOOST_LOG(error) << "Couldn't initialize an image"sv;
-        return;
+    auto pull_free_image_callback = [&](std::shared_ptr<platf::img_t> &img_out) -> bool {
+      img_out.reset();
+      while (capture_ctx_queue->running()) {
+        for (auto it = imgs.begin(); it != imgs.end(); it++) {
+          // pick first unallocated or unused
+          if (!*it || it->use_count() == 1) {
+            if (!*it) {
+              // allocate if unallocated
+              *it = disp->alloc_img();
+            }
+            img_out = *it;
+            if (it != imgs.begin()) {
+              // move freshly allocated or unused img to the front of the list to prioritize its reusal
+              imgs.erase(it);
+              imgs.push_front(img_out);
+            }
+            break;
+          }
+        }
+        if (img_out) {
+          // unallocate unused above normal buffer size
+          size_t index = 0;
+          for (auto &img : imgs) {
+            if (index >= capture_buffer_normal_size && img && img.use_count() == 1) img.reset();
+            index++;
+          }
+          return true;
+        }
+        else {
+          // sleep and retry if image pool is full
+          std::this_thread::sleep_for(1ms);
+        }
       }
-    }
+      return false;
+    };
 
     // Capture takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
@@ -808,7 +837,7 @@ namespace video {
     while (capture_ctx_queue->running()) {
       bool artificial_reinit = false;
 
-      auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img, bool frame_captured) -> std::shared_ptr<platf::img_t> {
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
         KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
           if (!capture_ctx->images->running()) {
             capture_ctx = capture_ctxs.erase(capture_ctx);
@@ -824,8 +853,9 @@ namespace video {
         })
 
         if (!capture_ctx_queue->running()) {
-          return nullptr;
+          return false;
         }
+
         while (capture_ctx_queue->peek()) {
           capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
         }
@@ -834,18 +864,13 @@ namespace video {
           artificial_reinit = true;
 
           display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
-          return nullptr;
+          return false;
         }
 
-        auto &next_img = *round_robin++;
-        while (next_img.use_count() > 1) {
-          // Sleep a bit to avoid starving the encoder threads
-          std::this_thread::sleep_for(2ms);
-        }
+        return true;
+      };
 
-        return next_img;
-      },
-        *round_robin++, &display_cursor);
+      auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
 
       if (artificial_reinit && status != platf::capture_e::error) {
         status = platf::capture_e::reinit;
@@ -899,21 +924,13 @@ namespace video {
 
           display_wp = disp;
 
-          // Re-allocate images
-          for (auto &img : imgs) {
-            img = disp->alloc_img();
-            if (!img) {
-              BOOST_LOG(error) << "Couldn't initialize an image"sv;
-              return;
-            }
-          }
-
           reinit_event.reset();
           continue;
         }
         case platf::capture_e::error:
         case platf::capture_e::ok:
         case platf::capture_e::timeout:
+        case platf::capture_e::interrupted:
           return;
         default:
           BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
@@ -1487,11 +1504,11 @@ namespace video {
 
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
-      auto snapshot_cb = [&](std::shared_ptr<platf::img_t> &img, bool frame_captured) -> std::shared_ptr<platf::img_t> {
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
         while (encode_session_ctx_queue.peek()) {
           auto encode_session_ctx = encode_session_ctx_queue.pop();
           if (!encode_session_ctx) {
-            return nullptr;
+            return false;
           }
 
           synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
@@ -1499,7 +1516,7 @@ namespace video {
           auto encode_session = make_synced_session(disp.get(), encoder, *img, *synced_session_ctxs.back());
           if (!encode_session) {
             ec = platf::capture_e::error;
-            return nullptr;
+            return false;
           }
 
           synced_sessions.emplace_back(std::move(*encode_session));
@@ -1518,7 +1535,7 @@ namespace video {
             }));
 
             if (synced_sessions.empty()) {
-              return nullptr;
+              return false;
             }
 
             continue;
@@ -1555,18 +1572,24 @@ namespace video {
           ec = platf::capture_e::reinit;
 
           display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
-          return nullptr;
+          return false;
         }
 
-        return img;
+        return true;
       };
 
-      auto status = disp->capture(std::move(snapshot_cb), img, &display_cursor);
+      auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+        img_out = img;
+        return true;
+      };
+
+      auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
       switch (status) {
         case platf::capture_e::reinit:
         case platf::capture_e::error:
         case platf::capture_e::ok:
         case platf::capture_e::timeout:
+        case platf::capture_e::interrupted:
           return ec != platf::capture_e::ok ? ec : status;
       }
     }

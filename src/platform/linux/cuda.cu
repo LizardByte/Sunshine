@@ -35,7 +35,7 @@ using namespace std::literals;
  * Therefore, some declarations need to be added explicitely
  */
 namespace platf {
-struct img_t {
+struct img_t: std::enable_shared_from_this<img_t> {
 public:
   std::uint8_t *data {};
   std::int32_t width {};
@@ -70,7 +70,7 @@ struct alignas(16) color_extern_t {
 
 static_assert(sizeof(video::color_t) == sizeof(video::color_extern_t), "color matrix struct mismatch");
 
-extern color_t colors[4];
+extern color_t colors[6];
 } // namespace video
 
 //////////////////// End special declarations

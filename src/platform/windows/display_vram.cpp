@@ -311,6 +311,16 @@ namespace platf::dxgi {
   public:
     int
     convert(platf::img_t &img_base) override {
+      // Garbage collect mapped capture images whose weak references have expired
+      for (auto it = img_ctx_map.begin(); it != img_ctx_map.end();) {
+        if (it->second.img_weak.expired()) {
+          it = img_ctx_map.erase(it);
+        }
+        else {
+          it++;
+        }
+      }
+
       auto &img = (img_d3d_t &) img_base;
       auto &img_ctx = img_ctx_map[img.id];
 
@@ -341,6 +351,9 @@ namespace platf::dxgi {
 
       // Release encoder mutex to allow capture code to reuse this image
       img_ctx.encoder_mutex->ReleaseSync(0);
+
+      ID3D11ShaderResourceView *emptyShaderResourceView = nullptr;
+      device_ctx->PSSetShaderResources(0, 1, &emptyShaderResourceView);
 
       return 0;
     }
@@ -650,12 +663,15 @@ namespace platf::dxgi {
       shader_res_t encoder_input_res;
       keyed_mutex_t encoder_mutex;
 
+      std::weak_ptr<const platf::img_t> img_weak;
+
       void
       reset() {
         capture_texture_p = nullptr;
         encoder_texture.reset();
         encoder_input_res.reset();
         encoder_mutex.reset();
+        img_weak.reset();
       }
     };
 
@@ -699,6 +715,9 @@ namespace platf::dxgi {
       }
 
       img_ctx.capture_texture_p = img.capture_texture.get();
+
+      img_ctx.img_weak = img.weak_from_this();
+
       return 0;
     }
 
@@ -789,9 +808,7 @@ namespace platf::dxgi {
   }
 
   capture_e
-  display_vram_t::snapshot(platf::img_t *img_base, std::chrono::milliseconds timeout, bool cursor_visible) {
-    auto img = (img_d3d_t *) img_base;
-
+  display_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     HRESULT status;
 
     DXGI_OUTDUPL_FRAME_INFO frame_info;
@@ -838,6 +855,11 @@ namespace platf::dxgi {
       cursor_alpha.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
       cursor_xor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
     }
+
+    if (!pull_free_image_cb(img_out)) {
+      return capture_e::interrupted;
+    }
+    auto img = (img_d3d_t *) img_out.get();
 
     if (frame_update_flag) {
       texture2d_t src {};
@@ -969,6 +991,12 @@ namespace platf::dxgi {
       }
 
       device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
+
+      ID3D11RenderTargetView *emptyRenderTarget = nullptr;
+      device_ctx->OMSetRenderTargets(1, &emptyRenderTarget, nullptr);
+      device_ctx->RSSetViewports(0, nullptr);
+      ID3D11ShaderResourceView *emptyShaderResourceView = nullptr;
+      device_ctx->PSSetShaderResources(0, 1, &emptyShaderResourceView);
     }
 
     // Release the mutex to allow encoding of this frame

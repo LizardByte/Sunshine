@@ -37,38 +37,46 @@ namespace platf {
     }
 
     capture_e
-    capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override {
-      __block auto img_next = std::move(img);
-
+    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
-        auto av_img_next = std::static_pointer_cast<av_img_t>(img_next);
-
         CFRetain(sampleBuffer);
 
         CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
         CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
 
-        if (av_img_next->pixel_buffer != nullptr)
-          CVPixelBufferUnlockBaseAddress(av_img_next->pixel_buffer, 0);
+        std::shared_ptr<img_t> img_out;
+        if (!pull_free_image_cb(img_out)) {
+          // got interrupt signal
+          // returning false here stops capture backend
+          return false;
+        }
+        auto av_img = std::static_pointer_cast<av_img_t>(img_out);
 
-        if (av_img_next->sample_buffer != nullptr)
-          CFRelease(av_img_next->sample_buffer);
+        if (av_img->pixel_buffer != nullptr)
+          CVPixelBufferUnlockBaseAddress(av_img->pixel_buffer, 0);
 
-        av_img_next->sample_buffer = sampleBuffer;
-        av_img_next->pixel_buffer = pixelBuffer;
-        img_next->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
+        if (av_img->sample_buffer != nullptr)
+          CFRelease(av_img->sample_buffer);
+
+        av_img->sample_buffer = sampleBuffer;
+        av_img->pixel_buffer = pixelBuffer;
+        img_out->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
 
         size_t extraPixels[4];
         CVPixelBufferGetExtendedPixels(pixelBuffer, &extraPixels[0], &extraPixels[1], &extraPixels[2], &extraPixels[3]);
 
-        img_next->width = CVPixelBufferGetWidth(pixelBuffer) + extraPixels[0] + extraPixels[1];
-        img_next->height = CVPixelBufferGetHeight(pixelBuffer) + extraPixels[2] + extraPixels[3];
-        img_next->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
-        img_next->pixel_pitch = img_next->row_pitch / img_next->width;
+        img_out->width = CVPixelBufferGetWidth(pixelBuffer) + extraPixels[0] + extraPixels[1];
+        img_out->height = CVPixelBufferGetHeight(pixelBuffer) + extraPixels[2] + extraPixels[3];
+        img_out->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        img_out->pixel_pitch = img_out->row_pitch / img_out->width;
 
-        img_next = snapshot_cb(img_next, true);
+        if (!push_captured_image_cb(std::move(img_out), false)) {
+          // got interrupt signal
+          // returning false here stops capture backend
+          return false;
+        }
 
-        return img_next != nullptr;
+        return true;
       }];
 
       // FIXME: We should time out if an image isn't returned for a while
@@ -132,6 +140,7 @@ namespace platf {
         img->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
         img->pixel_pitch = img->row_pitch / img->width;
 
+        // returning false here stops capture backend
         return false;
       }];
 

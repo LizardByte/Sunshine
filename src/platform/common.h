@@ -169,7 +169,7 @@ namespace platf {
     virtual ~deinit_t() = default;
   };
 
-  struct img_t {
+  struct img_t: std::enable_shared_from_this<img_t> {
   public:
     img_t() = default;
 
@@ -245,6 +245,7 @@ namespace platf {
     ok,
     reinit,
     timeout,
+    interrupted,
     error
   };
 
@@ -255,20 +256,33 @@ namespace platf {
    * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
    * 
    * On Break Request -->
-   *    Returns nullptr
+   *    Returns false
    * 
    * On Success -->
-   *    Returns the image object that should be filled next.
-   *    This may or may not be the image send with the callback
+   *    Returns true
    */
-    using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img, bool frame_captured)>;
+    using push_captured_image_cb_t = std::function<bool(std::shared_ptr<img_t> &&img, bool frame_captured)>;
+
+    /**
+   * Use to get free image from the pool. Calls must be synchronized.
+   * Blocks until there is free image in the pool or capture is interrupted.
+   *
+   * Returns:
+   *     'true' on success, img_out contains free image
+   *     'false' when capture has been interrupted, img_out contains nullptr
+   */
+    using pull_free_image_cb_t = std::function<bool(std::shared_ptr<img_t> &img_out)>;
 
     display_t() noexcept:
         offset_x { 0 }, offset_y { 0 } {}
 
     /**
-   * snapshot_cb --> the callback
-   * std::shared_ptr<img_t> img --> The first image to use
+   * push_captured_image_cb --> The callback that is called with captured image,
+   *                            must be called from the same thread as capture()
+   * pull_free_image_cb --> Capture backends call this callback to get empty image
+   *                        from the pool. If backend uses multiple threads, calls to this
+   *                        callback must be synchronized. Calls to this callback and
+   *                        push_captured_image_cb must be synchronized as well.
    * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
    * 
    * Returns either:
@@ -277,7 +291,7 @@ namespace platf {
    *    capture_e::reinit when need of reinitialization
    */
     virtual capture_e
-    capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) = 0;
+    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;
 
     virtual std::shared_ptr<img_t>
     alloc_img() = 0;
