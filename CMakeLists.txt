@@ -810,10 +810,10 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_COMPONENT_AUDIO_GROUP "tools")
 
     # elevation tool
-    set(CPACK_COMPONENT_ELEVATION_DISPLAY_NAME "elevator")
-    set(CPACK_COMPONENT_ELEVATION_DESCRIPTION "CLI tool that assists with elevating \
+    set(CPACK_COMPONENT_ELEVATOR_DISPLAY_NAME "elevator")
+    set(CPACK_COMPONENT_ELEVATOR_DESCRIPTION "CLI tool that assists with elevating \
      commands when permissions have been denied.")
-    set(CPACK_COMPONENT_ELEVATION_GROUP "tools")
+    set(CPACK_COMPONENT_ELEVATOR_GROUP "tools")
 
     # display tool
     set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
