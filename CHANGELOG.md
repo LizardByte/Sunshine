@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.19.0] - 2023-03-29
+**Breaking**
+- (Linux/Flatpak) Moved Flatpak to org.freedesktop.Platform 22.08 and Cuda 12.0.0
+  This will drop support for Nvidia GPUs with compute capability 3.5
+
+**Added**
+- (Input) Added option to suppress input from gamepads, keyboards, or mice
+- (Input/Linux) Added unicode support for remote pasting (may not work on all DEs)
+- (Input/Linux) Added XTest input fallback
+- (UI) Added version notifications to web UI
+- (Linux/Windows) Add system tray icon
+- (Windows) Added ability to safely elevate commands that fail due to insufficient permissions when running as a service
+- (Config) Added global prep commands, and ability to exclude an app from using global prep commands
+
+**Changed**
+- (Logging) Changed client verified messages to debug to prevent spamming the log
+- (Config) Only save non default config values
+- (Service/Linux) Use xdg-desktop-autostart for systemd service
+- (Linux) Added config option to force capture method
+- (Windows) Execute prep command in context of current user
+- (Linux) Allow disconnected X11 outputs
+
+**Fixed**
+- (Input/Windows) Fix issue where internation keys were not translated correct, and modifier keys appeared stuck
+- (Linux) Fixed startup when /dev/dri didn't exist
+- (UI) Changes software encoding settings to select menu instead of text input
+- (Initialization) Do not terminate upon failure, allowing access to the web UI
+
+**Dependencies**
+- Bump third-party/moonlight-common-c from 07beb0f to c9426a6
+- Bump babel from 2.11.0 to 2.12.1
+- Bump @fortawesome/fontawesome-free from 6.2.1 to 6.4.0
+- Bump third-party/ViGEmClient from 9e842ba to 726404e
+- Bump ffmpeg
+- Bump third-party/miniupnp from 014c9df to e439318
+- Bump furo from 2022.12.7 to 2023.3.27
+- Bump third-party/nanors from 395e5ad to e9e242e
+
+**Misc**
+- (GitHub) Shared feature request board with Moonlight
+- (Docs) Improved application examples
+- (Docs) Added WIP documentation for source code using Doxygen and Breathe
+- (Build) Fix linux clang build errors
+- (Build/Archlinux) Skip irrelevant submodules
+- (Build/Archlinux) Disable download timeout
+- (Build/macOS) Support compiling for earlier releases of macOS
+- (Docs) Add favicon
+- (Docs) Add missing config default values
+- (Build) Fix compiler warnings due to depreciated elements in C++17
+- (Build) Fix libcurl link errors
+- (Clang) Adjusted formatting rules
+
 ## [0.18.4] - 2023-02-20
 **Fixed**
 - (Linux/AUR) Drop support of AUR package
@@ -350,3 +402,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.18.2]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.2
 [0.18.3]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.3
 [0.18.4]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.4
+[0.19.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.0
