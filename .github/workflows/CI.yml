@@ -7,6 +7,8 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches: [master, nightly]
+  watch:
+    types: [started]
   workflow_dispatch:
 
 concurrency:
