@@ -791,7 +791,9 @@ namespace video {
     }
     display_wp = disp;
 
-    std::vector<std::shared_ptr<platf::img_t>> imgs(12);
+    std::vector<std::shared_ptr<platf::img_t>> imgs(2);
+    imgs.reserve(12);
+    int collision_count = 0;
     auto round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
 
     for (auto &img : imgs) {
@@ -841,6 +843,25 @@ namespace video {
         while (next_img.use_count() > 1) {
           // Sleep a bit to avoid starving the encoder threads
           std::this_thread::sleep_for(2ms);
+          if (imgs.size() < 12) {
+            if (collision_count++ >= 10) {
+              collision_count = 0;
+              BOOST_LOG(info) << "Frame Buffer is being increased to improve performance. Current Size: " << imgs.size() + 1 << " Max Size: " << 12;
+              auto img = disp->alloc_img();
+              if (img) {
+                imgs.push_back(img);
+                round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+              }
+            }
+          }
+          else {
+            // TODO: Have more sophisticated code here to clean up the image buffer. Coming soon to a town near you!
+            BOOST_LOG(info) << "GOODBYE STUPID IMAGE!";
+            imgs.pop_back();
+            round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+          }
+
+          break;
         }
 
         return next_img;
