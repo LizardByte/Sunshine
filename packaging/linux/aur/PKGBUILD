@@ -9,7 +9,7 @@ arch=('x86_64' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
 
-depends=('avahi' 'boost-libs' 'curl' 'libevdev' 'libmfx' 'libpulse' 'libva' 'libvdpau' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'numactl' 'openssl' 'opus' 'udev')
+depends=('avahi' 'boost-libs' 'curl' 'libappindicator-gtk3' 'libevdev' 'libmfx' 'libpulse' 'libva' 'libvdpau' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'numactl' 'openssl' 'opus' 'udev')
 makedepends=('boost' 'cmake' 'git' 'make' 'nodejs' 'npm')
 optdepends=('cuda: NvFBC capture support'
             'libcap'
@@ -22,7 +22,28 @@ sha256sums=('SKIP')
 
 prepare() {
     cd "$pkgname"
-    git submodule update --recursive --init
+    # Skip submodules that we don't want
+    if [[ $CARCH == "x86_64" ]]; then
+        git -c submodule."ffmpeg-macos-x86_64".update=none \
+            -c submodule."ffmpeg-windows-x86_64".update=none \
+            -c submodule."ffmpeg-linux-aarch64".update=none \
+            -c submodule."ffmpeg-macos-aarch64".update=none \
+            submodule update --recursive --init
+    elif [[ $CARCH == "aarch64" ]]; then
+        git -c submodule."ffmpeg-macos-x86_64".update=none \
+            -c submodule."ffmpeg-windows-x86_64".update=none \
+            -c submodule."ffmpeg-linux-x86_64".update=none \
+            -c submodule."ffmpeg-macos-aarch64".update=none \
+            submodule update --recursive --init
+
+    # It's unlikely that someone could get this far on a system with an incorrect arch, but we should handle it anyway
+    # Pull linux ffmpeg submodules
+    else
+        git -c submodule."ffmpeg-macos-x86_64".update=none \
+            -c submodule."ffmpeg-windows-x86_64".update=none \
+            -c submodule."ffmpeg-macos-aarch64".update=none \
+            submodule update --recursive --init
+    fi
 }
 
 build() {

@@ -7,12 +7,12 @@
 #include <CoreVideo/CoreVideo.h>
 
 namespace platf {
-struct av_img_t : public img_t {
-  CVPixelBufferRef pixel_buffer   = nullptr;
-  CMSampleBufferRef sample_buffer = nullptr;
+  struct av_img_t: public img_t {
+    CVPixelBufferRef pixel_buffer = nullptr;
+    CMSampleBufferRef sample_buffer = nullptr;
 
-  ~av_img_t();
-};
-} // namespace platf
+    ~av_img_t();
+  };
+}  // namespace platf
 
 #endif /* av_img_t_h */

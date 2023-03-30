@@ -3,17 +3,37 @@
 @implementation AVAudio
 
 + (NSArray<AVCaptureDevice *> *)microphones {
-  AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone,
-    AVCaptureDeviceTypeExternalUnknown]
-                                                                                                             mediaType:AVMediaTypeAudio
-                                                                                                              position:AVCaptureDevicePositionUnspecified];
-  return discoverySession.devices;
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) { 10, 15, 0 })]) {
+    // This will generate a warning about AVCaptureDeviceDiscoverySession being
+    // unavailable before macOS 10.15, but we have a guard to prevent it from
+    // being called on those earlier systems.
+    // Unfortunately the supported way to silence this warning, using @available,
+    // produces linker errors for __isPlatformVersionAtLeast, so we have to use
+    // a different method.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone,
+      AVCaptureDeviceTypeExternalUnknown]
+                                                                                                               mediaType:AVMediaTypeAudio
+                                                                                                                position:AVCaptureDevicePositionUnspecified];
+    return discoverySession.devices;
+#pragma clang diagnostic pop
+  }
+  else {
+    // We're intentionally using a deprecated API here specifically for versions
+    // of macOS where it's not deprecated, so we can ignore any deprecation
+    // warnings:
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    return [AVCaptureDevice devicesWithMediaType:AVMediaTypeAudio];
+#pragma clang diagnostic pop
+  }
 }
 
 + (NSArray<NSString *> *)microphoneNames {
   NSMutableArray *result = [[NSMutableArray alloc] init];
 
-  for(AVCaptureDevice *device in [AVAudio microphones]) {
+  for (AVCaptureDevice *device in [AVAudio microphones]) {
     [result addObject:[device localizedName]];
   }
 
@@ -21,8 +41,8 @@
 }
 
 + (AVCaptureDevice *)findMicrophone:(NSString *)name {
-  for(AVCaptureDevice *device in [AVAudio microphones]) {
-    if([[device localizedName] isEqualToString:name]) {
+  for (AVCaptureDevice *device in [AVAudio microphones]) {
+    if ([[device localizedName] isEqualToString:name]) {
       return device;
     }
   }
@@ -45,11 +65,11 @@
 
   NSError *error;
   AVCaptureDeviceInput *audioInput = [AVCaptureDeviceInput deviceInputWithDevice:device error:&error];
-  if(audioInput == nil) {
+  if (audioInput == nil) {
     return -1;
   }
 
-  if([self.audioCaptureSession canAddInput:audioInput]) {
+  if ([self.audioCaptureSession canAddInput:audioInput]) {
     [self.audioCaptureSession addInput:audioInput];
   }
   else {
@@ -60,22 +80,22 @@
   AVCaptureAudioDataOutput *audioOutput = [[AVCaptureAudioDataOutput alloc] init];
 
   [audioOutput setAudioSettings:@{
-    (NSString *)AVFormatIDKey: [NSNumber numberWithUnsignedInt:kAudioFormatLinearPCM],
-    (NSString *)AVSampleRateKey: [NSNumber numberWithUnsignedInt:sampleRate],
-    (NSString *)AVNumberOfChannelsKey: [NSNumber numberWithUnsignedInt:channels],
-    (NSString *)AVLinearPCMBitDepthKey: [NSNumber numberWithUnsignedInt:16],
-    (NSString *)AVLinearPCMIsFloatKey: @NO,
-    (NSString *)AVLinearPCMIsNonInterleaved: @NO
+    (NSString *) AVFormatIDKey: [NSNumber numberWithUnsignedInt:kAudioFormatLinearPCM],
+    (NSString *) AVSampleRateKey: [NSNumber numberWithUnsignedInt:sampleRate],
+    (NSString *) AVNumberOfChannelsKey: [NSNumber numberWithUnsignedInt:channels],
+    (NSString *) AVLinearPCMBitDepthKey: [NSNumber numberWithUnsignedInt:16],
+    (NSString *) AVLinearPCMIsFloatKey: @NO,
+    (NSString *) AVLinearPCMIsNonInterleaved: @NO
   }];
 
-  dispatch_queue_attr_t qos       = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,
-          QOS_CLASS_USER_INITIATED,
-          DISPATCH_QUEUE_PRIORITY_HIGH);
+  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,
+    QOS_CLASS_USER_INITIATED,
+    DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
 
   [audioOutput setSampleBufferDelegate:self queue:recordingQueue];
 
-  if([self.audioCaptureSession canAddOutput:audioOutput]) {
+  if ([self.audioCaptureSession canAddOutput:audioOutput]) {
     [self.audioCaptureSession addOutput:audioOutput];
   }
   else {
@@ -100,7 +120,7 @@
 - (void)captureOutput:(AVCaptureOutput *)output
   didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
          fromConnection:(AVCaptureConnection *)connection {
-  if(connection == self.audioConnection) {
+  if (connection == self.audioConnection) {
     AudioBufferList audioBufferList;
     CMBlockBufferRef blockBuffer;
 

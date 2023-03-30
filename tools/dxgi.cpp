@@ -11,30 +11,32 @@
 
 using namespace std::literals;
 namespace dxgi {
-template<class T>
-void Release(T *dxgi) {
-  dxgi->Release();
-}
+  template <class T>
+  void
+  Release(T *dxgi) {
+    dxgi->Release();
+  }
 
-using factory1_t = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
-using adapter_t  = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
-using output_t   = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
+  using factory1_t = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
+  using adapter_t = util::safe_ptr<IDXGIAdapter1, Release<IDXGIAdapter1>>;
+  using output_t = util::safe_ptr<IDXGIOutput, Release<IDXGIOutput>>;
 
-} // namespace dxgi
+}  // namespace dxgi
 
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[]) {
   HRESULT status;
 
   dxgi::factory1_t::pointer factory_p {};
-  status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **)&factory_p);
+  status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &factory_p);
   dxgi::factory1_t factory { factory_p };
-  if(FAILED(status)) {
+  if (FAILED(status)) {
     std::cout << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
     return -1;
   }
 
   dxgi::adapter_t::pointer adapter_p {};
-  for(int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+  for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
     dxgi::adapter_t adapter { adapter_p };
 
     DXGI_ADAPTER_DESC1 adapter_desc;
@@ -54,13 +56,13 @@ int main(int argc, char *argv[]) {
       << "    ====== OUTPUT ======"sv << std::endl;
 
     dxgi::output_t::pointer output_p {};
-    for(int y = 0; adapter->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+    for (int y = 0; adapter->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
       dxgi::output_t output { output_p };
 
       DXGI_OUTPUT_DESC desc;
       output->GetDesc(&desc);
 
-      auto width  = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
+      auto width = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
       auto height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
 
       std::wcout

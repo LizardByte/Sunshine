@@ -11,7 +11,7 @@ FROM ${BASE}:${TAG} AS sunshine-base
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --noconfirm \
+pacman -Syu --disable-download-timeout --noconfirm \
   archlinux-keyring
 _DEPS
 
@@ -22,10 +22,15 @@ RUN useradd -m builder && \
 
 FROM sunshine-base as sunshine-build
 
+ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
 ARG CLONE_URL
 # note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
@@ -33,10 +38,11 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --noconfirm \
+pacman -Syu --disable-download-timeout --noconfirm \
   base-devel \
   cmake \
   cuda \
+  git \
   libcap \
   libdrm \
   namcap
@@ -96,7 +102,7 @@ COPY --link --from=artifacts /sunshine.pkg.tar.zst /
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
-pacman -U --noconfirm \
+pacman -U --disable-download-timeout --noconfirm \
   /sunshine.pkg.tar.zst
 _INSTALL_SUNSHINE
 

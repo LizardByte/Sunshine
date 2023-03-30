@@ -57,9 +57,18 @@
       </div>
       <!--prep-cmd-->
       <div class="mb-3 d-flex flex-column">
+        <div class="mb-3">
+          <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
+          <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
+            <option v-for="val in [false, true]" :value="val">{{ !val ? 'Enabled' : 'Disabled' }}</option>
+          </select>
+          <div class="form-text">
+            Enable/Disable the execution of Global Prep Commands for this application.
+          </div>
+        </div>
         <label for="appName" class="form-label">Command Preparations</label>
         <div class="form-text">
-          A list of commands to be run before/after the application. <br />
+          A list of commands to be run before/after this application. <br />
           If any of the prep-commands fail, starting the application is aborted
         </div>
         <table v-if="editForm['prep-cmd'].length > 0">
@@ -183,7 +192,7 @@
             Find Cover
           </button>
           <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
-               aria-labelledby="findCoverToggle">
+              aria-labelledby="findCoverToggle">
             <div class="modal-header">
               <h4 class="modal-title">Covers Found</h4>
               <button type="button" class="btn-close" aria-label="Close" @click="closeCoverFinder"></button>
@@ -198,7 +207,7 @@
                   </div>
                 </div>
                 <div v-for="(cover,i) in coverCandidates" :key="i" class="col-12 col-sm-6 col-lg-4 mb-3"
-                     @click="useCover(cover)">
+                    @click="useCover(cover)">
                   <div class="cover-container result">
                     <img class="rounded" :src="cover.url"/>
                   </div>
@@ -246,7 +255,7 @@
         detachedCmd: "",
         coverSearching: false,
         coverFinderBusy: false,
-        coverCandidates: [],
+        coverCandidates: []
       };
     },
     created() {
@@ -264,6 +273,7 @@
           output: "",
           cmd: [],
           index: -1,
+          "exclude-global-prep-cmd": false,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -278,6 +288,8 @@
           this.$set(this.editForm, "prep-cmd", []);
         if (this.editForm["detached"] === undefined)
           this.$set(this.editForm, "detached", []);
+        if (this.editForm["exclude-global-prep-cmd"] === undefined)
+          this.$set(this.editForm, "exclude-global-prep-cmd", false);
         this.showEditForm = true;
       },
       showDeleteForm(id) {
@@ -436,6 +448,12 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .config-page {
+    padding: 1em;
+    border: 1px solid #dee2e6;
+    border-top: none;
   }
 
 </style>

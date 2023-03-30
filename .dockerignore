@@ -1,8 +1,8 @@
-# ignore git files
-.git*
-
 # ignore hidden files
 .*
+
+# do not ignore .git, needed for versioning
+!/.git
 
 # ignore repo directories and files
 docs/

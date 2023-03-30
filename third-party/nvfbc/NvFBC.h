@@ -1525,7 +1525,8 @@ typedef struct _NVFBC_TOGL_GRAB_FRAME_PARAMS {
  *   A NULL terminated error message, or an empty string.  Its maximum length
  *   is NVFBC_ERROR_STR_LEN.
  */
-const char *NVFBCAPI NvFBCGetLastErrorStr(const NVFBC_SESSION_HANDLE sessionHandle);
+const char *NVFBCAPI
+NvFBCGetLastErrorStr(const NVFBC_SESSION_HANDLE sessionHandle);
 
 /*!
  * \brief Allocates a new handle for an NvFBC client.
@@ -1551,7 +1552,8 @@ const char *NVFBCAPI NvFBCGetLastErrorStr(const NVFBC_SESSION_HANDLE sessionHand
  *   ::NVFBC_ERR_GL
  *
  */
-NVFBCSTATUS NVFBCAPI NvFBCCreateHandle(NVFBC_SESSION_HANDLE *pSessionHandle, NVFBC_CREATE_HANDLE_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCCreateHandle(NVFBC_SESSION_HANDLE *pSessionHandle, NVFBC_CREATE_HANDLE_PARAMS *pParams);
 
 /*!
  * \brief Destroys the handle of an NvFBC client.
@@ -1577,7 +1579,8 @@ NVFBCSTATUS NVFBCAPI NvFBCCreateHandle(NVFBC_SESSION_HANDLE *pSessionHandle, NVF
  *   ::NVFBC_ERR_CONTEXT \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCDestroyHandle(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_DESTROY_HANDLE_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCDestroyHandle(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_DESTROY_HANDLE_PARAMS *pParams);
 
 /*!
  * \brief Gets the current status of the display driver.
@@ -1596,7 +1599,8 @@ NVFBCSTATUS NVFBCAPI NvFBCDestroyHandle(const NVFBC_SESSION_HANDLE sessionHandle
  *   ::NVFBC_ERR_INTERNAL \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCGetStatus(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_GET_STATUS_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCGetStatus(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_GET_STATUS_PARAMS *pParams);
 
 /*!
  * \brief Binds the FBC context to the calling thread.
@@ -1630,7 +1634,8 @@ NVFBCSTATUS NVFBCAPI NvFBCGetStatus(const NVFBC_SESSION_HANDLE sessionHandle, NV
  *   ::NVFBC_ERR_INTERNAL \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCBindContext(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_BIND_CONTEXT_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCBindContext(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_BIND_CONTEXT_PARAMS *pParams);
 
 /*!
  * \brief Releases the FBC context from the calling thread.
@@ -1651,7 +1656,8 @@ NVFBCSTATUS NVFBCAPI NvFBCBindContext(const NVFBC_SESSION_HANDLE sessionHandle, 
  *   ::NVFBC_ERR_INTERNAL \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCReleaseContext(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_RELEASE_CONTEXT_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCReleaseContext(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_RELEASE_CONTEXT_PARAMS *pParams);
 
 /*!
  * \brief Creates a capture session for an FBC client.
@@ -1686,7 +1692,8 @@ NVFBCSTATUS NVFBCAPI NvFBCReleaseContext(const NVFBC_SESSION_HANDLE sessionHandl
  *   ::NVFBC_ERR_MUST_RECREATE \n
  *   ::NVFBC_ERR_INTERNAL
  */
-NVFBCSTATUS NVFBCAPI NvFBCCreateCaptureSession(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_CREATE_CAPTURE_SESSION_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCCreateCaptureSession(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_CREATE_CAPTURE_SESSION_PARAMS *pParams);
 
 /*!
  * \brief Destroys a capture session for an FBC client.
@@ -1710,7 +1717,8 @@ NVFBCSTATUS NVFBCAPI NvFBCCreateCaptureSession(const NVFBC_SESSION_HANDLE sessio
  *   ::NVFBC_ERR_INTERNAL \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCDestroyCaptureSession(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_DESTROY_CAPTURE_SESSION_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCDestroyCaptureSession(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_DESTROY_CAPTURE_SESSION_PARAMS *pParams);
 
 /*!
  * \brief Sets up a capture to system memory session.
@@ -1742,7 +1750,8 @@ NVFBCSTATUS NVFBCAPI NvFBCDestroyCaptureSession(const NVFBC_SESSION_HANDLE sessi
  *   ::NVFBC_ERR_OUT_OF_MEMORY \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCToSysSetUp(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOSYS_SETUP_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCToSysSetUp(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOSYS_SETUP_PARAMS *pParams);
 
 /*!
  * \brief Captures a frame to a buffer in system memory.
@@ -1782,7 +1791,8 @@ NVFBCSTATUS NVFBCAPI NvFBCToSysSetUp(const NVFBC_SESSION_HANDLE sessionHandle, N
  *   \see NvFBCCreateCaptureSession \n
  *   \see NvFBCToSysSetUp
  */
-NVFBCSTATUS NVFBCAPI NvFBCToSysGrabFrame(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOSYS_GRAB_FRAME_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCToSysGrabFrame(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOSYS_GRAB_FRAME_PARAMS *pParams);
 
 /*!
  * \brief Sets up a capture to video memory session.
@@ -1809,7 +1819,8 @@ NVFBCSTATUS NVFBCAPI NvFBCToSysGrabFrame(const NVFBC_SESSION_HANDLE sessionHandl
  *   ::NVFBC_ERR_GL \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCToCudaSetUp(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOCUDA_SETUP_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCToCudaSetUp(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOCUDA_SETUP_PARAMS *pParams);
 
 /*!
  * \brief Captures a frame to a CUDA device in video memory.
@@ -1838,7 +1849,8 @@ NVFBCSTATUS NVFBCAPI NvFBCToCudaSetUp(const NVFBC_SESSION_HANDLE sessionHandle, 
  *   \see NvFBCCreateCaptureSession \n
  *   \see NvFBCToCudaSetUp
  */
-NVFBCSTATUS NVFBCAPI NvFBCToCudaGrabFrame(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOCUDA_GRAB_FRAME_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCToCudaGrabFrame(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOCUDA_GRAB_FRAME_PARAMS *pParams);
 
 /*!
  * \brief Sets up a capture to OpenGL buffer in video memory session.
@@ -1865,7 +1877,8 @@ NVFBCSTATUS NVFBCAPI NvFBCToCudaGrabFrame(const NVFBC_SESSION_HANDLE sessionHand
  *   ::NVFBC_ERR_GL \n
  *   ::NVFBC_ERR_X
  */
-NVFBCSTATUS NVFBCAPI NvFBCToGLSetUp(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOGL_SETUP_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCToGLSetUp(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOGL_SETUP_PARAMS *pParams);
 
 /*!
  * \brief Captures a frame to an OpenGL buffer in video memory.
@@ -1893,7 +1906,8 @@ NVFBCSTATUS NVFBCAPI NvFBCToGLSetUp(const NVFBC_SESSION_HANDLE sessionHandle, NV
  *   \see NvFBCCreateCaptureSession \n
  *   \see NvFBCToCudaSetUp
  */
-NVFBCSTATUS NVFBCAPI NvFBCToGLGrabFrame(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOGL_GRAB_FRAME_PARAMS *pParams);
+NVFBCSTATUS NVFBCAPI
+NvFBCToGLGrabFrame(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_TOGL_GRAB_FRAME_PARAMS *pParams);
 
 /*!
  * \cond FBC_PFN
@@ -1926,28 +1940,28 @@ typedef NVFBCSTATUS(NVFBCAPI *PNVFBCTOGLGRABFRAME)(const NVFBC_SESSION_HANDLE se
  */
 typedef struct
 {
-  uint32_t dwVersion;                                     //!< [in] Must be set to NVFBC_VERSION.
-  PNVFBCGETLASTERRORSTR nvFBCGetLastErrorStr;             //!< [out] Pointer to ::NvFBCGetLastErrorStr().
-  PNVFBCCREATEHANDLE nvFBCCreateHandle;                   //!< [out] Pointer to ::NvFBCCreateHandle().
-  PNVFBCDESTROYHANDLE nvFBCDestroyHandle;                 //!< [out] Pointer to ::NvFBCDestroyHandle().
-  PNVFBCGETSTATUS nvFBCGetStatus;                         //!< [out] Pointer to ::NvFBCGetStatus().
-  PNVFBCCREATECAPTURESESSION nvFBCCreateCaptureSession;   //!< [out] Pointer to ::NvFBCCreateCaptureSession().
-  PNVFBCDESTROYCAPTURESESSION nvFBCDestroyCaptureSession; //!< [out] Pointer to ::NvFBCDestroyCaptureSession().
-  PNVFBCTOSYSSETUP nvFBCToSysSetUp;                       //!< [out] Pointer to ::NvFBCToSysSetUp().
-  PNVFBCTOSYSGRABFRAME nvFBCToSysGrabFrame;               //!< [out] Pointer to ::NvFBCToSysGrabFrame().
-  PNVFBCTOCUDASETUP nvFBCToCudaSetUp;                     //!< [out] Pointer to ::NvFBCToCudaSetUp().
-  PNVFBCTOCUDAGRABFRAME nvFBCToCudaGrabFrame;             //!< [out] Pointer to ::NvFBCToCudaGrabFrame().
-  void *pad1;                                             //!< [out] Retired. Do not use.
-  void *pad2;                                             //!< [out] Retired. Do not use.
-  void *pad3;                                             //!< [out] Retired. Do not use.
-  PNVFBCBINDCONTEXT nvFBCBindContext;                     //!< [out] Pointer to ::NvFBCBindContext().
-  PNVFBCRELEASECONTEXT nvFBCReleaseContext;               //!< [out] Pointer to ::NvFBCReleaseContext().
-  void *pad4;                                             //!< [out] Retired. Do not use.
-  void *pad5;                                             //!< [out] Retired. Do not use.
-  void *pad6;                                             //!< [out] Retired. Do not use.
-  void *pad7;                                             //!< [out] Retired. Do not use.
-  PNVFBCTOGLSETUP nvFBCToGLSetUp;                         //!< [out] Pointer to ::nvFBCToGLSetup().
-  PNVFBCTOGLGRABFRAME nvFBCToGLGrabFrame;                 //!< [out] Pointer to ::nvFBCToGLGrabFrame().
+  uint32_t dwVersion;  //!< [in] Must be set to NVFBC_VERSION.
+  PNVFBCGETLASTERRORSTR nvFBCGetLastErrorStr;  //!< [out] Pointer to ::NvFBCGetLastErrorStr().
+  PNVFBCCREATEHANDLE nvFBCCreateHandle;  //!< [out] Pointer to ::NvFBCCreateHandle().
+  PNVFBCDESTROYHANDLE nvFBCDestroyHandle;  //!< [out] Pointer to ::NvFBCDestroyHandle().
+  PNVFBCGETSTATUS nvFBCGetStatus;  //!< [out] Pointer to ::NvFBCGetStatus().
+  PNVFBCCREATECAPTURESESSION nvFBCCreateCaptureSession;  //!< [out] Pointer to ::NvFBCCreateCaptureSession().
+  PNVFBCDESTROYCAPTURESESSION nvFBCDestroyCaptureSession;  //!< [out] Pointer to ::NvFBCDestroyCaptureSession().
+  PNVFBCTOSYSSETUP nvFBCToSysSetUp;  //!< [out] Pointer to ::NvFBCToSysSetUp().
+  PNVFBCTOSYSGRABFRAME nvFBCToSysGrabFrame;  //!< [out] Pointer to ::NvFBCToSysGrabFrame().
+  PNVFBCTOCUDASETUP nvFBCToCudaSetUp;  //!< [out] Pointer to ::NvFBCToCudaSetUp().
+  PNVFBCTOCUDAGRABFRAME nvFBCToCudaGrabFrame;  //!< [out] Pointer to ::NvFBCToCudaGrabFrame().
+  void *pad1;  //!< [out] Retired. Do not use.
+  void *pad2;  //!< [out] Retired. Do not use.
+  void *pad3;  //!< [out] Retired. Do not use.
+  PNVFBCBINDCONTEXT nvFBCBindContext;  //!< [out] Pointer to ::NvFBCBindContext().
+  PNVFBCRELEASECONTEXT nvFBCReleaseContext;  //!< [out] Pointer to ::NvFBCReleaseContext().
+  void *pad4;  //!< [out] Retired. Do not use.
+  void *pad5;  //!< [out] Retired. Do not use.
+  void *pad6;  //!< [out] Retired. Do not use.
+  void *pad7;  //!< [out] Retired. Do not use.
+  PNVFBCTOGLSETUP nvFBCToGLSetUp;  //!< [out] Pointer to ::nvFBCToGLSetup().
+  PNVFBCTOGLGRABFRAME nvFBCToGLGrabFrame;  //!< [out] Pointer to ::nvFBCToGLGrabFrame().
 } NVFBC_API_FUNCTION_LIST;
 
 /*!
@@ -1966,7 +1980,8 @@ typedef struct
  *   ::NVFBC_ERR_INVALID_PTR \n
  *   ::NVFBC_ERR_API_VERSION
  */
-NVFBCSTATUS NVFBCAPI NvFBCCreateInstance(NVFBC_API_FUNCTION_LIST *pFunctionList);
+NVFBCSTATUS NVFBCAPI
+NvFBCCreateInstance(NVFBC_API_FUNCTION_LIST *pFunctionList);
 /*!
  * \ingroup FBC_FUNC
  *
@@ -1978,4 +1993,4 @@ typedef NVFBCSTATUS(NVFBCAPI *PNVFBCCREATEINSTANCE)(NVFBC_API_FUNCTION_LIST *pFu
 }
 #endif
 
-#endif // _NVFBC_H_
+#endif  // _NVFBC_H_

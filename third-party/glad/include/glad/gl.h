@@ -29,27 +29,27 @@
 #define GLAD_GL_H_
 
 #ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wreserved-id-macro"
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wreserved-id-macro"
 #endif
 #ifdef __gl_h_
-#error OpenGL (gl.h) header already included (API: gl), remove previous include!
+  #error OpenGL (gl.h) header already included (API: gl), remove previous include!
 #endif
 #define __gl_h_ 1
 #ifdef __gl3_h_
-#error OpenGL (gl3.h) header already included (API: gl), remove previous include!
+  #error OpenGL (gl3.h) header already included (API: gl), remove previous include!
 #endif
 #define __gl3_h_ 1
 #ifdef __glext_h_
-#error OpenGL (glext.h) header already included (API: gl), remove previous include!
+  #error OpenGL (glext.h) header already included (API: gl), remove previous include!
 #endif
 #define __glext_h_ 1
 #ifdef __gl3ext_h_
-#error OpenGL (gl3ext.h) header already included (API: gl), remove previous include!
+  #error OpenGL (gl3ext.h) header already included (API: gl), remove previous include!
 #endif
 #define __gl3ext_h_ 1
 #ifdef __clang__
-#pragma clang diagnostic pop
+  #pragma clang diagnostic pop
 #endif
 
 #define GLAD_GL
@@ -61,108 +61,108 @@ extern "C" {
 #endif
 
 #ifndef GLAD_PLATFORM_H_
-#define GLAD_PLATFORM_H_
+  #define GLAD_PLATFORM_H_
 
-#ifndef GLAD_PLATFORM_WIN32
-#if defined(_WIN32) || defined(__WIN32__) || defined(WIN32) || defined(__MINGW32__)
-#define GLAD_PLATFORM_WIN32 1
-#else
-#define GLAD_PLATFORM_WIN32 0
-#endif
-#endif
+  #ifndef GLAD_PLATFORM_WIN32
+    #if defined(_WIN32) || defined(__WIN32__) || defined(WIN32) || defined(__MINGW32__)
+      #define GLAD_PLATFORM_WIN32 1
+    #else
+      #define GLAD_PLATFORM_WIN32 0
+    #endif
+  #endif
 
-#ifndef GLAD_PLATFORM_APPLE
-#ifdef __APPLE__
-#define GLAD_PLATFORM_APPLE 1
-#else
-#define GLAD_PLATFORM_APPLE 0
-#endif
-#endif
+  #ifndef GLAD_PLATFORM_APPLE
+    #ifdef __APPLE__
+      #define GLAD_PLATFORM_APPLE 1
+    #else
+      #define GLAD_PLATFORM_APPLE 0
+    #endif
+  #endif
 
-#ifndef GLAD_PLATFORM_EMSCRIPTEN
-#ifdef __EMSCRIPTEN__
-#define GLAD_PLATFORM_EMSCRIPTEN 1
-#else
-#define GLAD_PLATFORM_EMSCRIPTEN 0
-#endif
-#endif
+  #ifndef GLAD_PLATFORM_EMSCRIPTEN
+    #ifdef __EMSCRIPTEN__
+      #define GLAD_PLATFORM_EMSCRIPTEN 1
+    #else
+      #define GLAD_PLATFORM_EMSCRIPTEN 0
+    #endif
+  #endif
 
-#ifndef GLAD_PLATFORM_UWP
-#if defined(_MSC_VER) && !defined(GLAD_INTERNAL_HAVE_WINAPIFAMILY)
-#ifdef __has_include
-#if __has_include(<winapifamily.h>)
-#define GLAD_INTERNAL_HAVE_WINAPIFAMILY 1
-#endif
-#elif _MSC_VER >= 1700 && !_USING_V110_SDK71_
-#define GLAD_INTERNAL_HAVE_WINAPIFAMILY 1
-#endif
-#endif
+  #ifndef GLAD_PLATFORM_UWP
+    #if defined(_MSC_VER) && !defined(GLAD_INTERNAL_HAVE_WINAPIFAMILY)
+      #ifdef __has_include
+        #if __has_include(<winapifamily.h>)
+          #define GLAD_INTERNAL_HAVE_WINAPIFAMILY 1
+        #endif
+      #elif _MSC_VER >= 1700 && !_USING_V110_SDK71_
+        #define GLAD_INTERNAL_HAVE_WINAPIFAMILY 1
+      #endif
+    #endif
 
-#ifdef GLAD_INTERNAL_HAVE_WINAPIFAMILY
-#include <winapifamily.h>
-#if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP) && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP)
-#define GLAD_PLATFORM_UWP 1
-#endif
-#endif
+    #ifdef GLAD_INTERNAL_HAVE_WINAPIFAMILY
+      #include <winapifamily.h>
+      #if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP) && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP)
+        #define GLAD_PLATFORM_UWP 1
+      #endif
+    #endif
 
-#ifndef GLAD_PLATFORM_UWP
-#define GLAD_PLATFORM_UWP 0
-#endif
-#endif
+    #ifndef GLAD_PLATFORM_UWP
+      #define GLAD_PLATFORM_UWP 0
+    #endif
+  #endif
 
-#ifdef __GNUC__
-#define GLAD_GNUC_EXTENSION __extension__
-#else
-#define GLAD_GNUC_EXTENSION
-#endif
+  #ifdef __GNUC__
+    #define GLAD_GNUC_EXTENSION __extension__
+  #else
+    #define GLAD_GNUC_EXTENSION
+  #endif
 
-#ifndef GLAD_API_CALL
-#if defined(GLAD_API_CALL_EXPORT)
-#if GLAD_PLATFORM_WIN32 || defined(__CYGWIN__)
-#if defined(GLAD_API_CALL_EXPORT_BUILD)
-#if defined(__GNUC__)
-#define GLAD_API_CALL __attribute__((dllexport)) extern
-#else
-#define GLAD_API_CALL __declspec(dllexport) extern
-#endif
-#else
-#if defined(__GNUC__)
-#define GLAD_API_CALL __attribute__((dllimport)) extern
-#else
-#define GLAD_API_CALL __declspec(dllimport) extern
-#endif
-#endif
-#elif defined(__GNUC__) && defined(GLAD_API_CALL_EXPORT_BUILD)
-#define GLAD_API_CALL __attribute__((visibility("default"))) extern
-#else
-#define GLAD_API_CALL extern
-#endif
-#else
-#define GLAD_API_CALL extern
-#endif
-#endif
+  #ifndef GLAD_API_CALL
+    #if defined(GLAD_API_CALL_EXPORT)
+      #if GLAD_PLATFORM_WIN32 || defined(__CYGWIN__)
+        #if defined(GLAD_API_CALL_EXPORT_BUILD)
+          #if defined(__GNUC__)
+            #define GLAD_API_CALL __attribute__((dllexport)) extern
+          #else
+            #define GLAD_API_CALL __declspec(dllexport) extern
+          #endif
+        #else
+          #if defined(__GNUC__)
+            #define GLAD_API_CALL __attribute__((dllimport)) extern
+          #else
+            #define GLAD_API_CALL __declspec(dllimport) extern
+          #endif
+        #endif
+      #elif defined(__GNUC__) && defined(GLAD_API_CALL_EXPORT_BUILD)
+        #define GLAD_API_CALL __attribute__((visibility("default"))) extern
+      #else
+        #define GLAD_API_CALL extern
+      #endif
+    #else
+      #define GLAD_API_CALL extern
+    #endif
+  #endif
 
-#ifdef APIENTRY
-#define GLAD_API_PTR APIENTRY
-#elif GLAD_PLATFORM_WIN32
-#define GLAD_API_PTR __stdcall
-#else
-#define GLAD_API_PTR
-#endif
+  #ifdef APIENTRY
+    #define GLAD_API_PTR APIENTRY
+  #elif GLAD_PLATFORM_WIN32
+    #define GLAD_API_PTR __stdcall
+  #else
+    #define GLAD_API_PTR
+  #endif
 
-#ifndef GLAPI
-#define GLAPI GLAD_API_CALL
-#endif
+  #ifndef GLAPI
+    #define GLAPI GLAD_API_CALL
+  #endif
 
-#ifndef GLAPIENTRY
-#define GLAPIENTRY GLAD_API_PTR
-#endif
+  #ifndef GLAPIENTRY
+    #define GLAPIENTRY GLAD_API_PTR
+  #endif
 
-#define GLAD_MAKE_VERSION(major, minor) (major * 10000 + minor)
-#define GLAD_VERSION_MAJOR(version) (version / 10000)
-#define GLAD_VERSION_MINOR(version) (version % 10000)
+  #define GLAD_MAKE_VERSION(major, minor) (major * 10000 + minor)
+  #define GLAD_VERSION_MAJOR(version) (version / 10000)
+  #define GLAD_VERSION_MINOR(version) (version % 10000)
 
-#define GLAD_GENERATOR_VERSION "2.0.0-beta"
+  #define GLAD_GENERATOR_VERSION "2.0.0-beta"
 
 typedef void (*GLADapiproc)(void);
 
@@ -1983,7 +1983,6 @@ typedef void (*GLADpostcallback)(void *ret, const char *name, GLADapiproc apipro
 #define GL_ZOOM_X 0x0D16
 #define GL_ZOOM_Y 0x0D17
 
-
 #include <KHR/khrplatform.h>
 
 typedef unsigned int GLenum;
@@ -2089,7 +2088,6 @@ typedef unsigned short GLhalfNV;
 typedef GLintptr GLvdpauSurfaceNV;
 
 typedef void(GLAD_API_PTR *GLVULKANPROCNV)(void);
-
 
 #define GL_VERSION_1_0 1
 #define GL_VERSION_1_1 1
@@ -4235,15 +4233,17 @@ typedef struct GladGLContext {
   PFNGLWINDOWPOS3SVPROC WindowPos3sv;
 } GladGLContext;
 
-
-GLAD_API_CALL int gladLoadGLContextUserPtr(GladGLContext *context, GLADuserptrloadfunc load, void *userptr);
-GLAD_API_CALL int gladLoadGLContext(GladGLContext *context, GLADloadfunc load);
-
+GLAD_API_CALL int
+gladLoadGLContextUserPtr(GladGLContext *context, GLADuserptrloadfunc load, void *userptr);
+GLAD_API_CALL int
+gladLoadGLContext(GladGLContext *context, GLADloadfunc load);
 
 #ifdef GLAD_GL
 
-GLAD_API_CALL int gladLoaderLoadGLContext(GladGLContext *context);
-GLAD_API_CALL void gladLoaderUnloadGL(void);
+GLAD_API_CALL int
+gladLoaderLoadGLContext(GladGLContext *context);
+GLAD_API_CALL void
+gladLoaderUnloadGL(void);
 
 #endif
 

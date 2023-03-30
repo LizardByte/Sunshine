@@ -1,7 +1,7 @@
 ---
 app-id: dev.lizardbyte.sunshine
 runtime: org.freedesktop.Platform
-runtime-version: "21.08"
+runtime-version: "22.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node18
@@ -33,7 +33,7 @@ modules:
     buildsystem: simple
     build-commands:
       - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
-      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=system,thread,log,program_options || cat bootstrap.log
+      - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=locale,log,program_options,system,thread
       - ./b2 install variant=release link=shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
         -j $FLATPAK_BUILDER_N_JOBS
     sources:
@@ -187,14 +187,14 @@ modules:
       - type: file
         only-arches:
           - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run
-        sha256: 9223c4af3aebe4a7bbed9abd9b163b03a1b34b855fbc2b4a0d1b706ac09a5a16
+        url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
+        sha256: 905e9b9516900839fb76064719db752439f38b8cb730b49335d8bd53ddfad392
         dest-filename: cuda.run
       - type: file
         only-arches:
           - aarch64
-        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux_sbsa.run  # yamllint disable-line rule:line-length
-        sha256: e6e9a8d31163c9776b5e313fd7590877c5684e1ecddee741154f95704d4ed27c
+        url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux_sbsa.run  # yamllint disable-line rule:line-length
+        sha256: cd13e9c65d4c8f895a968706f46064d536be09f9706bce081cc864b7e4fa4544
         dest-filename: cuda.run
 
   - name: sunshine
