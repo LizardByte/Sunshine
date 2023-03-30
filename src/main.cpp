@@ -348,7 +348,9 @@ main(int argc, char *argv[]) {
 
   // If any of the following fail, we log an error and continue event though sunshine will not function correctly.
   // This allows access to the UI to fix configuration problems or view the logs.
-  if (!platf::init()) {
+
+  auto deinit_guard = platf::init();
+  if (!deinit_guard) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
