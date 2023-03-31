@@ -23,7 +23,7 @@ set browser_download_url=%browser_download_url:browser_download_url: =%
 echo %browser_download_url%
 
 rem Download the exe
-curl -s -L -o "%temp_dir%\vigembus.exe" %browser_download_url%
+powershell -Command "(New-Object Net.WebClient).DownloadFile('%browser_download_url%', '%temp_dir%\vigembus.exe')"
 
 rem Install vigembus
 %temp_dir%\vigembus.exe /passive /promptrestart
