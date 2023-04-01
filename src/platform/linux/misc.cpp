@@ -161,12 +161,13 @@ namespace platf {
   bp::child
   run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     // Not supported on this platform, simply forward it to run_unprivileged
-    run_unprivileged(cmd, working_dir, env, file, ec, group);
+    return run_unprivileged(cmd, working_dir, env, file, ec, group);
   }
 
+  bp::child
   safely_run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group, bool detached) {
     // Not supported on this platform, simply forward it to run_unprivileged
-    run_unprivileged(cmd, working_dir, env, file, ec, group);
+    return run_unprivileged(cmd, working_dir, env, file, ec, group);
   }
 
   bp::child
