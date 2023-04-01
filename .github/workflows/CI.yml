@@ -474,7 +474,7 @@ jobs:
   build_mac:
     name: MacOS
     runs-on: macos-11
-    needs: setup_release
+    needs: [check_changelog, setup_release]
 
     steps:
       - name: Checkout
@@ -554,7 +554,7 @@ jobs:
 
   build_mac_port:
     name: Macports
-    needs: setup_release
+    needs: [check_changelog, setup_release]
     runs-on: macos-11
 
     steps:
@@ -770,7 +770,7 @@ jobs:
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: setup_release
+    needs: [check_changelog, setup_release]
 
     steps:
       - name: Checkout
