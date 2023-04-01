@@ -574,20 +574,21 @@
         </div>
       </div>
       <div class="mb-3">
-          <label for="qp" class="form-label">Preloaded Frame Count</label>
+          <label for="qp" class="form-label">Maximum Frame Buffer Size</label>
           <input
             type="number"
             class="form-control"
-            id="preloaded_frames"
+            id="max_frame_buffer_size"
             placeholder="12"
             min="2"
             max="12"
-            v-model="config.preloaded_frames"
+            v-model="config.max_frame_buffer_size"
           />
           <div class="form-text">
-            Preloaded frames improve stream stability at the expense of increased VRAM usage. <br/>
-            If configured with fewer frames, VRAM usage will significantly decrease, but this may cause performance issues. <br/>
-            Stronger hardware can handle fewer frames, and users are encouraged to experiment to find the perfect balance for their system.
+            At the expense of using more VRAM, you can adjust the maximum amount of images to cache in Sunshine. <br/>
+            If configured with fewer frames, VRAM usage will significantly decrease, but this may cause performance issues, such as lower framerates or instability. <br/>
+            Most systems can handle 3 frames without issues, and users are encouraged to experiment to find the perfect balance for their system based on their hardware capabilities. <br/>
+            If you are using the multiple session feature, it is recommended to keep this at 12 as those streams are more performance intensive.
           </div>
       </div>
     </div>

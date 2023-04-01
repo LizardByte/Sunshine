@@ -16,7 +16,7 @@ namespace config {
     int hevc_mode;
 
     int min_threads;  // Minimum number of threads/slices for CPU encoding
-    int preloaded_frames;  // Number of frames to preload in the image buffer
+    int max_frame_buffer_size;  // Number of frames to allocate for use in the image buffer
     struct {
       std::string sw_preset;
       std::string sw_tune;
