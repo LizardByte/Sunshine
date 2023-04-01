@@ -42,12 +42,12 @@ using namespace std::literals;
 namespace bl = boost::log;
 
 thread_pool_util::ThreadPool task_pool;
-bl::sources::severity_logger<int> verbose(0); // Dominating output
-bl::sources::severity_logger<int> debug(1);   // Follow what is happening
-bl::sources::severity_logger<int> info(2);    // Should be informed about
-bl::sources::severity_logger<int> warning(3); // Strange events
-bl::sources::severity_logger<int> error(4);   // Recoverable errors
-bl::sources::severity_logger<int> fatal(5);   // Unrecoverable errors
+bl::sources::severity_logger<int> verbose(0);  // Dominating output
+bl::sources::severity_logger<int> debug(1);  // Follow what is happening
+bl::sources::severity_logger<int> info(2);  // Should be informed about
+bl::sources::severity_logger<int> warning(3);  // Strange events
+bl::sources::severity_logger<int> error(4);  // Recoverable errors
+bl::sources::severity_logger<int> fatal(5);  // Unrecoverable errors
 
 bool display_cursor = true;
 
@@ -55,7 +55,8 @@ using text_sink = bl::sinks::asynchronous_sink<bl::sinks::text_ostream_backend>;
 boost::shared_ptr<text_sink> sink;
 
 struct NoDelete {
-  void operator()(void *) {}
+  void
+  operator()(void *) {}
 };
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
@@ -69,7 +70,8 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
  * print_help("sunshine");
  * ```
  */
-void print_help(const char *name) {
+void
+print_help(const char *name) {
   std::cout
     << "Usage: "sv << name << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
     << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
@@ -90,19 +92,20 @@ void print_help(const char *name) {
 }
 
 namespace help {
-int entry(const char *name, int argc, char *argv[]) {
-  print_help(name);
-  return 0;
-}
-} // namespace help
+  int
+  entry(const char *name, int argc, char *argv[]) {
+    print_help(name);
+    return 0;
+  }
+}  // namespace help
 
 namespace version {
-int entry(const char *name, int argc, char *argv[]) {
-  std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
-  return 0;
-}
-} // namespace version
-
+  int
+  entry(const char *name, int argc, char *argv[]) {
+    std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
+    return 0;
+  }
+}  // namespace version
 
 /**
  * @brief Flush the log.
@@ -112,34 +115,38 @@ int entry(const char *name, int argc, char *argv[]) {
  * log_flush();
  * ```
  */
-void log_flush() {
+void
+log_flush() {
   sink->flush();
 }
 
 std::map<int, std::function<void()>> signal_handlers;
-void on_signal_forwarder(int sig) {
+void
+on_signal_forwarder(int sig) {
   signal_handlers.at(sig)();
 }
 
-template<class FN>
-void on_signal(int sig, FN &&fn) {
+template <class FN>
+void
+on_signal(int sig, FN &&fn) {
   signal_handlers.emplace(sig, std::forward<FN>(fn));
 
   std::signal(sig, on_signal_forwarder);
 }
 
 namespace gen_creds {
-int entry(const char *name, int argc, char *argv[]) {
-  if(argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
-    print_help(name);
+  int
+  entry(const char *name, int argc, char *argv[]) {
+    if (argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
+      print_help(name);
+      return 0;
+    }
+
+    http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
+
     return 0;
   }
-
-  http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
-
-  return 0;
-}
-} // namespace gen_creds
+}  // namespace gen_creds
 
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   { "creds"sv, gen_creds::entry },
@@ -148,20 +155,21 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
 };
 
 #ifdef _WIN32
-LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-  switch(uMsg) {
-  case WM_ENDSESSION: {
-    // Raise a SIGINT to trigger our cleanup logic and terminate ourselves
-    std::cout << "Received WM_ENDSESSION"sv << std::endl;
-    std::raise(SIGINT);
+LRESULT CALLBACK
+SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+  switch (uMsg) {
+    case WM_ENDSESSION: {
+      // Raise a SIGINT to trigger our cleanup logic and terminate ourselves
+      std::cout << "Received WM_ENDSESSION"sv << std::endl;
+      std::raise(SIGINT);
 
-    // The signal handling is asynchronous, so we will wait here to be terminated.
-    // If for some reason we don't terminate in a few seconds, Windows will kill us.
-    SuspendThread(GetCurrentThread());
-    return 0;
-  }
-  default:
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+      // The signal handling is asynchronous, so we will wait here to be terminated.
+      // If for some reason we don't terminate in a few seconds, Windows will kill us.
+      SuspendThread(GetCurrentThread());
+      return 0;
+    }
+    default:
+      return DefWindowProc(hwnd, uMsg, wParam, lParam);
   }
 }
 #endif
@@ -176,7 +184,8 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
  * main(1, const char* args[] = {"sunshine", nullptr});
  * ```
  */
-int main(int argc, char *argv[]) {
+int
+main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
@@ -187,8 +196,8 @@ int main(int argc, char *argv[]) {
   std::thread window_thread([]() {
     WNDCLASSA wnd_class {};
     wnd_class.lpszClassName = "SunshineSessionMonitorClass";
-    wnd_class.lpfnWndProc   = SessionMonitorWindowProc;
-    if(!RegisterClassA(&wnd_class)) {
+    wnd_class.lpfnWndProc = SessionMonitorWindowProc;
+    if (!RegisterClassA(&wnd_class)) {
       std::cout << "Failed to register session monitor window class"sv << std::endl;
       return;
     }
@@ -206,7 +215,7 @@ int main(int argc, char *argv[]) {
       nullptr,
       nullptr,
       nullptr);
-    if(!wnd) {
+    if (!wnd) {
       std::cout << "Failed to create session monitor window"sv << std::endl;
       return;
     }
@@ -215,7 +224,7 @@ int main(int argc, char *argv[]) {
 
     // Run the message loop for our window
     MSG msg {};
-    while(GetMessage(&msg, nullptr, 0, 0) > 0) {
+    while (GetMessage(&msg, nullptr, 0, 0) > 0) {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
     }
@@ -225,11 +234,11 @@ int main(int argc, char *argv[]) {
 
   mail::man = std::make_shared<safe::mail_raw_t>();
 
-  if(config::parse(argc, argv)) {
+  if (config::parse(argc, argv)) {
     return 0;
   }
 
-  if(config::sunshine.min_log_level >= 1) {
+  if (config::sunshine.min_log_level >= 1) {
     av_log_set_level(AV_LOG_QUIET);
   }
   else {
@@ -244,30 +253,30 @@ int main(int argc, char *argv[]) {
   sink->set_filter(severity >= config::sunshine.min_log_level);
 
   sink->set_formatter([message = "Message"s, severity = "Severity"s](const bl::record_view &view, bl::formatting_ostream &os) {
-    constexpr int DATE_BUFFER_SIZE = 21 + 2 + 1; // Full string plus ": \0"
+    constexpr int DATE_BUFFER_SIZE = 21 + 2 + 1;  // Full string plus ": \0"
 
     auto log_level = view.attribute_values()[severity].extract<int>().get();
 
     std::string_view log_type;
-    switch(log_level) {
-    case 0:
-      log_type = "Verbose: "sv;
-      break;
-    case 1:
-      log_type = "Debug: "sv;
-      break;
-    case 2:
-      log_type = "Info: "sv;
-      break;
-    case 3:
-      log_type = "Warning: "sv;
-      break;
-    case 4:
-      log_type = "Error: "sv;
-      break;
-    case 5:
-      log_type = "Fatal: "sv;
-      break;
+    switch (log_level) {
+      case 0:
+        log_type = "Verbose: "sv;
+        break;
+      case 1:
+        log_type = "Debug: "sv;
+        break;
+      case 2:
+        log_type = "Info: "sv;
+        break;
+      case 3:
+        log_type = "Warning: "sv;
+        break;
+      case 4:
+        log_type = "Error: "sv;
+        break;
+      case 5:
+        log_type = "Fatal: "sv;
+        break;
     };
 
     char _date[DATE_BUFFER_SIZE];
@@ -284,13 +293,13 @@ int main(int argc, char *argv[]) {
   bl::core::get()->add_sink(sink);
   auto fg = util::fail_guard(log_flush);
 
-  if(!config::sunshine.cmd.name.empty()) {
+  if (!config::sunshine.cmd.name.empty()) {
     auto fn = cmd_to_func.find(config::sunshine.cmd.name);
-    if(fn == std::end(cmd_to_func)) {
+    if (fn == std::end(cmd_to_func)) {
       BOOST_LOG(fatal) << "Unknown command: "sv << config::sunshine.cmd.name;
 
       BOOST_LOG(info) << "Possible commands:"sv;
-      for(auto &[key, _] : cmd_to_func) {
+      for (auto &[key, _] : cmd_to_func) {
         BOOST_LOG(info) << '\t' << key;
       }
 
@@ -337,18 +346,22 @@ int main(int argc, char *argv[]) {
 
   proc::refresh(config::stream.file_apps);
 
+  // If any of the following fail, we log an error and continue event though sunshine will not function correctly.
+  // This allows access to the UI to fix configuration problems or view the logs.
+
   auto deinit_guard = platf::init();
-  if(!deinit_guard) {
-    return 4;
+  if (!deinit_guard) {
+    BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
   reed_solomon_init();
   auto input_deinit_guard = input::init();
-  if(video::init()) {
-    return 2;
+  if (video::init()) {
+    BOOST_LOG(error) << "Video failed to initialize"sv;
   }
-  if(http::init()) {
-    return 3;
+
+  if (http::init()) {
+    BOOST_LOG(error) << "http failed to initialize"sv;
   }
 
   std::unique_ptr<platf::deinit_t> mDNS;
@@ -362,7 +375,7 @@ int main(int argc, char *argv[]) {
   });
 
   // FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
-  if(shutdown_event->peek()) {
+  if (shutdown_event->peek()) {
     return 0;
   }
 
@@ -395,8 +408,9 @@ int main(int argc, char *argv[]) {
  * std::string contents = read_file("path/to/file");
  * ```
  */
-std::string read_file(const char *path) {
-  if(!std::filesystem::exists(path)) {
+std::string
+read_file(const char *path) {
+  if (!std::filesystem::exists(path)) {
     BOOST_LOG(debug) << "Missing file: " << path;
     return {};
   }
@@ -406,7 +420,7 @@ std::string read_file(const char *path) {
   std::string input;
   std::string base64_cert;
 
-  while(!in.eof()) {
+  while (!in.eof()) {
     std::getline(in, input);
     base64_cert += input + '\n';
   }
@@ -425,10 +439,11 @@ std::string read_file(const char *path) {
  * int write_status = write_file("path/to/file", "file contents");
  * ```
  */
-int write_file(const char *path, const std::string_view &contents) {
+int
+write_file(const char *path, const std::string_view &contents) {
   std::ofstream out(path);
 
-  if(!out.is_open()) {
+  if (!out.is_open()) {
     return -1;
   }
 
@@ -447,8 +462,9 @@ int write_file(const char *path, const std::string_view &contents) {
  * std::uint16_t mapped_port = map_port(1);
  * ```
  */
-std::uint16_t map_port(int port) {
+std::uint16_t
+map_port(int port) {
   // TODO: Ensure port is in the range of 21-65535
   // TODO: Ensure port is not already in use by another application
-  return (std::uint16_t)((int)config::sunshine.port + port);
+  return (std::uint16_t)((int) config::sunshine.port + port);
 }

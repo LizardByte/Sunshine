@@ -4,7 +4,8 @@
 #include "platform/common.h"
 
 namespace upnp {
-[[nodiscard]] std::unique_ptr<platf::deinit_t> start();
+  [[nodiscard]] std::unique_ptr<platf::deinit_t>
+  start();
 }
 
 #endif

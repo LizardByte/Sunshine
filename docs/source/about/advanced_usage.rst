@@ -107,6 +107,20 @@ log_path
 
       log_path = sunshine.log
 
+global_prep_cmd
+^^^^^^^^^^^^^^^
+
+**Description**
+   A list of commands to be run before/after all applications. If any of the prep-commands fail, starting the application is aborted.
+
+**Default**
+   ``[]``
+
+**Example**
+   .. code-block:: text
+
+      global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
+
 Controls
 --------
 
@@ -285,13 +299,18 @@ output_name
    .. Tip:: To find the name of the appropriate values follow these instructions.
 
       **Linux**
-         .. code-block:: bash
+         During Sunshine startup, you should see the list of detected monitors:
 
-            xrandr --listmonitors
+         .. code-block:: text
 
-         Example output: ``0: +HDMI-1 1920/518x1200/324+0+0  HDMI-1``
+            Info: Detecting connected monitors
+            Info: Detected monitor 0: DVI-D-0, connected: false
+            Info: Detected monitor 1: HDMI-0, connected: true
+            Info: Detected monitor 2: DP-0, connected: true
+            Info: Detected monitor 3: DP-1, connected: false
+            Info: Detected monitor 4: DVI-D-1, connected: false
 
-         You need to use the value before the colon in the output, e.g. ``0``.
+         You need to use the value before the colon in the output, e.g. ``1``.
 
       .. Todo:: macOS
 

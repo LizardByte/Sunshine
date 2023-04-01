@@ -10,11 +10,11 @@
 
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
 
-
 namespace confighttp {
-constexpr auto PORT_HTTPS = 1;
-void start();
-} // namespace confighttp
+  constexpr auto PORT_HTTPS = 1;
+  void
+  start();
+}  // namespace confighttp
 
 // mime types map
 const std::map<std::string, std::string> mime_types = {
@@ -35,4 +35,4 @@ const std::map<std::string, std::string> mime_types = {
   { "xml", "text/xml" },
 };
 
-#endif // SUNSHINE_CONFIGHTTP_H
+#endif  // SUNSHINE_CONFIGHTTP_H

@@ -162,7 +162,7 @@ jobs:
 
       - name: Setup Dependencies Linux Flatpak
         run: |
-          PLATFORM_VERSION=21.08
+          PLATFORM_VERSION=22.08
 
           sudo apt-get update -y
           sudo apt-get install -y \
