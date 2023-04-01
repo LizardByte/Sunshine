@@ -414,6 +414,29 @@ dwmflush
 
       dwmflush = enabled
 
+
+max_frame_buffer_size
+-----------------
+
+**Description**
+   This option specifies the number of images to allocate in the image buffer. 
+   Increase the count improves stream stability at the expense of increased VRAM usage. 
+   If configured with fewer frames, VRAM usage will significantly decrease, but this may cause performance issues.
+   
+   .. Note:: If you're streaming at 4k with HDR enabled, the default setting will reserve roughly 1.8GB of VRAM.
+      It is recommended to reduce the preloaded frames, especially if streaming with those settings and playing modern games.
+      However, if you are using multiple streams at once it is recommended to leave this at default, or multiply it such as 3 * (Channel Count)
+
+**Default**
+   ``12``
+
+**Values**
+   An integer value between ``2`` and ``12``, inclusive.
+
+**Example**
+      max_frame_buffer_size = 12
+
+
 Audio
 -----
 

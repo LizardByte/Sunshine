@@ -331,6 +331,7 @@ namespace config {
     0,  // hevc_mode
 
     1,  // min_threads
+    12, // max_frame_buffer_size
     {
       "superfast"s,  // preset
       "zerolatency"s,  // tune
@@ -911,6 +912,7 @@ namespace config {
 
     int_f(vars, "qp", video.qp);
     int_f(vars, "min_threads", video.min_threads);
+    int_between_f(vars, "max_frame_buffer_size", video.max_frame_buffer_size, { 2, 12 });
     int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
     string_f(vars, "sw_preset", video.sw.sw_preset);
     string_f(vars, "sw_tune", video.sw.sw_tune);

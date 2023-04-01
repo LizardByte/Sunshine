@@ -573,6 +573,24 @@
           You need to use the value before the colon in the output, e.g. <b>1</b>.
         </div>
       </div>
+      <div class="mb-3">
+          <label for="qp" class="form-label">Maximum Frame Buffer Size</label>
+          <input
+            type="number"
+            class="form-control"
+            id="max_frame_buffer_size"
+            placeholder="12"
+            min="2"
+            max="12"
+            v-model="config.max_frame_buffer_size"
+          />
+          <div class="form-text">
+            At the expense of using more VRAM, you can adjust the maximum amount of images to cache in Sunshine. <br/>
+            If configured with fewer frames, VRAM usage will significantly decrease, but this may cause performance issues, such as lower framerates or instability. <br/>
+            Most systems can handle 3 frames without issues, and users are encouraged to experiment to find the perfect balance for their system based on their hardware capabilities. <br/>
+            If you are using the multiple session feature, it is recommended to keep this at 12 as those streams are more performance intensive.
+          </div>
+      </div>
     </div>
     <div v-if="currentTab === 'advanced'" class="config-page">
       <!--Port family-->
@@ -998,6 +1016,7 @@
     "nv_tune": "ull",
     "origin_pin_allowed": "pc",
     "origin_web_ui_allowed": "lan",
+    "preloaded_frames": 12,
     "qsv_coder": "auto",
     "qsv_preset": "medium",
     "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]",
