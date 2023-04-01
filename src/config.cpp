@@ -331,7 +331,7 @@ namespace config {
     0,  // hevc_mode
 
     1,  // min_threads
-    12, // max_frame_buffer_size
+    12,  // max_frame_buffer_size
     {
       "superfast"s,  // preset
       "zerolatency"s,  // tune
