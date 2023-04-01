@@ -82,7 +82,6 @@ namespace proc {
     return cmd_path.parent_path();
   }
 
-#ifdef __WIN32
   boost::process::child
   run_elevated_cmd(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &_env, proc::file_t &_pipe, std::error_code &ec) {
     auto unsafe_elevation_enabled = platf::unsafe_elevation_enabled();
@@ -101,7 +100,6 @@ namespace proc {
 
     return child;
   }
-#endif
 
   int
   proc_t::execute(int app_id) {
