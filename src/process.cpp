@@ -82,6 +82,27 @@ namespace proc {
     return cmd_path.parent_path();
   }
 
+#ifdef __WIN32
+  boost::process::child
+  run_elevated_cmd(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &_env, proc::file_t &_pipe, std::error_code &ec) {
+    auto unsafe_elevation_enabled = platf::unsafe_elevation_enabled();
+    boost::process::child child;
+
+    if (unsafe_elevation_enabled) {
+      child = platf::run_privileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+    }
+    else {
+      // Execute the elevation request, detached so it doesn't keep the session locked.
+      child = platf::safely_run_privileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr, true);
+      // Inform user of workaround, making it clear that it is not recommended
+      BOOST_LOG(info) << "To remove prompt for admin rights, you can create a registry key called UnsafeElevation (DWORD) with a value of 1 under HKLM/LizardByte/Sunshine."
+                      << "Doing this will make your computer more vulnerable to malware, as it would allow elevation of privelege exploits.";
+    }
+
+    return child;
+  }
+#endif
+
   int
   proc_t::execute(int app_id) {
     // Ensure starting from a clean slate
@@ -126,6 +147,8 @@ namespace proc {
 
     for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
       auto &cmd = _app_prep_it->do_cmd;
+      bool elevated;
+      int ret;
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(cmd, _env) :
@@ -134,12 +157,24 @@ namespace proc {
       auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
-        return -1;
+        if (ec == std::errc::permission_denied) {
+          child = run_elevated_cmd(cmd, working_dir, _env, _pipe, ec);
+          elevated = true;
+        }
+
+        // Check again, as it may have changed in run_elevated_cmd
+        if (ec) {
+          BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message() << " Code: " << ec.value();
+          return -1;
+        }
       }
 
-      child.wait();
-      auto ret = child.exit_code();
+      // We can't wait for the child to finish when its elevated, unless user allowed unsafe elevations.
+      // This is because it could block the UI thread, making it impossible for user to accept it.
+      if (!elevated || (platf::unsafe_elevation_enabled() && elevated)) {
+        child.wait();
+        ret = child.exit_code();
+      }
 
       if (ret != 0) {
         BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
@@ -153,6 +188,9 @@ namespace proc {
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
       auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      if (ec == std::errc::permission_denied) {
+        child = platf::safely_run_privileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr, false);
+      }
       if (ec) {
         BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
       }
@@ -171,6 +209,9 @@ namespace proc {
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
       _process = platf::run_unprivileged(_app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+      if (ec == std::errc::permission_denied) {
+        _process = platf::safely_run_privileged(_app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle, false);
+      }
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
@@ -206,6 +247,8 @@ namespace proc {
     _process = bp::child();
     _process_handle = bp::group();
     _app_id = -1;
+    bool elevated;
+    int ret;
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = (_app_prep_it - 1)->undo_cmd;
@@ -221,11 +264,23 @@ namespace proc {
       auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(warning) << "System: "sv << ec.message();
+        if (ec == std::errc::permission_denied) {
+          child = run_elevated_cmd(cmd, working_dir, _env, _pipe, ec);
+          elevated = true;
+        }
+
+        // Check again, as it may have changed in run_elevated_cmd
+        if (ec) {
+          BOOST_LOG(warning) << "System: "sv << ec.message();
+        }
       }
 
-      child.wait();
-      auto ret = child.exit_code();
+      // We can't wait for the child to finish when its elevated, unless user allowed unsafe elevations.
+      // This is because it could block the interactive thread, making it stall out the undo commands.
+      if (!elevated || (platf::unsafe_elevation_enabled() && elevated)) {
+        child.wait();
+        ret = child.exit_code();
+      }
 
       if (ret != 0) {
         BOOST_LOG(warning) << "Return code ["sv << ret << ']';

@@ -159,6 +159,17 @@ namespace platf {
   }
 
   bp::child
+  run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+    // Not supported on this platform, simply forward it to run_unprivileged
+    run_unprivileged(cmd, working_dir, env, file, ec, group);
+  }
+
+  safely_run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group, bool detached) {
+    // Not supported on this platform, simply forward it to run_unprivileged
+    run_unprivileged(cmd, working_dir, env, file, ec, group);
+  }
+
+  bp::child
   run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     BOOST_LOG(warning) << "run_unprivileged() is not yet implemented for this platform. The new process will run with Sunshine's permissions."sv;
     if (!group) {
@@ -203,6 +214,12 @@ namespace platf {
   bool
   restart() {
     // Restart not supported yet
+    return false;
+  }
+
+  bool
+  unsafe_elevation_enabled() {
+    // This is not supported.
     return false;
   }
 

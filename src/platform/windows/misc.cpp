@@ -395,6 +395,111 @@ namespace platf {
     HeapFree(GetProcessHeap(), 0, list);
   }
 
+  STARTUPINFOEXW
+  create_startup_info(FILE *file) {
+    STARTUPINFOEXW startup_info = {};
+    startup_info.StartupInfo.cb = sizeof(startup_info);
+
+    // Allocate a process attribute list with space for 1 element
+    startup_info.lpAttributeList = allocate_proc_thread_attr_list(1);
+
+    if (file) {
+      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
+
+      // Populate std handles if the caller gave us a log file to use
+      startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+      startup_info.StartupInfo.hStdInput = NULL;
+      startup_info.StartupInfo.hStdOutput = log_file_handle;
+      startup_info.StartupInfo.hStdError = log_file_handle;
+
+      // Allow the log file handle to be inherited by the child process (without inheriting all of
+      // our inheritable handles, such as our own log file handle created by SunshineSvc).
+      UpdateProcThreadAttribute(startup_info.lpAttributeList,
+        0,
+        PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+        &log_file_handle,
+        sizeof(log_file_handle),
+        NULL,
+        NULL);
+    }
+
+    return startup_info;
+  }
+
+  bp::child
+  safely_run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group, bool detached) {
+    // Clear out the error code, to prevent false positives.
+    if (ec == std::errc::permission_denied) {
+      ec.clear();
+    }
+    // For security reasons, Windows enforces that an application can have only one "interactive thread" responsible for processing user input and managing the user interface (UI).
+    // Since UAC prompts are interactive, we cannot have a UAC prompt while Sunshine is already running because it would block the thread.
+    // To work around this issue, we will launch a separate process that will elevate the command, which will prompt the user to confirm the elevation.
+    // This is our intended behavior: to require interaction before elevating the command.
+    BOOST_LOG(info) << "Could not execute previous command because it required elevation. Running the command again with elevation, for security reasons this will prompt user interaction."sv;
+    auto child = run_unprivileged("tools\\elevator.exe " + cmd, working_dir, env, file, ec, group);
+    if (detached) {
+      child.detach();
+    }
+    return child;
+  }
+
+  bp::child
+  run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+    // Most Win32 APIs can't consume UTF-8 strings directly, so we must convert them into UTF-16
+    std::wstring wcmd = utf8_to_wide_string(cmd);
+    std::wstring env_block = create_environment_block(env);
+    std::wstring start_dir = utf8_to_wide_string(working_dir.string());
+
+    // Clear out the existing error if it was about permission denied.
+    if (ec == std::errc::permission_denied) {
+      ec.clear();
+    }
+
+    STARTUPINFOEXW startup_info = create_startup_info(file);
+
+    auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
+      free_proc_thread_attr_list(list);
+    });
+    PROCESS_INFORMATION process_info;
+    BOOL ret;
+
+    // Execute in current process context, which may be at SYSTEM level.
+    ret = CreateProcessW(NULL,
+      (LPWSTR) wcmd.c_str(),
+      NULL,
+      NULL,
+      !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+      EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+      env_block.data(),
+      start_dir.empty() ? NULL : start_dir.c_str(),
+      (LPSTARTUPINFOW) &startup_info,
+      &process_info);
+
+    if (ret) {
+      // User is already aware that doing this is a potential elevation of privilege risk.
+      auto child = bp::child((bp::pid_t) process_info.dwProcessId);
+      if (group) {
+        group->add(child);
+      }
+
+      // Only close handles after bp::child() has opened the process. If the process terminates
+      // quickly, the PID could be reused if we close the process handle.
+      CloseHandle(process_info.hThread);
+      CloseHandle(process_info.hProcess);
+
+      BOOST_LOG(info) << cmd << " running with PID with full system permissions "sv << child.id();
+      return child;
+    }
+    else {
+      // We don't have to worry about escalation exploits, but its still a good idea to go ahead and return in this case too.
+      auto winerror = GetLastError();
+      BOOST_LOG(error) << "Failed to launch process: "sv << winerror;
+      ec = std::make_error_code(std::errc::invalid_argument);
+      return bp::child();
+    }
+  }
+
   bp::child
   run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     HANDLE shell_token = duplicate_shell_token();
@@ -420,39 +525,11 @@ namespace platf {
     std::wstring env_block = create_environment_block(env);
     std::wstring start_dir = utf8_to_wide_string(working_dir.string());
 
-    STARTUPINFOEXW startup_info = {};
-    startup_info.StartupInfo.cb = sizeof(startup_info);
-
-    // Allocate a process attribute list with space for 1 element
-    startup_info.lpAttributeList = allocate_proc_thread_attr_list(1);
-    if (startup_info.lpAttributeList == NULL) {
-      ec = std::make_error_code(std::errc::not_enough_memory);
-      return bp::child();
-    }
+    STARTUPINFOEXW startup_info = create_startup_info(file);
 
     auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
       free_proc_thread_attr_list(list);
     });
-
-    if (file) {
-      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
-
-      // Populate std handles if the caller gave us a log file to use
-      startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
-      startup_info.StartupInfo.hStdInput = NULL;
-      startup_info.StartupInfo.hStdOutput = log_file_handle;
-      startup_info.StartupInfo.hStdError = log_file_handle;
-
-      // Allow the log file handle to be inherited by the child process (without inheriting all of
-      // our inheritable handles, such as our own log file handle created by SunshineSvc).
-      UpdateProcThreadAttribute(startup_info.lpAttributeList,
-        0,
-        PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-        &log_file_handle,
-        sizeof(log_file_handle),
-        NULL,
-        NULL);
-    }
 
     // If we're running with the same user account as the shell, just use CreateProcess().
     // This will launch the child process elevated if Sunshine is elevated.
@@ -484,34 +561,6 @@ namespace platf {
         start_dir.empty() ? NULL : start_dir.c_str(),
         (LPSTARTUPINFOW) &startup_info,
         &process_info);
-
-      if (!ret) {
-        auto error = GetLastError();
-
-        if (error == 740) {
-          BOOST_LOG(info) << "Could not execute previous command because it required elevation. Running the command again with elevation, for security reasons this will prompt user interaction."sv;
-          startup_info.StartupInfo.wShowWindow = SW_HIDE;
-          startup_info.StartupInfo.dwFlags = startup_info.StartupInfo.dwFlags | STARTF_USESHOWWINDOW;
-          std::wstring elevated_command = L"tools\\elevator.exe ";
-          elevated_command += wcmd;
-
-          // For security reasons, Windows enforces that an application can have only one "interactive thread" responsible for processing user input and managing the user interface (UI).
-          // Since UAC prompts are interactive, we cannot have a UAC prompt while Sunshine is already running because it would block the thread.
-          // To work around this issue, we will launch a separate process that will elevate the command, which will prompt the user to confirm the elevation.
-          // This is our intended behavior: to require interaction before elevating the command.
-          ret = CreateProcessAsUserW(shell_token,
-            nullptr,
-            (LPWSTR) elevated_command.c_str(),
-            nullptr,
-            nullptr,
-            !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-            env_block.data(),
-            start_dir.empty() ? nullptr : start_dir.c_str(),
-            (LPSTARTUPINFOW) &startup_info,
-            &process_info);
-        }
-      }
 
       // End impersonation of the logged on user. If this fails (which is extremely unlikely),
       // we will be running with an unknown user token. The only safe thing to do in that case
@@ -556,7 +605,7 @@ namespace platf {
       // manipulation (denying yourself execute permission) to cause an escalation of privilege.
       auto winerror = GetLastError();
       BOOST_LOG(error) << "Failed to launch process: "sv << winerror;
-      ec = std::make_error_code(std::errc::invalid_argument);
+      ec = std::make_error_code(winerror == 740 ? std::errc::permission_denied : std::errc::invalid_argument);
       return bp::child();
     }
   }
@@ -731,6 +780,27 @@ namespace platf {
     // restart us in a few seconds.
     std::raise(SIGINT);
     return true;
+  }
+
+  bool
+  unsafe_elevation_enabled() {
+    HKEY hKey;
+    LPCTSTR sk = TEXT("SOFTWARE\\LizardByte\\Sunshine");
+    LONG openRes = RegOpenKeyEx(HKEY_LOCAL_MACHINE, sk, 0, KEY_READ, &hKey);
+    if (openRes == ERROR_SUCCESS) {
+      DWORD value;
+      DWORD size = sizeof(DWORD);
+      LONG getRes = RegGetValue(hKey, NULL, TEXT("UnsafeElevation"), RRF_RT_REG_DWORD, NULL, &value, &size);
+      if (getRes == ERROR_SUCCESS) {
+        if (value == 1) {
+          BOOST_LOG(warning) << "You have disabled a critical function of Windows Security. You acknowledge that any process with user level permissions, can easily escalte and run any command they want with full admin rights. Please do not expose this  machine to the internet. ";
+          return true;
+        }
+      }
+      RegCloseKey(hKey);
+    }
+
+    return false;
   }
 
   SOCKADDR_IN

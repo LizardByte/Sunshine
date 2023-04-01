@@ -368,6 +368,12 @@ namespace platf {
   display_names(mem_type_e hwdevice_type);
 
   boost::process::child
+  safely_run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group, bool detached);
+
+  boost::process::child
+  run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
+  
+  boost::process::child
   run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
   enum class thread_priority_e : int {
@@ -389,6 +395,9 @@ namespace platf {
   restart_supported();
   bool
   restart();
+
+  bool
+  unsafe_elevation_enabled();
 
   struct batched_send_info_t {
     const char *buffer;
