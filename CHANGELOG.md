@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.19.1] - 2023-03-30
+**Fixed**
+- (Audio) Fixed no audio issue introduced in v0.19.0
+
 ## [0.19.0] - 2023-03-29
 **Breaking**
 - (Linux/Flatpak) Moved Flatpak to org.freedesktop.Platform 22.08 and Cuda 12.0.0
@@ -404,3 +408,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.18.3]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.3
 [0.18.4]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.4
 [0.19.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.0
+[0.19.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.1
