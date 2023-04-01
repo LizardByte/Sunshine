@@ -6,13 +6,13 @@
     <div class="card-body" v-if="version">
       <h2>Version {{version}}</h2>
       <br />
-      <div class="alert alert-success" v-if="version.indexOf('dirty') !== -1">
-        Thank you for helping to make Sunshine a better software! 🌇
-      </div>
       <div v-if="loading">
         Loading Latest Release...
       </div>
-      <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable">
+      <div class="alert alert-success" v-if="runningDirtyBuild">
+        Thank you for helping to make Sunshine a better software! 🌇
+      </div>
+      <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable && !runningDirtyBuild">
         <div class="alert alert-success">
           You're running the latest version of Sunshine
         </div>
@@ -119,18 +119,19 @@
       this.loading = false;
     },
     computed: {
+      runningDirtyBuild() {
+        return this.buildVersionIsDirty()
+      },
       stableBuildAvailable() {
         // If we can't get versions, return false
         if (!this.githubVersion || !this.version) return false;
-        // If built with dirty git tree, return false
-        if (this.version.indexOf("dirty") !== -1) return false;
         // Get the GitHub version tag
         let v = this.githubVersion.name;
         // If the version starts with a v, remove it
         if (v.indexOf("v") === 0) v = v.substring(1);
 
-        // if nightly, we do an additional check to make sure its an actual upgrade.
-        if (this.buildVersionIsNightly()) {
+        // if nightly or dirty, we do an additional check to make sure it's an actual upgrade.
+        if (this.buildVersionIsNightly() || this.buildVersionIsDirty()) {
           const stableVersion = this.version.split('.').slice(0, 3).join('.');
           return this.githubVersion.tag_name.substring(1) > stableVersion;
         }
@@ -143,7 +144,7 @@
         // This is important to ensure the UI does not try to load undefined values.
         if (!this.nightlyData || this.buildVersionIsStable()) return false;
         // If built with dirty git tree, return false
-        if (this.version?.indexOf("dirty") !== -1) return false;
+        if (this.buildVersionIsDirty()) return false;
         // Get the commit hash
         let commit = this.version?.split(".").pop();
         // return true if the commit hash is different, otherwise false
@@ -194,6 +195,18 @@
 
         // If no match was found, return 0
         return 0;
+      }
+    },
+    methods: {
+      buildVersionIsDirty() {
+        return this.version?.split(".").length === 5 &&
+          this.version.indexOf("dirty") !== -1
+      },
+      buildVersionIsNightly() {
+        return this.version?.split(".").length === 4
+      },
+      buildVersionIsStable() {
+        return this.version?.split(".").length === 3
       }
     }
   });

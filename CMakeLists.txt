@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
 # todo - set version to 0.0.0 once confident in automated versioning
-project(Sunshine VERSION 0.18.4
+project(Sunshine VERSION 0.19.1
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
 
@@ -149,7 +149,10 @@ if(WIN32)
     enable_language(RC)
     set(CMAKE_RC_COMPILER windres)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CURL_STATIC_LDFLAGS} ${CURL_STATIC_CFLAGS}")
+
+    add_definitions(-DCURL_STATICLIB)
+    include_directories(${CURL_STATIC_INCLUDE_DIRS})
+    link_directories(${CURL_STATIC_LIBRARY_DIRS})
 
     add_compile_definitions(SUNSHINE_PLATFORM="windows")
     add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
@@ -690,6 +693,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
     install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
+    install(TARGETS elevator RUNTIME DESTINATION "tools" COMPONENT elevator)
 
     # Mandatory tools
     install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
@@ -701,6 +705,9 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
             DESTINATION "scripts"
             COMPONENT service)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vigembus/"
+            DESTINATION "scripts"
+            COMPONENT vigembus)
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
             DESTINATION "scripts"
             COMPONENT assets)
@@ -733,11 +740,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        MessageBox MB_YESNO|MB_ICONQUESTION \
-            'Do you want to install ViGEmBus? This is REQUIRED for gamepad support while streaming.' \
-            /SD IDNO IDNO NoController
-            ExecShell 'open' 'https://github.com/ViGEm/ViGEmBus/releases/latest'; \
-                skipped if no
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-vigembus.bat\\\"'
         NoController:
         ")
 
@@ -747,6 +750,11 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
+        MessageBox MB_YESNO|MB_ICONQUESTION \
+            'Do you want to remove ViGEmBus)?' \
+            /SD IDNO IDNO NoVigem
+            nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-vigembus.bat\\\"'; skipped if no
+        NoVigem:
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
             /SD IDNO IDNO NoDelete
@@ -801,6 +809,12 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
     set(CPACK_COMPONENT_AUDIO_GROUP "tools")
 
+    # elevation tool
+    set(CPACK_COMPONENT_ELEVATOR_DISPLAY_NAME "elevator")
+    set(CPACK_COMPONENT_ELEVATOR_DESCRIPTION "CLI tool that assists with elevating \
+     commands when permissions have been denied.")
+    set(CPACK_COMPONENT_ELEVATOR_GROUP "tools")
+
     # display tool
     set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
     set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
@@ -821,6 +835,11 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
     set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
     set(CPACK_COMPONENT_FIREWALL_GROUP "scripts")
+
+    # vigembus scripts
+    set(CPACK_COMPONENT_VIGEMBUS_DISPLAY_NAME "vigembus-scripts")
+    set(CPACK_COMPONENT_VIGEMBUS_DESCRIPTION "Scripts to install and uninstall ViGEmBus for virtual gamepad support.")
+    set(CPACK_COMPONENT_VIGEMBUS_GROUP "scripts")
 endif()
 if(APPLE)
     # TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop

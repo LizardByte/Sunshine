@@ -20,6 +20,8 @@ concurrency:
 jobs:
   qodana_initial_check:
     name: Qodana Initial Check
+    permissions:
+      actions: write  # required to use workflow dispatch on fork PRs
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -235,6 +237,8 @@ jobs:
     needs: [qodana_initial_check, qodana]
     runs-on: ubuntu-latest
     name: Dispatch Qodana
+    permissions:
+      actions: write  # required to use workflow dispatch on fork PRs
     if: ${{ needs.qodana_initial_check.outputs.files != '' }}
     steps:
       - name: Setup qodana publish inputs

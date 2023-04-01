@@ -213,10 +213,58 @@
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
+        <div class="form-text">
+          It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
+          In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
+        </div>
       </div>
-      <div class="form-text">
-        It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
-        In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
+      <!-- Global Prep Commands -->
+      <div class="mb-3 d-flex flex-column">
+        <label class="form-label">Command Preparations</label>
+        <div class="form-text">
+          A list of commands to be run before/after all applications. <br />
+          If any of the prep-commands fail, starting the application is aborted.
+        </div>
+        <table v-if="global_prep_cmd.length > 0">
+          <thead>
+            <th>Do</th>
+            <th>Undo</th>
+            <th style="width: 48px"></th>
+          </thead>
+          <tbody>
+            <tr v-for="(c,i) in global_prep_cmd">
+              <td>
+                <input
+                  type="text"
+                  class="form-control monospace"
+                  v-model="c.do"
+                />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  class="form-control monospace"
+                  v-model="c.undo"
+                />
+              </td>
+              <td>
+                <button
+                  class="btn btn-danger"
+                  @click="global_prep_cmd.splice(i,1)"
+                >
+                  &times;
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <button
+          class="mt-2 btn btn-success"
+          style="margin: 0 auto"
+          @click="add_global_prep_cmd"
+        >
+          &plus; Add
+        </button>
       </div>
     </div>
     <!--Files Tab-->
@@ -512,9 +560,17 @@
           v-model="config.output_name"
         />
         <div class="form-text">
-          xrandr --listmonitors<br />
-          Example output:
-          <pre>   0: +HDMI-1 1920/518x1200/324+0+0 HDMI-1</pre>
+          During Sunshine startup, you should see the list of detected monitors, e.g.:<br />
+          <br />
+          <pre style="white-space: pre-line;">
+            Info: Detecting connected monitors
+            Info: Detected monitor 0: DVI-D-0, connected: false
+            Info: Detected monitor 1: HDMI-0, connected: true
+            Info: Detected monitor 2: DP-0, connected: true
+            Info: Detected monitor 3: DP-1, connected: false
+            Info: Detected monitor 4: DVI-D-1, connected: false
+          </pre>
+          You need to use the value before the colon in the output, e.g. <b>1</b>.
         </div>
       </div>
     </div>
@@ -951,6 +1007,7 @@
     "vt_coder": "auto",
     "vt_realtime": "enabled",
     "vt_software": "auto",
+    "global_prep_cmd": "[]",
   }
 
   new Vue({
@@ -967,6 +1024,7 @@
         currentTab: "general",
         resIn: "",
         fpsIn: "",
+        global_prep_cmd: [],
         tabs: [
           {
             id: "general",
@@ -1061,6 +1119,9 @@
           let resolutions = [];
           res.split(",").forEach((r) => resolutions.push(r.trim()));
           this.resolutions = resolutions;
+          
+          this.config.global_prep_cmd = this.config.global_prep_cmd || [];
+          this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
         });
     },
     methods: {
@@ -1075,6 +1136,7 @@
           "]";
         // remove quotes from values in fps
         this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
+        this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
       },
       save() {
         this.saved = false;
@@ -1133,6 +1195,12 @@
               if (r.status === 200) this.restarted = true;
             });
           }
+        });
+      },
+      add_global_prep_cmd() {
+        this.global_prep_cmd.push({
+          do: "",
+          undo: "",
         });
       },
     },
