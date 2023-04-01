@@ -372,7 +372,7 @@ namespace platf {
 
   boost::process::child
   run_privileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
-  
+
   boost::process::child
   run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
