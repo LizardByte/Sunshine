@@ -94,8 +94,8 @@ namespace proc {
       // Execute the elevation request, detached so it doesn't keep the session locked.
       child = platf::safely_run_privileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr, true);
       // Inform user of workaround, making it clear that it is not recommended
-      BOOST_LOG(info) << "To remove prompt for admin rights, you can create a registry key called UnsafeElevation (DWORD) with a value of 1 under HKLM/LizardByte/Sunshine."
-                      << "Doing this will make your computer more vulnerable to malware, as it would allow elevation of privelege exploits.";
+      BOOST_LOG(info) << "To remove the prompt for admin rights, you can create a registry key called \"UnsafeElevation\" (DWORD) with a value of 1 under HKLM\\LizardByte\\Sunshine."
+                      << "Enabling \"UnsafeElevation\" will make your computer more vulnerable to malware, as it would allow elevation of privilege exploits.";
     }
 
     return child;
