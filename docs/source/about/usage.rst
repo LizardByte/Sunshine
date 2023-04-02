@@ -68,16 +68,11 @@ The `deb`, `rpm`, `Flatpak` and `AppImage` packages handle these steps automatic
 
 Sunshine needs access to `uinput` to create mouse and gamepad events.
 
-#. Add user to group `input`, if this is the first time installing.
+#. Create `udev` rules.
       .. code-block:: bash
 
-         sudo usermod -a -G input $USER
-
-#. Create `udev` rules.
-      .. code-block::
-
-         echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' | \
-         sudo tee /etc/udev/rules.d/85-sunshine-input.rules
+         echo 'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
+         sudo tee /etc/udev/rules.d/85-sunshine.rules
 
 #. Optionally, configure autostart service
 
