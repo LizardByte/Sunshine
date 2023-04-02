@@ -155,6 +155,10 @@
       }
     },
     methods: {
+      buildVersionIsDirty() {
+        return this.version?.split(".").length === 5 &&
+          this.version.indexOf("dirty") !== -1
+      },
       buildVersionIsStable() {
         return this.version?.split(".").length === 3;
       },
@@ -163,7 +167,7 @@
       },
       async retrieveNightlyChangelog() {
         // This shouldn't happen, but just in case we will return back empty commit log.
-        if(this.buildVersionIsStable()){
+        if (this.buildVersionIsStable()) {
           return [];
         }
 
@@ -195,18 +199,6 @@
 
         // If no match was found, return 0
         return 0;
-      }
-    },
-    methods: {
-      buildVersionIsDirty() {
-        return this.version?.split(".").length === 5 &&
-          this.version.indexOf("dirty") !== -1
-      },
-      buildVersionIsNightly() {
-        return this.version?.split(".").length === 4
-      },
-      buildVersionIsStable() {
-        return this.version?.split(".").length === 3
       }
     }
   });
