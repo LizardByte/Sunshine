@@ -27,6 +27,7 @@
 #ifdef _WIN32
   // _SH constants for _wfsopen()
   #include <share.h>
+  #include <src/platform/windows/misc.h>
 #endif
 
 #define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"

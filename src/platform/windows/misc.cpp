@@ -901,4 +901,9 @@ namespace platf {
     return std::make_unique<qos_t>(flow_id);
   }
 
+  bp::child
+  run_priveleged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group) {
+    BOOST_LOG(warning) << "You are entering dangerous territory here";
+    return bp::child();
+  }
 }  // namespace platf
