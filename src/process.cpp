@@ -83,6 +83,17 @@ namespace proc {
     return cmd_path.parent_path();
   }
 
+  bp::child
+  run_command(bool elevated, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+#ifdef _WIN32
+    if (elevated) {
+      return platf::run_priviliged(cmd, working_dir, env, file, ec, group);
+    }
+#endif
+
+    return platf::run_unprivileged(cmd, working_dir, env, file, ec, group);
+  }
+
   int
   proc_t::execute(int app_id) {
     // Ensure starting from a clean slate
@@ -126,16 +137,16 @@ namespace proc {
     });
 
     for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
-      auto &cmd = _app_prep_it->do_cmd;
+      auto &cmd = *_app_prep_it;
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
+                                              find_working_directory(cmd.do_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
+      auto child = run_command(cmd.elevated, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
+        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
         return -1;
       }
 
@@ -143,7 +154,7 @@ namespace proc {
       auto ret = child.exit_code();
 
       if (ret != 0) {
-        BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
+        BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
         return -1;
       }
     }

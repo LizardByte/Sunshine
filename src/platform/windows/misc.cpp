@@ -19,6 +19,8 @@
 #include <winuser.h>
 #include <wlanapi.h>
 #include <ws2tcpip.h>
+#include <wtsapi32.h>
+#include <sddl.h>
 // clang-format on
 
 #include "src/main.h"
@@ -200,6 +202,59 @@ namespace platf {
     return std::string(buffer, bytes);
   }
 
+  HANDLE
+  duplicate_users_token_elevated() {
+    DWORD consoleSessionId;
+    HANDLE userToken, duplicateToken;
+    TOKEN_ELEVATION_TYPE elevationType;
+    DWORD dwSize;
+
+    auto token_close = util::fail_guard([&userToken]() {
+      CloseHandle(userToken);
+    });
+
+    consoleSessionId = WTSGetActiveConsoleSessionId();
+    if (0xFFFFFFFF == consoleSessionId) {
+      BOOST_LOG(warning) << "There isn't an active user session, therefore it is not possible to execute commands under the users profile.";
+      return nullptr;
+    }
+
+    if (!WTSQueryUserToken(consoleSessionId, &userToken)) {
+      BOOST_LOG(debug) << "QueryUserToken failed, this would prevent commands from launching under the users profile.";
+      return nullptr;
+    }
+
+    // We need to know if this is an elevated token or not.
+    GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize);
+
+    // User has a limited token, this likely means they have UAC enabled.
+    if (elevationType == TokenElevationTypeLimited) {
+      TOKEN_LINKED_TOKEN linked_token;
+      // Retrieve the administrator token
+      if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linked_token), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
+        DWORD lasterror = GetLastError();
+        BOOST_LOG(error) << "Request to elevate the users token had failed. Error: " << lasterror;
+        return nullptr;
+      }
+
+      // Since we need the elevated token, we'll replace it with their administrative token.
+      userToken = linked_token.LinkedToken;
+    }
+
+    // Duplicate the token so it can be used for creating processes.
+    if (!DuplicateTokenEx(
+          userToken,
+          MAXIMUM_ALLOWED,
+          NULL,
+          SecurityIdentification,
+          TokenPrimary,
+          &duplicateToken)) {
+      BOOST_LOG(debug) << "Error duplicating token";
+      return nullptr;
+    }
+
+    return duplicateToken;
+  }
   HANDLE
   duplicate_shell_token() {
     // Get the shell window (will usually be owned by explorer.exe)
@@ -396,143 +451,9 @@ namespace platf {
   }
 
   bp::child
-  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-    HANDLE shell_token = duplicate_shell_token();
-    if (!shell_token) {
-      // This can happen if the shell has crashed. Fail the launch rather than risking launching with
-      // Sunshine's permissions unmodified.
-      ec = std::make_error_code(std::errc::no_such_process);
+  create_boost_child_from_results(bool ret, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info, bp::group *group) {
+    if (ec) {
       return bp::child();
-    }
-
-    auto token_close = util::fail_guard([shell_token]() {
-      CloseHandle(shell_token);
-    });
-
-    // Populate env with user-specific environment variables
-    if (!merge_user_environment_block(env, shell_token)) {
-      ec = std::make_error_code(std::errc::not_enough_memory);
-      return bp::child();
-    }
-
-    // Most Win32 APIs can't consume UTF-8 strings directly, so we must convert them into UTF-16
-    std::wstring wcmd = utf8_to_wide_string(cmd);
-    std::wstring env_block = create_environment_block(env);
-    std::wstring start_dir = utf8_to_wide_string(working_dir.string());
-
-    STARTUPINFOEXW startup_info = {};
-    startup_info.StartupInfo.cb = sizeof(startup_info);
-
-    // Allocate a process attribute list with space for 1 element
-    startup_info.lpAttributeList = allocate_proc_thread_attr_list(1);
-    if (startup_info.lpAttributeList == NULL) {
-      ec = std::make_error_code(std::errc::not_enough_memory);
-      return bp::child();
-    }
-
-    auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
-      free_proc_thread_attr_list(list);
-    });
-
-    if (file) {
-      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
-
-      // Populate std handles if the caller gave us a log file to use
-      startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
-      startup_info.StartupInfo.hStdInput = NULL;
-      startup_info.StartupInfo.hStdOutput = log_file_handle;
-      startup_info.StartupInfo.hStdError = log_file_handle;
-
-      // Allow the log file handle to be inherited by the child process (without inheriting all of
-      // our inheritable handles, such as our own log file handle created by SunshineSvc).
-      UpdateProcThreadAttribute(startup_info.lpAttributeList,
-        0,
-        PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-        &log_file_handle,
-        sizeof(log_file_handle),
-        NULL,
-        NULL);
-    }
-
-    // If we're running with the same user account as the shell, just use CreateProcess().
-    // This will launch the child process elevated if Sunshine is elevated.
-    PROCESS_INFORMATION process_info;
-    BOOL ret;
-    if (!is_token_same_user_as_process(shell_token)) {
-      // Impersonate the user when launching the process. This will ensure that appropriate access
-      // checks are done against the user token, not our SYSTEM token. It will also allow network
-      // shares and mapped network drives to be used as launch targets, since those credentials
-      // are stored per-user.
-      if (!ImpersonateLoggedOnUser(shell_token)) {
-        auto winerror = GetLastError();
-        BOOST_LOG(error) << "Failed to impersonate user: "sv << winerror;
-        ec = std::make_error_code(std::errc::permission_denied);
-        return bp::child();
-      }
-
-      // Launch the process with the duplicated shell token.
-      // Set CREATE_BREAKAWAY_FROM_JOB to avoid the child being killed if SunshineSvc.exe is terminated.
-      // Set CREATE_NEW_CONSOLE to avoid writing stdout to Sunshine's log if 'file' is not specified.
-      ret = CreateProcessAsUserW(shell_token,
-        NULL,
-        (LPWSTR) wcmd.c_str(),
-        NULL,
-        NULL,
-        !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-        env_block.data(),
-        start_dir.empty() ? NULL : start_dir.c_str(),
-        (LPSTARTUPINFOW) &startup_info,
-        &process_info);
-
-      if (!ret) {
-        auto error = GetLastError();
-
-        if (error == 740) {
-          BOOST_LOG(info) << "Could not execute previous command because it required elevation. Running the command again with elevation, for security reasons this will prompt user interaction."sv;
-          startup_info.StartupInfo.wShowWindow = SW_HIDE;
-          startup_info.StartupInfo.dwFlags = startup_info.StartupInfo.dwFlags | STARTF_USESHOWWINDOW;
-          std::wstring elevated_command = L"tools\\elevator.exe ";
-          elevated_command += wcmd;
-
-          // For security reasons, Windows enforces that an application can have only one "interactive thread" responsible for processing user input and managing the user interface (UI).
-          // Since UAC prompts are interactive, we cannot have a UAC prompt while Sunshine is already running because it would block the thread.
-          // To work around this issue, we will launch a separate process that will elevate the command, which will prompt the user to confirm the elevation.
-          // This is our intended behavior: to require interaction before elevating the command.
-          ret = CreateProcessAsUserW(shell_token,
-            nullptr,
-            (LPWSTR) elevated_command.c_str(),
-            nullptr,
-            nullptr,
-            !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-            env_block.data(),
-            start_dir.empty() ? nullptr : start_dir.c_str(),
-            (LPSTARTUPINFOW) &startup_info,
-            &process_info);
-        }
-      }
-
-      // End impersonation of the logged on user. If this fails (which is extremely unlikely),
-      // we will be running with an unknown user token. The only safe thing to do in that case
-      // is terminate ourselves.
-      if (!RevertToSelf()) {
-        auto winerror = GetLastError();
-        BOOST_LOG(fatal) << "Failed to revert to self after impersonation: "sv << winerror;
-        std::abort();
-      }
-    }
-    else {
-      ret = CreateProcessW(NULL,
-        (LPWSTR) wcmd.c_str(),
-        NULL,
-        NULL,
-        !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-        env_block.data(),
-        start_dir.empty() ? NULL : start_dir.c_str(),
-        (LPSTARTUPINFOW) &startup_info,
-        &process_info);
     }
 
     if (ret) {
@@ -559,6 +480,190 @@ namespace platf {
       ec = std::make_error_code(std::errc::invalid_argument);
       return bp::child();
     }
+  }
+
+  std::error_code
+  impersonate_current_user(HANDLE shell_token, std::function<void()> callback) {
+    std::error_code ec;
+    // Impersonate the user when launching the process. This will ensure that appropriate access
+    // checks are done against the user token, not our SYSTEM token. It will also allow network
+    // shares and mapped network drives to be used as launch targets, since those credentials
+    // are stored per-user.
+    if (!ImpersonateLoggedOnUser(shell_token)) {
+      auto winerror = GetLastError();
+      BOOST_LOG(error) << "Failed to impersonate user: "sv << winerror;
+      ec = std::make_error_code(std::errc::permission_denied);
+    }
+
+    callback();
+
+    // End impersonation of the logged on user. If this fails (which is extremely unlikely),
+    // we will be running with an unknown user token. The only safe thing to do in that case
+    // is terminate ourselves.
+    if (!RevertToSelf()) {
+      auto winerror = GetLastError();
+      BOOST_LOG(fatal) << "Failed to revert to self after impersonation: "sv << winerror;
+      std::abort();
+    }
+
+    return ec;
+  }
+
+  STARTUPINFOEXW
+  create_startup_info(FILE *file, std::error_code &ec) {
+    STARTUPINFOEXW startup_info = {};
+    startup_info.StartupInfo.cb = sizeof(startup_info);
+
+    // Allocate a process attribute list with space for 1 element
+    startup_info.lpAttributeList = allocate_proc_thread_attr_list(1);
+    if (startup_info.lpAttributeList == NULL) {
+      ec = std::make_error_code(std::errc::not_enough_memory);
+      return startup_info;
+    }
+
+    if (file) {
+      HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
+
+      // Populate std handles if the caller gave us a log file to use
+      startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+      startup_info.StartupInfo.hStdInput = NULL;
+      startup_info.StartupInfo.hStdOutput = log_file_handle;
+      startup_info.StartupInfo.hStdError = log_file_handle;
+
+      // Allow the log file handle to be inherited by the child process (without inheriting all of
+      // our inheritable handles, such as our own log file handle created by SunshineSvc).
+      UpdateProcThreadAttribute(startup_info.lpAttributeList,
+        0,
+        PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+        &log_file_handle,
+        sizeof(log_file_handle),
+        NULL,
+        NULL);
+    }
+
+    return startup_info;
+  }
+
+  bp::child
+  run_priviliged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group) {
+    PROCESS_INFORMATION process_info;
+    BOOL ret;
+    HANDLE users_token = duplicate_users_token_elevated();
+    if (!users_token) {
+      // This can happen if the shell has crashed. Fail the launch rather than risking launching with
+      // Sunshine's permissions unmodified.
+      ec = std::make_error_code(std::errc::no_such_process);
+      BOOST_LOG(warning) << "Unable to clone token:  " << GetLastError();
+      return bp::child();
+    }
+
+    auto token_close = util::fail_guard([users_token]() {
+      CloseHandle(users_token);
+    });
+
+    // Populate env with user-specific environment variables
+    if (!merge_user_environment_block(env, users_token)) {
+      BOOST_LOG(warning) << "Unable to merge environment block " << GetLastError();
+      ec = std::make_error_code(std::errc::not_enough_memory);
+      return bp::child();
+    }
+
+    // Most Win32 APIs can't consume UTF-8 strings directly, so we must convert them into UTF-16
+    std::wstring wcmd = utf8_to_wide_string(cmd);
+    std::wstring env_block = create_environment_block(env);
+    std::wstring start_dir = utf8_to_wide_string(working_dir.string());
+
+    STARTUPINFOEXW startup_info = create_startup_info(file, ec);
+
+    auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
+      free_proc_thread_attr_list(list);
+    });
+
+    ec = impersonate_current_user(users_token, [&]() {
+      ret = CreateProcessAsUserW(users_token,
+        NULL,
+        (LPWSTR) wcmd.c_str(),
+        NULL,
+        NULL,
+        !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+        env_block.data(),
+        start_dir.empty() ? NULL : start_dir.c_str(),
+        (LPSTARTUPINFOW) &startup_info,
+        &process_info);
+    });
+
+    return create_boost_child_from_results(ret, cmd, ec, process_info, group);
+  }
+
+  bp::child
+  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+    HANDLE shell_token = duplicate_shell_token();
+    if (!shell_token) {
+      // This can happen if the shell has crashed. Fail the launch rather than risking launching with
+      // Sunshine's permissions unmodified.
+      ec = std::make_error_code(std::errc::no_such_process);
+      return bp::child();
+    }
+
+    auto token_close = util::fail_guard([shell_token]() {
+      CloseHandle(shell_token);
+    });
+
+    // Populate env with user-specific environment variables
+    if (!merge_user_environment_block(env, shell_token)) {
+      ec = std::make_error_code(std::errc::not_enough_memory);
+      return bp::child();
+    }
+
+    // Most Win32 APIs can't consume UTF-8 strings directly, so we must convert them into UTF-16
+    std::wstring wcmd = utf8_to_wide_string(cmd);
+    std::wstring env_block = create_environment_block(env);
+    std::wstring start_dir = utf8_to_wide_string(working_dir.string());
+
+    STARTUPINFOEXW startup_info = create_startup_info(file, ec);
+
+    auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
+      free_proc_thread_attr_list(list);
+    });
+
+    // If we're running with the same user account as the shell, just use CreateProcess().
+    // This will launch the child process elevated if Sunshine is elevated.
+    PROCESS_INFORMATION process_info;
+    BOOL ret;
+    if (!is_token_same_user_as_process(shell_token)) {
+      ec = impersonate_current_user(shell_token, [&]() {
+        ret = CreateProcessAsUserW(shell_token,
+          NULL,
+          (LPWSTR) wcmd.c_str(),
+          NULL,
+          NULL,
+          !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+          EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+          env_block.data(),
+          start_dir.empty() ? NULL : start_dir.c_str(),
+          (LPSTARTUPINFOW) &startup_info,
+          &process_info);
+      });
+
+      if (ec) {
+        return bp::child();
+      }
+    }
+    else {
+      ret = CreateProcessW(NULL,
+        (LPWSTR) wcmd.c_str(),
+        NULL,
+        NULL,
+        !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+        env_block.data(),
+        start_dir.empty() ? NULL : start_dir.c_str(),
+        (LPSTARTUPINFOW) &startup_info,
+        &process_info);
+    }
+
+    return create_boost_child_from_results(ret, cmd, ec, process_info, group);
   }
 
   void
@@ -899,11 +1004,5 @@ namespace platf {
     }
 
     return std::make_unique<qos_t>(flow_id);
-  }
-
-  bp::child
-  run_priveleged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group) {
-    BOOST_LOG(warning) << "You are entering dangerous territory here";
-    return bp::child();
   }
 }  // namespace platf
