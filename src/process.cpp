@@ -153,7 +153,7 @@ namespace proc {
                                               find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = run_command(_app.elevated, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
       }
@@ -171,7 +171,7 @@ namespace proc {
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = platf::run_unprivileged(_app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+      _process = run_command(_app.elevated, _app.cmd, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
@@ -482,6 +482,7 @@ namespace proc {
         auto cmd = app_node.get_optional<std::string>("cmd"s);
         auto image_path = app_node.get_optional<std::string>("image-path"s);
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
+        auto elevated = app_node.get_optional<bool>("elevated"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -490,7 +491,7 @@ namespace proc {
             auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
             auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 
-            prep_cmds.emplace_back(std::move(do_cmd), std::move(undo_cmd));
+            prep_cmds.emplace_back(std::move(do_cmd), std::move(undo_cmd), std::move(false));
           }
         }
 
@@ -501,12 +502,13 @@ namespace proc {
           for (auto &[_, prep_node] : prep_nodes) {
             auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
             auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
+            auto elevated = prep_node.get_optional<bool>("elevated");
 
             if (undo_cmd) {
-              prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
+              prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd), std::move(elevated.value_or(false)));
             }
             else {
-              prep_cmds.emplace_back(std::move(do_cmd));
+              prep_cmds.emplace_back(std::move(do_cmd), std::move(elevated.value_or(false)));
             }
           }
         }
@@ -536,6 +538,8 @@ namespace proc {
         if (image_path) {
           ctx.image_path = parse_env_val(this_env, *image_path);
         }
+
+        ctx.elevated = elevated.value_or(false);
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {
