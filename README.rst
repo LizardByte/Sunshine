@@ -4,7 +4,7 @@ LizardByte has the full documentation hosted on `Read the Docs <https://sunshine
 
 About
 -----
-Sunshine is a self-hosted game stream host for Moonlight.
+Sunshine is a self-hosted game stream host for `Moonlight <https://moonlight-stream.org/>`_.
 Offering low latency, cloud gaming server capabilities with support for AMD, Intel, and Nvidia GPUs for hardware
 encoding. Software encoding is also available. You can connect to Sunshine from any Moonlight client on a variety of
 devices. A web UI is provided to allow configuration, and client pairing, from your favorite web browser. Pair from
