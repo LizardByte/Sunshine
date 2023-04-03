@@ -791,22 +791,24 @@ namespace video {
     }
     display_wp = disp;
 
-    std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-    auto round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
-
-    for (auto &img : imgs) {
-      img = disp->alloc_img();
-      if (!img) {
-        BOOST_LOG(error) << "Couldn't initialize an image"sv;
-        return;
-      }
-    }
+    std::vector<std::shared_ptr<platf::img_t>> imgs;
 
     // Capture takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
     while (capture_ctx_queue->running()) {
       bool artificial_reinit = false;
+      auto final_buffer_used_time = std::chrono::steady_clock::now();
+
+      // We always need at least one image for capture() to use
+      if (imgs.empty()) {
+        auto img = disp->alloc_img();
+        if (!img) {
+          BOOST_LOG(error) << "Couldn't initialize an image"sv;
+          return;
+        }
+        imgs.emplace_back(std::move(img));
+      }
 
       auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img, bool frame_captured) -> std::shared_ptr<platf::img_t> {
         KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
@@ -837,15 +839,55 @@ namespace video {
           return nullptr;
         }
 
-        auto &next_img = *round_robin++;
-        while (next_img.use_count() > 1) {
-          // Sleep a bit to avoid starving the encoder threads
-          std::this_thread::sleep_for(2ms);
+        // If we didn't capture anything into this frame, we can immediately reuse it
+        if (!frame_captured) {
+          if (img == imgs.back()) {
+            final_buffer_used_time = std::chrono::steady_clock::now();
+          }
+          return img;
         }
 
-        return next_img;
+        while (true) {
+          auto now = std::chrono::steady_clock::now();
+
+          // If it's been a minute without using the last image, free it
+          // and reset the cleanup timer again.
+          if (imgs.size() > 1 && now - final_buffer_used_time >= std::chrono::seconds(60)) {
+            BOOST_LOG(info) << "Freeing image buffer that is no longer in use: "sv << imgs.size();
+            final_buffer_used_time = now;
+            imgs.pop_back();
+          }
+
+          // Look for the first unused image to capture the next frame into
+          for (auto &next_img : imgs) {
+            if (next_img.use_count() == 1) {
+              if (next_img == imgs.back()) {
+                final_buffer_used_time = now;
+              }
+              return next_img;
+            }
+          }
+
+          // Allocate a new image if we're below the limit
+          if (imgs.size() < 6) {
+            BOOST_LOG(info) << "Allocating new image buffer for capture: "sv << imgs.size() + 1;
+            auto img = disp->alloc_img();
+            if (!img) {
+              BOOST_LOG(error) << "Couldn't initialize an image"sv;
+              return nullptr;
+            }
+            imgs.emplace_back(img);
+            final_buffer_used_time = now;
+            return img;
+          }
+          else {
+            // We're at the image queue size limit, so we'll need to wait
+            // for one of our existing images to be ready for reuse.
+            std::this_thread::sleep_for(2ms);
+          }
+        }
       },
-        *round_robin++, &display_cursor);
+        imgs.front(), &display_cursor);
 
       if (artificial_reinit && status != platf::capture_e::error) {
         status = platf::capture_e::reinit;
@@ -858,9 +900,7 @@ namespace video {
           reinit_event.raise(true);
 
           // Some classes of images contain references to the display --> display won't delete unless img is deleted
-          for (auto &img : imgs) {
-            img.reset();
-          }
+          imgs.clear();
 
           // display_wp is modified in this thread only
           // Wait for the other shared_ptr's of display to be destroyed.
@@ -898,16 +938,6 @@ namespace video {
           }
 
           display_wp = disp;
-
-          // Re-allocate images
-          for (auto &img : imgs) {
-            img = disp->alloc_img();
-            if (!img) {
-              BOOST_LOG(error) << "Couldn't initialize an image"sv;
-              return;
-            }
-          }
-
           reinit_event.reset();
           continue;
         }
