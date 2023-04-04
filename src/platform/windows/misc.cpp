@@ -450,51 +450,75 @@ namespace platf {
     HeapFree(GetProcessHeap(), 0, list);
   }
 
+  /**
+ * @brief Creates a bp::child object from the results of launching a process
+ *
+ * @param process_launched A boolean indicating whether the launch was successful or not
+ * @param cmd The command that was used to launch the process
+ * @param ec A reference to an std::error_code object that will store any error that occurred during the launch
+ * @param process_info A reference to a PROCESS_INFORMATION structure that contains information about the new process
+ * @param group A pointer to a bp::group object that will add the new process to its group, if not null
+ * @return A bp::child object representing the new process, or an empty bp::child object if the launch failed or an error occurred
+ */
   bp::child
-  create_boost_child_from_results(bool ret, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info, bp::group *group) {
+  create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info, bp::group *group) {
+    // Use RAII to ensure the process is closed when we're done with it, even if there was an error.
+    auto close_process_handles = util::fail_guard([process_launched, process_info]() {
+      if (process_launched) {
+        CloseHandle(process_info.hThread);
+        CloseHandle(process_info.hProcess);
+      }
+    });
+
     if (ec) {
+      // If there was an error, return an empty bp::child object
       return bp::child();
     }
 
-    if (ret) {
-      // Since we are always spawning a process with a less privileged token than ourselves,
-      // bp::child() should have no problem opening it with any access rights it wants.
+    if (process_launched) {
+      // If the launch was successful, create a new bp::child object representing the new process
       auto child = bp::child((bp::pid_t) process_info.dwProcessId);
       if (group) {
+        // If a group was provided, add the new process to the group
         group->add(child);
       }
-
-      // Only close handles after bp::child() has opened the process. If the process terminates
-      // quickly, the PID could be reused if we close the process handle.
-      CloseHandle(process_info.hThread);
-      CloseHandle(process_info.hProcess);
 
       BOOST_LOG(info) << cmd << " running with PID "sv << child.id();
       return child;
     }
     else {
-      // We must NOT try bp::child() here, since this case can potentially be induced by ACL
-      // manipulation (denying yourself execute permission) to cause an escalation of privilege.
       auto winerror = GetLastError();
       BOOST_LOG(error) << "Failed to launch process: "sv << winerror;
       ec = std::make_error_code(std::errc::invalid_argument);
+      // We must NOT attach the failed process here, since this case can potentially be induced by ACL
+      // manipulation (denying yourself execute permission) to cause an escalation of privilege.
+      // So to protect ourselves against that, we'll return an empty child process instead.
       return bp::child();
     }
   }
 
+  /**
+ * @brief Impersonate the current user, invoke the callback function, then returns back to system context.
+ *
+ * @param user_token A handle to the user's token that was obtained from the shell
+ * @param callback A function that will be executed while impersonating the user
+ * @return An std::error_code object that will store any error that occurred during the impersonation
+ */
   std::error_code
-  impersonate_current_user(HANDLE shell_token, std::function<void()> callback) {
+  impersonate_current_user(HANDLE user_token, std::function<void()> callback) {
     std::error_code ec;
     // Impersonate the user when launching the process. This will ensure that appropriate access
     // checks are done against the user token, not our SYSTEM token. It will also allow network
     // shares and mapped network drives to be used as launch targets, since those credentials
     // are stored per-user.
-    if (!ImpersonateLoggedOnUser(shell_token)) {
+    if (!ImpersonateLoggedOnUser(user_token)) {
       auto winerror = GetLastError();
+      // Log the failure of impersonating the user and its error code
       BOOST_LOG(error) << "Failed to impersonate user: "sv << winerror;
       ec = std::make_error_code(std::errc::permission_denied);
     }
 
+    // Execute the callback function while impersonating the user
     callback();
 
     // End impersonation of the logged on user. If this fails (which is extremely unlikely),
@@ -502,6 +526,7 @@ namespace platf {
     // is terminate ourselves.
     if (!RevertToSelf()) {
       auto winerror = GetLastError();
+      // Log the failure of reverting to self and its error code
       BOOST_LOG(fatal) << "Failed to revert to self after impersonation: "sv << winerror;
       std::abort();
     }
@@ -544,10 +569,28 @@ namespace platf {
     return startup_info;
   }
 
+  /**
+ * @brief Runs a command on the users profile, with elevation
+ *
+ * This function launches a child process with elevated privileges, using the current user's environment
+ * and a specific working directory. If the launch is successful, a `bp::child` object representing the new
+ * process is returned. Otherwise, an error code is returned.
+ *
+ * @param cmd The command to run
+ * @param working_dir The working directory for the new process
+ * @param env The environment variables to use for the new process
+ * @param file A file object to redirect the child process's output to (may be nullptr)
+ * @param ec An error code, set to indicate any errors that occur during the launch process
+ * @param group A pointer to a `bp::group` object to which the new process should belong (may be nullptr)
+ *
+ * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails
+ */
   bp::child
   run_priviliged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group) {
     PROCESS_INFORMATION process_info;
     BOOL ret;
+
+    // Duplicate the current user's token with elevated privileges
     HANDLE users_token = duplicate_users_token_elevated();
     if (!users_token) {
       // This can happen if the shell has crashed. Fail the launch rather than risking launching with
@@ -557,6 +600,7 @@ namespace platf {
       return bp::child();
     }
 
+    // Use RAII to ensure the token is closed when we're done with it
     auto token_close = util::fail_guard([users_token]() {
       CloseHandle(users_token);
     });
@@ -573,12 +617,15 @@ namespace platf {
     std::wstring env_block = create_environment_block(env);
     std::wstring start_dir = utf8_to_wide_string(working_dir.string());
 
+    // Create the STARTUPINFOEXW object for the new process
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
 
+    // Use RAII to ensure the attribute list is freed when we're done with it
     auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
       free_proc_thread_attr_list(list);
     });
 
+    // Impersonate the current user and launch the new process
     ec = impersonate_current_user(users_token, [&]() {
       ret = CreateProcessAsUserW(users_token,
         NULL,
@@ -591,13 +638,29 @@ namespace platf {
         start_dir.empty() ? NULL : start_dir.c_str(),
         (LPSTARTUPINFOW) &startup_info,
         &process_info);
-    });
-
+    });  // Use the results of the launch to create a bp::child object
     return create_boost_child_from_results(ret, cmd, ec, process_info, group);
   }
 
+  /**
+ * @brief Runs a command on the users profile, without elevation
+ *
+ * This function launches a child process as an unprivileged user, using the current user's environment
+ * and a specific working directory. If the launch is successful, a `bp::child` object representing the new
+ * process is returned. Otherwise, an error code is returned.
+ *
+ * @param cmd The command to run
+ * @param working_dir The working directory for the new process
+ * @param env The environment variables to use for the new process
+ * @param file A file object to redirect the child process's output to (may be nullptr)
+ * @param ec An error code, set to indicate any errors that occur during the launch process
+ * @param group A pointer to a `bp::group` object to which the new process should belong (may be nullptr)
+ *
+ * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails
+ */
   bp::child
   run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+    // Duplicate the current user's shell token
     HANDLE shell_token = duplicate_shell_token();
     if (!shell_token) {
       // This can happen if the shell has crashed. Fail the launch rather than risking launching with
@@ -606,6 +669,7 @@ namespace platf {
       return bp::child();
     }
 
+    // Use RAII to ensure the shell token is closed when we're done with it
     auto token_close = util::fail_guard([shell_token]() {
       CloseHandle(shell_token);
     });
@@ -616,21 +680,22 @@ namespace platf {
       return bp::child();
     }
 
-    // Most Win32 APIs can't consume UTF-8 strings directly, so we must convert them into UTF-16
+    // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
     std::wstring wcmd = utf8_to_wide_string(cmd);
     std::wstring env_block = create_environment_block(env);
     std::wstring start_dir = utf8_to_wide_string(working_dir.string());
 
+    // Create the STARTUPINFOEXW object for the new process
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
 
+    // Use RAII to ensure the attribute list is freed when we're done with it
     auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
       free_proc_thread_attr_list(list);
     });
 
-    // If we're running with the same user account as the shell, just use CreateProcess().
-    // This will launch the child process elevated if Sunshine is elevated.
     PROCESS_INFORMATION process_info;
     BOOL ret;
+    // If the shell token is for a different user account, launch the process using CreateProcessAsUserW()
     if (!is_token_same_user_as_process(shell_token)) {
       ec = impersonate_current_user(shell_token, [&]() {
         ret = CreateProcessAsUserW(shell_token,
@@ -650,6 +715,7 @@ namespace platf {
         return bp::child();
       }
     }
+    // Otherwise, launch the process using CreateProcessW()
     else {
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
@@ -663,6 +729,7 @@ namespace platf {
         &process_info);
     }
 
+    // Use the results of the launch to create a bp::child object
     return create_boost_child_from_results(ret, cmd, ec, process_info, group);
   }
 
