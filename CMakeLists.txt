@@ -731,7 +731,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Extra install commands
     # Restores permissions on the install directory
     # Migrates config files from the root into the new config folder
-    # Sets permissions on the config folder so that we can write in it
     # Install service
     SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
             "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
@@ -739,7 +738,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-vigembus.bat\\\"'
@@ -825,14 +823,18 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 
     # service
     set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc")
-    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool providing ability to enable/disable the Sunshine service.")
+    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "Installs sunshine as a service as SYSTEM, so that it can allow usage before logon and other benefits.")
     set(CPACK_COMPONENT_SUNSHINESVC_GROUP "tools")
+    # This is required because we've changed the ACL for config to require admin to protect against EoP exploits.
+    set(CPACK_COMPONENT_SUNSHINESVC_REQUIRED true)
 
     # service scripts
     set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
-    set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable/disable the service.")
+    set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts for installing and enabling the service.")
     set(CPACK_COMPONENT_SERVICE_GROUP "scripts")
     set(CPACK_COMPONENT_SERVICE_DEPENDS sunshinesvc)
+    # This is required because we've changed the ACL for config to require admin to protect against EoP exploits.
+    set(CPACK_COMPONENT_SERVICE_REQUIRED true)
 
     # firewall scripts
     set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
