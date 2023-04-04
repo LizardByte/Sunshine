@@ -401,6 +401,33 @@ namespace platf {
     return true;
   }
 
+  /**
+
+@brief Check if the current process is running with system-level privileges.
+@return true if the current process has system-level privileges, false otherwise.
+*/
+  bool
+  is_running_as_system() {
+    // Retrieve the process token handle
+    HANDLE hToken;
+    OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken);
+
+    PRIVILEGE_SET ps;
+    ps.PrivilegeCount = 1;
+    ps.Control = 0;  // check for any privilege
+    LookupPrivilegeValueW(NULL, L"SeDelegateSessionUserImpersonatePrivilege", &ps.Privilege[0].Luid);
+    ps.Privilege[0].Attributes = 0;
+
+    // Check if the privilege is enabled for the current process token
+    BOOL result;
+    PrivilegeCheck(hToken, &ps, &result);
+
+    // Close the process token handle
+    CloseHandle(hToken);
+
+    return result;
+  }
+
   // Note: This does NOT append a null terminator
   void
   append_string_to_environment_block(wchar_t *env_block, int &offset, const std::wstring &wstr) {
@@ -609,6 +636,12 @@ namespace platf {
  */
   bp::child
   run_priviliged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group) {
+    if (!is_running_as_system()) {
+      // It's not necessary to elevate a token in this case, we'll just use
+      // the current users token, it is their job to run Sunshine as elevated at that point.
+      return run_unprivileged(cmd, working_dir, env, file, ec, group);
+    }
+
     PROCESS_INFORMATION process_info;
     BOOL ret;
 
