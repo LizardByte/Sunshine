@@ -207,7 +207,7 @@ namespace platf {
  *
  * @return A handle to the duplicated users token, or null if the duplication failed
  */
-HANDLE
+  HANDLE
   duplicate_users_token_elevated() {
     DWORD consoleSessionId;
     HANDLE userToken, duplicateToken;
@@ -251,7 +251,6 @@ HANDLE
       // Since we need the elevated token, we'll replace it with their administrative token.
       userToken = linked_token.LinkedToken;
     }
-
 
     // Use DuplicateTokenEx to create a primary token with maximum allowed access rights
     if (!DuplicateTokenEx(
