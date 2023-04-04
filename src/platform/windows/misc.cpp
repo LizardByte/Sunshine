@@ -202,37 +202,48 @@ namespace platf {
     return std::string(buffer, bytes);
   }
 
-  HANDLE
+  /**
+ * @brief A function to duplicate the current sessions user's token with elevated privileges
+ *
+ * @return A handle to the duplicated users token, or null if the duplication failed
+ */
+HANDLE
   duplicate_users_token_elevated() {
     DWORD consoleSessionId;
     HANDLE userToken, duplicateToken;
     TOKEN_ELEVATION_TYPE elevationType;
     DWORD dwSize;
 
+    // Close the userToken handle when it goes out of scope
     auto token_close = util::fail_guard([&userToken]() {
       CloseHandle(userToken);
     });
 
+    // Get the session ID of the active console session
     consoleSessionId = WTSGetActiveConsoleSessionId();
     if (0xFFFFFFFF == consoleSessionId) {
+      // If there is no active console session, log a warning and return null
       BOOST_LOG(warning) << "There isn't an active user session, therefore it is not possible to execute commands under the users profile.";
       return nullptr;
     }
 
+    // Get the user token for the active console session
     if (!WTSQueryUserToken(consoleSessionId, &userToken)) {
       BOOST_LOG(debug) << "QueryUserToken failed, this would prevent commands from launching under the users profile.";
       return nullptr;
     }
 
     // We need to know if this is an elevated token or not.
+    // Get the elevation type of the user token
     GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize);
 
     // User has a limited token, this likely means they have UAC enabled.
     if (elevationType == TokenElevationTypeLimited) {
       TOKEN_LINKED_TOKEN linked_token;
-      // Retrieve the administrator token
+      // Retrieve the administrator token that is linked to the limited token
       if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linked_token), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
         DWORD lasterror = GetLastError();
+        // If the retrieval failed, log an error message and return null
         BOOST_LOG(error) << "Request to elevate the users token had failed. Error: " << lasterror;
         return nullptr;
       }
@@ -241,7 +252,8 @@ namespace platf {
       userToken = linked_token.LinkedToken;
     }
 
-    // Duplicate the token so it can be used for creating processes.
+
+    // Use DuplicateTokenEx to create a primary token with maximum allowed access rights
     if (!DuplicateTokenEx(
           userToken,
           MAXIMUM_ALLOWED,
@@ -255,6 +267,7 @@ namespace platf {
 
     return duplicateToken;
   }
+
   HANDLE
   duplicate_shell_token() {
     // Get the shell window (will usually be owned by explorer.exe)
@@ -534,19 +547,29 @@ namespace platf {
     return ec;
   }
 
+  /**
+ * @brief A function to create a STARTUPINFOEXW structure for launching a process
+ *
+ * @param file A pointer to a FILE object that will be used as the standard output and error for the new process, or null if not needed
+ * @param ec A reference to an std::error_code object that will store any error that occurred during the creation of the structure
+ * @return A STARTUPINFOEXW structure that contains information about how to launch the new process
+ */
   STARTUPINFOEXW
   create_startup_info(FILE *file, std::error_code &ec) {
+    // Initialize a zeroed-out STARTUPINFOEXW structure and set its size
     STARTUPINFOEXW startup_info = {};
     startup_info.StartupInfo.cb = sizeof(startup_info);
 
     // Allocate a process attribute list with space for 1 element
     startup_info.lpAttributeList = allocate_proc_thread_attr_list(1);
     if (startup_info.lpAttributeList == NULL) {
+      // If the allocation failed, set ec to an appropriate error code and return the structure
       ec = std::make_error_code(std::errc::not_enough_memory);
       return startup_info;
     }
 
     if (file) {
+      // If a file was provided, get its handle and use it as the standard output and error for the new process
       HANDLE log_file_handle = (HANDLE) _get_osfhandle(_fileno(file));
 
       // Populate std handles if the caller gave us a log file to use

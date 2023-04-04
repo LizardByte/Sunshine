@@ -823,7 +823,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 
     # service
     set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc")
-    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "Installs sunshine as a service as SYSTEM, so that it can allow usage before logon and other benefits.")
+    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "Installs sunshine as a service as SYSTEM, \
+      so that it can allow usage before logon and other benefits.")
     set(CPACK_COMPONENT_SUNSHINESVC_GROUP "tools")
     # This is required because we've changed the ACL for config to require admin to protect against EoP exploits.
     set(CPACK_COMPONENT_SUNSHINESVC_REQUIRED true)
