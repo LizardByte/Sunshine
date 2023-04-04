@@ -3,6 +3,7 @@
 #ifndef SUNSHINE_THREAD_SAFE_H
 #define SUNSHINE_THREAD_SAFE_H
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
