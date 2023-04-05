@@ -1138,7 +1138,7 @@ namespace config {
 
     // create appdata folder if it does not exist
     if (!boost::filesystem::exists(platf::appdata().string())) {
-      boost::filesystem::create_directory(platf::appdata().string());
+      boost::filesystem::create_directories(platf::appdata().string());
     }
 
     // create config file if it does not exist

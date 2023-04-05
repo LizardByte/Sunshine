@@ -488,7 +488,7 @@ namespace confighttp {
 
     const std::string coverdir = platf::appdata().string() + "/covers/";
     if (!boost::filesystem::exists(coverdir)) {
-      boost::filesystem::create_directory(coverdir);
+      boost::filesystem::create_directories(coverdir);
     }
 
     std::basic_string path = coverdir + http::url_escape(key) + ".png";
