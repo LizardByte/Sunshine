@@ -1866,7 +1866,9 @@ namespace video {
       h264.videoFormat = 0;
       hevc.videoFormat = 1;
 
-      encoder.h264[flag] = validate_config(disp, encoder, h264) >= 0;
+      // HDR is not supported with H.264. Don't bother even trying it.
+      encoder.h264[flag] = flag != encoder_t::DYNAMIC_RANGE && validate_config(disp, encoder, h264) >= 0;
+
       if (encoder.hevc[encoder_t::PASSED]) {
         encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
       }
