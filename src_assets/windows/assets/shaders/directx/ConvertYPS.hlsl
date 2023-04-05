@@ -18,7 +18,7 @@ struct PS_INPUT
 
 float main_ps(PS_INPUT frag_in) : SV_Target
 {
-	float3 rgb = image.Sample(def_sampler, frag_in.tex, 0).rgb;
+	float3 rgb = saturate(image.Sample(def_sampler, frag_in.tex, 0)).rgb;
 	float y = dot(color_vec_y.xyz, rgb) + color_vec_y.w;
 
 	return y * range_y.x + range_y.y;
