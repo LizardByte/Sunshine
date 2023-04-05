@@ -57,40 +57,63 @@
       </div>
       <!--prep-cmd-->
       <div class="mb-3">
-        <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
-        <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
-          <option v-for="val in [false, true]" :value="val">{{ !val ? 'Enabled' : 'Disabled' }}</option>
+        <label for="excludeGlobalPrep" class="form-label"
+          >Global Prep Commands</label
+        >
+        <select
+          id="excludeGlobalPrep"
+          class="form-select"
+          v-model="editForm['exclude-global-prep-cmd']"
+        >
+          <option v-for="val in [false, true]" :value="val">
+            {{ !val ? 'Enabled' : 'Disabled' }}
+          </option>
         </select>
         <div class="form-text">
-          Enable/Disable the execution of Global Prep Commands for this application.
+          Enable/Disable the execution of Global Prep Commands for this
+          application.
         </div>
       </div>
       <div class="mb-3">
         <label for="appName" class="form-label">Command Preparations</label>
         <div class="form-text">
-          A list of commands to be run before/after this application.<br>
+          A list of commands to be run before/after this application.<br />
           If any of the prep-commands fail, starting the application is aborted.
         </div>
-        <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length == 0">
-          <button class="btn btn-success" @click="addPrepCmd"><i class="fas fa-plus mr-1"></i> Add Commands</button>
+        <div
+          class="d-flex justify-content-start mb-3 mt-3"
+          v-if="editForm['prep-cmd'].length == 0"
+        >
+          <button class="btn btn-success" @click="addPrepCmd">
+            <i class="fas fa-plus mr-1"></i> Add Commands
+          </button>
         </div>
         <table class="table" v-if="editForm['prep-cmd'].length > 0">
           <thead>
             <tr>
               <th scope="col"><i class="fas fa-play"></i> Do Command</th>
               <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
-              <th scope="col" v-if="platform == 'windows'"><i class="fas fa-shield-alt"></i> Run as Admin</th>
+              <th scope="col" v-if="platform == 'windows'">
+                <i class="fas fa-shield-alt"></i> Run as Admin
+              </th>
               <th scope="col"></th>
             </tr>
-                     
           </thead>
           <tbody>
             <tr v-for="(c, i) in editForm['prep-cmd']">
               <td>
-                <input type="text" class="form-control monospace" v-model="c.do">
+                <input
+                  type="text"
+                  class="form-control monospace"
+                  v-model="c.do"
+                />
               </td>
               <td>
-                <input type="text" class="form-control monospace" v-model="c.undo">
+                <input
+                  type="text"
+                  class="form-control monospace"
+                  v-model="c.undo"
+                />
               </td>
               <td v-if="platform == 'windows'">
                 <div class="form-check">
@@ -102,11 +125,16 @@
                     true-value="true"
                     false-value="false"
                   />
-                  <label :for="`prep-cmd-admin-${i}`" class="form-check-label">Elevated</label>
+                  <label :for="`prep-cmd-admin-${i}`" class="form-check-label"
+                    >Elevated</label
+                  >
                 </div>
               </td>
               <td>
-                <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
+                <button
+                  class="btn btn-danger"
+                  @click="editForm['prep-cmd'].splice(i,1)"
+                >
                   <i class="fas fa-trash"></i>
                 </button>
                 <button class="btn btn-success" @click="addPrepCmd">
@@ -115,8 +143,8 @@
               </td>
             </tr>
           </tbody>
-          </table>          
-      </div>       
+        </table>
+      </div>
       <!--detatched-->
       <div class="mb-3">
         <label for="appName" class="form-label">Detached Commands</label>
@@ -175,14 +203,17 @@
           v-model="editForm['working-dir']"
         />
         <div id="appWorkingDirHelp" class="form-text">
-          The working directory that should be passed to the process.
-          For example, some applications use the working directory to search for configuration files.
-          If not set, Sunshine will default to the parent directory of the command
+          The working directory that should be passed to the process. For
+          example, some applications use the working directory to search for
+          configuration files. If not set, Sunshine will default to the parent
+          directory of the command
         </div>
       </div>
       <!-- elevation -->
       <div class="mb-3 form-check" v-if="platform == 'windows'">
-        <label for="appElevation" class="form-check-label">Run as administrator</label>
+        <label for="appElevation" class="form-check-label"
+          >Run as administrator</label
+        >
         <input
           type="checkbox"
           class="form-check-input"
@@ -192,44 +223,69 @@
           false-value="false"
         />
         <div class="form-text">
-          This can be necessary for some applications that require administrator permissions to run properly.
+          This can be necessary for some applications that require administrator
+          permissions to run properly.
         </div>
-      </div>      
+      </div>
       <!-- Image path -->
       <div class="mb-3">
         <label for="appImagePath" class="form-label">Image</label>
         <div class="input-group dropup">
           <input
-              type="text"
-              class="form-control monospace"
-              id="appImagePath"
-              aria-describedby="appImagePathHelp"
-              v-model="editForm['image-path']"
+            type="text"
+            class="form-control monospace"
+            id="appImagePath"
+            aria-describedby="appImagePathHelp"
+            v-model="editForm['image-path']"
           />
-          <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle" data-bs-toggle="dropdown"
-                  data-bs-auto-close="outside" aria-expanded="false" v-dropdown-show="showCoverFinder"
-                  ref="coverFinderDropdown">
+          <button
+            class="btn btn-secondary dropdown-toggle"
+            type="button"
+            id="findCoverToggle"
+            data-bs-toggle="dropdown"
+            data-bs-auto-close="outside"
+            aria-expanded="false"
+            v-dropdown-show="showCoverFinder"
+            ref="coverFinderDropdown"
+          >
             Find Cover
           </button>
-          <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
-              aria-labelledby="findCoverToggle">
+          <div
+            class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
+            aria-labelledby="findCoverToggle"
+          >
             <div class="modal-header">
               <h4 class="modal-title">Covers Found</h4>
-              <button type="button" class="btn-close" aria-label="Close" @click="closeCoverFinder"></button>
+              <button
+                type="button"
+                class="btn-close"
+                aria-label="Close"
+                @click="closeCoverFinder"
+              ></button>
             </div>
-            <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
+            <div
+              class="modal-body cover-results px-3 pt-3"
+              :class="{ busy: coverFinderBusy }"
+            >
               <div class="row">
-                <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
+                <div
+                  v-if="coverSearching"
+                  class="col-12 col-sm-6 col-lg-4 mb-3"
+                >
                   <div class="cover-container">
                     <div class="spinner-border" role="status">
                       <span class="visually-hidden">Loading...</span>
                     </div>
                   </div>
                 </div>
-                <div v-for="(cover,i) in coverCandidates" :key="i" class="col-12 col-sm-6 col-lg-4 mb-3"
-                    @click="useCover(cover)">
+                <div
+                  v-for="(cover,i) in coverCandidates"
+                  :key="i"
+                  class="col-12 col-sm-6 col-lg-4 mb-3"
+                  @click="useCover(cover)"
+                >
                   <div class="cover-container result">
-                    <img class="rounded" :src="cover.url"/>
+                    <img class="rounded" :src="cover.url" />
                   </div>
                   <label class="d-block text-nowrap text-center text-truncate">
                     {{cover.name}}
@@ -240,8 +296,8 @@
           </div>
         </div>
         <div id="appImagePathHelp" class="form-text">
-          Application icon/picture/image path that will be sent to client. Image must be a PNG file.
-          If not set, Sunshine will send default box image.
+          Application icon/picture/image path that will be sent to client. Image
+          must be a PNG file. If not set, Sunshine will send default box image.
         </div>
       </div>
       <!--buttons-->
@@ -257,7 +313,6 @@
     <button class="btn btn-primary" @click="newApp">+ Add New</button>
   </div>
 </div>
-
 <script>
   Vue.directive('dropdown-show', {
     bind: function (el, binding) {
