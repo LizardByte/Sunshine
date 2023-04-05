@@ -404,7 +404,7 @@ namespace config {
       "2560x1080"s,
       "3440x1440"s
       "1920x1200"s,
-      "3860x2160"s,
+      "3840x2160"s,
       "3840x1600"s,
     },  // supported resolutions
 
