@@ -358,14 +358,8 @@ namespace platf::dxgi {
   }
 
   std::vector<DXGI_FORMAT>
-  display_ram_t::get_supported_sdr_capture_formats() {
+  display_ram_t::get_supported_capture_formats() {
     return { DXGI_FORMAT_B8G8R8A8_UNORM };
-  }
-
-  std::vector<DXGI_FORMAT>
-  display_ram_t::get_supported_hdr_capture_formats() {
-    // HDR is unsupported
-    return {};
   }
 
   int

@@ -517,7 +517,7 @@ namespace platf::dxgi {
       status = output->QueryInterface(IID_IDXGIOutput5, (void **) &output5);
       if (SUCCEEDED(status)) {
         // Ask the display implementation which formats it supports
-        auto supported_formats = config.dynamicRange ? get_supported_hdr_capture_formats() : get_supported_sdr_capture_formats();
+        auto supported_formats = get_supported_capture_formats();
         if (supported_formats.empty()) {
           BOOST_LOG(warning) << "No compatible capture formats for this encoder"sv;
           return -1;

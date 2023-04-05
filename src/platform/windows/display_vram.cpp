@@ -1159,12 +1159,7 @@ namespace platf::dxgi {
   }
 
   std::vector<DXGI_FORMAT>
-  display_vram_t::get_supported_sdr_capture_formats() {
-    return { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
-  }
-
-  std::vector<DXGI_FORMAT>
-  display_vram_t::get_supported_hdr_capture_formats() {
+  display_vram_t::get_supported_capture_formats() {
     return {
       // scRGB FP16 is the desired format for HDR content. This will also handle
       // 10-bit SDR displays with the increased precision of FP16 vs 8-bit UNORMs.
