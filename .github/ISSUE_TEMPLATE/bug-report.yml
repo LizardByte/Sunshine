@@ -102,7 +102,6 @@ body:
         - Linux - solus (Third Party)
         - macOS - dmg
         - macOS - Portfile
-        - macOS - pkg
         - Windows - Chocolatey (Third Party)
         - Windows - installer
         - Windows - portable
@@ -111,6 +110,7 @@ body:
         - other (not listed)
         - other (self built)
         - other (fork of this repo)
+        - n/a
     validations:
       required: true
   - type: dropdown
@@ -123,6 +123,7 @@ body:
         - Intel
         - Nvidia
         - none (software encoding)
+        - n/a
     validations:
       required: true
   - type: input
