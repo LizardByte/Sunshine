@@ -56,62 +56,67 @@
         </div>
       </div>
       <!--prep-cmd-->
-      <div class="mb-3 d-flex flex-column">
-        <div class="mb-3">
-          <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
-          <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
-            <option v-for="val in [false, true]" :value="val">{{ !val ? 'Enabled' : 'Disabled' }}</option>
-          </select>
-          <div class="form-text">
-            Enable/Disable the execution of Global Prep Commands for this application.
-          </div>
+      <div class="mb-3">
+        <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
+        <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
+          <option v-for="val in [false, true]" :value="val">{{ !val ? 'Enabled' : 'Disabled' }}</option>
+        </select>
+        <div class="form-text">
+          Enable/Disable the execution of Global Prep Commands for this application.
         </div>
+      </div>
+      <div class="mb-3">
         <label for="appName" class="form-label">Command Preparations</label>
         <div class="form-text">
-          A list of commands to be run before/after this application. <br />
-          If any of the prep-commands fail, starting the application is aborted
+          A list of commands to be run before/after this application.<br>
+          If any of the prep-commands fail, starting the application is aborted.
         </div>
-        <table v-if="editForm['prep-cmd'].length > 0">
+        <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length == 0">
+          <button class="btn btn-success" @click="addPrepCmd"><i class="fas fa-plus mr-1"></i> Add Commands</button>
+        </div>
+        <table class="table" v-if="editForm['prep-cmd'].length > 0">
           <thead>
-            <th class="precmd-head">Do</th>
-            <th class="precmd-head">Undo</th>
-            <th style="width: 48px"></th>
+            <tr>
+              <th scope="col"><i class="fas fa-play"></i> Do Command</th>
+              <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
+              <th scope="col" v-if="platform == 'windows'"><i class="fas fa-shield-alt"></i> Run as Admin</th>
+              <th scope="col"></th>
+            </tr>
+                     
           </thead>
           <tbody>
-            <tr v-for="(c,i) in editForm['prep-cmd']">
+            <tr v-for="(c, i) in editForm['prep-cmd']">
               <td>
-                <input
-                  type="text"
-                  class="form-control monospace"
-                  v-model="c.do"
-                />
+                <input type="text" class="form-control monospace" v-model="c.do">
               </td>
               <td>
-                <input
-                  type="text"
-                  class="form-control monospace"
-                  v-model="c.undo"
-                />
+                <input type="text" class="form-control monospace" v-model="c.undo">
+              </td>
+              <td v-if="platform == 'windows'">
+                <div class="form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    :id="`prep-cmd-admin-${i}`"
+                    v-model="c.elevated"
+                    true-value="true"
+                    false-value="false"
+                  />
+                  <label :for="`prep-cmd-admin-${i}`" class="form-check-label">Elevated</label>
+                </div>
               </td>
               <td>
-                <button
-                  class="btn btn-danger"
-                  @click="editForm['prep-cmd'].splice(i,1)"
-                >
-                  &times;
+                <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
+                  <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn btn-success" @click="addPrepCmd">
+                  <i class="fas fa-plus"></i>
                 </button>
               </td>
             </tr>
           </tbody>
-        </table>
-        <button
-          class="mt-2 btn btn-success"
-          style="margin: 0 auto"
-          @click="addPrepCmd"
-        >
-          &plus; Add
-        </button>
-      </div>
+          </table>          
+      </div>       
       <!--detatched-->
       <div class="mb-3">
         <label for="appName" class="form-label">Detached Commands</label>
@@ -175,6 +180,21 @@
           If not set, Sunshine will default to the parent directory of the command
         </div>
       </div>
+      <!-- elevation -->
+      <div class="mb-3 form-check" v-if="platform == 'windows'">
+        <label for="appElevation" class="form-check-label">Run as administrator</label>
+        <input
+          type="checkbox"
+          class="form-check-input"
+          id="appElevation"
+          v-model="editForm.elevated"
+          true-value="true"
+          false-value="false"
+        />
+        <div class="form-text">
+          This can be necessary for some applications that require administrator permissions to run properly.
+        </div>
+      </div>      
       <!-- Image path -->
       <div class="mb-3">
         <label for="appImagePath" class="form-label">Image</label>
@@ -255,7 +275,8 @@
         detachedCmd: "",
         coverSearching: false,
         coverFinderBusy: false,
-        coverCandidates: []
+        coverCandidates: [],
+        platform: "",
       };
     },
     created() {
@@ -265,6 +286,10 @@
           console.log(r);
           this.apps = r.apps;
         });
+      
+      fetch("/api/config")
+        .then(r => r.json())
+        .then(r => this.platform = r.platform);
     },
     methods: {
       newApp() {
@@ -274,6 +299,7 @@
           cmd: [],
           index: -1,
           "exclude-global-prep-cmd": false,
+          elevated: false,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -290,6 +316,9 @@
           this.$set(this.editForm, "detached", []);
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
           this.$set(this.editForm, "exclude-global-prep-cmd", false);
+        if(this.editForm["elevated"] === undefined && this.platform == 'windows'){
+          this.$set(this.editForm, "elevated", false);
+        }
         this.showEditForm = true;
       },
       showDeleteForm(id) {
@@ -303,10 +332,16 @@
         }
       },
       addPrepCmd() {
-        this.editForm["prep-cmd"].push({
+        let template = {
           do: "",
-          undo: "",
-        });
+          undo: ""
+        };
+
+        if(this.platform == 'windows'){
+          template = {...template, elevated: false};
+        }
+
+        this.editForm["prep-cmd"].push(template);
       },
       showCoverFinder($event) {
         this.coverCandidates = [];
