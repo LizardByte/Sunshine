@@ -1317,11 +1317,15 @@ namespace video {
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     auto idr_events = mail->event<bool>(mail::idr);
 
-    // Load a dummy image into the AVFrame to ensure we have something to encode
-    // even if we timeout waiting on the first frame.
-    auto dummy_img = disp->alloc_img();
-    if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
-      return;
+    {
+      // Load a dummy image into the AVFrame to ensure we have something to encode
+      // even if we timeout waiting on the first frame. This is a relatively large
+      // allocation which can be freed immediately after convert(), so we do this
+      // in a separate scope.
+      auto dummy_img = disp->alloc_img();
+      if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
+        return;
+      }
     }
 
     while (true) {
@@ -1728,12 +1732,12 @@ namespace video {
       return -1;
     }
 
-    auto img = disp->alloc_img();
-    if (!img || disp->dummy_img(img.get())) {
-      return -1;
-    }
-    if (session->device->convert(*img)) {
-      return -1;
+    {
+      // Image buffers are large, so we use a separate scope to free it immediately after convert()
+      auto img = disp->alloc_img();
+      if (!img || disp->dummy_img(img.get()) || session->device->convert(*img)) {
+        return -1;
+      }
     }
 
     auto frame = session->device->frame;
