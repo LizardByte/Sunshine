@@ -172,9 +172,7 @@ namespace platf::dxgi {
     virtual int
     complete_img(img_t *img, bool dummy) = 0;
     virtual std::vector<DXGI_FORMAT>
-    get_supported_sdr_capture_formats() = 0;
-    virtual std::vector<DXGI_FORMAT>
-    get_supported_hdr_capture_formats() = 0;
+    get_supported_capture_formats() = 0;
   };
 
   class display_ram_t: public display_base_t {
@@ -189,9 +187,7 @@ namespace platf::dxgi {
     int
     complete_img(img_t *img, bool dummy) override;
     std::vector<DXGI_FORMAT>
-    get_supported_sdr_capture_formats() override;
-    std::vector<DXGI_FORMAT>
-    get_supported_hdr_capture_formats() override;
+    get_supported_capture_formats() override;
 
     int
     init(const ::video::config_t &config, const std::string &display_name);
@@ -213,9 +209,7 @@ namespace platf::dxgi {
     int
     complete_img(img_t *img_base, bool dummy) override;
     std::vector<DXGI_FORMAT>
-    get_supported_sdr_capture_formats() override;
-    std::vector<DXGI_FORMAT>
-    get_supported_hdr_capture_formats() override;
+    get_supported_capture_formats() override;
 
     int
     init(const ::video::config_t &config, const std::string &display_name);
