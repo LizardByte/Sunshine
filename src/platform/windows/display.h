@@ -230,7 +230,9 @@ namespace platf::dxgi {
     gpu_cursor_t cursor_alpha;
     gpu_cursor_t cursor_xor;
 
-    texture2d_t last_frame_copy;
+    texture2d_t old_surface_delayed_destruction;
+    std::chrono::steady_clock::time_point old_surface_timestamp;
+    std::variant<std::monostate, texture2d_t, std::shared_ptr<platf::img_t>> last_frame_variant;
 
     std::atomic<uint32_t> next_image_id;
   };
