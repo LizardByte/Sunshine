@@ -15,9 +15,11 @@
         <tr v-for="(app,i) in apps" :key="i">
           <td>{{app.name}}</td>
           <td>
-            <button class="btn btn-primary" @click="editApp(i)">Edit</button>
+            <button class="btn btn-primary" @click="editApp(i)">
+              <i class="fas fa-edit"></i> Edit
+            </button>
             <button class="btn btn-danger" @click="showDeleteForm(i)">
-              Delete
+              <i class="fas fa-trash"></i> Delete
             </button>
           </td>
         </tr>
@@ -120,12 +122,12 @@
                   <input
                     type="checkbox"
                     class="form-check-input"
-                    :id="`prep-cmd-admin-${i}`"
+                    :id="'prep-cmd-admin-' + i"
                     v-model="c.elevated"
                     true-value="true"
                     false-value="false"
                   />
-                  <label :for="`prep-cmd-admin-${i}`" class="form-check-label"
+                  <label :for="'prep-cmd-admin-' + i" class="form-check-label"
                     >Elevated</label
                   >
                 </div>
@@ -133,7 +135,7 @@
               <td>
                 <button
                   class="btn btn-danger"
-                  @click="editForm['prep-cmd'].splice(i,1)"
+                  @click="$delete(editForm['prep-cmd'], i)"
                 >
                   <i class="fas fa-trash"></i>
                 </button>
@@ -280,7 +282,7 @@
                 </div>
                 <div
                   v-for="(cover,i) in coverCandidates"
-                  :key="i"
+                  :key="'i'"
                   class="col-12 col-sm-6 col-lg-4 mb-3"
                   @click="useCover(cover)"
                 >
@@ -310,7 +312,9 @@
     </div>
   </div>
   <div class="mt-2" v-else>
-    <button class="btn btn-primary" @click="newApp">+ Add New</button>
+    <button class="btn btn-primary" @click="newApp">
+      <i class="fas fa-plus"></i> Add New
+    </button>
   </div>
 </div>
 <script>
