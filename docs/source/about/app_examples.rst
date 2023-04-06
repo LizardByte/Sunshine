@@ -196,6 +196,8 @@ If you've installed Sunshine as a service (default), you can now specify if a co
 Simply enable the elevated option in the WEB UI, or add it to the JSON configuration.
 This is an option for both prep-cmd and regular commands and will launch the process with the current user without a UAC prompt.
 
+.. Note:: It's important to write the values "true" and "false" as string values, not as the typical true/false values in most JSON.
+
 **Example**
    .. code-block:: json
 
@@ -204,7 +206,7 @@ This is an option for both prep-cmd and regular commands and will launch the pro
             "output": "",
             "cmd": "ping 127.0.0.1",
             "exclude-global-prep-cmd": "false",
-            "elevated": true,
+            "elevated": "true",
             "prep-cmd": [
                 {
                     "do": "powershell.exe -command \"Start-Streaming\"",
