@@ -1,7 +1,5 @@
 #ifndef SUNSHINE_WINDOWS_MISC_H
 #define SUNSHINE_WINDOWS_MISC_H
-// This is so that boost process library is forward declared.
-#include "src/platform/common.h"
 #include <string_view>
 #include <windows.h>
 #include <winnt.h>
