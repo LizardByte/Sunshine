@@ -408,24 +408,22 @@ namespace platf {
 */
   bool
   is_running_as_system() {
-    // Retrieve the process token handle
-    HANDLE hToken;
-    OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken);
-
-    PRIVILEGE_SET ps;
-    ps.PrivilegeCount = 1;
-    ps.Control = 0;  // check for any privilege
-    LookupPrivilegeValueW(NULL, L"SeDelegateSessionUserImpersonatePrivilege", &ps.Privilege[0].Luid);
-    ps.Privilege[0].Attributes = 0;
-
-    // Check if the privilege is enabled for the current process token
-    BOOL result;
-    PrivilegeCheck(hToken, &ps, &result);
-
-    // Close the process token handle
-    CloseHandle(hToken);
-
-    return result;
+    BOOL ret;
+    PSID SystemSid;
+    // Create a SID for the local system account
+    ret = CreateWellKnownSid(WinLocalSystemSid, nullptr, &SystemSid, nullptr);
+    if (ret) {
+      // Check if the current process token contains this SID
+      if (!CheckTokenMembership(nullptr, SystemSid, &ret)) {
+        BOOST_LOG(error) << "Failed to check token membership"sv << GetLastError();
+        ret = false;
+      }
+      FreeSid(SystemSid);
+    }
+    else {
+      BOOST_LOG(error) << "Failed to create a SID for the local system account. This may happen if the system is out of memory or if the SID buffer is too small:"sv << GetLastError();
+    }
+    return ret;
   }
 
   // Note: This does NOT append a null terminator
