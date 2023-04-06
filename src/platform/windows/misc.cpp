@@ -208,16 +208,11 @@ namespace platf {
  * @return A handle to the duplicated users token, or null if the duplication failed
  */
   HANDLE
-  duplicate_users_token_elevated() {
+  retrieve_user_token(bool elevated) {
     DWORD consoleSessionId;
     HANDLE userToken, duplicateToken;
     TOKEN_ELEVATION_TYPE elevationType;
     DWORD dwSize;
-
-    // Close the userToken handle when it goes out of scope
-    auto token_close = util::fail_guard([&userToken]() {
-      CloseHandle(userToken);
-    });
 
     // Get the session ID of the active console session
     consoleSessionId = WTSGetActiveConsoleSessionId();
@@ -230,26 +225,40 @@ namespace platf {
     // Get the user token for the active console session
     if (!WTSQueryUserToken(consoleSessionId, &userToken)) {
       BOOST_LOG(debug) << "QueryUserToken failed, this would prevent commands from launching under the users profile.";
+      CloseHandle(userToken);
       return nullptr;
     }
 
+    // Close the userToken handle when it goes out of scope
+    auto token_close = util::fail_guard([&userToken]() {
+      CloseHandle(userToken);
+    });
+
     // We need to know if this is an elevated token or not.
     // Get the elevation type of the user token
-    GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize);
+    if (!GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize)) {
+      BOOST_LOG(debug) << "Retrieving token information failed: " << GetLastError();
+      CloseHandle(userToken);
+      return nullptr;
+    }
 
     // User has a limited token, this likely means they have UAC enabled.
-    if (elevationType == TokenElevationTypeLimited) {
-      TOKEN_LINKED_TOKEN linked_token;
+    if (elevated && elevationType == TokenElevationTypeLimited) {
+      TOKEN_LINKED_TOKEN linkedToken;
       // Retrieve the administrator token that is linked to the limited token
-      if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linked_token), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
-        DWORD lasterror = GetLastError();
+      if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linkedToken), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
         // If the retrieval failed, log an error message and return null
-        BOOST_LOG(error) << "Request to elevate the users token had failed. Error: " << lasterror;
-        return nullptr;
+        BOOST_LOG(debug) << "Retrieving linked token information failed: " << GetLastError();
+
+        //Maybe the user is not an admin here, so let's just return a normal token.
+        CloseHandle(linkedToken.LinkedToken);
+        return userToken;
       }
 
       // Since we need the elevated token, we'll replace it with their administrative token.
-      userToken = linked_token.LinkedToken;
+      CloseHandle(userToken);
+      userToken = linkedToken.LinkedToken;
+      CloseHandle(linkedToken.LinkedToken);
     }
 
     // Use DuplicateTokenEx to create a primary token with maximum allowed access rights
@@ -260,50 +269,11 @@ namespace platf {
           SecurityIdentification,
           TokenPrimary,
           &duplicateToken)) {
-      BOOST_LOG(debug) << "Error duplicating token";
+      BOOST_LOG(debug) << "Error duplicating token: "sv << GetLastError();
       return nullptr;
     }
 
     return duplicateToken;
-  }
-
-  HANDLE
-  duplicate_shell_token() {
-    // Get the shell window (will usually be owned by explorer.exe)
-    HWND shell_window = GetShellWindow();
-    if (!shell_window) {
-      BOOST_LOG(error) << "No shell window found. Is explorer.exe running?"sv;
-      return NULL;
-    }
-
-    // Open a handle to the explorer.exe process
-    DWORD shell_pid;
-    GetWindowThreadProcessId(shell_window, &shell_pid);
-    HANDLE shell_process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, shell_pid);
-    if (!shell_process) {
-      BOOST_LOG(error) << "Failed to open shell process: "sv << GetLastError();
-      return NULL;
-    }
-
-    // Open explorer's token to clone for process creation
-    HANDLE shell_token;
-    BOOL ret = OpenProcessToken(shell_process, TOKEN_DUPLICATE, &shell_token);
-    CloseHandle(shell_process);
-    if (!ret) {
-      BOOST_LOG(error) << "Failed to open shell process token: "sv << GetLastError();
-      return NULL;
-    }
-
-    // Duplicate the token to make it usable for process creation
-    HANDLE new_token;
-    ret = DuplicateTokenEx(shell_token, TOKEN_ALL_ACCESS, NULL, SecurityImpersonation, TokenPrimary, &new_token);
-    CloseHandle(shell_token);
-    if (!ret) {
-      BOOST_LOG(error) << "Failed to duplicate shell process token: "sv << GetLastError();
-      return NULL;
-    }
-
-    return new_token;
   }
 
   PTOKEN_USER
@@ -410,19 +380,30 @@ namespace platf {
   is_running_as_system() {
     BOOL ret;
     PSID SystemSid;
+    DWORD dwSize = SECURITY_MAX_SID_SIZE;
+
+    // Allocate memory for the SID structure
+    SystemSid = LocalAlloc(LMEM_FIXED, dwSize);
+    if (SystemSid == nullptr) {
+      BOOST_LOG(error) << "Failed to allocate memory for the SID structure: " << GetLastError();
+      return false;
+    }
+
     // Create a SID for the local system account
-    ret = CreateWellKnownSid(WinLocalSystemSid, nullptr, &SystemSid, nullptr);
+    ret = CreateWellKnownSid(WinLocalSystemSid, nullptr, SystemSid, &dwSize);
     if (ret) {
       // Check if the current process token contains this SID
       if (!CheckTokenMembership(nullptr, SystemSid, &ret)) {
-        BOOST_LOG(error) << "Failed to check token membership"sv << GetLastError();
+        BOOST_LOG(error) << "Failed to check token membership: " << GetLastError();
         ret = false;
       }
-      FreeSid(SystemSid);
     }
     else {
-      BOOST_LOG(error) << "Failed to create a SID for the local system account. This may happen if the system is out of memory or if the SID buffer is too small:"sv << GetLastError();
+      BOOST_LOG(error) << "Failed to create a SID for the local system account. This may happen if the system is out of memory or if the SID buffer is too small: " << GetLastError();
     }
+
+    // Free the memory allocated for the SID structure
+    LocalFree(SystemSid);
     return ret;
   }
 
@@ -617,12 +598,13 @@ namespace platf {
   }
 
   /**
- * @brief Runs a command on the users profile, with elevation
+ * @brief Runs a command on the users profile
  *
- * This function launches a child process with elevated privileges, using the current user's environment
+ * This function launches a child process as the user, using the current user's environment
  * and a specific working directory. If the launch is successful, a `bp::child` object representing the new
  * process is returned. Otherwise, an error code is returned.
  *
+ * @param elevated Specify to elevate the process or not
  * @param cmd The command to run
  * @param working_dir The working directory for the new process
  * @param env The environment variables to use for the new process
@@ -633,139 +615,78 @@ namespace platf {
  * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails
  */
   bp::child
-  run_priviliged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group) {
-    if (!is_running_as_system()) {
-      // It's not necessary to elevate a token in this case, we'll just use
-      // the current users token, it is their job to run Sunshine as elevated at that point.
-      return run_unprivileged(cmd, working_dir, env, file, ec, group);
-    }
-
-    PROCESS_INFORMATION process_info;
+  run_command(bool elevated, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     BOOL ret;
-
-    // Duplicate the current user's token with elevated privileges
-    HANDLE users_token = duplicate_users_token_elevated();
-    if (!users_token) {
-      // This can happen if the shell has crashed. Fail the launch rather than risking launching with
-      // Sunshine's permissions unmodified.
-      ec = std::make_error_code(std::errc::no_such_process);
-      BOOST_LOG(warning) << "Unable to clone token:  " << GetLastError();
-      return bp::child();
-    }
-
-    // Use RAII to ensure the token is closed when we're done with it
-    auto token_close = util::fail_guard([users_token]() {
-      CloseHandle(users_token);
-    });
-
-    // Populate env with user-specific environment variables
-    if (!merge_user_environment_block(env, users_token)) {
-      BOOST_LOG(warning) << "Unable to merge environment block " << GetLastError();
-      ec = std::make_error_code(std::errc::not_enough_memory);
-      return bp::child();
-    }
-
-    // Most Win32 APIs can't consume UTF-8 strings directly, so we must convert them into UTF-16
-    std::wstring wcmd = utf8_to_wide_string(cmd);
-    std::wstring env_block = create_environment_block(env);
-    std::wstring start_dir = utf8_to_wide_string(working_dir.string());
-
-    // Create the STARTUPINFOEXW object for the new process
-    STARTUPINFOEXW startup_info = create_startup_info(file, ec);
-
-    // Use RAII to ensure the attribute list is freed when we're done with it
-    auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
-      free_proc_thread_attr_list(list);
-    });
-
-    // Impersonate the current user and launch the new process
-    ec = impersonate_current_user(users_token, [&]() {
-      ret = CreateProcessAsUserW(users_token,
-        NULL,
-        (LPWSTR) wcmd.c_str(),
-        NULL,
-        NULL,
-        !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-        env_block.data(),
-        start_dir.empty() ? NULL : start_dir.c_str(),
-        (LPSTARTUPINFOW) &startup_info,
-        &process_info);
-    });  // Use the results of the launch to create a bp::child object
-    return create_boost_child_from_results(ret, cmd, ec, process_info, group);
-  }
-
-  /**
- * @brief Runs a command on the users profile, without elevation
- *
- * This function launches a child process as an unprivileged user, using the current user's environment
- * and a specific working directory. If the launch is successful, a `bp::child` object representing the new
- * process is returned. Otherwise, an error code is returned.
- *
- * @param cmd The command to run
- * @param working_dir The working directory for the new process
- * @param env The environment variables to use for the new process
- * @param file A file object to redirect the child process's output to (may be nullptr)
- * @param ec An error code, set to indicate any errors that occur during the launch process
- * @param group A pointer to a `bp::group` object to which the new process should belong (may be nullptr)
- *
- * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails
- */
-  bp::child
-  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-    // Duplicate the current user's shell token
-    HANDLE shell_token = duplicate_shell_token();
-    if (!shell_token) {
-      // This can happen if the shell has crashed. Fail the launch rather than risking launching with
-      // Sunshine's permissions unmodified.
-      ec = std::make_error_code(std::errc::no_such_process);
-      return bp::child();
-    }
-
-    // Use RAII to ensure the shell token is closed when we're done with it
-    auto token_close = util::fail_guard([shell_token]() {
-      CloseHandle(shell_token);
-    });
-
-    // Populate env with user-specific environment variables
-    if (!merge_user_environment_block(env, shell_token)) {
-      ec = std::make_error_code(std::errc::not_enough_memory);
-      return bp::child();
-    }
-
     // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
     std::wstring wcmd = utf8_to_wide_string(cmd);
     std::wstring env_block = create_environment_block(env);
     std::wstring start_dir = utf8_to_wide_string(working_dir.string());
 
-    // Create the STARTUPINFOEXW object for the new process
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
+    PROCESS_INFORMATION process_info;
 
     // Use RAII to ensure the attribute list is freed when we're done with it
     auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
       free_proc_thread_attr_list(list);
     });
 
-    PROCESS_INFORMATION process_info;
-    BOOL ret;
-    // If the shell token is for a different user account, launch the process using CreateProcessAsUserW()
-    if (!is_token_same_user_as_process(shell_token)) {
-      ec = impersonate_current_user(shell_token, [&]() {
-        ret = CreateProcessAsUserW(shell_token,
-          NULL,
-          (LPWSTR) wcmd.c_str(),
-          NULL,
-          NULL,
-          !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-          EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-          env_block.data(),
-          start_dir.empty() ? NULL : start_dir.c_str(),
-          (LPSTARTUPINFOW) &startup_info,
-          &process_info);
+    if (is_running_as_system()) {
+      // Duplicate the current user's shell token
+      HANDLE user_token = retrieve_user_token(elevated);
+      if (!user_token) {
+        // Fail the launch rather than risking launching with Sunshine's permissions unmodified.
+        ec = std::make_error_code(std::errc::no_such_process);
+        return bp::child();
+      }
+
+      // Use RAII to ensure the shell token is closed when we're done with it
+      auto token_close = util::fail_guard([user_token]() {
+        CloseHandle(user_token);
       });
 
-      if (ec) {
+      // Populate env with user-specific environment variables
+      if (!merge_user_environment_block(env, user_token)) {
+        ec = std::make_error_code(std::errc::not_enough_memory);
         return bp::child();
+      }
+
+      // Create the STARTUPINFOEXW object for the new process
+
+      if (elevated && is_running_as_system()) {
+        // Impersonate the current user and launch the new process
+        ec = impersonate_current_user(user_token, [&]() {
+          ret = CreateProcessAsUserW(user_token,
+            NULL,
+            (LPWSTR) wcmd.c_str(),
+            NULL,
+            NULL,
+            !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+            env_block.data(),
+            start_dir.empty() ? NULL : start_dir.c_str(),
+            (LPSTARTUPINFOW) &startup_info,
+            &process_info);
+        });  // Use the results of the launch to create a bp::child object
+      }
+      // If the shell token is for a different user account, launch the process using CreateProcessAsUserW()
+      else if (!is_token_same_user_as_process(user_token)) {
+        ec = impersonate_current_user(user_token, [&]() {
+          ret = CreateProcessAsUserW(user_token,
+            NULL,
+            (LPWSTR) wcmd.c_str(),
+            NULL,
+            NULL,
+            !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+            env_block.data(),
+            start_dir.empty() ? NULL : start_dir.c_str(),
+            (LPSTARTUPINFOW) &startup_info,
+            &process_info);
+        });
+
+        if (ec) {
+          return bp::child();
+        }
       }
     }
     // Otherwise, launch the process using CreateProcessW()

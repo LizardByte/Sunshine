@@ -27,7 +27,6 @@
 #ifdef _WIN32
   // _SH constants for _wfsopen()
   #include <share.h>
-  #include <src/platform/windows/misc.h>
 #endif
 
 #define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
@@ -83,17 +82,6 @@ namespace proc {
     return cmd_path.parent_path();
   }
 
-  bp::child
-  run_command(bool elevated, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-#ifdef _WIN32
-    if (elevated) {
-      return platf::run_priviliged(cmd, working_dir, env, file, ec, group);
-    }
-#endif
-
-    return platf::run_unprivileged(cmd, working_dir, env, file, ec, group);
-  }
-
   int
   proc_t::execute(int app_id) {
     // Ensure starting from a clean slate
@@ -143,7 +131,7 @@ namespace proc {
                                               find_working_directory(cmd.do_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
-      auto child = run_command(cmd.elevated, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = platf::run_command(cmd.elevated, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
         BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
@@ -164,7 +152,7 @@ namespace proc {
                                               find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
-      auto child = run_command(_app.elevated, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = platf::run_command(_app.elevated, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
       }
@@ -182,7 +170,7 @@ namespace proc {
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = run_command(_app.elevated, _app.cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      _process = platf::run_command(_app.elevated, _app.cmd, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
@@ -220,17 +208,17 @@ namespace proc {
     _app_id = -1;
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
-      auto &cmd = (_app_prep_it - 1)->undo_cmd;
+      auto &cmd = *(_app_prep_it - 1);
 
-      if (cmd.empty()) {
+      if (cmd.undo_cmd.empty()) {
         continue;
       }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
+                                              find_working_directory(cmd.undo_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
         BOOST_LOG(warning) << "System: "sv << ec.message();

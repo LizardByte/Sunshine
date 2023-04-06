@@ -158,7 +158,7 @@ namespace platf {
   }
 
   bp::child
-  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  run_command(bool elevated, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     BOOST_LOG(warning) << "run_unprivileged() is not yet implemented for this platform. The new process will run with Sunshine's permissions."sv;
     if (!group) {
       if (!file) {
