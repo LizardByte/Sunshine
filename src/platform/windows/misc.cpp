@@ -208,7 +208,7 @@ namespace platf {
  * @return A handle to the duplicated users token, or null if the duplication failed
  */
   HANDLE
-  retrieve_user_token(bool elevated) {
+  duplicate_users_token(bool elevated) {
     DWORD consoleSessionId;
     HANDLE userToken, duplicateToken;
     TOKEN_ELEVATION_TYPE elevationType;
@@ -240,6 +240,15 @@ namespace platf {
       return nullptr;
     }
 
+    if (elevated && elevationType == TokenElevationTypeDefault) {
+      // The token does not have a linked token, and user requested it to be elevated.
+      // This indicates that the user is not a member of the Administrators group.
+      BOOST_LOG(warning) << "This command requires elevation and the current user account logged in does not have administrator rights. "
+                         << "For security reasons Sunshine will retain the same access level as the current user and will not elevate it.";
+
+      return userToken;
+    }
+
     // User has a limited token, this likely means they have UAC enabled.
     if (elevated && elevationType == TokenElevationTypeLimited) {
       TOKEN_LINKED_TOKEN linkedToken;
@@ -248,8 +257,8 @@ namespace platf {
         // If the retrieval failed, log an error message and return null
         BOOST_LOG(debug) << "Retrieving linked token information failed: " << GetLastError();
 
-        // In this failure path, it's possible the user is not an admin and they tried to run an elevated command.
-        // So we will return back their limited token instead of hard failing here.
+        // In theory, this should not happen.
+        // But just in case, we'll just return the user's token here, defaulting to least privileges.
         return userToken;
       }
 
@@ -571,7 +580,7 @@ namespace platf {
 
     if (is_running_as_system()) {
       // Duplicate the current user's token
-      HANDLE user_token = retrieve_user_token(elevated);
+      HANDLE user_token = duplicate_users_token(elevated);
       if (!user_token) {
         // Fail the launch rather than risking launching with Sunshine's permissions unmodified.
         ec = std::make_error_code(std::errc::no_such_process);
