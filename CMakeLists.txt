@@ -789,6 +789,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
             "https://sunshinestream.readthedocs.io" "Sunshine documentation"
             "https://app.lizardbyte.dev" "LizardByte Web Site"
             "https://app.lizardbyte.dev/support" "LizardByte Support")
+    set(CPACK_NSIS_MANIFEST_DPI_AWARE true)
 
     # Setting components groups and dependencies
     # sunshine binary
