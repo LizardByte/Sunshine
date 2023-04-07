@@ -159,7 +159,7 @@ RUN <<_SETUP_USER
 #!/bin/bash
 set -e
 groupadd -f -g "${PGID}" "${UNAME}"
-useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
+useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine
 ln -s ${HOME}/.config/sunshine /config
 chown -R ${UNAME} ${HOME}
