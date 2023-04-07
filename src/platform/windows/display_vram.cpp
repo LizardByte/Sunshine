@@ -1106,15 +1106,20 @@ namespace platf::dxgi {
     t.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
     t.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
-    auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
-    std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
-    D3D11_SUBRESOURCE_DATA initial_data {
-      dummy_data.get(),
-      (UINT) img->row_pitch,
-      0
-    };
-
-    auto status = device->CreateTexture2D(&t, &initial_data, &img->capture_texture);
+    HRESULT status;
+    if (dummy) {
+      auto dummy_data = std::make_unique<std::uint8_t[]>(img->row_pitch * img->height);
+      std::fill_n(dummy_data.get(), img->row_pitch * img->height, 0);
+      D3D11_SUBRESOURCE_DATA initial_data {
+        dummy_data.get(),
+        (UINT) img->row_pitch,
+        0
+      };
+      status = device->CreateTexture2D(&t, &initial_data, &img->capture_texture);
+    }
+    else {
+      status = device->CreateTexture2D(&t, nullptr, &img->capture_texture);
+    }
     if (FAILED(status)) {
       BOOST_LOG(error) << "Failed to create img buf texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
