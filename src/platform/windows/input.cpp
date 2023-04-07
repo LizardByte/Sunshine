@@ -494,6 +494,7 @@ namespace platf {
   if(flags & LEFT_BUTTON)  buttons |= DS4_BUTTON_SHOULDER_LEFT;
   if(flags & RIGHT_BUTTON) buttons |= DS4_BUTTON_SHOULDER_RIGHT;
   if(flags & START)        buttons |= DS4_BUTTON_OPTIONS;
+  if(flags & BACK)         buttons |= DS4_BUTTON_SHARE;
   if(flags & A)            buttons |= DS4_BUTTON_CROSS;
   if(flags & B)            buttons |= DS4_BUTTON_CIRCLE;
   if(flags & X)            buttons |= DS4_BUTTON_SQUARE;
@@ -510,7 +511,6 @@ namespace platf {
   ds4_special_buttons(const gamepad_state_t &gamepad_state) {
     int buttons {};
 
-    if (gamepad_state.buttonFlags & BACK) buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
     if (gamepad_state.buttonFlags & HOME) buttons |= DS4_SPECIAL_BUTTON_PS;
 
     return (DS4_SPECIAL_BUTTONS) buttons;
