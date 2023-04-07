@@ -230,7 +230,7 @@
             <tr>
               <th scope="col"><i class="fas fa-play"></i> Do Command</th>
               <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
-              <th scope="col" v-if="platform == 'windows'">
+              <th scope="col" v-if="platform === 'windows'">
                 <i class="fas fa-shield-alt"></i> Run as Admin
               </th>
               <th scope="col"></th>
@@ -244,7 +244,7 @@
               <td>
                 <input type="text" class="form-control monospace" v-model="c.undo" />
               </td>
-              <td v-if="platform == 'windows'">
+              <td v-if="platform === 'windows'">
                 <div class="form-check">
                   <input
                     type="checkbox"

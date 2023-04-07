@@ -84,7 +84,7 @@
         </div>
         <div
           class="d-flex justify-content-start mb-3 mt-3"
-          v-if="editForm['prep-cmd'].length == 0"
+          v-if="editForm['prep-cmd'].length === 0"
         >
           <button class="btn btn-success" @click="addPrepCmd">
             <i class="fas fa-plus mr-1"></i> Add Commands
@@ -95,7 +95,7 @@
             <tr>
               <th scope="col"><i class="fas fa-play"></i> Do Command</th>
               <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
-              <th scope="col" v-if="platform == 'windows'">
+              <th scope="col" v-if="platform === 'windows'">
                 <i class="fas fa-shield-alt"></i> Run as Admin
               </th>
               <th scope="col"></th>
@@ -117,7 +117,7 @@
                   v-model="c.undo"
                 />
               </td>
-              <td v-if="platform == 'windows'">
+              <td v-if="platform === 'windows'">
                 <div class="form-check">
                   <input
                     type="checkbox"
@@ -212,7 +212,7 @@
         </div>
       </div>
       <!-- elevation -->
-      <div class="mb-3 form-check" v-if="platform == 'windows'">
+      <div class="mb-3 form-check" v-if="platform === 'windows'">
         <label for="appElevation" class="form-check-label"
           >Run as administrator</label
         >
@@ -375,7 +375,7 @@
           this.$set(this.editForm, "detached", []);
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
           this.$set(this.editForm, "exclude-global-prep-cmd", false);
-        if(this.editForm["elevated"] === undefined && this.platform == 'windows'){
+        if(this.editForm["elevated"] === undefined && this.platform === 'windows'){
           this.$set(this.editForm, "elevated", false);
         }
         this.showEditForm = true;
@@ -396,7 +396,7 @@
           undo: ""
         };
 
-        if(this.platform == 'windows'){
+        if(this.platform === 'windows'){
           template = {...template, elevated: false};
         }
 
