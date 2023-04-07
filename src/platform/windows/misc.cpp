@@ -225,7 +225,6 @@ namespace platf {
     // Get the user token for the active console session
     if (!WTSQueryUserToken(consoleSessionId, &userToken)) {
       BOOST_LOG(debug) << "QueryUserToken failed, this would prevent commands from launching under the users profile.";
-      CloseHandle(userToken);
       return nullptr;
     }
 
@@ -238,7 +237,6 @@ namespace platf {
     // Get the elevation type of the user token
     if (!GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize)) {
       BOOST_LOG(debug) << "Retrieving token information failed: " << GetLastError();
-      CloseHandle(userToken);
       return nullptr;
     }
 
@@ -250,15 +248,14 @@ namespace platf {
         // If the retrieval failed, log an error message and return null
         BOOST_LOG(debug) << "Retrieving linked token information failed: " << GetLastError();
 
-        //Maybe the user is not an admin here, so let's just return a normal token.
-        CloseHandle(linkedToken.LinkedToken);
+        // In this failure path, it's possible the user is not an admin and they tried to run an elevated command.
+        // So we will return back their limited token instead of hard failing here.
         return userToken;
       }
 
       // Since we need the elevated token, we'll replace it with their administrative token.
       CloseHandle(userToken);
       userToken = linkedToken.LinkedToken;
-      CloseHandle(linkedToken.LinkedToken);
     }
 
     // Use DuplicateTokenEx to create a primary token with maximum allowed access rights
@@ -274,64 +271,6 @@ namespace platf {
     }
 
     return duplicateToken;
-  }
-
-  PTOKEN_USER
-  get_token_user(HANDLE token) {
-    DWORD return_length;
-    if (GetTokenInformation(token, TokenUser, NULL, 0, &return_length) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-      auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to get token information size: "sv << winerr;
-      return nullptr;
-    }
-
-    auto user = (PTOKEN_USER) HeapAlloc(GetProcessHeap(), 0, return_length);
-    if (!user) {
-      return nullptr;
-    }
-
-    if (!GetTokenInformation(token, TokenUser, user, return_length, &return_length)) {
-      auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to get token information: "sv << winerr;
-      HeapFree(GetProcessHeap(), 0, user);
-      return nullptr;
-    }
-
-    return user;
-  }
-
-  void
-  free_token_user(PTOKEN_USER user) {
-    HeapFree(GetProcessHeap(), 0, user);
-  }
-
-  bool
-  is_token_same_user_as_process(HANDLE other_token) {
-    HANDLE process_token;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &process_token)) {
-      auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to open process token: "sv << winerr;
-      return false;
-    }
-
-    auto process_user = get_token_user(process_token);
-    CloseHandle(process_token);
-    if (!process_user) {
-      return false;
-    }
-
-    auto token_user = get_token_user(other_token);
-    if (!token_user) {
-      free_token_user(process_user);
-      return false;
-    }
-
-    bool ret = EqualSid(process_user->User.Sid, token_user->User.Sid);
-
-    free_token_user(process_user);
-    free_token_user(token_user);
-
-    return ret;
   }
 
   bool
@@ -631,7 +570,7 @@ namespace platf {
     });
 
     if (is_running_as_system()) {
-      // Duplicate the current user's shell token
+      // Duplicate the current user's token
       HANDLE user_token = retrieve_user_token(elevated);
       if (!user_token) {
         // Fail the launch rather than risking launching with Sunshine's permissions unmodified.
@@ -650,46 +589,27 @@ namespace platf {
         return bp::child();
       }
 
-      // Create the STARTUPINFOEXW object for the new process
+      // Open the process as the current user account, elevation is handled in the token itself.
+      ec = impersonate_current_user(user_token, [&]() {
+        ret = CreateProcessAsUserW(user_token,
+          NULL,
+          (LPWSTR) wcmd.c_str(),
+          NULL,
+          NULL,
+          !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
+          EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+          env_block.data(),
+          start_dir.empty() ? NULL : start_dir.c_str(),
+          (LPSTARTUPINFOW) &startup_info,
+          &process_info);
+      });
 
-      if (elevated && is_running_as_system()) {
-        // Impersonate the current user and launch the new process
-        ec = impersonate_current_user(user_token, [&]() {
-          ret = CreateProcessAsUserW(user_token,
-            NULL,
-            (LPWSTR) wcmd.c_str(),
-            NULL,
-            NULL,
-            !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-            env_block.data(),
-            start_dir.empty() ? NULL : start_dir.c_str(),
-            (LPSTARTUPINFOW) &startup_info,
-            &process_info);
-        });  // Use the results of the launch to create a bp::child object
-      }
-      // If the shell token is for a different user account, launch the process using CreateProcessAsUserW()
-      else if (!is_token_same_user_as_process(user_token)) {
-        ec = impersonate_current_user(user_token, [&]() {
-          ret = CreateProcessAsUserW(user_token,
-            NULL,
-            (LPWSTR) wcmd.c_str(),
-            NULL,
-            NULL,
-            !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
-            env_block.data(),
-            start_dir.empty() ? NULL : start_dir.c_str(),
-            (LPSTARTUPINFOW) &startup_info,
-            &process_info);
-        });
-
-        if (ec) {
-          return bp::child();
-        }
+      if (ec) {
+        return bp::child();
       }
     }
     // Otherwise, launch the process using CreateProcessW()
+    // This will inherit the elevation of whatever the user launched Sunshine with.
     else {
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
