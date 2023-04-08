@@ -333,10 +333,6 @@ namespace platf::dxgi {
       device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
       device_ctx->Draw(3, 0);
 
-      // Artifacts start appearing on the rendered image if Sunshine doesn't flush
-      // before rendering on the UV part of the image.
-      device_ctx->Flush();
-
       device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
       device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
       device_ctx->PSSetShader(convert_UV_ps.get(), nullptr, 0);
