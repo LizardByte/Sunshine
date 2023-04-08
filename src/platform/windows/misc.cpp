@@ -203,14 +203,14 @@ namespace platf {
   }
 
   /**
- * @brief A function to duplicate the current sessions user's token with elevated privileges
+ * @brief A function to obtain the current sessions user's primary token with elevated privileges
  *
- * @return A handle to the duplicated users token, or null if the duplication failed
+ * @return The users token, if user has admin capability it will be elevated. If not, it will return back a limited token. On error, nullptrs
  */
   HANDLE
-  duplicate_users_token(bool elevated) {
+  retrieve_users_token(bool elevated) {
     DWORD consoleSessionId;
-    HANDLE userToken, duplicateToken;
+    HANDLE userToken;
     TOKEN_ELEVATION_TYPE elevationType;
     DWORD dwSize;
 
@@ -228,38 +228,36 @@ namespace platf {
       return nullptr;
     }
 
-    // Close the userToken handle when it goes out of scope
-    auto token_close = util::fail_guard([&userToken]() {
-      CloseHandle(userToken);
-    });
-
     // We need to know if this is an elevated token or not.
     // Get the elevation type of the user token
+    // Elevation - Default: User is not an admin, UAC enabled/disabled does not matter.
+    // Elevation - Limited: User is an admin, has UAC enabled.
+    // Elevation - Full:    User is an admin, has UAC disabled.
     if (!GetTokenInformation(userToken, TokenElevationType, &elevationType, sizeof(TOKEN_ELEVATION_TYPE), &dwSize)) {
       BOOST_LOG(debug) << "Retrieving token information failed: " << GetLastError();
+      CloseHandle(userToken);
       return nullptr;
     }
 
+    // User is currently not an administrator
     if (elevated && elevationType == TokenElevationTypeDefault) {
       // The token does not have a linked token, and user requested it to be elevated.
       // This indicates that the user is not a member of the Administrators group.
       BOOST_LOG(warning) << "This command requires elevation and the current user account logged in does not have administrator rights. "
                          << "For security reasons Sunshine will retain the same access level as the current user and will not elevate it.";
-
-      return userToken;
     }
 
-    // User has a limited token, this likely means they have UAC enabled.
+    // User has a limited token, this means they have UAC enabled and is an Administrator
     if (elevated && elevationType == TokenElevationTypeLimited) {
       TOKEN_LINKED_TOKEN linkedToken;
       // Retrieve the administrator token that is linked to the limited token
       if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linkedToken), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
         // If the retrieval failed, log an error message and return null
-        BOOST_LOG(debug) << "Retrieving linked token information failed: " << GetLastError();
+        BOOST_LOG(error) << "Retrieving linked token information failed: " << GetLastError();
+        CloseHandle(userToken);
 
-        // In theory, this should not happen.
-        // But just in case, we'll just return the user's token here, defaulting to least privileges.
-        return userToken;
+        // There is no scenario where this should be hit, except for an actual error.
+        return nullptr;
       }
 
       // Since we need the elevated token, we'll replace it with their administrative token.
@@ -267,19 +265,7 @@ namespace platf {
       userToken = linkedToken.LinkedToken;
     }
 
-    // Use DuplicateTokenEx to create a primary token with maximum allowed access rights
-    if (!DuplicateTokenEx(
-          userToken,
-          MAXIMUM_ALLOWED,
-          NULL,
-          SecurityIdentification,
-          TokenPrimary,
-          &duplicateToken)) {
-      BOOST_LOG(debug) << "Error duplicating token: "sv << GetLastError();
-      return nullptr;
-    }
-
-    return duplicateToken;
+    return userToken;
   }
 
   bool
@@ -573,6 +559,11 @@ namespace platf {
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
     PROCESS_INFORMATION process_info;
 
+    if (ec) {
+      // In the event that startup_info failed, return a blank child process.
+      return bp::child();
+    }
+
     // Use RAII to ensure the attribute list is freed when we're done with it
     auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
       free_proc_thread_attr_list(list);
@@ -580,7 +571,7 @@ namespace platf {
 
     if (is_running_as_system()) {
       // Duplicate the current user's token
-      HANDLE user_token = duplicate_users_token(elevated);
+      HANDLE user_token = retrieve_users_token(elevated);
       if (!user_token) {
         // Fail the launch rather than risking launching with Sunshine's permissions unmodified.
         ec = std::make_error_code(std::errc::no_such_process);
@@ -612,10 +603,6 @@ namespace platf {
           (LPSTARTUPINFOW) &startup_info,
           &process_info);
       });
-
-      if (ec) {
-        return bp::child();
-      }
     }
     // Otherwise, launch the process using CreateProcessW()
     // This will inherit the elevation of whatever the user launched Sunshine with.
