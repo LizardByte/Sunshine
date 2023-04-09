@@ -468,6 +468,7 @@ namespace platf {
       // Log the failure of impersonating the user and its error code
       BOOST_LOG(error) << "Failed to impersonate user: "sv << winerror;
       ec = std::make_error_code(std::errc::permission_denied);
+      return ec;
     }
 
     // Execute the callback function while impersonating the user
