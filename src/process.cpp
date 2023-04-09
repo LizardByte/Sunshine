@@ -128,7 +128,7 @@ namespace proc {
       auto &cmd = *_app_prep_it;
 
       // Skip empty commands
-      if (cmd.empty()) {
+      if (cmd.do_cmd.empty()) {
         continue;
       }
 
