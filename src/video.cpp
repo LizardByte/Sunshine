@@ -113,9 +113,14 @@ namespace video {
         data[1] = sw_frame->data[1] + offsetUV * 2;
         data[2] = nullptr;
       }
-      else {
+      else if (img.is_bgr) {  // BGR0
         data[1] = sw_frame->data[1] + offsetUV;
         data[2] = sw_frame->data[2] + offsetUV;
+        data[3] = nullptr;
+      }
+      else {  // RGB0
+        data[1] = sw_frame->data[2] + offsetUV;
+        data[2] = sw_frame->data[1] + offsetUV;
         data[3] = nullptr;
       }
 

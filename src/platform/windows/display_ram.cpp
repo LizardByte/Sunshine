@@ -81,7 +81,6 @@ namespace platf::dxgi {
     auto colors_out = (std::uint8_t *) &cursor_pixel;
     auto colors_in = (std::uint8_t *) img_pixel_p;
 
-    //TODO: When use of IDXGIOutput5 is implemented, support different color formats
     auto alpha = colors_out[3];
     if (alpha == 255) {
       *img_pixel_p = cursor_pixel;
@@ -95,7 +94,6 @@ namespace platf::dxgi {
 
   void
   apply_color_masked(int *img_pixel_p, int cursor_pixel) {
-    //TODO: When use of IDXGIOutput5 is implemented, support different color formats
     auto alpha = ((std::uint8_t *) &cursor_pixel)[3];
     if (alpha == 0xFF) {
       *img_pixel_p ^= cursor_pixel;
@@ -142,6 +140,11 @@ namespace platf::dxgi {
 
       auto img_pixel_p = &img_data[(i + img_skip_y) * (img.row_pitch / img.pixel_pitch) + img_skip_x];
       std::for_each(cursor_begin, cursor_end, [&](int cursor_pixel) {
+        if (!img.is_bgr) {
+          // Cursors are always BGRA, so flip R and B in the cursor pixel to match RGBA layout
+          auto cursor_colors = (std::uint8_t *) &cursor_pixel;
+          std::swap(cursor_colors[0], cursor_colors[2]);
+        }
         if (masked) {
           apply_color_masked(img_pixel_p, cursor_pixel);
         }
@@ -336,6 +339,11 @@ namespace platf::dxgi {
       img->row_pitch = img->pixel_pitch * img->width;
     }
 
+    // This may be a dummy image and/or capture format may be unknown,
+    // but this is fine since BGR vs RGB makes no difference for our
+    // completely black dummy image.
+    img->is_bgr = capture_format == DXGI_FORMAT_B8G8R8A8_UNORM;
+
     // Reallocate the image buffer if the pitch changes
     if (!dummy && img->row_pitch != img_info.RowPitch) {
       img->row_pitch = img_info.RowPitch;
@@ -362,7 +370,7 @@ namespace platf::dxgi {
 
   std::vector<DXGI_FORMAT>
   display_ram_t::get_supported_capture_formats() {
-    return { DXGI_FORMAT_B8G8R8A8_UNORM };
+    return { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM };
   }
 
   int
