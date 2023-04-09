@@ -1337,14 +1337,15 @@ namespace platf {
  * @param input The input_t instance to use.
  * @param modcode The moonlight key code.
  * @param release Whether the event was a press (false) or a release (true)
+ * @param flags SS_KBE_FLAG_* values
  *
  * EXAMPLES:
  * ```cpp
- * x_keyboard(input, 0x5A, false); // Press Z
+ * x_keyboard(input, 0x5A, false, 0); // Press Z
  * ```
  */
   static void
-  x_keyboard(input_t &input, uint16_t modcode, bool release) {
+  x_keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
 #ifdef SUNSHINE_BUILD_X11
     auto keycode = keysym(modcode);
     if (keycode.keysym == UNKNOWN) {
@@ -1371,17 +1372,18 @@ namespace platf {
  * @param input The input_t instance to use.
  * @param modcode The moonlight key code.
  * @param release Whether the event was a press (false) or a release (true)
+ * @param flags SS_KBE_FLAG_* values
  *
  * EXAMPLES:
  * ```cpp
- * keyboard(input, 0x5A, false); // Press Z
+ * keyboard(input, 0x5A, false, 0); // Press Z
  * ```
  */
   void
-  keyboard(input_t &input, uint16_t modcode, bool release) {
+  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto keyboard = ((input_raw_t *) input.get())->keyboard_input.get();
     if (!keyboard) {
-      x_keyboard(input, modcode, release);
+      x_keyboard(input, modcode, release, flags);
       return;
     }
 
