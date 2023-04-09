@@ -202,6 +202,32 @@ namespace platf {
     return std::string(buffer, bytes);
   }
 
+  bool
+  IsUserAdmin(HANDLE user_token) {
+    WINBOOL ret;
+    SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+    PSID AdministratorsGroup;
+    ret = AllocateAndInitializeSid(
+      &NtAuthority,
+      2,
+      SECURITY_BUILTIN_DOMAIN_RID,
+      DOMAIN_ALIAS_RID_ADMINS,
+      0, 0, 0, 0, 0, 0,
+      &AdministratorsGroup);
+    if (ret) {
+      if (!CheckTokenMembership(user_token, AdministratorsGroup, &ret)) {
+        ret = false;
+        BOOST_LOG(error) << "Failed to verify token membership for administrative access: " << GetLastError();
+      }
+      FreeSid(AdministratorsGroup);
+    }
+    else {
+      BOOST_LOG(error) << "Unable to allocate SID to check administrative access: " << GetLastError();
+    }
+
+    return ret;
+  }
+
   /**
  * @brief A function to obtain the current sessions user's primary token with elevated privileges
  *
@@ -240,9 +266,9 @@ namespace platf {
     }
 
     // User is currently not an administrator
-    if (elevated && elevationType == TokenElevationTypeDefault) {
-      // The token does not have a linked token, and user requested it to be elevated.
-      // This indicates that the user is not a member of the Administrators group.
+    // The documentation for this scenario is conflicting, so we'll double check to see if user is actually an admin.
+    if (elevated && (elevationType == TokenElevationTypeDefault && !IsUserAdmin(userToken))) {
+      // We don't have to strip the token or do anything here, but let's give the user a warning so they're aware what is happening.
       BOOST_LOG(warning) << "This command requires elevation and the current user account logged in does not have administrator rights. "
                          << "For security reasons Sunshine will retain the same access level as the current user and will not elevate it.";
     }
@@ -265,6 +291,7 @@ namespace platf {
       userToken = linkedToken.LinkedToken;
     }
 
+    // We don't need to do anything for TokenElevationTypeFull users here, because they're already elevated.
     return userToken;
   }
 
