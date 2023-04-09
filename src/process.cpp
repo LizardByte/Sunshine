@@ -127,6 +127,11 @@ namespace proc {
     for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
       auto &cmd = *_app_prep_it;
 
+      // Skip empty commands
+      if (cmd.empty()) {
+        continue;
+      }
+
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(cmd.do_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
@@ -490,7 +495,10 @@ namespace proc {
             auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
             auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 
-            prep_cmds.emplace_back(std::move(do_cmd), std::move(undo_cmd), std::move(false));
+            prep_cmds.emplace_back(
+              std::move(do_cmd),
+              std::move(undo_cmd),
+              std::move(prep_cmd.elevated));
           }
         }
 
@@ -499,16 +507,14 @@ namespace proc {
 
           prep_cmds.reserve(prep_cmds.size() + prep_nodes.size());
           for (auto &[_, prep_node] : prep_nodes) {
-            auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
+            auto do_cmd = prep_node.get_optional<std::string>("do"s);
             auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
             auto elevated = prep_node.get_optional<bool>("elevated");
 
-            if (undo_cmd) {
-              prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd), std::move(elevated.value_or(false)));
-            }
-            else {
-              prep_cmds.emplace_back(std::move(do_cmd), std::move(elevated.value_or(false)));
-            }
+            prep_cmds.emplace_back(
+              parse_env_val(this_env, do_cmd.value_or("")),
+              parse_env_val(this_env, undo_cmd.value_or("")),
+              std::move(elevated.value_or(false)));
           }
         }
 

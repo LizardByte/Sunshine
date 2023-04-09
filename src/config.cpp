@@ -816,14 +816,14 @@ namespace config {
     boost::property_tree::read_json(jsonStream, jsonTree);
 
     for (auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
-      auto do_cmd = prep_cmd.get<std::string>("do"s);
-      auto undo_cmd = prep_cmd.get<std::string>("undo"s);
-      auto elevated = prep_cmd.get<bool>("elevated"s);
+      auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
+      auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
+      auto elevated = prep_cmd.get_optional<bool>("elevated"s);
 
       input.emplace_back(
-        std::move(do_cmd),
-        std::move(undo_cmd),
-        std::move(elevated));
+        std::move(do_cmd.value_or("")),
+        std::move(undo_cmd.value_or("")),
+        std::move(elevated.value_or(false)));
     }
   }
 
