@@ -59,8 +59,22 @@ namespace input {
     gamepad_mask[id] = false;
   }
 
+  typedef uint32_t key_press_id_t;
+  key_press_id_t
+  make_kpid(uint16_t vk, uint8_t flags) {
+    return (key_press_id_t) vk << 8 | flags;
+  }
+  uint16_t
+  vk_from_kpid(key_press_id_t kpid) {
+    return kpid >> 8;
+  }
+  uint8_t
+  flags_from_kpid(key_press_id_t kpid) {
+    return kpid & 0xFF;
+  }
+
   static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
-  static std::unordered_map<short, bool> key_press {};
+  static std::unordered_map<key_press_id_t, bool> key_press {};
   static std::array<std::uint8_t, 5> mouse_press {};
 
   static platf::input_t platf_input;
@@ -449,16 +463,16 @@ namespace input {
   }
 
   void
-  repeat_key(short key_code) {
+  repeat_key(uint16_t key_code, uint8_t flags) {
     // If key no longer pressed, stop repeating
-    if (!key_press[key_code]) {
+    if (!key_press[make_kpid(key_code, flags)]) {
       key_press_repeat_id = nullptr;
       return;
     }
 
-    platf::keyboard(platf_input, map_keycode(key_code), false);
+    platf::keyboard(platf_input, map_keycode(key_code), false, flags);
 
-    key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
+    key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code, flags).task_id;
   }
 
   void
@@ -470,7 +484,7 @@ namespace input {
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
     auto keyCode = packet->keyCode & 0x00FF;
 
-    auto &pressed = key_press[keyCode];
+    auto &pressed = key_press[make_kpid(keyCode, packet->flags)];
     if (!pressed) {
       if (!release) {
         // A new key has been pressed down, we need to check for key combo's
@@ -484,7 +498,7 @@ namespace input {
         }
 
         if (config::input.key_repeat_delay.count() > 0) {
-          key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode).task_id;
+          key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode, packet->flags).task_id;
         }
       }
       else {
@@ -500,7 +514,7 @@ namespace input {
     pressed = !release;
 
     update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
-    platf::keyboard(platf_input, map_keycode(keyCode), release);
+    platf::keyboard(platf_input, map_keycode(keyCode), release, packet->flags);
   }
 
   void
@@ -731,7 +745,7 @@ namespace input {
       }
 
       for (auto &kp : key_press) {
-        platf::keyboard(platf_input, kp.first & 0x00FF, true);
+        platf::keyboard(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
         key_press[kp.first] = false;
       }
     });
