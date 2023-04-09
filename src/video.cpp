@@ -710,22 +710,24 @@ namespace video {
   };
 #endif
 
-  static std::vector<encoder_t> encoders {
+  static const std::vector<encoder_t *> encoders {
 #ifndef __APPLE__
-    nvenc,
+    &nvenc,
 #endif
 #ifdef _WIN32
-    quicksync,
-    amdvce,
+    &quicksync,
+    &amdvce,
 #endif
 #ifdef __linux__
-    vaapi,
+    &vaapi,
 #endif
 #ifdef __APPLE__
-    videotoolbox,
+    &videotoolbox,
 #endif
-    software
+    &software
   };
+
+  static encoder_t *chosen_encoder;
 
   void
   reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, const config_t &config) {
@@ -1446,7 +1448,7 @@ namespace video {
   encode_run_sync(
     std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs,
     encode_session_ctx_queue_t &encode_session_ctx_queue) {
-    const auto &encoder = encoders.front();
+    const auto &encoder = *chosen_encoder;
     auto display_names = platf::display_names(map_base_dev_type(encoder.base_dev_type));
     int display_p = 0;
 
@@ -1673,7 +1675,7 @@ namespace video {
         display = ref->display_wp->lock();
       }
 
-      auto &encoder = encoders.front();
+      auto &encoder = *chosen_encoder;
       auto pix_fmt = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
       auto hwdevice = display->make_hwdevice(pix_fmt);
       if (!hwdevice) {
@@ -1709,7 +1711,7 @@ namespace video {
     auto idr_events = mail->event<bool>(mail::idr);
 
     idr_events->raise(true);
-    if (encoders.front().flags & PARALLEL_ENCODING) {
+    if (chosen_encoder->flags & PARALLEL_ENCODING) {
       capture_async(std::move(mail), config, channel_data);
     }
     else {
@@ -1927,86 +1929,95 @@ namespace video {
     return true;
   }
 
+  /*
+    This is called once at startup and each time a stream is launched to
+    ensure the best encoder is selected. Encoder availablility can change
+    at runtime due to all sorts of things from driver updates to eGPUs.
+
+    This is only safe to call when there is no client actively streaming.
+  */
   int
-  init() {
-    bool encoder_found = false;
+  probe_encoders() {
+    auto encoder_list = encoders;
+
+    // Reset encoder selection
+    chosen_encoder = nullptr;
+
     if (!config::video.encoder.empty()) {
       // If there is a specific encoder specified, use it if it passes validation
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
-        if (encoder.name == config::video.encoder) {
+        if (encoder->name == config::video.encoder) {
           // Remove the encoder from the list entirely if it fails validation
-          if (!validate_encoder(encoder)) {
-            pos = encoders.erase(pos);
+          if (!validate_encoder(*encoder)) {
+            pos = encoder_list.erase(pos);
             break;
           }
 
           // If we can't satisfy both the encoder and HDR requirement, prefer the encoder over HDR support
-          if (config::video.hevc_mode == 3 && !encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+          if (config::video.hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
             BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HDR on this system"sv;
             config::video.hevc_mode = 0;
           }
 
-          encoders.clear();
-          encoders.emplace_back(encoder);
-          encoder_found = true;
+          chosen_encoder = encoder;
           break;
         }
 
         pos++;
       });
 
-      if (!encoder_found) {
+      if (chosen_encoder == nullptr) {
         BOOST_LOG(error) << "Couldn't find any working encoder matching ["sv << config::video.encoder << ']';
-        config::video.encoder.clear();
       }
     }
 
     BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
     // If we haven't found an encoder yet, but we want one with HDR support, search for that now.
-    if (!encoder_found && config::video.hevc_mode == 3) {
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+    if (chosen_encoder == nullptr && config::video.hevc_mode == 3) {
+      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
         // Remove the encoder from the list entirely if it fails validation
-        if (!validate_encoder(encoder)) {
-          pos = encoders.erase(pos);
+        if (!validate_encoder(*encoder)) {
+          pos = encoder_list.erase(pos);
           continue;
         }
 
         // Skip it if it doesn't support HDR
-        if (!encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+        if (!encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
           pos++;
           continue;
         }
 
-        encoders.clear();
-        encoders.emplace_back(encoder);
-        encoder_found = true;
+        chosen_encoder = encoder;
         break;
       });
 
-      if (!encoder_found) {
+      if (chosen_encoder == nullptr) {
         BOOST_LOG(error) << "Couldn't find any working HDR-capable encoder"sv;
       }
     }
 
     // If no encoder was specified or the specified encoder was unusable, keep trying
     // the remaining encoders until we find one that passes validation.
-    if (!encoder_found) {
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
-        if (!validate_encoder(*pos)) {
-          pos = encoders.erase(pos);
+    if (chosen_encoder == nullptr) {
+      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
+        auto encoder = *pos;
+
+        if (!validate_encoder(*encoder)) {
+          pos = encoder_list.erase(pos);
           continue;
         }
 
+        chosen_encoder = encoder;
         break;
       });
     }
 
-    if (encoders.empty()) {
+    if (chosen_encoder == nullptr) {
       BOOST_LOG(fatal) << "Couldn't find any working encoder"sv;
       return -1;
     }
@@ -2015,7 +2026,7 @@ namespace video {
     BOOST_LOG(info) << "// Ignore any errors mentioned above, they are not relevant. //"sv;
     BOOST_LOG(info);
 
-    auto &encoder = encoders.front();
+    auto &encoder = *chosen_encoder;
 
     BOOST_LOG(debug) << "------  h264 ------"sv;
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
@@ -2147,7 +2158,7 @@ namespace video {
 
   int
   start_capture_async(capture_thread_async_ctx_t &capture_thread_ctx) {
-    capture_thread_ctx.encoder_p = &encoders.front();
+    capture_thread_ctx.encoder_p = chosen_encoder;
     capture_thread_ctx.reinit_event.reset();
 
     capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>(30);

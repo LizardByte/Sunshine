@@ -29,6 +29,7 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
+#include "video.h"
 
 using namespace std::literals;
 namespace nvhttp {
@@ -762,6 +763,19 @@ namespace nvhttp {
       return;
     }
 
+    // Probe encoders again before streaming to ensure our chosen
+    // encoder matches the active GPU (which could have changed
+    // due to hotplugging, driver crash, primary monitor change,
+    // or any number of other factors).
+    if (rtsp_stream::session_count() == 0) {
+      if (video::probe_encoders()) {
+        tree.put("root.<xmlattr>.status_code", 503);
+        tree.put("root.gamesession", 0);
+
+        return;
+      }
+    }
+
     if (appid > 0) {
       auto err = proc::proc.execute(appid);
       if (err) {
@@ -818,6 +832,19 @@ namespace nvhttp {
       tree.put("root.<xmlattr>.status_code", 400);
 
       return;
+    }
+
+    // Probe encoders again before streaming to ensure our chosen
+    // encoder matches the active GPU (which could have changed
+    // due to hotplugging, driver crash, primary monitor change,
+    // or any number of other factors).
+    if (rtsp_stream::session_count() == 0) {
+      if (video::probe_encoders()) {
+        tree.put("root.resume", 0);
+        tree.put("root.<xmlattr>.status_code", 503);
+
+        return;
+      }
     }
 
     rtsp_stream::launch_session_raise(make_launch_session(host_audio, args));

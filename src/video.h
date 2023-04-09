@@ -97,7 +97,7 @@ namespace video {
     void *channel_data);
 
   int
-  init();
+  probe_encoders();
 }  // namespace video
 
 #endif  // SUNSHINE_VIDEO_H
