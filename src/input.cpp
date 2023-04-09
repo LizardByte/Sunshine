@@ -462,17 +462,66 @@ namespace input {
     }
   }
 
+  bool
+  is_modifier(uint16_t keyCode) {
+    switch (keyCode) {
+      case VKEY_SHIFT:
+      case VKEY_LSHIFT:
+      case VKEY_RSHIFT:
+      case VKEY_CONTROL:
+      case VKEY_LCONTROL:
+      case VKEY_RCONTROL:
+      case VKEY_MENU:
+      case VKEY_LMENU:
+      case VKEY_RMENU:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   void
-  repeat_key(uint16_t key_code, uint8_t flags) {
+  send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers) {
+    if (!release) {
+      // Press any synthetic modifiers required for this key
+      if (synthetic_modifiers & MODIFIER_SHIFT) {
+        platf::keyboard(platf_input, VKEY_SHIFT, false, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_CTRL) {
+        platf::keyboard(platf_input, VKEY_CONTROL, false, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_ALT) {
+        platf::keyboard(platf_input, VKEY_MENU, false, flags);
+      }
+    }
+
+    platf::keyboard(platf_input, map_keycode(key_code), release, flags);
+
+    if (!release) {
+      // Raise any synthetic modifier keys we pressed
+      if (synthetic_modifiers & MODIFIER_SHIFT) {
+        platf::keyboard(platf_input, VKEY_SHIFT, true, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_CTRL) {
+        platf::keyboard(platf_input, VKEY_CONTROL, true, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_ALT) {
+        platf::keyboard(platf_input, VKEY_MENU, true, flags);
+      }
+    }
+  }
+
+  void
+  repeat_key(uint16_t key_code, uint8_t flags, uint8_t synthetic_modifiers) {
     // If key no longer pressed, stop repeating
     if (!key_press[make_kpid(key_code, flags)]) {
       key_press_repeat_id = nullptr;
       return;
     }
 
-    platf::keyboard(platf_input, map_keycode(key_code), false, flags);
+    send_key_and_modifiers(key_code, false, flags, synthetic_modifiers);
 
-    key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code, flags).task_id;
+    key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code, flags, synthetic_modifiers).task_id;
   }
 
   void
@@ -483,6 +532,21 @@ namespace input {
 
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
     auto keyCode = packet->keyCode & 0x00FF;
+
+    // Set synthetic modifier flags if the keyboard packet is requesting modifier
+    // keys that are not current pressed.
+    uint8_t synthetic_modifiers = 0;
+    if (!release && !is_modifier(keyCode)) {
+      if (!(input->shortcutFlags & input_t::SHIFT) && (packet->modifiers & MODIFIER_SHIFT)) {
+        synthetic_modifiers |= MODIFIER_SHIFT;
+      }
+      if (!(input->shortcutFlags & input_t::CTRL) && (packet->modifiers & MODIFIER_CTRL)) {
+        synthetic_modifiers |= MODIFIER_CTRL;
+      }
+      if (!(input->shortcutFlags & input_t::ALT) && (packet->modifiers & MODIFIER_ALT)) {
+        synthetic_modifiers |= MODIFIER_ALT;
+      }
+    }
 
     auto &pressed = key_press[make_kpid(keyCode, packet->flags)];
     if (!pressed) {
@@ -498,7 +562,7 @@ namespace input {
         }
 
         if (config::input.key_repeat_delay.count() > 0) {
-          key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode, packet->flags).task_id;
+          key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode, packet->flags, synthetic_modifiers).task_id;
         }
       }
       else {
@@ -513,8 +577,9 @@ namespace input {
 
     pressed = !release;
 
+    send_key_and_modifiers(keyCode, release, packet->flags, synthetic_modifiers);
+
     update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
-    platf::keyboard(platf_input, map_keycode(keyCode), release, packet->flags);
   }
 
   void
