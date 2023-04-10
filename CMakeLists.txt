@@ -354,6 +354,7 @@ else()
     if(X11_FOUND)
         add_compile_definitions(SUNSHINE_BUILD_X11)
         include_directories(${X11_INCLUDE_DIR})
+        list(APPEND PLATFORM_LIBRARIES ${X11_LIBRARIES})
         list(APPEND PLATFORM_TARGET_FILES src/platform/linux/x11grab.cpp)
     endif()
 
