@@ -206,9 +206,10 @@ namespace proc {
     _process = bp::child();
     _process_handle = bp::group();
     _app_id = -1;
+    _app_prep_it = std::begin(_app.prep_cmds);
 
-    for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
-      auto &cmd = (_app_prep_it - 1)->undo_cmd;
+    for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
+      auto &cmd = _app_prep_it->undo_cmd;
 
       if (cmd.empty()) {
         continue;
