@@ -37,11 +37,13 @@ using namespace std::literals;
 namespace platf {
 struct img_t: std::enable_shared_from_this<img_t> {
 public:
+  // Keep this in sync with platform/common.h
   std::uint8_t *data {};
   std::int32_t width {};
   std::int32_t height {};
   std::int32_t pixel_pitch {};
   std::int32_t row_pitch {};
+  bool is_bgr = true;
 
   virtual ~img_t() = default;
 };

@@ -180,6 +180,7 @@ namespace platf {
     img_t &
     operator=(const img_t &) = delete;
 
+    // Keep this in sync with platform/linux/cuda.cu
     std::uint8_t *data {};
     std::int32_t width {};
     std::int32_t height {};
