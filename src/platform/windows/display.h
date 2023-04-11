@@ -111,21 +111,17 @@ namespace platf::dxgi {
     duplication_frametime_t(std::size_t buffer_size);
 
     void
-    start_measuring();
+    save_frame_update_timepoint(const LONGLONG timepoint);
 
-    //! \returns the end timepoint for convenience
-    std::chrono::steady_clock::time_point
-    stop_measuring();
-
-    std::chrono::nanoseconds
+    LONGLONG
     get_rolling_average() const;
 
     void
     clear();
 
   private:
-    std::chrono::steady_clock::time_point start_timepoint;
-    std::vector<std::chrono::nanoseconds> frametimes;
+    LONGLONG last_timepoint;
+    std::vector<LONGLONG> frametimes;
     std::size_t max_buffer_size;
     std::size_t buffer_index;
   };
@@ -133,9 +129,10 @@ namespace platf::dxgi {
   class duplication_t {
   public:
     dup_t dup;
-    std::chrono::steady_clock::time_point last_valid_capture_timepoint;
-    std::chrono::nanoseconds desired_frametime;
+    LONGLONG last_valid_capture_timepoint;
+    LONGLONG desired_frametime;
     duplication_frametime_t frametimes { 60 /* hardcoded buffer size, should be more than enough for rolling average*/ };
+    bool mouse_update_was_processed {};
     bool has_frame {};
     bool use_dwmflush {};
 

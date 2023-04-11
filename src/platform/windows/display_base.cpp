@@ -27,23 +27,28 @@ namespace platf::dxgi {
   namespace bp = boost::process;
 
   duplication_frametime_t::duplication_frametime_t(std::size_t buffer_size):
-      max_buffer_size { buffer_size }, buffer_index { 0 } {
+      last_timepoint { 0 }, max_buffer_size { buffer_size }, buffer_index { 0 } {
     BOOST_ASSERT(max_buffer_size > 0);
     frametimes.reserve(max_buffer_size);
   }
 
   void
-  duplication_frametime_t::start_measuring() {
-    start_timepoint = std::chrono::steady_clock::now();
-  }
+  duplication_frametime_t::save_frame_update_timepoint(const LONGLONG timepoint) {
+    // We need to skip invalid timepoints.
+    if (timepoint == 0) {
+      return;
+    }
 
-  std::chrono::steady_clock::time_point
-  duplication_frametime_t::stop_measuring() {
-    const auto end_timepoint = std::chrono::steady_clock::now();
-    const auto frametime = end_timepoint - start_timepoint;
+    // This is the initial state where we don't have enough data yet to calculate frametime.
+    if (last_timepoint == 0) {
+      last_timepoint = timepoint;
+      return;
+    }
 
-    // If the the buffer size has already reached the max possible, we need to start managing circular buffer manually
+    const auto frametime = timepoint - last_timepoint;
+    last_timepoint = timepoint;
     if (frametimes.size() == max_buffer_size) {
+      // If the the buffer size has already reached the max possible, we need to start managing circular buffer manually
       frametimes[buffer_index++] = frametime;
       if (buffer_index >= max_buffer_size) {
         buffer_index = 0;
@@ -52,19 +57,18 @@ namespace platf::dxgi {
     else {
       frametimes.push_back(frametime);
     }
-
-    return end_timepoint;
   }
 
-  std::chrono::nanoseconds
+  LONGLONG
   duplication_frametime_t::get_rolling_average() const {
-    const auto sum = std::accumulate(std::begin(frametimes), std::end(frametimes), std::chrono::nanoseconds(0));
-    return frametimes.size() == 0 ? std::chrono::nanoseconds(0) : std::chrono::nanoseconds(sum / frametimes.size());
+    const LONGLONG sum = std::accumulate(std::begin(frametimes), std::end(frametimes), 0);
+    return frametimes.size() == 0 ? 0 : sum / frametimes.size();
   }
 
   void
   duplication_frametime_t::clear() {
     frametimes.clear();
+    last_timepoint = 0;
     buffer_index = 0;
   }
 
@@ -124,17 +128,17 @@ namespace platf::dxgi {
     // the frame is good enough for us to use. More about skipping frames below.
     const auto next_expected_capture_timepoint = last_valid_capture_timepoint + desired_frametime;
 
-    std::chrono::steady_clock::time_point capture_end;
+    LONGLONG frame_update_time { 0 };
     while (true) {
-      frametimes.start_measuring();
       const auto status = next_frame_without_skipping(frame_info, timeout, res_p);
-      capture_end = frametimes.stop_measuring();
-
       if (status != capture_e::ok) {
         frametimes.clear();
         last_valid_capture_timepoint = {};
         return status;
       }
+
+      frame_update_time = frame_info.LastPresentTime.QuadPart;
+      frametimes.save_frame_update_timepoint(frame_update_time);
 
       // First we need to check if we have a situation like this:
       // |----------|-x--------|
@@ -142,8 +146,7 @@ namespace platf::dxgi {
       //              Actual frame
       //
       // In case we have already missed the target timepoint (T), we need to use the current frame as soon as possible.
-      // No need to think about anything else...
-      if (capture_end >= next_expected_capture_timepoint) {
+      if (frame_update_time >= next_expected_capture_timepoint) {
         break;
       }
 
@@ -171,18 +174,13 @@ namespace platf::dxgi {
       // What we need additionally is the uniform frametime window the source source is trying to render at,
       // which we can calculate using the rolling average for more stability
       // (we want to avoid jumpy frametimes like 12.301ms or 20.91ms).
-      //
-      // Finally, since we are dividing the average frametime, some frames might end up on the fence, so we want
-      // to push it to "good enough" side since we really want to preserve frames if possible.
-      // For that, adding 1ms should be enough.
       const auto average_frametime = frametimes.get_rolling_average() / 2;
-      static const auto division_offset = 1ms;
-      if (capture_end + division_offset + average_frametime >= next_expected_capture_timepoint) {
+      if (frame_update_time + average_frametime >= next_expected_capture_timepoint) {
         break;
       }
     }
 
-    last_valid_capture_timepoint = capture_end;
+    last_valid_capture_timepoint = frame_update_time;
     return capture_e::ok;
   }
 
@@ -551,7 +549,18 @@ namespace platf::dxgi {
     }
 
     dup.use_dwmflush = config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false;
-    dup.desired_frametime = std::chrono::nanoseconds { 1s } / config.framerate;
+
+    {
+      LARGE_INTEGER freq;
+
+      // According to MS Docs, this should always be true on WindowsXP and above...
+      if (!QueryPerformanceFrequency(&freq)) {
+        BOOST_LOG(fatal) << "high-precision timer is unavailable!";
+        abort();
+      }
+
+      dup.desired_frametime = freq.QuadPart / config.framerate;
+    }
 
     // Bump up thread priority
     {
