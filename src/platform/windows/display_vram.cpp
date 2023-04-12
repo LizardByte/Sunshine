@@ -813,9 +813,8 @@ namespace platf::dxgi {
 
     DXGI_OUTDUPL_FRAME_INFO frame_info;
 
-    resource_t::pointer res_p {};
-    auto capture_status = dup.next_frame(frame_info, timeout, &res_p);
-    resource_t res { res_p };
+    resource_t res;
+    auto capture_status = dup.next_frame(frame_info, timeout, res);
 
     if (capture_status != capture_e::ok) {
       return capture_status;

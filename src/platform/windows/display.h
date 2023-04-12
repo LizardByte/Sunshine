@@ -111,41 +111,53 @@ namespace platf::dxgi {
     duplication_frametime_t(std::size_t buffer_size);
 
     void
-    save_frame_update_timepoint(const LONGLONG timepoint);
-
-    LONGLONG
+    start_measuring();
+    //! \returns the end timepoint for convenience
+    std::chrono::steady_clock::time_point
+    stop_measuring();
+    std::chrono::nanoseconds
     get_rolling_average() const;
-
     void
     clear();
 
   private:
-    LONGLONG last_timepoint;
-    std::vector<LONGLONG> frametimes;
+    std::chrono::steady_clock::time_point start_timepoint;
+    std::vector<std::chrono::nanoseconds> frametimes;
     std::size_t max_buffer_size;
     std::size_t buffer_index;
   };
 
   class duplication_t {
   public:
-    dup_t dup;
-    LONGLONG last_valid_capture_timepoint;
-    LONGLONG desired_frametime;
-    duplication_frametime_t frametimes { 60 /* hardcoded buffer size, should be more than enough for rolling average*/ };
-    bool mouse_update_was_processed {};
-    bool has_frame {};
-    bool use_dwmflush {};
+    duplication_t();
+    ~duplication_t();
+
+    void
+    init(bool use_dwmflush, int framerate);
 
     capture_e
-    next_frame_without_skipping(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p);
+    acquire_next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
     capture_e
-    next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p);
+    next_frame_without_dwm_flush(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
+    capture_e
+    next_frame_with_dwm_flush(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
+    capture_e
+    next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
     capture_e
     reset(dup_t::pointer dup_p = dup_t::pointer());
     capture_e
     release_frame();
 
-    ~duplication_t();
+    dup_t dup;
+
+  private:
+    std::chrono::steady_clock::time_point capture_timepoint {};
+    std::chrono::nanoseconds desired_frametime {};
+    HANDLE timer { nullptr };
+    duplication_frametime_t frametimes { 60 /* hardcoded buffer size, should be more than enough for rolling average*/ };
+
+    bool has_frame {};
+    bool use_dwmflush {};
   };
 
   class display_base_t: public display_t {
