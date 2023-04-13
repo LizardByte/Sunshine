@@ -91,9 +91,11 @@ namespace platf::dxgi {
 
   blob_t convert_UV_vs_hlsl;
   blob_t convert_UV_ps_hlsl;
+  blob_t convert_UV_linear_ps_hlsl;
   blob_t convert_UV_PQ_ps_hlsl;
   blob_t scene_vs_hlsl;
   blob_t convert_Y_ps_hlsl;
+  blob_t convert_Y_linear_ps_hlsl;
   blob_t convert_Y_PQ_ps_hlsl;
   blob_t scene_ps_hlsl;
   blob_t scene_NW_ps_hlsl;
@@ -115,6 +117,9 @@ namespace platf::dxgi {
 
     // Unique identifier for this image
     uint32_t id = 0;
+
+    // DXGI format of this image texture
+    DXGI_FORMAT format;
 
     virtual ~img_d3d_t() override {
       if (encoder_texture_handle) {
@@ -338,14 +343,14 @@ namespace platf::dxgi {
 
       device_ctx->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
       device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
-      device_ctx->PSSetShader(convert_Y_ps.get(), nullptr, 0);
+      device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_fp16_ps.get() : convert_Y_ps.get(), nullptr, 0);
       device_ctx->RSSetViewports(1, &outY_view);
       device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
       device_ctx->Draw(3, 0);
 
       device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
       device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
-      device_ctx->PSSetShader(convert_UV_ps.get(), nullptr, 0);
+      device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
       device_ctx->RSSetViewports(1, &outUV_view);
       device_ctx->Draw(3, 0);
 
@@ -577,32 +582,46 @@ namespace platf::dxgi {
       }
 
       // If the display is in HDR and we're streaming HDR, we'll be converting scRGB to SMPTE 2084 PQ.
-      // NB: We can consume scRGB in SDR with our regular shaders because it behaves like UNORM input.
       if (format == DXGI_FORMAT_P010 && display->is_hdr()) {
-        status = device->CreatePixelShader(convert_Y_PQ_ps_hlsl->GetBufferPointer(), convert_Y_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+        status = device->CreatePixelShader(convert_Y_PQ_ps_hlsl->GetBufferPointer(), convert_Y_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
         }
 
-        status = device->CreatePixelShader(convert_UV_PQ_ps_hlsl->GetBufferPointer(), convert_UV_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+        status = device->CreatePixelShader(convert_UV_PQ_ps_hlsl->GetBufferPointer(), convert_UV_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
         }
       }
       else {
-        status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+        // If the display is in Advanced Color mode, the desktop format will be scRGB FP16.
+        // scRGB uses linear gamma, so we must use our linear to sRGB conversion shaders.
+        status = device->CreatePixelShader(convert_Y_linear_ps_hlsl->GetBufferPointer(), convert_Y_linear_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
         }
 
-        status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+        status = device->CreatePixelShader(convert_UV_linear_ps_hlsl->GetBufferPointer(), convert_UV_linear_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
         }
+      }
+
+      // These shaders consume standard 8-bit sRGB input
+      status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+      if (status) {
+        BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+      if (status) {
+        BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
       }
 
       color_matrix = make_buffer(device.get(), ::video::colors[0]);
@@ -750,7 +769,9 @@ namespace platf::dxgi {
 
     vs_t convert_UV_vs;
     ps_t convert_UV_ps;
+    ps_t convert_UV_fp16_ps;
     ps_t convert_Y_ps;
+    ps_t convert_Y_fp16_ps;
     vs_t scene_vs;
 
     D3D11_VIEWPORT outY_view;
@@ -1118,6 +1139,7 @@ namespace platf::dxgi {
     img->pixel_pitch = get_pixel_pitch();
     img->row_pitch = img->pixel_pitch * img->width;
     img->dummy = dummy;
+    img->format = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;
 
     D3D11_TEXTURE2D_DESC t {};
     t.Width = img->width;
@@ -1126,7 +1148,7 @@ namespace platf::dxgi {
     t.ArraySize = 1;
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_DEFAULT;
-    t.Format = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;
+    t.Format = img->format;
     t.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
     t.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
@@ -1190,8 +1212,9 @@ namespace platf::dxgi {
   std::vector<DXGI_FORMAT>
   display_vram_t::get_supported_capture_formats() {
     return {
-      // scRGB FP16 is the desired format for HDR content. This will also handle
-      // 10-bit SDR displays with the increased precision of FP16 vs 8-bit UNORMs.
+      // scRGB FP16 is the ideal format for Wide Color Gamut and Advanced Color
+      // displays (both SDR and HDR). This format uses linear gamma, so we will
+      // use a linear->PQ shader for HDR and a linear->sRGB shader for SDR.
       DXGI_FORMAT_R16G16B16A16_FLOAT,
 
       // DXGI_FORMAT_R10G10B10A2_UNORM seems like it might give us frames already
@@ -1203,8 +1226,8 @@ namespace platf::dxgi {
       // but we avoid it for now.
 
       // We include the 8-bit modes too for when the display is in SDR mode,
-      // while the client stream is HDR-capable. These UNORM formats behave
-      // like a degenerate case of scRGB FP16 with values between 0.0f-1.0f.
+      // while the client stream is HDR-capable. These UNORM formats can
+      // use our normal pixel shaders that expect sRGB input.
       DXGI_FORMAT_B8G8R8A8_UNORM,
       DXGI_FORMAT_R8G8B8A8_UNORM,
     };
@@ -1250,6 +1273,11 @@ namespace platf::dxgi {
       return -1;
     }
 
+    convert_Y_linear_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertYPS_Linear.hlsl");
+    if (!convert_Y_linear_ps_hlsl) {
+      return -1;
+    }
+
     convert_UV_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS.hlsl");
     if (!convert_UV_ps_hlsl) {
       return -1;
@@ -1257,6 +1285,11 @@ namespace platf::dxgi {
 
     convert_UV_PQ_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS_PQ.hlsl");
     if (!convert_UV_PQ_ps_hlsl) {
+      return -1;
+    }
+
+    convert_UV_linear_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS_Linear.hlsl");
+    if (!convert_UV_linear_ps_hlsl) {
       return -1;
     }
 
