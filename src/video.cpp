@@ -1106,12 +1106,14 @@ namespace video {
 
     ctx->keyint_min = std::numeric_limits<int>::max();
 
-    if (config.numRefFrames == 0) {
-      ctx->refs = video_format[encoder_t::REF_FRAMES_AUTOSELECT] ? 0 : 16;
-    }
-    else {
-      // Some client decoders have limits on the number of reference frames
-      ctx->refs = video_format[encoder_t::REF_FRAMES_RESTRICT] ? config.numRefFrames : 0;
+    // Some client decoders have limits on the number of reference frames
+    if (config.numRefFrames) {
+      if (video_format[encoder_t::REF_FRAMES_RESTRICT]) {
+        ctx->refs = config.numRefFrames;
+      }
+      else {
+        BOOST_LOG(warning) << "Client requested reference frame limit, but encoder doesn't support it!"sv;
+      }
     }
 
     ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
