@@ -1229,6 +1229,7 @@ namespace platf::dxgi {
       // while the client stream is HDR-capable. These UNORM formats can
       // use our normal pixel shaders that expect sRGB input.
       DXGI_FORMAT_B8G8R8A8_UNORM,
+      DXGI_FORMAT_B8G8R8X8_UNORM,
       DXGI_FORMAT_R8G8B8A8_UNORM,
     };
   }
