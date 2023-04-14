@@ -362,7 +362,7 @@ namespace platf::dxgi {
 
   std::vector<DXGI_FORMAT>
   display_ram_t::get_supported_capture_formats() {
-    return { DXGI_FORMAT_B8G8R8A8_UNORM };
+    return { DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8X8_UNORM };
   }
 
   int
