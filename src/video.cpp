@@ -277,8 +277,6 @@ namespace video {
     enum flag_e {
       PASSED,  // Is supported
       REF_FRAMES_RESTRICT,  // Set maximum reference frames
-      REF_FRAMES_AUTOSELECT,  // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
-      SLICE,  // Allow frame to be partitioned into multiple slices
       CBR,  // Some encoders don't support CBR, if not supported --> attempt constant quantatication parameter instead
       DYNAMIC_RANGE,  // hdr
       VUI_PARAMETERS,  // AMD encoder with VAAPI doesn't add VUI parameters to SPS
@@ -294,8 +292,6 @@ namespace video {
       switch (flag) {
         _CONVERT(PASSED);
         _CONVERT(REF_FRAMES_RESTRICT);
-        _CONVERT(REF_FRAMES_AUTOSELECT);
-        _CONVERT(SLICE);
         _CONVERT(CBR);
         _CONVERT(DYNAMIC_RANGE);
         _CONVERT(VUI_PARAMETERS);
@@ -1222,7 +1218,7 @@ namespace video {
       ctx->slices = std::max(config.slicesPerFrame, config::video.min_threads);
     }
 
-    if (!video_format[encoder_t::SLICE]) {
+    if (encoder.flags & SINGLE_SLICE_ONLY) {
       ctx->slices = 1;
     }
 
@@ -1870,17 +1866,14 @@ namespace video {
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
 
-    encoder.hevc[encoder_t::PASSED] = test_hevc;
-
     // First, test encoder viability
     config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
     config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
 
   retry:
     auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
-    auto autoselect_h264 = validate_config(disp, encoder, config_autoselect);
-
-    if (max_ref_frames_h264 < 0 && autoselect_h264 < 0) {
+    auto autoselect_h264 = max_ref_frames_h264 >= 0 ? max_ref_frames_h264 : validate_config(disp, encoder, config_autoselect);
+    if (autoselect_h264 < 0) {
       if (encoder.h264.qp && encoder.h264[encoder_t::CBR]) {
         // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
         encoder.h264.capabilities.set();
@@ -1900,20 +1893,16 @@ namespace video {
     }
 
     encoder.h264[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_h264 >= 0;
-    encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264 >= 0;
     encoder.h264[encoder_t::PASSED] = true;
 
-    encoder.h264[encoder_t::SLICE] = validate_config(disp, encoder, config_max_ref_frames);
     if (test_hevc) {
       config_max_ref_frames.videoFormat = 1;
       config_autoselect.videoFormat = 1;
 
     retry_hevc:
       auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
-      auto autoselect_hevc = validate_config(disp, encoder, config_autoselect);
-
-      // If HEVC must be supported, but it is not supported
-      if (max_ref_frames_hevc < 0 && autoselect_hevc < 0) {
+      auto autoselect_hevc = max_ref_frames_hevc >= 0 ? max_ref_frames_hevc : validate_config(disp, encoder, config_autoselect);
+      if (autoselect_hevc < 0) {
         if (encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
           // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
           encoder.hevc.capabilities.set();
@@ -1921,6 +1910,7 @@ namespace video {
           goto retry_hevc;
         }
 
+        // If HEVC must be supported, but it is not supported
         if (force_hevc) {
           return false;
         }
@@ -1931,19 +1921,12 @@ namespace video {
       }
 
       encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
-      encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc >= 0;
-
       encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
     }
 
     std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
       { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } },
     };
-
-    if (!(encoder.flags & SINGLE_SLICE_ONLY)) {
-      configs.emplace_back(
-        std::pair<encoder_t::flag_e, config_t> { encoder_t::SLICE, { 1920, 1080, 60, 1000, 2, 1, 1, 0, 0 } });
-    }
 
     for (auto &[flag, config] : configs) {
       auto h264 = config;
@@ -1958,11 +1941,6 @@ namespace video {
       if (encoder.hevc[encoder_t::PASSED]) {
         encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
       }
-    }
-
-    if (encoder.flags & SINGLE_SLICE_ONLY) {
-      encoder.h264.capabilities[encoder_t::SLICE] = false;
-      encoder.hevc.capabilities[encoder_t::SLICE] = false;
     }
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
