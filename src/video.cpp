@@ -1852,7 +1852,7 @@ namespace video {
   }
 
   bool
-  validate_encoder(encoder_t &encoder) {
+  validate_encoder(encoder_t &encoder, bool expect_failure) {
     std::shared_ptr<platf::display_t> disp;
 
     BOOST_LOG(info) << "Trying encoder ["sv << encoder.name << ']';
@@ -1871,7 +1871,9 @@ namespace video {
     config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
 
   retry:
-    auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
+    // If we're expecting failure, use the autoselect ref config first since that will always succeed
+    // if the encoder is available.
+    auto max_ref_frames_h264 = expect_failure ? -1 : validate_config(disp, encoder, config_max_ref_frames);
     auto autoselect_h264 = max_ref_frames_h264 >= 0 ? max_ref_frames_h264 : validate_config(disp, encoder, config_autoselect);
     if (autoselect_h264 < 0) {
       if (encoder.h264.qp && encoder.h264[encoder_t::CBR]) {
@@ -1881,6 +1883,10 @@ namespace video {
         goto retry;
       }
       return false;
+    }
+    else if (expect_failure) {
+      // We expected failure, but actually succeeded. Do the max_ref_frames probe we skipped.
+      max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
     }
 
     std::vector<std::pair<validate_flag_e, encoder_t::flag_e>> packet_deficiencies {
@@ -1975,7 +1981,8 @@ namespace video {
   probe_encoders() {
     auto encoder_list = encoders;
 
-    // Reset encoder selection
+    // Restart encoder selection
+    auto previous_encoder = chosen_encoder;
     chosen_encoder = nullptr;
 
     if (!config::video.encoder.empty()) {
@@ -1985,7 +1992,7 @@ namespace video {
 
         if (encoder->name == config::video.encoder) {
           // Remove the encoder from the list entirely if it fails validation
-          if (!validate_encoder(*encoder)) {
+          if (!validate_encoder(*encoder, previous_encoder && previous_encoder != encoder)) {
             pos = encoder_list.erase(pos);
             break;
           }
@@ -2016,7 +2023,7 @@ namespace video {
         auto encoder = *pos;
 
         // Remove the encoder from the list entirely if it fails validation
-        if (!validate_encoder(*encoder)) {
+        if (!validate_encoder(*encoder, previous_encoder && previous_encoder != encoder)) {
           pos = encoder_list.erase(pos);
           continue;
         }
@@ -2042,7 +2049,10 @@ namespace video {
       KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
-        if (!validate_encoder(*encoder)) {
+        // If we've used a previous encoder and it's not this one, we expect this encoder to
+        // fail to validate. It will use a slightly different order of checks to more quickly
+        // eliminate failing encoders.
+        if (!validate_encoder(*encoder, previous_encoder && previous_encoder != encoder)) {
           pos = encoder_list.erase(pos);
           continue;
         }
