@@ -107,6 +107,31 @@ namespace version {
   }
 }  // namespace version
 
+namespace lifetime {
+  static std::atomic_int desired_exit_code;
+
+  /**
+   * @brief Terminates Sunshine gracefully with the provided exit code
+   * @param exit_code The exit code to return from main()
+   * @param async Specifies whether our termination will be non-blocking
+   */
+  void
+  exit_sunshine(int exit_code, bool async) {
+    // Store the exit code of the first exit_sunshine() call
+    int zero = 0;
+    desired_exit_code.compare_exchange_strong(zero, exit_code);
+
+    // Raise SIGINT to start termination
+    std::raise(SIGINT);
+
+    // Termination will happen asynchronously, but the caller may
+    // have wanted synchronous behavior.
+    while (!async) {
+      std::this_thread::sleep_for(1s);
+    }
+  }
+}  // namespace lifetime
+
 /**
  * @brief Flush the log.
  *
@@ -159,13 +184,9 @@ LRESULT CALLBACK
 SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   switch (uMsg) {
     case WM_ENDSESSION: {
-      // Raise a SIGINT to trigger our cleanup logic and terminate ourselves
+      // Terminate ourselves with a blocking exit call
       std::cout << "Received WM_ENDSESSION"sv << std::endl;
-      std::raise(SIGINT);
-
-      // The signal handling is asynchronous, so we will wait here to be terminated.
-      // If for some reason we don't terminate in a few seconds, Windows will kill us.
-      SuspendThread(GetCurrentThread());
+      lifetime::exit_sunshine(0, false);
       return 0;
     }
     default:
@@ -376,7 +397,7 @@ main(int argc, char *argv[]) {
 
   // FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced
   if (shutdown_event->peek()) {
-    return 0;
+    return lifetime::desired_exit_code;
   }
 
   std::thread httpThread { nvhttp::start };
@@ -395,7 +416,7 @@ main(int argc, char *argv[]) {
   system_tray::end_tray();
 #endif
 
-  return 0;
+  return lifetime::desired_exit_code;
 }
 
 /**
