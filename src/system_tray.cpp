@@ -4,7 +4,10 @@
 // macros
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
 
-  #if defined(_WIN32) || defined(_WIN64)
+  #if defined(_WIN32)
+    #define WIN32_LEAN_AND_MEAN
+    #include <accctrl.h>
+    #include <aclapi.h>
     #define TRAY_ICON WEB_DIR "images/favicon.ico"
   #elif defined(__linux__) || defined(linux) || defined(__linux)
     #define TRAY_ICON "sunshine"
@@ -42,7 +45,7 @@ namespace system_tray {
     boost::filesystem::path working_dir;
 
     // if windows
-  #if defined(_WIN32) || defined(_WIN64)
+  #if defined(_WIN32)
     // set working dir to Windows system directory
     working_dir = boost::filesystem::path(std::getenv("SystemRoot"));
 
@@ -134,7 +137,7 @@ namespace system_tray {
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
-  #if defined(_WIN32) || defined(_WIN64)
+  #if defined(_WIN32)
     .tooltip = const_cast<char *>("Sunshine"),  // cast the string literal to a non-const char* pointer
   #endif
     .menu =
@@ -162,6 +165,75 @@ namespace system_tray {
  */
   int
   system_tray() {
+  #ifdef _WIN32
+    // If we're running as SYSTEM, Explorer.exe will not have permission to open our thread handle
+    // to monitor for thread termination. If Explorer fails to open our thread, our tray icon
+    // will persist forever if we terminate unexpectedly. To avoid this, we will modify our thread
+    // DACL to add an ACE that allows SYNCHRONIZE access to Everyone.
+    {
+      PACL old_dacl;
+      PSECURITY_DESCRIPTOR sd;
+      auto error = GetSecurityInfo(GetCurrentThread(),
+        SE_KERNEL_OBJECT,
+        DACL_SECURITY_INFORMATION,
+        nullptr,
+        nullptr,
+        &old_dacl,
+        nullptr,
+        &sd);
+      if (error != ERROR_SUCCESS) {
+        BOOST_LOG(warning) << "GetSecurityInfo() failed: "sv << error;
+        return 1;
+      }
+
+      auto free_sd = util::fail_guard([sd]() {
+        LocalFree(sd);
+      });
+
+      SID_IDENTIFIER_AUTHORITY sid_authority = SECURITY_WORLD_SID_AUTHORITY;
+      PSID world_sid;
+      if (!AllocateAndInitializeSid(&sid_authority, 1, SECURITY_WORLD_RID, 0, 0, 0, 0, 0, 0, 0, &world_sid)) {
+        error = GetLastError();
+        BOOST_LOG(warning) << "AllocateAndInitializeSid() failed: "sv << error;
+        return 1;
+      }
+
+      auto free_sid = util::fail_guard([world_sid]() {
+        FreeSid(world_sid);
+      });
+
+      EXPLICIT_ACCESS ea {};
+      ea.grfAccessPermissions = SYNCHRONIZE;
+      ea.grfAccessMode = GRANT_ACCESS;
+      ea.grfInheritance = NO_INHERITANCE;
+      ea.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+      ea.Trustee.ptstrName = (LPSTR) world_sid;
+
+      PACL new_dacl;
+      error = SetEntriesInAcl(1, &ea, old_dacl, &new_dacl);
+      if (error != ERROR_SUCCESS) {
+        BOOST_LOG(warning) << "SetEntriesInAcl() failed: "sv << error;
+        return 1;
+      }
+
+      auto free_new_dacl = util::fail_guard([new_dacl]() {
+        LocalFree(new_dacl);
+      });
+
+      error = SetSecurityInfo(GetCurrentThread(),
+        SE_KERNEL_OBJECT,
+        DACL_SECURITY_INFORMATION,
+        nullptr,
+        nullptr,
+        new_dacl,
+        nullptr);
+      if (error != ERROR_SUCCESS) {
+        BOOST_LOG(warning) << "SetSecurityInfo() failed: "sv << error;
+        return 1;
+      }
+    }
+  #endif
+
     if (tray_init(&tray) < 0) {
       BOOST_LOG(warning) << "Failed to create system tray"sv;
       return 1;
