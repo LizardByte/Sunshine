@@ -727,9 +727,10 @@ namespace platf {
 
   bool
   restart() {
-    // Raise SIGINT to trigger the graceful exit logic. The service will
-    // restart us in a few seconds.
-    std::raise(SIGINT);
+    // Gracefully exit. The service will restart us in a few seconds.
+    // We use an async exit call here because we can't block the
+    // HTTP thread or we'll hang shutdown.
+    lifetime::exit_sunshine(0, true);
     return true;
   }
 

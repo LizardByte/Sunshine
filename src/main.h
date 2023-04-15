@@ -79,4 +79,10 @@ namespace mail {
 #undef MAIL
 
 }  // namespace mail
+
+namespace lifetime {
+  void
+  exit_sunshine(int exit_code, bool async);
+}  // namespace lifetime
+
 #endif  // SUNSHINE_MAIN_H

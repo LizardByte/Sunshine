@@ -131,7 +131,15 @@ namespace system_tray {
   tray_quit_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Quiting from system tray"sv;
 
-    std::raise(SIGINT);
+  #ifdef _WIN32
+    // If we're running in a service, return a special status to
+    // tell it to terminate too, otherwise it will just respawn us.
+    if (GetConsoleWindow() == NULL) {
+      lifetime::exit_sunshine(ERROR_SHUTDOWN_IN_PROGRESS, false);
+    }
+  #endif
+
+    lifetime::exit_sunshine(0, false);
   }
 
   // Tray menu
