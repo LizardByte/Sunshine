@@ -101,8 +101,6 @@ namespace platf::dxgi {
   blob_t scene_NW_ps_hlsl;
 
   struct img_d3d_t: public platf::img_t {
-    std::shared_ptr<platf::display_t> display;
-
     // These objects are owned by the display_t's ID3D11Device
     texture2d_t capture_texture;
     render_target_t capture_rt;
@@ -1321,7 +1319,6 @@ namespace platf::dxgi {
     // Initialize format-independent fields
     img->width = width;
     img->height = height;
-    img->display = shared_from_this();
     img->id = next_image_id++;
 
     return img;
