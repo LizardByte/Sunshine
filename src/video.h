@@ -90,6 +90,8 @@ namespace video {
 
   extern color_t colors[6];
 
+  extern int active_hevc_mode;
+
   void
   capture(
     safe::mail_t mail,

@@ -19,6 +19,7 @@ extern "C" {
 #include "rtsp.h"
 #include "stream.h"
 #include "sync.h"
+#include "video.h"
 
 #include <unordered_map>
 
@@ -489,7 +490,7 @@ namespace rtsp_stream {
     option.content = const_cast<char *>(seqn_str.c_str());
 
     std::stringstream ss;
-    if (config::video.hevc_mode != 1) {
+    if (video::active_hevc_mode != 1) {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
     }
 
@@ -690,7 +691,7 @@ namespace rtsp_stream {
       }
     }
 
-    if (config.monitor.videoFormat != 0 && config::video.hevc_mode == 1) {
+    if (config.monitor.videoFormat != 0 && video::active_hevc_mode == 1) {
       BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
       respond(sock, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
