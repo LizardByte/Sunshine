@@ -159,7 +159,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "index.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -170,7 +172,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "pin.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -179,11 +183,11 @@ namespace confighttp {
 
     print_req(request);
 
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
-
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "apps.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
     response->write(header + content, headers);
   }
 
@@ -195,7 +199,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "clients.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -206,7 +212,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "config.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -217,7 +225,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "password.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -229,7 +239,9 @@ namespace confighttp {
     }
     std::string header = read_file(WEB_DIR "header-no-nav.html");
     std::string content = read_file(WEB_DIR "welcome.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -240,7 +252,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "troubleshooting.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -314,7 +328,9 @@ namespace confighttp {
     print_req(request);
 
     std::string content = read_file(config::stream.file_apps.c_str());
-    response->write(content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    response->write(content, headers);
   }
 
   void
