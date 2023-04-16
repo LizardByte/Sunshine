@@ -25,6 +25,7 @@ vaSyncBuffer(
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "src/video.h"
 
 using namespace std::literals;
 
@@ -626,11 +627,11 @@ namespace va {
       return false;
     }
 
-    if (config::video.hevc_mode > 1 && !query(display.get(), profile_e::HEVCMain)) {
+    if (video::active_hevc_mode > 1 && !query(display.get(), profile_e::HEVCMain)) {
       return false;
     }
 
-    if (config::video.hevc_mode > 2 && !query(display.get(), profile_e::HEVCMain10)) {
+    if (video::active_hevc_mode > 2 && !query(display.get(), profile_e::HEVCMain10)) {
       return false;
     }
 

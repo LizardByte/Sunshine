@@ -622,13 +622,13 @@ namespace nvhttp {
     tree.put("root.HttpsPort", map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", map_port(PORT_HTTP));
     tree.put("root.mac", platf::get_mac_address(local_endpoint.address().to_string()));
-    tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 1 ? "1869449984" : "0");
+    tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
     tree.put("root.LocalIP", local_endpoint.address().to_string());
 
-    if (config::video.hevc_mode == 3) {
+    if (video::active_hevc_mode == 3) {
       tree.put("root.ServerCodecModeSupport", "3843");
     }
-    else if (config::video.hevc_mode == 2) {
+    else if (video::active_hevc_mode == 2) {
       tree.put("root.ServerCodecModeSupport", "259");
     }
     else {
@@ -713,7 +713,7 @@ namespace nvhttp {
     for (auto &proc : proc::proc.get_apps()) {
       pt::ptree app;
 
-      app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
+      app.put("IsHdrSupported"s, video::active_hevc_mode == 3 ? 1 : 0);
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
 

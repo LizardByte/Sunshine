@@ -724,6 +724,7 @@ namespace video {
   };
 
   static encoder_t *chosen_encoder;
+  int active_hevc_mode;
 
   void
   reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, const config_t &config) {
@@ -1860,8 +1861,8 @@ namespace video {
       BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] failed"sv;
     });
 
-    auto force_hevc = config::video.hevc_mode >= 2;
-    auto test_hevc = force_hevc || (config::video.hevc_mode == 0 && !(encoder.flags & H264_ONLY));
+    auto force_hevc = active_hevc_mode >= 2;
+    auto test_hevc = force_hevc || (active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
 
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
@@ -1984,6 +1985,7 @@ namespace video {
     // Restart encoder selection
     auto previous_encoder = chosen_encoder;
     chosen_encoder = nullptr;
+    active_hevc_mode = config::video.hevc_mode;
 
     if (!config::video.encoder.empty()) {
       // If there is a specific encoder specified, use it if it passes validation
@@ -1998,9 +2000,9 @@ namespace video {
           }
 
           // If we can't satisfy both the encoder and HDR requirement, prefer the encoder over HDR support
-          if (config::video.hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
+          if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
             BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HDR on this system"sv;
-            config::video.hevc_mode = 0;
+            active_hevc_mode = 0;
           }
 
           chosen_encoder = encoder;
@@ -2018,7 +2020,7 @@ namespace video {
     BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
     // If we haven't found an encoder yet, but we want one with HDR support, search for that now.
-    if (chosen_encoder == nullptr && config::video.hevc_mode == 3) {
+    if (chosen_encoder == nullptr && active_hevc_mode == 3) {
       KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
@@ -2094,8 +2096,8 @@ namespace video {
       BOOST_LOG(info) << "Found encoder "sv << encoder.name << ": ["sv << encoder.h264.name << ']';
     }
 
-    if (config::video.hevc_mode == 0) {
-      config::video.hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
+    if (active_hevc_mode == 0) {
+      active_hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
     }
 
     return 0;
