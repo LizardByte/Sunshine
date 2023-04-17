@@ -48,7 +48,7 @@ apt-get install -y --no-install-recommends \
   libnuma-dev=2.0.12* \
   libopus-dev=1.3.1* \
   libpulse-dev=1:13.99.1* \
-  libssl-dev=1.1.1* \
+  libssl-dev=1.1.1f* \
   libva-dev=2.7.0* \
   libvdpau-dev=1.3* \
   libwayland-dev=1.18.0* \

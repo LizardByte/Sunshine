@@ -31,18 +31,18 @@ dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
   boost-devel-1.78.0* \
-  cmake-3.24.1* \
+  cmake-3.26.3* \
   gcc-12.2.1* \
   gcc-c++-12.2.1* \
   git-2.39.2* \
   libappindicator-gtk3-devel-12.10.1* \
   libcap-devel-2.48* \
   libcurl-devel-7.85.0* \
-  libdrm-devel-2.4.112* \
+  libdrm-devel-2.4.114* \
   libevdev-devel-1.13.0* \
-  libva-devel-2.15.0* \
+  libva-devel-2.16.0* \
   libvdpau-devel-1.5* \
-  libX11-devel-1.8.1* \
+  libX11-devel-1.8.4* \
   libxcb-devel-1.13.1* \
   libXcursor-devel-1.2.1* \
   libXfixes-devel-6.0.0* \
@@ -50,17 +50,17 @@ dnf -y install \
   libXinerama-devel-1.1.4* \
   libXrandr-devel-1.5.2* \
   libXtst-devel-1.2.3* \
-  mesa-libGL-devel-22.2.2* \
-  npm-8.15.0* \
+  mesa-libGL-devel-22.3.7* \
+  nodejs-npm-9.5.0* \
   numactl-devel-2.0.14* \
-  openssl-devel-3.0.5* \
+  openssl-devel-3.0.8* \
   opus-devel-1.3.1* \
   pulseaudio-libs-devel-16.1* \
   rpm-build-4.18.0* \
   wget-1.21.3* \
   which-2.21*
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  dnf -y install intel-mediasdk-devel-22.4.4*
+  dnf -y install intel-mediasdk-devel-22.5.4*
 fi
 dnf clean all
 rm -rf /var/cache/yum
