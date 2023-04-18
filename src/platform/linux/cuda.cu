@@ -1,5 +1,6 @@
 // #include <algorithm>
 #include <helper_math.h>
+#include <chrono>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -31,8 +32,10 @@ using namespace std::literals;
 
 //////////////////// Special desclarations
 /**
- * NVCC segfaults when including <chrono>
- * Therefore, some declarations need to be added explicitely
+ * NVCC tends to have problems with standard headers.
+ * Don't include common.h, instead use bare minimum
+ * of standard headers and duplicate declarations of necessary classes.
+ * Not pretty and extremely error-prone, fix at earliest convenience.
  */
 namespace platf {
 struct img_t: std::enable_shared_from_this<img_t> {
@@ -42,6 +45,8 @@ public:
   std::int32_t height {};
   std::int32_t pixel_pitch {};
   std::int32_t row_pitch {};
+
+  std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
 
   virtual ~img_t() = default;
 };

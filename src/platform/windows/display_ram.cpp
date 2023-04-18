@@ -1,4 +1,6 @@
 #include "display.h"
+
+#include "misc.h"
 #include "src/main.h"
 
 namespace platf {
@@ -192,6 +194,12 @@ namespace platf::dxgi {
       return capture_e::timeout;
     }
 
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+    if (auto qpc_displayed = std::max(frame_info.LastPresentTime.QuadPart, frame_info.LastMouseUpdateTime.QuadPart)) {
+      // Translate QueryPerformanceCounter() value to steady_clock time point
+      frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), qpc_displayed);
+    }
+
     if (frame_info.PointerShapeBufferSize > 0) {
       auto &img_data = cursor.img_data;
 
@@ -305,6 +313,10 @@ namespace platf::dxgi {
 
     if (cursor_visible && cursor.visible) {
       blend_cursor(cursor, *img);
+    }
+
+    if (img) {
+      img->frame_timestamp = frame_timestamp;
     }
 
     return capture_e::ok;
