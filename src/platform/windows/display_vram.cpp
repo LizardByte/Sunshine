@@ -11,6 +11,7 @@ extern "C" {
 }
 
 #include "display.h"
+#include "misc.h"
 #include "src/main.h"
 #include "src/video.h"
 
@@ -894,6 +895,12 @@ namespace platf::dxgi {
       return capture_e::timeout;
     }
 
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+    if (auto qpc_displayed = std::max(frame_info.LastPresentTime.QuadPart, frame_info.LastMouseUpdateTime.QuadPart)) {
+      // Translate QueryPerformanceCounter() value to steady_clock time point
+      frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), qpc_displayed);
+    }
+
     if (frame_info.PointerShapeBufferSize > 0) {
       DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info {};
 
@@ -1237,6 +1244,10 @@ namespace platf::dxgi {
     // Perform delayed destruction of the unused surface if the time is due.
     if (old_surface_delayed_destruction && old_surface_timestamp + 10s < std::chrono::steady_clock::now()) {
       old_surface_delayed_destruction.reset();
+    }
+
+    if (img_out) {
+      img_out->frame_timestamp = frame_timestamp;
     }
 
     return capture_e::ok;

@@ -870,6 +870,7 @@ namespace video {
         if (img_out) {
           // trim allocated but unused portion of the pool based on timeouts
           trim_imgs();
+          img_out->frame_timestamp.reset();
           return true;
         }
         else {
@@ -989,7 +990,7 @@ namespace video {
   }
 
   int
-  encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data) {
+  encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, const std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
     frame->pts = frame_nr;
 
     auto &ctx = session.ctx;
@@ -1040,6 +1041,10 @@ namespace video {
         session.replacements.emplace_back(
           std::string_view((char *) std::begin(sps.old), sps.old.size()),
           std::string_view((char *) std::begin(sps._new), sps._new.size()));
+      }
+
+      if (av_packet && av_packet->pts == frame_nr) {
+        packet->frame_timestamp = frame_timestamp;
       }
 
       packet->replacements = &session.replacements;
@@ -1402,9 +1407,12 @@ namespace video {
         idr_events->pop();
       }
 
+      std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+
       // Encode at a minimum of 10 FPS to avoid image quality issues with static content
       if (!frame->key_frame || images->peek()) {
         if (auto img = images->pop(100ms)) {
+          frame_timestamp = img->frame_timestamp;
           if (session->device->convert(*img)) {
             BOOST_LOG(error) << "Could not convert image"sv;
             return;
@@ -1415,7 +1423,7 @@ namespace video {
         }
       }
 
-      if (encode(frame_nr++, *session, frame, packets, channel_data)) {
+      if (encode(frame_nr++, *session, frame, packets, channel_data, frame_timestamp)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
@@ -1600,7 +1608,12 @@ namespace video {
             continue;
           }
 
-          if (encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data)) {
+          std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+          if (img) {
+            frame_timestamp = img->frame_timestamp;
+          }
+
+          if (encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data, frame_timestamp)) {
             BOOST_LOG(error) << "Could not encode video packet"sv;
             ctx->shutdown_event->raise(true);
 
@@ -1625,6 +1638,7 @@ namespace video {
 
       auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
         img_out = img;
+        img_out->frame_timestamp.reset();
         return true;
       };
 
@@ -1813,7 +1827,7 @@ namespace video {
 
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     while (!packets->peek()) {
-      if (encode(1, *session, frame, packets, nullptr)) {
+      if (encode(1, *session, frame, packets, nullptr, {})) {
         return -1;
       }
     }

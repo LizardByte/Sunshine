@@ -8,6 +8,8 @@
 #include <fstream>
 #include <openssl/err.h>
 
+#include <boost/endian/arithmetic.hpp>
+
 extern "C" {
 #include <moonlight-common-c/src/RtpAudioQueue.h>
 #include <moonlight-common-c/src/Video.h>
@@ -74,7 +76,11 @@ namespace stream {
     }
 
     std::uint8_t headerType;  // Always 0x01 for short headers
-    std::uint8_t unknown[2];
+
+    // Sunshine extension
+    // Frame processing latency, in 1/10 ms units
+    //     zero when the frame is repeated or there is no backend implementation
+    boost::endian::little_uint16_at frame_processing_latency;
 
     // Currently known values:
     // 1 = Normal P-frame
@@ -1012,6 +1018,19 @@ namespace stream {
       video_short_frame_header_t frame_header = {};
       frame_header.headerType = 0x01;  // Short header type
       frame_header.frameType = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
+
+      if (packet->frame_timestamp) {
+        auto duration_to_latency = [](const std::chrono::steady_clock::duration &duration) {
+          const auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+          return (uint16_t) std::clamp<decltype(duration_us)>((duration_us + 50) / 100, 0, std::numeric_limits<uint16_t>::max());
+        };
+
+        uint16_t latency = duration_to_latency(std::chrono::steady_clock::now() - *packet->frame_timestamp);
+        frame_header.frame_processing_latency = latency;
+      }
+      else {
+        frame_header.frame_processing_latency = 0;
+      }
 
       std::copy_n((uint8_t *) &frame_header, sizeof(frame_header), std::back_inserter(payload_new));
       std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));

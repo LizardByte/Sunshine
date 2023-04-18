@@ -48,6 +48,8 @@ namespace video {
     AVPacket *av_packet;
     std::vector<replace_t> *replacements;
     void *channel_data;
+
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
   };
 
   using packet_t = std::unique_ptr<packet_raw_t>;

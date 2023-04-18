@@ -1020,4 +1020,25 @@ namespace platf {
 
     return std::make_unique<qos_t>(flow_id);
   }
+  int64_t
+  qpc_counter() {
+    LARGE_INTEGER performace_counter;
+    if (QueryPerformanceCounter(&performace_counter)) return performace_counter.QuadPart;
+    return 0;
+  }
+
+  std::chrono::nanoseconds
+  qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2) {
+    auto get_frequency = []() {
+      LARGE_INTEGER frequency;
+      frequency.QuadPart = 0;
+      QueryPerformanceFrequency(&frequency);
+      return frequency.QuadPart;
+    };
+    static const double frequency = get_frequency();
+    if (frequency) {
+      return std::chrono::nanoseconds((int64_t) ((performance_counter1 - performance_counter2) * frequency / std::nano::den));
+    }
+    return {};
+  }
 }  // namespace platf
