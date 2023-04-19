@@ -550,6 +550,31 @@
           Disable if you encounter any VSync-related issues.
         </div>
       </div>
+      <!--Unpaced-->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="unpaced" class="form-label">Experimental: Unpaced Frames</label>
+        <select id="unpaced" class="form-select" v-model="config.unpaced">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Don't try to match client frame rate and stream every frame the host produces as soon as possible.<br />
+          Can significantly improve frame time stability.
+        </div>
+      </div>
+      <!--Serial-->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="serial" class="form-label">Experimental: Serial Processing</label>
+        <select id="serial" class="form-select" v-model="config.serial">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Don't use parallel devices for capture and encode.<br />
+          Improves frame time stability and lowers overall streaming performance hit.<br />
+          Lowers max theoretical throughput, use only if your gpu hardware encoder has enough headroom (most do).
+        </div>
+      </div>
       <div class="mb-3 config-page" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
         <input
@@ -984,6 +1009,8 @@
     "capture": "",
     "controller": "enabled",
     "dwmflush": "enabled",
+    "unpaced": "disabled",
+    "serial": "disabled",
     "encoder": "",
     "fps": "[10,30,60,90,120]",
     "gamepad": "x360",

@@ -32,7 +32,7 @@ namespace platf::dxgi {
       return capture_status;
     }
 
-    if (use_dwmflush) {
+    if (!config::video.unpaced && use_dwmflush) {
       DwmFlush();
     }
 
@@ -110,6 +110,13 @@ namespace platf::dxgi {
       CloseHandle(timer);
     });
 
+    if (config::video.unpaced) {
+      BOOST_LOG(info) << "Using experimental unpaced path";
+    }
+    if (config::video.serial) {
+      BOOST_LOG(info) << "Using experimental serial path";
+    }
+
     while (true) {
       // This will return false if the HDR state changes or for any number of other
       // display or GPU changes. We should reinit to examine the updated state of
@@ -118,25 +125,36 @@ namespace platf::dxgi {
         return platf::capture_e::reinit;
       }
 
-      // If the wait time is between 1 us and 1 second, wait the specified time
-      // and offset the next frame time from the exact current frame time target.
-      auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
-      if (wait_time_us > 0 && wait_time_us < 1000000) {
-        LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
-        SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
-        WaitForSingleObject(timer, INFINITE);
-        next_frame += delay;
-      }
-      else {
-        // If the wait time is negative (meaning the frame is past due) or the
-        // computed wait time is beyond a second (meaning possible clock issues),
-        // just capture the frame now and resynchronize the frame interval with
-        // the current time.
-        next_frame = std::chrono::steady_clock::now() + delay;
+      if (!config::video.unpaced) {
+        // If the wait time is between 1 us and 1 second, wait the specified time
+        // and offset the next frame time from the exact current frame time target.
+        auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
+        if (wait_time_us > 0 && wait_time_us < 1000000) {
+          LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
+          SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
+          WaitForSingleObject(timer, INFINITE);
+          next_frame += delay;
+        }
+        else {
+          // If the wait time is negative (meaning the frame is past due) or the
+          // computed wait time is beyond a second (meaning possible clock issues),
+          // just capture the frame now and resynchronize the frame interval with
+          // the current time.
+          next_frame = std::chrono::steady_clock::now() + delay;
+        }
       }
 
       std::shared_ptr<img_t> img_out;
-      auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
+
+      std::chrono::milliseconds timeout = 1000ms;
+      if (config::video.serial) {
+        timeout = 100ms;
+        if (config::video.unpaced && mouse_pointer_visible) {
+          timeout = 0ms;
+        }
+      }
+
+      auto status = snapshot(pull_free_image_cb, img_out, timeout, *cursor);
       switch (status) {
         case platf::capture_e::reinit:
         case platf::capture_e::error:
@@ -155,6 +173,11 @@ namespace platf::dxgi {
         default:
           BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
           return status;
+      }
+
+      if (config::video.unpaced && mouse_pointer_visible) {
+        // Wait for vblank and flush Desktop Duplication API mouse pointer updates.
+        DwmFlush();
       }
     }
 

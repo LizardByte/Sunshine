@@ -57,6 +57,8 @@ namespace config {
     std::string adapter_name;
     std::string output_name;
     bool dwmflush;
+    bool unpaced;
+    bool serial;
   };
 
   struct audio_t {

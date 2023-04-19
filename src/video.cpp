@@ -1765,7 +1765,11 @@ namespace video {
     auto idr_events = mail->event<bool>(mail::idr);
 
     idr_events->raise(true);
+#ifdef _WIN32
+    if ((chosen_encoder->flags & PARALLEL_ENCODING) && !config::video.serial) {
+#else
     if (chosen_encoder->flags & PARALLEL_ENCODING) {
+#endif
       capture_async(std::move(mail), config, channel_data);
     }
     else {

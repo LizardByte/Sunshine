@@ -11,6 +11,7 @@ extern "C" {
 }
 
 #include "display.h"
+#include "src/config.h"
 #include "src/main.h"
 #include "src/video.h"
 
@@ -105,6 +106,7 @@ namespace platf::dxgi {
     texture2d_t capture_texture;
     render_target_t capture_rt;
     keyed_mutex_t capture_mutex;
+    shader_res_t capture_srv;
 
     // This is the shared handle used by hwdevice_t to open capture_texture
     HANDLE encoder_texture_handle = {};
@@ -360,28 +362,44 @@ namespace platf::dxgi {
   public:
     int
     convert(platf::img_t &img_base) override {
-      // Garbage collect mapped capture images whose weak references have expired
-      for (auto it = img_ctx_map.begin(); it != img_ctx_map.end();) {
-        if (it->second.img_weak.expired()) {
-          it = img_ctx_map.erase(it);
+      auto &img = (img_d3d_t &) img_base;
+
+      auto get_locked_img_srv = [&]() -> std::tuple<ID3D11ShaderResourceView *, texture_lock_helper> {
+        if (config::video.serial) {
+          return { img.capture_srv.get(), nullptr };
         }
         else {
-          it++;
+          // Garbage collect mapped capture images whose weak references have expired
+          for (auto it = img_ctx_map.begin(); it != img_ctx_map.end();) {
+            if (it->second.img_weak.expired()) {
+              it = img_ctx_map.erase(it);
+            }
+            else {
+              it++;
+            }
+          }
+
+          auto &img_ctx = img_ctx_map[img.id];
+
+          // Open the shared capture texture with our ID3D11Device
+          if (initialize_image_context(img, img_ctx)) {
+            return { nullptr, nullptr };
+          }
+
+          // Acquire encoder mutex to synchronize with capture code
+          auto lock_helper = texture_lock_helper(img_ctx.encoder_mutex.get());
+          if (!lock_helper.lock()) {
+            BOOST_LOG(error) << "Failed to acquire encoder texture mutex";
+            return { nullptr, nullptr };
+          }
+
+          return { img_ctx.encoder_input_res.get(), std::move(lock_helper) };
         }
-      }
+      };
 
-      auto &img = (img_d3d_t &) img_base;
-      auto &img_ctx = img_ctx_map[img.id];
+      auto [img_srv, optional_lock] = get_locked_img_srv();
 
-      // Open the shared capture texture with our ID3D11Device
-      if (initialize_image_context(img, img_ctx)) {
-        return -1;
-      }
-
-      // Acquire encoder mutex to synchronize with capture code
-      auto status = img_ctx.encoder_mutex->AcquireSync(0, INFINITE);
-      if (status != S_OK) {
-        BOOST_LOG(error) << "Failed to acquire encoder mutex [0x"sv << util::hex(status).to_string_view() << ']';
+      if (!img_srv) {
         return -1;
       }
 
@@ -389,7 +407,7 @@ namespace platf::dxgi {
       device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
       device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_fp16_ps.get() : convert_Y_ps.get(), nullptr, 0);
       device_ctx->RSSetViewports(1, &outY_view);
-      device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
+      device_ctx->PSSetShaderResources(0, 1, &img_srv);
       device_ctx->Draw(3, 0);
 
       device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
@@ -397,9 +415,6 @@ namespace platf::dxgi {
       device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
       device_ctx->RSSetViewports(1, &outUV_view);
       device_ctx->Draw(3, 0);
-
-      // Release encoder mutex to allow capture code to reuse this image
-      img_ctx.encoder_mutex->ReleaseSync(0);
 
       ID3D11ShaderResourceView *emptyShaderResourceView = nullptr;
       device_ctx->PSSetShaderResources(0, 1, &emptyShaderResourceView);
@@ -569,33 +584,42 @@ namespace platf::dxgi {
     }
 
     int
-    init(
-      std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p,
-      pix_fmt_e pix_fmt) {
-      D3D_FEATURE_LEVEL featureLevels[] {
-        D3D_FEATURE_LEVEL_11_1,
-        D3D_FEATURE_LEVEL_11_0,
-        D3D_FEATURE_LEVEL_10_1,
-        D3D_FEATURE_LEVEL_10_0,
-        D3D_FEATURE_LEVEL_9_3,
-        D3D_FEATURE_LEVEL_9_2,
-        D3D_FEATURE_LEVEL_9_1
-      };
+    init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
+      HRESULT status;
 
-      HRESULT status = D3D11CreateDevice(
-        adapter_p,
-        D3D_DRIVER_TYPE_UNKNOWN,
-        nullptr,
-        D3D11_CREATE_DEVICE_FLAGS,
-        featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
-        D3D11_SDK_VERSION,
-        &device,
-        nullptr,
-        &device_ctx);
+      if (config::video.serial) {
+        auto display_vram = (display_vram_t *) display.get();
+        device.reset(display_vram->device.get());
+        device->AddRef();
+        device_ctx.reset(display_vram->device_ctx.get());
+        device_ctx->AddRef();
+      }
+      else {
+        D3D_FEATURE_LEVEL featureLevels[] {
+          D3D_FEATURE_LEVEL_11_1,
+          D3D_FEATURE_LEVEL_11_0,
+          D3D_FEATURE_LEVEL_10_1,
+          D3D_FEATURE_LEVEL_10_0,
+          D3D_FEATURE_LEVEL_9_3,
+          D3D_FEATURE_LEVEL_9_2,
+          D3D_FEATURE_LEVEL_9_1
+        };
 
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create encoder D3D11 device [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
+        status = D3D11CreateDevice(
+          adapter_p,
+          D3D_DRIVER_TYPE_UNKNOWN,
+          nullptr,
+          D3D11_CREATE_DEVICE_FLAGS,
+          featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+          D3D11_SDK_VERSION,
+          &device,
+          nullptr,
+          &device_ctx);
+
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Failed to create encoder D3D11 device [0x"sv << util::hex(status).to_string_view() << ']';
+          return -1;
+        }
       }
 
       dxgi::dxgi_t dxgi;
@@ -921,6 +945,8 @@ namespace platf::dxgi {
       cursor_xor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
     }
 
+    mouse_pointer_visible = (cursor_alpha.visible || cursor_xor.visible);
+
     const bool blend_mouse_cursor_flag = (cursor_alpha.visible || cursor_xor.visible) && cursor_visible;
 
     texture2d_t src {};
@@ -1062,6 +1088,11 @@ namespace platf::dxgi {
       // also creates synchonization primitives for shared access from multiple direct3d devices.
       if (complete_img(d3d_img.get(), dummy)) return { nullptr, nullptr };
 
+      // Don't need to lock the image because we're using a single direct3d device
+      if (config::video.serial) {
+        return { std::move(d3d_img), nullptr };
+      }
+
       // This image is shared between capture direct3d device and encoders direct3d devices,
       // we must acquire lock before doing anything to it.
       texture_lock_helper lock_helper(d3d_img->capture_mutex.get());
@@ -1088,7 +1119,7 @@ namespace platf::dxgi {
         std::shared_ptr<platf::img_t> img;
         if (!pull_free_image_cb(img)) return capture_e::interrupted;
 
-        auto [d3d_img, lock] = get_locked_d3d_img(img);
+        auto [d3d_img, optional_lock] = get_locked_d3d_img(img);
         if (!d3d_img) return capture_e::error;
 
         device_ctx->CopyResource(d3d_img->capture_texture.get(), p_surface->get());
@@ -1107,7 +1138,7 @@ namespace platf::dxgi {
           BOOST_LOG(error) << "Logical error at " << __FILE__ << ":" << __LINE__;
           return capture_e::error;
         }
-        auto [d3d_img, lock] = get_locked_d3d_img(*p_img);
+        auto [d3d_img, optional_lock] = get_locked_d3d_img(*p_img);
         if (!d3d_img) return capture_e::error;
 
         p_img = nullptr;
@@ -1125,7 +1156,7 @@ namespace platf::dxgi {
         std::shared_ptr<platf::img_t> img;
         if (!pull_free_image_cb(img)) return capture_e::interrupted;
 
-        auto [d3d_img, lock] = get_locked_d3d_img(img);
+        auto [d3d_img, optional_lock] = get_locked_d3d_img(img);
         if (!d3d_img) return capture_e::error;
 
         device_ctx->CopyResource(d3d_img->capture_texture.get(), src.get());
@@ -1201,7 +1232,7 @@ namespace platf::dxgi {
 
         if (!pull_free_image_cb(img_out)) return capture_e::interrupted;
 
-        auto [d3d_img, lock] = get_locked_d3d_img(img_out);
+        auto [d3d_img, optional_lock] = get_locked_d3d_img(img_out);
         if (!d3d_img) return capture_e::error;
 
         device_ctx->CopyResource(d3d_img->capture_texture.get(), p_surface->get());
@@ -1217,7 +1248,7 @@ namespace platf::dxgi {
         auto old_d3d_img = (img_d3d_t *) img_out.get();
         bool reclear_dummy = old_d3d_img->dummy && old_d3d_img->capture_texture;
 
-        auto [d3d_img, lock] = get_locked_d3d_img(img_out, true);
+        auto [d3d_img, optional_lock] = get_locked_d3d_img(img_out, true);
         if (!d3d_img) return capture_e::error;
 
         if (reclear_dummy) {
@@ -1365,7 +1396,7 @@ namespace platf::dxgi {
     t.Usage = D3D11_USAGE_DEFAULT;
     t.Format = img->format;
     t.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-    t.MiscFlags = D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+    t.MiscFlags = config::video.serial ? 0 : (D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX);
 
     HRESULT status;
     if (dummy) {
@@ -1392,25 +1423,35 @@ namespace platf::dxgi {
       return -1;
     }
 
-    // Get the keyed mutex to synchronize with the encoding code
-    status = img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &img->capture_mutex);
-    if (FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+    if (config::video.serial) {
+      // Create the SRV for the capture texture
+      status = device->CreateShaderResourceView(img->capture_texture.get(), nullptr, &img->capture_srv);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create shader resource view for capture [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
+    else {
+      // Get the keyed mutex to synchronize with the encoding code
+      status = img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &img->capture_mutex);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
 
-    resource1_t resource;
-    status = img->capture_texture->QueryInterface(__uuidof(IDXGIResource1), (void **) &resource);
-    if (FAILED(status)) {
-      BOOST_LOG(error) << "Failed to query IDXGIResource1 [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
+      resource1_t resource;
+      status = img->capture_texture->QueryInterface(__uuidof(IDXGIResource1), (void **) &resource);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIResource1 [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
 
-    // Create a handle for the encoder device to use to open this texture
-    status = resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ, nullptr, &img->encoder_texture_handle);
-    if (FAILED(status)) {
-      BOOST_LOG(error) << "Failed to create shared texture handle [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
+      // Create a handle for the encoder device to use to open this texture
+      status = resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ, nullptr, &img->encoder_texture_handle);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create shared texture handle [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
 
     img->data = (std::uint8_t *) img->capture_texture.get();

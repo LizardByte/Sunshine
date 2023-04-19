@@ -163,6 +163,8 @@ namespace platf::dxgi {
       return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
     }
 
+    bool mouse_pointer_visible = false;
+
     const char *
     dxgi_format_to_string(DXGI_FORMAT format);
     const char *
