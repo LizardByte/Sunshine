@@ -5,6 +5,7 @@ runtime-version: "22.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node18
+  - org.freedesktop.Sdk.Extension.llvm15
 command: sunshine
 separate-locales: false
 finish-args:
@@ -152,6 +153,7 @@ modules:
               - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
   - name: numactl
+    disabled: false
     buildsystem: autotools
     make-args:
       - install
@@ -172,6 +174,12 @@ modules:
   - name: cuda
     disabled: false
     buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/llvm15/bin
+      prepend-ld-library-path: /usr/lib/sdk/llvm15/lib
+      env:
+        CC: clang
+        CXX: clang++
     only-arches:
       - x86_64
       - aarch64
@@ -187,8 +195,8 @@ modules:
       - type: file
         only-arches:
           - x86_64
-        url: https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run
-        sha256: 905e9b9516900839fb76064719db752439f38b8cb730b49335d8bd53ddfad392
+        url: https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run
+        sha256: 9223c4af3aebe4a7bbed9abd9b163b03a1b34b855fbc2b4a0d1b706ac09a5a16
         dest-filename: cuda.run
       - type: file
         only-arches:
