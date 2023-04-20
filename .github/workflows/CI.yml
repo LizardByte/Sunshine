@@ -176,6 +176,7 @@ jobs:
             org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.llvm15/${{ matrix.arch }}/${PLATFORM_VERSION} \
             "
 
       - name: Cache Flatpak build
