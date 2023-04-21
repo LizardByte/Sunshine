@@ -211,13 +211,16 @@ modules:
     no-make-install: false
     builddir: true
     build-options:
-      append-path: /usr/lib/sdk/node18/bin
+      append-path: /usr/lib/sdk/node18/bin:/usr/lib/sdk/llvm15/bin
+      prepend-ld-library-path: /usr/lib/sdk/llvm15/lib
       build-args:
         - --share=network
       cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
       env:
         npm_config_nodedir: /usr/lib/sdk/node18
         NPM_CONFIG_LOGLEVEL: info
+        CC: clang
+        CXX: clang++
     build-commands:
       # Install npm dependencies
       - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
