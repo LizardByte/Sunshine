@@ -50,7 +50,7 @@ dnf -y install \
   libXinerama-devel-1.1.4* \
   libXrandr-devel-1.5.2* \
   libXtst-devel-1.2.3* \
-  mesa-libGL-devel-22.3.7* \
+  mesa-libGL-devel-23.0.2* \
   nodejs-npm-9.5.0* \
   numactl-devel-2.0.14* \
   openssl-devel-3.0.8* \
