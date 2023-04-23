@@ -737,7 +737,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
             "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
         IfSilent +2 0
         ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset /T'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\\credentials\\\" /inheritance:r'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\\credentials\\\" \
                                   /grant:r Administrators:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
