@@ -108,6 +108,7 @@ namespace version {
 }  // namespace version
 
 namespace lifetime {
+  static char **argv;
   static std::atomic_int desired_exit_code;
 
   /**
@@ -129,6 +130,14 @@ namespace lifetime {
     while (!async) {
       std::this_thread::sleep_for(1s);
     }
+  }
+
+  /**
+   * @brief Gets the argv array passed to main()
+   */
+  char **
+  get_argv() {
+    return argv;
   }
 }  // namespace lifetime
 
@@ -207,6 +216,8 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
  */
 int
 main(int argc, char *argv[]) {
+  lifetime::argv = argv;
+
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32

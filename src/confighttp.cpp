@@ -544,7 +544,6 @@ namespace confighttp {
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
-    outputTree.put("restart_supported", platf::restart_supported());
 
     auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
@@ -595,30 +594,8 @@ namespace confighttp {
 
     print_req(request);
 
-    std::stringstream ss;
-    std::stringstream configStream;
-    ss << request->content.rdbuf();
-    pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
-    if (!platf::restart_supported()) {
-      outputTree.put("status", false);
-      outputTree.put("error", "Restart is not currently supported on this platform");
-      return;
-    }
-
-    if (!platf::restart()) {
-      outputTree.put("status", false);
-      outputTree.put("error", "Restart failed");
-      return;
-    }
-
-    outputTree.put("status", true);
+    // We may not return from this call
+    platf::restart();
   }
 
   void

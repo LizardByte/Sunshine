@@ -399,9 +399,7 @@ namespace platf {
   void
   streaming_will_stop();
 
-  bool
-  restart_supported();
-  bool
+  void
   restart();
 
   struct batched_send_info_t {

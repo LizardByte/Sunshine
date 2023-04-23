@@ -193,16 +193,34 @@ namespace platf {
     // Nothing to do
   }
 
-  bool
-  restart_supported() {
-    // Restart not supported yet
-    return false;
+  void
+  restart_on_exit() {
+    char executable[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
+    if (len == -1) {
+      BOOST_LOG(fatal) << "readlink() failed: "sv << errno;
+      return;
+    }
+    executable[len] = '\0';
+
+    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
+    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
+      close(fd);
+    }
+
+    // Re-exec ourselves with the same arguments
+    if (execv(executable, lifetime::get_argv()) < 0) {
+      BOOST_LOG(fatal) << "execv() failed: "sv << errno;
+      return;
+    }
   }
 
-  bool
+  void
   restart() {
-    // Restart not supported yet
-    return false;
+    // Gracefully clean up and restart ourselves instead of exiting
+    atexit(restart_on_exit);
+    lifetime::exit_sunshine(0, true);
   }
 
   bool
