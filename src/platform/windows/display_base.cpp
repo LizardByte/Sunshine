@@ -175,9 +175,12 @@ namespace platf::dxgi {
           return status;
       }
 
-      if (config::video.unpaced && mouse_pointer_visible) {
-        // Wait for vblank and flush Desktop Duplication API mouse pointer updates.
-        DwmFlush();
+      if (config::video.unpaced) {
+        dup.release_frame();
+        if (mouse_pointer_visible && output) {
+          // Limit and pace mouse pointer updates.
+          output->WaitForVBlank();
+        }
       }
     }
 
