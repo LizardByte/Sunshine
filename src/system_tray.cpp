@@ -124,6 +124,17 @@ namespace system_tray {
   }
 
   /**
+ * @brief Callback for restarting Sunshine from the system tray.
+ * @param item The tray menu item.
+ */
+  void
+  tray_restart_cb(struct tray_menu *item) {
+    BOOST_LOG(info) << "Restarting from system tray"sv;
+
+    platf::restart();
+  }
+
+  /**
  * @brief Callback for exiting Sunshine from the system tray.
  * @param item The tray menu item.
  */
@@ -162,6 +173,7 @@ namespace system_tray {
               { .text = "PayPal", .cb = tray_donate_paypal_cb },
               { .text = nullptr } } },
         { .text = "-" },
+        { .text = "Restart", .cb = tray_restart_cb },
         { .text = "Quit", .cb = tray_quit_cb },
         { .text = nullptr } },
   };

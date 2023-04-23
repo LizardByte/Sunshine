@@ -69,6 +69,8 @@ namespace mail {
 namespace lifetime {
   void
   exit_sunshine(int exit_code, bool async);
+  char **
+  get_argv();
 }  // namespace lifetime
 
 #endif  // SUNSHINE_MAIN_H

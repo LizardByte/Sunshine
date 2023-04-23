@@ -3,6 +3,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
+#include <mach-o/dyld.h>
 #include <net/if_dl.h>
 #include <pwd.h>
 
@@ -192,16 +193,33 @@ namespace platf {
     // Nothing to do
   }
 
-  bool
-  restart_supported() {
-    // Restart not supported yet
-    return false;
+  void
+  restart_on_exit() {
+    char executable[2048];
+    uint32_t size = sizeof(executable);
+    if (_NSGetExecutablePath(executable, &size) < 0) {
+      BOOST_LOG(fatal) << "NSGetExecutablePath() failed: "sv << errno;
+      return;
+    }
+
+    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
+    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
+      close(fd);
+    }
+
+    // Re-exec ourselves with the same arguments
+    if (execv(executable, lifetime::get_argv()) < 0) {
+      BOOST_LOG(fatal) << "execv() failed: "sv << errno;
+      return;
+    }
   }
 
-  bool
+  void
   restart() {
-    // Restart not supported yet
-    return false;
+    // Gracefully clean up and restart ourselves instead of exiting
+    atexit(restart_on_exit);
+    lifetime::exit_sunshine(0, true);
   }
 
   bool

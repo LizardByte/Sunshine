@@ -809,19 +809,49 @@ namespace platf {
     }
   }
 
-  bool
-  restart_supported() {
-    // Restart is supported if we're running from the service
-    return (GetConsoleWindow() == NULL);
+  void
+  restart_on_exit() {
+    STARTUPINFOEXW startup_info {};
+    startup_info.StartupInfo.cb = sizeof(startup_info);
+
+    WCHAR executable[MAX_PATH];
+    if (GetModuleFileNameW(NULL, executable, ARRAYSIZE(executable)) == 0) {
+      auto winerr = GetLastError();
+      BOOST_LOG(fatal) << "Failed to get Sunshine path: "sv << winerr;
+      return;
+    }
+
+    PROCESS_INFORMATION process_info;
+    if (!CreateProcessW(executable,
+          GetCommandLineW(),
+          nullptr,
+          nullptr,
+          false,
+          CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
+          nullptr,
+          nullptr,
+          (LPSTARTUPINFOW) &startup_info,
+          &process_info)) {
+      auto winerr = GetLastError();
+      BOOST_LOG(fatal) << "Unable to restart Sunshine: "sv << winerr;
+      return;
+    }
+
+    CloseHandle(process_info.hProcess);
+    CloseHandle(process_info.hThread);
   }
 
-  bool
+  void
   restart() {
-    // Gracefully exit. The service will restart us in a few seconds.
-    // We use an async exit call here because we can't block the
-    // HTTP thread or we'll hang shutdown.
+    // If we're running standalone, we have to respawn ourselves via CreateProcess().
+    // If we're running from the service, we should just exit and let it respawn us.
+    if (GetConsoleWindow() != NULL) {
+      // Avoid racing with the new process by waiting until we're exiting to start it.
+      atexit(restart_on_exit);
+    }
+
+    // We use an async exit call here because we can't block the HTTP thread or we'll hang shutdown.
     lifetime::exit_sunshine(0, true);
-    return true;
   }
 
   SOCKADDR_IN
