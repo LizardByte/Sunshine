@@ -414,6 +414,41 @@ dwmflush
 
       dwmflush = enabled
 
+unpaced
+^^^^^^^^
+
+**Description**
+   Don't try to match client frame rate and stream every frame the host produces as soon as possible.
+   Can significantly improve frame time stability.
+
+   .. Caution:: Applies to Windows only. Experimental option.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      unpaced = enabled
+
+serial
+^^^^^^^^
+
+**Description**
+   Don't use parallel devices for capture and encode.
+   Improves frame time stability and lowers overall streaming performance hit.
+   Lowers max theoretical throughput, use only if your gpu hardware encoder has enough headroom (most do).
+
+   .. Caution:: Applies to Windows only. Experimental option.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      serial = enabled
+
 Audio
 -----
 
