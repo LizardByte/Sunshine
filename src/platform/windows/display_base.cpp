@@ -127,7 +127,7 @@ namespace platf::dxgi {
       }
 
       if (!config::video.unpaced) {
-        // If the wait time is between 1 us and 1 second, wait the specified time
+        // If the wait time is between 1 microsecond and 1 second, wait the specified time
         // and offset the next frame time from the exact current frame time target.
         auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
         if (wait_time_us > 0 && wait_time_us < 1000000) {
