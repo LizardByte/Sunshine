@@ -177,7 +177,7 @@ namespace platf::dxgi {
       }
 
       if (config::video.unpaced && mouse_pointer_visible) {
-        // Release desktop duplication frame so mouse updates won't be delayed.
+        // Release desktop duplication frame so mouse pointer updates won't be delayed.
         auto status = dup.release_frame();
         if (status != platf::capture_e::ok) {
           return status;
