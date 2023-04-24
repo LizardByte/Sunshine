@@ -429,7 +429,7 @@ unpaced
 **Example**
    .. code-block:: text
 
-      unpaced = enabled
+      unpaced = disabled
 
 serial
 ^^^^^^^^
@@ -447,7 +447,7 @@ serial
 **Example**
    .. code-block:: text
 
-      serial = enabled
+      serial = disabled
 
 Audio
 -----
