@@ -14,6 +14,7 @@
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "src/video_colorspace.h"
 
 #define SUNSHINE_STRINGIFY_HELPER(x) #x
 #define SUNSHINE_STRINGIFY(x) SUNSHINE_STRINGIFY_HELPER(x)
@@ -327,7 +328,7 @@ namespace egl {
     load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
 
     void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
+    apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 
     // The first texture is the monitor image.
     // The second texture is the cursor image

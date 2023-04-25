@@ -290,9 +290,9 @@ namespace va {
   }
 
   int
-  vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf);
+  vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
 
-  class va_t: public platf::hwdevice_t {
+  class va_t: public platf::avcodec_encode_device_t {
   public:
     int
     init(int in_width, int in_height, file_t &&render_device) {
@@ -304,7 +304,7 @@ namespace va {
         return -1;
       }
 
-      this->data = (void *) vaapi_make_hwdevice_ctx;
+      this->data = (void *) vaapi_init_avcodec_hardware_input_buffer;
 
       gbm.reset(gbm::create_device(file.el));
       if (!gbm) {
@@ -398,8 +398,8 @@ namespace va {
     }
 
     void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
-      sws.set_colorspace(colorspace, color_range);
+    apply_colorspace() override {
+      sws.apply_colorspace(colorspace);
     }
 
     va::display_t::pointer va_display;
@@ -526,7 +526,7 @@ namespace va {
   }
 
   int
-  vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf) {
+  vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *base, AVBufferRef **hw_device_buf) {
     if (!va::initialize) {
       BOOST_LOG(warning) << "libva not loaded"sv;
       return -1;
@@ -653,10 +653,10 @@ namespace va {
     return true;
   }
 
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
     if (vram) {
-      auto egl = std::make_shared<va::va_vram_t>();
+      auto egl = std::make_unique<va::va_vram_t>();
       if (egl->init(width, height, std::move(card), offset_x, offset_y)) {
         return nullptr;
       }
@@ -665,7 +665,7 @@ namespace va {
     }
 
     else {
-      auto egl = std::make_shared<va::va_ram_t>();
+      auto egl = std::make_unique<va::va_ram_t>();
       if (egl->init(width, height, std::move(card))) {
         return nullptr;
       }
@@ -674,8 +674,8 @@ namespace va {
     }
   }
 
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, int offset_x, int offset_y, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
     auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
     file_t file = open(render_device, O_RDWR);
@@ -686,11 +686,11 @@ namespace va {
       return nullptr;
     }
 
-    return make_hwdevice(width, height, std::move(file), offset_x, offset_y, vram);
+    return make_avcodec_encode_device(width, height, std::move(file), offset_x, offset_y, vram);
   }
 
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, bool vram) {
-    return make_hwdevice(width, height, 0, 0, vram);
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, bool vram) {
+    return make_avcodec_encode_device(width, height, 0, 0, vram);
   }
 }  // namespace va

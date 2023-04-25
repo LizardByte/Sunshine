@@ -88,7 +88,7 @@ namespace cuda {
     return 0;
   }
 
-  class cuda_t: public platf::hwdevice_t {
+  class cuda_t: public platf::avcodec_encode_device_t {
   public:
     int
     init(int in_width, int in_height) {
@@ -145,8 +145,8 @@ namespace cuda {
     }
 
     void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
-      sws.set_colorspace(colorspace, color_range);
+    apply_colorspace() override {
+      sws.apply_colorspace(colorspace);
 
       auto tex = tex_t::make(height, width * 4);
       if (!tex) {
@@ -223,19 +223,19 @@ namespace cuda {
     }
   };
 
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, bool vram) {
     if (init()) {
       return nullptr;
     }
 
-    std::shared_ptr<cuda_t> cuda;
+    std::unique_ptr<cuda_t> cuda;
 
     if (vram) {
-      cuda = std::make_shared<cuda_vram_t>();
+      cuda = std::make_unique<cuda_vram_t>();
     }
     else {
-      cuda = std::make_shared<cuda_ram_t>();
+      cuda = std::make_unique<cuda_ram_t>();
     }
 
     if (cuda->init(width, height)) {
@@ -675,9 +675,9 @@ namespace cuda {
         return platf::capture_e::ok;
       }
 
-      std::shared_ptr<platf::hwdevice_t>
-      make_hwdevice(platf::pix_fmt_e pix_fmt) override {
-        return ::cuda::make_hwdevice(width, height, true);
+      std::unique_ptr<platf::avcodec_encode_device_t>
+      make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) {
+        return ::cuda::make_avcodec_encode_device(width, height, true);
       }
 
       std::shared_ptr<platf::img_t>

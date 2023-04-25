@@ -13,6 +13,7 @@
 #include "src/main.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
+#include "src/video_colorspace.h"
 
 extern "C" {
 #include <moonlight-common-c/src/Limelight.h>
@@ -45,6 +46,9 @@ namespace boost {
 namespace video {
   struct config_t;
 }  // namespace video
+namespace nvenc {
+  class nvenc_base;
+}
 
 namespace platf {
   // Limited by bits in activeGamepadMask
@@ -344,13 +348,26 @@ namespace platf {
     std::optional<null_t> null;
   };
 
-  struct hwdevice_t {
+  struct encode_device_t {
+    virtual ~encode_device_t() = default;
+
+    virtual int
+    convert(platf::img_t &img) = 0;
+
+    video::sunshine_colorspace_t colorspace;
+  };
+
+  struct avcodec_encode_device_t: encode_device_t {
     void *data {};
     AVFrame *frame {};
 
-    virtual int
-    convert(platf::img_t &img) {
+    int
+    convert(platf::img_t &img) override {
       return -1;
+    }
+
+    virtual void
+    apply_colorspace() {
     }
 
     /**
@@ -361,9 +378,6 @@ namespace platf {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
       return -1;
     };
-
-    virtual void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
 
     /**
      * Implementations may set parameters during initialization of the hwframes context
@@ -378,8 +392,13 @@ namespace platf {
     prepare_to_derive_context(int hw_device_type) {
       return 0;
     };
+  };
 
-    virtual ~hwdevice_t() = default;
+  struct nvenc_encode_device_t: encode_device_t {
+    virtual bool
+    init_encoder(const video::config_t &client_config, const video::sunshine_colorspace_t &colorspace) = 0;
+
+    nvenc::nvenc_base *nvenc = nullptr;
   };
 
   enum class capture_e : int {
@@ -440,9 +459,14 @@ namespace platf {
     virtual int
     dummy_img(img_t *img) = 0;
 
-    virtual std::shared_ptr<hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) {
-      return std::make_shared<hwdevice_t>();
+    virtual std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+      return nullptr;
+    }
+
+    virtual std::unique_ptr<nvenc_encode_device_t>
+    make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+      return nullptr;
     }
 
     virtual bool

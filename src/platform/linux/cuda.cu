@@ -56,12 +56,11 @@ public:
 };
 } // namespace platf
 
-namespace video {
-using __float4 = float[4];
-using __float3 = float[3];
-using __float2 = float[2];
+// End special declarations
 
-struct alignas(16) color_t {
+namespace cuda {
+
+struct alignas(16) cuda_color_t {
   float4 color_vec_y;
   float4 color_vec_u;
   float4 color_vec_v;
@@ -69,22 +68,8 @@ struct alignas(16) color_t {
   float2 range_uv;
 };
 
-struct alignas(16) color_extern_t {
-  __float4 color_vec_y;
-  __float4 color_vec_u;
-  __float4 color_vec_v;
-  __float2 range_y;
-  __float2 range_uv;
-};
+static_assert(sizeof(video::color_t) == sizeof(cuda::cuda_color_t), "color matrix struct mismatch");
 
-static_assert(sizeof(video::color_t) == sizeof(video::color_extern_t), "color matrix struct mismatch");
-
-extern color_t colors[6];
-} // namespace video
-
-// End special declarations
-
-namespace cuda {
 auto constexpr INVALID_TEXTURE = std::numeric_limits<cudaTextureObject_t>::max();
 
 template<class T>
@@ -144,7 +129,7 @@ inline __device__ float3 bgra_to_rgb(float4 vec) {
   return make_float3(vec.z, vec.y, vec.x);
 }
 
-inline __device__ float2 calcUV(float3 pixel, const video::color_t *const color_matrix) {
+inline __device__ float2 calcUV(float3 pixel, const cuda_color_t *const color_matrix) {
   float4 vec_u = color_matrix->color_vec_u;
   float4 vec_v = color_matrix->color_vec_v;
 
@@ -157,7 +142,7 @@ inline __device__ float2 calcUV(float3 pixel, const video::color_t *const color_
   return make_float2(u, v);
 }
 
-inline __device__ float calcY(float3 pixel, const video::color_t *const color_matrix) {
+inline __device__ float calcY(float3 pixel, const cuda_color_t *const color_matrix) {
   float4 vec_y = color_matrix->color_vec_y;
 
   return (dot(pixel, make_float3(vec_y)) + vec_y.w) * color_matrix->range_y.x + color_matrix->range_y.y;
@@ -166,7 +151,7 @@ inline __device__ float calcY(float3 pixel, const video::color_t *const color_ma
 __global__ void RGBA_to_NV12(
   cudaTextureObject_t srcImage, std::uint8_t *dstY, std::uint8_t *dstUV,
   std::uint32_t dstPitchY, std::uint32_t dstPitchUV,
-  float scale, const viewport_t viewport, const video::color_t *const color_matrix) {
+  float scale, const viewport_t viewport, const cuda_color_t *const color_matrix) {
 
   int idX = (threadIdx.x + blockDim.x * blockIdx.x) * 2;
   int idY = (threadIdx.y + blockDim.y * blockIdx.y) * 2;
@@ -297,7 +282,7 @@ std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int
   CU_CHECK_OPT(cudaGetDevice(&device), "Couldn't get cuda device");
   CU_CHECK_OPT(cudaGetDeviceProperties(&props, device), "Couldn't get cuda device properties");
 
-  auto ptr = make_ptr<video::color_t>();
+  auto ptr = make_ptr<cuda_color_t>();
   if(!ptr) {
     return std::nullopt;
   }
@@ -316,32 +301,13 @@ int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std:
   dim3 block(threadsPerBlock);
   dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
 
-  RGBA_to_NV12<<<grid, block, 0, stream>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (video::color_t *)color_matrix.get());
+  RGBA_to_NV12<<<grid, block, 0, stream>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (cuda_color_t *)color_matrix.get());
 
   return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
 }
 
-void sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {
-  video::color_t *color_p;
-  switch(colorspace) {
-  case 5: // SWS_CS_SMPTE170M
-    color_p = &video::colors[0];
-    break;
-  case 1: // SWS_CS_ITU709
-    color_p = &video::colors[2];
-    break;
-  case 9: // SWS_CS_BT2020
-    color_p = &video::colors[4];
-    break;
-  default:
-    color_p = &video::colors[0];
-  };
-
-  if(color_range > 1) {
-    // Full range
-    ++color_p;
-  }
-
+void sws_t::apply_colorspace(const video::sunshine_colorspace_t& colorspace) {
+  auto color_p = video::color_vectors_from_colorspace(colorspace);
   CU_CHECK_IGNORE(cudaMemcpy(color_matrix.get(), color_p, sizeof(video::color_t), cudaMemcpyHostToDevice), "Couldn't copy color matrix to cuda");
 }
 

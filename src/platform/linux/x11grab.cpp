@@ -553,19 +553,19 @@ namespace platf {
       return std::make_shared<x11_img_t>();
     }
 
-    std::shared_ptr<hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) override {
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
       if (mem_type == mem_type_e::vaapi) {
-        return va::make_hwdevice(width, height, false);
+        return va::make_avcodec_encode_device(width, height, false);
       }
 
 #ifdef SUNSHINE_BUILD_CUDA
       if (mem_type == mem_type_e::cuda) {
-        return cuda::make_hwdevice(width, height, false);
+        return cuda::make_avcodec_encode_device(width, height, false);
       }
 #endif
 
-      return std::make_shared<hwdevice_t>();
+      return std::make_unique<avcodec_encode_device_t>();
     }
 
     int

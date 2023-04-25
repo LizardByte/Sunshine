@@ -355,6 +355,7 @@ namespace stream {
       int lowseq;
       udp::endpoint peer;
       safe::mail_raw_t::event_t<bool> idr_events;
+      safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> invalidate_ref_frames_events;
       std::unique_ptr<platf::deinit_t> qos;
     } video;
 
@@ -833,7 +834,7 @@ namespace stream {
         << "firstFrame [" << firstFrame << ']' << std::endl
         << "lastFrame [" << lastFrame << ']';
 
-      session->video.idr_events->raise(true);
+      session->video.invalidate_ref_frames_events->raise(std::make_pair(firstFrame, lastFrame));
     });
 
     server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
@@ -895,29 +896,23 @@ namespace stream {
         return;
       }
 
-      // Ensure compatibility with old packet type
-      std::string_view next_payload { (char *) plaintext.data(), plaintext.size() };
-      auto type = *(std::uint16_t *) next_payload.data();
+      auto type = *(std::uint16_t *) plaintext.data();
+      std::string_view next_payload { (char *) plaintext.data() + 4, plaintext.size() - 4 };
 
       if (type == packetTypes[IDX_ENCRYPTED]) {
         BOOST_LOG(error) << "Bad packet type [IDX_ENCRYPTED] found"sv;
-
         session::stop(*session);
         return;
       }
 
-      // IDX_INPUT_DATA will attempt to decrypt unencrypted data, therefore we need to skip it.
-      if (type != packetTypes[IDX_INPUT_DATA]) {
-        server->call(type, session, next_payload);
-
-        return;
+      // IDX_INPUT_DATA callback will attempt to decrypt unencrypted data, therefore we need pass it directly
+      if (type == packetTypes[IDX_INPUT_DATA]) {
+        plaintext.erase(std::begin(plaintext), std::begin(plaintext) + 4);
+        input::passthrough(session->input, std::move(plaintext));
       }
-
-      // Ensure compatibility with IDX_INPUT_DATA
-      constexpr auto skip = sizeof(std::uint16_t) * 2;
-      plaintext.erase(std::begin(plaintext), std::begin(plaintext) + skip);
-
-      input::passthrough(session->input, std::move(plaintext));
+      else {
+        server->call(type, session, next_payload);
+      }
     });
 
     // This thread handles latency-sensitive control messages
@@ -1124,13 +1119,14 @@ namespace stream {
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
 
-      auto av_packet = packet->av_packet;
-      std::string_view payload { (char *) av_packet->data, (size_t) av_packet->size };
+      std::string_view payload { (char *) packet->data(), packet->data_size() };
       std::vector<uint8_t> payload_new;
 
       video_short_frame_header_t frame_header = {};
       frame_header.headerType = 0x01;  // Short header type
-      frame_header.frameType = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
+      frame_header.frameType = packet->is_idr()                     ? 2 :
+                               packet->after_ref_frame_invalidation ? 5 :
+                                                                      1;
 
       if (packet->frame_timestamp) {
         auto duration_to_latency = [](const std::chrono::steady_clock::duration &duration) {
@@ -1160,7 +1156,7 @@ namespace stream {
 
       payload = { (char *) payload_new.data(), payload_new.size() };
 
-      if (av_packet->flags & AV_PKT_FLAG_KEY) {
+      if (packet->is_idr() && packet->replacements) {
         for (auto &replacement : *packet->replacements) {
           auto frame_old = replacement.old;
           auto frame_new = replacement._new;
@@ -1226,9 +1222,8 @@ namespace stream {
 
           for (int x = 0; x < packets; ++x) {
             auto *inspect = (video_packet_raw_t *) &current_payload[x * blocksize];
-            auto av_packet = packet->av_packet;
 
-            inspect->packet.frameIndex = av_packet->pts;
+            inspect->packet.frameIndex = packet->frame_index();
             inspect->packet.streamPacketIndex = ((uint32_t) lowseq + x) << 8;
 
             // Match multiFecFlags with Moonlight
@@ -1264,7 +1259,7 @@ namespace stream {
             inspect->rtp.timestamp = util::endian::big<uint32_t>(timestamp);
 
             inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
-            inspect->packet.frameIndex = av_packet->pts;
+            inspect->packet.frameIndex = packet->frame_index();
           }
 
           auto peer_address = session->video.peer.address();
@@ -1286,11 +1281,11 @@ namespace stream {
             }
           }
 
-          if (av_packet->flags & AV_PKT_FLAG_KEY) {
-            BOOST_LOG(verbose) << "Key Frame ["sv << av_packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv;
+          if (packet->is_idr()) {
+            BOOST_LOG(verbose) << "Key Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv;
           }
           else {
-            BOOST_LOG(verbose) << "Frame ["sv << av_packet->pts << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
+            BOOST_LOG(verbose) << "Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
           }
 
           ++blockIndex;
@@ -1754,6 +1749,7 @@ namespace stream {
       };
 
       session->video.idr_events = mail->event<bool>(mail::idr);
+      session->video.invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
       session->video.lowseq = 0;
 
       constexpr auto max_block_size = crypto::cipher::round_to_pkcs7_padded(2048);

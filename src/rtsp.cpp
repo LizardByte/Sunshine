@@ -500,6 +500,10 @@ namespace rtsp_stream {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
     }
 
+    if (video::last_encoder_probe_supported_ref_frames_invalidation) {
+      ss << "x-nv-video[0].refPicInvalidation=1"sv << std::endl;
+    }
+
     for (int x = 0; x < audio::MAX_STREAM_CONFIG; ++x) {
       auto &stream_config = audio::stream_configs[x];
       std::uint8_t mapping[platf::speaker::MAX_SPEAKERS];
