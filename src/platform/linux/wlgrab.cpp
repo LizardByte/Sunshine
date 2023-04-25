@@ -215,13 +215,13 @@ namespace wl {
       return 0;
     }
 
-    std::shared_ptr<platf::hwdevice_t>
-    make_hwdevice(platf::pix_fmt_e pix_fmt) override {
+    std::unique_ptr<platf::avcodec_encode_device_t>
+    make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
       if (mem_type == platf::mem_type_e::vaapi) {
-        return va::make_hwdevice(width, height, false);
+        return va::make_avcodec_encode_device(width, height, false);
       }
 
-      return std::make_shared<platf::hwdevice_t>();
+      return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
     std::shared_ptr<platf::img_t>
@@ -323,13 +323,13 @@ namespace wl {
       return img;
     }
 
-    std::shared_ptr<platf::hwdevice_t>
-    make_hwdevice(platf::pix_fmt_e pix_fmt) override {
+    std::unique_ptr<platf::avcodec_encode_device_t>
+    make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
       if (mem_type == platf::mem_type_e::vaapi) {
-        return va::make_hwdevice(width, height, 0, 0, true);
+        return va::make_avcodec_encode_device(width, height, 0, 0, true);
       }
 
-      return std::make_shared<platf::hwdevice_t>();
+      return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
     int
