@@ -59,6 +59,7 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev=1:5.0.3* \
   libxrandr-dev=2:1.5.2* \
   libxtst-dev=2:1.2.3* \
+  ninja-build=1.10.0* \
   nodejs=10.19.0* \
   npm=6.14.4* \
   wget=1.20.3*
@@ -142,6 +143,7 @@ RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
+  -G Ninja \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
@@ -152,7 +154,7 @@ cmake \
   -DSUNSHINE_ENABLE_DRM=ON \
   -DSUNSHINE_ENABLE_CUDA=ON \
   /build/sunshine
-make -j "$(nproc)"
+ninja
 cpack -G DEB
 _MAKE
 

@@ -10,7 +10,7 @@ url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
 
 depends=('avahi' 'boost-libs' 'curl' 'libappindicator-gtk3' 'libevdev' 'libmfx' 'libpulse' 'libva' 'libvdpau' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'numactl' 'openssl' 'opus' 'udev')
-makedepends=('boost' 'cmake' 'git' 'make' 'nodejs' 'npm')
+makedepends=('boost' 'cmake' 'git' 'make' 'ninja' 'nodejs' 'npm')
 optdepends=('cuda: NvFBC capture support'
             'libcap'
             'libdrm')
@@ -55,6 +55,7 @@ build() {
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
 
     cmake \
+        -G Ninja \
         -S "$pkgname" \
         -B build \
         -Wno-dev \
@@ -62,9 +63,9 @@ build() {
         -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
         -D SUNSHINE_ASSETS_DIR="share/sunshine"
 
-    make -C build
+    ninja
 }
 
 package() {
-    make -C build install DESTDIR="$pkgdir"
+    ninja install DESTDIR="$pkgdir"
 }

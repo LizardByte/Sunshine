@@ -51,6 +51,7 @@ dnf -y install \
   libXrandr-devel-1.5.2* \
   libXtst-devel-1.2.3* \
   mesa-libGL-devel-23.0.2* \
+  ninja-build-1.10.2* \
   nodejs-npm-9.5.0* \
   numactl-devel-2.0.14* \
   openssl-devel-3.0.8* \
@@ -103,6 +104,7 @@ RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
+  -G Ninja \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
@@ -113,7 +115,7 @@ cmake \
   -DSUNSHINE_ENABLE_DRM=ON \
   -DSUNSHINE_ENABLE_CUDA=ON \
   /build/sunshine
-make -j "$(nproc)"
+ninja
 cpack -G RPM
 _MAKE
 

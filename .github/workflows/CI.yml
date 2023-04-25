@@ -340,6 +340,7 @@ jobs:
             libxfixes-dev \
             libxrandr-dev \
             libxtst-dev \
+            ninja-build \
             wget
 
           # clean apt cache
@@ -375,7 +376,9 @@ jobs:
           npm install
 
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=share/sunshine \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
@@ -385,7 +388,7 @@ jobs:
             -DSUNSHINE_ENABLE_CUDA=ON \
             ${{ matrix.EXTRA_ARGS }} \
             ..
-          make -j ${nproc}
+          ninja
 
       - name: Package Linux - CPACK
         if: ${{ matrix.type == 'cpack' }}
@@ -408,9 +411,11 @@ jobs:
       - name: Package Linux - AppImage
         if: ${{ matrix.type == 'appimage' }}
         working-directory: build
+        env:
+          DESTDIR: AppDir
         run: |
-          # install sunshine to the DESTDIR
-          make install DESTDIR=AppDir
+          # ninja needs the DESTDIR argument in the environment
+          ninja install
 
           # custom AppRun file
           cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
@@ -485,7 +490,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl node opus pkg-config
+          brew install boost cmake curl ninja node opus pkg-config
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
@@ -500,12 +505,14 @@ jobs:
 
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
             ..
-          make -j ${nproc}
+          ninja
 
       - name: Package MacOS
         run: |
@@ -792,6 +799,7 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-ninja
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
@@ -813,11 +821,12 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
             -DSUNSHINE_ASSETS_DIR=assets \
-            -G "MinGW Makefiles" \
             ..
-          mingw32-make -j$(nproc)
+          ninja
 
       - name: Package Windows
         shell: msys2 {0}

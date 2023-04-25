@@ -199,8 +199,7 @@ modules:
 
   - name: sunshine
     disabled: false
-    buildsystem: cmake
-    no-make-install: false
+    buildsystem: cmake-ninja
     builddir: true
     build-options:
       append-path: /usr/lib/sdk/node18/bin
@@ -214,6 +213,7 @@ modules:
       # Install npm dependencies
       - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
     config-opts:
+      - -G Ninja
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc

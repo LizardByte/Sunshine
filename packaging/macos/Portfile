@@ -31,16 +31,23 @@ post-fetch {
     system -W ${worksrcpath} "${git.cmd} submodule update --init --recursive"
 }
 
+depends_build            port:ninja \
+                         port:npm9
+
 depends_lib              port:avahi \
                          port:curl \
                          port:libopus \
-                         port:npm9 \
                          port:pkgconfig
 
 boost.version            1.80
 
+cmake.generator          Ninja
 configure.args           -DCMAKE_INSTALL_PREFIX=${prefix} \
                          -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets
+
+# build with ninja
+build.cmd               ninja
+build.args              -v -j${build.jobs}
 
 startupitem.create       yes
 startupitem.executable   "${prefix}/bin/{$name}"
@@ -55,8 +62,20 @@ platform darwin {
     }
 }
 
+configure {
+    system -W "${worksrcpath}" "${configure.cmd} -G ${cmake.generator} ${configure.args} ${worksrcpath}"
+}
+
 pre-build {
     system -W ${worksrcpath} "npm install"
+}
+
+build {
+    system -W "${worksrcpath}" "${build.cmd}"
+}
+
+destroot {
+    system -W "${worksrcpath}" "DESTDIR=${destroot} ${build.cmd} install"
 }
 
 notes-append "Run @PROJECT_NAME@ by executing 'sunshine <path to user config>', e.g. 'sunshine ~/sunshine.conf' "
