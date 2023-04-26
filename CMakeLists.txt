@@ -944,7 +944,7 @@ elseif(UNIX)
 
         if(${SUNSHINE_TRAY} STREQUAL 1)
             install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-                    DESTINATION "/usr/share/icons")
+                    DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
 
             set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
