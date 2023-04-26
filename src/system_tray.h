@@ -2,8 +2,8 @@
 * @file system_tray.h
 */
 
-#ifndef SYSTEM_TRAY_H
-#define SYSTEM_TRAY_H
+#ifndef SUNSHINE_SYSTEM_TRAY_H
+#define SUNSHINE_SYSTEM_TRAY_H
 
 // system_tray namespace
 namespace system_tray {
@@ -32,4 +32,4 @@ namespace system_tray {
 
 }  // namespace system_tray
 
-#endif // SYSTEM_TRAY_H
+#endif // SUNSHINE_SYSTEM_TRAY_H
