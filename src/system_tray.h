@@ -1,8 +1,9 @@
 /**
 * @file system_tray.h
 */
-// macros
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+
+#ifndef SYSTEM_TRAY_H
+#define SYSTEM_TRAY_H
 
 // system_tray namespace
 namespace system_tray {
@@ -30,4 +31,5 @@ namespace system_tray {
   end_tray();
 
 }  // namespace system_tray
-#endif
+
+#endif // SYSTEM_TRAY_H
