@@ -1,6 +1,6 @@
 /**
-* @file system_tray.h
-*/
+ * @file system_tray.h
+ */
 
 #ifndef SUNSHINE_SYSTEM_TRAY_H
 #define SUNSHINE_SYSTEM_TRAY_H
