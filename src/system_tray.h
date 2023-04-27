@@ -31,4 +31,4 @@ namespace system_tray {
   end_tray();
 
 }  // namespace system_tray
-#endif // SUNSHINE_SYSTEM_TRAY_H
+#endif  // SUNSHINE_SYSTEM_TRAY_H
