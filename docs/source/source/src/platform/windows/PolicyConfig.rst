@@ -1,4 +1,4 @@
 PolicyConfig
 ============
 
-.. Todo:: Add PolicyConfig.h
+.. doxygenfile:: platform/windows/PolicyConfig.h
