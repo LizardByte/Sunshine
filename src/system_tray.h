@@ -2,6 +2,9 @@
  * @file system_tray.h
  */
 
+#ifndef SUNSHINE_SYSTEM_TRAY_H
+#define SUNSHINE_SYSTEM_TRAY_H
+
 // system_tray namespace
 namespace system_tray {
 
@@ -28,3 +31,4 @@ namespace system_tray {
   end_tray();
 
 }  // namespace system_tray
+#endif  // SUNSHINE_SYSTEM_TRAY_H
