@@ -1,9 +1,4 @@
-//
-// Created by loki on 4/23/20.
-//
-
-#ifndef SUNSHINE_DISPLAY_H
-#define SUNSHINE_DISPLAY_H
+#pragma once
 
 #include <d3d11.h>
 #include <d3d11_4.h>
@@ -237,5 +232,3 @@ namespace platf::dxgi {
     std::atomic<uint32_t> next_image_id;
   };
 }  // namespace platf::dxgi
-
-#endif

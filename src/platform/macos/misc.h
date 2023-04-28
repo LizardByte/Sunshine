@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_PLATFORM_MISC_H
-#define SUNSHINE_PLATFORM_MISC_H
+#pragma once
 
 #include <vector>
 
@@ -14,5 +13,3 @@ namespace dyn {
   handle(const std::vector<const char *> &libs);
 
 }  // namespace dyn
-
-#endif

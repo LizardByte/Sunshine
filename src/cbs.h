@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_CBS_H
-#define SUNSHINE_CBS_H
+#pragma once
 
 #include "utility.h"
 
@@ -28,10 +27,8 @@ namespace cbs {
   make_sps_h264(const AVCodecContext *ctx, const AVPacket *packet);
 
   /**
- * Check if SPS->VUI is present
- */
+   * Check if SPS->VUI is present
+   */
   bool
   validate_sps(const AVPacket *packet, int codec_id);
 }  // namespace cbs
-
-#endif

@@ -8,16 +8,16 @@ version: 2
 
 # Set the version of Python
 build:
-  os: ubuntu-20.04
+  os: ubuntu-22.04
   tools:
-    python: "3.10"
+    python: "3.11"
   apt_packages:
     - graphviz
 
-## Include the submodules, required for cmake
-#  submodules:
-#    include: all
-#    recursive: true
+# submodules required for include statements
+submodules:
+  include: all
+  recursive: true
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:

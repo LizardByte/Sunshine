@@ -1,5 +1,3 @@
-// Created by loki on 6/20/19.
-
 // define uint32_t for <moonlight-common-c/src/Input.h>
 #include <cstdint>
 extern "C" {
@@ -147,12 +145,12 @@ namespace input {
   };
 
   /**
- * Apply shortcut based on VKEY
- * On success
- *    return > 0
- * On nothing
- *    return 0
- */
+   * Apply shortcut based on VKEY
+   * On success
+   *    return > 0
+   * On nothing
+   *    return 0
+   */
   inline int
   apply_shortcut(short keyCode) {
     constexpr auto VK_F1 = 0x70;
@@ -366,21 +364,20 @@ namespace input {
 
       mouse_press[button] = !release;
     }
-    ///////////////////////////////////
-    /*/
-    * When Moonlight sends mouse input through absolute coordinates,
-    * it's possible that BUTTON_RIGHT is pressed down immediately after releasing BUTTON_LEFT.
-    * As a result, Sunshine will left-click on hyperlinks in the browser before right-clicking
-    *
-    * This can be solved by delaying BUTTON_LEFT, however, any delay on input is undesirable during gaming
-    * As a compromise, Sunshine will only put delays on BUTTON_LEFT when
-    * absolute mouse coordinates have been sent.
-    *
-    * Try to make sure BUTTON_RIGHT gets called before BUTTON_LEFT is released.
-    *
-    * input->mouse_left_button_timeout can only be nullptr
-    * when the last mouse coordinates were absolute
-   /*/
+    /**
+     * When Moonlight sends mouse input through absolute coordinates,
+     * it's possible that BUTTON_RIGHT is pressed down immediately after releasing BUTTON_LEFT.
+     * As a result, Sunshine will left-click on hyperlinks in the browser before right-clicking
+     *
+     * This can be solved by delaying BUTTON_LEFT, however, any delay on input is undesirable during gaming
+     * As a compromise, Sunshine will only put delays on BUTTON_LEFT when
+     * absolute mouse coordinates have been sent.
+     *
+     * Try to make sure BUTTON_RIGHT gets called before BUTTON_LEFT is released.
+     *
+     * input->mouse_left_button_timeout can only be nullptr
+     * when the last mouse coordinates were absolute
+     */
     if (button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
       auto f = [=]() {
         auto left_released = mouse_press[BUTTON_LEFT];
@@ -408,7 +405,6 @@ namespace input {
 
       return;
     }
-    ///////////////////////////////////
 
     platf::button_mouse(platf_input, button, release);
   }
@@ -424,8 +420,8 @@ namespace input {
   }
 
   /**
- * Update flags for keyboard shortcut combo's
- */
+   * Update flags for keyboard shortcut combo's
+   */
   inline void
   update_shortcutFlags(int *flags, short keyCode, bool release) {
     switch (keyCode) {

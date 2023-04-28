@@ -1,12 +1,11 @@
-#ifndef DOSSIER_MOVE_BY_COPY_H
-#define DOSSIER_MOVE_BY_COPY_H
+#pragma once
 
 #include <utility>
 namespace move_by_copy_util {
-  /*
- * When a copy is made, it moves the object
- * This allows you to move an object when a move can't be done.
- */
+  /**
+   * When a copy is made, it moves the object
+   * This allows you to move an object when a move can't be done.
+   */
   template <class T>
   class MoveByCopy {
   public:
@@ -53,4 +52,3 @@ namespace move_by_copy_util {
     return MoveByCopy<T>(std::move(const_cast<T &>(movable)));
   }
 }  // namespace move_by_copy_util
-#endif

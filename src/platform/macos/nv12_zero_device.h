@@ -1,5 +1,4 @@
-#ifndef vtdevice_h
-#define vtdevice_h
+#pragma once
 
 #include "src/platform/common.h"
 
@@ -29,5 +28,3 @@ namespace platf {
   };
 
 }  // namespace platf
-
-#endif /* vtdevice_h */

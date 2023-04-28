@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_AUDIO_H
-#define SUNSHINE_AUDIO_H
+#pragma once
 
 #include "thread_safe.h"
 #include "utility.h"
@@ -44,5 +43,3 @@ namespace audio {
   void
   capture(safe::mail_t mail, config_t config, void *channel_data);
 }  // namespace audio
-
-#endif

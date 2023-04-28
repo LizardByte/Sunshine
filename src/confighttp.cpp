@@ -1,4 +1,3 @@
-// Created by TheElixZammuto on 2021-05-09.
 // TODO: Authentication, better handling of routes common to nvhttp, cleanup
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS

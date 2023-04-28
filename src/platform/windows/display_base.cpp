@@ -1,7 +1,3 @@
-//
-// Created by loki on 1/12/20.
-//
-
 #include <cmath>
 #include <codecvt>
 #include <initguid.h>
@@ -537,7 +533,7 @@ namespace platf::dxgi {
       }
     }
 
-    //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
+    // FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
     {
       // IDXGIOutput5 is optional, but can provide improved performance and wide color support
       dxgi::output5_t output5 {};

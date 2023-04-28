@@ -150,12 +150,12 @@ namespace platf {
     }
 
     /**
-   * A bridge from the pure C++ code of the hwdevice_t class to the pure Objective C code.
-   *
-   * display --> an opaque pointer to an object of this class
-   * width --> the intended capture width
-   * height --> the intended capture height
-   */
+     * A bridge from the pure C++ code of the hwdevice_t class to the pure Objective C code.
+     *
+     * display --> an opaque pointer to an object of this class
+     * width --> the intended capture width
+     * height --> the intended capture height
+     */
     static void
     setResolution(void *display, int width, int height) {
       [static_cast<AVVideo *>(display) setFrameWidth:width frameHeight:height];

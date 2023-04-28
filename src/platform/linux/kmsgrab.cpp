@@ -552,7 +552,7 @@ namespace platf {
               return -1;
             }
 
-            //TODO: surf_sd = fb->to_sd();
+            // TODO: surf_sd = fb->to_sd();
 
             auto crct = card.crtc(plane->crtc_id);
             kms::print(plane.get(), fb.get(), crct.get());
@@ -999,15 +999,15 @@ namespace platf {
   }
 
   /**
- * On Wayland, it's not possible to determine the position of the monitor on the desktop with KMS.
- * Wayland does allow applications to query attached monitors on the desktop,
- * however, the naming scheme is not standardized across implementations.
- * 
- * As a result, correlating the KMS output to the wayland outputs is guess work at best.
- * But, it's necessary for absolute mouse coordinates to work.
- * 
- * This is an ugly hack :(
- */
+   * On Wayland, it's not possible to determine the position of the monitor on the desktop with KMS.
+   * Wayland does allow applications to query attached monitors on the desktop,
+   * however, the naming scheme is not standardized across implementations.
+   *
+   * As a result, correlating the KMS output to the wayland outputs is guess work at best.
+   * But, it's necessary for absolute mouse coordinates to work.
+   *
+   * This is an ugly hack :(
+   */
   void
   correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
     auto monitors = wl::monitors();

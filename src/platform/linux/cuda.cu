@@ -30,7 +30,7 @@ using namespace std::literals;
 
 using namespace std::literals;
 
-//////////////////// Special desclarations
+// Special declarations
 /**
  * NVCC tends to have problems with standard headers.
  * Don't include common.h, instead use bare minimum
@@ -78,7 +78,7 @@ static_assert(sizeof(video::color_t) == sizeof(video::color_extern_t), "color ma
 extern color_t colors[6];
 } // namespace video
 
-//////////////////// End special declarations
+// End special declarations
 
 namespace cuda {
 auto constexpr INVALID_TEXTURE = std::numeric_limits<cudaTextureObject_t>::max();

@@ -533,7 +533,7 @@ namespace platf::dxgi {
       frame_texture->AddRef();
       hwframe_texture.reset(frame_texture);
 
-      float info_in[16 / sizeof(float)] { 1.0f / (float) out_width_f };  //aligned to 16-byte
+      float info_in[16 / sizeof(float)] { 1.0f / (float) out_width_f };  // aligned to 16-byte
       info_scene = make_buffer(device.get(), info_in);
 
       if (!info_scene) {

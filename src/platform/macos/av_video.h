@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_PLATFORM_AV_VIDEO_H
-#define SUNSHINE_PLATFORM_AV_VIDEO_H
+#pragma once
 
 #import <AVFoundation/AVFoundation.h>
 
@@ -38,5 +37,3 @@ typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
 - (dispatch_semaphore_t)capture:(FrameCallbackBlock)frameCallback;
 
 @end
-
-#endif  //SUNSHINE_PLATFORM_AV_VIDEO_H

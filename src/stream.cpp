@@ -1,5 +1,3 @@
-// Created by loki on 6/5/19.
-
 #include "process.h"
 
 #include <future>
@@ -359,11 +357,11 @@ namespace stream {
   };
 
   /**
- * First part of cipher must be struct of type control_encrypted_t
- * 
- * returns empty string_view on failure
- * returns string_view pointing to payload data
- */
+   * First part of cipher must be struct of type control_encrypted_t
+   *
+   * returns empty string_view on failure
+   * returns string_view pointing to payload data
+   */
   template <std::size_t max_payload_size>
   static inline std::string_view
   encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {

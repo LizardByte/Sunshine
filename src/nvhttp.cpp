@@ -1,6 +1,6 @@
 /**
-* @file nvhttp.h
-*/
+ * @file nvhttp.h
+ */
 
 // macros
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
@@ -522,15 +522,15 @@ namespace nvhttp {
   }
 
   /**
- * @brief Compare the user supplied pin to the Moonlight pin.
- * @param pin The user supplied pin.
- * @return `true` if the pin is correct, `false` otherwise.
- *
- * EXAMPLES:
- * ```cpp
- * bool pin_status = nvhttp::pin("1234");
- * ```
- */
+   * @brief Compare the user supplied pin to the Moonlight pin.
+   * @param pin The user supplied pin.
+   * @return `true` if the pin is correct, `false` otherwise.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * bool pin_status = nvhttp::pin("1234");
+   * ```
+   */
   bool
   pin(std::string pin) {
     pt::ptree tree;
@@ -889,13 +889,13 @@ namespace nvhttp {
   }
 
   /**
- * @brief Start the nvhttp server.
- *
- * EXAMPLES:
- * ```cpp
- * nvhttp::start();
- * ```
- */
+   * @brief Start the nvhttp server.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * nvhttp::start();
+   * ```
+   */
   void
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1035,13 +1035,13 @@ namespace nvhttp {
   }
 
   /**
- * @brief Remove all paired clients.
- *
- * EXAMPLES:
- * ```cpp
- * nvhttp::erase_all_clients();
- * ```
- */
+   * @brief Remove all paired clients.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * nvhttp::erase_all_clients();
+   * ```
+   */
   void
   erase_all_clients() {
     map_id_client.clear();

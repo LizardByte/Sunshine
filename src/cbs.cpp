@@ -87,9 +87,9 @@ namespace cbs {
   make_sps_h264(const AVCodecContext *ctx) {
     H264RawSPS sps {};
 
-    /* b_per_p == ctx->max_b_frames for h264 */
-    /* desired_b_depth == avoption("b_depth") == 1 */
-    /* max_b_depth == std::min(av_log2(ctx->b_per_p) + 1, desired_b_depth) ==> 1 */
+    // b_per_p == ctx->max_b_frames for h264
+    // desired_b_depth == avoption("b_depth") == 1
+    // max_b_depth == std::min(av_log2(ctx->b_per_p) + 1, desired_b_depth) ==> 1
     auto max_b_depth = 1;
     auto dpb_frame = ctx->gop_size == 1 ? 0 : 1 + max_b_depth;
     auto mb_width = (FFALIGN(ctx->width, 16) / 16) * 16;

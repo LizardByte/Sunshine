@@ -1,5 +1,3 @@
-// Created by loki on 6/6/19.
-
 #include <atomic>
 #include <bitset>
 #include <list>
@@ -163,8 +161,8 @@ namespace video {
     }
 
     /**
-   * When preserving aspect ratio, ensure that padding is black
-   */
+     * When preserving aspect ratio, ensure that padding is black
+     */
     int
     prefill() {
       auto frame = sw_frame ? sw_frame.get() : this->frame;
@@ -1001,7 +999,7 @@ namespace video {
     auto &sps = session.sps;
     auto &vps = session.vps;
 
-    /* send the frame to the encoder */
+    // send the frame to the encoder
     auto ret = avcodec_send_frame(ctx.get(), frame);
     if (ret < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
@@ -1962,13 +1960,13 @@ namespace video {
     return true;
   }
 
-  /*
-    This is called once at startup and each time a stream is launched to
-    ensure the best encoder is selected. Encoder availablility can change
-    at runtime due to all sorts of things from driver updates to eGPUs.
-
-    This is only safe to call when there is no client actively streaming.
-  */
+  /**
+   * This is called once at startup and each time a stream is launched to
+   * ensure the best encoder is selected. Encoder availablility can change
+   * at runtime due to all sorts of things from driver updates to eGPUs.
+   *
+   * This is only safe to call when there is no client actively streaming.
+   */
   int
   probe_encoders() {
     auto encoder_list = encoders;

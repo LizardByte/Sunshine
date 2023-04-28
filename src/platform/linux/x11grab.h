@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_X11_GRAB
-#define SUNSHINE_X11_GRAB
+#pragma once
 
 #include <optional>
 
@@ -34,11 +33,11 @@ namespace platf::x11 {
     capture(egl::cursor_t &img);
 
     /**
-   * Capture and blend the cursor into the image
-   * 
-   * img <-- destination image
-   * offsetX, offsetY <--- Top left corner of the virtual screen
-   */
+     * Capture and blend the cursor into the image
+     *
+     * img <-- destination image
+     * offsetX, offsetY <--- Top left corner of the virtual screen
+     */
     void
     blend(img_t &img, int offsetX, int offsetY);
 
@@ -66,5 +65,3 @@ namespace platf::x11 {
   make_display() { return nullptr; }
 #endif
 }  // namespace platf::x11
-
-#endif
