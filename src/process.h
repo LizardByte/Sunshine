@@ -48,6 +48,7 @@ namespace proc {
     std::string output;
     std::string image_path;
     std::string id;
+    bool elevated;
   };
 
   class proc_t {

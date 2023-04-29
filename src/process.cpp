@@ -125,16 +125,21 @@ namespace proc {
     });
 
     for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
-      auto &cmd = _app_prep_it->do_cmd;
+      auto &cmd = *_app_prep_it;
+
+      // Skip empty commands
+      if (cmd.do_cmd.empty()) {
+        continue;
+      }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
+                                              find_working_directory(cmd.do_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << ec.message();
+        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
         return -1;
       }
 
@@ -142,7 +147,7 @@ namespace proc {
       auto ret = child.exit_code();
 
       if (ret != 0) {
-        BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
+        BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
         return -1;
       }
     }
@@ -152,7 +157,7 @@ namespace proc {
                                               find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = platf::run_command(_app.elevated, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
       }
@@ -170,7 +175,7 @@ namespace proc {
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = platf::run_unprivileged(_app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+      _process = platf::run_command(_app.elevated, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
@@ -208,17 +213,17 @@ namespace proc {
     _app_id = -1;
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
-      auto &cmd = (_app_prep_it - 1)->undo_cmd;
+      auto &cmd = *(_app_prep_it - 1);
 
-      if (cmd.empty()) {
+      if (cmd.undo_cmd.empty()) {
         continue;
       }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
+                                              find_working_directory(cmd.undo_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
         BOOST_LOG(warning) << "System: "sv << ec.message();
@@ -481,6 +486,7 @@ namespace proc {
         auto cmd = app_node.get_optional<std::string>("cmd"s);
         auto image_path = app_node.get_optional<std::string>("image-path"s);
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
+        auto elevated = app_node.get_optional<bool>("elevated"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -489,7 +495,10 @@ namespace proc {
             auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
             auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 
-            prep_cmds.emplace_back(std::move(do_cmd), std::move(undo_cmd));
+            prep_cmds.emplace_back(
+              std::move(do_cmd),
+              std::move(undo_cmd),
+              std::move(prep_cmd.elevated));
           }
         }
 
@@ -498,15 +507,14 @@ namespace proc {
 
           prep_cmds.reserve(prep_cmds.size() + prep_nodes.size());
           for (auto &[_, prep_node] : prep_nodes) {
-            auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
+            auto do_cmd = prep_node.get_optional<std::string>("do"s);
             auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
+            auto elevated = prep_node.get_optional<bool>("elevated");
 
-            if (undo_cmd) {
-              prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
-            }
-            else {
-              prep_cmds.emplace_back(std::move(do_cmd));
-            }
+            prep_cmds.emplace_back(
+              parse_env_val(this_env, do_cmd.value_or("")),
+              parse_env_val(this_env, undo_cmd.value_or("")),
+              std::move(elevated.value_or(false)));
           }
         }
 
@@ -535,6 +543,8 @@ namespace proc {
         if (image_path) {
           ctx.image_path = parse_env_val(this_env, *image_path);
         }
+
+        ctx.elevated = elevated.value_or(false);
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {

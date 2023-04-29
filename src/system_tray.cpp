@@ -62,7 +62,7 @@ namespace system_tray {
 
     boost::process::environment _env = boost::this_process::environment();
     std::error_code ec;
-    auto child = platf::run_unprivileged(cmd, working_dir, _env, nullptr, ec, nullptr);
+    auto child = platf::run_command(false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
       BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
     }

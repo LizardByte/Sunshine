@@ -1,6 +1,5 @@
 #ifndef SUNSHINE_WINDOWS_MISC_H
 #define SUNSHINE_WINDOWS_MISC_H
-
 #include <string_view>
 #include <windows.h>
 #include <winnt.h>

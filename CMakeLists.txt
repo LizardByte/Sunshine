@@ -639,6 +639,8 @@ if(WIN32)
     set_target_properties(sunshine PROPERTIES LINK_SEARCH_START_STATIC 1)
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".dll")
     find_library(ZLIB ZLIB1)
+    list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
+            Wtsapi32.lib)
 endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
@@ -694,7 +696,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
     install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
-    install(TARGETS elevator RUNTIME DESTINATION "tools" COMPONENT elevator)
 
     # Mandatory tools
     install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
@@ -730,15 +731,16 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Extra install commands
     # Restores permissions on the install directory
     # Migrates config files from the root into the new config folder
-    # Sets permissions on the config folder so that we can write in it
     # Install service
     SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
             "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
         IfSilent +2 0
         ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset /T'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\\credentials\\\" /inheritance:r'
+        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\\credentials\\\" \
+                                  /grant:r Administrators:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-vigembus.bat\\\"'
@@ -763,21 +765,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         NoDelete:
         ")
 
-    # Adding an option for the start menu and PATH
-    # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
-    set(CPACK_NSIS_MODIFY_PATH "OFF")
-    set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-    # This will be shown on the installed apps Windows settings
-    set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
-    set(CPACK_NSIS_CREATE_ICONS_EXTRA
-        "${CPACK_NSIS_CREATE_ICONS_EXTRA}
-        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk' \
-            '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
-        ")
-    set(CPACK_NSIS_DELETE_ICONS_EXTRA
-        "${CPACK_NSIS_DELETE_ICONS_EXTRA}
-        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk'
-        ")
 
     # Checking for previous installed versions
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
@@ -811,12 +798,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
     set(CPACK_COMPONENT_AUDIO_GROUP "tools")
 
-    # elevation tool
-    set(CPACK_COMPONENT_ELEVATOR_DISPLAY_NAME "elevator")
-    set(CPACK_COMPONENT_ELEVATOR_DESCRIPTION "CLI tool that assists with elevating \
-     commands when permissions have been denied.")
-    set(CPACK_COMPONENT_ELEVATOR_GROUP "tools")
-
     # display tool
     set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
     set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
@@ -824,14 +805,19 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
 
     # service
     set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc")
-    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool providing ability to enable/disable the Sunshine service.")
+    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "Installs sunshine as a service as SYSTEM, \
+      so that it can allow usage before logon and other benefits.")
     set(CPACK_COMPONENT_SUNSHINESVC_GROUP "tools")
+    # This is required because we've changed the ACL for config to require admin to protect against EoP exploits.
+    set(CPACK_COMPONENT_SUNSHINESVC_REQUIRED true)
 
     # service scripts
     set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
-    set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable/disable the service.")
+    set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts for installing and enabling the service.")
     set(CPACK_COMPONENT_SERVICE_GROUP "scripts")
     set(CPACK_COMPONENT_SERVICE_DEPENDS sunshinesvc)
+    # This is required because we've changed the ACL for config to require admin to protect against EoP exploits.
+    set(CPACK_COMPONENT_SERVICE_REQUIRED true)
 
     # firewall scripts
     set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")

@@ -222,47 +222,55 @@
       <div class="mb-3 d-flex flex-column">
         <label class="form-label">Command Preparations</label>
         <div class="form-text">
-          A list of commands to be run before/after all applications. <br />
-          If any of the prep-commands fail, starting the application is aborted.
+          Configure a list of commands to be executed before or after running any application. 
+          If any of the specified preparation commands fail, the application launch process will be aborted.
         </div>
-        <table v-if="global_prep_cmd.length > 0">
+        <table class="table" v-if="global_prep_cmd.length > 0">
           <thead>
-            <th>Do</th>
-            <th>Undo</th>
-            <th style="width: 48px"></th>
+            <tr>
+              <th scope="col"><i class="fas fa-play"></i> Do Command</th>
+              <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
+              <th scope="col" v-if="platform === 'windows'">
+                <i class="fas fa-shield-alt"></i> Run as Admin
+              </th>
+              <th scope="col"></th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="(c,i) in global_prep_cmd">
+            <tr v-for="(c, i) in global_prep_cmd">
               <td>
-                <input
-                  type="text"
-                  class="form-control monospace"
-                  v-model="c.do"
-                />
+                <input type="text" class="form-control monospace" v-model="c.do" />
               </td>
               <td>
-                <input
-                  type="text"
-                  class="form-control monospace"
-                  v-model="c.undo"
-                />
+                <input type="text" class="form-control monospace" v-model="c.undo" />
+              </td>
+              <td v-if="platform === 'windows'">
+                <div class="form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    :id="'prep-cmd-admin-' + i"
+                    v-model="c.elevated"
+                    true-value="true"
+                    false-value="false"
+                  />
+                  <label :for="'prep-cmd-admin-' + i" class="form-check-label"
+                    >Elevated</label
+                  >
+                </div>
               </td>
               <td>
-                <button
-                  class="btn btn-danger"
-                  @click="global_prep_cmd.splice(i,1)"
-                >
-                  &times;
+                <button class="btn btn-danger" @click="$delete(global_prep_cmd, i)">
+                  <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn btn-success" @click="add_global_prep_cmd">
+                  <i class="fas fa-plus"></i>
                 </button>
               </td>
             </tr>
           </tbody>
-        </table>
-        <button
-          class="mt-2 btn btn-success"
-          style="margin: 0 auto"
-          @click="add_global_prep_cmd"
-        >
+        </table>              
+        <button class="mt-2 btn btn-success" style="margin: 0 auto" @click="add_global_prep_cmd">
           &plus; Add
         </button>
       </div>
@@ -1198,10 +1206,15 @@
         });
       },
       add_global_prep_cmd() {
-        this.global_prep_cmd.push({
+        let template = {
           do: "",
           undo: "",
-        });
+        };
+
+        if(this.platform === 'windows'){
+          template = {...template, elevated: false};
+        }
+        this.global_prep_cmd.push(template);
       },
     },
   });
