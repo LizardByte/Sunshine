@@ -178,6 +178,28 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Open a url in the default web browser.
+   * @param url The url to open.
+   */
+  void
+  open_url(const std::string &url) {
+    // set working dir to user home directory
+    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
+    std::string cmd = R"(xdg-open ")" + url + R"(")";
+
+    boost::process::environment _env = boost::this_process::environment();
+    std::error_code ec;
+    auto child = run_command(false, cmd, working_dir, _env, nullptr, ec, nullptr);
+    if (ec) {
+      BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+    }
+    else {
+      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+      child.detach();
+    }
+  }
+
   void
   adjust_thread_priority(thread_priority_e priority) {
     // Unimplemented

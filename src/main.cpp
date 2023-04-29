@@ -34,6 +34,10 @@
 extern "C" {
 #include <libavutil/log.h>
 #include <rs.h>
+
+#ifdef _WIN32
+  #include <iphlpapi.h>
+#endif
 }
 
 safe::mail_t mail::man;
@@ -140,6 +144,209 @@ namespace lifetime {
     return argv;
   }
 }  // namespace lifetime
+
+#ifdef _WIN32
+namespace service_ctrl {
+  class service_controller {
+  public:
+    /**
+     * @brief Constructor for service_controller class
+     * @param service_desired_access SERVICE_* desired access flags
+     */
+    service_controller(DWORD service_desired_access) {
+      scm_handle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_CONNECT);
+      if (!scm_handle) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "OpenSCManager() failed: "sv << winerr;
+        return;
+      }
+
+      service_handle = OpenServiceA(scm_handle, "SunshineSvc", service_desired_access);
+      if (!service_handle) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "OpenService() failed: "sv << winerr;
+        return;
+      }
+    }
+
+    ~service_controller() {
+      if (service_handle) {
+        CloseServiceHandle(service_handle);
+      }
+
+      if (scm_handle) {
+        CloseServiceHandle(scm_handle);
+      }
+    }
+
+    /**
+     * @brief Asynchronously starts the Sunshine service
+     */
+    bool
+    start_service() {
+      if (!service_handle) {
+        return false;
+      }
+
+      if (!StartServiceA(service_handle, 0, nullptr)) {
+        auto winerr = GetLastError();
+        if (winerr != ERROR_SERVICE_ALREADY_RUNNING) {
+          BOOST_LOG(error) << "StartService() failed: "sv << winerr;
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    /**
+     * @brief Query the service status
+     * @param status The SERVICE_STATUS struct to populate
+     */
+    bool
+    query_service_status(SERVICE_STATUS &status) {
+      if (!service_handle) {
+        return false;
+      }
+
+      if (!QueryServiceStatus(service_handle, &status)) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "QueryServiceStatus() failed: "sv << winerr;
+        return false;
+      }
+
+      return true;
+    }
+
+  private:
+    SC_HANDLE scm_handle = NULL;
+    SC_HANDLE service_handle = NULL;
+  };
+
+  /**
+   * @brief Check if the service is running
+   *
+   * EXAMPLES:
+   * ```cpp
+   * is_service_running();
+   * ```
+   */
+  bool
+  is_service_running() {
+    service_controller sc { SERVICE_QUERY_STATUS };
+
+    SERVICE_STATUS status;
+    if (!sc.query_service_status(status)) {
+      return false;
+    }
+
+    return status.dwCurrentState == SERVICE_RUNNING;
+  }
+
+  /**
+   * @brief Start the service and wait for startup to complete
+   *
+   * EXAMPLES:
+   * ```cpp
+   * start_service();
+   * ```
+   */
+  bool
+  start_service() {
+    service_controller sc { SERVICE_QUERY_STATUS | SERVICE_START };
+
+    std::cout << "Starting Sunshine..."sv;
+
+    // This operation is asynchronous, so we must wait for it to complete
+    if (!sc.start_service()) {
+      return false;
+    }
+
+    SERVICE_STATUS status;
+    do {
+      Sleep(1000);
+      std::cout << '.';
+    } while (sc.query_service_status(status) && status.dwCurrentState == SERVICE_START_PENDING);
+
+    if (status.dwCurrentState != SERVICE_RUNNING) {
+      BOOST_LOG(error) << SERVICE_NAME " failed to start: "sv << status.dwWin32ExitCode;
+      return false;
+    }
+
+    std::cout << std::endl;
+    return true;
+  }
+
+  /**
+   * @brief Wait for the UI to be ready after Sunshine startup
+   *
+   * EXAMPLES:
+   * ```cpp
+   * wait_for_ui_ready();
+   * ```
+   */
+  bool
+  wait_for_ui_ready() {
+    std::cout << "Waiting for Web UI to be ready...";
+
+    // Wait up to 30 seconds for the web UI to start
+    for (int i = 0; i < 30; i++) {
+      PMIB_TCPTABLE tcp_table = nullptr;
+      ULONG table_size = 0;
+      ULONG err;
+
+      auto fg = util::fail_guard([&tcp_table]() {
+        free(tcp_table);
+      });
+
+      do {
+        // Query all open TCP sockets to look for our web UI port
+        err = GetTcpTable(tcp_table, &table_size, false);
+        if (err == ERROR_INSUFFICIENT_BUFFER) {
+          free(tcp_table);
+          tcp_table = (PMIB_TCPTABLE) malloc(table_size);
+        }
+      } while (err == ERROR_INSUFFICIENT_BUFFER);
+
+      if (err != NO_ERROR) {
+        BOOST_LOG(error) << "Failed to query TCP table: "sv << err;
+        return false;
+      }
+
+      uint16_t port_nbo = htons(map_port(confighttp::PORT_HTTPS));
+      for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
+        auto &entry = tcp_table->table[i];
+
+        // Look for our port in the listening state
+        if (entry.dwLocalPort == port_nbo && entry.dwState == MIB_TCP_STATE_LISTEN) {
+          std::cout << std::endl;
+          return true;
+        }
+      }
+
+      Sleep(1000);
+      std::cout << '.';
+    }
+
+    std::cout << "timed out"sv << std::endl;
+    return false;
+  }
+}  // namespace service_ctrl
+#endif
+
+/**
+ * @brief Launch the Web UI
+ *
+ * EXAMPLES:
+ * ```cpp
+ * launch_ui();
+ * ```
+ */
+void
+launch_ui() {
+  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS));
+  platf::open_url(url);
+}
 
 /**
  * @brief Flush the log.
