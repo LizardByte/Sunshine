@@ -567,6 +567,7 @@ namespace platf {
  * process is returned. Otherwise, an error code is returned.
  *
  * @param elevated Specify to elevate the process or not
+ * @param interactive Specifies whether this will run in a window or hidden
  * @param cmd The command to run
  * @param working_dir The working directory for the new process
  * @param env The environment variables to use for the new process
@@ -577,7 +578,7 @@ namespace platf {
  * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails
  */
   bp::child
-  run_command(bool elevated, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     BOOL ret;
     // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
     std::wstring wcmd = utf8_to_wide_string(cmd);
@@ -596,6 +597,11 @@ namespace platf {
     auto attr_list_free = util::fail_guard([list = startup_info.lpAttributeList]() {
       free_proc_thread_attr_list(list);
     });
+
+    DWORD creation_flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_BREAKAWAY_FROM_JOB;
+
+    // Create a new console for interactive processes and use no console for non-interactive processes
+    creation_flags |= interactive ? CREATE_NEW_CONSOLE : CREATE_NO_WINDOW;
 
     if (is_running_as_system()) {
       // Duplicate the current user's token
@@ -625,7 +631,7 @@ namespace platf {
           NULL,
           NULL,
           !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-          EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+          creation_flags,
           env_block.data(),
           start_dir.empty() ? NULL : start_dir.c_str(),
           (LPSTARTUPINFOW) &startup_info,
@@ -640,7 +646,7 @@ namespace platf {
         NULL,
         NULL,
         !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-        EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE | CREATE_BREAKAWAY_FROM_JOB,
+        creation_flags,
         env_block.data(),
         start_dir.empty() ? NULL : start_dir.c_str(),
         (LPSTARTUPINFOW) &startup_info,
@@ -660,13 +666,12 @@ namespace platf {
     // set working dir to Windows system directory
     auto working_dir = boost::filesystem::path(std::getenv("SystemRoot"));
 
-    // this isn't ideal as it briefly shows a command window
-    // but start a command built into cmd, not an executable
-    std::string cmd = R"(cmd /C "start )" + url + R"(")";
-
     boost::process::environment _env = boost::this_process::environment();
     std::error_code ec;
-    auto child = run_command(false, cmd, working_dir, _env, nullptr, ec, nullptr);
+
+    // Launch this as a non-interactive non-elevated command to avoid an extra console window
+    std::string cmd = R"(cmd /C "start )" + url + R"(")";
+    auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
       BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
     }
