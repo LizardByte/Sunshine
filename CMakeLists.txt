@@ -739,9 +739,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         IfSilent +2 0
         ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset /T'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\\credentials\\\" /inheritance:r'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\\credentials\\\" \
-                                  /grant:r Administrators:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
