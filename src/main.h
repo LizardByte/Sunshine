@@ -40,6 +40,8 @@ int
 write_file(const char *path, const std::string_view &contents);
 std::uint16_t
 map_port(int port);
+void
+launch_ui();
 
 // namespaces
 namespace mail {
@@ -72,5 +74,18 @@ namespace lifetime {
   char **
   get_argv();
 }  // namespace lifetime
+
+#ifdef _WIN32
+namespace service_ctrl {
+  bool
+  is_service_running();
+
+  bool
+  start_service();
+
+  bool
+  wait_for_ui_ready();
+}  // namespace service_ctrl
+#endif
 
 #endif  // SUNSHINE_MAIN_H

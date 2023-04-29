@@ -423,6 +423,13 @@ namespace platf {
   std::unique_ptr<deinit_t>
   enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
 
+  /**
+   * @brief Open a url in the default web browser.
+   * @param url The url to open.
+   */
+  void
+  open_url(const std::string &url);
+
   input_t
   input();
   void

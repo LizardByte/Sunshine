@@ -37,54 +37,13 @@ using namespace std::literals;
 namespace system_tray {
 
   /**
- * @brief Open a url in the default web browser.
- * @param url The url to open.
- */
-  void
-  open_url(const std::string &url) {
-    boost::filesystem::path working_dir;
-
-    // if windows
-  #if defined(_WIN32)
-    // set working dir to Windows system directory
-    working_dir = boost::filesystem::path(std::getenv("SystemRoot"));
-
-    // this isn't ideal as it briefly shows a command window
-    // but start a command built into cmd, not an executable
-    std::string cmd = R"(cmd /C "start )" + url + R"(")";
-  #elif defined(__linux__) || defined(linux) || defined(__linux)
-    // set working dir to user home directory
-    working_dir = boost::filesystem::path(std::getenv("HOME"));
-    std::string cmd = R"(xdg-open ")" + url + R"(")";
-  #elif defined(__APPLE__) || defined(__MACH__)
-    std::string cmd = R"(open ")" + url + R"(")";
-  #endif
-
-    boost::process::environment _env = boost::this_process::environment();
-    std::error_code ec;
-    auto child = platf::run_command(false, cmd, working_dir, _env, nullptr, ec, nullptr);
-    if (ec) {
-      BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
-    }
-    else {
-      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
-      child.detach();
-    }
-  }
-
-  /**
  * @brief Callback for opening the UI from the system tray.
  * @param item The tray menu item.
  */
   void
   tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
-
-    // create the url with the port
-    std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS));
-
-    // open the url in the default web browser
-    open_url(url);
+    launch_ui();
   }
 
   /**
@@ -93,7 +52,7 @@ namespace system_tray {
  */
   void
   tray_donate_github_cb(struct tray_menu *item) {
-    open_url("https://github.com/sponsors/LizardByte");
+    platf::open_url("https://github.com/sponsors/LizardByte");
   }
 
   /**
@@ -102,7 +61,7 @@ namespace system_tray {
  */
   void
   tray_donate_mee6_cb(struct tray_menu *item) {
-    open_url("https://mee6.xyz/m/804382334370578482");
+    platf::open_url("https://mee6.xyz/m/804382334370578482");
   }
 
   /**
@@ -111,7 +70,7 @@ namespace system_tray {
  */
   void
   tray_donate_patreon_cb(struct tray_menu *item) {
-    open_url("https://www.patreon.com/LizardByte");
+    platf::open_url("https://www.patreon.com/LizardByte");
   }
 
   /**
@@ -120,7 +79,7 @@ namespace system_tray {
  */
   void
   tray_donate_paypal_cb(struct tray_menu *item) {
-    open_url("https://www.paypal.com/paypalme/ReenigneArcher");
+    platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
 
   /**
