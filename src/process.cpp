@@ -175,7 +175,7 @@ namespace proc {
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = platf::run_command(_app.elevated, _app.cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      _process = platf::run_command(_app.elevated, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
