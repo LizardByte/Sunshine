@@ -582,7 +582,6 @@ namespace platf {
     BOOL ret;
     // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
     std::wstring wcmd = utf8_to_wide_string(cmd);
-    std::wstring env_block = create_environment_block(env);
     std::wstring start_dir = utf8_to_wide_string(working_dir.string());
 
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
@@ -608,7 +607,7 @@ namespace platf {
       HANDLE user_token = retrieve_users_token(elevated);
       if (!user_token) {
         // Fail the launch rather than risking launching with Sunshine's permissions unmodified.
-        ec = std::make_error_code(std::errc::no_such_process);
+        ec = std::make_error_code(std::errc::permission_denied);
         return bp::child();
       }
 
@@ -625,6 +624,7 @@ namespace platf {
 
       // Open the process as the current user account, elevation is handled in the token itself.
       ec = impersonate_current_user(user_token, [&]() {
+        std::wstring env_block = create_environment_block(env);
         ret = CreateProcessAsUserW(user_token,
           NULL,
           (LPWSTR) wcmd.c_str(),
@@ -641,6 +641,23 @@ namespace platf {
     // Otherwise, launch the process using CreateProcessW()
     // This will inherit the elevation of whatever the user launched Sunshine with.
     else {
+      // Open our current token to resolve environment variables
+      HANDLE process_token;
+      if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &process_token)) {
+        ec = std::make_error_code(std::errc::permission_denied);
+        return bp::child();
+      }
+      auto token_close = util::fail_guard([process_token]() {
+        CloseHandle(process_token);
+      });
+
+      // Populate env with user-specific environment variables
+      if (!merge_user_environment_block(env, process_token)) {
+        ec = std::make_error_code(std::errc::not_enough_memory);
+        return bp::child();
+      }
+
+      std::wstring env_block = create_environment_block(env);
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
         NULL,
