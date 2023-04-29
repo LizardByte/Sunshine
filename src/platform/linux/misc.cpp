@@ -159,7 +159,7 @@ namespace platf {
   }
 
   bp::child
-  run_command(bool elevated, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     if (!group) {
       if (!file) {
         return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
@@ -190,7 +190,7 @@ namespace platf {
 
     boost::process::environment _env = boost::this_process::environment();
     std::error_code ec;
-    auto child = run_command(false, cmd, working_dir, _env, nullptr, ec, nullptr);
+    auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
       BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
     }
