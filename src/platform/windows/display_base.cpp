@@ -110,6 +110,15 @@ namespace platf::dxgi {
       CloseHandle(timer);
     });
 
+    // Keep the display awake during capture. If the display goes to sleep during
+    // capture, best case is that capture stops until it powers back on. However,
+    // worst case it will trigger us to reinit DD, waking the display back up in
+    // a neverending cycle of waking and sleeping the display of an idle machine.
+    SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED);
+    auto clear_display_required = util::fail_guard([]() {
+      SetThreadExecutionState(ES_CONTINUOUS);
+    });
+
     while (true) {
       // This will return false if the HDR state changes or for any number of other
       // display or GPU changes. We should reinit to examine the updated state of
@@ -342,45 +351,57 @@ namespace platf::dxgi {
     auto output_name = converter.from_bytes(display_name);
 
     adapter_t::pointer adapter_p;
-    for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
-      dxgi::adapter_t adapter_tmp { adapter_p };
+    for (int tries = 0; tries < 2; ++tries) {
+      for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+        dxgi::adapter_t adapter_tmp { adapter_p };
 
-      DXGI_ADAPTER_DESC1 adapter_desc;
-      adapter_tmp->GetDesc1(&adapter_desc);
+        DXGI_ADAPTER_DESC1 adapter_desc;
+        adapter_tmp->GetDesc1(&adapter_desc);
 
-      if (!adapter_name.empty() && adapter_desc.Description != adapter_name) {
-        continue;
-      }
-
-      dxgi::output_t::pointer output_p;
-      for (int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
-        dxgi::output_t output_tmp { output_p };
-
-        DXGI_OUTPUT_DESC desc;
-        output_tmp->GetDesc(&desc);
-
-        if (!output_name.empty() && desc.DeviceName != output_name) {
+        if (!adapter_name.empty() && adapter_desc.Description != adapter_name) {
           continue;
         }
 
-        if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
-          output = std::move(output_tmp);
+        dxgi::output_t::pointer output_p;
+        for (int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+          dxgi::output_t output_tmp { output_p };
 
-          offset_x = desc.DesktopCoordinates.left;
-          offset_y = desc.DesktopCoordinates.top;
-          width = desc.DesktopCoordinates.right - offset_x;
-          height = desc.DesktopCoordinates.bottom - offset_y;
+          DXGI_OUTPUT_DESC desc;
+          output_tmp->GetDesc(&desc);
 
-          // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
-          // Ensure offset starts at 0x0
-          offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
-          offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
+          if (!output_name.empty() && desc.DeviceName != output_name) {
+            continue;
+          }
+
+          if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
+            output = std::move(output_tmp);
+
+            offset_x = desc.DesktopCoordinates.left;
+            offset_y = desc.DesktopCoordinates.top;
+            width = desc.DesktopCoordinates.right - offset_x;
+            height = desc.DesktopCoordinates.bottom - offset_y;
+
+            // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
+            // Ensure offset starts at 0x0
+            offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
+            offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
+          }
+        }
+
+        if (output) {
+          adapter = std::move(adapter_tmp);
+          break;
         }
       }
 
       if (output) {
-        adapter = std::move(adapter_tmp);
         break;
+      }
+
+      // If we made it here without finding an output, try to power on the display and retry.
+      if (tries == 0) {
+        SetThreadExecutionState(ES_DISPLAY_REQUIRED);
+        Sleep(500);
       }
     }
 
