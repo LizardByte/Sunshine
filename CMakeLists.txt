@@ -536,6 +536,8 @@ set(SUNSHINE_TARGET_FILES
         src/thread_safe.h
         src/sync.h
         src/round_robin.h
+        src/stat_trackers.h
+        src/stat_trackers.cpp
         ${PLATFORM_TARGET_FILES})
 
 set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)

@@ -20,6 +20,7 @@ extern "C" {
 #include "input.h"
 #include "main.h"
 #include "network.h"
+#include "stat_trackers.h"
 #include "stream.h"
 #include "sync.h"
 #include "thread_safe.h"
@@ -1003,6 +1004,8 @@ namespace stream {
     // Video traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
+    stat_trackers::min_max_avg_tracker<uint16_t> frame_processing_latency_tracker;
+
     while (auto packet = packets->pop()) {
       if (shutdown_event->peek()) {
         break;
@@ -1026,6 +1029,16 @@ namespace stream {
         };
 
         uint16_t latency = duration_to_latency(std::chrono::steady_clock::now() - *packet->frame_timestamp);
+
+        if (config::sunshine.min_log_level <= 1) {
+          // Print frame processing latency stats to debug log every 20 seconds
+          auto print_info = [&](uint16_t min_latency, uint16_t max_latency, double avg_latency) {
+            auto f = stat_trackers::one_digit_after_decimal();
+            BOOST_LOG(debug) << "Frame processing latency (min/max/avg): " << f % (min_latency / 10.) << "ms/" << f % (max_latency / 10.) << "ms/" << f % (avg_latency / 10.) << "ms";
+          };
+          frame_processing_latency_tracker.collect_and_callback_on_interval(latency, print_info, 20s);
+        }
+
         frame_header.frame_processing_latency = latency;
       }
       else {
