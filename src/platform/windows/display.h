@@ -105,20 +105,59 @@ namespace platf::dxgi {
     bool visible;
   };
 
+  //! Helper utility to store how long it took to acquire a frame in duplication_t and calculate the rolling average
+  class duplication_frametime_t {
+  public:
+    duplication_frametime_t(std::size_t buffer_size);
+
+    void
+    start_measuring();
+    //! \returns the end timepoint for convenience
+    std::chrono::steady_clock::time_point
+    stop_measuring();
+    std::chrono::nanoseconds
+    get_rolling_average() const;
+    void
+    clear();
+
+  private:
+    std::chrono::steady_clock::time_point start_timepoint;
+    std::vector<std::chrono::nanoseconds> frametimes;
+    std::size_t max_buffer_size;
+    std::size_t buffer_index;
+  };
+
   class duplication_t {
   public:
-    dup_t dup;
-    bool has_frame {};
-    bool use_dwmflush {};
+    duplication_t();
+    ~duplication_t();
+
+    void
+    init(bool use_dwmflush, int framerate);
 
     capture_e
-    next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p);
+    acquire_next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
+    capture_e
+    next_frame_without_dwm_flush(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
+    capture_e
+    next_frame_with_dwm_flush(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
+    capture_e
+    next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res);
     capture_e
     reset(dup_t::pointer dup_p = dup_t::pointer());
     capture_e
     release_frame();
 
-    ~duplication_t();
+    dup_t dup;
+
+  private:
+    std::chrono::steady_clock::time_point capture_timepoint {};
+    std::chrono::nanoseconds desired_frametime {};
+    HANDLE timer { nullptr };
+    duplication_frametime_t frametimes { 60 /* hardcoded buffer size, should be more than enough for rolling average*/ };
+
+    bool has_frame {};
+    bool use_dwmflush {};
   };
 
   class display_base_t: public display_t {
@@ -128,8 +167,6 @@ namespace platf::dxgi {
 
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
-
-    std::chrono::nanoseconds delay;
 
     factory1_t factory;
     adapter_t adapter;

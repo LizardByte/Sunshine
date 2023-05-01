@@ -5,6 +5,7 @@
 #include <cmath>
 #include <codecvt>
 #include <initguid.h>
+#include <numeric>
 
 #include <boost/process.hpp>
 
@@ -25,8 +26,73 @@ namespace platf {
 namespace platf::dxgi {
   namespace bp = boost::process;
 
+  duplication_frametime_t::duplication_frametime_t(std::size_t buffer_size):
+      max_buffer_size { buffer_size }, buffer_index { 0 } {
+    BOOST_ASSERT(max_buffer_size > 0);
+    frametimes.reserve(max_buffer_size);
+  }
+
+  void
+  duplication_frametime_t::start_measuring() {
+    start_timepoint = std::chrono::steady_clock::now();
+  }
+
+  std::chrono::steady_clock::time_point
+  duplication_frametime_t::stop_measuring() {
+    const auto end_timepoint = std::chrono::steady_clock::now();
+    const auto frametime = end_timepoint - start_timepoint;
+
+    // If the the buffer size has already reached the max possible, we need to start managing circular buffer manually
+    if (frametimes.size() == max_buffer_size) {
+      frametimes[buffer_index++] = frametime;
+      if (buffer_index >= max_buffer_size) {
+        buffer_index = 0;
+      }
+    }
+    else {
+      frametimes.push_back(frametime);
+    }
+
+    return end_timepoint;
+  }
+
+  std::chrono::nanoseconds
+  duplication_frametime_t::get_rolling_average() const {
+    const auto sum = std::accumulate(std::begin(frametimes), std::end(frametimes), std::chrono::nanoseconds(0));
+    return frametimes.size() == 0 ? std::chrono::nanoseconds(0) : std::chrono::nanoseconds(sum / frametimes.size());
+  }
+
+  void
+  duplication_frametime_t::clear() {
+    frametimes.clear();
+    buffer_index = 0;
+  }
+
+  duplication_t::duplication_t() {
+    timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    if (!timer) {
+      timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+      if (!timer) {
+        auto winerr = GetLastError();
+        BOOST_LOG(fatal) << "Failed to create timer: "sv << winerr;
+        abort();
+      }
+    }
+  }
+
+  duplication_t::~duplication_t() {
+    CloseHandle(timer);
+    release_frame();
+  }
+
+  void
+  duplication_t::init(bool dwmflush, int framerate) {
+    use_dwmflush = dwmflush;
+    desired_frametime = std::chrono::nanoseconds { 1s } / framerate;
+  }
+
   capture_e
-  duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p) {
+  duplication_t::acquire_next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res) {
     auto capture_status = release_frame();
     if (capture_status != capture_e::ok) {
       return capture_status;
@@ -36,7 +102,9 @@ namespace platf::dxgi {
       DwmFlush();
     }
 
-    auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
+    resource_t::pointer res_p {};
+    auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, &res_p);
+    res.reset(res_p);
 
     switch (status) {
       case S_OK:
@@ -52,6 +120,120 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Couldn't acquire next frame [0x"sv << util::hex(status).to_string_view();
         return capture_e::error;
     }
+  }
+
+  capture_e
+  duplication_t::next_frame_without_dwm_flush(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res) {
+    // If the wait time is between 1 us and 1 second, wait the specified time
+    // and offset the next frame time from the exact current frame time target.
+    auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(capture_timepoint - std::chrono::steady_clock::now()).count();
+    if (wait_time_us > 0 && wait_time_us < 1000000) {
+      LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
+      SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
+      WaitForSingleObject(timer, INFINITE);
+      capture_timepoint += desired_frametime;
+    }
+    else {
+      // If the wait time is negative (meaning the frame is past due) or the
+      // computed wait time is beyond a second (meaning possible clock issues),
+      // just capture the frame now and resynchronize the frame interval with
+      // the current time.
+      capture_timepoint = std::chrono::steady_clock::now() + desired_frametime;
+    }
+
+    return acquire_next_frame(frame_info, timeout, res);
+  }
+
+  capture_e
+  duplication_t::next_frame_with_dwm_flush(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res) {
+    // The idea of this framelimiter algorithm is to rely on the `IDXGIOutputDuplication::AcquireNextFrame` to actually wait for the
+    // next frame to be available and then, once it is acquired, discard it or use it.
+    //
+    // The main goal here is not to incur any additional sleep/wait as it messes with the framepacing when the
+    // streamed FPS == rendered FPS.
+    // Ideally this framelimiter kicks in only when the streamed FPS < rendered FPS.
+    //
+    // Why is the normal sleep/wait approach not good enough?
+    // Consider that we are streaming 60 FPS, this gives us 16.67ms of frametime. Ideally we could sleep for
+    // 16.67ms, wake up, grab a frame and repeat. The problem is that the frame can become available way earlier
+    // or later than 16.67ms. Here is an example of measured frametimes for 1 second (measurements were done in Sunshine itself):
+    //
+    // 20.91ms 12.301ms 16.682ms 19.66ms 13.574ms 18.489ms 14.844ms 16.758ms 18.042ms 15.422ms 16.617ms 17.49ms
+    // 15.956ms 16.663ms 16.271ms 16.751ms 16.92ms 16.993ms 16.783ms 15.792ms 16.245ms 17.81ms 16.701ms 16.723ms
+    // 16.572ms 16.34ms 16.669ms 16.645ms 16.683ms 16.152ms 16.632ms 17.023ms 16.623ms 17.045ms 16.421ms 16.591ms
+    // 16.825ms 16.368ms 16.416ms 17.463ms 16.249ms 17.191ms 17.003ms 15.979ms 16.299ms 17.004ms 16.798ms 16.173ms
+    // 16.642ms 17.057ms 16.609ms 17.021ms 16.396ms 16.602ms 16.964ms 16.998ms 16.62ms 16.002ms 16.698ms 16.993ms
+    //
+    // As you can see we have frametimes ranging anywhere from 12.301ms to 20.91ms. On those ocassions any aditional
+    // sleep/wait may give the feeling of stutter when panning the camera and etc.
+
+    // This is our target point. If we are close enough to this timepoint,
+    // the frame is good enough for us to use. More about skipping frames below.
+    const auto next_timepoint = capture_timepoint + desired_frametime;
+
+    std::chrono::steady_clock::time_point capture_end;
+    while (true) {
+      frametimes.start_measuring();
+      const auto status = acquire_next_frame(frame_info, timeout, res);
+      capture_end = frametimes.stop_measuring();
+
+      if (status != capture_e::ok) {
+        frametimes.clear();
+        capture_timepoint = {};
+        return status;
+      }
+
+      // First we need to check if we have a situation like this:
+      // |----------|-x--------|
+      //            T |
+      //              Actual frame
+      //
+      // In case we have already missed the target timepoint (T), we need to use the current frame as soon as possible.
+      if (capture_end >= next_timepoint) {
+        break;
+      }
+
+      // This is where it gets tricky.
+      // Consider that we are streaming at 30 FPS while the frames (source) are being provided at 60 FPS
+      // (here `T` - is timepoint where we expect a frame and `x` is when we actually get it):
+      // Source: |----------|----------|--x-------|----------|----------|-------x--|
+      // Stream: |--------------------------------|--------------------------------|
+      //                              T_0 |      T_1                   T_2      | T_3
+      //                                   \                                   /
+      //                                    ->         Actual Frame          <-
+      //
+      // We need a way to figure out if the frame is good enough or not. In case
+      // of T_0 vs T_1, the frame belongs to T_0 (not good enough and we can skip it),
+      // but in the case of T_2 vs T_3, the frame might belong to T_2, if it's very late.
+      // On the other hand, the frame can also belong to T_3 if it came early. In both
+      // cases it is considered good enough to use.
+      //
+      // Here we can subdivide the source's frametime to evalutate if it's good enough to be used:
+      // Source:         |-----------|-----------|--x--------|-----------|-----------|--------x--|
+      // Source/2:       |-----|-----|-----|-----|--x--|-----|-----|-----|-----|-----|-----|--x--|
+      // Stream:         |-----------------------------------|-----------------------------------|
+      // GoodEnoughZone:                               |+++++|                             |+++++|
+      //
+      // What we need additionally is the uniform frametime window the source source is trying to render at,
+      // which we can calculate using the rolling average for more stability
+      // (we want to avoid jumpy frametimes like 12.301ms or 20.91ms).
+      const auto average_frametime = frametimes.get_rolling_average() / 2;
+      if (capture_end + average_frametime >= next_timepoint) {
+        break;
+      }
+    }
+
+    capture_timepoint = capture_end;
+    return capture_e::ok;
+  }
+
+  capture_e
+  duplication_t::next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t &res) {
+    if (use_dwmflush) {
+      return next_frame_with_dwm_flush(frame_info, timeout, res);
+    }
+
+    return next_frame_without_dwm_flush(frame_info, timeout, res);
   }
 
   capture_e
@@ -87,52 +269,14 @@ namespace platf::dxgi {
     }
   }
 
-  duplication_t::~duplication_t() {
-    release_frame();
-  }
-
   capture_e
   display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
-    auto next_frame = std::chrono::steady_clock::now();
-
-    // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
-    HANDLE timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-    if (!timer) {
-      timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
-      if (!timer) {
-        auto winerr = GetLastError();
-        BOOST_LOG(error) << "Failed to create timer: "sv << winerr;
-        return capture_e::error;
-      }
-    }
-
-    auto close_timer = util::fail_guard([timer]() {
-      CloseHandle(timer);
-    });
-
     while (true) {
       // This will return false if the HDR state changes or for any number of other
       // display or GPU changes. We should reinit to examine the updated state of
       // the display subsystem. It is recommended to call this once per frame.
       if (!factory->IsCurrent()) {
         return platf::capture_e::reinit;
-      }
-
-      // If the wait time is between 1 us and 1 second, wait the specified time
-      // and offset the next frame time from the exact current frame time target.
-      auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
-      if (wait_time_us > 0 && wait_time_us < 1000000) {
-        LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
-        SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
-        WaitForSingleObject(timer, INFINITE);
-        next_frame += delay;
-      }
-      else {
-        // If the wait time is negative (meaning the frame is past due) or the
-        // computed wait time is beyond a second (meaning possible clock issues),
-        // just capture the frame now and resynchronize the frame interval with
-        // the current time.
-        next_frame = std::chrono::steady_clock::now() + delay;
       }
 
       std::shared_ptr<img_t> img_out;
@@ -317,8 +461,6 @@ namespace platf::dxgi {
     // Ensure we can duplicate the current display
     syncThreadDesktop();
 
-    delay = std::chrono::nanoseconds { 1s } / config.framerate;
-
     // Get rectangle of full desktop for absolute mouse coordinates
     env_width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
@@ -454,7 +596,7 @@ namespace platf::dxgi {
       refresh_rate = std::round((double) timing_info.rateRefresh.uiNumerator / (double) timing_info.rateRefresh.uiDenominator);
     }
 
-    dup.use_dwmflush = config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false;
+    dup.init(config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false, config.framerate);
 
     // Bump up thread priority
     {
