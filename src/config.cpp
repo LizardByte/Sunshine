@@ -1150,23 +1150,45 @@ namespace config {
       }
     }
 
-    // create appdata folder if it does not exist
-    if (!boost::filesystem::exists(platf::appdata().string())) {
-      boost::filesystem::create_directories(platf::appdata().string());
+    bool config_loaded = false;
+    try {
+      // Create appdata folder if it does not exist
+      if (!boost::filesystem::exists(platf::appdata().string())) {
+        boost::filesystem::create_directories(platf::appdata().string());
+      }
+
+      // Create empty config file if it does not exist
+      if (!fs::exists(sunshine.config_file)) {
+        std::ofstream { sunshine.config_file };
+      }
+
+      // Read config file
+      auto vars = parse_config(read_file(sunshine.config_file.c_str()));
+
+      for (auto &[name, value] : cmd_vars) {
+        vars.insert_or_assign(std::move(name), std::move(value));
+      }
+
+      // Apply the config. Note: This will try to create any paths
+      // referenced in the config, so we may receive exceptions if
+      // the path is incorrect or inaccessible.
+      apply_config(std::move(vars));
+      config_loaded = true;
+    }
+    catch (const std::filesystem::filesystem_error &err) {
+      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
+    }
+    catch (const boost::filesystem::filesystem_error &err) {
+      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
     }
 
-    // create config file if it does not exist
-    if (!fs::exists(sunshine.config_file)) {
-      std::ofstream { sunshine.config_file };  // create empty config file
+    if (!config_loaded) {
+#ifdef _WIN32
+      BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
+      std::this_thread::sleep_for(10s);
+#endif
+      return -1;
     }
-
-    auto vars = parse_config(read_file(sunshine.config_file.c_str()));
-
-    for (auto &[name, value] : cmd_vars) {
-      vars.insert_or_assign(std::move(name), std::move(value));
-    }
-
-    apply_config(std::move(vars));
 
 #ifdef _WIN32
     // We have to wait until the config is loaded to handle these launches,

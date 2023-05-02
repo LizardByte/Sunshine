@@ -600,7 +600,14 @@ main(int argc, char *argv[]) {
   }
 
   if (http::init()) {
-    BOOST_LOG(error) << "http failed to initialize"sv;
+    BOOST_LOG(fatal) << "HTTP interface failed to initialize"sv;
+
+#ifdef _WIN32
+    BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
+    std::this_thread::sleep_for(10s);
+#endif
+
+    return -1;
   }
 
   std::unique_ptr<platf::deinit_t> mDNS;
