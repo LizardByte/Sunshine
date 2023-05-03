@@ -118,6 +118,8 @@ namespace platf::dxgi {
     capture_e
     release_frame();
 
+    IDXGIResource *last_surface = nullptr;  // no refcounting, only for checking whether we got a different texture object
+
     ~duplication_t();
   };
 

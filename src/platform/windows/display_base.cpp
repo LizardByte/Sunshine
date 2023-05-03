@@ -38,6 +38,21 @@ namespace platf::dxgi {
 
     auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
 
+    if (status == S_OK && *res_p && *res_p != last_surface) {
+      last_surface = *res_p;
+      UINT current_priority = 0;
+      last_surface->GetEvictionPriority(&current_priority);
+      if (current_priority != DXGI_RESOURCE_PRIORITY_MAXIMUM) {
+        if (current_priority < DXGI_RESOURCE_PRIORITY_MAXIMUM) {
+          BOOST_LOG(debug) << "Maximizing eviction priority of desktop duplication surface. Old priority was 0x"sv << util::hex(current_priority).to_string_view();
+          last_surface->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
+        }
+        else {
+          BOOST_LOG(info) << "Eviction priority of desktop duplication surface 0x"sv << util::hex(current_priority).to_string_view() << " is greater than DXGI_RESOURCE_PRIORITY_MAXIMUM"sv;
+        }
+      }
+    }
+
     switch (status) {
       case S_OK:
         has_frame = true;
