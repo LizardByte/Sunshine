@@ -30,39 +30,39 @@ RUN <<_DEPS
 set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
-  build-essential=12.9* \
-  cmake=3.18.4* \
-  git=1:2.30.2* \
-  libavdevice-dev=7:4.3.* \
-  libboost-filesystem-dev=1.74.0* \
-  libboost-locale-dev=1.74.0* \
-  libboost-log-dev=1.74.0* \
-  libboost-program-options-dev=1.74.0* \
-  libboost-thread-dev=1.74.0* \
-  libcap-dev=1:2.44* \
-  libcurl4-openssl-dev=7.74.0* \
-  libdrm-dev=2.4.104* \
-  libevdev-dev=1.11.0* \
-  libnuma-dev=2.0.12* \
-  libopus-dev=1.3.1* \
-  libpulse-dev=14.2* \
-  libssl-dev=1.1.1* \
-  libva-dev=2.10.0* \
-  libvdpau-dev=1.4* \
-  libwayland-dev=1.18.0* \
-  libx11-dev=2:1.7.2* \
-  libxcb-shm0-dev=1.14* \
-  libxcb-xfixes0-dev=1.14* \
-  libxcb1-dev=1.14* \
-  libxfixes-dev=1:5.0.3* \
-  libxrandr-dev=2:1.5.1* \
-  libxtst-dev=2:1.2.3* \
-  nodejs=12.22* \
-  npm=7.5.2* \
-  wget=1.21*
+  build-essential \
+  cmake=3.18.* \
+  git \
+  libavdevice-dev \
+  libboost-filesystem-dev=1.74.* \
+  libboost-locale-dev=1.74.* \
+  libboost-log-dev=1.74.* \
+  libboost-program-options-dev=1.74.* \
+  libboost-thread-dev=1.74.* \
+  libcap-dev \
+  libcurl4-openssl-dev \
+  libdrm-dev \
+  libevdev-dev \
+  libnuma-dev \
+  libopus-dev \
+  libpulse-dev \
+  libssl-dev \
+  libva-dev \
+  libvdpau-dev \
+  libwayland-dev \
+  libx11-dev \
+  libxcb-shm0-dev \
+  libxcb-xfixes0-dev \
+  libxcb1-dev \
+  libxfixes-dev \
+  libxrandr-dev \
+  libxtst-dev \
+  nodejs \
+  npm \
+  wget
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
-    libmfx-dev=21.1.0*
+    libmfx-dev
 fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*

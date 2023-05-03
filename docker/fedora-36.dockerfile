@@ -30,37 +30,37 @@ set -e
 dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
-  boost-devel-1.76.0* \
-  cmake-3.26.3* \
-  gcc-12.2.1* \
-  gcc-c++-12.2.1* \
-  git-2.40.0* \
-  libappindicator-gtk3-devel-12.10.0* \
-  libcap-devel-2.48* \
-  libcurl-devel-7.82.0* \
-  libdrm-devel-2.4.114* \
-  libevdev-devel-1.13.0* \
-  libva-devel-2.14.0* \
-  libvdpau-devel-1.5* \
-  libX11-devel-1.7.3* \
-  libxcb-devel-1.13.1* \
-  libXcursor-devel-1.2.0* \
-  libXfixes-devel-6.0.0* \
-  libXi-devel-1.8* \
-  libXinerama-devel-1.1.4* \
-  libXrandr-devel-1.5.2* \
-  libXtst-devel-1.2.3* \
-  mesa-libGL-devel-22.1.7* \
-  npm-8.19.2* \
-  numactl-devel-2.0.14* \
-  openssl-devel-3.0.8* \
-  opus-devel-1.3.1* \
-  pulseaudio-libs-devel-15.0* \
-  rpm-build-4.17.1* \
-  wget-1.21.3* \
-  which-2.21*
+  boost-devel-1.76.* \
+  cmake-3.26.* \
+  gcc-12.2.* \
+  gcc-c++-12.2.* \
+  git \
+  libappindicator-gtk3-devel \
+  libcap-devel \
+  libcurl-devel \
+  libdrm-devel \
+  libevdev-devel \
+  libva-devel \
+  libvdpau-devel \
+  libX11-devel \
+  libxcb-devel \
+  libXcursor-devel \
+  libXfixes-devel \
+  libXi-devel \
+  libXinerama-devel \
+  libXrandr-devel \
+  libXtst-devel \
+  mesa-libGL-devel \
+  npm \
+  numactl-devel \
+  openssl-devel \
+  opus-devel \
+  pulseaudio-libs-devel \
+  rpm-build \
+  wget \
+  which
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  dnf -y install intel-mediasdk-devel-22.3.0*
+  dnf -y install intel-mediasdk-devel
 fi
 dnf clean all
 rm -rf /var/cache/yum
