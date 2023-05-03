@@ -6,6 +6,9 @@
 #include <mmdeviceapi.h>
 #include <roapi.h>
 
+#include <codecvt>
+#include <locale>
+
 #include <synchapi.h>
 
 #define INITGUID
@@ -53,6 +56,8 @@ namespace audio {
   using wstring_t = util::safe_ptr<WCHAR, co_task_free<WCHAR>>;
 
   using handle_t = util::safe_ptr_v2<void, BOOL, CloseHandle>;
+
+  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   class prop_var_t {
   public:
@@ -215,6 +220,17 @@ namespace audio {
         break;
     }
 
+    std::wstring current_format = L"Unknown"s;
+    for (const auto &format : formats) {
+      // This will fail for any format that's not the mix format for this device,
+      // so we can take the first match as the current format to display.
+      auto audio_client = make_audio_client(device, format);
+      if (audio_client) {
+        current_format = converter.from_bytes(format.name.data());
+        break;
+      }
+    }
+
     std::wcout
       << L"===== Device ====="sv << std::endl
       << L"Device ID          : "sv << wstring.get() << std::endl
@@ -222,18 +238,8 @@ namespace audio {
       << L"Adapter name       : "sv << no_null((LPWSTR) adapter_friendly_name.prop.pszVal) << std::endl
       << L"Device description : "sv << no_null((LPWSTR) device_desc.prop.pszVal) << std::endl
       << L"Device state       : "sv << device_state_string << std::endl
+      << L"Current format     : "sv << current_format << std::endl
       << std::endl;
-
-    if (device_state != DEVICE_STATE_ACTIVE) {
-      return;
-    }
-
-    for (const auto &format : formats) {
-      // Ensure WaveFromat is compatible
-      auto audio_client = make_audio_client(device, format);
-
-      std::cout << format.name << ": "sv << (!audio_client ? "unsupported"sv : "supported"sv) << std::endl;
-    }
   }
 }  // namespace audio
 
