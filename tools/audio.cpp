@@ -88,7 +88,21 @@ namespace audio {
     { "Stereo"sv,
       2,
       SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT },
-    { "Surround 5.1"sv,
+    { "Quadraphonic"sv,
+      4,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_BACK_LEFT |
+        SPEAKER_BACK_RIGHT },
+    { "Surround 5.1 (Side)"sv,
+      6,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_FRONT_CENTER |
+        SPEAKER_LOW_FREQUENCY |
+        SPEAKER_SIDE_LEFT |
+        SPEAKER_SIDE_RIGHT },
+    { "Surround 5.1 (Back)"sv,
       6,
       SPEAKER_FRONT_LEFT |
         SPEAKER_FRONT_RIGHT |
