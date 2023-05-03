@@ -447,6 +447,8 @@ audio_sink
 
             tools\audio-info.exe
 
+         .. Tip:: If you have multiple audio devices with identical names, use the Device ID instead.
+
    .. Tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
 
 **Default**
@@ -466,7 +468,7 @@ audio_sink
    **Windows**
       .. code-block:: text
 
-         audio_sink = {0.0.0.00000000}.{FD47D9CC-4218-4135-9CE2-0C195C87405B}
+         audio_sink = Speakers (High Definition Audio Device)
 
 virtual_sink
 ^^^^^^^^^^^^
@@ -488,7 +490,7 @@ virtual_sink
 **Example**
    .. code-block:: text
 
-      virtual_sink = {0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}
+      virtual_sink = Steam Streaming Speakers
 
 Network
 -------
