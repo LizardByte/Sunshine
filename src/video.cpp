@@ -15,6 +15,7 @@ extern "C" {
 #include "input.h"
 #include "main.h"
 #include "platform/common.h"
+#include "stat_trackers.h"
 #include "sync.h"
 #include "video.h"
 
@@ -791,6 +792,8 @@ namespace video {
     constexpr auto capture_buffer_size = 12;
     std::list<std::shared_ptr<platf::img_t>> imgs(capture_buffer_size);
 
+    stat_trackers::count_each_value_tracker<size_t, size_t> allocated_and_used_tracker;
+
     std::vector<std::optional<std::chrono::steady_clock::time_point>> imgs_used_timestamps;
     const std::chrono::seconds trim_timeot = 3s;
     auto trim_imgs = [&]() {
@@ -804,6 +807,23 @@ namespace video {
             used_count += 1;
           }
         }
+      }
+
+      // print allocated and used statistics every 20s to debug log
+      if (config::sunshine.min_log_level <= 1) {
+        auto print_info = [&](const auto &allocated_count_map, const auto &used_count_map) {
+          std::string combined;
+          for (const auto &[key, value] : allocated_count_map) {
+            combined += " " + std::to_string(key) + ":" + std::to_string(value);
+          }
+          BOOST_LOG(debug) << "Images allocated statistics (value:hits):" << combined;
+          combined.clear();
+          for (const auto &[key, value] : used_count_map) {
+            combined += " " + std::to_string(key) + ":" + std::to_string(value);
+          }
+          BOOST_LOG(debug) << "Images used statistics (value:hits):" << combined;
+        };
+        allocated_and_used_tracker.collect_and_callback_on_interval(allocated_count, used_count, print_info, 20s);
       }
 
       // remember the timestamp of currently used count
