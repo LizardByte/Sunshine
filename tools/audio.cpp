@@ -29,7 +29,6 @@ const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
 const IID IID_IAudioClient = __uuidof(IAudioClient);
 const IID IID_IAudioCaptureClient = __uuidof(IAudioCaptureClient);
 
-constexpr auto SAMPLE_RATE = 48000;
 int device_state_filter = DEVICE_STATE_ACTIVE;
 
 namespace audio {
@@ -156,28 +155,6 @@ namespace audio {
 
       return nullptr;
     }
-
-    wave_format->wBitsPerSample = 16;
-    wave_format->nSamplesPerSec = SAMPLE_RATE;
-    switch (wave_format->wFormatTag) {
-      case WAVE_FORMAT_PCM:
-        break;
-      case WAVE_FORMAT_IEEE_FLOAT:
-        break;
-      case WAVE_FORMAT_EXTENSIBLE: {
-        auto wave_ex = (PWAVEFORMATEXTENSIBLE) wave_format.get();
-        if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, wave_ex->SubFormat)) {
-          wave_ex->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-          wave_ex->Samples.wValidBitsPerSample = 16;
-          break;
-        }
-
-        std::cout << "Unsupported Sub Format for WAVE_FORMAT_EXTENSIBLE: [0x"sv << util::hex(wave_ex->SubFormat).to_string_view() << ']' << std::endl;
-      }
-      default:
-        std::cout << "Unsupported Wave Format: [0x"sv << util::hex(wave_format->wFormatTag).to_string_view() << ']' << std::endl;
-        return nullptr;
-    };
 
     set_wave_format(wave_format, format);
 
