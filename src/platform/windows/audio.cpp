@@ -515,7 +515,10 @@ namespace platf::audio {
       UINT count;
       collection->GetCount(&count);
 
-      std::string virtual_device_id = config::audio.virtual_sink;
+      // If the sink isn't a device name, we'll assume it's a device ID
+      auto virtual_device_id = find_device_id_by_name(config::audio.virtual_sink).value_or(converter.from_bytes(config::audio.virtual_sink));
+      auto virtual_device_found = false;
+
       for (auto x = 0; x < count; ++x) {
         audio::device_t device;
         collection->Item(x, &device);
@@ -526,6 +529,7 @@ namespace platf::audio {
 
         audio::wstring_t wstring;
         device->GetId(&wstring);
+        std::wstring device_id { wstring.get() };
 
         audio::prop_t prop;
         device->OpenPropertyStore(STGM_READ, &prop);
@@ -548,16 +552,26 @@ namespace platf::audio {
           << std::endl;
 
         if (virtual_device_id.empty() && adapter_name == virtual_adapter_name) {
-          virtual_device_id = converter.to_bytes(wstring.get());
+          virtual_device_id = std::move(device_id);
+          virtual_device_found = true;
+          break;
+        }
+        else if (virtual_device_id == device_id) {
+          virtual_device_found = true;
+          break;
         }
       }
 
-      if (!virtual_device_id.empty()) {
+      if (virtual_device_found) {
+        auto name_suffix = converter.to_bytes(virtual_device_id);
         sink.null = std::make_optional(sink_t::null_t {
-          "virtual-"s.append(formats[format_t::stereo - 1].name) + virtual_device_id,
-          "virtual-"s.append(formats[format_t::surr51 - 1].name) + virtual_device_id,
-          "virtual-"s.append(formats[format_t::surr71 - 1].name) + virtual_device_id,
+          "virtual-"s.append(formats[format_t::stereo - 1].name) + name_suffix,
+          "virtual-"s.append(formats[format_t::surr51 - 1].name) + name_suffix,
+          "virtual-"s.append(formats[format_t::surr71 - 1].name) + name_suffix,
         });
+      }
+      else if (!virtual_device_id.empty()) {
+        BOOST_LOG(warning) << "Unable to find the specified virtual sink: "sv << virtual_device_id;
       }
 
       return sink;
@@ -604,7 +618,8 @@ namespace platf::audio {
         }
       }
 
-      auto wstring_device_id = converter.from_bytes(sv.data());
+      // If the sink isn't a device name, we'll assume it's a device ID
+      auto wstring_device_id = find_device_id_by_name(sink).value_or(converter.from_bytes(sv.data()));
 
       if (type == format_t::none) {
         // wstring_device_id does not contain virtual-(format name)
@@ -658,6 +673,83 @@ namespace platf::audio {
       }
 
       return failure;
+    }
+
+    /**
+     * @brief Find the audio device ID given a user-specified name
+     *
+     * @param name The name provided by the user
+     *
+     * @return The matching device ID, or nothing if not found
+     */
+    std::optional<std::wstring>
+    find_device_id_by_name(const std::string &name) {
+      if (name.empty()) {
+        return std::nullopt;
+      }
+
+      audio::device_enum_t device_enum;
+      auto status = CoCreateInstance(
+        CLSID_MMDeviceEnumerator,
+        nullptr,
+        CLSCTX_ALL,
+        IID_IMMDeviceEnumerator,
+        (void **) &device_enum);
+
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return std::nullopt;
+      }
+
+      collection_t collection;
+      status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return std::nullopt;
+      }
+
+      UINT count;
+      collection->GetCount(&count);
+
+      auto wstring_name = converter.from_bytes(name.data());
+
+      for (auto x = 0; x < count; ++x) {
+        audio::device_t device;
+        collection->Item(x, &device);
+
+        if (!validate_device(device)) {
+          continue;
+        }
+
+        audio::wstring_t wstring_id;
+        device->GetId(&wstring_id);
+
+        audio::prop_t prop;
+        device->OpenPropertyStore(STGM_READ, &prop);
+
+        prop_var_t adapter_friendly_name;
+        prop_var_t device_friendly_name;
+        prop_var_t device_desc;
+
+        prop->GetValue(PKEY_Device_FriendlyName, &device_friendly_name.prop);
+        prop->GetValue(PKEY_DeviceInterface_FriendlyName, &adapter_friendly_name.prop);
+        prop->GetValue(PKEY_Device_DeviceDesc, &device_desc.prop);
+
+        auto adapter_name = no_null((LPWSTR) adapter_friendly_name.prop.pszVal);
+        auto device_name = no_null((LPWSTR) device_friendly_name.prop.pszVal);
+        auto device_description = no_null((LPWSTR) device_desc.prop.pszVal);
+
+        // Match the user-specified name against any of the user-visible strings
+        if (std::wcscmp(wstring_name.c_str(), adapter_name) == 0 ||
+            std::wcscmp(wstring_name.c_str(), device_name) == 0 ||
+            std::wcscmp(wstring_name.c_str(), device_description) == 0) {
+          return std::make_optional(std::wstring { wstring_id.get() });
+        }
+      }
+
+      return std::nullopt;
     }
 
     int

@@ -448,13 +448,14 @@
           type="text"
           class="form-control"
           id="audio_sink"
-          placeholder="{0.0.0.00000000}.{FD47D9CC-4218-4135-9CE2-0C195C87405B}"
+          placeholder="Speakers (High Definition Audio Device)"
           v-model="config.audio_sink"
         />
         <div class="form-text">
-          The name of the audio sink used for Audio Loopback<br />
+          The name of the audio sink used for audio capture. If not set, the default audio device will be used.<br />
           You can find the name of the audio sink using the following command:<br />
           <pre>tools\audio-info.exe</pre>
+          If you have multiple audio devices with identical names, use the Device ID instead.
         </div>
       </div>
       <div class="mb-3" v-if="platform === 'linux'">
@@ -506,12 +507,12 @@
           type="text"
           class="form-control"
           id="virtual_sink"
-          placeholder="{0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}"
+          placeholder="Steam Streaming Speakers"
           v-model="config.virtual_sink"
         />
         <div class="form-text">
-          The virtual sink, is the audio device that's virtual (Like Steam Streaming Speakers), it allows Sunshine to
-          stream audio, while muting the speakers.
+          The virtual sink is an audio device that's virtual (like Steam Streaming Speakers). It allows Sunshine to
+          stream audio, while muting the host PC speakers.
         </div>
       </div>
       <!--Adapter Name -->
