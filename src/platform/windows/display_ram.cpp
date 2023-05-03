@@ -254,6 +254,8 @@ namespace platf::dxgi {
             BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
             return capture_e::error;
           }
+
+          texture->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
         }
 
         // It's possible for our display enumeration to race with mode changes and result in

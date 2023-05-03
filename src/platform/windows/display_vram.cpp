@@ -533,6 +533,8 @@ namespace platf::dxgi {
       frame_texture->AddRef();
       hwframe_texture.reset(frame_texture);
 
+      hwframe_texture->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
+
       float info_in[16 / sizeof(float)] { 1.0f / (float) out_width_f };  //aligned to 16-byte
       info_scene = make_buffer(device.get(), info_in);
 
@@ -764,6 +766,8 @@ namespace platf::dxgi {
         return -1;
       }
 
+      img_ctx.encoder_texture->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
+
       // Get the keyed mutex to synchronize with the capture code
       status = img_ctx.encoder_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &img_ctx.encoder_mutex);
       if (FAILED(status)) {
@@ -860,6 +864,8 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "Failed to create mouse texture [0x"sv << util::hex(status).to_string_view() << ']';
       return false;
     }
+
+    texture->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
 
     // Free resources before allocating on the next line.
     cursor.input_res.reset();
@@ -1058,6 +1064,8 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to create frame copy texture [0x"sv << util::hex(status).to_string_view() << ']';
         return false;
       }
+
+      surface->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
 
       return true;
     };
@@ -1396,6 +1404,8 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "Failed to create img buf texture [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
+
+    img->capture_texture->SetEvictionPriority(DXGI_RESOURCE_PRIORITY_MAXIMUM);
 
     status = device->CreateRenderTargetView(img->capture_texture.get(), nullptr, &img->capture_rt);
     if (FAILED(status)) {
