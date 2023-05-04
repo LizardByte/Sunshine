@@ -135,10 +135,16 @@ namespace audio {
       return;
     }
 
+    auto init_failure_fg = util::fail_guard([&shutdown_event]() {
+      BOOST_LOG(error) << "Unable to initialize audio capture. The stream will not have audio."sv;
+
+      // Wait for shutdown to be signalled if we fail init.
+      // This allows streaming to continue without audio.
+      shutdown_event->view();
+    });
+
     auto &control = ref->control;
     if (!control) {
-      shutdown_event->view();
-
       return;
     }
 
@@ -181,6 +187,15 @@ namespace audio {
       }
     }
 
+    auto frame_size = config.packetDuration * stream->sampleRate / 1000;
+    auto mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
+    if (!mic) {
+      return;
+    }
+
+    // Audio is initialized, so we don't want to print the failure message
+    init_failure_fg.disable();
+
     // Capture takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
@@ -194,15 +209,7 @@ namespace audio {
       shutdown_event->view();
     });
 
-    auto frame_size = config.packetDuration * stream->sampleRate / 1000;
     int samples_per_frame = frame_size * stream->channelCount;
-
-    auto mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
-    if (!mic) {
-      BOOST_LOG(error) << "Couldn't create audio input"sv;
-
-      return;
-    }
 
     while (!shutdown_event->peek()) {
       std::vector<std::int16_t> sample_buffer;
