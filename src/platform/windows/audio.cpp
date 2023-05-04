@@ -666,7 +666,13 @@ namespace platf::audio {
       for (int x = 0; x < (int) ERole_enum_count; ++x) {
         auto status = policy->SetDefaultEndpoint(wstring_device_id->c_str(), (ERole) x);
         if (status) {
-          BOOST_LOG(warning) << "Couldn't set ["sv << sink << "] to role ["sv << x << ']';
+          // Depending on the format of the string, we could get either of these errors
+          if (status == HRESULT_FROM_WIN32(ERROR_NOT_FOUND) || status == E_INVALIDARG) {
+            BOOST_LOG(warning) << "Audio sink not found: "sv << sink;
+          }
+          else {
+            BOOST_LOG(warning) << "Couldn't set ["sv << sink << "] to role ["sv << x << "]: 0x"sv << util::hex(status).to_string_view();
+          }
 
           ++failure;
         }
