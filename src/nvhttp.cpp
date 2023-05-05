@@ -280,6 +280,7 @@ namespace nvhttp {
     if (sess.async_insert_pin.salt.size() < 32) {
       tree.put("root.paired", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Salt too short");
       return;
     }
 
@@ -464,6 +465,7 @@ namespace nvhttp {
     auto args = request->parse_query_string();
     if (args.find("uniqueid"s) == std::end(args)) {
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Missing uniqueid parameter");
 
       return;
     }
@@ -515,6 +517,7 @@ namespace nvhttp {
     }
     else {
       tree.put("root.<xmlattr>.status_code", 404);
+      tree.put("root.<xmlattr>.status_message", "Invalid pairing request");
     }
   }
 
@@ -714,6 +717,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() == config::stream.channels) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "The host's concurrent stream limit has been reached. Stop an existing stream or increase the 'Channels' value in the Sunshine Web UI.");
 
       return;
     }
@@ -726,6 +730,7 @@ namespace nvhttp {
       args.find("appid"s) == std::end(args)) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Missing a required launch parameter");
 
       return;
     }
@@ -736,6 +741,7 @@ namespace nvhttp {
     if (current_appid > 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "An app is already running on this host");
 
       return;
     }
@@ -747,6 +753,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() == 0) {
       if (video::probe_encoders()) {
         tree.put("root.<xmlattr>.status_code", 503);
+        tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
         tree.put("root.gamesession", 0);
 
         return;
@@ -757,6 +764,7 @@ namespace nvhttp {
       auto err = proc::proc.execute(appid);
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);
+        tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
         tree.put("root.gamesession", 0);
 
         return;
@@ -789,6 +797,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() == config::stream.channels) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "The host's concurrent stream limit has been reached. Stop an existing stream or increase the 'Channels' value in the Sunshine Web UI.");
 
       return;
     }
@@ -797,6 +806,7 @@ namespace nvhttp {
     if (current_appid == 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "No running app to resume");
 
       return;
     }
@@ -807,6 +817,7 @@ namespace nvhttp {
       args.find("rikeyid"s) == std::end(args)) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Missing a required resume parameter");
 
       return;
     }
@@ -819,6 +830,7 @@ namespace nvhttp {
       if (video::probe_encoders()) {
         tree.put("root.resume", 0);
         tree.put("root.<xmlattr>.status_code", 503);
+        tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
 
         return;
       }
@@ -849,6 +861,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() != 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "All sessions must be disconnected before quitting");
 
       return;
     }
