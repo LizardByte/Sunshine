@@ -525,7 +525,8 @@
           v-model="config.adapter_name"
         />
         <div class="form-text" v-if="platform === 'windows'">
-          You can select the video card you want to stream:<br />
+          You can select the GPU you want to stream:<br />
+          Note: This GPU must have a display connected and powered on.<br />
           The appropriate values can be found using the following command:<br />
           <pre>tools\dxgi-info.exe</pre>
         </div>
@@ -542,6 +543,7 @@
         />
         <div class="form-text">
           You can select the display you want to stream:<br />
+          Note: If you specified a GPU above, this display must be connected to that GPU.<br />
           The appropriate values can be found using the following command:<br />
           tools\dxgi-info.exe<br />
         </div>
@@ -682,7 +684,8 @@
           <option value="software">Software</option>
         </select>
         <div class="form-text">
-          Force a specific encoder, otherwise Sunshine will use the first encoder that is available
+          Force a specific encoder, otherwise Sunshine will use the first encoder that is available<br />
+          Note: If you specify a hardware encoder on Windows, it must match the GPU where the display is connected.
         </div>
       </div>
       <!--FEC Percentage-->
