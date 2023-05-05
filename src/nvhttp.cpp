@@ -683,22 +683,6 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     });
 
-    auto args = request->parse_query_string();
-    if (args.find("uniqueid"s) == std::end(args)) {
-      tree.put("root.<xmlattr>.status_code", 400);
-
-      return;
-    }
-
-    auto clientID = get_arg(args, "uniqueid");
-
-    auto client = map_id_client.find(clientID);
-    if (client == std::end(map_id_client)) {
-      tree.put("root.<xmlattr>.status_code", 501);
-
-      return;
-    }
-
     auto &apps = tree.add_child("root", pt::ptree {});
 
     apps.put("<xmlattr>.status_code", 200);
