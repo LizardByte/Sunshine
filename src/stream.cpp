@@ -825,6 +825,8 @@ namespace stream {
 
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     while (!shutdown_event->peek()) {
+      bool has_session_awaiting_peer = false;
+
       {
         auto lg = server->_map_addr_session.lock();
 
@@ -850,6 +852,13 @@ namespace stream {
             continue;
           }
 
+          // Remember if we have a session that's waiting for a peer to connect to the
+          // control stream. This ensures the clients are properly notified even when
+          // the app terminates before they finish connecting.
+          if (!session->control.peer) {
+            has_session_awaiting_peer = true;
+          }
+
           auto &rumble_queue = session->control.rumble_queue;
           while (rumble_queue->peek()) {
             auto rumble = rumble_queue->pop();
@@ -871,9 +880,9 @@ namespace stream {
         })
       }
 
-      if (proc::proc.running() == 0) {
-        BOOST_LOG(debug) << "Process terminated"sv;
-
+      // Don't break until any pending sessions either expire or connect
+      if (proc::proc.running() == 0 && !has_session_awaiting_peer) {
+        BOOST_LOG(info) << "Process terminated"sv;
         break;
       }
 
