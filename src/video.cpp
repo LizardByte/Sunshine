@@ -775,9 +775,12 @@ namespace video {
       }
     }
 
-    if (auto capture_ctx = capture_ctx_queue->pop()) {
-      capture_ctxs.emplace_back(std::move(*capture_ctx));
+    // Wait for the initial capture context or a request to stop the queue
+    auto initial_capture_ctx = capture_ctx_queue->pop();
+    if (!initial_capture_ctx) {
+      return;
     }
+    capture_ctxs.emplace_back(std::move(*initial_capture_ctx));
 
     auto disp = platf::display(map_base_dev_type(encoder.base_dev_type), display_names[display_p], capture_ctxs.front().config);
     if (!disp) {
