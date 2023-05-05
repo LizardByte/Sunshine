@@ -514,13 +514,10 @@ jobs:
 
           # package
           cpack -G DragNDrop
-          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-dragndrop.dmg
+          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine.dmg
 
-          cpack -G Bundle
-          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-bundle.dmg
-
-          cpack -G ZIP
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-macos-experimental-archive.zip
+          # cpack -G Bundle
+          # mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-bundle.dmg
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -528,29 +525,19 @@ jobs:
           name: sunshine-macos
           path: artifacts/
 
-      # this step can be removed after packages are fixed
-      - name: Delete experimental packages
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        working-directory: artifacts
-        run: |
-          rm -f ./sunshine-macos-experimental-dragndrop.dmg
-          rm -f ./sunshine-macos-experimental-bundle.dmg
-          rm -f ./sunshine-macos-experimental-archive.zip
-
-#      #  no artifacts to release currently
-#      - name: Create/Update GitHub Release
-#        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
-#        uses: ncipollo/release-action@v1
-#        with:
-#          name: ${{ needs.setup_release.outputs.release_name }}
-#          tag: ${{ needs.setup_release.outputs.release_tag }}
-#          commit: ${{ needs.setup_release.outputs.release_commit }}
-#          artifacts: "*artifacts/*"
-#          token: ${{ secrets.GH_BOT_TOKEN }}
-#          allowUpdates: true
-#          body: ${{ needs.setup_release.outputs.release_body }}
-#          discussionCategory: announcements
-#          prerelease: ${{ needs.setup_release.outputs.pre_release }}
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac_port:
     name: Macports
@@ -727,25 +714,6 @@ jobs:
             echo "::endgroup::"
           done
           exit "$fail"
-
-      - name: Package
-        run: |
-          # create packages
-          sudo port pkg sunshine
-          sudo port dmg sunshine
-
-          work=$(port work sunshine)
-          echo "Sunshine port work directory: ${work}"
-
-          # move components out of port work directory
-          sudo mv ${work}/Sunshine*component.pkg /tmp/
-
-          # copy artifacts
-          sudo mv ${work}/Sunshine*.pkg ./artifacts/sunshine.pkg
-          sudo mv ${work}/Sunshine*.dmg ./artifacts/sunshine.dmg
-
-          # move components back
-          # sudo mv /tmp/Sunshine*component.pkg ${work}/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3

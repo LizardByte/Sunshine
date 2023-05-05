@@ -190,11 +190,11 @@ macOS
 -----
 Sunshine on macOS is experimental. Gamepads do not work. Other features may not work as expected.
 
-pkg
+dmg
 ^^^
-.. Warning:: The `pkg` does not include runtime dependencies.
+.. Warning:: The `dmg` does not include runtime dependencies.
 
-#. Download the ``sunshine.pkg`` file and install it as normal.
+#. Download the ``sunshine.dmg`` file and install it.
 
 Uninstall:
    .. code-block:: bash
