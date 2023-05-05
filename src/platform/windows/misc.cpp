@@ -547,11 +547,14 @@ namespace platf {
 
       // Allow the log file handle to be inherited by the child process (without inheriting all of
       // our inheritable handles, such as our own log file handle created by SunshineSvc).
+      //
+      // Note: The value we point to here must be valid for the lifetime of the attribute list,
+      // so we need to point into the STARTUPINFO instead of our log_file_variable on the stack.
       UpdateProcThreadAttribute(startup_info.lpAttributeList,
         0,
         PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-        &log_file_handle,
-        sizeof(log_file_handle),
+        &startup_info.StartupInfo.hStdOutput,
+        sizeof(startup_info.StartupInfo.hStdOutput),
         NULL,
         NULL);
     }
