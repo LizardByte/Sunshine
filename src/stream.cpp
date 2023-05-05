@@ -897,11 +897,14 @@ namespace stream {
     for (auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
       auto session = pos->second.second;
 
-      auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
+      // We may not have gotten far enough to have an ENet connection yet
+      if (session->control.peer) {
+        auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
 
-      if (server->send(payload, session->control.peer)) {
-        TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-        BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+        if (server->send(payload, session->control.peer)) {
+          TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
+          BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+        }
       }
 
       session->shutdown_event->raise(true);
