@@ -42,6 +42,7 @@ pacman -Syu --disable-download-timeout --noconfirm \
   base-devel \
   cmake \
   cuda \
+  gcc12 \
   git \
   libcap \
   libdrm \
