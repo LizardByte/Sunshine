@@ -128,7 +128,7 @@ namespace confighttp {
     auto password = authData.substr(index + 1);
     auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
 
-    if (username != config::sunshine.username || hash != config::sunshine.password) {
+    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
       return false;
     }
 
@@ -631,7 +631,7 @@ namespace confighttp {
       }
       else {
         auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-        if (config::sunshine.username.empty() || (username == config::sunshine.username && hash == config::sunshine.password)) {
+        if (config::sunshine.username.empty() || (boost::iequals(username, config::sunshine.username) && hash == config::sunshine.password)) {
           if (newPassword.empty() || newPassword != confirmPassword) {
             outputTree.put("status", false);
             outputTree.put("error", "Password Mismatch");
