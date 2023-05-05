@@ -375,14 +375,7 @@ namespace nvhttp {
     auto hash = crypto::hash(data);
 
     // if hash not correct, probably MITM
-    if (std::memcmp(hash.data(), sess.clienthash.data(), hash.size())) {
-      // TODO: log
-
-      map_id_sess.erase(client.uniqueID);
-      tree.put("root.paired", 0);
-    }
-
-    if (crypto::verify256(crypto::x509(client.cert), secret, sign)) {
+    if (!std::memcmp(hash.data(), sess.clienthash.data(), hash.size()) && crypto::verify256(crypto::x509(client.cert), secret, sign)) {
       tree.put("root.paired", 1);
       add_cert->raise(crypto::x509(client.cert));
 
