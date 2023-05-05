@@ -46,7 +46,7 @@ static const short packetTypes[] = {
   0x0204,  // Frame Stats (unused)
   0x0206,  // Input data
   0x010b,  // Rumble data
-  0x0100,  // Termination
+  0x0109,  // Termination
   0x0200,  // Periodic Ping
   0x0302,  // IDR frame
   0x0001,  // fully encrypted
@@ -887,7 +887,7 @@ namespace stream {
     control_terminate_t plaintext;
     plaintext.header.type = packetTypes[IDX_TERMINATION];
     plaintext.header.payloadLength = sizeof(plaintext.ec);
-    plaintext.ec = reason;
+    plaintext.ec = util::endian::big<uint32_t>(reason);
 
     std::array<std::uint8_t,
       sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
