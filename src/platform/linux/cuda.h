@@ -1,6 +1,7 @@
 #if !defined(SUNSHINE_PLATFORM_CUDA_H) && defined(SUNSHINE_BUILD_CUDA)
   #define SUNSHINE_PLATFORM_CUDA_H
 
+  #include <cstdint>
   #include <memory>
   #include <optional>
   #include <string>
