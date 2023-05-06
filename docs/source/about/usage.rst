@@ -71,7 +71,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 #. Create `udev` rules.
       .. code-block:: bash
 
-         echo 'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
+         echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
          sudo tee /etc/udev/rules.d/85-sunshine.rules
 
 #. Optionally, configure autostart service
