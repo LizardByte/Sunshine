@@ -92,14 +92,14 @@ bool match_ipv6_prefix64(const std::string & address_one, const std::string& add
   if(convert_res != pton_success) {
     return false;
   }
-  int64_t prefix_one = *(int64_t*)&one.sin6_addr.u.Byte;
+  int64_t prefix_one = *(int64_t*)&one.sin6_addr.s6_addr;
 
   sockaddr_in6 two;
   convert_res = inet_pton(AF_INET6, address_two.c_str(), &two.sin6_addr);
   if(convert_res != pton_success) {
     return false;
   }
-  int64_t prefix_two = *(int64_t*)&two.sin6_addr.u.Byte;
+  int64_t prefix_two = *(int64_t*)&two.sin6_addr.s6_addr;
 
   return prefix_one == prefix_two;
 }
