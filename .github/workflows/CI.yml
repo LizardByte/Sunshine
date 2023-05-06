@@ -781,7 +781,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DSUNSHINE_ASSETS_DIR=assets \
             -G "MinGW Makefiles" \
             ..
@@ -800,6 +800,15 @@ jobs:
           # move
           mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
+
+      - name: Package Windows Debug Info
+        working-directory: build
+        run: |
+          # save the original binaries with debug info
+          7z -r `
+            "-xr!CMakeFiles" `
+            "-xr!cpack_artifacts" `
+            a "../artifacts/sunshine-debuginfo-win32.zip" "*.exe"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
