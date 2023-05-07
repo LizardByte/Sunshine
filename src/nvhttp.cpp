@@ -471,7 +471,7 @@ namespace nvhttp {
       return;
     }
 
-    auto uniqID { std::move(get_arg(args, "uniqueid")) };
+    auto uniqID { get_arg(args, "uniqueid") };
     auto sess_it = map_id_sess.find(uniqID);
 
     args_t::const_iterator it;
