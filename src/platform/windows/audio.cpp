@@ -483,6 +483,11 @@ namespace platf::audio {
 
       // Check if the default audio device has changed
       if (endpt_notification.check_default_render_device_changed()) {
+        // Invoke the audio_control_t's callback if it wants one
+        if (default_endpt_changed_cb) {
+          (*default_endpt_changed_cb)();
+        }
+
         // Reinitialize to pick up the new default device
         return capture_e::reinit;
       }
@@ -555,6 +560,8 @@ namespace platf::audio {
     audio_capture_t audio_capture;
 
     audio_notification_t endpt_notification;
+    std::optional<std::function<void()>> default_endpt_changed_cb;
+
     REFERENCE_TIME default_latency_ms;
 
     util::buffer_t<std::int16_t> sample_buf;
@@ -667,12 +674,49 @@ namespace platf::audio {
       return sink;
     }
 
+    /**
+     * @brief Gets information encoded in the raw sink name
+     *
+     * @param sink The raw sink name
+     *
+     * @return A pair of type and the real sink name
+     */
+    std::pair<format_t::type_e, std::string_view>
+    get_sink_info(const std::string &sink) {
+      std::string_view sv { sink.c_str(), sink.size() };
+
+      // sink format:
+      // [virtual-(format name)]device_id
+      auto prefix = "virtual-"sv;
+      if (sv.find(prefix) == 0) {
+        sv = sv.substr(prefix.size(), sv.size() - prefix.size());
+
+        for (auto &format : formats) {
+          auto &name = format.name;
+          if (sv.find(name) == 0) {
+            return std::make_pair(format.type, sv.substr(name.size(), sv.size() - name.size()));
+          }
+        }
+      }
+
+      return std::make_pair(format_t::none, sv);
+    }
+
     std::unique_ptr<mic_t>
     microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
       auto mic = std::make_unique<mic_wasapi_t>();
 
       if (mic->init(sample_rate, frame_size, channels)) {
         return nullptr;
+      }
+
+      // If this is a virtual sink, set a callback that will change the sink back if it's changed
+      auto sink_info = get_sink_info(assigned_sink);
+      if (sink_info.first != format_t::none) {
+        mic->default_endpt_changed_cb = [this] {
+          BOOST_LOG(info) << "Resetting sink to ["sv << assigned_sink << "] after default changed";
+          set_sink(assigned_sink);
+        };
       }
 
       return mic;
@@ -688,30 +732,12 @@ namespace platf::audio {
      */
     std::optional<std::wstring>
     set_format(const std::string &sink) {
-      std::string_view sv { sink.c_str(), sink.size() };
-
-      format_t::type_e type = format_t::none;
-      // sink format:
-      // [virtual-(format name)]device_id
-      auto prefix = "virtual-"sv;
-      if (sv.find(prefix) == 0) {
-        sv = sv.substr(prefix.size(), sv.size() - prefix.size());
-
-        for (auto &format : formats) {
-          auto &name = format.name;
-          if (sv.find(name) == 0) {
-            type = format.type;
-            sv = sv.substr(name.size(), sv.size() - name.size());
-
-            break;
-          }
-        }
-      }
+      auto sink_info = get_sink_info(sink);
 
       // If the sink isn't a device name, we'll assume it's a device ID
-      auto wstring_device_id = find_device_id_by_name(sink).value_or(converter.from_bytes(sv.data()));
+      auto wstring_device_id = find_device_id_by_name(sink).value_or(converter.from_bytes(sink_info.second.data()));
 
-      if (type == format_t::none) {
+      if (sink_info.first == format_t::none) {
         // wstring_device_id does not contain virtual-(format name)
         // It's a simple deviceId, just pass it back
         return std::make_optional(std::move(wstring_device_id));
@@ -725,14 +751,14 @@ namespace platf::audio {
         return std::nullopt;
       }
 
-      set_wave_format(wave_format, formats[(int) type - 1]);
+      set_wave_format(wave_format, formats[(int) sink_info.first - 1]);
 
       WAVEFORMATEXTENSIBLE p {};
       status = policy->SetDeviceFormat(wstring_device_id.c_str(), wave_format.get(), (WAVEFORMATEX *) &p);
 
       // Surround 5.1 might contain side-{left, right} instead of speaker in the back
       // Try again with different speaker mask.
-      if (status == 0x88890008 && type == format_t::surr51) {
+      if (status == 0x88890008 && sink_info.first == format_t::surr51) {
         set_wave_format(wave_format, surround_51_side_speakers);
         status = policy->SetDeviceFormat(wstring_device_id.c_str(), wave_format.get(), (WAVEFORMATEX *) &p);
       }
@@ -766,6 +792,12 @@ namespace platf::audio {
 
           ++failure;
         }
+      }
+
+      // Remember the assigned sink name, so we have it for later if we need to set it
+      // back after another application changes it
+      if (!failure) {
+        assigned_sink = sink;
       }
 
       return failure;
@@ -867,6 +899,7 @@ namespace platf::audio {
     ~audio_control_t() override {}
 
     policy_t policy;
+    std::string assigned_sink;
   };
 }  // namespace platf::audio
 
