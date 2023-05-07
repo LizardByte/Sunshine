@@ -661,7 +661,7 @@ namespace video {
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "h264_vaapi"s,
     },
-    LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY,
+    LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY | NO_RC_BUF_LIMIT,
 
     vaapi_make_hwdevice_ctx
   };
