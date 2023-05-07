@@ -100,6 +100,25 @@ namespace safe {
       return _status;
     }
 
+    // pop and view shoud not be used interchangeably
+    template <class Rep, class Period>
+    status_t
+    view(std::chrono::duration<Rep, Period> delay) {
+      std::unique_lock ul { _lock };
+
+      if (!_continue) {
+        return util::false_v<status_t>;
+      }
+
+      while (!_status) {
+        if (!_continue || _cv.wait_for(ul, delay) == std::cv_status::timeout) {
+          return util::false_v<status_t>;
+        }
+      }
+
+      return _status;
+    }
+
     bool
     peek() {
       return _continue && (bool) _status;
