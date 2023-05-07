@@ -1272,7 +1272,7 @@ namespace video {
           // because libx264 can severely degrade quality if the buffer is too small.
           // libx265 encounters this issue more frequently, so always scale the
           // buffer by 1.5x for software HEVC encoding.
-          ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+          ctx->rc_buffer_size = bitrate / (config.framerate / 2);
         }
         else {
           ctx->rc_buffer_size = bitrate / (config.framerate / 2);
