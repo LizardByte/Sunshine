@@ -262,6 +262,78 @@ namespace platf::audio {
     return device;
   }
 
+  class audio_notification_t: public ::IMMNotificationClient {
+  public:
+    audio_notification_t() {}
+
+    // IUnknown implementation (unused by IMMDeviceEnumerator)
+    ULONG STDMETHODCALLTYPE
+    AddRef() {
+      return 1;
+    }
+
+    ULONG STDMETHODCALLTYPE
+    Release() {
+      return 1;
+    }
+
+    HRESULT STDMETHODCALLTYPE
+    QueryInterface(REFIID riid, VOID **ppvInterface) {
+      if (IID_IUnknown == riid) {
+        AddRef();
+        *ppvInterface = (IUnknown *) this;
+        return S_OK;
+      }
+      else if (__uuidof(IMMNotificationClient) == riid) {
+        AddRef();
+        *ppvInterface = (IMMNotificationClient *) this;
+        return S_OK;
+      }
+      else {
+        *ppvInterface = NULL;
+        return E_NOINTERFACE;
+      }
+    }
+
+    // IMMNotificationClient
+    HRESULT STDMETHODCALLTYPE
+    OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) {
+      if (flow == eRender) {
+        default_render_device_changed_flag.store(true);
+      }
+      return S_OK;
+    }
+
+    HRESULT STDMETHODCALLTYPE
+    OnDeviceAdded(LPCWSTR pwstrDeviceId) { return S_OK; }
+
+    HRESULT STDMETHODCALLTYPE
+    OnDeviceRemoved(LPCWSTR pwstrDeviceId) { return S_OK; }
+
+    HRESULT STDMETHODCALLTYPE
+    OnDeviceStateChanged(
+      LPCWSTR pwstrDeviceId,
+      DWORD dwNewState) { return S_OK; }
+
+    HRESULT STDMETHODCALLTYPE
+    OnPropertyValueChanged(
+      LPCWSTR pwstrDeviceId,
+      const PROPERTYKEY key) { return S_OK; }
+
+    /**
+     * @brief Checks if the default rendering device changed and resets the change flag
+     *
+     * @return true if the device changed since last call
+     */
+    bool
+    check_default_render_device_changed() {
+      return default_render_device_changed_flag.exchange(false);
+    }
+
+  private:
+    std::atomic_bool default_render_device_changed_flag;
+  };
+
   class mic_wasapi_t: public mic_t {
   public:
     capture_e
@@ -306,6 +378,13 @@ namespace platf::audio {
 
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't create Device Enumerator [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return -1;
+      }
+
+      status = device_enum->RegisterEndpointNotificationCallback(&endpt_notification);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Couldn't register endpoint notification [0x"sv << util::hex(status).to_string_view() << ']';
 
         return -1;
       }
@@ -377,6 +456,10 @@ namespace platf::audio {
     }
 
     ~mic_wasapi_t() override {
+      if (device_enum) {
+        device_enum->UnregisterEndpointNotificationCallback(&endpt_notification);
+      }
+
       if (audio_client) {
         audio_client->Stop();
       }
@@ -397,6 +480,12 @@ namespace platf::audio {
       struct block_aligned_t {
         std::uint32_t audio_sample_size;
       } block_aligned;
+
+      // Check if the default audio device has changed
+      if (endpt_notification.check_default_render_device_changed()) {
+        // Reinitialize to pick up the new default device
+        return capture_e::reinit;
+      }
 
       status = WaitForSingleObjectEx(audio_event.get(), default_latency_ms, FALSE);
       switch (status) {
@@ -465,6 +554,7 @@ namespace platf::audio {
     audio_client_t audio_client;
     audio_capture_t audio_capture;
 
+    audio_notification_t endpt_notification;
     REFERENCE_TIME default_latency_ms;
 
     util::buffer_t<std::int16_t> sample_buf;
