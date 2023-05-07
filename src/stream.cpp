@@ -1,3 +1,7 @@
+/**
+ * @file src/stream.cpp
+ * @brief todo
+ */
 #include "process.h"
 
 #include <future>

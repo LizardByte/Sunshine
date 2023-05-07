@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/vaapi.cpp
+ * @brief todo
+ */
 #include <sstream>
 #include <string>
 
@@ -82,7 +86,7 @@ namespace va {
   };
 
   /**
-   * @brief Currently defined profiles
+   * @brief Defined profiles
    */
   enum class profile_e {
     // Profile ID used for video processing.

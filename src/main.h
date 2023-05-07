@@ -1,5 +1,6 @@
 /**
- * @file main.h
+ * @file src/main.h
+ * @brief Main header file for the Sunshine application.
  */
 
 // macros

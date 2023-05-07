@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/input.cpp
+ * @brief todo
+ */
 #include <windows.h>
 
 #include <cmath>

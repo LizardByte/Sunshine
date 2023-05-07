@@ -1,3 +1,7 @@
+/**
+ * @file src/video.h
+ * @brief todo
+ */
 #pragma once
 
 #include "input.h"

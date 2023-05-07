@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/display_vram.cpp
+ * @brief todo
+ */
 #include <cmath>
 
 #include <codecvt>

@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/display_base.cpp
+ * @brief todo
+ */
 #include <cmath>
 #include <codecvt>
 #include <initguid.h>

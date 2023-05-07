@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/audio.cpp
+ * @brief todo
+ */
 #include <bitset>
 #include <sstream>
 

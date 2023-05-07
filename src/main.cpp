@@ -1,5 +1,6 @@
 /**
- * @file main.cpp
+ * @file src/main.cpp
+ * @brief Main entry point for Sunshine.
  */
 
 // standard includes
@@ -116,9 +117,9 @@ namespace lifetime {
   static std::atomic_int desired_exit_code;
 
   /**
-   * @brief Terminates Sunshine gracefully with the provided exit code
-   * @param exit_code The exit code to return from main()
-   * @param async Specifies whether our termination will be non-blocking
+   * @brief Terminates Sunshine gracefully with the provided exit code.
+   * @param exit_code The exit code to return from main().
+   * @param async Specifies whether our termination will be non-blocking.
    */
   void
   exit_sunshine(int exit_code, bool async) {
@@ -137,7 +138,7 @@ namespace lifetime {
   }
 
   /**
-   * @brief Gets the argv array passed to main()
+   * @brief Gets the argv array passed to main().
    */
   char **
   get_argv() {
@@ -150,8 +151,8 @@ namespace service_ctrl {
   class service_controller {
   public:
     /**
-     * @brief Constructor for service_controller class
-     * @param service_desired_access SERVICE_* desired access flags
+     * @brief Constructor for service_controller class.
+     * @param service_desired_access SERVICE_* desired access flags.
      */
     service_controller(DWORD service_desired_access) {
       scm_handle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_CONNECT);
@@ -180,7 +181,7 @@ namespace service_ctrl {
     }
 
     /**
-     * @brief Asynchronously starts the Sunshine service
+     * @brief Asynchronously starts the Sunshine service.
      */
     bool
     start_service() {
@@ -200,8 +201,8 @@ namespace service_ctrl {
     }
 
     /**
-     * @brief Query the service status
-     * @param status The SERVICE_STATUS struct to populate
+     * @brief Query the service status.
+     * @param status The SERVICE_STATUS struct to populate.
      */
     bool
     query_service_status(SERVICE_STATUS &status) {
@@ -224,7 +225,7 @@ namespace service_ctrl {
   };
 
   /**
-   * @brief Check if the service is running
+   * @brief Check if the service is running.
    *
    * EXAMPLES:
    * ```cpp
@@ -244,7 +245,7 @@ namespace service_ctrl {
   }
 
   /**
-   * @brief Start the service and wait for startup to complete
+   * @brief Start the service and wait for startup to complete.
    *
    * EXAMPLES:
    * ```cpp
@@ -278,7 +279,7 @@ namespace service_ctrl {
   }
 
   /**
-   * @brief Wait for the UI to be ready after Sunshine startup
+   * @brief Wait for the UI to be ready after Sunshine startup.
    *
    * EXAMPLES:
    * ```cpp
@@ -335,7 +336,7 @@ namespace service_ctrl {
 #endif
 
 /**
- * @brief Launch the Web UI
+ * @brief Launch the Web UI.
  *
  * EXAMPLES:
  * ```cpp

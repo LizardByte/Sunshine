@@ -1,3 +1,7 @@
+/**
+ * @file src/httpcommon.h
+ * @brief todo
+ */
 #pragma once
 
 #include "network.h"

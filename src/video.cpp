@@ -1,3 +1,7 @@
+/**
+ * @file src/video.cpp
+ * @brief todo
+ */
 #include <atomic>
 #include <bitset>
 #include <list>

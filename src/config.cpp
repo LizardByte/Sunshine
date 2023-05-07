@@ -1,3 +1,7 @@
+/**
+ * @file src/config.cpp
+ * @brief todo
+ */
 #include <algorithm>
 #include <filesystem>
 #include <fstream>

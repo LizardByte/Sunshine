@@ -1,3 +1,7 @@
+/**
+ * @file src/utility.h
+ * @brief todo
+ */
 #pragma once
 
 #include <algorithm>

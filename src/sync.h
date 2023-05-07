@@ -1,3 +1,7 @@
+/**
+ * @file src/sync.h
+ * @brief todo
+ */
 #pragma once
 
 #include <array>

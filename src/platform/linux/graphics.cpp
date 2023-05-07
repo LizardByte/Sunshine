@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/graphics.cpp
+ * @brief todo
+ */
 #include "graphics.h"
 #include "src/video.h"
 

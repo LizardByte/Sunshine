@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/graphics.h
+ * @brief todo
+ */
 #pragma once
 
 #include <optional>

@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/cuda.cu
+ * @brief todo
+ */
 // #include <algorithm>
 #include <helper_math.h>
 #include <chrono>

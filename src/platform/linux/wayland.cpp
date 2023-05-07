@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/wayland.cpp
+ * @brief todo
+ */
 #include <wayland-client.h>
 #include <wayland-util.h>
 

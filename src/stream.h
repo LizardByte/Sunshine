@@ -1,3 +1,7 @@
+/**
+ * @file src/stream.h
+ * @brief todo
+ */
 #pragma once
 
 #include <boost/asio.hpp>

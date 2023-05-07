@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/display.mm
+ * @brief todo
+ */
 #include "src/platform/common.h"
 #include "src/platform/macos/av_img_t.h"
 #include "src/platform/macos/av_video.h"

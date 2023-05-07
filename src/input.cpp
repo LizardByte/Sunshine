@@ -1,3 +1,7 @@
+/**
+ * @file src/input.cpp
+ * @brief todo
+ */
 // define uint32_t for <moonlight-common-c/src/Input.h>
 #include <cstdint>
 extern "C" {

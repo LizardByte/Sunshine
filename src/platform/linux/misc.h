@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/misc.h
+ * @brief todo
+ */
 #pragma once
 
 #include <unistd.h>

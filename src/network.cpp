@@ -1,3 +1,7 @@
+/**
+ * @file src/network.cpp
+ * @brief todo
+ */
 #include "network.h"
 #include "utility.h"
 #include <algorithm>

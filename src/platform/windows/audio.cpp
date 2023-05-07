@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/audio.cpp
+ * @brief todo
+ */
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <roapi.h>
@@ -678,11 +682,9 @@ namespace platf::audio {
     }
 
     /**
-     * @brief Find the audio device ID given a user-specified name
-     *
-     * @param name The name provided by the user
-     *
-     * @return The matching device ID, or nothing if not found
+     * @brief Find the audio device ID given a user-specified name.
+     * @param name The name provided by the user.
+     * @return The matching device ID, or nothing if not found.
      */
     std::optional<std::wstring>
     find_device_id_by_name(const std::string &name) {

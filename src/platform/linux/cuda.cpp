@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/cuda.cpp
+ * @brief todo
+ */
 #include <bitset>
 
 #include <NvFBC.h>

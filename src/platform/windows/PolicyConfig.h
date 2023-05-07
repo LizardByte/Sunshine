@@ -1,10 +1,10 @@
-// ----------------------------------------------------------------------------
-// PolicyConfig.h
-// Undocumented COM-interface IPolicyConfig.
-// Use for set default audio render endpoint
-// @author EreTIk
-// http://eretik.omegahg.com/
-// ----------------------------------------------------------------------------
+/**
+ * @file src/platform/windows/PolicyConfig.h
+ * @brief Undocumented COM-interface IPolicyConfig.
+ * @details Use for setting default audio render endpoint.
+ * @author EreTIk
+ * @see http://eretik.omegahg.com/
+ */
 
 #pragma once
 

@@ -1,3 +1,7 @@
+/**
+ * @file src/crypto.h
+ * @brief todo
+ */
 #pragma once
 
 #include <array>

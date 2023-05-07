@@ -1,7 +1,7 @@
-//
-// Created by loki on 1/23/20.
-//
-
+/**
+ * @file tools/dxgi.cpp
+ * @brief todo
+ */
 #include <d3dcommon.h>
 #include <dxgi.h>
 

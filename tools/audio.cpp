@@ -1,7 +1,7 @@
-//
-// Created by loki on 1/24/20.
-//
-
+/**
+ * @file tools/audio.cpp
+ * @brief todo
+ */
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <roapi.h>

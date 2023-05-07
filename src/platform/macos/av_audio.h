@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/av_audio.h
+ * @brief todo
+ */
 #pragma once
 
 #import <AVFoundation/AVFoundation.h>

@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/x11grab.h
+ * @brief todo
+ */
 #pragma once
 
 #include <optional>

@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/misc.h
+ * @brief todo
+ */
 #pragma once
 
 #include <vector>
