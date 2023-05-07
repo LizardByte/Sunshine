@@ -1,5 +1,4 @@
-#ifndef KITTY_TASK_POOL_H
-#define KITTY_TASK_POOL_H
+#pragma once
 
 #include <chrono>
 #include <deque>
@@ -111,8 +110,8 @@ namespace task_pool_util {
     }
 
     /**
-   * @return an id to potentially delay the task
-   */
+     * @return an id to potentially delay the task.
+     */
     template <class Function, class X, class Y, class... Args>
     auto
     pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
@@ -146,8 +145,9 @@ namespace task_pool_util {
     }
 
     /**
-   * @param duration The delay before executing the task
-   */
+     * @param task_id The id of the task to delay.
+     * @param duration The delay before executing the task.
+     */
     template <class X, class Y>
     void
     delay(task_id_t task_id, std::chrono::duration<X, Y> duration) {
@@ -257,4 +257,3 @@ namespace task_pool_util {
     }
   };
 }  // namespace task_pool_util
-#endif

@@ -83,7 +83,7 @@ namespace platf::dxgi {
     auto colors_out = (std::uint8_t *) &cursor_pixel;
     auto colors_in = (std::uint8_t *) img_pixel_p;
 
-    //TODO: When use of IDXGIOutput5 is implemented, support different color formats
+    // TODO: When use of IDXGIOutput5 is implemented, support different color formats
     auto alpha = colors_out[3];
     if (alpha == 255) {
       *img_pixel_p = cursor_pixel;
@@ -97,7 +97,7 @@ namespace platf::dxgi {
 
   void
   apply_color_masked(int *img_pixel_p, int cursor_pixel) {
-    //TODO: When use of IDXGIOutput5 is implemented, support different color formats
+    // TODO: When use of IDXGIOutput5 is implemented, support different color formats
     auto alpha = ((std::uint8_t *) &cursor_pixel)[3];
     if (alpha == 0xFF) {
       *img_pixel_p ^= cursor_pixel;
@@ -270,7 +270,7 @@ namespace platf::dxgi {
           return capture_e::reinit;
         }
 
-        //Copy from GPU to CPU
+        // Copy from GPU to CPU
         device_ctx->CopyResource(texture.get(), src.get());
       }
     }

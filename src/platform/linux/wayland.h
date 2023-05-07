@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_WAYLAND_H
-#define SUNSHINE_WAYLAND_H
+#pragma once
 
 #include <bitset>
 
@@ -180,9 +179,9 @@ namespace wl {
   class display_t {
   public:
     /**
-   * Initialize display with display_name
-   * If display_name == nullptr -> display_name = std::getenv("WAYLAND_DISPLAY")
-   */
+     * Initialize display with display_name
+     * If display_name == nullptr -> display_name = std::getenv("WAYLAND_DISPLAY")
+     */
     int
     init(const char *display_name = nullptr);
 
@@ -245,6 +244,4 @@ namespace wl {
   inline int
   init() { return -1; }
 }  // namespace wl
-#endif
-
 #endif

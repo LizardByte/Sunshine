@@ -37,9 +37,9 @@ using namespace std::literals;
 namespace system_tray {
 
   /**
- * @brief Callback for opening the UI from the system tray.
- * @param item The tray menu item.
- */
+   * @brief Callback for opening the UI from the system tray.
+   * @param item The tray menu item.
+   */
   void
   tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
@@ -47,45 +47,45 @@ namespace system_tray {
   }
 
   /**
- * @brief Callback for opening GitHub Sponsors from the system tray.
- * @param item The tray menu item.
- */
+   * @brief Callback for opening GitHub Sponsors from the system tray.
+   * @param item The tray menu item.
+   */
   void
   tray_donate_github_cb(struct tray_menu *item) {
     platf::open_url("https://github.com/sponsors/LizardByte");
   }
 
   /**
- * @brief Callback for opening MEE6 donation from the system tray.
- * @param item The tray menu item.
- */
+   * @brief Callback for opening MEE6 donation from the system tray.
+   * @param item The tray menu item.
+   */
   void
   tray_donate_mee6_cb(struct tray_menu *item) {
     platf::open_url("https://mee6.xyz/m/804382334370578482");
   }
 
   /**
- * @brief Callback for opening Patreon from the system tray.
- * @param item The tray menu item.
- */
+   * @brief Callback for opening Patreon from the system tray.
+   * @param item The tray menu item.
+   */
   void
   tray_donate_patreon_cb(struct tray_menu *item) {
     platf::open_url("https://www.patreon.com/LizardByte");
   }
 
   /**
- * @brief Callback for opening PayPal donation from the system tray.
- * @param item The tray menu item.
- */
+   * @brief Callback for opening PayPal donation from the system tray.
+   * @param item The tray menu item.
+   */
   void
   tray_donate_paypal_cb(struct tray_menu *item) {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
 
   /**
- * @brief Callback for restarting Sunshine from the system tray.
- * @param item The tray menu item.
- */
+   * @brief Callback for restarting Sunshine from the system tray.
+   * @param item The tray menu item.
+   */
   void
   tray_restart_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Restarting from system tray"sv;
@@ -94,9 +94,9 @@ namespace system_tray {
   }
 
   /**
- * @brief Callback for exiting Sunshine from the system tray.
- * @param item The tray menu item.
- */
+   * @brief Callback for exiting Sunshine from the system tray.
+   * @param item The tray menu item.
+   */
   void
   tray_quit_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Quiting from system tray"sv;
@@ -138,10 +138,10 @@ namespace system_tray {
   };
 
   /**
- * @brief Create the system tray.
- * @details This function has an endless loop, so it should be run in a separate thread.
- * @return 1 if the system tray failed to create, otherwise 0 once the tray has been terminated.
- */
+   * @brief Create the system tray.
+   * @details This function has an endless loop, so it should be run in a separate thread.
+   * @return 1 if the system tray failed to create, otherwise 0 once the tray has been terminated.
+   */
   int
   system_tray() {
   #ifdef _WIN32
@@ -229,9 +229,9 @@ namespace system_tray {
   }
 
   /**
- * @brief Run the system tray with platform specific options.
- * @note macOS requires that UI elements be created on the main thread, so the system tray is not implemented for macOS.
- */
+   * @brief Run the system tray with platform specific options.
+   * @note macOS requires that UI elements be created on the main thread, so the system tray is not implemented for macOS.
+   */
   void
   run_tray() {
     // create the system tray
@@ -252,9 +252,9 @@ namespace system_tray {
   }
 
   /**
- * @brief Exit the system tray.
- * @return 0 after exiting the system tray.
- */
+   * @brief Exit the system tray.
+   * @return 0 after exiting the system tray.
+   */
   int
   end_tray() {
     tray_exit();

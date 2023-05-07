@@ -878,6 +878,7 @@ WARN_IF_UNDOC_ENUM_VAL = NO
 # The default value is: NO.
 
 WARN_AS_ERROR          = NO
+# todo - ideally this will eventually become FAIL_ON_WARNINGS
 
 # The WARN_FORMAT tag determines the format of the warning messages that doxygen
 # can produce. The string should contain the $file, $line, and $text tags, which
@@ -2354,7 +2355,7 @@ SEARCH_INCLUDES        = YES
 # RECURSIVE has no effect here.
 # This tag requires that the tag SEARCH_INCLUDES is set to YES.
 
-INCLUDE_PATH           =
+INCLUDE_PATH           = ../third-party/ffmpeg-linux-x86_64/include/
 
 # You can use the INCLUDE_FILE_PATTERNS tag to specify one or more wildcard
 # patterns (like *.h and *.hpp) to filter out the header-files in the

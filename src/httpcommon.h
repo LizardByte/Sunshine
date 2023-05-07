@@ -1,3 +1,5 @@
+#pragma once
+
 #include "network.h"
 #include "thread_safe.h"
 

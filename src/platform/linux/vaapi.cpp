@@ -7,8 +7,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <va/va.h>
 #if !VA_CHECK_VERSION(1, 9, 0)
-/* vaSyncBuffer stub allows Sunshine built against libva <2.9.0
-   to link against ffmpeg on libva 2.9.0 or later */
+// vaSyncBuffer stub allows Sunshine built against libva <2.9.0 to link against ffmpeg on libva 2.9.0 or later
 VAStatus
 vaSyncBuffer(
   VADisplay dpy,
@@ -56,10 +55,7 @@ namespace va {
       // Needs to be closed manually
       int fd;
 
-      /*
-     *  Total size of this object (may include regions which are
-     *  not part of the surface).
-     */
+      // Total size of this object (may include regions which are not part of the surface)
       uint32_t size;
       // Format modifier applied to this object, not sure what that means
       uint64_t drm_format_modifier;
@@ -85,7 +81,9 @@ namespace va {
     } layers[4];
   };
 
-  /** Currently defined profiles */
+  /**
+   * @brief Currently defined profiles
+   */
   enum class profile_e {
     // Profile ID used for video processing.
     ProfileNone = -1,
@@ -135,9 +133,9 @@ namespace va {
     IDCT = 3,
     MoComp = 4,
     Deblocking = 5,
-    EncSlice = 6, /* slice level encode */
-    EncPicture = 7, /* pictuer encode, JPEG, etc */
-    /*
+    EncSlice = 6, /** slice level encode */
+    EncPicture = 7, /** picture encode, JPEG, etc */
+    /**
      * For an implementation that supports a low power/high performance variant
      * for slice level encode, it can choose to expose the
      * VAEntrypointEncSliceLP entrypoint. Certain encoding tools may not be
@@ -148,7 +146,7 @@ namespace va {
     EncSliceLP = 8,
     VideoProc = 10, /**< Video pre/post-processing. */
     /**
-     * \brief FEI
+     * @brief FEI
      *
      * The purpose of FEI (Flexible Encoding Infrastructure) is to allow applications to
      * have more controls and trade off quality for speed with their own IPs.
@@ -162,10 +160,10 @@ namespace va {
      * and VAEncFEIDistortionBufferType) for FEI entry function.
      * If separate PAK is set, two extra input buffers
      * (VAEncFEIMVBufferType, VAEncFEIMBModeBufferType) are needed for PAK input.
-     **/
+     */
     FEI = 11,
     /**
-     * \brief Stats
+     * @brief Stats
      *
      * A pre-processing function for getting some statistics and motion vectors is added,
      * and some extra controls for Encode pipeline are provided. The application can
@@ -179,19 +177,19 @@ namespace va {
      * (VAStatsStatisticsParameterBufferType) and one or two output buffers
      * (VAStatsStatisticsBufferType, VAStatsStatisticsBottomFieldBufferType (for interlace only)
      * and VAStatsMVBufferType) are needed for this entry point.
-     **/
+     */
     Stats = 12,
     /**
-     * \brief ProtectedTEEComm
+     * @brief ProtectedTEEComm
      *
      * A function for communicating with TEE (Trusted Execution Environment).
-     **/
+     */
     ProtectedTEEComm = 13,
     /**
-     * \brief ProtectedContent
+     * @brief ProtectedContent
      *
      * A function for protected content to decrypt encrypted content.
-     **/
+     */
     ProtectedContent = 14,
   };
 
@@ -475,11 +473,11 @@ namespace va {
   };
 
   /**
- * This is a private structure of FFmpeg, I need this to manually create
- * a VAAPI hardware context
- * 
- * xdisplay will not be used internally by FFmpeg
- */
+   * This is a private structure of FFmpeg, I need this to manually create
+   * a VAAPI hardware context
+   *
+   * xdisplay will not be used internally by FFmpeg
+   */
   typedef struct VAAPIDevicePriv {
     union {
       void *xdisplay;
@@ -489,22 +487,22 @@ namespace va {
   } VAAPIDevicePriv;
 
   /**
- * VAAPI connection details.
- *
- * Allocated as AVHWDeviceContext.hwctx
- */
+   * VAAPI connection details.
+   *
+   * Allocated as AVHWDeviceContext.hwctx
+   */
   typedef struct AVVAAPIDeviceContext {
     /**
-   * The VADisplay handle, to be filled by the user.
-   */
+     * The VADisplay handle, to be filled by the user.
+     */
     va::VADisplay display;
     /**
-   * Driver quirks to apply - this is filled by av_hwdevice_ctx_init(),
-   * with reference to a table of known drivers, unless the
-   * AV_VAAPI_DRIVER_QUIRK_USER_SET bit is already present.  The user
-   * may need to refer to this field when performing any later
-   * operations using VAAPI with the same VADisplay.
-   */
+     * Driver quirks to apply - this is filled by av_hwdevice_ctx_init(),
+     * with reference to a table of known drivers, unless the
+     * AV_VAAPI_DRIVER_QUIRK_USER_SET bit is already present.  The user
+     * may need to refer to this field when performing any later
+     * operations using VAAPI with the same VADisplay.
+     */
     unsigned int driver_quirks;
   } AVVAAPIDeviceContext;
 

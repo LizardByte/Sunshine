@@ -1,5 +1,4 @@
-#ifndef SUNSHINE_CONFIG_H
-#define SUNSHINE_CONFIG_H
+#pragma once
 
 #include <bitset>
 #include <chrono>
@@ -162,4 +161,3 @@ namespace config {
   std::unordered_map<std::string, std::string>
   parse_config(const std::string_view &file_content);
 }  // namespace config
-#endif

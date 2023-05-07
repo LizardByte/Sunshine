@@ -1,5 +1,6 @@
-#if !defined(SUNSHINE_PLATFORM_CUDA_H) && defined(SUNSHINE_BUILD_CUDA)
-  #define SUNSHINE_PLATFORM_CUDA_H
+#pragma once
+
+#if defined(SUNSHINE_BUILD_CUDA)
 
   #include <cstdint>
   #include <memory>
@@ -89,11 +90,11 @@ namespace cuda {
     sws_t(int in_width, int in_height, int out_width, int out_height, int pitch, int threadsPerBlock, ptr_t &&color_matrix);
 
     /**
-   * in_width, in_height -- The width and height of the captured image in pixels
-   * out_width, out_height -- the width and height of the NV12 image in pixels
-   * 
-   * pitch -- The size of a single row of pixels in bytes
-   */
+     * in_width, in_height -- The width and height of the captured image in pixels
+     * out_width, out_height -- the width and height of the NV12 image in pixels
+     *
+     * pitch -- The size of a single row of pixels in bytes
+     */
     static std::optional<sws_t>
     make(int in_width, int in_height, int out_width, int out_height, int pitch);
 

@@ -1,7 +1,3 @@
-//
-// Created by loki on 1/12/20.
-//
-
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <roapi.h>
@@ -589,13 +585,13 @@ namespace platf::audio {
     }
 
     /**
-   * If the requested sink is a virtual sink, meaning no speakers attached to
-   * the host, then we can seamlessly set the format to stereo and surround sound.
-   * 
-   * Any virtual sink detected will be prefixed by:
-   *    virtual-(format name)
-   * If it doesn't contain that prefix, then the format will not be changed
-   */
+     * If the requested sink is a virtual sink, meaning no speakers attached to
+     * the host, then we can seamlessly set the format to stereo and surround sound.
+     *
+     * Any virtual sink detected will be prefixed by:
+     *    virtual-(format name)
+     * If it doesn't contain that prefix, then the format will not be changed
+     */
     std::optional<std::wstring>
     set_format(const std::string &sink) {
       std::string_view sv { sink.c_str(), sink.size() };

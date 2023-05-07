@@ -1,7 +1,4 @@
-// Created by loki on 6/3/19.
-
-#ifndef SUNSHINE_CONFIGHTTP_H
-#define SUNSHINE_CONFIGHTTP_H
+#pragma once
 
 #include <functional>
 #include <string>
@@ -34,5 +31,3 @@ const std::map<std::string, std::string> mime_types = {
   { "woff2", "font/woff2" },
   { "xml", "text/xml" },
 };
-
-#endif  // SUNSHINE_CONFIGHTTP_H

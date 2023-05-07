@@ -12,7 +12,9 @@ using namespace std::literals;
 
 namespace avahi {
 
-  /** Error codes used by avahi */
+  /**
+   * @brief Error codes used by avahi
+   */
   enum err_e {
     OK = 0, /**< OK */
     ERR_FAILURE = -1, /**< Generic error code */
@@ -113,7 +115,9 @@ namespace avahi {
     CLIENT_NO_FAIL = 2 /**< Don't fail if the daemon is not available when avahi_client_new() is called, instead enter CLIENT_CONNECTING state and wait for the daemon to appear */
   };
 
-  /** Some flags for publishing functions */
+  /**
+   * @brief Some flags for publishing functions
+   */
   enum PublishFlags {
     PUBLISH_UNIQUE = 1, /**< For raw records: The RRset is intended to be unique */
     PUBLISH_NO_PROBE = 2, /**< For raw records: Though the RRset is intended to be unique no probes shall be sent */

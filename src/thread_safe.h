@@ -1,7 +1,4 @@
-// Created by loki on 6/10/19.
-
-#ifndef SUNSHINE_THREAD_SAFE_H
-#define SUNSHINE_THREAD_SAFE_H
+#pragma once
 
 #include <array>
 #include <atomic>
@@ -574,5 +571,3 @@ namespace safe {
     mail->cleanup();
   }
 }  // namespace safe
-
-#endif  // SUNSHINE_THREAD_SAFE_H

@@ -1,7 +1,4 @@
-// Created by loki on 6/1/19.
-
-#ifndef SUNSHINE_CRYPTO_H
-#define SUNSHINE_CRYPTO_H
+#pragma once
 
 #include <array>
 #include <openssl/evp.h>
@@ -123,11 +120,11 @@ namespace crypto {
       gcm_t(const crypto::aes_t &key, bool padding = true);
 
       /**
-   * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size
-   * 
-   * return -1 on error
-   * return bytes written on success
-   */
+       * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size
+       *
+       * return -1 on error
+       * return bytes written on success
+       */
       int
       encrypt(const std::string_view &plaintext, std::uint8_t *tagged_cipher, aes_t *iv);
 
@@ -145,15 +142,13 @@ namespace crypto {
       cbc_t(const crypto::aes_t &key, bool padding = true);
 
       /**
-   * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size())
-   * 
-   * return -1 on error
-   * return bytes written on success
-   */
+       * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size())
+       *
+       * return -1 on error
+       * return bytes written on success
+       */
       int
       encrypt(const std::string_view &plaintext, std::uint8_t *cipher, aes_t *iv);
     };
   }  // namespace cipher
 }  // namespace crypto
-
-#endif  //SUNSHINE_CRYPTO_H

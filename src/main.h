@@ -3,8 +3,7 @@
  */
 
 // macros
-#ifndef SUNSHINE_MAIN_H
-#define SUNSHINE_MAIN_H
+#pragma once
 
 // standard includes
 #include <filesystem>
@@ -87,5 +86,3 @@ namespace service_ctrl {
   wait_for_ui_ready();
 }  // namespace service_ctrl
 #endif
-
-#endif  // SUNSHINE_MAIN_H

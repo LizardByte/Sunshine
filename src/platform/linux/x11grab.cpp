@@ -1,7 +1,3 @@
-//
-// Created by loki on 6/21/19.
-//
-
 #include "src/platform/common.h"
 
 #include <fstream>
@@ -389,10 +385,10 @@ namespace platf {
 
     mem_type_e mem_type;
 
-    /*
-   * Last X (NOT the streamed monitor!) size.
-   * This way we can trigger reinitialization if the dimensions changed while streaming
-   */
+    /**
+     * Last X (NOT the streamed monitor!) size.
+     * This way we can trigger reinitialization if the dimensions changed while streaming
+     */
     // int env_width, env_height;
 
     x11_attr_t(mem_type_e mem_type):
@@ -468,11 +464,11 @@ namespace platf {
     }
 
     /**
-   * Called when the display attributes should change.
-   */
+     * Called when the display attributes should change.
+     */
     void
     refresh() {
-      x11::GetWindowAttributes(xdisplay.get(), xwindow, &xattr);  //Update xattr's
+      x11::GetWindowAttributes(xdisplay.get(), xwindow, &xattr);  // Update xattr's
     }
 
     capture_e
@@ -521,7 +517,7 @@ namespace platf {
     snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       refresh();
 
-      //The whole X server changed, so we must reinit everything
+      // The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
         BOOST_LOG(warning) << "X dimensions changed in non-SHM mode, request reinit"sv;
         return capture_e::reinit;
@@ -657,7 +653,7 @@ namespace platf {
 
     capture_e
     snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
-      //The whole X server changed, so we must reinit everything
+      // The whole X server changed, so we must reinit everything
       if (xattr.width != env_width || xattr.height != env_height) {
         BOOST_LOG(warning) << "X dimensions changed in SHM mode, request reinit"sv;
         return capture_e::reinit;

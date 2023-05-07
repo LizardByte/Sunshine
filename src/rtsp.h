@@ -1,7 +1,4 @@
-// Created by loki on 2/2/20.
-
-#ifndef SUNSHINE_RTSP_H
-#define SUNSHINE_RTSP_H
+#pragma once
 
 #include <atomic>
 
@@ -27,5 +24,3 @@ namespace rtsp_stream {
   rtpThread();
 
 }  // namespace rtsp_stream
-
-#endif  // SUNSHINE_RTSP_H

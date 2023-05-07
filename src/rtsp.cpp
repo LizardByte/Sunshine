@@ -1,5 +1,3 @@
-// Created by loki on 2/2/20.
-
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 extern "C" {
@@ -501,10 +499,10 @@ namespace rtsp_stream {
       auto mapping_p = stream_config.mapping;
 
       /**
-     * GFE advertises incorrect mapping for normal quality configurations,
-     * as a result, Moonlight rotates all channels from index '3' to the right
-     * To work around this, rotate channels to the left from index '3'
-     */
+       * GFE advertises incorrect mapping for normal quality configurations,
+       * as a result, Moonlight rotates all channels from index '3' to the right
+       * To work around this, rotate channels to the left from index '3'
+       */
       if (x == audio::SURROUND51 || x == audio::SURROUND71) {
         std::copy_n(mapping_p, stream_config.channelCount, mapping);
         std::rotate(mapping + 3, mapping + 4, mapping + audio::MAX_STREAM_CONFIG);

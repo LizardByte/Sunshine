@@ -1,10 +1,9 @@
 /**
-* @file nvhttp.h
-*/
+ * @file nvhttp.h
+ */
 
 // macros
-#ifndef SUNSHINE_NVHTTP_H
-#define SUNSHINE_NVHTTP_H
+#pragma once
 
 // standard includes
 #include <string>
@@ -18,24 +17,24 @@
 namespace nvhttp {
 
   /**
- * @brief The protocol version.
- */
+   * @brief The protocol version.
+   */
   constexpr auto VERSION = "7.1.431.-1";
   // The negative 4th version number tells Moonlight that this is Sunshine
 
   /**
- * @brief The GFE version we are replicating.
- */
+   * @brief The GFE version we are replicating.
+   */
   constexpr auto GFE_VERSION = "3.23.0.74";
 
   /**
- * @brief The HTTP port, as a difference from the config port.
- */
+   * @brief The HTTP port, as a difference from the config port.
+   */
   constexpr auto PORT_HTTP = 0;
 
   /**
- * @brief The HTTPS port, as a difference from the config port.
- */
+   * @brief The HTTPS port, as a difference from the config port.
+   */
   constexpr auto PORT_HTTPS = -5;
 
   // functions
@@ -46,5 +45,3 @@ namespace nvhttp {
   void
   erase_all_clients();
 }  // namespace nvhttp
-
-#endif  // SUNSHINE_NVHTTP_H
