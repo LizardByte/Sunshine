@@ -1,3 +1,7 @@
+/**
+ * @file src/thread_safe.h
+ * @brief todo
+ */
 #pragma once
 
 #include <array>

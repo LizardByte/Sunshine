@@ -1,5 +1,6 @@
 /**
- * @file system_tray.cpp
+ * @file src/system_tray.cpp
+ * @brief todo
  */
 // macros
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
@@ -230,7 +231,7 @@ namespace system_tray {
 
   /**
    * @brief Run the system tray with platform specific options.
-   * @note macOS requires that UI elements be created on the main thread, so the system tray is not implemented for macOS.
+   * @note macOS requires that UI elements be created on the main thread, so the system tray is not currently implemented for macOS.
    */
   void
   run_tray() {

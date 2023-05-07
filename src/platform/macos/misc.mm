@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/misc.mm
+ * @brief todo
+ */
 #include <Foundation/Foundation.h>
 #include <arpa/inet.h>
 #include <dlfcn.h>

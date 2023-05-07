@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/wayland.h
+ * @brief todo
+ */
 #pragma once
 
 #include <bitset>

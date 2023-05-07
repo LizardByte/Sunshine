@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/cuda.h
+ * @brief todo
+ */
 #pragma once
 
 #if defined(SUNSHINE_BUILD_CUDA)

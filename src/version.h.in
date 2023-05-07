@@ -1,3 +1,8 @@
+/**
+ * @file src/version.h.in
+ * @brief Version definitions for Sunshine.
+ * @note The final `version.h` is generated from this file during the CMake build.
+ */
 #pragma once
 
 #define PROJECT_NAME "@PROJECT_NAME@"

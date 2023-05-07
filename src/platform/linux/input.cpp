@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input.cpp
+ * @brief todo
+ */
 #include <fcntl.h>
 #include <linux/uinput.h>
 #include <poll.h>
@@ -1108,7 +1112,7 @@ namespace platf {
    *
    * EXAMPLES:
    * ```cpp
-   * x_move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
+   * x_move_mouse(input, 10, 10);  // Move mouse 10 pixels down and right
    * ```
    */
   static void
@@ -1204,7 +1208,7 @@ namespace platf {
    *
    * EXAMPLES:
    * ```cpp
-   * button_mouse(input, 1, false); // Press left mouse button
+   * button_mouse(input, 1, false);  // Press left mouse button
    * ```
    */
   void
@@ -1336,12 +1340,12 @@ namespace platf {
    * @brief XTest keyboard emulation.
    * @param input The input_t instance to use.
    * @param modcode The moonlight key code.
-   * @param release Whether the event was a press (false) or a release (true)
-   * @param flags SS_KBE_FLAG_* values
+   * @param release Whether the event was a press (false) or a release (true).
+   * @param flags SS_KBE_FLAG_* values.
    *
    * EXAMPLES:
    * ```cpp
-   * x_keyboard(input, 0x5A, false, 0); // Press Z
+   * x_keyboard(input, 0x5A, false, 0);  // Press Z
    * ```
    */
   static void
@@ -1371,12 +1375,12 @@ namespace platf {
    * @brief Keyboard emulation.
    * @param input The input_t instance to use.
    * @param modcode The moonlight key code.
-   * @param release Whether the event was a press (false) or a release (true)
-   * @param flags SS_KBE_FLAG_* values
+   * @param release Whether the event was a press (false) or a release (true).
+   * @param flags SS_KBE_FLAG_* values.
    *
    * EXAMPLES:
    * ```cpp
-   * keyboard(input, 0x5A, false, 0); // Press Z
+   * keyboard(input, 0x5A, false, 0);  // Press Z
    * ```
    */
   void

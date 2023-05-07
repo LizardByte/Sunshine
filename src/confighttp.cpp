@@ -1,4 +1,9 @@
-// TODO: Authentication, better handling of routes common to nvhttp, cleanup
+/**
+ * @file src/confighttp.cpp
+ * @brief todo
+ *
+ * @todo Authentication, better handling of routes common to nvhttp, cleanup
+ */
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 

@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/wlgrab.cpp
+ * @brief todo
+ */
 #include "src/platform/common.h"
 
 #include "src/main.h"

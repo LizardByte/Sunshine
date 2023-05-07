@@ -1,5 +1,6 @@
 /**
- * @file nvhttp.h
+ * @file src/nvhttp.h
+ * @brief todo
  */
 
 // macros
@@ -18,9 +19,10 @@ namespace nvhttp {
 
   /**
    * @brief The protocol version.
+   * @details The version of the GameStream protocol we are mocking.
+   * @note The negative 4th number indicates to Moonlight that this is Sunshine.
    */
   constexpr auto VERSION = "7.1.431.-1";
-  // The negative 4th version number tells Moonlight that this is Sunshine
 
   /**
    * @brief The GFE version we are replicating.

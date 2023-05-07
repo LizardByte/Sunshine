@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/misc.h
+ * @brief todo
+ */
 #pragma once
 
 #include <chrono>

@@ -1,3 +1,7 @@
+/**
+ * @file tools/sunshinesvc.cpp
+ * @brief todo
+ */
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <wtsapi32.h>

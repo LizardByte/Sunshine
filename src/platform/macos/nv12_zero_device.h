@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/nv12_zero_device.h
+ * @brief todo
+ */
 #pragma once
 
 #include "src/platform/common.h"

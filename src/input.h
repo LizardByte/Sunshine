@@ -1,3 +1,7 @@
+/**
+ * @file src/input.h
+ * @brief todo
+ */
 #pragma once
 
 #include <functional>

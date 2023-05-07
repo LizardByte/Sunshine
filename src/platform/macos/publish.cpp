@@ -1,5 +1,9 @@
-
-// adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
+/**
+ * @file src/platform/macos/publish.cpp
+ * @brief todo
+ * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
+ * @todo Use a common file for this and src/platform/linux/publish.cpp
+ */
 #include <thread>
 
 #include "misc.h"
@@ -13,7 +17,7 @@ using namespace std::literals;
 namespace avahi {
 
   /**
-   * @brief Error codes used by avahi
+   * @brief Error codes used by avahi.
    */
   enum err_e {
     OK = 0, /**< OK */
@@ -116,7 +120,7 @@ namespace avahi {
   };
 
   /**
-   * @brief Some flags for publishing functions
+   * @brief Flags for publishing functions.
    */
   enum PublishFlags {
     PUBLISH_UNIQUE = 1, /**< For raw records: The RRset is intended to be unique */

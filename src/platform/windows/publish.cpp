@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/publish.cpp
+ * @brief todo
+ */
 #include <winsock2.h>
 
 #include <windows.h>

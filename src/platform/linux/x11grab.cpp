@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/x11grab.cpp
+ * @brief todo
+ */
 #include "src/platform/common.h"
 
 #include <fstream>

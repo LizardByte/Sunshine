@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/av_img_t.h
+ * @brief todo
+ */
 #pragma once
 
 #include "src/platform/common.h"

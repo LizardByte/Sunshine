@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/misc.cpp
+ * @brief todo
+ */
 #include <csignal>
 #include <filesystem>
 #include <iomanip>
@@ -229,9 +233,8 @@ namespace platf {
   }
 
   /**
-   * @brief A function to obtain the current sessions user's primary token with elevated privileges
-   *
-   * @return The users token, if user has admin capability it will be elevated. If not, it will return back a limited token. On error, nullptrs
+   * @brief Obtain the current sessions user's primary token with elevated privileges.
+   * @return The user's token. If user has admin capability it will be elevated, otherwise it will be a limited token. On error, `nullptr`.
    */
   HANDLE
   retrieve_users_token(bool elevated) {
@@ -333,10 +336,9 @@ namespace platf {
   }
 
   /**
-
-@brief Check if the current process is running with system-level privileges.
-@return true if the current process has system-level privileges, false otherwise.
-*/
+   * @brief Check if the current process is running with system-level privileges.
+   * @return `true` if the current process has system-level privileges, `false` otherwise.
+   */
   bool
   is_running_as_system() {
     BOOL ret;
@@ -430,14 +432,13 @@ namespace platf {
   }
 
   /**
-   * @brief Creates a bp::child object from the results of launching a process
-   *
-   * @param process_launched A boolean indicating whether the launch was successful or not
-   * @param cmd The command that was used to launch the process
-   * @param ec A reference to an std::error_code object that will store any error that occurred during the launch
-   * @param process_info A reference to a PROCESS_INFORMATION structure that contains information about the new process
-   * @param group A pointer to a bp::group object that will add the new process to its group, if not null
-   * @return A bp::child object representing the new process, or an empty bp::child object if the launch failed or an error occurred
+   * @brief Create a `bp::child` object from the results of launching a process.
+   * @param process_launched A boolean indicating if the launch was successful.
+   * @param cmd The command that was used to launch the process.
+   * @param ec A reference to an `std::error_code` object that will store any error that occurred during the launch.
+   * @param process_info A reference to a `PROCESS_INFORMATION` structure that contains information about the new process.
+   * @param group A pointer to a `bp::group` object that will add the new process to its group, if not null.
+   * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch failed.
    */
   bp::child
   create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info, bp::group *group) {
@@ -477,11 +478,10 @@ namespace platf {
   }
 
   /**
-   * @brief Impersonate the current user, invoke the callback function, then returns back to system context.
-   *
-   * @param user_token A handle to the user's token that was obtained from the shell
-   * @param callback A function that will be executed while impersonating the user
-   * @return An std::error_code object that will store any error that occurred during the impersonation
+   * @brief Impersonate the current user and invoke the callback function.
+   * @param user_token A handle to the user's token that was obtained from the shell.
+   * @param callback A function that will be executed while impersonating the user.
+   * @return An `std::error_code` object that will store any error that occurred during the impersonation
    */
   std::error_code
   impersonate_current_user(HANDLE user_token, std::function<void()> callback) {
@@ -515,11 +515,10 @@ namespace platf {
   }
 
   /**
-   * @brief A function to create a STARTUPINFOEXW structure for launching a process
-   *
-   * @param file A pointer to a FILE object that will be used as the standard output and error for the new process, or null if not needed
-   * @param ec A reference to an std::error_code object that will store any error that occurred during the creation of the structure
-   * @return A STARTUPINFOEXW structure that contains information about how to launch the new process
+   * @brief A function to create a `STARTUPINFOEXW` structure for launching a process.
+   * @param file A pointer to a `FILE` object that will be used as the standard output and error for the new process, or null if not needed.
+   * @param ec A reference to a `std::error_code` object that will store any error that occurred during the creation of the structure.
+   * @return A `STARTUPINFOEXW` structure that contains information about how to launch the new process.
    */
   STARTUPINFOEXW
   create_startup_info(FILE *file, std::error_code &ec) {
@@ -563,22 +562,19 @@ namespace platf {
   }
 
   /**
-   * @brief Runs a command on the users profile
+   * @brief Run a command on the users profile.
    *
-   * This function launches a child process as the user, using the current user's environment
-   * and a specific working directory. If the launch is successful, a `bp::child` object representing the new
-   * process is returned. Otherwise, an error code is returned.
+   * Launches a child process as the user, using the current user's environment and a specific working directory.
    *
-   * @param elevated Specify to elevate the process or not
-   * @param interactive Specifies whether this will run in a window or hidden
-   * @param cmd The command to run
-   * @param working_dir The working directory for the new process
-   * @param env The environment variables to use for the new process
-   * @param file A file object to redirect the child process's output to (may be nullptr)
-   * @param ec An error code, set to indicate any errors that occur during the launch process
-   * @param group A pointer to a `bp::group` object to which the new process should belong (may be nullptr)
-   *
-   * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails
+   * @param elevated Specify whether to elevate the process.
+   * @param interactive Specify whether this will run in a window or hidden.
+   * @param cmd The command to run.
+   * @param working_dir The working directory for the new process.
+   * @param env The environment variables to use for the new process.
+   * @param file A file object to redirect the child process's output to (may be `nullptr`).
+   * @param ec An error code, set to indicate any errors that occur during the launch process.
+   * @param group A pointer to a `bp::group` object to which the new process should belong (may be `nullptr`).
+   * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
    */
   bp::child
   run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {

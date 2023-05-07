@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/vaapi.h
+ * @brief todo
+ */
 #pragma once
 
 #include "misc.h"

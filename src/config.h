@@ -1,3 +1,7 @@
+/**
+ * @file src/config.h
+ * @brief todo
+ */
 #pragma once
 
 #include <bitset>
