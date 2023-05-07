@@ -823,17 +823,24 @@ namespace nvhttp {
       return;
     }
 
-    // Probe encoders again before streaming to ensure our chosen
-    // encoder matches the active GPU (which could have changed
-    // due to hotplugging, driver crash, primary monitor change,
-    // or any number of other factors).
     if (rtsp_stream::session_count() == 0) {
+      // Probe encoders again before streaming to ensure our chosen
+      // encoder matches the active GPU (which could have changed
+      // due to hotplugging, driver crash, primary monitor change,
+      // or any number of other factors).
       if (video::probe_encoders()) {
         tree.put("root.resume", 0);
         tree.put("root.<xmlattr>.status_code", 503);
         tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
 
         return;
+      }
+
+      // Newer Moonlight clients send localAudioPlayMode on /resume too,
+      // so we should use it if it's present in the args and there are
+      // no active sessions we could be interfering with.
+      if (args.find("localAudioPlayMode"s) != std::end(args)) {
+        host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
       }
     }
 
@@ -922,7 +929,7 @@ namespace nvhttp {
 
     auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>(30);
 
-    // /resume doesn't get the parameter "localAudioPlayMode"
+    // /resume doesn't always get the parameter "localAudioPlayMode"
     // /launch will store it in host_audio
     bool host_audio {};
 
