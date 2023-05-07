@@ -13,6 +13,7 @@
 typedef long NTSTATUS;
 
 #include "display.h"
+#include "display_dual.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/main.h"
@@ -839,7 +840,22 @@ namespace platf::dxgi {
 namespace platf {
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type == mem_type_e::dxgi) {
+    //Support dual displays, Shawn Xiong @ 5/7/2023 
+    //protocol for dual displays merge two display names into display_name
+    //format is display1;display2
+    //here we check if display_name is this format, if it is, then
+    //we call create instance of display_dual_t and pass display_name
+    //display_dual_t will create two instances of display_vram_t or display_ram_t
+    //and wrap them into display_dual_t, for external side, just see one instance of display_t
+    std::size_t pos = display_name.find(';');
+    if (pos != std::string::npos) {
+      auto disp = std::make_shared<dxgi::display_dual_t>();
+
+      if (!disp->init(config, display_name)) {
+        return disp;
+      }
+    }
+    else if (hwdevice_type == mem_type_e::dxgi) {
       auto disp = std::make_shared<dxgi::display_vram_t>();
 
       if (!disp->init(config, display_name)) {
