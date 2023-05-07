@@ -1275,7 +1275,7 @@ namespace video {
           ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
         }
         else {
-          ctx->rc_buffer_size = bitrate / config.framerate;
+          ctx->rc_buffer_size = bitrate / (config.framerate / 2);
         }
       }
     }
