@@ -842,16 +842,16 @@ namespace platf {
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     //Support dual displays, Shawn Xiong @ 5/7/2023 
     //protocol for dual displays merge two display names into display_name
-    //format is display1;display2
+    //format is display1_name+display2_name + is the separator, defined as display_name_separator in display.h
     //here we check if display_name is this format, if it is, then
     //we call create instance of display_dual_t and pass display_name
     //display_dual_t will create two instances of display_vram_t or display_ram_t
     //and wrap them into display_dual_t, for external side, just see one instance of display_t
-    std::size_t pos = display_name.find(';');
+    std::size_t pos = display_name.find(dxgi::display_name_separator);
     if (pos != std::string::npos) {
       auto disp = std::make_shared<dxgi::display_dual_t>();
 
-      if (!disp->init(config, display_name)) {
+      if (!disp->init(hwdevice_type,config, display_name)) {
         return disp;
       }
     }

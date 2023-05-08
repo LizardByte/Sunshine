@@ -18,6 +18,7 @@
 namespace platf::dxgi {
   extern const char *format_str[];
 
+  auto constexpr display_name_separator = '+';
   // Add D3D11_CREATE_DEVICE_DEBUG here to enable the D3D11 debug runtime.
   // You should have a debugger like WinDbg attached to receive debug messages.
   auto constexpr D3D11_CREATE_DEVICE_FLAGS = D3D11_CREATE_DEVICE_VIDEO_SUPPORT;

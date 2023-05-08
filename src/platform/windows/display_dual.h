@@ -10,8 +10,9 @@
 namespace platf::dxgi {
   class display_dual_t: public display_base_t, public std::enable_shared_from_this<display_dual_t> {
   protected:
-    std::shared_ptr<display_vram_t> disp1, disp2;
-
+    std::shared_ptr<display_base_t> m_disp1, m_disp2;
+    std::shared_ptr<display_base_t>
+    MakeDisp(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
   public:
     virtual capture_e
     snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
@@ -28,7 +29,7 @@ namespace platf::dxgi {
     std::shared_ptr<platf::hwdevice_t>
     make_hwdevice(pix_fmt_e pix_fmt) override;
     int
-    init(const ::video::config_t &config, const std::string &display_name);
+    init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
   };
 }  // namespace platf::dxgi
 #endif  //SUNSHINE_DUAL_DISPLAY_H

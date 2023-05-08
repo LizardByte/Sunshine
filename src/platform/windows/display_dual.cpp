@@ -37,8 +37,40 @@ namespace platf::dxgi {
   display_dual_t::make_hwdevice(pix_fmt_e pix_fmt) {
     return std::shared_ptr<platf::hwdevice_t>();
   }
+  //help function to create display_t
+  std::shared_ptr<display_base_t>
+  display_dual_t::MakeDisp(mem_type_e hwdevice_type,const ::video::config_t &config,
+      const std::string &display_name) {
+    if (hwdevice_type == mem_type_e::dxgi) {
+      auto disp = std::make_shared<dxgi::display_vram_t>();
+
+      if (!disp->init(config, display_name)) {
+        return disp;
+      }
+    }
+    else if (hwdevice_type == mem_type_e::system) {
+      auto disp = std::make_shared<dxgi::display_ram_t>();
+
+      if (!disp->init(config, display_name)) {
+        return disp;
+      }
+    }
+    return std::shared_ptr<display_base_t>();
+  }
+
   int
-  display_dual_t::init(const ::video::config_t &config, const std::string &display_name) {
+  display_dual_t::init(mem_type_e hwdevice_type,const ::video::config_t &config, 
+      const std::string &display_name) {
+    std::size_t pos = display_name.find(display_name_separator);
+    if (pos == std::string::npos) {
+      return 0;
+    }
+    auto disp1_name = display_name.substr(0, pos);
+    auto disp2_name = display_name.substr(pos+1);
+    m_disp1 = MakeDisp(hwdevice_type,config, disp1_name);
+    m_disp2 = MakeDisp(hwdevice_type,config, disp2_name);
+    //TODO: base on m_disp1, and m_disp2, to calculate the layout of the merged frame
+
     return 0;
   }
 }  // namespace platf::dxgi
