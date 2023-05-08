@@ -10,6 +10,7 @@
 namespace platf::dxgi {
   class display_dual_t: public display_base_t, public std::enable_shared_from_this<display_dual_t> {
   protected:
+    std::atomic<uint32_t> next_image_id;
     std::shared_ptr<display_base_t> m_disp1, m_disp2;
     std::shared_ptr<display_base_t>
     MakeDisp(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
