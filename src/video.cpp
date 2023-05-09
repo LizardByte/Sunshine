@@ -1177,7 +1177,7 @@ namespace video {
       auto bitrate = config.bitrate * 1000;
       ctx->rc_max_rate = bitrate;
       ctx->bit_rate = bitrate;
-
+      make_
       if (encoder.flags & CBR_WITH_VBR) {
         // Ensure rc_max_bitrate != bit_rate to force VBR mode
         ctx->bit_rate--;
@@ -1306,12 +1306,28 @@ namespace video {
     safe::signal_t &reinit_event,
     const encoder_t &encoder,
     void *channel_data) {
-    auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
+    //check if disp is a grop of displays
+    std::optional<session_t> session;
+    std::optional<session_t> session2;
+    td::shared_ptr<platf::display_t> disp2;
+    if (disp->is_group()) {
+       //only support two here
+      disp2 = disp->get_item(1);
+      disp = disp->get_item(0);
+    }
+    session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
     if (!session) {
       return;
     }
+    if (disp2) {
+      session2 = make_session(disp2.get(), encoder, config, disp2->width, disp2->height, std::move(hwdevice));
+      if (!session2) {
+        return;
+      }
+    }
 
-    auto frame = session->device->frame;
+    AVFrame* frame = session->device->frame;
+    AVFrame *frame2 = session2?session2->device->frame:nullptr;
 
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
@@ -1319,9 +1335,16 @@ namespace video {
 
     // Load a dummy image into the AVFrame to ensure we have something to encode
     // even if we timeout waiting on the first frame.
-    auto dummy_img = disp->alloc_img();
+    std::shared_ptr<img_t> dummy_img = disp->alloc_img();
     if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
       return;
+    }
+    std::shared_ptr<img_t> dummy_img2;
+    if (session2) {
+      dummy_img2 = disp2->alloc_img();
+      if (!dummy_img2 || disp2->dummy_img(dummy_img2.get()) || session2->device->convert(*dummy_img2)) {
+        return;
+      }
     }
 
     while (true) {
@@ -1332,7 +1355,10 @@ namespace video {
       if (idr_events->peek()) {
         frame->pict_type = AV_PICTURE_TYPE_I;
         frame->key_frame = 1;
-
+        if (frame2) {
+          frame2->pict_type = AV_PICTURE_TYPE_I;
+          frame2->key_frame = 1;
+        }
         idr_events->pop();
       }
 
@@ -1348,7 +1374,18 @@ namespace video {
           break;
         }
       }
-
+      if (frame2 && (!frame->key_frame || images->peek())) {
+        if (auto img = images->pop(100ms)) {
+          if (session2->device->convert(*img)) {
+            BOOST_LOG(error) << "Could not convert image"sv;
+            return;
+          }
+        }
+        else if (!images->running()) {
+          break;
+        }
+      }
+      //todo: change encode function to pass second sesison in
       if (encode(frame_nr++, *session, frame, packets, channel_data)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;

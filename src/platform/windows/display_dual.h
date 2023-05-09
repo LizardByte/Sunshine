@@ -29,6 +29,22 @@ namespace platf::dxgi {
     get_supported_hdr_capture_formats() override;
     std::shared_ptr<platf::hwdevice_t>
     make_hwdevice(pix_fmt_e pix_fmt) override;
+    virtual bool
+    is_group() override {
+      return false;
+    }
+    virtual std::shared_ptr<display_t>
+    get_item(int index) override {
+      switch (index) {
+        case 0:
+          return m_disp1;
+        case 1:
+          return m_disp2;
+        default:
+          break;
+      }
+      return std::shared_ptr<display_t>();
+    }
     int
     init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
   };

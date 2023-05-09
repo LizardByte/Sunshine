@@ -46,6 +46,7 @@ namespace video {
     };
 
     AVPacket *av_packet;
+    AVPacket *av_packet2;
     std::vector<replace_t> *replacements;
     void *channel_data;
   };

@@ -137,6 +137,8 @@ namespace platf::dxgi {
     device_t device;
     device_ctx_t device_ctx;
     duplication_t dup;
+    //for dual display support, we add output offset to address captured Texture's start X pos
+    int output_x_offset;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
@@ -156,7 +158,8 @@ namespace platf::dxgi {
     is_hdr() override;
     virtual bool
     get_hdr_metadata(SS_HDR_METADATA &metadata) override;
-
+    virtual int
+    complete_img(img_t *img, bool dummy) = 0;
   protected:
     int
     get_pixel_pitch() {
@@ -170,8 +173,6 @@ namespace platf::dxgi {
 
     virtual capture_e
     snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
-    virtual int
-    complete_img(img_t *img, bool dummy) = 0;
     virtual std::vector<DXGI_FORMAT>
     get_supported_sdr_capture_formats() = 0;
     virtual std::vector<DXGI_FORMAT>

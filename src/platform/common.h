@@ -302,6 +302,16 @@ namespace platf {
     }
 
     virtual ~display_t() = default;
+    //shawn: add this virtual function to support dual display
+    //if return true,means it support dual display, and will wrap dual real displays
+    virtual bool
+    is_group() {
+      return false;
+    }
+    virtual std::shared_ptr<display_t>
+    get_item(int index) {
+      return this;
+    }
 
     // Offsets for when streaming a specific monitor. By default, they are 0.
     int offset_x, offset_y;
