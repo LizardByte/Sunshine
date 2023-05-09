@@ -515,6 +515,18 @@
           stream audio, while muting the host PC speakers.
         </div>
       </div>
+      <!--Install Steam Audio Drivers-->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="install_steam_audio_drivers" class="form-label">Install Steam Audio Drivers</label>
+        <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          If Steam is installed, this will automatically install the Steam Streaming Speakers driver to support
+          5.1/7.1 surround sound and muting host audio.
+        </div>
+      </div>
       <!--Adapter Name -->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="adapter_name" class="form-label">Adapter Name</label>
@@ -992,6 +1004,7 @@
     "amd_vbaq": "enabled",
     "capture": "",
     "controller": "enabled",
+    "install_steam_audio_drivers": "enabled",
     "dwmflush": "enabled",
     "encoder": "",
     "fps": "[10,30,60,90,120]",

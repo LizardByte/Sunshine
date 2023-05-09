@@ -10,6 +10,8 @@
 
 #include <synchapi.h>
 
+#include <newdev.h>
+
 #define INITGUID
 #include <propkeydef.h>
 #undef INITGUID
@@ -32,9 +34,19 @@ const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
 const IID IID_IAudioClient = __uuidof(IAudioClient);
 const IID IID_IAudioCaptureClient = __uuidof(IAudioCaptureClient);
 
+#if defined(__x86_64) || defined(_M_AMD64)
+  #define STEAM_DRIVER_SUBDIR L"x64"
+#elif defined(__i386) || defined(_M_IX86)
+  #define STEAM_DRIVER_SUBDIR L"x86"
+#else
+  #warning No known Steam audio driver for this architecture
+#endif
+
 using namespace std::literals;
 namespace platf::audio {
   constexpr auto SAMPLE_RATE = 48000;
+
+  constexpr auto STEAM_AUDIO_DRIVER_PATH = L"%CommonProgramFiles(x86)%\\Steam\\drivers\\Windows10\\" STEAM_DRIVER_SUBDIR L"\\SteamStreamingSpeakers.inf";
 
   template <class T>
   void
@@ -254,7 +266,7 @@ namespace platf::audio {
       &device);
 
     if (FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't create audio Device [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Couldn't get default audio endpoint [0x"sv << util::hex(status).to_string_view() << ']';
 
       return nullptr;
     }
@@ -577,20 +589,6 @@ namespace platf::audio {
 
       sink_t sink;
 
-      audio::device_enum_t device_enum;
-      auto status = CoCreateInstance(
-        CLSID_MMDeviceEnumerator,
-        nullptr,
-        CLSCTX_ALL,
-        IID_IMMDeviceEnumerator,
-        (void **) &device_enum);
-
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
-
-        return std::nullopt;
-      }
-
       auto device = default_device(device_enum);
       if (!device) {
         return std::nullopt;
@@ -602,7 +600,7 @@ namespace platf::audio {
       sink.host = converter.to_bytes(wstring.get());
 
       collection_t collection;
-      status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
+      auto status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -814,22 +812,8 @@ namespace platf::audio {
         return std::nullopt;
       }
 
-      audio::device_enum_t device_enum;
-      auto status = CoCreateInstance(
-        CLSID_MMDeviceEnumerator,
-        nullptr,
-        CLSCTX_ALL,
-        IID_IMMDeviceEnumerator,
-        (void **) &device_enum);
-
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
-
-        return std::nullopt;
-      }
-
       collection_t collection;
-      status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
+      auto status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -878,6 +862,79 @@ namespace platf::audio {
       return std::nullopt;
     }
 
+    /**
+     * @brief Installs the Steam Streaming Speakers driver, if present.
+     * @return true if installation was successful
+     */
+    bool
+    install_steam_audio_drivers() {
+#ifdef STEAM_DRIVER_SUBDIR
+      // MinGW's libnewdev.a is missing DiInstallDriverW() even though the headers have it,
+      // so we have to load it at runtime. It's Vista or later, so it will always be available.
+      auto newdev = LoadLibraryExW(L"newdev.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+      if (!newdev) {
+        BOOST_LOG(error) << "newdev.dll failed to load"sv;
+        return false;
+      }
+      auto fg = util::fail_guard([newdev]() {
+        FreeLibrary(newdev);
+      });
+
+      auto fn_DiInstallDriverW = (decltype(DiInstallDriverW) *) GetProcAddress(newdev, "DiInstallDriverW");
+      if (!fn_DiInstallDriverW) {
+        BOOST_LOG(error) << "DiInstallDriverW() is missing"sv;
+        return false;
+      }
+
+      // Get the current default audio device (if present)
+      auto old_default_dev = default_device(device_enum);
+
+      // Install the Steam Streaming Speakers driver
+      WCHAR driver_path[MAX_PATH] = {};
+      ExpandEnvironmentStringsW(STEAM_AUDIO_DRIVER_PATH, driver_path, ARRAYSIZE(driver_path));
+      if (fn_DiInstallDriverW(nullptr, driver_path, 0, nullptr)) {
+        BOOST_LOG(info) << "Successfully installed Steam Streaming Speakers"sv;
+
+        // Wait for 5 seconds to allow the audio subsystem to reconfigure things before
+        // modifying the default audio device or enumerating devices again.
+        Sleep(5000);
+
+        // If there was a previous default device, restore that original device as the
+        // default output device just in case installing the new one changed it.
+        if (old_default_dev) {
+          audio::wstring_t old_default_id;
+          old_default_dev->GetId(&old_default_id);
+
+          for (int x = 0; x < (int) ERole_enum_count; ++x) {
+            policy->SetDefaultEndpoint(old_default_id.get(), (ERole) x);
+          }
+        }
+
+        return true;
+      }
+      else {
+        auto err = GetLastError();
+        switch (err) {
+          case ERROR_ACCESS_DENIED:
+            BOOST_LOG(warning) << "Administrator privileges are required to install Steam Streaming Speakers"sv;
+            break;
+          case ERROR_FILE_NOT_FOUND:
+          case ERROR_PATH_NOT_FOUND:
+            BOOST_LOG(info) << "Steam audio drivers not found. This is expected if you don't have Steam installed."sv;
+            break;
+          default:
+            BOOST_LOG(warning) << "Failed to install Steam audio drivers: "sv << err;
+            break;
+        }
+
+        return false;
+      }
+#else
+      BOOST_LOG(warning) << "Unable to install Steam Streaming Speakers on unknown architecture"sv;
+      return false;
+#endif
+    }
+
     int
     init() {
       auto status = CoCreateInstance(
@@ -893,12 +950,32 @@ namespace platf::audio {
         return -1;
       }
 
+      status = CoCreateInstance(
+        CLSID_MMDeviceEnumerator,
+        nullptr,
+        CLSCTX_ALL,
+        IID_IMMDeviceEnumerator,
+        (void **) &device_enum);
+
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      // Install Steam Streaming Speakers if needed. We do this during init() to ensure
+      // the sink information returned includes the new Steam Streaming Speakers device.
+      if (config::audio.install_steam_drivers && !find_device_id_by_name("Steam Streaming Speakers"s)) {
+        // This is best effort. Don't fail if it doesn't work.
+        install_steam_audio_drivers();
+      }
+
       return 0;
     }
 
     ~audio_control_t() override {}
 
     policy_t policy;
+    audio::device_enum_t device_enum;
     std::string assigned_sink;
   };
 }  // namespace platf::audio

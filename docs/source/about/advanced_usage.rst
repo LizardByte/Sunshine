@@ -483,7 +483,8 @@ virtual_sink
 
       - Stream Streaming Speakers (Linux, macOS, Windows)
 
-        - To use this option, you must have Steam installed and have used Stream remote play at least once.
+        - Steam must be installed.
+        - Enable `install_steam_audio_drivers`_ or use Steam Remote Play at least once to install the drivers 
 
       - `Virtual Audio Cable <https://vb-audio.com/Cable/>`_ (macOS, Windows)
 
@@ -491,6 +492,19 @@ virtual_sink
    .. code-block:: text
 
       virtual_sink = Steam Streaming Speakers
+
+install_steam_audio_drivers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Installs the Steam Streaming Speakers driver (if Steam is installed) to support surround sound and muting host audio.
+
+   .. Tip:: This option is only supported on Windows.
+
+**Example**
+   .. code-block:: text
+
+      install_steam_audio_drivers = enabled
 
 Network
 -------
