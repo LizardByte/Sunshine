@@ -382,7 +382,11 @@ namespace config {
     true  // dwmflush
   };
 
-  audio_t audio {};
+  audio_t audio {
+    {},  // audio_sink
+    {},  // virtual_sink
+    true,  // install_steam_drivers
+  };
 
   stream_t stream {
     10s,  // ping_timeout
@@ -985,6 +989,7 @@ namespace config {
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);
+    bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
 
     string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, { "pc"sv, "lan"sv, "wan"sv });
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, { "pc"sv, "lan"sv, "wan"sv });
