@@ -864,7 +864,7 @@ namespace platf::audio {
 
     /**
      * @brief Installs the Steam Streaming Speakers driver, if present.
-     * @return true if installation was successful
+     * @return `true` if installation was successful.
      */
     bool
     install_steam_audio_drivers() {
