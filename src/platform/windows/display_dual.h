@@ -12,6 +12,7 @@ namespace platf::dxgi {
   protected:
     std::atomic<uint32_t> next_image_id;
     std::shared_ptr<display_base_t> m_disp1, m_disp2;
+    std::string m_disp1_name, m_disp2_name;
     std::shared_ptr<display_base_t>
     MakeDisp(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
   public:
@@ -31,7 +32,7 @@ namespace platf::dxgi {
     make_hwdevice(pix_fmt_e pix_fmt) override;
     virtual bool
     is_group() override {
-      return false;
+      return true;
     }
     virtual std::shared_ptr<display_t>
     get_item(int index) override {
@@ -45,6 +46,19 @@ namespace platf::dxgi {
       }
       return std::shared_ptr<display_t>();
     }
+    virtual std::string&
+    get_item_name(int index) override {
+      switch (index) {
+        case 0:
+          return m_disp1_name;
+        case 1:
+          return m_disp2_name;
+        default:
+          break;
+      }
+      return m_disp1_name;
+    }
+
     int
     init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
   };

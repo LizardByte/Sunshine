@@ -983,6 +983,90 @@ namespace video {
 
     return 0;
   }
+  int
+  encode_pair(int64_t frame_nr, session_t &session, frame_t::pointer frame,
+    session_t &session2, frame_t::pointer frame2,
+    safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data) {
+    frame->pts = frame_nr;
+
+    auto inject_proc = [](session_t &session, AVPacket *av_packet, auto &ctx) {
+      if (session.inject) {
+        auto &sps = session.sps;
+        auto &vps = session.vps;
+        if (session.inject == 1) {
+          auto h264 = cbs::make_sps_h264(ctx.get(), av_packet);
+          sps = std::move(h264.sps);
+        }
+        else {
+          auto hevc = cbs::make_sps_hevc(ctx.get(), av_packet);
+
+          sps = std::move(hevc.sps);
+          vps = std::move(hevc.vps);
+
+          session.replacements.emplace_back(
+            std::string_view((char *) std::begin(vps.old), vps.old.size()),
+            std::string_view((char *) std::begin(vps._new), vps._new.size()));
+        }
+
+        session.inject = 0;
+
+        session.replacements.emplace_back(
+          std::string_view((char *) std::begin(sps.old), sps.old.size()),
+          std::string_view((char *) std::begin(sps._new), sps._new.size()));
+      }
+    };
+    auto &ctx = session.ctx;
+    auto &ctx2 = session2.ctx;
+
+    /* send the frame to the encoder */
+    auto ret = avcodec_send_frame(ctx.get(), frame);
+    auto ret2 = avcodec_send_frame(ctx2.get(), frame2);
+    if (ret < 0 || ret2) {
+      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
+
+      return -1;
+    }
+    bool eof_stream1 = false;
+    bool eof_stream2 = false;
+    while (ret >= 0 || ret2 >= 0) {
+      AVPacket *av_packet = nullptr;
+      AVPacket *av_packet2 = nullptr;
+      auto packet = std::make_unique<packet_t::element_type>(nullptr);
+      if (!eof_stream1) {
+        av_packet = packet.get()->av_packet;
+        ret = avcodec_receive_packet(ctx.get(), av_packet);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+          eof_stream1 = true;
+        }
+        else if (ret < 0) {
+          return ret;
+        }
+      }
+      if (!eof_stream2) {
+        packet->init_packet2();
+        av_packet2 = packet.get()->av_packet2;
+        ret2 = avcodec_receive_packet(ctx2.get(), av_packet2);
+        if (ret2 == AVERROR(EAGAIN) || ret2 == AVERROR_EOF) {
+          eof_stream2 = true;
+        }
+        else if (ret2 < 0) {
+          return ret2;
+        }
+      }
+      if (eof_stream1 && eof_stream2) {
+        return 0;
+      }
+      inject_proc(session, av_packet, ctx);
+      inject_proc(session2, av_packet2, ctx2);
+      //todo: if session2's replacements is not same as session
+      packet->replacements = &session.replacements;
+      packet->channel_data = channel_data;
+      packets->raise(std::move(packet));
+    }
+
+    return 0;
+  }
 
   std::optional<session_t>
   make_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
@@ -1177,7 +1261,6 @@ namespace video {
       auto bitrate = config.bitrate * 1000;
       ctx->rc_max_rate = bitrate;
       ctx->bit_rate = bitrate;
-      make_
       if (encoder.flags & CBR_WITH_VBR) {
         // Ensure rc_max_bitrate != bit_rate to force VBR mode
         ctx->bit_rate--;
@@ -1309,9 +1392,9 @@ namespace video {
     //check if disp is a grop of displays
     std::optional<session_t> session;
     std::optional<session_t> session2;
-    td::shared_ptr<platf::display_t> disp2;
+    std::shared_ptr<platf::display_t> disp2;
     if (disp->is_group()) {
-       //only support two here
+      //only support two here
       disp2 = disp->get_item(1);
       disp = disp->get_item(0);
     }
@@ -1326,8 +1409,8 @@ namespace video {
       }
     }
 
-    AVFrame* frame = session->device->frame;
-    AVFrame *frame2 = session2?session2->device->frame:nullptr;
+    AVFrame *frame = session->device->frame;
+    AVFrame *frame2 = session2 ? session2->device->frame : nullptr;
 
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
@@ -1335,11 +1418,11 @@ namespace video {
 
     // Load a dummy image into the AVFrame to ensure we have something to encode
     // even if we timeout waiting on the first frame.
-    std::shared_ptr<img_t> dummy_img = disp->alloc_img();
+    std::shared_ptr<platf::img_t> dummy_img = disp->alloc_img();
     if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
       return;
     }
-    std::shared_ptr<img_t> dummy_img2;
+    std::shared_ptr<platf::img_t> dummy_img2;
     if (session2) {
       dummy_img2 = disp2->alloc_img();
       if (!dummy_img2 || disp2->dummy_img(dummy_img2.get()) || session2->device->convert(*dummy_img2)) {
@@ -1386,13 +1469,24 @@ namespace video {
         }
       }
       //todo: change encode function to pass second sesison in
-      if (encode(frame_nr++, *session, frame, packets, channel_data)) {
+      int enc_ret = 0;
+      if (session2) {
+        enc_ret = encode_pair(frame_nr++, *session, frame, *session2, frame2, packets, channel_data);
+      }
+      else {
+        enc_ret = encode(frame_nr++, *session, frame, packets, channel_data);
+      }
+      if (enc_ret) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
 
       frame->pict_type = AV_PICTURE_TYPE_NONE;
       frame->key_frame = 0;
+      if (frame2) {
+        frame2->pict_type = AV_PICTURE_TYPE_NONE;
+        frame2->key_frame = 0;
+      }
     }
   }
 
@@ -1748,10 +1842,31 @@ namespace video {
   };
 
   int
-  validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
-    reset_display(disp, encoder.base_dev_type, config::video.output_name, config);
-    if (!disp) {
-      return -1;
+  validate_config_impl(std::shared_ptr<platf::display_t> &disp,
+    const encoder_t &encoder, const config_t &config, const std::string &outputName) {
+    //if (!disp) {
+      reset_display(disp, encoder.base_dev_type, outputName, config);
+      if (!disp) {
+        return -1;
+      }
+    //}
+    if (disp->is_group()) {
+      auto disp1 = disp->get_item(0);
+      auto disp2 = disp->get_item(1);
+      int ret = 0;
+      if (disp1) {
+        ret = validate_config_impl(disp1, encoder, config, disp->get_item_name(0));
+        if (ret < 0) {
+          return ret;
+        }
+      }
+      if (disp2) {
+        ret = validate_config_impl(disp2, encoder, config, disp->get_item_name(1));
+        if (ret < 0) {
+          return ret;
+        }
+      }
+      return 0;
     }
 
     auto pix_fmt = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
@@ -1806,6 +1921,10 @@ namespace video {
     return flag;
   }
 
+  inline int
+  validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
+    return validate_config_impl(disp, encoder, config, config::video.output_name);
+  }
   bool
   validate_encoder(encoder_t &encoder) {
     std::shared_ptr<platf::display_t> disp;

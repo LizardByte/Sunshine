@@ -118,6 +118,7 @@ namespace platf::dxgi {
     //use CopyResource API can copy texture from one device to another device( if different device)
     auto disp1_name = display_name.substr(0, pos);
     auto disp2_name = display_name.substr(pos + 1);
+#if 0
     m_disp1 = MakeDisp(hwdevice_type, config, disp1_name);
     m_disp2 = MakeDisp(hwdevice_type, config, disp2_name);
     if (m_disp1 == nullptr || m_disp2 == nullptr) {
@@ -127,8 +128,11 @@ namespace platf::dxgi {
     m_disp1->output_x_offset = 0;
     m_disp2->output_x_offset = m_disp1->width;
     height = (m_disp1->height > m_disp2->height) ? m_disp1->height : m_disp2->height;
-    //todo:debug
-    width = width / 2;
+#endif
+
+    m_disp1_name = disp1_name;
+    m_disp2_name = disp2_name;
+
     return 0;
   }
 }  // namespace platf::dxgi

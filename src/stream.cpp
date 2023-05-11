@@ -83,7 +83,9 @@ namespace stream {
     // 5 = P-frame after reference frame invalidation
     std::uint8_t frameType;
 
-    std::uint8_t unknown2[4];
+    //if 0 means first AV Packet is zero,this filed also means 
+    //second packet's offset
+    unsigned int firstPacketSize; //std::uint8_t unknown2[4];
   };
 
   static_assert(
@@ -1004,19 +1006,27 @@ namespace stream {
 
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
-
       auto av_packet = packet->av_packet;
-      std::string_view payload { (char *) av_packet->data, (size_t) av_packet->size };
+
       std::vector<uint8_t> payload_new;
 
       video_short_frame_header_t frame_header = {};
       frame_header.headerType = 0x01;  // Short header type
       frame_header.frameType = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
-
+      //notify client(moonlight),if there is second packet
+      frame_header.firstPacketSize = av_packet ? av_packet->size : 0;
       std::copy_n((uint8_t *) &frame_header, sizeof(frame_header), std::back_inserter(payload_new));
-      std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
+      if (av_packet) {
+        std::string_view payload { (char *) av_packet->data, (size_t) av_packet->size };
+        std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
+      }
+      auto av_packet2 = packet->av_packet2;
+      if (av_packet2) {
+        std::string_view payload { (char *) av_packet2->data, (size_t) av_packet2->size };
+        std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
+      }
 
-      payload = { (char *) payload_new.data(), payload_new.size() };
+      std::string_view payload = { (char *) payload_new.data(), payload_new.size() };
 
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
         for (auto &replacement : *packet->replacements) {

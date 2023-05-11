@@ -310,9 +310,13 @@ namespace platf {
     }
     virtual std::shared_ptr<display_t>
     get_item(int index) {
-      return this;
+      return std::shared_ptr <display_t>(this);
     }
-
+    virtual std::string &
+    get_item_name(int index) {
+      static std::string defaultName("");
+      return defaultName;
+    }
     // Offsets for when streaming a specific monitor. By default, they are 0.
     int offset_x, offset_y;
     int env_width, env_height;

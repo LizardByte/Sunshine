@@ -882,9 +882,22 @@ namespace platf {
     BOOST_LOG(debug) << "Detecting monitors..."sv;
 
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-
+    std::string outputName = config::video.output_name;
+    bool isGroup = false;
     // We must set the GPU preference before calling any DXGI APIs!
-    if (!dxgi::probe_for_gpu_preference(config::video.output_name)) {
+    std::size_t pos = outputName.find('+');
+    if (pos != std::string::npos) {
+      auto disp1_name = outputName.substr(0, pos);
+      auto disp2_name = outputName.substr(pos + 1);
+      if (!dxgi::probe_for_gpu_preference(disp1_name)) {
+        BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
+      }
+      if (!dxgi::probe_for_gpu_preference(disp2_name)) {
+        BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
+      }
+      isGroup = true;
+    }
+    else if (!dxgi::probe_for_gpu_preference(outputName)) {
       BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
     }
 
@@ -936,7 +949,9 @@ namespace platf {
         }
       }
     }
-
+    if (isGroup) {
+      display_names.emplace_back(std::move(outputName));
+    }
     return display_names;
   }
 
