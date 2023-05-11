@@ -140,7 +140,7 @@ namespace video {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
       this->frame = frame;
 
       // If it's a hwframe, allocate buffers for hardware
