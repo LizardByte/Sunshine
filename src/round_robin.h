@@ -14,7 +14,9 @@ namespace round_robin_util {
     using value_type = V;
     using difference_type = V;
     using pointer = V *;
+    using const_pointer = V const *;
     using reference = V &;
+    using const_reference = V const &;
 
     typedef T iterator;
     typedef std::ptrdiff_t diff_t;
@@ -93,12 +95,12 @@ namespace round_robin_util {
 
     reference
     operator*() { return *_this().get(); }
-    const reference
+    const_reference
     operator*() const { return *_this().get(); }
 
     pointer
     operator->() { return &*_this(); }
-    const pointer
+    const_pointer
     operator->() const { return &*_this(); }
 
     bool
