@@ -396,7 +396,6 @@ namespace video {
   struct sync_session_t {
     sync_session_ctx_t *ctx;
 
-    platf::img_t *img_tmp;
     session_t session;
   };
 

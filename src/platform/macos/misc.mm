@@ -86,15 +86,14 @@ namespace platf {
 
   std::string
   from_sockaddr(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN];
+    char data[INET6_ADDRSTRLEN] = {};
 
     auto family = ip_addr->sa_family;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data,
         INET6_ADDRSTRLEN);
     }
-
-    if (family == AF_INET) {
+    else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data,
         INET_ADDRSTRLEN);
     }
@@ -104,17 +103,16 @@ namespace platf {
 
   std::pair<std::uint16_t, std::string>
   from_sockaddr_ex(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN];
+    char data[INET6_ADDRSTRLEN] = {};
 
     auto family = ip_addr->sa_family;
-    std::uint16_t port;
+    std::uint16_t port = 0;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data,
         INET6_ADDRSTRLEN);
       port = ((sockaddr_in6 *) ip_addr)->sin6_port;
     }
-
-    if (family == AF_INET) {
+    else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data,
         INET_ADDRSTRLEN);
       port = ((sockaddr_in *) ip_addr)->sin_port;
