@@ -832,10 +832,7 @@ namespace config {
       auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
       auto elevated = prep_cmd.get_optional<bool>("elevated"s);
 
-      input.emplace_back(
-        std::move(do_cmd.value_or("")),
-        std::move(undo_cmd.value_or("")),
-        std::move(elevated.value_or(false)));
+      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
     }
   }
 
