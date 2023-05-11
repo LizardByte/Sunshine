@@ -1101,8 +1101,10 @@ namespace config {
   int
   parse(int argc, char *argv[]) {
     std::unordered_map<std::string, std::string> cmd_vars;
+#ifdef _WIN32
     bool shortcut_launch = false;
     bool service_admin_launch = false;
+#endif
 
     for (auto x = 1; x < argc; ++x) {
       auto line = argv[x];
@@ -1111,12 +1113,14 @@ namespace config {
         print_help(*argv);
         return 1;
       }
+#ifdef _WIN32
       else if (line == "--shortcut"sv) {
         shortcut_launch = true;
       }
       else if (line == "--shortcut-admin"sv) {
         service_admin_launch = true;
       }
+#endif
       else if (*line == '-') {
         if (*(line + 1) == '-') {
           sunshine.cmd.name = line + 2;
