@@ -140,7 +140,7 @@ endif()
 
 find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
 
-list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-sign-compare)
+list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
 
 # enable system tray, we will disable this later if we cannot find the required package config on linux
 set(SUNSHINE_TRAY 1)

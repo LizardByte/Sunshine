@@ -1454,10 +1454,12 @@ namespace video {
     auto offsetY = (config.height - h2) * 0.5f;
 
     return input::touch_port_t {
-      display->offset_x,
-      display->offset_y,
-      config.width,
-      config.height,
+      {
+        display->offset_x,
+        display->offset_y,
+        config.width,
+        config.height,
+      },
       display->env_width,
       display->env_height,
       offsetX,

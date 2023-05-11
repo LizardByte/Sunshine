@@ -147,17 +147,17 @@ namespace upnp {
     auto wm_http = std::to_string(map_port(confighttp::PORT_HTTPS));
 
     std::vector<mapping_t> mappings {
-      { rtsp, rtsp, "RTSP setup port"s, true },
-      { video, video, "Video stream port"s, false },
-      { audio, audio, "Control stream port"s, false },
-      { control, control, "Audio stream port"s, false },
-      { gs_http, gs_http, "Gamestream http port"s, true },
-      { gs_https, gs_https, "Gamestream https port"s, true },
+      { { rtsp, rtsp }, "RTSP setup port"s, true },
+      { { video, video }, "Video stream port"s, false },
+      { { audio, audio }, "Control stream port"s, false },
+      { { control, control }, "Audio stream port"s, false },
+      { { gs_http, gs_http }, "Gamestream http port"s, true },
+      { { gs_https, gs_https }, "Gamestream https port"s, true },
     };
 
     // Only map port for the Web Manager if it is configured to accept connection from WAN
     if (net::from_enum_string(config::nvhttp.origin_web_ui_allowed) > net::LAN) {
-      mappings.emplace_back(mapping_t { wm_http, wm_http, "Sunshine Web UI port"s, true });
+      mappings.emplace_back(mapping_t { { wm_http, wm_http }, "Sunshine Web UI port"s, true });
     }
 
     auto it = std::begin(mappings);
