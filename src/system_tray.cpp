@@ -212,6 +212,12 @@ namespace system_tray {
         return 1;
       }
     }
+
+    // Wait for the shell to be initialized before registering the tray icon.
+    // This ensures the tray icon works reliably after a logoff/logon cycle.
+    while (GetShellWindow() == nullptr) {
+      Sleep(1000);
+    }
   #endif
 
     if (tray_init(&tray) < 0) {
