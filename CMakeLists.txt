@@ -125,7 +125,7 @@ set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
 set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "Don't build samples for miniupnpc")
 set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniupnpc")
 add_subdirectory(third-party/miniupnp/miniupnpc)
-include_directories(third-party/miniupnp/miniupnpc/include)
+include_directories(SYSTEM third-party/miniupnp/miniupnpc/include)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -151,13 +151,13 @@ if(WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 
     add_definitions(-DCURL_STATICLIB)
-    include_directories(${CURL_STATIC_INCLUDE_DIRS})
+    include_directories(SYSTEM ${CURL_STATIC_INCLUDE_DIRS})
     link_directories(${CURL_STATIC_LIBRARY_DIRS})
 
     add_compile_definitions(SUNSHINE_PLATFORM="windows")
     add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
 
-    include_directories(third-party/ViGEmClient/include)
+    include_directories(SYSTEM third-party/ViGEmClient/include)
 
     if(NOT DEFINED SUNSHINE_ICON_PATH)
         set(SUNSHINE_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/sunshine.ico")
@@ -353,13 +353,13 @@ else()
 
     if(X11_FOUND)
         add_compile_definitions(SUNSHINE_BUILD_X11)
-        include_directories(${X11_INCLUDE_DIR})
+        include_directories(SYSTEM ${X11_INCLUDE_DIR})
         list(APPEND PLATFORM_LIBRARIES ${X11_LIBRARIES})
         list(APPEND PLATFORM_TARGET_FILES src/platform/linux/x11grab.cpp)
     endif()
 
     if(CUDA_FOUND)
-        include_directories(third-party/nvfbc)
+        include_directories(SYSTEM third-party/nvfbc)
         list(APPEND PLATFORM_TARGET_FILES
                 src/platform/linux/cuda.cu
                 src/platform/linux/cuda.cpp
@@ -370,7 +370,7 @@ else()
 
     if(LIBDRM_FOUND AND LIBCAP_FOUND)
         add_compile_definitions(SUNSHINE_BUILD_DRM)
-        include_directories(${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
+        include_directories(SYSTEM ${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
         list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES} ${LIBCAP_LIBRARIES})
         list(APPEND PLATFORM_TARGET_FILES src/platform/linux/kmsgrab.cpp)
         list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
@@ -416,6 +416,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
         GEN_WAYLAND(wlr-export-dmabuf-unstable-v1)
 
         include_directories(
+                SYSTEM
                 ${WAYLAND_INCLUDE_DIRS}
                 ${CMAKE_BINARY_DIR}/generated-src
         )
@@ -436,7 +437,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             message(WARNING "Couldn't find appindicator, disabling tray icon")
             set(SUNSHINE_TRAY 0)
         else()
-            include_directories(${APPINDICATOR_INCLUDE_DIRS})
+            include_directories(SYSTEM ${APPINDICATOR_INCLUDE_DIRS})
             link_directories(${APPINDICATOR_LIBRARY_DIRS})
 
             list(APPEND PLATFORM_TARGET_FILES third-party/tray/tray_linux.c)
@@ -475,6 +476,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             pulse-simple)
 
     include_directories(
+            SYSTEM
             /usr/include/libevdev-1.0
             third-party/nv-codec-headers/include
             third-party/glad/include)
@@ -585,8 +587,10 @@ set(FFMPEG_LIBRARIES
         ${HDR10_PLUS_LIBRARY}
         ${FFMPEG_PLATFORM_LIBRARIES})
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 include_directories(
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        SYSTEM
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/nanors
