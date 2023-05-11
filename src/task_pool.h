@@ -222,14 +222,13 @@ namespace task_pool_util {
       if (!_tasks.empty()) {
         __task task = std::move(_tasks.front());
         _tasks.pop_front();
-        return std::move(task);
+        return task;
       }
 
       if (!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now()) {
         __task task = std::move(std::get<1>(_timer_tasks.back()));
         _timer_tasks.pop_back();
-
-        return std::move(task);
+        return task;
       }
 
       return std::nullopt;

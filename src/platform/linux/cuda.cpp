@@ -350,7 +350,7 @@ namespace cuda {
 
         handle.handle_flags[SESSION_HANDLE] = true;
 
-        return std::move(handle);
+        return handle;
       }
 
       const char *

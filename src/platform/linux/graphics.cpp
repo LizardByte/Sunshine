@@ -769,7 +769,7 @@ namespace egl {
 
     gl_drain_errors;
 
-    return std::move(sws);
+    return sws;
   }
 
   int
