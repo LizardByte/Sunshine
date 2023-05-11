@@ -490,6 +490,7 @@ namespace util {
   public:
     using element_type = T;
     using pointer = element_type *;
+    using const_pointer = element_type const *;
     using deleter_type = D;
 
     constexpr uniq_ptr() noexcept:
@@ -563,12 +564,12 @@ namespace util {
       return _p;
     }
 
-    const pointer
+    const_pointer
     get() const {
       return _p;
     }
 
-    const std::add_lvalue_reference_t<element_type>
+    std::add_lvalue_reference_t<element_type const>
     operator*() const {
       return *_p;
     }
@@ -576,7 +577,7 @@ namespace util {
     operator*() {
       return *_p;
     }
-    const pointer
+    const_pointer
     operator->() const {
       return _p;
     }

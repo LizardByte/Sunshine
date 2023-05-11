@@ -401,7 +401,7 @@ namespace crypto {
   sign(const pkey_t &pkey, const std::string_view &data, const EVP_MD *md) {
     md_ctx_t ctx { EVP_MD_CTX_create() };
 
-    if (EVP_DigestSignInit(ctx.get(), nullptr, md, nullptr, pkey.get()) != 1) {
+    if (EVP_DigestSignInit(ctx.get(), nullptr, md, nullptr, (EVP_PKEY *) pkey.get()) != 1) {
       return {};
     }
 
@@ -474,7 +474,7 @@ namespace crypto {
 
   bool
   verify(const x509_t &x509, const std::string_view &data, const std::string_view &signature, const EVP_MD *md) {
-    auto pkey = X509_get_pubkey(x509.get());
+    auto pkey = X509_get0_pubkey(x509.get());
 
     md_ctx_t ctx { EVP_MD_CTX_create() };
 

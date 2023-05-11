@@ -725,7 +725,7 @@ namespace platf::dxgi {
     struct encoder_img_ctx_t {
       // Used to determine if the underlying texture changes.
       // Not safe for actual use by the encoder!
-      texture2d_t::pointer capture_texture_p;
+      texture2d_t::const_pointer capture_texture_p;
 
       texture2d_t encoder_texture;
       shader_res_t encoder_input_res;

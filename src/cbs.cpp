@@ -54,7 +54,7 @@ namespace cbs {
   };
 
   util::buffer_t<std::uint8_t>
-  write(const cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
+  write(cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
     cbs::frag_t frag;
     auto err = ff_cbs_insert_unit_content(&frag, -1, nal, uh, nullptr);
     if (err < 0) {
