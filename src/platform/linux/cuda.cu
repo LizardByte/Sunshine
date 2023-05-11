@@ -234,7 +234,7 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
 
   CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture.linear, &res, &desc, nullptr), "Couldn't create cuda texture that uses linear interpolation");
 
-  return std::move(tex);
+  return tex;
 }
 
 tex_t::tex_t() : array {}, texture { INVALID_TEXTURE } {}

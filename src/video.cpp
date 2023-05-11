@@ -1498,7 +1498,7 @@ namespace video {
 
     encode_session.session = std::move(*session);
 
-    return std::move(encode_session);
+    return encode_session;
   }
 
   encode_e
