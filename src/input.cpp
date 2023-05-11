@@ -132,7 +132,7 @@ namespace input {
         touch_port_event { std::move(touch_port_event) },
         rumble_queue { std::move(rumble_queue) },
         mouse_left_button_timeout {},
-        touch_port { 0, 0, 0, 0, 0, 0, 1.0f } {}
+        touch_port { { 0, 0, 0, 0 }, 0, 0, 1.0f } {}
 
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;
