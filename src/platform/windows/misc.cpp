@@ -2,6 +2,7 @@
  * @file src/platform/windows/misc.cpp
  * @brief todo
  */
+#include <codecvt>
 #include <csignal>
 #include <filesystem>
 #include <iomanip>
@@ -51,6 +52,8 @@ namespace bp = boost::process;
 using namespace std::literals;
 namespace platf {
   using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
+
+  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   bool enabled_mouse_keys = false;
   MOUSEKEYS previous_mouse_keys_state;
@@ -180,32 +183,6 @@ namespace platf {
     BOOST_LOG(error) << prefix << ": "sv << std::string_view { err_string, bytes };
   }
 
-  std::wstring
-  utf8_to_wide_string(const std::string &str) {
-    // Determine the size required for the destination string
-    int chars = MultiByteToWideChar(CP_UTF8, 0, str.data(), str.length(), NULL, 0);
-
-    // Allocate it
-    wchar_t buffer[chars] = {};
-
-    // Do the conversion for real
-    chars = MultiByteToWideChar(CP_UTF8, 0, str.data(), str.length(), buffer, chars);
-    return std::wstring(buffer, chars);
-  }
-
-  std::string
-  wide_to_utf8_string(const std::wstring &str) {
-    // Determine the size required for the destination string
-    int bytes = WideCharToMultiByte(CP_UTF8, 0, str.data(), str.length(), NULL, 0, NULL, NULL);
-
-    // Allocate it
-    char buffer[bytes] = {};
-
-    // Do the conversion for real
-    bytes = WideCharToMultiByte(CP_UTF8, 0, str.data(), str.length(), buffer, bytes, NULL, NULL);
-    return std::string(buffer, bytes);
-  }
-
   bool
   IsUserAdmin(HANDLE user_token) {
     WINBOOL ret;
@@ -309,7 +286,7 @@ namespace platf {
     // Parse the environment block and populate env
     for (auto c = (PWCHAR) env_block; *c != UNICODE_NULL; c += wcslen(c) + 1) {
       // Environment variable entries end with a null-terminator, so std::wstring() will get an entire entry.
-      std::string env_tuple = wide_to_utf8_string(std::wstring { c });
+      std::string env_tuple = converter.to_bytes(std::wstring { c });
       std::string env_name = env_tuple.substr(0, env_tuple.find('='));
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
@@ -383,7 +360,7 @@ namespace platf {
     for (const auto &entry : env) {
       auto name = entry.get_name();
       auto value = entry.to_string();
-      size += utf8_to_wide_string(name).length() + 1 /* L'=' */ + utf8_to_wide_string(value).length() + 1 /* L'\0' */;
+      size += converter.from_bytes(name).length() + 1 /* L'=' */ + converter.from_bytes(value).length() + 1 /* L'\0' */;
     }
 
     size += 1 /* L'\0' */;
@@ -395,9 +372,9 @@ namespace platf {
       auto value = entry.to_string();
 
       // Construct the NAME=VAL\0 string
-      append_string_to_environment_block(env_block, offset, utf8_to_wide_string(name));
+      append_string_to_environment_block(env_block, offset, converter.from_bytes(name));
       env_block[offset++] = L'=';
-      append_string_to_environment_block(env_block, offset, utf8_to_wide_string(value));
+      append_string_to_environment_block(env_block, offset, converter.from_bytes(value));
       env_block[offset++] = L'\0';
     }
 
@@ -580,8 +557,8 @@ namespace platf {
   run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     BOOL ret;
     // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
-    std::wstring wcmd = utf8_to_wide_string(cmd);
-    std::wstring start_dir = utf8_to_wide_string(working_dir.string());
+    std::wstring wcmd = converter.from_bytes(cmd);
+    std::wstring start_dir = converter.from_bytes(working_dir.string());
 
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
     PROCESS_INFORMATION process_info;
