@@ -1475,8 +1475,8 @@ namespace stream {
     // Enable QoS tagging on video traffic if requested by the client
     if (session->config.videoQosType) {
       auto address = session->video.peer.address();
-      session->video.qos = std::move(platf::enable_socket_qos(ref->video_sock.native_handle(), address,
-        session->video.peer.port(), platf::qos_data_type_e::video));
+      session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address,
+        session->video.peer.port(), platf::qos_data_type_e::video);
     }
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
@@ -1500,8 +1500,8 @@ namespace stream {
     // Enable QoS tagging on audio traffic if requested by the client
     if (session->config.audioQosType) {
       auto address = session->audio.peer.address();
-      session->audio.qos = std::move(platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
-        session->audio.peer.port(), platf::qos_data_type_e::audio));
+      session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
+        session->audio.peer.port(), platf::qos_data_type_e::audio);
     }
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;
