@@ -74,19 +74,20 @@ namespace platf::dxgi {
     }
 
     auto status = dup->ReleaseFrame();
+    has_frame = false;
     switch (status) {
       case S_OK:
-        has_frame = false;
         return capture_e::ok;
-      case DXGI_ERROR_WAIT_TIMEOUT:
-        return capture_e::timeout;
-      case WAIT_ABANDONED:
+
+      case DXGI_ERROR_INVALID_CALL:
+        BOOST_LOG(warning) << "Duplication frame already released";
+        return capture_e::ok;
+
       case DXGI_ERROR_ACCESS_LOST:
-      case DXGI_ERROR_ACCESS_DENIED:
-        has_frame = false;
         return capture_e::reinit;
+
       default:
-        BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
+        BOOST_LOG(error) << "Error while releasing duplication frame [0x"sv << util::hex(status).to_string_view();
         return capture_e::error;
     }
   }
@@ -173,6 +174,11 @@ namespace platf::dxgi {
         default:
           BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
           return status;
+      }
+
+      status = dup.release_frame();
+      if (status != platf::capture_e::ok) {
+        return status;
       }
     }
 
