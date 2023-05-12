@@ -95,24 +95,30 @@ namespace platf::dxgi {
     release_frame();
   }
 
+  void
+  display_base_t::high_precision_sleep(std::chrono::nanoseconds duration) {
+    if (!timer) {
+      BOOST_LOG(error) << "Attempting high_precision_sleep() with uninitialized timer";
+      return;
+    }
+    if (duration < 0s) {
+      BOOST_LOG(error) << "Attempting high_precision_sleep() with negative duration";
+      return;
+    }
+    if (duration > 5s) {
+      BOOST_LOG(error) << "Attempting high_precision_sleep() with unexpectedly large duration (>5s)";
+      return;
+    }
+
+    LARGE_INTEGER due_time;
+    due_time.QuadPart = duration.count() / -100;
+    SetWaitableTimer(timer.get(), &due_time, 0, nullptr, nullptr, false);
+    WaitForSingleObject(timer.get(), INFINITE);
+  }
+
   capture_e
   display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
     auto next_frame = std::chrono::steady_clock::now();
-
-    // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
-    HANDLE timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-    if (!timer) {
-      timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
-      if (!timer) {
-        auto winerr = GetLastError();
-        BOOST_LOG(error) << "Failed to create timer: "sv << winerr;
-        return capture_e::error;
-      }
-    }
-
-    auto close_timer = util::fail_guard([timer]() {
-      CloseHandle(timer);
-    });
 
     // Keep the display awake during capture. If the display goes to sleep during
     // capture, best case is that capture stops until it powers back on. However,
@@ -131,13 +137,11 @@ namespace platf::dxgi {
         return platf::capture_e::reinit;
       }
 
-      // If the wait time is between 1 us and 1 second, wait the specified time
+      // If the wait time is positive and below 1 second, wait the specified time
       // and offset the next frame time from the exact current frame time target.
-      auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
-      if (wait_time_us > 0 && wait_time_us < 1000000) {
-        LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
-        SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
-        WaitForSingleObject(timer, INFINITE);
+      auto wait_time = next_frame - std::chrono::steady_clock::now();
+      if (wait_time > 0s && wait_time < 1s) {
+        high_precision_sleep(wait_time);
         next_frame += delay;
       }
       else {
@@ -612,6 +616,17 @@ namespace platf::dxgi {
 
     // Capture format will be determined from the first call to AcquireNextFrame()
     capture_format = DXGI_FORMAT_UNKNOWN;
+
+    // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
+    timer.reset(CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS));
+    if (!timer) {
+      timer.reset(CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS));
+      if (!timer) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "Failed to create timer: "sv << winerr;
+        return -1;
+      }
+    }
 
     return 0;
   }
