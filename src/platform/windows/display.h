@@ -109,6 +109,7 @@ namespace platf::dxgi {
     dup_t dup;
     bool has_frame {};
     bool use_dwmflush {};
+    std::chrono::steady_clock::time_point last_protected_content_warning_time {};
 
     capture_e
     next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p);
