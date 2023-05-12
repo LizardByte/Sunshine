@@ -17,6 +17,7 @@ typedef long NTSTATUS;
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
+#include "src/stat_trackers.h"
 #include "src/video.h"
 
 #include <AMF/core/Factory.h>
@@ -107,8 +108,9 @@ namespace platf::dxgi {
 
   capture_e
   display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
-    auto next_frame = std::chrono::steady_clock::now();
     const auto client_frame_interval = std::chrono::nanoseconds { 1s } / client_frame_rate;
+    std::optional<std::chrono::steady_clock::time_point> sync_start;
+    uint32_t synced_frames = 0;
 
     // Keep the display awake during capture. If the display goes to sleep during
     // capture, best case is that capture stops until it powers back on. However,
@@ -119,6 +121,8 @@ namespace platf::dxgi {
       SetThreadExecutionState(ES_CONTINUOUS);
     });
 
+    stat_trackers::min_max_avg_tracker<double> sleep_overshoot_tracker;
+
     while (true) {
       // This will return false if the HDR state changes or for any number of other
       // display or GPU changes. We should reinit to examine the updated state of
@@ -127,23 +131,53 @@ namespace platf::dxgi {
         return platf::capture_e::reinit;
       }
 
-      // If the wait time is positive and below 1 second, wait the specified time
-      // and offset the next frame time from the exact current frame time target.
-      auto wait_time = next_frame - std::chrono::steady_clock::now();
-      if (wait_time > 0s && wait_time < 1s) {
-        high_precision_sleep(wait_time);
-        next_frame += client_frame_interval;
-      }
-      else {
-        // If the wait time is negative (meaning the frame is past due) or the
-        // computed wait time is beyond a second (meaning possible clock issues),
-        // just capture the frame now and resynchronize the frame interval with
-        // the current time.
-        next_frame = std::chrono::steady_clock::now() + client_frame_interval;
+      std::shared_ptr<img_t> img_out;
+      platf::capture_e status;
+
+      if (sync_start) {
+        const auto sleep_target = sync_start.value() + client_frame_interval * synced_frames;
+        const auto sleep_time = sleep_target - std::chrono::steady_clock::now();
+
+        if (sleep_time > 0ns) {
+          high_precision_sleep(sleep_time);
+
+          if (config::sunshine.min_log_level <= 1) {
+            // Print sleep overshoot stats to debug log every 20 seconds
+            auto print_info = [&](double min_overshoot, double max_overshoot, double avg_overshoot) {
+              auto f = stat_trackers::one_digit_after_decimal();
+              BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
+            };
+            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - sleep_target;
+            sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
+          }
+
+          status = snapshot(pull_free_image_cb, img_out, 0ms, *cursor);
+        }
+
+        if (img_out) {
+          synced_frames += 1;
+        }
+        else {
+          sync_start = std::nullopt;
+          synced_frames = 0;
+        }
       }
 
-      std::shared_ptr<img_t> img_out;
-      auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
+      if (!sync_start) {
+        status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
+
+        if (img_out) {
+          sync_start = img_out->frame_timestamp;
+
+          if (!sync_start) {
+            BOOST_LOG(warning) << "snapshot() provided image without timestamp";
+            sync_start = std::chrono::steady_clock::now();
+          }
+
+          synced_frames = 1;
+        }
+      }
+
       switch (status) {
         case platf::capture_e::reinit:
         case platf::capture_e::error:
