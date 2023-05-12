@@ -40,6 +40,14 @@ namespace platf::dxgi {
 
     switch (status) {
       case S_OK:
+        // ProtectedContentMaskedOut seems to semi-randomly be TRUE or FALSE even when protected content
+        // is on screen the whole time, so we can't just print when it changes. Instead we'll keep track
+        // of the last time we printed the warning and print another if we haven't printed one recently.
+        if (frame_info.ProtectedContentMaskedOut && std::chrono::steady_clock::now() > last_protected_content_warning_time + 10s) {
+          BOOST_LOG(warning) << "Windows is currently blocking DRM-protected content from capture. You may see black regions where this content would be."sv;
+          last_protected_content_warning_time = std::chrono::steady_clock::now();
+        }
+
         has_frame = true;
         return capture_e::ok;
       case DXGI_ERROR_WAIT_TIMEOUT:
