@@ -1,5 +1,5 @@
 breathe==4.35.0
 furo==2023.3.27
 m2r2==0.3.3.post2
-Sphinx==6.2.0
+Sphinx==7.0.0
 sphinx-copybutton==0.5.2
