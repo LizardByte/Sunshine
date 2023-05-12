@@ -119,6 +119,7 @@ namespace platf::dxgi {
   capture_e
   display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
     auto next_frame = std::chrono::steady_clock::now();
+    const auto client_frame_interval = std::chrono::nanoseconds { 1s } / client_frame_rate;
 
     // Keep the display awake during capture. If the display goes to sleep during
     // capture, best case is that capture stops until it powers back on. However,
@@ -142,14 +143,14 @@ namespace platf::dxgi {
       auto wait_time = next_frame - std::chrono::steady_clock::now();
       if (wait_time > 0s && wait_time < 1s) {
         high_precision_sleep(wait_time);
-        next_frame += delay;
+        next_frame += client_frame_interval;
       }
       else {
         // If the wait time is negative (meaning the frame is past due) or the
         // computed wait time is beyond a second (meaning possible clock issues),
         // just capture the frame now and resynchronize the frame interval with
         // the current time.
-        next_frame = std::chrono::steady_clock::now() + delay;
+        next_frame = std::chrono::steady_clock::now() + client_frame_interval;
       }
 
       std::shared_ptr<img_t> img_out;
@@ -333,8 +334,6 @@ namespace platf::dxgi {
 
     // Ensure we can duplicate the current display
     syncThreadDesktop();
-
-    delay = std::chrono::nanoseconds { 1s } / config.framerate;
 
     // Get rectangle of full desktop for absolute mouse coordinates
     env_width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
@@ -594,6 +593,13 @@ namespace platf::dxgi {
 
     BOOST_LOG(info) << "Desktop resolution ["sv << dup_desc.ModeDesc.Width << 'x' << dup_desc.ModeDesc.Height << ']';
     BOOST_LOG(info) << "Desktop format ["sv << dxgi_format_to_string(dup_desc.ModeDesc.Format) << ']';
+
+    display_refresh_rate = dup_desc.ModeDesc.RefreshRate;
+    display_refresh_rate_rounded = lround((double) display_refresh_rate.Numerator / display_refresh_rate.Denominator);
+    BOOST_LOG(info) << "Display refresh rate [" << display_refresh_rate_rounded << "Hz]";
+
+    client_frame_rate = config.framerate;
+    BOOST_LOG(info) << "Requested frame rate [" << client_frame_rate << "fps]";
 
     dxgi::output6_t output6 {};
     status = output->QueryInterface(IID_IDXGIOutput6, (void **) &output6);

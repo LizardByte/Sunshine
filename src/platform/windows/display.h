@@ -132,14 +132,16 @@ namespace platf::dxgi {
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
 
-    std::chrono::nanoseconds delay;
-
     factory1_t factory;
     adapter_t adapter;
     output_t output;
     device_t device;
     device_ctx_t device_ctx;
     duplication_t dup;
+    DXGI_RATIONAL display_refresh_rate;
+    int display_refresh_rate_rounded;
+
+    int client_frame_rate;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
