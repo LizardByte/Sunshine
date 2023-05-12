@@ -32,10 +32,6 @@ namespace platf::dxgi {
       return capture_status;
     }
 
-    if (use_dwmflush) {
-      DwmFlush();
-    }
-
     auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
 
     switch (status) {
@@ -469,21 +465,6 @@ namespace platf::dxgi {
       << "Capture size       : "sv << width << 'x' << height << std::endl
       << "Offset             : "sv << offset_x << 'x' << offset_y << std::endl
       << "Virtual Desktop    : "sv << env_width << 'x' << env_height;
-
-    // Enable DwmFlush() only if the current refresh rate can match the client framerate.
-    auto refresh_rate = config.framerate;
-    DWM_TIMING_INFO timing_info;
-    timing_info.cbSize = sizeof(timing_info);
-
-    status = DwmGetCompositionTimingInfo(NULL, &timing_info);
-    if (FAILED(status)) {
-      BOOST_LOG(warning) << "Failed to detect active refresh rate.";
-    }
-    else {
-      refresh_rate = std::round((double) timing_info.rateRefresh.uiNumerator / (double) timing_info.rateRefresh.uiDenominator);
-    }
-
-    dup.use_dwmflush = config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false;
 
     // Bump up thread priority
     {
