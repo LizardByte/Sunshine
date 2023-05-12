@@ -582,18 +582,6 @@
           tools\dxgi-info.exe<br />
         </div>
       </div>
-      <!--DwmFlush-->
-      <div class="mb-3" v-if="platform === 'windows'">
-        <label for="dwmflush" class="form-label">DwmFlush</label>
-        <select id="dwmflush" class="form-select" v-model="config.dwmflush">
-          <option value="disabled">Disabled</option>
-          <option value="enabled">Enabled</option>
-        </select>
-        <div class="form-text">
-          Improves capture latency/smoothness during mouse movement.<br />
-          Disable if you encounter any VSync-related issues.
-        </div>
-      </div>
       <div class="mb-3" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
         <input
