@@ -19,10 +19,7 @@ namespace video {
     init_packet() {
       this->av_packet = av_packet_alloc();
     }
-    void
-    init_packet2() {
-      this->av_packet2 = av_packet_alloc();
-    }
+
     template <class P>
     explicit packet_raw_t(P *user_data):
         channel_data { user_data } {
@@ -48,10 +45,11 @@ namespace video {
           old { std::move(old) }, _new { std::move(_new) } {}
     };
 
-    AVPacket *av_packet=nullptr;
-    AVPacket *av_packet2=nullptr;
+    AVPacket *av_packet;
     std::vector<replace_t> *replacements;
     void *channel_data;
+    int displayIndex;
+    int frameNo;
   };
 
   using packet_t = std::unique_ptr<packet_raw_t>;
@@ -98,7 +96,8 @@ namespace video {
   capture(
     safe::mail_t mail,
     config_t config,
-    void *channel_data);
+    void *channel_data,
+    int displayIndex);
 
   int
   init();

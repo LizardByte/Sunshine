@@ -171,8 +171,6 @@ namespace platf {
 
   struct img_t {
   public:
-    std::shared_ptr<img_t> nextImg;
-
     img_t() = default;
 
     img_t(img_t &&) = delete;
@@ -304,23 +302,7 @@ namespace platf {
     }
 
     virtual ~display_t() = default;
-    //shawn: add this virtual function to support dual display
-    //if return true,means it support dual display, and will wrap dual real displays
-    virtual bool
-    have_next_disp() {
-      return false;
-    }
-    virtual std::shared_ptr<display_t>
-    get_next_disp() {
-      return std::shared_ptr <display_t>(this);
-    }
-    virtual void
-    reset_next_disp() {}
 
-    virtual std::string
-    get_name() {
-      return "";
-    }
     // Offsets for when streaming a specific monitor. By default, they are 0.
     int offset_x, offset_y;
     int env_width, env_height;

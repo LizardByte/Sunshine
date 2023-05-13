@@ -982,8 +982,8 @@ namespace platf::dxgi {
   }
 
   int
-  display_vram_t::init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name) {
-    if (display_base_t::init(hwdevice_type,config, display_name)) {
+  display_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
+    if (display_base_t::init(config, display_name)) {
       return -1;
     }
 
@@ -1060,9 +1060,7 @@ namespace platf::dxgi {
     img->height = height;
     img->display = shared_from_this();
     img->id = next_image_id++;
-    if (nextDisp) {
-      img->nextImg = nextDisp->alloc_img();
-    }
+
     return img;
   }
 
@@ -1150,14 +1148,7 @@ namespace platf::dxgi {
     }
 
     img->data = (std::uint8_t *) img->capture_texture.get();
-#if 0 //TODO:
-    if (img_base->nextImg) {
-      int next_ret = nextDisp->complete_img(img_base->nextImg.get(), dummy);
-      if (next_ret < 0) {
-        return next_ret;
-      }
-    }
-#endif
+
     return 0;
   }
 

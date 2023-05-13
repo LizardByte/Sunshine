@@ -3,6 +3,7 @@
 #include <atomic>
 #include <bitset>
 #include <thread>
+#include <iostream>
 
 extern "C" {
 #include <libavutil/mastering_display_metadata.h>
@@ -434,11 +435,15 @@ namespace video {
   end_capture_sync(capture_thread_sync_ctx_t &ctx);
   int
   start_capture_async(capture_thread_async_ctx_t &ctx);
+  int
+  start_capture_async2(capture_thread_async_ctx_t &ctx);
   void
   end_capture_async(capture_thread_async_ctx_t &ctx);
 
   // Keep a reference counter to ensure the capture thread only runs when other threads have a reference to the capture thread
   auto capture_thread_async = safe::make_shared<capture_thread_async_ctx_t>(start_capture_async, end_capture_async);
+  //Shawn: add capture_thread_async2 to support second display
+  auto capture_thread_async2 = safe::make_shared<capture_thread_async_ctx_t>(start_capture_async2, end_capture_async);
   auto capture_thread_sync = safe::make_shared<capture_thread_sync_ctx_t>(start_capture_sync, end_capture_sync);
 
   static encoder_t nvenc {
@@ -726,6 +731,22 @@ namespace video {
 #endif
     software
   };
+  static std::vector<encoder_t> encoders2 {
+#ifndef __APPLE__
+    nvenc,
+#endif
+#ifdef _WIN32
+    quicksync,
+    amdvce,
+#endif
+#ifdef __linux__
+    vaapi,
+#endif
+#ifdef __APPLE__
+    videotoolbox,
+#endif
+    software
+  };
 
   void
   reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, const config_t &config) {
@@ -747,9 +768,10 @@ namespace video {
     std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
     sync_util::sync_t<std::weak_ptr<platf::display_t>> &display_wp,
     safe::signal_t &reinit_event,
-    const encoder_t &encoder) {
+    const encoder_t &encoder,
+    int displayIndex) {
     std::vector<capture_ctx_t> capture_ctxs;
-
+    std::string &outputName = (displayIndex == 1) ? config::video.output_name : config::video.output2_name;
     auto fg = util::fail_guard([&]() {
       capture_ctx_queue->stop();
 
@@ -770,11 +792,11 @@ namespace video {
     int display_p = 0;
 
     if (display_names.empty()) {
-      display_names.emplace_back(config::video.output_name);
+      display_names.emplace_back(outputName);
     }
 
     for (int x = 0; x < display_names.size(); ++x) {
-      if (display_names[x] == config::video.output_name) {
+      if (display_names[x] == outputName) {
         display_p = x;
 
         break;
@@ -923,7 +945,8 @@ namespace video {
   }
 
   int
-  encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data) {
+  encode(int displayIndex,int64_t frame_nr, session_t &session, frame_t::pointer frame, 
+      safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data) {
     frame->pts = frame_nr;
 
     auto &ctx = session.ctx;
@@ -959,8 +982,6 @@ namespace video {
           sps = std::move(h264.sps);
         }
         else {
-          int x =10;
-          x +=1;
           auto hevc = cbs::make_sps_hevc(ctx.get(), av_packet);
 
           sps = std::move(hevc.sps);
@@ -980,100 +1001,17 @@ namespace video {
 
       packet->replacements = &session.replacements;
       packet->channel_data = channel_data;
+      packet->displayIndex = displayIndex;
+      packet->frameNo = frame_nr;
+      std::cout << "Encode send out packet for displayIndex=" << displayIndex << ",frame:" << frame_nr << std::endl;
       packets->raise(std::move(packet));
     }
 
     return 0;
   }
-  int
-  encode_pair(int64_t frame_nr, session_t &session, frame_t::pointer frame,
-    session_t &session2, frame_t::pointer frame2,
-    safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data) {
-    frame->pts = frame_nr;
 
-    auto inject_proc = [](session_t &session, AVPacket *av_packet, auto &ctx) {
-      if (session.inject) {
-        auto &sps = session.sps;
-        auto &vps = session.vps;
-        if (session.inject == 1) {
-          auto h264 = cbs::make_sps_h264(ctx.get(), av_packet);
-          sps = std::move(h264.sps);
-        }
-        else {
-          auto hevc = cbs::make_sps_hevc(ctx.get(), av_packet);
-
-          sps = std::move(hevc.sps);
-          vps = std::move(hevc.vps);
-
-          session.replacements.emplace_back(
-            std::string_view((char *) std::begin(vps.old), vps.old.size()),
-            std::string_view((char *) std::begin(vps._new), vps._new.size()));
-        }
-
-        session.inject = 0;
-
-        session.replacements.emplace_back(
-          std::string_view((char *) std::begin(sps.old), sps.old.size()),
-          std::string_view((char *) std::begin(sps._new), sps._new.size()));
-      }
-    };
-    auto &ctx = session.ctx;
-    auto &ctx2 = session2.ctx;
-
-    /* send the frame to the encoder */
-    auto ret = avcodec_send_frame(ctx.get(), frame);
-    auto ret2 = avcodec_send_frame(ctx2.get(), frame2);
-    if (ret < 0 || ret2) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-      BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
-
-      return -1;
-    }
-    bool eof_stream1 = false;
-    bool eof_stream2 = false;
-    while (ret >= 0 || ret2 >= 0) {
-      AVPacket *av_packet = nullptr;
-      AVPacket *av_packet2 = nullptr;
-      auto packet = std::make_unique<packet_t::element_type>(nullptr);
-      if (!eof_stream1) {
-        av_packet = packet.get()->av_packet;
-        ret = avcodec_receive_packet(ctx.get(), av_packet);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-          eof_stream1 = true;
-        }
-        else if (ret < 0) {
-          return ret;
-        }
-      }
-      if (!eof_stream2) {
-        packet->init_packet2();
-        av_packet2 = packet.get()->av_packet2;
-        ret2 = avcodec_receive_packet(ctx2.get(), av_packet2);
-        if (ret2 == AVERROR(EAGAIN) || ret2 == AVERROR_EOF) {
-          eof_stream2 = true;
-        }
-        else if (ret2 < 0) {
-          return ret2;
-        }
-      }
-      if (eof_stream1 && eof_stream2) {
-        return 0;
-      }
-      inject_proc(session, av_packet, ctx);
-      inject_proc(session2, av_packet2, ctx2);
-      //todo: if session2's replacements is not same as session
-      packet->replacements = &session.replacements;
-      packet->channel_data = channel_data;
-      packets->raise(std::move(packet));
-    }
-
-    return 0;
-  }
-  //TODO(Shawn): if disp has next display embedded, call make_session for nextDisp
-  //and make second session embedded into returned session_t
   std::optional<session_t>
-  make_session(platf::pix_fmt_e pix_fmt, platf::display_t *disp, const encoder_t &encoder, const config_t &config,
-    int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
+  make_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
     bool hardware = encoder.base_dev_type != AV_HWDEVICE_TYPE_NONE;
 
     auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
@@ -1265,6 +1203,7 @@ namespace video {
       auto bitrate = config.bitrate * 1000;
       ctx->rc_max_rate = bitrate;
       ctx->bit_rate = bitrate;
+
       if (encoder.flags & CBR_WITH_VBR) {
         // Ensure rc_max_bitrate != bit_rate to force VBR mode
         ctx->bit_rate--;
@@ -1370,8 +1309,7 @@ namespace video {
       std::move(device),
 
       // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
-      //(1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat),
-    0 //shawn changed
+      (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat),
     };
 
     if (!video_format[encoder_t::NALU_PREFIX_5b]) {
@@ -1379,12 +1317,13 @@ namespace video {
 
       session.replacements.emplace_back(nalu_prefix.substr(1), nalu_prefix);
     }
+
     return std::make_optional(std::move(session));
   }
 
   void
   encode_run(
-    platf::pix_fmt_e pix_fmt,
+    int displayIndex,
     int &frame_nr,  // Store progress of the frame number
     safe::mail_t mail,
     img_event_t images,
@@ -1394,23 +1333,14 @@ namespace video {
     safe::signal_t &reinit_event,
     const encoder_t &encoder,
     void *channel_data) {
-    auto session = make_session(pix_fmt, disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
+    std::cout << "encode_run: before make_session:displayIndex =" << displayIndex << std::endl;
+    auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
     if (!session) {
       return;
     }
-    std::shared_ptr<platf::display_t> disp2;
-    std::optional<session_t> session2;
-    if (disp->have_next_disp()) {
-      disp2 = disp->get_next_disp();
-      auto next_hwdevice = disp->make_hwdevice(pix_fmt);//todo: use disp2
-      if (next_hwdevice) {
-        session2 = make_session(pix_fmt, disp2.get(), encoder, config, disp2->width,
-          disp2->height, std::move(next_hwdevice));
-      }
-    }
+    std::cout << "encode_run: after make_session:displayIndex =" << displayIndex << std::endl;
 
-    AVFrame *frame = session->device->frame;
-    AVFrame *frame2 = session2 ? session2->device->frame : nullptr;
+    auto frame = session->device->frame;
 
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
@@ -1418,16 +1348,9 @@ namespace video {
 
     // Load a dummy image into the AVFrame to ensure we have something to encode
     // even if we timeout waiting on the first frame.
-    std::shared_ptr<platf::img_t> dummy_img = disp->alloc_img();
+    auto dummy_img = disp->alloc_img();
     if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
       return;
-    }
-    std::shared_ptr<platf::img_t> dummy_img2;
-    if (session2) {
-      dummy_img2 = disp2->alloc_img();
-      if (!dummy_img2 || disp2->dummy_img(dummy_img2.get()) || session2->device->convert(*dummy_img2)) {
-        return;
-      }
     }
 
     while (true) {
@@ -1438,10 +1361,7 @@ namespace video {
       if (idr_events->peek()) {
         frame->pict_type = AV_PICTURE_TYPE_I;
         frame->key_frame = 1;
-        if (frame2) {
-          frame2->pict_type = AV_PICTURE_TYPE_I;
-          frame2->key_frame = 1;
-        }
+
         idr_events->pop();
       }
 
@@ -1457,36 +1377,14 @@ namespace video {
           break;
         }
       }
-      if (frame2 && (!frame->key_frame || images->peek())) {
-        if (auto img = images->pop(100ms)) {
-          if (session2->device->convert(*img)) {
-            BOOST_LOG(error) << "Could not convert image"sv;
-            return;
-          }
-        }
-        else if (!images->running()) {
-          break;
-        }
-      }
-      //todo: change encode function to pass second sesison in
-      int enc_ret = 0;
-      if (session2) {
-        enc_ret = encode_pair(frame_nr++, *session, frame, *session2, frame2, packets, channel_data);
-      }
-      else {
-        enc_ret = encode(frame_nr++, *session, frame, packets, channel_data);
-      }
-      if (enc_ret) {
+      std::cout << "encode:" << displayIndex << ",frame=" <<frame_nr << std::endl;
+      if (encode(displayIndex,frame_nr++, *session, frame, packets, channel_data)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
 
       frame->pict_type = AV_PICTURE_TYPE_NONE;
       frame->key_frame = 0;
-      if (frame2) {
-        frame2->pict_type = AV_PICTURE_TYPE_NONE;
-        frame2->key_frame = 0;
-      }
     }
   }
 
@@ -1542,7 +1440,7 @@ namespace video {
     }
     ctx.hdr_events->raise(std::move(hdr_info));
 
-    auto session = make_session(pix_fmt, disp, encoder, ctx.config, img.width, img.height, std::move(hwdevice));
+    auto session = make_session(disp, encoder, ctx.config, img.width, img.height, std::move(hwdevice));
     if (!session) {
       return std::nullopt;
     }
@@ -1665,7 +1563,7 @@ namespace video {
             continue;
           }
 
-          if (encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data)) {
+          if (encode(1,ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data)) {
             BOOST_LOG(error) << "Could not encode video packet"sv;
             ctx->shutdown_event->raise(true);
 
@@ -1732,8 +1630,10 @@ namespace video {
   capture_async(
     safe::mail_t mail,
     config_t &config,
-    void *channel_data) {
+    void *channel_data,
+    int displayIndex) {    
     auto shutdown_event = mail->event<bool>(mail::shutdown);
+    std::cout << "capture_async:displayIndex =" << displayIndex << std::endl;
 
     auto images = std::make_shared<img_event_t::element_type>();
     auto lg = util::fail_guard([&]() {
@@ -1741,10 +1641,11 @@ namespace video {
       shutdown_event->raise(true);
     });
 
-    auto ref = capture_thread_async.ref();
+    auto ref = (displayIndex == 1) ? capture_thread_async.ref() : capture_thread_async2.ref();
     if (!ref) {
       return;
     }
+    std::cout << "capture_async:get ref,displayIndex =" << displayIndex << std::endl;
 
     ref->capture_ctx_queue->raise(capture_ctx_t { images, config });
 
@@ -1776,8 +1677,9 @@ namespace video {
 
         display = ref->display_wp->lock();
       }
+      std::cout << "capture_async:get display,displayIndex =" << displayIndex << std::endl;
 
-      auto &encoder = encoders.front();
+      auto &encoder = (displayIndex == 1) ? encoders.front() : encoders2.front();
       auto pix_fmt = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
       auto hwdevice = display->make_hwdevice(pix_fmt);
       if (!hwdevice) {
@@ -1796,7 +1698,7 @@ namespace video {
       hdr_event->raise(std::move(hdr_info));
 
       encode_run(
-        pix_fmt,
+        displayIndex,
         frame_nr,
         mail, images,
         config, display,
@@ -1810,12 +1712,13 @@ namespace video {
   capture(
     safe::mail_t mail,
     config_t config,
-    void *channel_data) {
+    void *channel_data,
+    int displayIndex) {
     auto idr_events = mail->event<bool>(mail::idr);
 
     idr_events->raise(true);
     if (encoders.front().flags & PARALLEL_ENCODING) {
-      capture_async(std::move(mail), config, channel_data);
+      capture_async(std::move(mail), config, channel_data, displayIndex);
     }
     else {
       safe::signal_t join_event;
@@ -1843,27 +1746,12 @@ namespace video {
   };
 
   int
-  validate_config_impl(std::shared_ptr<platf::display_t> &disp,
-    const encoder_t &encoder, const config_t &config, const std::string &outputName) {
-    //if (!disp) {
-    reset_display(disp, encoder.base_dev_type, outputName, config);
+  validate_config(int displayIndex,std::string &displayName, std::shared_ptr<platf::display_t> &disp, 
+      const encoder_t &encoder, const config_t &config) {
+    reset_display(disp, encoder.base_dev_type, displayName, config);
     if (!disp) {
       return -1;
     }
-    //}
-#if 1
-    if (disp->have_next_disp()) {
-      auto disp2 = disp->get_next_disp();
-      if (disp2) {
-        disp->reset_next_disp();
-        auto ret = validate_config_impl(disp2, encoder, config, disp2->get_name());
-        if (ret < 0) {
-          return ret;
-        }
-      }
-      return 0;
-    }
-#endif
 
     auto pix_fmt = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
     auto hwdevice = disp->make_hwdevice(pix_fmt);
@@ -1871,7 +1759,7 @@ namespace video {
       return -1;
     }
 
-    auto session = make_session(pix_fmt, disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
+    auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
     if (!session) {
       return -1;
     }
@@ -1890,7 +1778,7 @@ namespace video {
 
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     while (!packets->peek()) {
-      if (encode(1, *session, frame, packets, nullptr)) {
+      if (encode(displayIndex, 1, *session, frame, packets, nullptr)) {
         return -1;
       }
     }
@@ -1917,12 +1805,8 @@ namespace video {
     return flag;
   }
 
-  inline int
-  validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
-    return validate_config_impl(disp, encoder, config, config::video.output_name);
-  }
   bool
-  validate_encoder(encoder_t &encoder) {
+  validate_encoder(encoder_t &encoder,std::string& displayName,int displayIndex) {
     std::shared_ptr<platf::display_t> disp;
 
     BOOST_LOG(info) << "Trying encoder ["sv << encoder.name << ']';
@@ -1943,8 +1827,8 @@ namespace video {
     config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
 
   retry:
-    auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
-    auto autoselect_h264 = validate_config(disp, encoder, config_autoselect);
+    auto max_ref_frames_h264 = validate_config(displayIndex,displayName, disp, encoder, config_max_ref_frames);
+    auto autoselect_h264 = validate_config(displayIndex, displayName, disp, encoder, config_autoselect);
 
     if (max_ref_frames_h264 < 0 && autoselect_h264 < 0) {
       if (encoder.h264.qp && encoder.h264[encoder_t::CBR]) {
@@ -1969,14 +1853,14 @@ namespace video {
     encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264 >= 0;
     encoder.h264[encoder_t::PASSED] = true;
 
-    encoder.h264[encoder_t::SLICE] = validate_config(disp, encoder, config_max_ref_frames);
+    encoder.h264[encoder_t::SLICE] = validate_config(displayIndex,displayName, disp, encoder, config_max_ref_frames);
     if (test_hevc) {
       config_max_ref_frames.videoFormat = 1;
       config_autoselect.videoFormat = 1;
 
     retry_hevc:
-      auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
-      auto autoselect_hevc = validate_config(disp, encoder, config_autoselect);
+      auto max_ref_frames_hevc = validate_config(displayIndex,displayName, disp, encoder, config_max_ref_frames);
+      auto autoselect_hevc = validate_config(displayIndex,displayName, disp, encoder, config_autoselect);
 
       // If HEVC must be supported, but it is not supported
       if (max_ref_frames_hevc < 0 && autoselect_hevc < 0) {
@@ -2018,9 +1902,9 @@ namespace video {
       h264.videoFormat = 0;
       hevc.videoFormat = 1;
 
-      encoder.h264[flag] = validate_config(disp, encoder, h264) >= 0;
+      encoder.h264[flag] = validate_config(displayIndex,displayName, disp, encoder, h264) >= 0;
       if (encoder.hevc[encoder_t::PASSED]) {
-        encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
+        encoder.hevc[flag] = validate_config(displayIndex,displayName, disp, encoder, hevc) >= 0;
       }
     }
 
@@ -2051,23 +1935,24 @@ namespace video {
   }
 
   int
-  init() {
+  initPerDisplay(std::vector<encoder_t>& encoders,std::string& defaultEncoder,
+      std::string& outputDisplayName,int displayIndex) {
     bool encoder_found = false;
-    if (!config::video.encoder.empty()) {
+    if (!defaultEncoder.empty()) {
       // If there is a specific encoder specified, use it if it passes validation
       KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
         auto encoder = *pos;
 
-        if (encoder.name == config::video.encoder) {
+        if (encoder.name == defaultEncoder) {
           // Remove the encoder from the list entirely if it fails validation
-          if (!validate_encoder(encoder)) {
+          if (!validate_encoder(encoder, outputDisplayName, displayIndex)) {
             pos = encoders.erase(pos);
             break;
           }
 
           // If we can't satisfy both the encoder and HDR requirement, prefer the encoder over HDR support
           if (config::video.hevc_mode == 3 && !encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
-            BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HDR on this system"sv;
+            BOOST_LOG(warning) << "Encoder ["sv << defaultEncoder << "] does not support HDR on this system"sv;
             config::video.hevc_mode = 0;
           }
 
@@ -2081,8 +1966,8 @@ namespace video {
       });
 
       if (!encoder_found) {
-        BOOST_LOG(error) << "Couldn't find any working encoder matching ["sv << config::video.encoder << ']';
-        config::video.encoder.clear();
+        BOOST_LOG(error) << "Couldn't find any working encoder matching ["sv << defaultEncoder << ']';
+        defaultEncoder.clear();
       }
     }
 
@@ -2094,7 +1979,7 @@ namespace video {
         auto encoder = *pos;
 
         // Remove the encoder from the list entirely if it fails validation
-        if (!validate_encoder(encoder)) {
+        if (!validate_encoder(encoder, outputDisplayName, displayIndex)) {
           pos = encoders.erase(pos);
           continue;
         }
@@ -2120,7 +2005,7 @@ namespace video {
     // the remaining encoders until we find one that passes validation.
     if (!encoder_found) {
       KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
-        if (!validate_encoder(*pos)) {
+        if (!validate_encoder(*pos, outputDisplayName, displayIndex)) {
           pos = encoders.erase(pos);
           continue;
         }
@@ -2167,7 +2052,20 @@ namespace video {
 
     return 0;
   }
-
+  int
+  init() {
+    int retValue = initPerDisplay(encoders, config::video.encoder, config::video.output_name,1);
+    if (retValue != 0) {
+      return retValue;
+    }
+    if (config::video.haveSecondOutput) {
+      retValue = initPerDisplay(encoders2, config::video.encoder2, config::video.output2_name,2);
+      if (retValue != 0) {
+        return retValue;
+      }
+    }
+    return 0;
+  }
   int
   hwframe_ctx(ctx_t &ctx, platf::hwdevice_t *hwdevice, buffer_t &hwdevice_ctx, AVPixelFormat format) {
     buffer_t frame_ref { av_hwframe_ctx_alloc(hwdevice_ctx.get()) };
@@ -2280,7 +2178,26 @@ namespace video {
       capture_thread_ctx.capture_ctx_queue,
       std::ref(capture_thread_ctx.display_wp),
       std::ref(capture_thread_ctx.reinit_event),
-      std::ref(*capture_thread_ctx.encoder_p)
+      std::ref(*capture_thread_ctx.encoder_p),
+      1
+    };
+
+    return 0;
+  }
+  int
+  start_capture_async2(capture_thread_async_ctx_t &capture_thread_ctx) {
+    capture_thread_ctx.encoder_p = &encoders2.front();
+    capture_thread_ctx.reinit_event.reset();
+
+    capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>(30);
+
+    capture_thread_ctx.capture_thread = std::thread {
+      captureThread,
+      capture_thread_ctx.capture_ctx_queue,
+      std::ref(capture_thread_ctx.display_wp),
+      std::ref(capture_thread_ctx.reinit_event),
+      std::ref(*capture_thread_ctx.encoder_p),
+      2
     };
 
     return 0;

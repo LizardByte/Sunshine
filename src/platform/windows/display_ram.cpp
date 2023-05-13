@@ -369,8 +369,8 @@ namespace platf::dxgi {
   }
 
   int
-  display_ram_t::init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name) {
-    if (display_base_t::init(hwdevice_type,config, display_name)) {
+  display_ram_t::init(const ::video::config_t &config, const std::string &display_name) {
+    if (display_base_t::init(config, display_name)) {
       return -1;
     }
 

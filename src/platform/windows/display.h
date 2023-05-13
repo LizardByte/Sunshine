@@ -18,7 +18,6 @@
 namespace platf::dxgi {
   extern const char *format_str[];
 
-  auto constexpr display_name_separator = '+';
   // Add D3D11_CREATE_DEVICE_DEBUG here to enable the D3D11 debug runtime.
   // You should have a debugger like WinDbg attached to receive debug messages.
   auto constexpr D3D11_CREATE_DEVICE_FLAGS = D3D11_CREATE_DEVICE_VIDEO_SUPPORT;
@@ -123,15 +122,9 @@ namespace platf::dxgi {
   };
 
   class display_base_t: public display_t {
-  protected:
-    std::string name;
   public:
-    ~display_base_t(){
-      int x = 100;
-      x += 1;
-    }
-    virtual int
-    init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
+    int
+    init(const ::video::config_t &config, const std::string &display_name);
     capture_e
     capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
 
@@ -143,9 +136,6 @@ namespace platf::dxgi {
     device_t device;
     device_ctx_t device_ctx;
     duplication_t dup;
-    //Shawn: for dual display support, we add nextDisp field points to another display
-    //we only implement dual displays supporting in Windows, so keep this change in class display_base_t
-    std::shared_ptr<display_base_t> nextDisp;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
@@ -162,27 +152,10 @@ namespace platf::dxgi {
     typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
 
     virtual bool
-    have_next_disp() {
-      return (nextDisp != nullptr);
-    }
-    virtual std::shared_ptr<display_t>
-    get_next_disp() {
-      return nextDisp;
-    }
-    virtual void
-    reset_next_disp() override {
-      nextDisp.reset();
-    }
-    virtual std::string
-        get_name() override{
-      return name;
-    }
-    virtual bool
     is_hdr() override;
     virtual bool
     get_hdr_metadata(SS_HDR_METADATA &metadata) override;
-    virtual int
-    complete_img(img_t *img, bool dummy) = 0;
+
   protected:
     int
     get_pixel_pitch() {
@@ -196,6 +169,8 @@ namespace platf::dxgi {
 
     virtual capture_e
     snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+    virtual int
+    complete_img(img_t *img, bool dummy) = 0;
     virtual std::vector<DXGI_FORMAT>
     get_supported_sdr_capture_formats() = 0;
     virtual std::vector<DXGI_FORMAT>
@@ -218,8 +193,8 @@ namespace platf::dxgi {
     std::vector<DXGI_FORMAT>
     get_supported_hdr_capture_formats() override;
 
-    virtual int
-    init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name) override;
+    int
+    init(const ::video::config_t &config, const std::string &display_name);
 
     cursor_t cursor;
     D3D11_MAPPED_SUBRESOURCE img_info;
@@ -242,8 +217,8 @@ namespace platf::dxgi {
     std::vector<DXGI_FORMAT>
     get_supported_hdr_capture_formats() override;
 
-    virtual int
-    init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name) override;
+    int
+    init(const ::video::config_t &config, const std::string &display_name);
 
     std::shared_ptr<platf::hwdevice_t>
     make_hwdevice(pix_fmt_e pix_fmt) override;

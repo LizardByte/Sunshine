@@ -369,15 +369,19 @@ namespace config {
 
     {},  // capture
     {},  // encoder
+    {},  // encoder2
     {},  // adapter_name
+    {},  // adapter2_name
     {},  // output_name
+    {},  // output2_name
+    false,//haveSecondOutput
     true  // dwmflush
   };
 
   audio_t audio {};
 
   stream_t stream {
-    10s,  // ping_timeout
+    100000s,//10s,  // ping_timeout
 
     APPS_JSON_PATH,
 
@@ -954,8 +958,15 @@ namespace config {
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
+    string_f(vars, "encoder2", video.encoder2);
     string_f(vars, "adapter_name", video.adapter_name);
+    string_f(vars, "adapter2_name", video.adapter2_name);
     string_f(vars, "output_name", video.output_name);
+    string_f(vars, "output2_name", video.output2_name);
+    if (!video.output2_name.empty()) {
+      video.haveSecondOutput = true;
+    }
+
     bool_f(vars, "dwmflush", video.dwmflush);
 
     path_f(vars, "pkey", nvhttp.pkey);

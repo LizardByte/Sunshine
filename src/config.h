@@ -56,6 +56,12 @@ namespace config {
     std::string encoder;
     std::string adapter_name;
     std::string output_name;
+    //shawn: encoder2,adapter2_name,output2_name is used for second display support
+    //also set haveSecondOutput to true,which indicates second display in using
+    std::string encoder2;
+    std::string adapter2_name;
+    std::string output2_name;
+    bool haveSecondOutput;
     bool dwmflush;
   };
 

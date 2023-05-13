@@ -4,7 +4,7 @@
 
 #include <future>
 #include <queue>
-
+#include <iostream>
 #include <fstream>
 #include <openssl/err.h>
 
@@ -74,7 +74,7 @@ namespace stream {
     }
 
     std::uint8_t headerType;  // Always 0x01 for short headers
-    std::uint8_t unknown[2];
+    std::uint16_t streamId;
 
     // Currently known values:
     // 1 = Normal P-frame
@@ -83,9 +83,7 @@ namespace stream {
     // 5 = P-frame after reference frame invalidation
     std::uint8_t frameType;
 
-    //if 0 means first AV Packet is zero,this filed also means 
-    //second packet's offset
-    unsigned int firstPacketSize; //std::uint8_t unknown2[4];
+    std::uint32_t frameNo;
   };
 
   static_assert(
@@ -308,6 +306,8 @@ namespace stream {
 
     std::thread audioThread;
     std::thread videoThread;
+    //Shawn: second thread to do capture for second display
+    std::thread videoThread2;
 
     std::chrono::steady_clock::time_point pingTimeout;
 
@@ -1003,30 +1003,27 @@ namespace stream {
       if (shutdown_event->peek()) {
         break;
       }
-
+      //if(packet->displayIndex ==1) {
+      //  continue;
+      //}
+      std::cout << "videoBroadcastThread got packet for displayIndex=" << packet->displayIndex 
+          << ",frm:" << packet->frameNo << std::endl;
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
-      auto av_packet = packet->av_packet;
 
+      auto av_packet = packet->av_packet;
+      std::string_view payload { (char *) av_packet->data, (size_t) av_packet->size };
       std::vector<uint8_t> payload_new;
 
       video_short_frame_header_t frame_header = {};
       frame_header.headerType = 0x01;  // Short header type
       frame_header.frameType = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
-      //notify client(moonlight),if there is second packet
-      frame_header.firstPacketSize = av_packet ? av_packet->size : 0;
+      frame_header.streamId = packet->displayIndex;
+      frame_header.frameNo = packet->frameNo;
       std::copy_n((uint8_t *) &frame_header, sizeof(frame_header), std::back_inserter(payload_new));
-      if (av_packet) {
-        std::string_view payload { (char *) av_packet->data, (size_t) av_packet->size };
-        std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
-      }
-      auto av_packet2 = packet->av_packet2;
-      if (av_packet2) {
-        std::string_view payload { (char *) av_packet2->data, (size_t) av_packet2->size };
-        std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
-      }
+      std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
 
-      std::string_view payload = { (char *) payload_new.data(), payload_new.size() };
+      payload = { (char *) payload_new.data(), payload_new.size() };
 
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
         for (auto &replacement : *packet->replacements) {
@@ -1423,18 +1420,23 @@ namespace stream {
   }
 
   void
-  videoThread(session_t *session) {
+  videoThread(session_t *session,int displayIndex) {
     auto fg = util::fail_guard([&]() {
       session::stop(*session);
     });
-
+    std::cout << "videoThread:displayIndex=" << displayIndex << std::endl;
     while_starting_do_nothing(session->state);
 
     auto ref = broadcast.ref();
-    auto port = recv_ping(ref, socket_e::video, session->video.peer, config::stream.ping_timeout);
-    if (port < 0) {
-      return;
+    //Shawn: only do with first display
+    if (displayIndex == 1) {
+      auto port = recv_ping(ref, socket_e::video, session->video.peer, config::stream.ping_timeout);
+      if (port < 0) {
+        std::cout << "Port <0,videoThread:displayIndex=" << displayIndex << std::endl;
+        return;
+      }
     }
+    std::cout << "videoThread:after recv_ping,displayIndex=" << displayIndex << std::endl;
 
     // Enable QoS tagging on video traffic if requested by the client
     if (session->config.videoQosType) {
@@ -1444,7 +1446,7 @@ namespace stream {
     }
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
-    video::capture(session->mail, session->config.monitor, session);
+    video::capture(session->mail, session->config.monitor, session,displayIndex);
   }
 
   void
@@ -1510,6 +1512,10 @@ namespace stream {
 
       BOOST_LOG(debug) << "Waiting for video to end..."sv;
       session.videoThread.join();
+      if (config::video.haveSecondOutput) {
+        BOOST_LOG(debug) << "Waiting for video 2 to end..."sv;
+        session.videoThread2.join();
+      }
       BOOST_LOG(debug) << "Waiting for audio to end..."sv;
       session.audioThread.join();
       BOOST_LOG(debug) << "Waiting for control to end..."sv;
@@ -1592,7 +1598,8 @@ namespace stream {
       session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
       session.audioThread = std::thread { audioThread, &session };
-      session.videoThread = std::thread { videoThread, &session };
+      session.videoThread = std::thread { videoThread, &session,1 };
+      session.videoThread2 = std::thread { videoThread, &session,2 };
 
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 
