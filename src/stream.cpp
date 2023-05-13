@@ -1003,6 +1003,7 @@ namespace stream {
       if (shutdown_event->peek()) {
         break;
       }
+      //debug
       //if(packet->displayIndex ==1) {
       //  continue;
       //}
@@ -1020,6 +1021,7 @@ namespace stream {
       frame_header.frameType = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
       frame_header.streamId = packet->displayIndex;
       frame_header.frameNo = packet->frameNo;
+
       std::copy_n((uint8_t *) &frame_header, sizeof(frame_header), std::back_inserter(payload_new));
       std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
 
