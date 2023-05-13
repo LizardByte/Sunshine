@@ -172,7 +172,6 @@ if(WIN32)
             src/platform/windows/display.h
             src/platform/windows/display_base.cpp
             src/platform/windows/display_vram.cpp
-            src/platform/windows/display_dual.cpp
             src/platform/windows/display_ram.cpp
             src/platform/windows/audio.cpp
             third-party/tray/tray_windows.c

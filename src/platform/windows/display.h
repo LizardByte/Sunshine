@@ -123,9 +123,15 @@ namespace platf::dxgi {
   };
 
   class display_base_t: public display_t {
+  protected:
+    std::string name;
   public:
-    int
-    init(const ::video::config_t &config, const std::string &display_name);
+    ~display_base_t(){
+      int x = 100;
+      x += 1;
+    }
+    virtual int
+    init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name);
     capture_e
     capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
 
@@ -137,8 +143,9 @@ namespace platf::dxgi {
     device_t device;
     device_ctx_t device_ctx;
     duplication_t dup;
-    //for dual display support, we add output offset to address captured Texture's start X pos
-    int output_x_offset;
+    //Shawn: for dual display support, we add nextDisp field points to another display
+    //we only implement dual displays supporting in Windows, so keep this change in class display_base_t
+    std::shared_ptr<display_base_t> nextDisp;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
@@ -154,6 +161,22 @@ namespace platf::dxgi {
 
     typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
 
+    virtual bool
+    have_next_disp() {
+      return (nextDisp != nullptr);
+    }
+    virtual std::shared_ptr<display_t>
+    get_next_disp() {
+      return nextDisp;
+    }
+    virtual void
+    reset_next_disp() override {
+      nextDisp.reset();
+    }
+    virtual std::string
+        get_name() override{
+      return name;
+    }
     virtual bool
     is_hdr() override;
     virtual bool
@@ -195,8 +218,8 @@ namespace platf::dxgi {
     std::vector<DXGI_FORMAT>
     get_supported_hdr_capture_formats() override;
 
-    int
-    init(const ::video::config_t &config, const std::string &display_name);
+    virtual int
+    init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name) override;
 
     cursor_t cursor;
     D3D11_MAPPED_SUBRESOURCE img_info;
@@ -219,8 +242,8 @@ namespace platf::dxgi {
     std::vector<DXGI_FORMAT>
     get_supported_hdr_capture_formats() override;
 
-    int
-    init(const ::video::config_t &config, const std::string &display_name);
+    virtual int
+    init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name) override;
 
     std::shared_ptr<platf::hwdevice_t>
     make_hwdevice(pix_fmt_e pix_fmt) override;

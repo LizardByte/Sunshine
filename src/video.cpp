@@ -959,6 +959,8 @@ namespace video {
           sps = std::move(h264.sps);
         }
         else {
+          int x =10;
+          x +=1;
           auto hevc = cbs::make_sps_hevc(ctx.get(), av_packet);
 
           sps = std::move(hevc.sps);
@@ -1067,9 +1069,11 @@ namespace video {
 
     return 0;
   }
-
+  //TODO(Shawn): if disp has next display embedded, call make_session for nextDisp
+  //and make second session embedded into returned session_t
   std::optional<session_t>
-  make_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
+  make_session(platf::pix_fmt_e pix_fmt, platf::display_t *disp, const encoder_t &encoder, const config_t &config,
+    int width, int height, std::shared_ptr<platf::hwdevice_t> &&hwdevice) {
     bool hardware = encoder.base_dev_type != AV_HWDEVICE_TYPE_NONE;
 
     auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
@@ -1366,7 +1370,8 @@ namespace video {
       std::move(device),
 
       // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
-      (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat),
+      //(1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat),
+    0 //shawn changed
     };
 
     if (!video_format[encoder_t::NALU_PREFIX_5b]) {
@@ -1374,12 +1379,12 @@ namespace video {
 
       session.replacements.emplace_back(nalu_prefix.substr(1), nalu_prefix);
     }
-
     return std::make_optional(std::move(session));
   }
 
   void
   encode_run(
+    platf::pix_fmt_e pix_fmt,
     int &frame_nr,  // Store progress of the frame number
     safe::mail_t mail,
     img_event_t images,
@@ -1389,23 +1394,18 @@ namespace video {
     safe::signal_t &reinit_event,
     const encoder_t &encoder,
     void *channel_data) {
-    //check if disp is a grop of displays
-    std::optional<session_t> session;
-    std::optional<session_t> session2;
-    std::shared_ptr<platf::display_t> disp2;
-    if (disp->is_group()) {
-      //only support two here
-      disp2 = disp->get_item(1);
-      disp = disp->get_item(0);
-    }
-    session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
+    auto session = make_session(pix_fmt, disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
     if (!session) {
       return;
     }
-    if (disp2) {
-      session2 = make_session(disp2.get(), encoder, config, disp2->width, disp2->height, std::move(hwdevice));
-      if (!session2) {
-        return;
+    std::shared_ptr<platf::display_t> disp2;
+    std::optional<session_t> session2;
+    if (disp->have_next_disp()) {
+      disp2 = disp->get_next_disp();
+      auto next_hwdevice = disp->make_hwdevice(pix_fmt);//todo: use disp2
+      if (next_hwdevice) {
+        session2 = make_session(pix_fmt, disp2.get(), encoder, config, disp2->width,
+          disp2->height, std::move(next_hwdevice));
       }
     }
 
@@ -1542,7 +1542,7 @@ namespace video {
     }
     ctx.hdr_events->raise(std::move(hdr_info));
 
-    auto session = make_session(disp, encoder, ctx.config, img.width, img.height, std::move(hwdevice));
+    auto session = make_session(pix_fmt, disp, encoder, ctx.config, img.width, img.height, std::move(hwdevice));
     if (!session) {
       return std::nullopt;
     }
@@ -1796,6 +1796,7 @@ namespace video {
       hdr_event->raise(std::move(hdr_info));
 
       encode_run(
+        pix_fmt,
         frame_nr,
         mail, images,
         config, display,
@@ -1845,29 +1846,24 @@ namespace video {
   validate_config_impl(std::shared_ptr<platf::display_t> &disp,
     const encoder_t &encoder, const config_t &config, const std::string &outputName) {
     //if (!disp) {
-      reset_display(disp, encoder.base_dev_type, outputName, config);
-      if (!disp) {
-        return -1;
-      }
+    reset_display(disp, encoder.base_dev_type, outputName, config);
+    if (!disp) {
+      return -1;
+    }
     //}
-    if (disp->is_group()) {
-      auto disp1 = disp->get_item(0);
-      auto disp2 = disp->get_item(1);
-      int ret = 0;
-      if (disp1) {
-        ret = validate_config_impl(disp1, encoder, config, disp->get_item_name(0));
-        if (ret < 0) {
-          return ret;
-        }
-      }
+#if 1
+    if (disp->have_next_disp()) {
+      auto disp2 = disp->get_next_disp();
       if (disp2) {
-        ret = validate_config_impl(disp2, encoder, config, disp->get_item_name(1));
+        disp->reset_next_disp();
+        auto ret = validate_config_impl(disp2, encoder, config, disp2->get_name());
         if (ret < 0) {
           return ret;
         }
       }
       return 0;
     }
+#endif
 
     auto pix_fmt = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
     auto hwdevice = disp->make_hwdevice(pix_fmt);
@@ -1875,7 +1871,7 @@ namespace video {
       return -1;
     }
 
-    auto session = make_session(disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
+    auto session = make_session(pix_fmt, disp.get(), encoder, config, disp->width, disp->height, std::move(hwdevice));
     if (!session) {
       return -1;
     }

@@ -13,7 +13,6 @@
 typedef long NTSTATUS;
 
 #include "display.h"
-#include "display_dual.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/main.h"
@@ -292,7 +291,7 @@ namespace platf::dxgi {
   }
 
   int
-  display_base_t::init(const ::video::config_t &config, const std::string &display_name) {
+  display_base_t::init(mem_type_e hwdevice_type,const ::video::config_t &config, const std::string &display_name) {
     std::once_flag windows_cpp_once_flag;
 
     std::call_once(windows_cpp_once_flag, []() {
@@ -318,10 +317,32 @@ namespace platf::dxgi {
     env_width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
+
+    //dual display support
+    bool haveSecondDisplay = false;
+    std::string display1_name;
+    std::string display2_name;
+    std::size_t pos = display_name.find(dxgi::display_name_separator);
+    if (pos != std::string::npos) {
+      if (hwdevice_type == mem_type_e::dxgi) {
+        nextDisp = std::make_shared<dxgi::display_vram_t>();
+      }
+      else if (hwdevice_type == mem_type_e::system) {
+        nextDisp = std::make_shared<dxgi::display_ram_t>();
+      }
+      if (nextDisp) {
+        display2_name = display_name.substr(pos + 1);
+        haveSecondDisplay = true;
+      }
+      display1_name = display_name.substr(0, pos);
+    }
+    else {
+      display1_name = display_name;
+    }
     HRESULT status;
 
     // We must set the GPU preference before calling any DXGI APIs!
-    if (!probe_for_gpu_preference(display_name)) {
+    if (!probe_for_gpu_preference(display1_name)) {
       BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
     }
 
@@ -334,7 +355,7 @@ namespace platf::dxgi {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
     auto adapter_name = converter.from_bytes(config::video.adapter_name);
-    auto output_name = converter.from_bytes(display_name);
+    auto output_name = converter.from_bytes(display1_name);
 
     adapter_t::pointer adapter_p;
     for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
@@ -354,22 +375,20 @@ namespace platf::dxgi {
         DXGI_OUTPUT_DESC desc;
         output_tmp->GetDesc(&desc);
 
-        if (!output_name.empty() && desc.DeviceName != output_name) {
-          continue;
-        }
+        if (output_name.empty() || desc.DeviceName == output_name) {
+          if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
+            output = std::move(output_tmp);
 
-        if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
-          output = std::move(output_tmp);
+            offset_x = desc.DesktopCoordinates.left;
+            offset_y = desc.DesktopCoordinates.top;
+            width = desc.DesktopCoordinates.right - offset_x;
+            height = desc.DesktopCoordinates.bottom - offset_y;
 
-          offset_x = desc.DesktopCoordinates.left;
-          offset_y = desc.DesktopCoordinates.top;
-          width = desc.DesktopCoordinates.right - offset_x;
-          height = desc.DesktopCoordinates.bottom - offset_y;
-
-          // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
-          // Ensure offset starts at 0x0
-          offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
-          offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
+            // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
+            // Ensure offset starts at 0x0
+            offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
+            offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
+          }
         }
       }
 
@@ -593,7 +612,15 @@ namespace platf::dxgi {
 
     // Capture format will be determined from the first call to AcquireNextFrame()
     capture_format = DXGI_FORMAT_UNKNOWN;
-
+    //Shawn: for next display
+    if (nextDisp) {
+        int ret0 = nextDisp->init(hwdevice_type, config, display2_name);
+        //if failed, we just keep first disp, and set nextDisp to null
+        if (ret0 != 0) {
+          nextDisp.reset();
+        }
+    }
+    name = display1_name;
     return 0;
   }
 
@@ -840,32 +867,17 @@ namespace platf::dxgi {
 namespace platf {
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    //Support dual displays, Shawn Xiong @ 5/7/2023 
-    //protocol for dual displays merge two display names into display_name
-    //format is display1_name+display2_name + is the separator, defined as display_name_separator in display.h
-    //here we check if display_name is this format, if it is, then
-    //we call create instance of display_dual_t and pass display_name
-    //display_dual_t will create two instances of display_vram_t or display_ram_t
-    //and wrap them into display_dual_t, for external side, just see one instance of display_t
-    std::size_t pos = display_name.find(dxgi::display_name_separator);
-    if (pos != std::string::npos) {
-      auto disp = std::make_shared<dxgi::display_dual_t>();
-
-      if (!disp->init(hwdevice_type,config, display_name)) {
-        return disp;
-      }
-    }
-    else if (hwdevice_type == mem_type_e::dxgi) {
+    if (hwdevice_type == mem_type_e::dxgi) {
       auto disp = std::make_shared<dxgi::display_vram_t>();
 
-      if (!disp->init(config, display_name)) {
+      if (!disp->init(hwdevice_type,config, display_name)) {
         return disp;
       }
     }
     else if (hwdevice_type == mem_type_e::system) {
       auto disp = std::make_shared<dxgi::display_ram_t>();
 
-      if (!disp->init(config, display_name)) {
+      if (!disp->init(hwdevice_type,config, display_name)) {
         return disp;
       }
     }
