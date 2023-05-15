@@ -40,6 +40,22 @@ namespace proc {
 
   proc_t proc;
 
+  class deinit_t: public platf::deinit_t {
+  public:
+    ~deinit_t() {
+      proc.terminate();
+    }
+  };
+
+  /**
+   * @brief Initializes proc functions
+   * @return Unique pointer to `deinit_t` to manage cleanup
+   */
+  std::unique_ptr<platf::deinit_t>
+  init() {
+    return std::make_unique<deinit_t>();
+  }
+
   void
   process_end(bp::child &proc, bp::group &proc_handle) {
     if (!proc.running()) {
@@ -266,7 +282,12 @@ namespace proc {
   }
 
   proc_t::~proc_t() {
-    terminate();
+    // It's not safe to call terminate() here because our proc_t is a static variable
+    // that may be destroyed after the Boost loggers have been destroyed. Instead,
+    // we return a deinit_t to main() to handle termination when we're exiting.
+    // Once we reach this point here, termination must have already happened.
+    assert(!placebo);
+    assert(!_process.running());
   }
 
   std::string_view::iterator

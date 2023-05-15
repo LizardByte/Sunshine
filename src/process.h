@@ -14,6 +14,7 @@
 #include <boost/process.hpp>
 
 #include "config.h"
+#include "platform/common.h"
 #include "utility.h"
 
 namespace proc {
@@ -115,6 +116,9 @@ namespace proc {
   refresh(const std::string &file_name);
   std::optional<proc::proc_t>
   parse(const std::string &file_name);
+
+  std::unique_ptr<platf::deinit_t>
+  init();
 
   extern proc_t proc;
 }  // namespace proc
