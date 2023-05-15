@@ -995,7 +995,7 @@ namespace stream {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
     auto timebase = boost::posix_time::microsec_clock::universal_time();
-
+    int64_t _ts_frame =0;
     // Video traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
@@ -1011,7 +1011,7 @@ namespace stream {
           << ",frm:" << packet->frameNo << std::endl;
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
-
+      _ts_frame++;
       auto av_packet = packet->av_packet;
       std::string_view payload { (char *) av_packet->data, (size_t) av_packet->size };
       std::vector<uint8_t> payload_new;
@@ -1095,7 +1095,8 @@ namespace stream {
             auto *inspect = (video_packet_raw_t *) &current_payload[x * blocksize];
             auto av_packet = packet->av_packet;
 
-            inspect->packet.frameIndex = av_packet->pts;
+            //inspect->packet.frameIndex = av_packet->pts;
+            inspect->packet.frameIndex = _ts_frame;
             inspect->packet.streamPacketIndex = ((uint32_t) lowseq + x) << 8;
 
             // Match multiFecFlags with Moonlight
@@ -1131,7 +1132,8 @@ namespace stream {
             inspect->rtp.timestamp = util::endian::big<uint32_t>(timestamp);
 
             inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
-            inspect->packet.frameIndex = av_packet->pts;
+            //inspect->packet.frameIndex = av_packet->pts;
+            inspect->packet.frameIndex = _ts_frame;
           }
 
           auto peer_address = session->video.peer.address();
