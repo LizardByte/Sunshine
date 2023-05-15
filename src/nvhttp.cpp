@@ -632,10 +632,6 @@ namespace nvhttp {
       tree.put("root.ServerCodecModeSupport", "3");
     }
 
-    if (!config::nvhttp.external_ip.empty()) {
-      tree.put("root.ExternalIP", config::nvhttp.external_ip);
-    }
-
     pt::ptree display_nodes;
     for (auto &resolution : config::nvhttp.resolutions) {
       auto pred = [](auto ch) { return ch == ' ' || ch == '\t' || ch == 'x'; };
