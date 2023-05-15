@@ -594,6 +594,11 @@ main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
+  auto proc_deinit_guard = proc::init();
+  if (!proc_deinit_guard) {
+    BOOST_LOG(error) << "Proc failed to initialize"sv;
+  }
+
   reed_solomon_init();
   auto input_deinit_guard = input::init();
   if (video::probe_encoders()) {
