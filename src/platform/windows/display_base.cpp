@@ -109,8 +109,7 @@ namespace platf::dxgi {
   capture_e
   display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
     const auto client_frame_interval = std::chrono::nanoseconds { 1s } / client_frame_rate;
-    std::optional<std::chrono::steady_clock::time_point> sync_start;
-    uint32_t synced_frames = 0;
+    std::optional<std::chrono::steady_clock::time_point> next_frame_time;
 
     // Keep the display awake during capture. If the display goes to sleep during
     // capture, best case is that capture stops until it powers back on. However,
@@ -134,9 +133,8 @@ namespace platf::dxgi {
       std::shared_ptr<img_t> img_out;
       platf::capture_e status;
 
-      if (sync_start) {
-        const auto sleep_target = sync_start.value() + client_frame_interval * synced_frames;
-        const auto sleep_time = sleep_target - std::chrono::steady_clock::now();
+      if (next_frame_time) {
+        const auto sleep_time = *next_frame_time - std::chrono::steady_clock::now();
 
         if (sleep_time > 0ns) {
           high_precision_sleep(sleep_time);
@@ -147,7 +145,7 @@ namespace platf::dxgi {
               auto f = stat_trackers::one_digit_after_decimal();
               BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
             };
-            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - sleep_target;
+            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - *next_frame_time;
             sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
           }
 
@@ -155,26 +153,25 @@ namespace platf::dxgi {
         }
 
         if (img_out) {
-          synced_frames += 1;
+          *next_frame_time += client_frame_interval;
         }
         else {
-          sync_start = std::nullopt;
-          synced_frames = 0;
+          next_frame_time = std::nullopt;
         }
       }
 
-      if (!sync_start) {
+      if (!next_frame_time) {
         status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
 
         if (img_out) {
-          sync_start = img_out->frame_timestamp;
+          next_frame_time = img_out->frame_timestamp;
 
-          if (!sync_start) {
+          if (!next_frame_time) {
             BOOST_LOG(warning) << "snapshot() provided image without timestamp";
-            sync_start = std::chrono::steady_clock::now();
+            next_frame_time = std::chrono::steady_clock::now();
           }
 
-          synced_frames = 1;
+          *next_frame_time += client_frame_interval;
         }
       }
 
