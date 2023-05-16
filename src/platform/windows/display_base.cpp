@@ -134,10 +134,10 @@ namespace platf::dxgi {
       platf::capture_e status;
 
       if (next_frame_time) {
-        const auto sleep_time = *next_frame_time - std::chrono::steady_clock::now();
+        const auto sleep_period = *next_frame_time - std::chrono::steady_clock::now();
 
-        if (sleep_time > 0ns) {
-          high_precision_sleep(sleep_time);
+        if (sleep_period > 0ns) {
+          high_precision_sleep(sleep_period);
 
           if (config::sunshine.min_log_level <= 1) {
             // Print sleep overshoot stats to debug log every 20 seconds
