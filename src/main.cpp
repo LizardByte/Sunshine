@@ -333,6 +333,26 @@ namespace service_ctrl {
     return false;
   }
 }  // namespace service_ctrl
+
+/**
+ * @brief Checks if NVIDIA's GameStream software is running.
+ * @return `true` if GameStream is enabled.
+ */
+bool
+is_gamestream_enabled() {
+  DWORD enabled;
+  DWORD size = sizeof(enabled);
+  return RegGetValueW(
+           HKEY_LOCAL_MACHINE,
+           L"SOFTWARE\\NVIDIA Corporation\\NvStream",
+           L"EnableStreaming",
+           RRF_RT_REG_DWORD,
+           nullptr,
+           &enabled,
+           &size) == ERROR_SUCCESS &&
+         enabled != 0;
+}
+
 #endif
 
 /**
@@ -633,6 +653,14 @@ main(int argc, char *argv[]) {
 
   std::thread httpThread { nvhttp::start };
   std::thread configThread { confighttp::start };
+
+#ifdef _WIN32
+  // If we're using the default port and GameStream is enabled, warn the user
+  if (config::sunshine.port == 47989 && is_gamestream_enabled()) {
+    BOOST_LOG(fatal) << "GameStream is still enabled in GeForce Experience! This *will* cause streaming problems with Sunshine!"sv;
+    BOOST_LOG(fatal) << "Disable GameStream on the SHIELD tab in GeForce Experience or change the Port setting on the Advanced tab in the Sunshine Web UI."sv;
+  }
+#endif
 
   rtsp_stream::rtpThread();
 
