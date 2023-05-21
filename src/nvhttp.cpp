@@ -991,22 +991,30 @@ namespace nvhttp {
       tree.put("root.<xmlattr>.status_message"s, "The client is not authorized. Certificate verification failed."s);
     };
 
-  auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
-  https_server.default_resource["GET"]            = not_found<SimpleWeb::HTTPS>;
-  https_server.resource["^/serverinfo$"]["GET"]   = serverinfo<SimpleWeb::HTTPS>;
-  https_server.resource["^/pair$"]["GET"]         = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTPS>(add_cert, resp, req); };
-  https_server.resource["^/applist$"]["GET"]      = applist;
-  https_server.resource["^/appasset$"]["GET"]     = appasset;
-  https_server.resource["^/launch$"]["GET"]       = [&host_audio](auto resp, auto req) { launch(host_audio, resp, req); };
-  https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
-  https_server.resource["^/resume$"]["GET"]       = [&host_audio](auto resp, auto req) { resume(host_audio, resp, req); };
-  https_server.resource["^/cancel$"]["GET"]       = cancel;
+    https_server.default_resource["GET"] = not_found<SimpleWeb::HTTPS>;
+    https_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTPS>;
+    https_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTPS>(add_cert, resp, req); };
+    https_server.resource["^/applist$"]["GET"] = applist;
+    https_server.resource["^/appasset$"]["GET"] = appasset;
+    https_server.resource["^/launch$"]["GET"] = [&host_audio](auto resp, auto req) { launch(host_audio, resp, req); };
+    https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
+    https_server.resource["^/resume$"]["GET"] = [&host_audio](auto resp, auto req) { resume(host_audio, resp, req); };
+    https_server.resource["^/cancel$"]["GET"] = cancel;
 
-  https_server.config.reuse_address = true;
-  https_server.config.address       = net::af_to_any_address_string(address_family);
-  https_server.config.port          = port_https;
+    https_server.config.reuse_address = true;
+    https_server.config.address = net::af_to_any_address_string(address_family);
+    https_server.config.port = port_https;
 
+    http_server.default_resource["GET"] = not_found<SimpleWeb::HTTP>;
+    http_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTP>;
+    http_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTP>(add_cert, resp, req); };
+    http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
+
+    http_server.config.reuse_address = true;
+    http_server.config.address = net::af_to_any_address_string(address_family);
+    http_server.config.port = port_http;
 
     auto accept_and_run = [&](auto *http_server) {
       try {

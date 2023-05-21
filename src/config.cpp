@@ -453,7 +453,6 @@ sunshine_t sunshine {
   platf::appdata().string() + "/sunshine.conf", // config file
   {},                                           // cmd args
   47989,
-  "ipv4",
   platf::appdata().string() + "/sunshine.log", // log file
   "ipv4",
   {},  // prep commands

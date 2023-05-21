@@ -47,9 +47,4 @@ host_t host_create(af_e af, ENetAddress &addr, std::size_t peers, std::uint16_t 
 
 std::string addr_to_normalized_string(boost::asio::ip::address address);
 std::string addr_to_url_escaped_string(boost::asio::ip::address address);
-
-} // namespace net
-
-  host_t
-  host_create(ENetAddress &addr, std::size_t peers, std::uint16_t port);
 }  // namespace net
