@@ -515,6 +515,16 @@ namespace va {
     BOOST_LOG(*(boost::log::sources::severity_logger<int> *) level) << msg;
   }
 
+  static void
+  vaapi_hwdevice_ctx_free(AVHWDeviceContext *ctx) {
+    auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
+    auto priv = (VAAPIDevicePriv *) ctx->user_opaque;
+
+    vaTerminate(hwctx->display);
+    close(priv->drm_fd);
+    av_freep(&priv);
+  }
+
   int
   vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf) {
     if (!va::initialize) {
@@ -532,7 +542,6 @@ namespace va {
 
     auto *priv = (VAAPIDevicePriv *) av_mallocz(sizeof(VAAPIDevicePriv));
     priv->drm_fd = fd;
-    priv->drm.fd = fd;
 
     auto fg = util::fail_guard([fd, priv]() {
       close(fd);
@@ -562,9 +571,13 @@ namespace va {
     BOOST_LOG(debug) << "vaapi vendor: "sv << va::queryVendorString(display.get());
 
     *hw_device_buf = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
-    auto ctx = (AVVAAPIDeviceContext *) ((AVHWDeviceContext *) (*hw_device_buf)->data)->hwctx;
-    ctx->display = display.release();
+    auto ctx = (AVHWDeviceContext *) (*hw_device_buf)->data;
+    auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
 
+    // Ownership of the VADisplay and DRM fd is now ours to manage via the free() function
+    hwctx->display = display.release();
+    ctx->user_opaque = priv;
+    ctx->free = vaapi_hwdevice_ctx_free;
     fg.disable();
 
     auto err = av_hwdevice_ctx_init(*hw_device_buf);
