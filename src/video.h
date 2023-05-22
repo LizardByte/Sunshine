@@ -33,7 +33,7 @@ namespace video {
     }
 
     ~packet_raw_t() {
-      av_packet_unref(this->av_packet);
+      av_packet_free(&this->av_packet);
     }
 
     struct replace_t {
