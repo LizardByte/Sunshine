@@ -938,7 +938,7 @@ namespace nvhttp {
 
     // Verify certificates after establishing connection
     https_server.verify = [&cert_chain, add_cert](SSL *ssl) {
-      auto x509 = SSL_get_peer_certificate(ssl);
+      crypto::x509_t x509 { SSL_get_peer_certificate(ssl) };
       if (!x509) {
         BOOST_LOG(info) << "unknown -- denied"sv;
         return 0;
@@ -949,7 +949,7 @@ namespace nvhttp {
       auto fg = util::fail_guard([&]() {
         char subject_name[256];
 
-        X509_NAME_oneline(X509_get_subject_name(x509), subject_name, sizeof(subject_name));
+        X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name, sizeof(subject_name));
 
         BOOST_LOG(debug) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
       });
@@ -964,7 +964,7 @@ namespace nvhttp {
         cert_chain.add(std::move(cert));
       }
 
-      auto err_str = cert_chain.verify(x509);
+      auto err_str = cert_chain.verify(x509.get());
       if (err_str) {
         BOOST_LOG(warning) << "SSL Verification error :: "sv << err_str;
 
