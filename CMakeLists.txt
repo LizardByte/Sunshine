@@ -134,8 +134,6 @@ pkg_check_modules(CURL REQUIRED libcurl)
 
 if(WIN32)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
-    # workaround to prevent link errors against icudata, icui18n
-    set(Boost_NO_BOOST_CMAKE ON)  # cmake-lint: disable=C0103
 endif()
 
 find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
