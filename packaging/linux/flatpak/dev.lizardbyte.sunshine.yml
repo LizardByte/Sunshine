@@ -1,5 +1,5 @@
 ---
-app-id: dev.lizardbyte.sunshine
+app-id: dev.lizardbyte.sunshine  # Flathub build is dev.lizardbyte.app.Sunshine
 runtime: org.freedesktop.Platform
 runtime-version: "22.08"
 sdk: org.freedesktop.Sdk
@@ -28,27 +28,24 @@ cleanup:
   - /share/man
 
 modules:
+  - shared-modules/libappindicator/libappindicator-gtk3-12.10.json
+
   - name: boost
-    disabled: false
     buildsystem: simple
     build-commands:
-      - cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y
       - ./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=locale,log,program_options,system,thread
-      - ./b2 install variant=release link=shared runtime-link=shared cxxflags="$CXXFLAGS" linkflags="$LDFLAGS"
-        -j $FLATPAK_BUILDER_N_JOBS
+      - ./b2 install variant=release link=shared runtime-link=shared -j $FLATPAK_BUILDER_N_JOBS
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
-        sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0-17ubuntu1.debian.tar.xz
-        sha256: 22e623d98c84eb3fec57e19ea371157a5bc8225ba4c5907f7e5155072317a31d
-      - type: shell
-        commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+        url: https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0.tar.xz
+        sha256: fd60da30be908eff945735ac7d4d9addc7f7725b1ff6fcdcaede5262d511d21e
+        x-checker-data:
+          type: anitya
+          project-id: 6845
+          stable-only: true
+          url-template: https://github.com/boostorg/boost/releases/download/boost-$version/boost-$version.tar.xz
 
   - name: avahi
-    disabled: false
     cleanup:
       - /bin
       - /lib/avahi
@@ -78,18 +75,23 @@ modules:
       - --disable-libevent
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8.orig.tar.gz
+        url: http://avahi.org/download/avahi-0.8.tar.gz
         sha256: 060309d7a333d38d951bc27598c677af1796934dbd98e1024e7ad8de798fedda
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/a/avahi/avahi_0.8-6ubuntu1.debian.tar.xz
-        sha256: ebf1dfe5e853b6bc6843e3bd784cb6af632041f305abd0e5415114f80c1dcea4
+        x-checker-data:
+          type: anitya
+          project-id: 147
+          stable-only: true
+          url-template: http://avahi.org/download/avahi-$version.tar.gz
+      - type: git
+        url: https://src.fedoraproject.org/rpms/avahi.git
+        commit: e8ad0f7bbb7fdf82a0f0be128bab07b5928322f0
+        dest: rpms
       - type: shell
         commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+          - cat rpms/*.patch | patch -Np1 -d .
           - autoreconf -ivf
 
   - name: libevdev
-    disabled: false
     buildsystem: meson
     config-opts:
       - -Ddocumentation=disabled
@@ -98,18 +100,32 @@ modules:
       - /bin
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg.orig.tar.xz
-        sha256: a882e13ef1dd6bd227318080cabf60fe5af3c06471259d3acfc9dbfb202351a7
+        url: https://www.freedesktop.org/software/libevdev/libevdev-1.13.1.tar.xz
+        sha256: 06a77bf2ac5c993305882bc1641017f5bec1592d6d1b64787bad492ab34f2f36
+        x-checker-data:
+          type: anitya
+          project-id: 20540
+          stable-only: true
+          url-template: https://www.freedesktop.org/software/libevdev/libevdev-$version.tar.xz
+
+  - name: numactl
+    buildsystem: autotools
+    cleanup:
+      - /bin
+    sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/libe/libevdev/libevdev_1.13.0+dfsg-1.debian.tar.xz
-        sha256: d33c56acbbfff2dc540e45c57a38d92210b5e7fd0947ac47fbe48183468aad74
-      - type: shell
-        commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+        url: https://github.com/numactl/numactl/archive/refs/tags/v2.0.16.tar.gz
+        sha256: a35c3bdb3efab5c65927e0de5703227760b1101f5e27ab741d8f32b3d5f0a44c
+        x-checker-data:
+          type: anitya
+          project-id: 2507
+          stable-only: true
+          url-template: https://github.com/numactl/numactl/archive/refs/tags/v$version.tar.gz
 
   - name: intel-mediasdk
-    disabled: false
-    buildsystem: cmake
+    only-arches:
+      - x86_64
+    buildsystem: cmake-ninja
     config-opts:
       - -DENABLE_OPENCL=ON
       - -DENABLE_X11_DRI3=ON
@@ -124,49 +140,27 @@ modules:
       - -DBUILD_TOOLS=OFF
       - -DUSE_SYSTEM_GTEST=OFF
       - -DMFX_ENABLE_KERNELS=ON
-    only-arches:
-      - x86_64
     sources:
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/universe/i/intel-mediasdk/intel-mediasdk_22.3.0.orig.tar.gz
-        sha256: e1e74229f409e969b70c2b35b1955068de3d40db85ecc42bd6ff501468bc76d7
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/universe/i/intel-mediasdk/intel-mediasdk_22.3.0-1.debian.tar.xz
-        sha256: 024d98d2f63443d2765a90cfe997d104e7b897694889f199ca8fb4d9ffdcf1dc
-      - type: shell
-        commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+        url: https://github.com/Intel-Media-SDK/MediaSDK/archive/refs/tags/intel-mediasdk-23.2.2.tar.gz
+        sha256: 12f23a78104edc1c9bfa755effd2723866d107ad752f72d3839fcc8db0503cec
+        x-checker-data:
+          type: anitya
+          project-id: 21814
+          stable-only: true
+          url-template: https://github.com/Intel-Media-SDK/MediaSDK/archive/refs/tags/intel-mediasdk-$version.tar.gz
     modules:
       - name: libdrm
-        disabled: false
         buildsystem: meson
         sources:
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110.orig.tar.xz
-            sha256: eecee4c4b47ed6d6ce1a9be3d6d92102548ea35e442282216d47d05293cf9737
-          - type: archive
-            url: http://archive.ubuntu.com/ubuntu/pool/main/libd/libdrm/libdrm_2.4.110-1ubuntu1.debian.tar.xz
-            sha256: 464b9553861f39beddfaee6b8924734b02a0febfae3968e4ca1360f2972bba8b
-          - type: shell
-            commands:
-              - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
-
-  - name: numactl
-    buildsystem: autotools
-    make-args:
-      - install
-    sources:
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14.orig.tar.gz
-        sha256: 1ee27abd07ff6ba140aaf9bc6379b37825e54496e01d6f7343330cf1a4487035
-      - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/n/numactl/numactl_2.0.14-3ubuntu2.debian.tar.xz
-        sha256: 49089e5be5367f6367f8b0389d1d523944432607783b53f0605705792e1015ee
-      - type: shell
-        commands:
-          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
-    cleanup:
-      - "/bin"
+        - type: archive
+          url: https://gitlab.freedesktop.org/mesa/drm/-/archive/libdrm-2.4.115/drm-libdrm-2.4.115.tar.gz
+          sha256: fd8b7c6e4e40d13c32ab67ace2cb6c71e08c9ca53124ff33ccadd74f604117e3
+          x-checker-data:
+            type: anitya
+            project-id: 1596
+            stable-only: true
+            url-template: https://gitlab.freedesktop.org/mesa/drm/-/archive/libdrm-$version/drm-libdrm-$version.tar.gz
 
   # Caching is configured until here, not including CUDA
   - name: cuda
@@ -204,31 +198,28 @@ modules:
     builddir: true
     build-options:
       append-path: /usr/lib/sdk/node18/bin
-      build-args:
-        - --share=network
       cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
-      env:
-        npm_config_nodedir: /usr/lib/sdk/node18
-        NPM_CONFIG_LOGLEVEL: info
-    build-commands:
-      # Install npm dependencies
-      - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
-      - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
+      - -DSUNSHINE_EXECUTABLE_PATH="flatpak run --command=sunshine dev.lizardbyte.sunshine"
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
       - -DSUNSHINE_CONFIGURE_FLATPAK=ON
     sources:
+      - npm-generated-sources.json
       - type: git
         url: "@GITHUB_CLONE_URL@"
         branch: "@GITHUB_BRANCH@"
         commit: "@GITHUB_COMMIT@"
+      - type: shell
+        commands:
+          # Install npm dependencies
+          - npm install --offline --cache=flatpak-node/npm-cache
     post-install:
       # use `sed` to update apps.json with prefixes required for flatpak
       # -r (regex)
@@ -237,7 +228,4 @@ modules:
       - sed -r -z -i -e
         's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
         /app/share/sunshine/apps.json
-      - sed -i
-        's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
-        /app/share/sunshine/systemd/user/sunshine.service
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin

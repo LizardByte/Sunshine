@@ -162,21 +162,16 @@ jobs:
 
       - name: Setup Dependencies Linux Flatpak
         run: |
-          PLATFORM_VERSION=22.08
-
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
             flatpak \
+            npm \
             qemu-user-static
-          sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
-            https://flathub.org/repo/flathub.flatpakrepo"
-          sudo su $(whoami) -c "flatpak --user install -y flathub \
-            org.flatpak.Builder \
-            org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            "
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo su $(whoami) -c '
+            flatpak install flathub org.flatpak.Builder org.flathub.flatpak-external-data-checker -y
+          '
 
       - name: Cache Flatpak build
         uses: actions/cache@v3
@@ -218,20 +213,61 @@ jobs:
             -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
 
+      - name: Checkout Flatpak Builder Tools
+        uses: actions/checkout@v3
+        with:
+          repository: flatpak/flatpak-builder-tools
+          path: flatpak-builder-tools
+
+      - name: Generate cache for npm
+        run: |
+          npm install --lockfile-version 2 --package-lock-only
+          pip install ./flatpak-builder-tools/node
+          flatpak-node-generator -o npm-generated-sources.json npm package-lock.json
+          mkdir -p npm
+          cp npm-generated-sources.json build/npm-generated-sources.json
+          mv npm-generated-sources.json npm/npm-generated-sources.json
+          mv package-lock.json npm/package-lock.json
+
+      - name: Checkout Flathub Shared Modules
+        uses: actions/checkout@v3
+        with:
+          repository: flathub/shared-modules
+          path: build/shared-modules
+
+      - name: External Data Checker
+        run: |
+          flatpak run org.flathub.flatpak-external-data-checker build/dev.lizardbyte.sunshine.yml
+
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
-            --stop-at=cuda build-sunshine dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c '
+            flatpak run org.flatpak.Builder --user --repo=local-repo --install-deps-from=flathub --stop-at=cuda \
+            --force-clean --arch=${{ matrix.arch }} --default-branch=master build-sunshine dev.lizardbyte.sunshine.yml
+          '
+          # Make a copy of flatpak-builder cache before adding the CUDA module.
           cp -r .flatpak-builder copy-of-flatpak-builder
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
-            build-sunshine dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c '
+            flatpak run org.flatpak.Builder --user --repo=local-repo --install-deps-from=flathub \
+            --force-clean --arch=${{ matrix.arch }} --default-branch=master build-sunshine dev.lizardbyte.sunshine.yml
+          '
           rm -rf .flatpak-builder
           mv copy-of-flatpak-builder .flatpak-builder
-          sudo su $(whoami) -c 'flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
-            ../artifacts/sunshine_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine'
-          sudo su $(whoami) -c 'flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
-            ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug'
+
+      - name: Bundle Flatpak
+        run: |
+          flatpak repo --branches build/local-repo
+          flatpak build-bundle build/local-repo --arch=${{ matrix.arch }} artifacts/sunshine_${{ matrix.arch }}.flatpak \
+            dev.lizardbyte.sunshine master
+          flatpak build-bundle --runtime build/local-repo --arch=${{ matrix.arch }} \
+            artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug master
+
+      - name: Upload npm Sources Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: sunshine-linux-flatpak-npm-sources
+          path: npm/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
