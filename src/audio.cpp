@@ -153,14 +153,16 @@ namespace audio {
     }
 
     // Order of priority:
-    // 1. Config
-    // 2. Virtual if available
+    // 1. Virtual sink
+    // 2. Audio sink
     // 3. Host
     std::string *sink = &ref->sink.host;
     if (!config::audio.sink.empty()) {
       sink = &config::audio.sink;
     }
-    else if (ref->sink.null) {
+
+    // Prefer the virtual sink if host playback is disabled or there's no other sink
+    if (ref->sink.null && (!config.flags[config_t::HOST_AUDIO] || sink->empty())) {
       auto &null = *ref->sink.null;
       switch (stream->channelCount) {
         case 2:
