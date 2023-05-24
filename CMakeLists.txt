@@ -699,24 +699,26 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Adding tools
     install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
-    install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
 
     # Mandatory tools
     install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
+    install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
+
+    # Mandatory scripts
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
+            DESTINATION "scripts"
+            COMPONENT assets)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
+            DESTINATION "scripts"
+            COMPONENT assets)
 
     # scripts
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
             DESTINATION "scripts"
             COMPONENT firewall)
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
-            DESTINATION "scripts"
-            COMPONENT service)
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vigembus/"
             DESTINATION "scripts"
             COMPONENT vigembus)
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
-            DESTINATION "scripts"
-            COMPONENT assets)
 
     # Sunshine assets
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
@@ -797,52 +799,36 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Setting components groups and dependencies
     # sunshine binary
     set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
-    set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "${CMAKE_PROJECT_NAME} main application.")
-    set(CPACK_COMPONENT_APPLICATION_GROUP "core")
+    set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "${CMAKE_PROJECT_NAME} main application and required components.")
+    set(CPACK_COMPONENT_APPLICATION_GROUP "Core")
     set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
     set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
     # assets
-    set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "assets")
-    set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Shaders, default box art, and web ui.")
-    set(CPACK_COMPONENT_ASSETS_GROUP "core")
+    set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Required Assets")
+    set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Shaders, default box art, and web UI.")
+    set(CPACK_COMPONENT_ASSETS_GROUP "Core")
     set(CPACK_COMPONENT_ASSETS_REQUIRED true)
 
     # audio tool
     set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info")
     set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
-    set(CPACK_COMPONENT_AUDIO_GROUP "tools")
+    set(CPACK_COMPONENT_AUDIO_GROUP "Tools")
 
     # display tool
     set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
     set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
-    set(CPACK_COMPONENT_DXGI_GROUP "tools")
-
-    # service
-    set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc")
-    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "Installs sunshine as a service as SYSTEM, \
-      so that it can allow usage before logon and other benefits.")
-    set(CPACK_COMPONENT_SUNSHINESVC_GROUP "tools")
-    # This is required because we've changed the ACL for config to require admin to protect against EoP exploits.
-    set(CPACK_COMPONENT_SUNSHINESVC_REQUIRED true)
-
-    # service scripts
-    set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
-    set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts for installing and enabling the service.")
-    set(CPACK_COMPONENT_SERVICE_GROUP "scripts")
-    set(CPACK_COMPONENT_SERVICE_DEPENDS sunshinesvc)
-    # This is required because we've changed the ACL for config to require admin to protect against EoP exploits.
-    set(CPACK_COMPONENT_SERVICE_REQUIRED true)
+    set(CPACK_COMPONENT_DXGI_GROUP "Tools")
 
     # firewall scripts
-    set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
+    set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "Add Firewall Exclusions")
     set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
-    set(CPACK_COMPONENT_FIREWALL_GROUP "scripts")
+    set(CPACK_COMPONENT_FIREWALL_GROUP "Scripts")
 
     # vigembus scripts
-    set(CPACK_COMPONENT_VIGEMBUS_DISPLAY_NAME "vigembus-scripts")
+    set(CPACK_COMPONENT_VIGEMBUS_DISPLAY_NAME "Virtual Gamepad Support")
     set(CPACK_COMPONENT_VIGEMBUS_DESCRIPTION "Scripts to install and uninstall ViGEmBus for virtual gamepad support.")
-    set(CPACK_COMPONENT_VIGEMBUS_GROUP "scripts")
+    set(CPACK_COMPONENT_VIGEMBUS_GROUP "Scripts")
 endif()
 if(APPLE)
     # TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
