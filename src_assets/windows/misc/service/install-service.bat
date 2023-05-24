@@ -21,7 +21,7 @@ if %ERRORLEVEL%==0 (
 )
 
 rem Run the sc command to create/reconfigure the service
-sc %SC_CMD% %SERVICE_NAME% binPath= %SERVICE_BIN% start= %SERVICE_START_TYPE%
+sc %SC_CMD% %SERVICE_NAME% binPath= %SERVICE_BIN% start= %SERVICE_START_TYPE% DisplayName= "Sunshine Service"
 
 rem Set the description of the service
 sc description %SERVICE_NAME% "Sunshine is a self-hosted game stream host for Moonlight."
