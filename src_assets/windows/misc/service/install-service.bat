@@ -5,7 +5,9 @@ for %%I in ("%~dp0\..") do set "ROOT_DIR=%%~fI"
 
 set SERVICE_NAME=sunshinesvc
 set SERVICE_BIN="%ROOT_DIR%\tools\sunshinesvc.exe"
-set SERVICE_START_TYPE=auto
+
+rem Set service to demand start. It will be changed to auto later if the user selected that option.
+set SERVICE_START_TYPE=demand
 
 rem Check if sunshinesvc already exists
 sc qc %SERVICE_NAME% > nul 2>&1

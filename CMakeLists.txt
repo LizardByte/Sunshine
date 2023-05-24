@@ -712,6 +712,11 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
             DESTINATION "scripts"
             COMPONENT assets)
 
+    # Configurable options for the service
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/autostart/"
+            DESTINATION "scripts"
+            COMPONENT autostart)
+
     # scripts
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
             DESTINATION "scripts"
@@ -747,6 +752,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-vigembus.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\autostart-service.bat\\\"'
         NoController:
         ")
 
@@ -803,6 +809,11 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_COMPONENT_APPLICATION_GROUP "Core")
     set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
     set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
+
+    # service auto-start script
+    set(CPACK_COMPONENT_AUTOSTART_DISPLAY_NAME "Launch on Startup")
+    set(CPACK_COMPONENT_AUTOSTART_DESCRIPTION "If enabled, launches Sunshine automatically on system startup.")
+    set(CPACK_COMPONENT_AUTOSTART_GROUP "Core")
 
     # assets
     set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Required Assets")
