@@ -438,6 +438,27 @@
           This configurable option supports decimals
         </div>
       </div>
+      <!-- Always send scancodes -->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="always_send_scancodes" class="form-label"
+          >Always Send Scancodes</label
+        >
+        <select
+          id="always_send_scancodes"
+          class="form-select"
+          v-model="config.always_send_scancodes"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Sending scancodes enhances compatibility with games and apps
+          but may result in incorrect keyboard input from certain clients
+          that aren't using a US English keyboard layout.<br />
+          Enable if keyboard input is not working at all in certain applications.<br />
+          Disable if keys on the client are generating the wrong input on the host.
+        </div>
+      </div>
     </div>
     <!--Files Tab-->
     <div v-if="currentTab === 'av'" class="config-page">
@@ -997,6 +1018,7 @@
 <script>
   // create dictionary for defaultConfig
   const defaultConfig = {
+    "always_send_scancodes": "enabled",
     "amd_coder": "auto",
     "amd_preanalysis": "disabled",
     "amd_quality": "balanced",

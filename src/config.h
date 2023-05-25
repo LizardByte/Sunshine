@@ -109,6 +109,8 @@ namespace config {
     bool keyboard;
     bool mouse;
     bool controller;
+
+    bool always_send_scancodes;
   };
 
   namespace flag {
