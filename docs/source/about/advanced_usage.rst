@@ -156,14 +156,12 @@ back_button_timeout
 ^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   If, after the timeout, the back/select button is still pressed down, Home/Guide button press is emulated.
-
-   On Nvidia Shield, the home and power button are not passed to Moonlight.
+   If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.
 
    .. Tip:: If back_button_timeout < 0, then the Home/Guide button will not be emulated.
 
 **Default**
-   ``2000``
+   ``-1``
 
 **Example**
    .. code-block:: text

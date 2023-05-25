@@ -429,7 +429,7 @@ namespace config {
       { 0x11, 0xA2 },
       { 0x12, 0xA4 },
     },
-    2s,  // back_button_timeout
+    -1ms,  // back_button_timeout
     500ms,  // key_repeat_delay
     std::chrono::duration<double> { 1 / 24.9 },  // key_repeat_period
 
