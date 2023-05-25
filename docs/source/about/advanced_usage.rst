@@ -200,6 +200,27 @@ key_repeat_frequency
 
       key_repeat_frequency = 24.9
 
+always_send_scancodes
+^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard input
+   from certain clients that aren't using a US English keyboard layout.
+
+   Enable if keyboard input is not working at all in certain applications.
+
+   Disable if keys on the client are generating the wrong input on the host.
+
+   .. Caution:: Applies to Windows only.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      always_send_scancodes = enabled
+
 keybindings
 ^^^^^^^^^^^
 

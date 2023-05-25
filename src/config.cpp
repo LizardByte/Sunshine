@@ -441,6 +441,7 @@ namespace config {
     true,  // keyboard enabled
     true,  // mouse enabled
     true,  // controller enabled
+    true,  // always send scancodes
   };
 
   sunshine_t sunshine {
@@ -1038,6 +1039,8 @@ namespace config {
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);
     bool_f(vars, "controller", input.controller);
+
+    bool_f(vars, "always_send_scancodes", input.always_send_scancodes);
 
     int port = sunshine.port;
     int_f(vars, "port"s, port);

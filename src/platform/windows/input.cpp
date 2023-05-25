@@ -350,7 +350,9 @@ namespace platf {
     auto &ki = i.ki;
 
     // If the client did not normalize this VK code to a US English layout, we can't accurately convert it to a scancode.
-    if (!(flags & SS_KBE_FLAG_NON_NORMALIZED) && modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE && raw->keyboard_layout != NULL) {
+    bool send_scancode = !(flags & SS_KBE_FLAG_NON_NORMALIZED) || config::input.always_send_scancodes;
+
+    if (send_scancode && modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE && raw->keyboard_layout != NULL) {
       // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
       ki.wScan = MapVirtualKeyEx(modcode, MAPVK_VK_TO_VSC, raw->keyboard_layout);
     }
