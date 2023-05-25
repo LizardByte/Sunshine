@@ -334,23 +334,21 @@
       </div>
     </div>
     <div v-if="currentTab === 'input'" class="config-page">
-      <!--Back Button Timeout-->
+      <!--Home/Guide Button Emulation Timeout-->
       <div class="mb-3">
         <label for="back_button_timeout" class="form-label"
-          >Back Button Timeout</label
+          >Home/Guide Button Emulation Timeout</label
         >
         <input
           type="text"
           class="form-control"
           id="back_button_timeout"
-          placeholder="2000"
+          placeholder="-1"
           v-model="config.back_button_timeout"
         />
         <div class="form-text">
-          The back/select button on the controller.<br />
-          On the Shield, the home and power button are not passed to  Moonlight.<br />
-          If, after the timeout, the back button is still pressed down, Home/Guide button press is emulated.<br />
-          If back_button_timeout &lt; 0, then the Home/Guide button will not be emulated<br />
+          If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.<br />
+          If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide button.<br />
         </div>
       </div>
       <!--Enable Mouse Input-->
