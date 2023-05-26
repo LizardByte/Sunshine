@@ -803,6 +803,8 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     set(CPACK_NSIS_MANIFEST_DPI_AWARE true)
 
     # Setting components groups and dependencies
+    set(CPACK_COMPONENT_GROUP_CORE_EXPANDED true)
+
     # sunshine binary
     set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
     set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "${CMAKE_PROJECT_NAME} main application and required components.")
