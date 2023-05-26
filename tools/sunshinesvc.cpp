@@ -1,6 +1,6 @@
 /**
  * @file tools/sunshinesvc.cpp
- * @brief todo
+ * @brief Handles launching Sunshine.exe into user sessions as SYSTEM
  */
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -18,7 +18,7 @@ SERVICE_STATUS service_status;
 HANDLE stop_event;
 HANDLE session_change_event;
 
-#define SERVICE_NAME "SunshineSvc"
+#define SERVICE_NAME "SunshineService"
 
 DWORD WINAPI
 HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) {
