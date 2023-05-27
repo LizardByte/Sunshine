@@ -179,17 +179,12 @@ namespace audio {
 
     // Only the first to start a session may change the default sink
     if (!ref->sink_flag->exchange(true, std::memory_order_acquire)) {
-      ref->restore_sink = !config.flags[config_t::HOST_AUDIO];
-
-      // If the sink is empty (Host has no sink!), definately switch to the virtual.
-      if (ref->sink.host.empty()) {
+      // If the selected sink is different than the current one, change sinks.
+      ref->restore_sink = ref->sink.host != *sink;
+      if (ref->restore_sink) {
         if (control->set_sink(*sink)) {
           return;
         }
-      }
-      // If the client requests audio on the host, don't change the default sink
-      else if (!config.flags[config_t::HOST_AUDIO] && control->set_sink(*sink)) {
-        return;
       }
     }
 
@@ -294,7 +289,8 @@ namespace audio {
       return;
     }
 
-    const std::string &sink = config::audio.sink.empty() ? ctx.sink.host : config::audio.sink;
+    // Change back to the host sink, unless there was none
+    const std::string &sink = ctx.sink.host.empty() ? config::audio.sink : ctx.sink.host;
     if (!sink.empty()) {
       // Best effort, it's allowed to fail
       ctx.control->set_sink(sink);
