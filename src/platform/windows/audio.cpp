@@ -863,6 +863,66 @@ namespace platf::audio {
     }
 
     /**
+     * @brief Resets the default audio device from Steam Streaming Speakers.
+     */
+    void
+    reset_default_device() {
+      auto steam_device_id = find_device_id_by_name("Steam Streaming Speakers"s);
+      if (!steam_device_id) {
+        return;
+      }
+
+      {
+        // Get the current default audio device (if present)
+        auto current_default_dev = default_device(device_enum);
+        if (!current_default_dev) {
+          return;
+        }
+
+        audio::wstring_t current_default_id;
+        current_default_dev->GetId(&current_default_id);
+
+        // If Steam Streaming Speakers are already not default, we're done.
+        if (*steam_device_id != current_default_id.get()) {
+          return;
+        }
+      }
+
+      // Disable the Steam Streaming Speakers temporarily to allow the OS to pick a new default.
+      auto hr = policy->SetEndpointVisibility(steam_device_id->c_str(), FALSE);
+      if (FAILED(hr)) {
+        BOOST_LOG(warning) << "Failed to disable Steam audio device: "sv << util::hex(hr).to_string_view();
+        return;
+      }
+
+      // Get the newly selected default audio device
+      auto new_default_dev = default_device(device_enum);
+
+      // Enable the Steam Streaming Speakers again
+      hr = policy->SetEndpointVisibility(steam_device_id->c_str(), TRUE);
+      if (FAILED(hr)) {
+        BOOST_LOG(warning) << "Failed to enable Steam audio device: "sv << util::hex(hr).to_string_view();
+        return;
+      }
+
+      // If there's now no audio device, the Steam Streaming Speakers were the only device available.
+      // There's no other device to set as the default, so just return.
+      if (!new_default_dev) {
+        return;
+      }
+
+      audio::wstring_t new_default_id;
+      new_default_dev->GetId(&new_default_id);
+
+      // Set the new default audio device
+      for (int x = 0; x < (int) ERole_enum_count; ++x) {
+        policy->SetDefaultEndpoint(new_default_id.get(), (ERole) x);
+      }
+
+      BOOST_LOG(info) << "Successfully reset default audio device"sv;
+    }
+
+    /**
      * @brief Installs the Steam Streaming Speakers driver, if present.
      * @return `true` if installation was successful.
      */
@@ -962,13 +1022,6 @@ namespace platf::audio {
         return -1;
       }
 
-      // Install Steam Streaming Speakers if needed. We do this during init() to ensure
-      // the sink information returned includes the new Steam Streaming Speakers device.
-      if (config::audio.install_steam_drivers && !find_device_id_by_name("Steam Streaming Speakers"s)) {
-        // This is best effort. Don't fail if it doesn't work.
-        install_steam_audio_drivers();
-      }
-
       return 0;
     }
 
@@ -996,6 +1049,13 @@ namespace platf {
       return nullptr;
     }
 
+    // Install Steam Streaming Speakers if needed. We do this during audio_control() to ensure
+    // the sink information returned includes the new Steam Streaming Speakers device.
+    if (config::audio.install_steam_drivers && !control->find_device_id_by_name("Steam Streaming Speakers"s)) {
+      // This is best effort. Don't fail if it doesn't work.
+      control->install_steam_audio_drivers();
+    }
+
     return control;
   }
 
@@ -1004,6 +1064,17 @@ namespace platf {
     if (dxgi::init()) {
       return nullptr;
     }
-    return std::make_unique<platf::audio::co_init_t>();
+
+    // Initialize COM
+    auto co_init = std::make_unique<platf::audio::co_init_t>();
+
+    // If Steam Streaming Speakers are currently the default audio device,
+    // change the default to something else (if another device is available).
+    audio::audio_control_t audio_ctrl;
+    if (audio_ctrl.init() == 0) {
+      audio_ctrl.reset_default_device();
+    }
+
+    return co_init;
   }
 }  // namespace platf
