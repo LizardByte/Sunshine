@@ -1931,6 +1931,10 @@ namespace video {
       encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
       encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
     }
+    else {
+      // Clear all cap bits for HEVC if we didn't probe it
+      encoder.hevc.capabilities.reset();
+    }
 
     std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
       { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } },
