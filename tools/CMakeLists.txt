@@ -36,4 +36,3 @@ target_link_libraries(ddprobe
         d3d11
         ${PLATFORM_LIBRARIES})
 target_compile_options(ddprobe PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
-

@@ -50,3 +50,7 @@
 	path = third-party/tray
 	url = https://github.com/dmikushin/tray
 	branch = master
+[submodule "lib/googletest"]
+	path = lib/googletest
+	url = https://github.com/google/googletest/
+	branch = main

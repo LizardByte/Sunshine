@@ -15,7 +15,7 @@
 #include "src/utility.h"
 
 extern "C" {
-#include <moonlight-common-c/src/Limelight.h>
+#include <third-party/moonlight-common-c/src/Limelight.h>
 }
 
 struct sockaddr;

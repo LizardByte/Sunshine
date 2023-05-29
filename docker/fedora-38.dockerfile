@@ -123,7 +123,7 @@ FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
-COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
+COPY --link --from=sunshine-build /build/sunshine/build/src/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
 FROM sunshine-base as sunshine
 

@@ -275,6 +275,7 @@ jobs:
         run: |
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
 
+          # todo - remove this if section... 18.04 is no longer supported by GitHub actions
           if [[ ${{ matrix.dist }} == "18.04" ]]; then
             # Ubuntu 18.04 packages
             sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
@@ -392,8 +393,9 @@ jobs:
         working-directory: build
         run: |
           cpack -G DEB
-          mv ./cpack_artifacts/Sunshine.deb ../artifacts/sunshine-${{ matrix.dist }}.deb
+          mv ./src/cpack_artifacts/Sunshine.deb ../artifacts/sunshine-${{ matrix.dist }}.deb
 
+          # todo - remove this if section
           if [[ ${{ matrix.dist }} == "20.04" ]]; then
             cpack -G RPM
             mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
@@ -416,10 +418,6 @@ jobs:
           cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
           chmod +x ./AppDir/AppRun
 
-          # variables
-          DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
-          ICON_FILE="${ICON_FILE:-sunshine.png}"
-
           # AppImage
           # https://docs.appimage.org/packaging-guide/index.html
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -427,9 +425,9 @@ jobs:
 
           ./linuxdeploy-x86_64.AppImage \
             --appdir ./AppDir \
-            --executable ./sunshine \
-            --icon-file "../$ICON_FILE" \
-            --desktop-file "./$DESKTOP_FILE" \
+            --executable ./src/sunshine \
+            --icon-file "../sunshine.png" \
+            --desktop-file "sunshine.desktop" \
             --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
             --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
             --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
@@ -514,10 +512,10 @@ jobs:
 
           # package
           cpack -G DragNDrop
-          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine.dmg
+          mv ./src/cpack_artifacts/Sunshine.dmg ../artifacts/sunshine.dmg
 
           # cpack -G Bundle
-          # mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-bundle.dmg
+          # mv ./src/cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-bundle.dmg
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -798,8 +796,8 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
+          mv ./src/cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv ./src/cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
 
       - name: Package Windows Debug Info
         working-directory: build
