@@ -280,103 +280,103 @@ extern "C" {
  */
 typedef enum _NVFBCSTATUS {
   /*!
-     * This indicates that the API call returned with no errors.
-     */
+   * This indicates that the API call returned with no errors.
+   */
   NVFBC_SUCCESS = 0,
   /*!
-     * This indicates that the API version between the client and the library
-     * is not compatible.
-     */
+   * This indicates that the API version between the client and the library
+   * is not compatible.
+   */
   NVFBC_ERR_API_VERSION = 1,
   /*!
-     * An internal error occurred.
-     */
+   * An internal error occurred.
+   */
   NVFBC_ERR_INTERNAL = 2,
   /*!
-     * This indicates that one or more of the parameter passed to the API call
-     * is invalid.
-     */
+   * This indicates that one or more of the parameter passed to the API call
+   * is invalid.
+   */
   NVFBC_ERR_INVALID_PARAM = 3,
   /*!
-     * This indicates that one or more of the pointers passed to the API call
-     * is invalid.
-     */
+   * This indicates that one or more of the pointers passed to the API call
+   * is invalid.
+   */
   NVFBC_ERR_INVALID_PTR = 4,
   /*!
-     * This indicates that the handle passed to the API call to identify the
-     * client is invalid.
-     */
+   * This indicates that the handle passed to the API call to identify the
+   * client is invalid.
+   */
   NVFBC_ERR_INVALID_HANDLE = 5,
   /*!
-     * This indicates that the maximum number of threaded clients of the same
-     * process has been reached.  The limit is 10 threads per process.
-     * There is no limit on the number of process.
-     */
+   * This indicates that the maximum number of threaded clients of the same
+   * process has been reached.  The limit is 10 threads per process.
+   * There is no limit on the number of process.
+   */
   NVFBC_ERR_MAX_CLIENTS = 6,
   /*!
-     * This indicates that the requested feature is not currently supported
-     * by the library.
-     */
+   * This indicates that the requested feature is not currently supported
+   * by the library.
+   */
   NVFBC_ERR_UNSUPPORTED = 7,
   /*!
-     * This indicates that the API call failed because it was unable to allocate
-     * enough memory to perform the requested operation.
-     */
+   * This indicates that the API call failed because it was unable to allocate
+   * enough memory to perform the requested operation.
+   */
   NVFBC_ERR_OUT_OF_MEMORY = 8,
   /*!
-     * This indicates that the API call was not expected.  This happens when
-     * API calls are performed in a wrong order, such as trying to capture
-     * a frame prior to creating a new capture session; or trying to set up
-     * a capture to video memory although a capture session to system memory
-     * was created.
-     */
+   * This indicates that the API call was not expected.  This happens when
+   * API calls are performed in a wrong order, such as trying to capture
+   * a frame prior to creating a new capture session; or trying to set up
+   * a capture to video memory although a capture session to system memory
+   * was created.
+   */
   NVFBC_ERR_BAD_REQUEST = 9,
   /*!
-     * This indicates an X error, most likely meaning that the X server has
-     * been terminated.  When this error is returned, the only resort is to
-     * create another FBC handle using NvFBCCreateHandle().
-     *
-     * The previous handle should still be freed with NvFBCDestroyHandle(), but
-     * it might leak resources, in particular X, GLX, and GL resources since
-     * it is no longer possible to communicate with an X server to free them
-     * through the driver.
-     *
-     * The best course of action to eliminate this potential leak is to close
-     * the OpenGL driver, close the forked process running the capture, or
-     * restart the application.
-     */
+   * This indicates an X error, most likely meaning that the X server has
+   * been terminated.  When this error is returned, the only resort is to
+   * create another FBC handle using NvFBCCreateHandle().
+   *
+   * The previous handle should still be freed with NvFBCDestroyHandle(), but
+   * it might leak resources, in particular X, GLX, and GL resources since
+   * it is no longer possible to communicate with an X server to free them
+   * through the driver.
+   *
+   * The best course of action to eliminate this potential leak is to close
+   * the OpenGL driver, close the forked process running the capture, or
+   * restart the application.
+   */
   NVFBC_ERR_X = 10,
   /*!
-     * This indicates a GLX error.
-     */
+   * This indicates a GLX error.
+   */
   NVFBC_ERR_GLX = 11,
   /*!
-     * This indicates an OpenGL error.
-     */
+   * This indicates an OpenGL error.
+   */
   NVFBC_ERR_GL = 12,
   /*!
-     * This indicates a CUDA error.
-     */
+   * This indicates a CUDA error.
+   */
   NVFBC_ERR_CUDA = 13,
   /*!
-     * This indicates a HW encoder error.
-     */
+   * This indicates a HW encoder error.
+   */
   NVFBC_ERR_ENCODER = 14,
   /*!
-     * This indicates an NvFBC context error.
-     */
+   * This indicates an NvFBC context error.
+   */
   NVFBC_ERR_CONTEXT = 15,
   /*!
-     * This indicates that the application must recreate the capture session.
-     *
-     * This error can be returned if a modeset event occurred while capturing
-     * frames, and NVFBC_CREATE_HANDLE_PARAMS::bDisableAutoModesetRecovery
-     * was set to NVFBC_TRUE.
-     */
+   * This indicates that the application must recreate the capture session.
+   *
+   * This error can be returned if a modeset event occurred while capturing
+   * frames, and NVFBC_CREATE_HANDLE_PARAMS::bDisableAutoModesetRecovery
+   * was set to NVFBC_TRUE.
+   */
   NVFBC_ERR_MUST_RECREATE = 16,
   /*!
-     * This indicates a Vulkan error.
-     */
+   * This indicates a Vulkan error.
+   */
   NVFBC_ERR_VULKAN = 17,
 } NVFBCSTATUS;
 
@@ -385,12 +385,12 @@ typedef enum _NVFBCSTATUS {
  */
 typedef enum _NVFBC_BOOL {
   /*!
-     * False value.
-     */
+   * False value.
+   */
   NVFBC_FALSE = 0,
   /*!
-     * True value.
-     */
+   * True value.
+   */
   NVFBC_TRUE,
 } NVFBC_BOOL;
 
@@ -404,22 +404,22 @@ typedef enum _NVFBC_BOOL {
  */
 typedef enum _NVFBC_CAPTURE_TYPE {
   /*!
-     * Capture frames to a buffer in system memory.
-     */
+   * Capture frames to a buffer in system memory.
+   */
   NVFBC_CAPTURE_TO_SYS = 0,
   /*!
-     * Capture frames to a CUDA device in video memory.
-     *
-     * Specifying this will dlopen() libcuda.so.1 and fail if not available.
-     */
+   * Capture frames to a CUDA device in video memory.
+   *
+   * Specifying this will dlopen() libcuda.so.1 and fail if not available.
+   */
   NVFBC_CAPTURE_SHARED_CUDA,
   /*!
-     * Retired. Do not use.
-     */
+   * Retired. Do not use.
+   */
   /* NVFBC_CAPTURE_TO_HW_ENCODER, */
   /*!
-     * Capture frames to an OpenGL buffer in video memory.
-     */
+   * Capture frames to an OpenGL buffer in video memory.
+   */
   NVFBC_CAPTURE_TO_GL = 3,
 } NVFBC_CAPTURE_TYPE;
 
@@ -438,29 +438,29 @@ typedef enum _NVFBC_CAPTURE_TYPE {
  */
 typedef enum {
   /*!
-     * By default, NvFBC tries to track a connected primary output.  If none is
-     * found, then it tries to track the first connected output.  If none is
-     * found then it tracks the entire X screen.
-     *
-     * If the XRandR extension is not available, this option has the same effect
-     * as ::NVFBC_TRACKING_SCREEN.
-     *
-     * This default behavior might be subject to changes in the future.
-     */
+   * By default, NvFBC tries to track a connected primary output.  If none is
+   * found, then it tries to track the first connected output.  If none is
+   * found then it tracks the entire X screen.
+   *
+   * If the XRandR extension is not available, this option has the same effect
+   * as ::NVFBC_TRACKING_SCREEN.
+   *
+   * This default behavior might be subject to changes in the future.
+   */
   NVFBC_TRACKING_DEFAULT = 0,
   /*!
-     * Track an RandR output specified by its ID in the appropriate field.
-     *
-     * The list of connected outputs can be queried via NvFBCGetStatus().
-     * This list can also be obtained using e.g., xrandr(1).
-     *
-     * If the XRandR extension is not available, setting this option returns an
-     * error.
-     */
+   * Track an RandR output specified by its ID in the appropriate field.
+   *
+   * The list of connected outputs can be queried via NvFBCGetStatus().
+   * This list can also be obtained using e.g., xrandr(1).
+   *
+   * If the XRandR extension is not available, setting this option returns an
+   * error.
+   */
   NVFBC_TRACKING_OUTPUT,
   /*!
-     * Track the entire X screen.
-     */
+   * Track the entire X screen.
+   */
   NVFBC_TRACKING_SCREEN,
 } NVFBC_TRACKING_TYPE;
 
@@ -469,31 +469,31 @@ typedef enum {
  */
 typedef enum _NVFBC_BUFFER_FORMAT {
   /*!
-     * Data will be converted to ARGB8888 byte-order format. 32 bpp.
-     */
+   * Data will be converted to ARGB8888 byte-order format. 32 bpp.
+   */
   NVFBC_BUFFER_FORMAT_ARGB = 0,
   /*!
-     * Data will be converted to RGB888 byte-order format. 24 bpp.
-     */
+   * Data will be converted to RGB888 byte-order format. 24 bpp.
+   */
   NVFBC_BUFFER_FORMAT_RGB,
   /*!
-     * Data will be converted to NV12 format using HDTV weights
-     * according to ITU-R BT.709.  12 bpp.
-     */
+   * Data will be converted to NV12 format using HDTV weights
+   * according to ITU-R BT.709.  12 bpp.
+   */
   NVFBC_BUFFER_FORMAT_NV12,
   /*!
-     * Data will be converted to YUV 444 planar format using HDTV weights
-     * according to ITU-R BT.709.  24 bpp
-     */
+   * Data will be converted to YUV 444 planar format using HDTV weights
+   * according to ITU-R BT.709.  24 bpp
+   */
   NVFBC_BUFFER_FORMAT_YUV444P,
   /*!
-     * Data will be converted to RGBA8888 byte-order format. 32 bpp.
-     */
+   * Data will be converted to RGBA8888 byte-order format. 32 bpp.
+   */
   NVFBC_BUFFER_FORMAT_RGBA,
   /*!
-     * Native format. No pixel conversion needed.
-     * BGRA8888 byte-order format. 32 bpp.
-     */
+   * Native format. No pixel conversion needed.
+   * BGRA8888 byte-order format. 32 bpp.
+   */
   NVFBC_BUFFER_FORMAT_BGRA,
 } NVFBC_BUFFER_FORMAT;
 
@@ -516,20 +516,20 @@ typedef uint64_t NVFBC_SESSION_HANDLE;
  */
 typedef struct _NVFBC_BOX {
   /*!
-     * [in] X offset of the box.
-     */
+   * [in] X offset of the box.
+   */
   uint32_t x;
   /*!
-     * [in] Y offset of the box.
-     */
+   * [in] Y offset of the box.
+   */
   uint32_t y;
   /*!
-     * [in] Width of the box.
-     */
+   * [in] Width of the box.
+   */
   uint32_t w;
   /*!
-     * [in] Height of the box.
-     */
+   * [in] Height of the box.
+   */
   uint32_t h;
 } NVFBC_BOX;
 
@@ -538,12 +538,12 @@ typedef struct _NVFBC_BOX {
  */
 typedef struct _NVFBC_SIZE {
   /*!
-     * [in] Width.
-     */
+   * [in] Width.
+   */
   uint32_t w;
   /*!
-     * [in] Height.
-     */
+   * [in] Height.
+   */
   uint32_t h;
 } NVFBC_SIZE;
 
@@ -552,84 +552,84 @@ typedef struct _NVFBC_SIZE {
  */
 typedef struct _NVFBC_FRAME_GRAB_INFO {
   /*!
-     * [out] Width of the captured frame.
-     */
+   * [out] Width of the captured frame.
+   */
   uint32_t dwWidth;
   /*!
-     * [out] Height of the captured frame.
-     */
+   * [out] Height of the captured frame.
+   */
   uint32_t dwHeight;
   /*!
-     * [out] Size of the frame in bytes.
-     */
+   * [out] Size of the frame in bytes.
+   */
   uint32_t dwByteSize;
   /*!
-     * [out] Incremental ID of the current frame.
-     *
-     * This can be used to identify a frame.
-     */
+   * [out] Incremental ID of the current frame.
+   *
+   * This can be used to identify a frame.
+   */
   uint32_t dwCurrentFrame;
   /*!
-     * [out] Whether the captured frame is a new frame.
-     *
-     * When using non blocking calls it is possible to capture a frame
-     * that was already captured before if the display server did not
-     * render a new frame in the meantime.  In that case, this flag
-     * will be set to NVFBC_FALSE.
-     *
-     * When using blocking calls each captured frame will have
-     * this flag set to NVFBC_TRUE since the blocking mechanism waits for
-     * the display server to render a new frame.
-     *
-     * Note that this flag does not guarantee that the content of
-     * the frame will be different compared to the previous captured frame.
-     *
-     * In particular, some compositing managers report the entire
-     * framebuffer as damaged when an application refreshes its content.
-     *
-     * Consider a single X screen spanned across physical displays A and B
-     * and an NvFBC application tracking display A.  Depending on the
-     * compositing manager, it is possible that an application refreshing
-     * itself on display B will trigger a frame capture on display A.
-     *
-     * Workarounds include:
-     * - Using separate X screens
-     * - Disabling the composite extension
-     * - Using a compositing manager that properly reports what regions
-     *   are damaged
-     * - Using NvFBC's diffmaps to find out if the frame changed
-     */
+   * [out] Whether the captured frame is a new frame.
+   *
+   * When using non blocking calls it is possible to capture a frame
+   * that was already captured before if the display server did not
+   * render a new frame in the meantime.  In that case, this flag
+   * will be set to NVFBC_FALSE.
+   *
+   * When using blocking calls each captured frame will have
+   * this flag set to NVFBC_TRUE since the blocking mechanism waits for
+   * the display server to render a new frame.
+   *
+   * Note that this flag does not guarantee that the content of
+   * the frame will be different compared to the previous captured frame.
+   *
+   * In particular, some compositing managers report the entire
+   * framebuffer as damaged when an application refreshes its content.
+   *
+   * Consider a single X screen spanned across physical displays A and B
+   * and an NvFBC application tracking display A.  Depending on the
+   * compositing manager, it is possible that an application refreshing
+   * itself on display B will trigger a frame capture on display A.
+   *
+   * Workarounds include:
+   * - Using separate X screens
+   * - Disabling the composite extension
+   * - Using a compositing manager that properly reports what regions
+   *   are damaged
+   * - Using NvFBC's diffmaps to find out if the frame changed
+   */
   NVFBC_BOOL bIsNewFrame;
   /*!
-     * [out] Frame timestamp
-     *
-     * Time in micro seconds when the display server started rendering the
-     * frame.
-     *
-     * This does not account for when the frame was captured.  If capturing an
-     * old frame (e.g., bIsNewFrame is NVFBC_FALSE) the reported timestamp
-     * will reflect the time when the old frame was rendered by the display
-     * server.
-     */
+   * [out] Frame timestamp
+   *
+   * Time in micro seconds when the display server started rendering the
+   * frame.
+   *
+   * This does not account for when the frame was captured.  If capturing an
+   * old frame (e.g., bIsNewFrame is NVFBC_FALSE) the reported timestamp
+   * will reflect the time when the old frame was rendered by the display
+   * server.
+   */
   uint64_t ulTimestampUs;
   /*
-     * [out] Number of frames generated since the last capture.
-     *
-     * This can help applications tell whether they missed frames or there
-     * were no frames generated by the server since the last capture.
-     */
+   * [out] Number of frames generated since the last capture.
+   *
+   * This can help applications tell whether they missed frames or there
+   * were no frames generated by the server since the last capture.
+   */
   uint32_t dwMissedFrames;
   /*
-     * [out] Whether the captured frame required post processing.
-     *
-     * See the 'Post Processing' section.
-     */
+   * [out] Whether the captured frame required post processing.
+   *
+   * See the 'Post Processing' section.
+   */
   NVFBC_BOOL bRequiredPostProcessing;
   /*
-     * [out] Whether this frame was obtained via direct capture.
-     *
-     * See NVFBC_CREATE_CAPTURE_SESSION_PARAMS::bAllowDirectCapture.
-     */
+   * [out] Whether this frame was obtained via direct capture.
+   *
+   * See NVFBC_CREATE_CAPTURE_SESSION_PARAMS::bAllowDirectCapture.
+   */
   NVFBC_BOOL bDirectCapture;
 } NVFBC_FRAME_GRAB_INFO;
 
@@ -638,53 +638,53 @@ typedef struct _NVFBC_FRAME_GRAB_INFO {
  */
 typedef struct _NVFBC_CREATE_HANDLE_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_CREATE_HANDLE_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_CREATE_HANDLE_PARAMS_VER
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Application specific private information passed to the NvFBC
-     * session.
-     */
+   * [in] Application specific private information passed to the NvFBC
+   * session.
+   */
   const void *privateData;
   /*!
-     * [in] Size of the application specific private information passed to the
-     * NvFBC session.
-     */
+   * [in] Size of the application specific private information passed to the
+   * NvFBC session.
+   */
   uint32_t privateDataSize;
   /*!
-     * [in] Whether NvFBC should not create and manage its own graphics context
-     *
-     * NvFBC internally uses OpenGL to perfom graphics operations on the
-     * captured frames.  By default, NvFBC will create and manage (e.g., make
-     * current, detect new threads, etc.) its own OpenGL context.
-     *
-     * If set to NVFBC_TRUE, NvFBC will use the application's context.  It will
-     * be the application's responsibility to make sure that a context is
-     * current on the thread calling into the NvFBC API.
-     */
+   * [in] Whether NvFBC should not create and manage its own graphics context
+   *
+   * NvFBC internally uses OpenGL to perfom graphics operations on the
+   * captured frames.  By default, NvFBC will create and manage (e.g., make
+   * current, detect new threads, etc.) its own OpenGL context.
+   *
+   * If set to NVFBC_TRUE, NvFBC will use the application's context.  It will
+   * be the application's responsibility to make sure that a context is
+   * current on the thread calling into the NvFBC API.
+   */
   NVFBC_BOOL bExternallyManagedContext;
   /*!
-     * [in] GLX context
-     *
-     * GLX context that NvFBC should use internally to create pixmaps and
-     * make them current when creating a new capture session.
-     *
-     * Note: NvFBC expects a context created against a GLX_RGBA_TYPE render
-     * type.
-     */
+   * [in] GLX context
+   *
+   * GLX context that NvFBC should use internally to create pixmaps and
+   * make them current when creating a new capture session.
+   *
+   * Note: NvFBC expects a context created against a GLX_RGBA_TYPE render
+   * type.
+   */
   void *glxCtx;
   /*!
-     * [in] GLX framebuffer configuration
-     *
-     * Framebuffer configuration that was used to create the GLX context, and
-     * that will be used to create pixmaps internally.
-     *
-     * Note: NvFBC expects a configuration having at least the following
-     * attributes:
-     *  GLX_DRAWABLE_TYPE, GLX_PIXMAP_BIT
-     *  GLX_BIND_TO_TEXTURE_RGBA_EXT, 1
-     *  GLX_BIND_TO_TEXTURE_TARGETS_EXT, GLX_TEXTURE_2D_BIT_EXT
-     */
+   * [in] GLX framebuffer configuration
+   *
+   * Framebuffer configuration that was used to create the GLX context, and
+   * that will be used to create pixmaps internally.
+   *
+   * Note: NvFBC expects a configuration having at least the following
+   * attributes:
+   *  GLX_DRAWABLE_TYPE, GLX_PIXMAP_BIT
+   *  GLX_BIND_TO_TEXTURE_RGBA_EXT, 1
+   *  GLX_BIND_TO_TEXTURE_TARGETS_EXT, GLX_TEXTURE_2D_BIT_EXT
+   */
   void *glxFBConfig;
 } NVFBC_CREATE_HANDLE_PARAMS;
 
@@ -698,8 +698,8 @@ typedef struct _NVFBC_CREATE_HANDLE_PARAMS {
  */
 typedef struct _NVFBC_DESTROY_HANDLE_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_DESTROY_HANDLE_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_DESTROY_HANDLE_PARAMS_VER
+   */
   uint32_t dwVersion;
 } NVFBC_DESTROY_HANDLE_PARAMS;
 
@@ -728,19 +728,19 @@ typedef struct _NVFBC_DESTROY_HANDLE_PARAMS {
  */
 typedef struct _NVFBC_OUTPUT {
   /*!
-     * Identifier of the RandR output.
-     */
+   * Identifier of the RandR output.
+   */
   uint32_t dwId;
   /*!
-     * Name of the RandR output, as reported by tools such as xrandr(1).
-     *
-     * Example: "DVI-I-0"
-     */
+   * Name of the RandR output, as reported by tools such as xrandr(1).
+   *
+   * Example: "DVI-I-0"
+   */
   char name[NVFBC_OUTPUT_NAME_LEN];
   /*!
-     * Region of the X screen tracked by the RandR CRTC driving this RandR
-     * output.
-     */
+   * Region of the X screen tracked by the RandR CRTC driving this RandR
+   * output.
+   */
   NVFBC_BOX trackedBox;
 } NVFBC_RANDR_OUTPUT_INFO;
 
@@ -749,64 +749,64 @@ typedef struct _NVFBC_OUTPUT {
  */
 typedef struct _NVFBC_GET_STATUS_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_GET_STATUS_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_GET_STATUS_PARAMS_VER
+   */
   uint32_t dwVersion;
   /*!
-     * [out] Whether or not framebuffer capture is supported by the graphics
-     * driver.
-     */
+   * [out] Whether or not framebuffer capture is supported by the graphics
+   * driver.
+   */
   NVFBC_BOOL bIsCapturePossible;
   /*!
-     * [out] Whether or not there is already a capture session on this system.
-     */
+   * [out] Whether or not there is already a capture session on this system.
+   */
   NVFBC_BOOL bCurrentlyCapturing;
   /*!
-     * [out] Whether or not it is possible to create a capture session on this
-     * system.
-     */
+   * [out] Whether or not it is possible to create a capture session on this
+   * system.
+   */
   NVFBC_BOOL bCanCreateNow;
   /*!
-     * [out] Size of the X screen (framebuffer).
-     */
+   * [out] Size of the X screen (framebuffer).
+   */
   NVFBC_SIZE screenSize;
   /*!
-     * [out] Whether the XRandR extension is available.
-     *
-     * If this extension is not available then it is not possible to have
-     * information about RandR outputs.
-     */
+   * [out] Whether the XRandR extension is available.
+   *
+   * If this extension is not available then it is not possible to have
+   * information about RandR outputs.
+   */
   NVFBC_BOOL bXRandRAvailable;
   /*!
-     * [out] Array of outputs connected to the X screen.
-     *
-     * An application can track a specific output by specifying its ID when
-     * creating a capture session.
-     *
-     * Only if XRandR is available.
-     */
+   * [out] Array of outputs connected to the X screen.
+   *
+   * An application can track a specific output by specifying its ID when
+   * creating a capture session.
+   *
+   * Only if XRandR is available.
+   */
   NVFBC_RANDR_OUTPUT_INFO outputs[NVFBC_OUTPUT_MAX];
   /*!
-     * [out] Number of outputs connected to the X screen.
-     *
-     * This must be used to parse the array of connected outputs.
-     *
-     * Only if XRandR is available.
-     */
+   * [out] Number of outputs connected to the X screen.
+   *
+   * This must be used to parse the array of connected outputs.
+   *
+   * Only if XRandR is available.
+   */
   uint32_t dwOutputNum;
   /*!
-     * [out] Version of the NvFBC library running on this system.
-     */
+   * [out] Version of the NvFBC library running on this system.
+   */
   uint32_t dwNvFBCVersion;
   /*!
-     * [out] Whether the X server is currently in modeset.
-     *
-     * When the X server is in modeset, it must give up all its video
-     * memory allocations. It is not possible to create a capture
-     * session until the modeset is over.
-     *
-     * Note that VT-switches are considered modesets.
-     */
+   * [out] Whether the X server is currently in modeset.
+   *
+   * When the X server is in modeset, it must give up all its video
+   * memory allocations. It is not possible to create a capture
+   * session until the modeset is over.
+   *
+   * Note that VT-switches are considered modesets.
+   */
   NVFBC_BOOL bInModeset;
 } NVFBC_GET_STATUS_PARAMS;
 
@@ -820,160 +820,160 @@ typedef struct _NVFBC_GET_STATUS_PARAMS {
  */
 typedef struct _NVFBC_CREATE_CAPTURE_SESSION_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Desired capture type.
-     *
-     * Note that when specyfing ::NVFBC_CAPTURE_SHARED_CUDA NvFBC will try to
-     * dlopen() the corresponding libraries.  This means that NvFBC can run on
-     * a system without the CUDA library since it does not link against them.
-     */
+   * [in] Desired capture type.
+   *
+   * Note that when specyfing ::NVFBC_CAPTURE_SHARED_CUDA NvFBC will try to
+   * dlopen() the corresponding libraries.  This means that NvFBC can run on
+   * a system without the CUDA library since it does not link against them.
+   */
   NVFBC_CAPTURE_TYPE eCaptureType;
   /*!
-     * [in] What region of the framebuffer should be tracked.
-     */
+   * [in] What region of the framebuffer should be tracked.
+   */
   NVFBC_TRACKING_TYPE eTrackingType;
   /*!
-     * [in] ID of the output to track if eTrackingType is set to
-     * ::NVFBC_TRACKING_OUTPUT.
-     */
+   * [in] ID of the output to track if eTrackingType is set to
+   * ::NVFBC_TRACKING_OUTPUT.
+   */
   uint32_t dwOutputId;
   /*!
-     * [in] Crop the tracked region.
-     *
-     * The coordinates are relative to the tracked region.
-     *
-     * It can be set to 0 to capture the entire tracked region.
-     */
+   * [in] Crop the tracked region.
+   *
+   * The coordinates are relative to the tracked region.
+   *
+   * It can be set to 0 to capture the entire tracked region.
+   */
   NVFBC_BOX captureBox;
   /*!
-     * [in] Desired size of the captured frame.
-     *
-     * This parameter allow to scale the captured frame.
-     *
-     * It can be set to 0 to disable frame resizing.
-     */
+   * [in] Desired size of the captured frame.
+   *
+   * This parameter allow to scale the captured frame.
+   *
+   * It can be set to 0 to disable frame resizing.
+   */
   NVFBC_SIZE frameSize;
   /*!
-     * [in] Whether the mouse cursor should be composited to the frame.
-     *
-     * Disabling the cursor will not generate new frames when only the cursor
-     * is moved.
-     */
+   * [in] Whether the mouse cursor should be composited to the frame.
+   *
+   * Disabling the cursor will not generate new frames when only the cursor
+   * is moved.
+   */
   NVFBC_BOOL bWithCursor;
   /*!
-     * [in] Whether NvFBC should not attempt to recover from modesets.
-     *
-     * NvFBC is able to detect when a modeset event occured and can automatically
-     * re-create a capture session with the same settings as before, then resume
-     * its frame capture session transparently.
-     *
-     * This option allows to disable this behavior.  NVFBC_ERR_MUST_RECREATE
-     * will be returned in that case.
-     *
-     * It can be useful in the cases when an application needs to do some work
-     * between setting up a capture and grabbing the first frame.
-     *
-     * For example: an application using the ToGL interface needs to register
-     * resources with EncodeAPI prior to encoding frames.
-     *
-     * Note that during modeset recovery, NvFBC will try to re-create the
-     * capture session every second until it succeeds.
-     */
+   * [in] Whether NvFBC should not attempt to recover from modesets.
+   *
+   * NvFBC is able to detect when a modeset event occured and can automatically
+   * re-create a capture session with the same settings as before, then resume
+   * its frame capture session transparently.
+   *
+   * This option allows to disable this behavior.  NVFBC_ERR_MUST_RECREATE
+   * will be returned in that case.
+   *
+   * It can be useful in the cases when an application needs to do some work
+   * between setting up a capture and grabbing the first frame.
+   *
+   * For example: an application using the ToGL interface needs to register
+   * resources with EncodeAPI prior to encoding frames.
+   *
+   * Note that during modeset recovery, NvFBC will try to re-create the
+   * capture session every second until it succeeds.
+   */
   NVFBC_BOOL bDisableAutoModesetRecovery;
   /*!
-     * [in] Whether NvFBC should round the requested frameSize.
-     *
-     * When disabled, NvFBC will not attempt to round the requested resolution.
-     *
-     * However, some pixel formats have resolution requirements.  E.g., YUV/NV
-     * formats must have a width being a multiple of 4, and a height being a
-     * multiple of 2.  RGB formats don't have such requirements.
-     *
-     * If the resolution doesn't meet the requirements of the format, then NvFBC
-     * will fail at setup time.
-     *
-     * When enabled, NvFBC will round the requested width to the next multiple
-     * of 4 and the requested height to the next multiple of 2.
-     *
-     * In this case, requesting any resolution will always work with every
-     * format.  However, an NvFBC client must be prepared to handle the case
-     * where the requested resolution is different than the captured resolution.
-     *
-     * NVFBC_FRAME_GRAB_INFO::dwWidth and NVFBC_FRAME_GRAB_INFO::dwHeight should
-     * always be used for getting information about captured frames.
-     */
+   * [in] Whether NvFBC should round the requested frameSize.
+   *
+   * When disabled, NvFBC will not attempt to round the requested resolution.
+   *
+   * However, some pixel formats have resolution requirements.  E.g., YUV/NV
+   * formats must have a width being a multiple of 4, and a height being a
+   * multiple of 2.  RGB formats don't have such requirements.
+   *
+   * If the resolution doesn't meet the requirements of the format, then NvFBC
+   * will fail at setup time.
+   *
+   * When enabled, NvFBC will round the requested width to the next multiple
+   * of 4 and the requested height to the next multiple of 2.
+   *
+   * In this case, requesting any resolution will always work with every
+   * format.  However, an NvFBC client must be prepared to handle the case
+   * where the requested resolution is different than the captured resolution.
+   *
+   * NVFBC_FRAME_GRAB_INFO::dwWidth and NVFBC_FRAME_GRAB_INFO::dwHeight should
+   * always be used for getting information about captured frames.
+   */
   NVFBC_BOOL bRoundFrameSize;
   /*!
-     * [in] Rate in ms at which the display server generates new frames
-     *
-     * This controls the frequency at which the display server will generate
-     * new frames if new content is available.  This effectively controls the
-     * capture rate when using blocking calls.
-     *
-     * Note that lower values will increase the CPU and GPU loads.
-     *
-     * The default value is 16ms (~ 60 Hz).
-     */
+   * [in] Rate in ms at which the display server generates new frames
+   *
+   * This controls the frequency at which the display server will generate
+   * new frames if new content is available.  This effectively controls the
+   * capture rate when using blocking calls.
+   *
+   * Note that lower values will increase the CPU and GPU loads.
+   *
+   * The default value is 16ms (~ 60 Hz).
+   */
   uint32_t dwSamplingRateMs;
   /*!
-     * [in] Enable push model for frame capture
-     *
-     * When set to NVFBC_TRUE, the display server will generate frames whenever
-     * it receives a damage event from applications.
-     *
-     * Setting this to NVFBC_TRUE will ignore ::dwSamplingRateMs.
-     *
-     * Using push model with the NVFBC_*_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
-     * capture flag should guarantee the shortest amount of time between an
-     * application rendering a frame and an NvFBC client capturing it, provided
-     * that the NvFBC client is able to process the frames quickly enough.
-     *
-     * Note that applications running at high frame rates will increase CPU and
-     * GPU loads.
-     */
+   * [in] Enable push model for frame capture
+   *
+   * When set to NVFBC_TRUE, the display server will generate frames whenever
+   * it receives a damage event from applications.
+   *
+   * Setting this to NVFBC_TRUE will ignore ::dwSamplingRateMs.
+   *
+   * Using push model with the NVFBC_*_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
+   * capture flag should guarantee the shortest amount of time between an
+   * application rendering a frame and an NvFBC client capturing it, provided
+   * that the NvFBC client is able to process the frames quickly enough.
+   *
+   * Note that applications running at high frame rates will increase CPU and
+   * GPU loads.
+   */
   NVFBC_BOOL bPushModel;
   /*!
-     * [in] Allow direct capture
-     *
-     * Direct capture allows NvFBC to attach itself to a fullscreen graphics
-     * application. Whenever that application presents a frame, it makes a copy
-     * of it directly into a buffer owned by NvFBC thus bypassing the X server.
-     *
-     * When direct capture is *not* enabled, the NVIDIA X driver generates a
-     * frame for NvFBC when it receives a damage event from an application if push
-     * model is enabled, or periodically checks if there are any pending damage
-     * events otherwise (see NVFBC_CREATE_CAPTURE_SESSION_PARAMS::dwSamplingRateMs).
-     *
-     * Direct capture is possible under the following conditions:
-     * - Direct capture is allowed
-     * - Push model is enabled (see NVFBC_CREATE_CAPTURE_SESSION_PARAMS::bPushModel)
-     * - The mouse cursor is not composited (see NVFBC_CREATE_CAPTURE_SESSION_PARAMS::bWithCursor)
-     * - No viewport transformation is required. This happens when the remote
-     *   desktop is e.g. rotated.
-     *
-     * When direct capture is possible, NvFBC will automatically attach itself
-     * to a fullscreen unoccluded application, if such exists.
-     *
-     * Notes:
-     * - This includes compositing desktops such as GNOME (e.g., gnome-shell
-     *   is the fullscreen unoccluded application).
-     * - There can be only one fullscreen unoccluded application at a time.
-     * - The NVIDIA X driver monitors which application qualifies or no
-     *   longer qualifies.
-     *
-     * For example, if a fullscreen application is launched in GNOME, NvFBC will
-     * detach from gnome-shell and attach to that application.
-     *
-     * Attaching and detaching happens automatically from the perspective of an
-     * NvFBC client. When detaching from an application, the X driver will
-     * transparently resume generating frames for NvFBC.
-     *
-     * An application can know whether a given frame was obtained through
-     * direct capture by checking NVFBC_FRAME_GRAB_INFO::bDirectCapture.
-     */
+   * [in] Allow direct capture
+   *
+   * Direct capture allows NvFBC to attach itself to a fullscreen graphics
+   * application. Whenever that application presents a frame, it makes a copy
+   * of it directly into a buffer owned by NvFBC thus bypassing the X server.
+   *
+   * When direct capture is *not* enabled, the NVIDIA X driver generates a
+   * frame for NvFBC when it receives a damage event from an application if push
+   * model is enabled, or periodically checks if there are any pending damage
+   * events otherwise (see NVFBC_CREATE_CAPTURE_SESSION_PARAMS::dwSamplingRateMs).
+   *
+   * Direct capture is possible under the following conditions:
+   * - Direct capture is allowed
+   * - Push model is enabled (see NVFBC_CREATE_CAPTURE_SESSION_PARAMS::bPushModel)
+   * - The mouse cursor is not composited (see NVFBC_CREATE_CAPTURE_SESSION_PARAMS::bWithCursor)
+   * - No viewport transformation is required. This happens when the remote
+   *   desktop is e.g. rotated.
+   *
+   * When direct capture is possible, NvFBC will automatically attach itself
+   * to a fullscreen unoccluded application, if such exists.
+   *
+   * Notes:
+   * - This includes compositing desktops such as GNOME (e.g., gnome-shell
+   *   is the fullscreen unoccluded application).
+   * - There can be only one fullscreen unoccluded application at a time.
+   * - The NVIDIA X driver monitors which application qualifies or no
+   *   longer qualifies.
+   *
+   * For example, if a fullscreen application is launched in GNOME, NvFBC will
+   * detach from gnome-shell and attach to that application.
+   *
+   * Attaching and detaching happens automatically from the perspective of an
+   * NvFBC client. When detaching from an application, the X driver will
+   * transparently resume generating frames for NvFBC.
+   *
+   * An application can know whether a given frame was obtained through
+   * direct capture by checking NVFBC_FRAME_GRAB_INFO::bDirectCapture.
+   */
   NVFBC_BOOL bAllowDirectCapture;
 } NVFBC_CREATE_CAPTURE_SESSION_PARAMS;
 
@@ -987,8 +987,8 @@ typedef struct _NVFBC_CREATE_CAPTURE_SESSION_PARAMS {
  */
 typedef struct _NVFBC_DESTROY_CAPTURE_SESSION_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER
+   */
   uint32_t dwVersion;
 } NVFBC_DESTROY_CAPTURE_SESSION_PARAMS;
 
@@ -1002,8 +1002,8 @@ typedef struct _NVFBC_DESTROY_CAPTURE_SESSION_PARAMS {
  */
 typedef struct _NVFBC_BIND_CONTEXT_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_BIND_CONTEXT_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_BIND_CONTEXT_PARAMS_VER
+   */
   uint32_t dwVersion;
 } NVFBC_BIND_CONTEXT_PARAMS;
 
@@ -1017,8 +1017,8 @@ typedef struct _NVFBC_BIND_CONTEXT_PARAMS {
  */
 typedef struct _NVFBC_RELEASE_CONTEXT_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_RELEASE_CONTEXT_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_RELEASE_CONTEXT_PARAMS_VER
+   */
   uint32_t dwVersion;
 } NVFBC_RELEASE_CONTEXT_PARAMS;
 
@@ -1032,38 +1032,38 @@ typedef struct _NVFBC_RELEASE_CONTEXT_PARAMS {
  */
 typedef enum {
   /*!
-     * Default, capturing waits for a new frame or mouse move.
-     *
-     * The default behavior of blocking grabs is to wait for a new frame until
-     * after the call was made.  But it's possible that there is a frame already
-     * ready that the client hasn't seen.
-     * \see NVFBC_TOSYS_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
-     */
+   * Default, capturing waits for a new frame or mouse move.
+   *
+   * The default behavior of blocking grabs is to wait for a new frame until
+   * after the call was made.  But it's possible that there is a frame already
+   * ready that the client hasn't seen.
+   * \see NVFBC_TOSYS_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
+   */
   NVFBC_TOSYS_GRAB_FLAGS_NOFLAGS = 0,
   /*!
-     * Capturing does not wait for a new frame nor a mouse move.
-     *
-     * It is therefore possible to capture the same frame multiple times.
-     * When this occurs, the dwCurrentFrame parameter of the
-     * NVFBC_FRAME_GRAB_INFO structure is not incremented.
-     */
+   * Capturing does not wait for a new frame nor a mouse move.
+   *
+   * It is therefore possible to capture the same frame multiple times.
+   * When this occurs, the dwCurrentFrame parameter of the
+   * NVFBC_FRAME_GRAB_INFO structure is not incremented.
+   */
   NVFBC_TOSYS_GRAB_FLAGS_NOWAIT = (1 << 0),
   /*!
-     * Forces the destination buffer to be refreshed even if the frame has not
-     * changed since previous capture.
-     *
-     * By default, if the captured frame is identical to the previous one, NvFBC
-     * will omit one copy and not update the destination buffer.
-     *
-     * Setting that flag will prevent this behavior.  This can be useful e.g.,
-     * if the application has modified the buffer in the meantime.
-     */
+   * Forces the destination buffer to be refreshed even if the frame has not
+   * changed since previous capture.
+   *
+   * By default, if the captured frame is identical to the previous one, NvFBC
+   * will omit one copy and not update the destination buffer.
+   *
+   * Setting that flag will prevent this behavior.  This can be useful e.g.,
+   * if the application has modified the buffer in the meantime.
+   */
   NVFBC_TOSYS_GRAB_FLAGS_FORCE_REFRESH = (1 << 1),
   /*!
-     * Similar to NVFBC_TOSYS_GRAB_FLAGS_NOFLAGS, except that the capture will
-     * not wait if there is already a frame available that the client has
-     * never seen yet.
-     */
+   * Similar to NVFBC_TOSYS_GRAB_FLAGS_NOFLAGS, except that the capture will
+   * not wait if there is already a frame available that the client has
+   * never seen yet.
+   */
   NVFBC_TOSYS_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY = (1 << 2),
 } NVFBC_TOSYS_GRAB_FLAGS;
 
@@ -1072,71 +1072,71 @@ typedef enum {
  */
 typedef struct _NVFBC_TOSYS_SETUP_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_TOSYS_SETUP_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_TOSYS_SETUP_PARAMS_VER
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Desired buffer format.
-     */
+   * [in] Desired buffer format.
+   */
   NVFBC_BUFFER_FORMAT eBufferFormat;
   /*!
-     * [out] Pointer to a pointer to a buffer in system memory.
-     *
-     * This buffer contains the pixel value of the requested format.  Refer to
-     * the description of the buffer formats to understand the memory layout.
-     *
-     * The application does not need to allocate memory for this buffer.  It
-     * should not free this buffer either.  This buffer is automatically
-     * re-allocated when needed (e.g., when the resolution changes).
-     *
-     * This buffer is allocated by the NvFBC library to the proper size.  This
-     * size is returned in the dwByteSize field of the
-     * ::NVFBC_FRAME_GRAB_INFO structure.
-     */
+   * [out] Pointer to a pointer to a buffer in system memory.
+   *
+   * This buffer contains the pixel value of the requested format.  Refer to
+   * the description of the buffer formats to understand the memory layout.
+   *
+   * The application does not need to allocate memory for this buffer.  It
+   * should not free this buffer either.  This buffer is automatically
+   * re-allocated when needed (e.g., when the resolution changes).
+   *
+   * This buffer is allocated by the NvFBC library to the proper size.  This
+   * size is returned in the dwByteSize field of the
+   * ::NVFBC_FRAME_GRAB_INFO structure.
+   */
   void **ppBuffer;
   /*!
-     * [in] Whether differential maps should be generated.
-     */
+   * [in] Whether differential maps should be generated.
+   */
   NVFBC_BOOL bWithDiffMap;
   /*!
-     * [out] Pointer to a pointer to a buffer in system memory.
-     *
-     * This buffer contains the differential map of two frames.  It must be read
-     * as an array of unsigned char.  Each unsigned char is either 0 or
-     * non-zero.  0 means that the pixel value at the given location has not
-     * changed since the previous captured frame.  Non-zero means that the pixel
-     * value has changed.
-     *
-     * The application does not need to allocate memory for this buffer.  It
-     * should not free this buffer either.  This buffer is automatically
-     * re-allocated when needed (e.g., when the resolution changes).
-     *
-     * This buffer is allocated by the NvFBC library to the proper size.  The
-     * size of the differential map is returned in ::diffMapSize.
-     *
-     * This option is not compatible with the ::NVFBC_BUFFER_FORMAT_YUV420P and
-     * ::NVFBC_BUFFER_FORMAT_YUV444P buffer formats.
-     */
+   * [out] Pointer to a pointer to a buffer in system memory.
+   *
+   * This buffer contains the differential map of two frames.  It must be read
+   * as an array of unsigned char.  Each unsigned char is either 0 or
+   * non-zero.  0 means that the pixel value at the given location has not
+   * changed since the previous captured frame.  Non-zero means that the pixel
+   * value has changed.
+   *
+   * The application does not need to allocate memory for this buffer.  It
+   * should not free this buffer either.  This buffer is automatically
+   * re-allocated when needed (e.g., when the resolution changes).
+   *
+   * This buffer is allocated by the NvFBC library to the proper size.  The
+   * size of the differential map is returned in ::diffMapSize.
+   *
+   * This option is not compatible with the ::NVFBC_BUFFER_FORMAT_YUV420P and
+   * ::NVFBC_BUFFER_FORMAT_YUV444P buffer formats.
+   */
   void **ppDiffMap;
   /*!
-     * [in] Scaling factor of the differential maps.
-     *
-     * For example, a scaling factor of 16 means that one pixel of the diffmap
-     * will represent 16x16 pixels of the original frames.
-     *
-     * If any of these 16x16 pixels is different between the current and the
-     * previous frame, then the corresponding pixel in the diffmap will be set
-     * to non-zero.
-     *
-     * The default scaling factor is 1.  A dwDiffMapScalingFactor of 0 will be
-     * set to 1.
-     */
+   * [in] Scaling factor of the differential maps.
+   *
+   * For example, a scaling factor of 16 means that one pixel of the diffmap
+   * will represent 16x16 pixels of the original frames.
+   *
+   * If any of these 16x16 pixels is different between the current and the
+   * previous frame, then the corresponding pixel in the diffmap will be set
+   * to non-zero.
+   *
+   * The default scaling factor is 1.  A dwDiffMapScalingFactor of 0 will be
+   * set to 1.
+   */
   uint32_t dwDiffMapScalingFactor;
   /*!
-     * [out] Size of the differential map.
-     *
-     * Only set if bWithDiffMap is set to NVFBC_TRUE.
-     */
+   * [out] Size of the differential map.
+   *
+   * Only set if bWithDiffMap is set to NVFBC_TRUE.
+   */
   NVFBC_SIZE diffMapSize;
 } NVFBC_TOSYS_SETUP_PARAMS;
 
@@ -1150,44 +1150,44 @@ typedef struct _NVFBC_TOSYS_SETUP_PARAMS {
  */
 typedef struct _NVFBC_TOSYS_GRAB_FRAME_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_TOSYS_GRAB_FRAME_PARAMS_VER
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Flags defining the behavior of this frame capture.
-     */
+   * [in] Flags defining the behavior of this frame capture.
+   */
   uint32_t dwFlags;
   /*!
-     * [out] Information about the captured frame.
-     *
-     * Can be NULL.
-     */
+   * [out] Information about the captured frame.
+   *
+   * Can be NULL.
+   */
   NVFBC_FRAME_GRAB_INFO *pFrameGrabInfo;
   /*!
-     * [in] Wait timeout in milliseconds.
-     *
-     * When capturing frames with the NVFBC_TOSYS_GRAB_FLAGS_NOFLAGS or
-     * NVFBC_TOSYS_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY flags,
-     * NvFBC will wait for a new frame or mouse move until the below timer
-     * expires.
-     *
-     * When timing out, the last captured frame will be returned.  Note that as
-     * long as the NVFBC_TOSYS_GRAB_FLAGS_FORCE_REFRESH flag is not set,
-     * returning an old frame will incur no performance penalty.
-     *
-     * NvFBC clients can use the return value of the grab frame operation to
-     * find out whether a new frame was captured, or the timer expired.
-     *
-     * Note that the behavior of blocking calls is to wait for a new frame
-     * *after* the call has been made.  When using timeouts, it is possible
-     * that NvFBC will return a new frame (e.g., it has never been captured
-     * before) even though no new frame was generated after the grab call.
-     *
-     * For the precise definition of what constitutes a new frame, see
-     * ::bIsNewFrame.
-     *
-     * Set to 0 to disable timeouts.
-     */
+   * [in] Wait timeout in milliseconds.
+   *
+   * When capturing frames with the NVFBC_TOSYS_GRAB_FLAGS_NOFLAGS or
+   * NVFBC_TOSYS_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY flags,
+   * NvFBC will wait for a new frame or mouse move until the below timer
+   * expires.
+   *
+   * When timing out, the last captured frame will be returned.  Note that as
+   * long as the NVFBC_TOSYS_GRAB_FLAGS_FORCE_REFRESH flag is not set,
+   * returning an old frame will incur no performance penalty.
+   *
+   * NvFBC clients can use the return value of the grab frame operation to
+   * find out whether a new frame was captured, or the timer expired.
+   *
+   * Note that the behavior of blocking calls is to wait for a new frame
+   * *after* the call has been made.  When using timeouts, it is possible
+   * that NvFBC will return a new frame (e.g., it has never been captured
+   * before) even though no new frame was generated after the grab call.
+   *
+   * For the precise definition of what constitutes a new frame, see
+   * ::bIsNewFrame.
+   *
+   * Set to 0 to disable timeouts.
+   */
   uint32_t dwTimeoutMs;
 } NVFBC_TOSYS_GRAB_FRAME_PARAMS;
 
@@ -1201,38 +1201,38 @@ typedef struct _NVFBC_TOSYS_GRAB_FRAME_PARAMS {
  */
 typedef enum {
   /*!
-     * Default, capturing waits for a new frame or mouse move.
-     *
-     * The default behavior of blocking grabs is to wait for a new frame until
-     * after the call was made.  But it's possible that there is a frame already
-     * ready that the client hasn't seen.
-     * \see NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
-     */
+   * Default, capturing waits for a new frame or mouse move.
+   *
+   * The default behavior of blocking grabs is to wait for a new frame until
+   * after the call was made.  But it's possible that there is a frame already
+   * ready that the client hasn't seen.
+   * \see NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
+   */
   NVFBC_TOCUDA_GRAB_FLAGS_NOFLAGS = 0,
   /*!
-     * Capturing does not wait for a new frame nor a mouse move.
-     *
-     * It is therefore possible to capture the same frame multiple times.
-     * When this occurs, the dwCurrentFrame parameter of the
-     * NVFBC_FRAME_GRAB_INFO structure is not incremented.
-     */
+   * Capturing does not wait for a new frame nor a mouse move.
+   *
+   * It is therefore possible to capture the same frame multiple times.
+   * When this occurs, the dwCurrentFrame parameter of the
+   * NVFBC_FRAME_GRAB_INFO structure is not incremented.
+   */
   NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT = (1 << 0),
   /*!
-     * [in] Forces the destination buffer to be refreshed even if the frame
-     * has not changed since previous capture.
-     *
-     * By default, if the captured frame is identical to the previous one, NvFBC
-     * will omit one copy and not update the destination buffer.
-     *
-     * Setting that flag will prevent this behavior.  This can be useful e.g.,
-     * if the application has modified the buffer in the meantime.
-     */
+   * [in] Forces the destination buffer to be refreshed even if the frame
+   * has not changed since previous capture.
+   *
+   * By default, if the captured frame is identical to the previous one, NvFBC
+   * will omit one copy and not update the destination buffer.
+   *
+   * Setting that flag will prevent this behavior.  This can be useful e.g.,
+   * if the application has modified the buffer in the meantime.
+   */
   NVFBC_TOCUDA_GRAB_FLAGS_FORCE_REFRESH = (1 << 1),
   /*!
-     * Similar to NVFBC_TOCUDA_GRAB_FLAGS_NOFLAGS, except that the capture will
-     * not wait if there is already a frame available that the client has
-     * never seen yet.
-     */
+   * Similar to NVFBC_TOCUDA_GRAB_FLAGS_NOFLAGS, except that the capture will
+   * not wait if there is already a frame available that the client has
+   * never seen yet.
+   */
   NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY = (1 << 2),
 } NVFBC_TOCUDA_FLAGS;
 
@@ -1241,12 +1241,12 @@ typedef enum {
  */
 typedef struct _NVFBC_TOCUDA_SETUP_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_TOCUDA_SETUP_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_TOCUDA_SETUP_PARAMS_VER
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Desired buffer format.
-     */
+   * [in] Desired buffer format.
+   */
   NVFBC_BUFFER_FORMAT eBufferFormat;
 } NVFBC_TOCUDA_SETUP_PARAMS;
 
@@ -1260,58 +1260,58 @@ typedef struct _NVFBC_TOCUDA_SETUP_PARAMS {
  */
 typedef struct _NVFBC_TOCUDA_GRAB_FRAME_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_TOCUDA_GRAB_FRAME_PARAMS_VER.
-     */
+   * [in] Must be set to NVFBC_TOCUDA_GRAB_FRAME_PARAMS_VER.
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Flags defining the behavior of this frame capture.
-     */
+   * [in] Flags defining the behavior of this frame capture.
+   */
   uint32_t dwFlags;
   /*!
-     * [out] Pointer to a ::CUdeviceptr
-     *
-     * The application does not need to allocate memory for this CUDA device.
-     *
-     * The application does need to create its own CUDA context to use this
-     * CUDA device.
-     *
-     * This ::CUdeviceptr will be mapped to a segment in video memory containing
-     * the frame.  It is not possible to process a CUDA device while capturing
-     * a new frame.  If the application wants to do so, it must copy the CUDA
-     * device using ::cuMemcpyDtoD or ::cuMemcpyDtoH beforehand.
-     */
+   * [out] Pointer to a ::CUdeviceptr
+   *
+   * The application does not need to allocate memory for this CUDA device.
+   *
+   * The application does need to create its own CUDA context to use this
+   * CUDA device.
+   *
+   * This ::CUdeviceptr will be mapped to a segment in video memory containing
+   * the frame.  It is not possible to process a CUDA device while capturing
+   * a new frame.  If the application wants to do so, it must copy the CUDA
+   * device using ::cuMemcpyDtoD or ::cuMemcpyDtoH beforehand.
+   */
   void *pCUDADeviceBuffer;
   /*!
-     * [out] Information about the captured frame.
-     *
-     * Can be NULL.
-     */
+   * [out] Information about the captured frame.
+   *
+   * Can be NULL.
+   */
   NVFBC_FRAME_GRAB_INFO *pFrameGrabInfo;
   /*!
-     * [in] Wait timeout in milliseconds.
-     *
-     * When capturing frames with the NVFBC_TOCUDA_GRAB_FLAGS_NOFLAGS or
-     * NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY flags,
-     * NvFBC will wait for a new frame or mouse move until the below timer
-     * expires.
-     *
-     * When timing out, the last captured frame will be returned.  Note that as
-     * long as the NVFBC_TOCUDA_GRAB_FLAGS_FORCE_REFRESH flag is not set,
-     * returning an old frame will incur no performance penalty.
-     *
-     * NvFBC clients can use the return value of the grab frame operation to
-     * find out whether a new frame was captured, or the timer expired.
-     *
-     * Note that the behavior of blocking calls is to wait for a new frame
-     * *after* the call has been made.  When using timeouts, it is possible
-     * that NvFBC will return a new frame (e.g., it has never been captured
-     * before) even though no new frame was generated after the grab call.
-     *
-     * For the precise definition of what constitutes a new frame, see
-     * ::bIsNewFrame.
-     *
-     * Set to 0 to disable timeouts.
-     */
+   * [in] Wait timeout in milliseconds.
+   *
+   * When capturing frames with the NVFBC_TOCUDA_GRAB_FLAGS_NOFLAGS or
+   * NVFBC_TOCUDA_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY flags,
+   * NvFBC will wait for a new frame or mouse move until the below timer
+   * expires.
+   *
+   * When timing out, the last captured frame will be returned.  Note that as
+   * long as the NVFBC_TOCUDA_GRAB_FLAGS_FORCE_REFRESH flag is not set,
+   * returning an old frame will incur no performance penalty.
+   *
+   * NvFBC clients can use the return value of the grab frame operation to
+   * find out whether a new frame was captured, or the timer expired.
+   *
+   * Note that the behavior of blocking calls is to wait for a new frame
+   * *after* the call has been made.  When using timeouts, it is possible
+   * that NvFBC will return a new frame (e.g., it has never been captured
+   * before) even though no new frame was generated after the grab call.
+   *
+   * For the precise definition of what constitutes a new frame, see
+   * ::bIsNewFrame.
+   *
+   * Set to 0 to disable timeouts.
+   */
   uint32_t dwTimeoutMs;
 } NVFBC_TOCUDA_GRAB_FRAME_PARAMS;
 
@@ -1325,38 +1325,38 @@ typedef struct _NVFBC_TOCUDA_GRAB_FRAME_PARAMS {
  */
 typedef enum {
   /*!
-     * Default, capturing waits for a new frame or mouse move.
-     *
-     * The default behavior of blocking grabs is to wait for a new frame until
-     * after the call was made.  But it's possible that there is a frame already
-     * ready that the client hasn't seen.
-     * \see NVFBC_TOGL_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
-     */
+   * Default, capturing waits for a new frame or mouse move.
+   *
+   * The default behavior of blocking grabs is to wait for a new frame until
+   * after the call was made.  But it's possible that there is a frame already
+   * ready that the client hasn't seen.
+   * \see NVFBC_TOGL_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY
+   */
   NVFBC_TOGL_GRAB_FLAGS_NOFLAGS = 0,
   /*!
-     * Capturing does not wait for a new frame nor a mouse move.
-     *
-     * It is therefore possible to capture the same frame multiple times.
-     * When this occurs, the dwCurrentFrame parameter of the
-     * NVFBC_FRAME_GRAB_INFO structure is not incremented.
-     */
+   * Capturing does not wait for a new frame nor a mouse move.
+   *
+   * It is therefore possible to capture the same frame multiple times.
+   * When this occurs, the dwCurrentFrame parameter of the
+   * NVFBC_FRAME_GRAB_INFO structure is not incremented.
+   */
   NVFBC_TOGL_GRAB_FLAGS_NOWAIT = (1 << 0),
   /*!
-     * [in] Forces the destination buffer to be refreshed even if the frame
-     * has not changed since previous capture.
-     *
-     * By default, if the captured frame is identical to the previous one, NvFBC
-     * will omit one copy and not update the destination buffer.
-     *
-     * Setting that flag will prevent this behavior.  This can be useful e.g.,
-     * if the application has modified the buffer in the meantime.
-     */
+   * [in] Forces the destination buffer to be refreshed even if the frame
+   * has not changed since previous capture.
+   *
+   * By default, if the captured frame is identical to the previous one, NvFBC
+   * will omit one copy and not update the destination buffer.
+   *
+   * Setting that flag will prevent this behavior.  This can be useful e.g.,
+   * if the application has modified the buffer in the meantime.
+   */
   NVFBC_TOGL_GRAB_FLAGS_FORCE_REFRESH = (1 << 1),
   /*!
-     * Similar to NVFBC_TOGL_GRAB_FLAGS_NOFLAGS, except that the capture will
-     * not wait if there is already a frame available that the client has
-     * never seen yet.
-     */
+   * Similar to NVFBC_TOGL_GRAB_FLAGS_NOFLAGS, except that the capture will
+   * not wait if there is already a frame available that the client has
+   * never seen yet.
+   */
   NVFBC_TOGL_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY = (1 << 2),
 } NVFBC_TOGL_FLAGS;
 
@@ -1370,59 +1370,59 @@ typedef enum {
  */
 typedef struct _NVFBC_TOGL_SETUP_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_TOGL_SETUP_PARAMS_VER
-     */
+   * [in] Must be set to NVFBC_TOGL_SETUP_PARAMS_VER
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Desired buffer format.
-     */
+   * [in] Desired buffer format.
+   */
   NVFBC_BUFFER_FORMAT eBufferFormat;
   /*!
-     * [in] Whether differential maps should be generated.
-     */
+   * [in] Whether differential maps should be generated.
+   */
   NVFBC_BOOL bWithDiffMap;
   /*!
-     * [out] Pointer to a pointer to a buffer in system memory.
-     *
-     * \see NVFBC_TOSYS_SETUP_PARAMS::ppDiffMap
-     */
+   * [out] Pointer to a pointer to a buffer in system memory.
+   *
+   * \see NVFBC_TOSYS_SETUP_PARAMS::ppDiffMap
+   */
   void **ppDiffMap;
   /*!
-     * [in] Scaling factor of the differential maps.
-     *
-     * \see NVFBC_TOSYS_SETUP_PARAMS::dwDiffMapScalingFactor
-     */
+   * [in] Scaling factor of the differential maps.
+   *
+   * \see NVFBC_TOSYS_SETUP_PARAMS::dwDiffMapScalingFactor
+   */
   uint32_t dwDiffMapScalingFactor;
   /*!
-     * [out] List of GL textures that will store the captured frames.
-     *
-     * This array is 0 terminated.  The number of textures varies depending on
-     * the capture settings (such as whether diffmaps are enabled).
-     *
-     * An application wishing to interop with, for example, EncodeAPI will need
-     * to register these textures prior to start encoding frames.
-     *
-     * After each frame capture, the texture holding the current frame will be
-     * returned in NVFBC_TOGL_GRAB_FRAME_PARAMS::dwTexture.
-     */
+   * [out] List of GL textures that will store the captured frames.
+   *
+   * This array is 0 terminated.  The number of textures varies depending on
+   * the capture settings (such as whether diffmaps are enabled).
+   *
+   * An application wishing to interop with, for example, EncodeAPI will need
+   * to register these textures prior to start encoding frames.
+   *
+   * After each frame capture, the texture holding the current frame will be
+   * returned in NVFBC_TOGL_GRAB_FRAME_PARAMS::dwTexture.
+   */
   uint32_t dwTextures[NVFBC_TOGL_TEXTURES_MAX];
   /*!
-     * [out] GL target to which the texture should be bound.
-     */
+   * [out] GL target to which the texture should be bound.
+   */
   uint32_t dwTexTarget;
   /*!
-     * [out] GL format of the textures.
-     */
+   * [out] GL format of the textures.
+   */
   uint32_t dwTexFormat;
   /*!
-     * [out] GL type of the textures.
-     */
+   * [out] GL type of the textures.
+   */
   uint32_t dwTexType;
   /*!
-     * [out] Size of the differential map.
-     *
-     * Only set if bWithDiffMap is set to NVFBC_TRUE.
-     */
+   * [out] Size of the differential map.
+   *
+   * Only set if bWithDiffMap is set to NVFBC_TRUE.
+   */
   NVFBC_SIZE diffMapSize;
 } NVFBC_TOGL_SETUP_PARAMS;
 
@@ -1436,50 +1436,50 @@ typedef struct _NVFBC_TOGL_SETUP_PARAMS {
  */
 typedef struct _NVFBC_TOGL_GRAB_FRAME_PARAMS {
   /*!
-     * [in] Must be set to NVFBC_TOGL_GRAB_FRAME_PARAMS_VER.
-     */
+   * [in] Must be set to NVFBC_TOGL_GRAB_FRAME_PARAMS_VER.
+   */
   uint32_t dwVersion;
   /*!
-     * [in] Flags defining the behavior of this frame capture.
-     */
+   * [in] Flags defining the behavior of this frame capture.
+   */
   uint32_t dwFlags;
   /*!
-     * [out] Index of the texture storing the current frame.
-     *
-     * This is an index in the NVFBC_TOGL_SETUP_PARAMS::dwTextures array.
-     */
+   * [out] Index of the texture storing the current frame.
+   *
+   * This is an index in the NVFBC_TOGL_SETUP_PARAMS::dwTextures array.
+   */
   uint32_t dwTextureIndex;
   /*!
-     * [out] Information about the captured frame.
-     *
-     * Can be NULL.
-     */
+   * [out] Information about the captured frame.
+   *
+   * Can be NULL.
+   */
   NVFBC_FRAME_GRAB_INFO *pFrameGrabInfo;
   /*!
-     * [in] Wait timeout in milliseconds.
-     *
-     * When capturing frames with the NVFBC_TOGL_GRAB_FLAGS_NOFLAGS or
-     * NVFBC_TOGL_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY flags,
-     * NvFBC will wait for a new frame or mouse move until the below timer
-     * expires.
-     *
-     * When timing out, the last captured frame will be returned.  Note that as
-     * long as the NVFBC_TOGL_GRAB_FLAGS_FORCE_REFRESH flag is not set,
-     * returning an old frame will incur no performance penalty.
-     *
-     * NvFBC clients can use the return value of the grab frame operation to
-     * find out whether a new frame was captured, or the timer expired.
-     *
-     * Note that the behavior of blocking calls is to wait for a new frame
-     * *after* the call has been made.  When using timeouts, it is possible
-     * that NvFBC will return a new frame (e.g., it has never been captured
-     * before) even though no new frame was generated after the grab call.
-     *
-     * For the precise definition of what constitutes a new frame, see
-     * ::bIsNewFrame.
-     *
-     * Set to 0 to disable timeouts.
-     */
+   * [in] Wait timeout in milliseconds.
+   *
+   * When capturing frames with the NVFBC_TOGL_GRAB_FLAGS_NOFLAGS or
+   * NVFBC_TOGL_GRAB_FLAGS_NOWAIT_IF_NEW_FRAME_READY flags,
+   * NvFBC will wait for a new frame or mouse move until the below timer
+   * expires.
+   *
+   * When timing out, the last captured frame will be returned.  Note that as
+   * long as the NVFBC_TOGL_GRAB_FLAGS_FORCE_REFRESH flag is not set,
+   * returning an old frame will incur no performance penalty.
+   *
+   * NvFBC clients can use the return value of the grab frame operation to
+   * find out whether a new frame was captured, or the timer expired.
+   *
+   * Note that the behavior of blocking calls is to wait for a new frame
+   * *after* the call has been made.  When using timeouts, it is possible
+   * that NvFBC will return a new frame (e.g., it has never been captured
+   * before) even though no new frame was generated after the grab call.
+   *
+   * For the precise definition of what constitutes a new frame, see
+   * ::bIsNewFrame.
+   *
+   * Set to 0 to disable timeouts.
+   */
   uint32_t dwTimeoutMs;
 } NVFBC_TOGL_GRAB_FRAME_PARAMS;
 

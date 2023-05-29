@@ -1,5 +1,8 @@
-#ifndef UTILITY_H
-#define UTILITY_H
+/**
+ * @file src/utility.h
+ * @brief todo
+ */
+#pragma once
 
 #include <algorithm>
 #include <condition_variable>
@@ -487,6 +490,7 @@ namespace util {
   public:
     using element_type = T;
     using pointer = element_type *;
+    using const_pointer = element_type const *;
     using deleter_type = D;
 
     constexpr uniq_ptr() noexcept:
@@ -560,12 +564,12 @@ namespace util {
       return _p;
     }
 
-    const pointer
+    const_pointer
     get() const {
       return _p;
     }
 
-    const std::add_lvalue_reference_t<element_type>
+    std::add_lvalue_reference_t<element_type const>
     operator*() const {
       return *_p;
     }
@@ -573,7 +577,7 @@ namespace util {
     operator*() {
       return *_p;
     }
-    const pointer
+    const_pointer
     operator->() const {
       return _p;
     }
@@ -684,7 +688,9 @@ namespace util {
   public:
     using element_type = T;
     using pointer = element_type *;
+    using const_pointer = element_type const *;
     using reference = element_type &;
+    using const_reference = element_type const &;
 
     wrap_ptr():
         _own_ptr { false }, _p { nullptr } {}
@@ -741,7 +747,7 @@ namespace util {
       _own_ptr = false;
     }
 
-    const reference
+    const_reference
     operator*() const {
       return *_p;
     }
@@ -749,7 +755,7 @@ namespace util {
     operator*() {
       return *_p;
     }
-    const pointer
+    const_pointer
     operator->() const {
       return _p;
     }
@@ -1030,4 +1036,3 @@ namespace util {
     big(T x) { return endian_helper<T>::big(x); }
   }  // namespace endian
 }  // namespace util
-#endif

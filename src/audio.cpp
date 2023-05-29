@@ -1,3 +1,7 @@
+/**
+ * @file src/audio.cpp
+ * @brief todo
+ */
 #include <thread>
 
 #include <opus/opus_multistream.h>
@@ -135,22 +139,30 @@ namespace audio {
       return;
     }
 
+    auto init_failure_fg = util::fail_guard([&shutdown_event]() {
+      BOOST_LOG(error) << "Unable to initialize audio capture. The stream will not have audio."sv;
+
+      // Wait for shutdown to be signalled if we fail init.
+      // This allows streaming to continue without audio.
+      shutdown_event->view();
+    });
+
     auto &control = ref->control;
     if (!control) {
-      shutdown_event->view();
-
       return;
     }
 
     // Order of priority:
-    // 1. Config
-    // 2. Virtual if available
+    // 1. Virtual sink
+    // 2. Audio sink
     // 3. Host
     std::string *sink = &ref->sink.host;
     if (!config::audio.sink.empty()) {
       sink = &config::audio.sink;
     }
-    else if (ref->sink.null) {
+
+    // Prefer the virtual sink if host playback is disabled or there's no other sink
+    if (ref->sink.null && (!config.flags[config_t::HOST_AUDIO] || sink->empty())) {
       auto &null = *ref->sink.null;
       switch (stream->channelCount) {
         case 2:
@@ -167,19 +179,23 @@ namespace audio {
 
     // Only the first to start a session may change the default sink
     if (!ref->sink_flag->exchange(true, std::memory_order_acquire)) {
-      ref->restore_sink = !config.flags[config_t::HOST_AUDIO];
-
-      // If the sink is empty (Host has no sink!), definately switch to the virtual.
-      if (ref->sink.host.empty()) {
+      // If the selected sink is different than the current one, change sinks.
+      ref->restore_sink = ref->sink.host != *sink;
+      if (ref->restore_sink) {
         if (control->set_sink(*sink)) {
           return;
         }
       }
-      // If the client requests audio on the host, don't change the default sink
-      else if (!config.flags[config_t::HOST_AUDIO] && control->set_sink(*sink)) {
-        return;
-      }
     }
+
+    auto frame_size = config.packetDuration * stream->sampleRate / 1000;
+    auto mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
+    if (!mic) {
+      return;
+    }
+
+    // Audio is initialized, so we don't want to print the failure message
+    init_failure_fg.disable();
 
     // Capture takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
@@ -194,15 +210,7 @@ namespace audio {
       shutdown_event->view();
     });
 
-    auto frame_size = config.packetDuration * stream->sampleRate / 1000;
     int samples_per_frame = frame_size * stream->channelCount;
-
-    auto mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
-    if (!mic) {
-      BOOST_LOG(error) << "Couldn't create audio input"sv;
-
-      return;
-    }
 
     while (!shutdown_event->peek()) {
       std::vector<std::int16_t> sample_buffer;
@@ -215,14 +223,15 @@ namespace audio {
         case platf::capture_e::timeout:
           continue;
         case platf::capture_e::reinit:
+          BOOST_LOG(info) << "Reinitializing audio capture"sv;
           mic.reset();
-          mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
-          if (!mic) {
-            BOOST_LOG(error) << "Couldn't re-initialize audio input"sv;
-
-            return;
-          }
-          return;
+          do {
+            mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
+            if (!mic) {
+              BOOST_LOG(warning) << "Couldn't re-initialize audio input"sv;
+            }
+          } while (!mic && !shutdown_event->view(5s));
+          continue;
         default:
           return;
       }
@@ -280,7 +289,8 @@ namespace audio {
       return;
     }
 
-    const std::string &sink = config::audio.sink.empty() ? ctx.sink.host : config::audio.sink;
+    // Change back to the host sink, unless there was none
+    const std::string &sink = ctx.sink.host.empty() ? config::audio.sink : ctx.sink.host;
     if (!sink.empty()) {
       // Best effort, it's allowed to fail
       ctx.control->set_sink(sink);

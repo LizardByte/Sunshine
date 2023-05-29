@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/cuda.cpp
+ * @brief todo
+ */
 #include <bitset>
 
 #include <NvFBC.h>
@@ -346,7 +350,7 @@ namespace cuda {
 
         handle.handle_flags[SESSION_HANDLE] = true;
 
-        return std::move(handle);
+        return handle;
       }
 
       const char *
@@ -504,8 +508,15 @@ namespace cuda {
       }
 
       platf::capture_e
-      capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<platf::img_t> img, bool *cursor) override {
+      capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
         auto next_frame = std::chrono::steady_clock::now();
+
+        {
+          // We must create at least one texture on this thread before calling NvFBCToCudaSetUp()
+          // Otherwise it fails with "Unable to register an OpenGL buffer to a CUDA resource (result: 201)" message
+          std::shared_ptr<platf::img_t> img_dummy;
+          pull_free_image_cb(img_dummy);
+        }
 
         // Force display_t::capture to initialize handle_t::capture
         cursor_visible = !*cursor;
@@ -515,7 +526,7 @@ namespace cuda {
           handle.reset();
         });
 
-        while (img) {
+        while (true) {
           auto now = std::chrono::steady_clock::now();
           if (next_frame > now) {
             std::this_thread::sleep_for((next_frame - now) / 3 * 2);
@@ -526,16 +537,22 @@ namespace cuda {
           }
           next_frame = now + delay;
 
-          auto status = snapshot(img.get(), 150ms, *cursor);
+          std::shared_ptr<platf::img_t> img_out;
+          auto status = snapshot(pull_free_image_cb, img_out, 150ms, *cursor);
           switch (status) {
             case platf::capture_e::reinit:
             case platf::capture_e::error:
+            case platf::capture_e::interrupted:
               return status;
             case platf::capture_e::timeout:
-              img = snapshot_cb(img, false);
+              if (!push_captured_image_cb(std::move(img_out), false)) {
+                return platf::capture_e::ok;
+              }
               break;
             case platf::capture_e::ok:
-              img = snapshot_cb(img, true);
+              if (!push_captured_image_cb(std::move(img_out), true)) {
+                return platf::capture_e::ok;
+              }
               break;
             default:
               BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
@@ -618,7 +635,7 @@ namespace cuda {
       }
 
       platf::capture_e
-      snapshot(platf::img_t *img, std::chrono::milliseconds timeout, bool cursor) {
+      snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
         if (cursor != cursor_visible) {
           auto status = reinit(cursor);
           if (status != platf::capture_e::ok) {
@@ -646,7 +663,12 @@ namespace cuda {
           return platf::capture_e::error;
         }
 
-        if (((img_t *) img)->tex.copy((std::uint8_t *) device_ptr, img->height, img->row_pitch)) {
+        if (!pull_free_image_cb(img_out)) {
+          return platf::capture_e::interrupted;
+        }
+        auto img = (img_t *) img_out.get();
+
+        if (img->tex.copy((std::uint8_t *) device_ptr, img->height, img->row_pitch)) {
           return platf::capture_e::error;
         }
 

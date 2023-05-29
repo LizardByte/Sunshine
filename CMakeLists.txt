@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
 
 # todo - set version to 0.0.0 once confident in automated versioning
-project(Sunshine VERSION 0.19.1
+project(Sunshine VERSION 0.20.0
         DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
         HOMEPAGE_URL "https://app.lizardbyte.dev")
 
@@ -125,7 +125,7 @@ set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
 set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "Don't build samples for miniupnpc")
 set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniupnpc")
 add_subdirectory(third-party/miniupnp/miniupnpc)
-include_directories(third-party/miniupnp/miniupnpc/include)
+include_directories(SYSTEM third-party/miniupnp/miniupnpc/include)
 
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -134,13 +134,11 @@ pkg_check_modules(CURL REQUIRED libcurl)
 
 if(WIN32)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
-    # workaround to prevent link errors against icudata, icui18n
-    set(Boost_NO_BOOST_CMAKE ON)  # cmake-lint: disable=C0103
 endif()
 
 find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
 
-list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-missing-braces -Wno-maybe-uninitialized -Wno-sign-compare)
+list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
 
 # enable system tray, we will disable this later if we cannot find the required package config on linux
 set(SUNSHINE_TRAY 1)
@@ -151,13 +149,13 @@ if(WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 
     add_definitions(-DCURL_STATICLIB)
-    include_directories(${CURL_STATIC_INCLUDE_DIRS})
+    include_directories(SYSTEM ${CURL_STATIC_INCLUDE_DIRS})
     link_directories(${CURL_STATIC_LIBRARY_DIRS})
 
     add_compile_definitions(SUNSHINE_PLATFORM="windows")
     add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
 
-    include_directories(third-party/ViGEmClient/include)
+    include_directories(SYSTEM third-party/ViGEmClient/include)
 
     if(NOT DEFINED SUNSHINE_ICON_PATH)
         set(SUNSHINE_ICON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/sunshine.ico")
@@ -353,12 +351,13 @@ else()
 
     if(X11_FOUND)
         add_compile_definitions(SUNSHINE_BUILD_X11)
-        include_directories(${X11_INCLUDE_DIR})
+        include_directories(SYSTEM ${X11_INCLUDE_DIR})
+        list(APPEND PLATFORM_LIBRARIES ${X11_LIBRARIES})
         list(APPEND PLATFORM_TARGET_FILES src/platform/linux/x11grab.cpp)
     endif()
 
     if(CUDA_FOUND)
-        include_directories(third-party/nvfbc)
+        include_directories(SYSTEM third-party/nvfbc)
         list(APPEND PLATFORM_TARGET_FILES
                 src/platform/linux/cuda.cu
                 src/platform/linux/cuda.cpp
@@ -369,7 +368,7 @@ else()
 
     if(LIBDRM_FOUND AND LIBCAP_FOUND)
         add_compile_definitions(SUNSHINE_BUILD_DRM)
-        include_directories(${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
+        include_directories(SYSTEM ${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
         list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES} ${LIBCAP_LIBRARIES})
         list(APPEND PLATFORM_TARGET_FILES src/platform/linux/kmsgrab.cpp)
         list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
@@ -415,6 +414,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
         GEN_WAYLAND(wlr-export-dmabuf-unstable-v1)
 
         include_directories(
+                SYSTEM
                 ${WAYLAND_INCLUDE_DIRS}
                 ${CMAKE_BINARY_DIR}/generated-src
         )
@@ -435,7 +435,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             message(WARNING "Couldn't find appindicator, disabling tray icon")
             set(SUNSHINE_TRAY 0)
         else()
-            include_directories(${APPINDICATOR_INCLUDE_DIRS})
+            include_directories(SYSTEM ${APPINDICATOR_INCLUDE_DIRS})
             link_directories(${APPINDICATOR_LIBRARY_DIRS})
 
             list(APPEND PLATFORM_TARGET_FILES third-party/tray/tray_linux.c)
@@ -474,6 +474,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             pulse-simple)
 
     include_directories(
+            SYSTEM
             /usr/include/libevdev-1.0
             third-party/nv-codec-headers/include
             third-party/glad/include)
@@ -535,6 +536,8 @@ set(SUNSHINE_TARGET_FILES
         src/thread_safe.h
         src/sync.h
         src/round_robin.h
+        src/stat_trackers.h
+        src/stat_trackers.cpp
         ${PLATFORM_TARGET_FILES})
 
 set_source_files_properties(src/upnp.cpp PROPERTIES COMPILE_FLAGS -Wno-pedantic)
@@ -582,8 +585,10 @@ set(FFMPEG_LIBRARIES
         ${HDR10_PLUS_LIBRARY}
         ${FFMPEG_PLATFORM_LIBRARIES})
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+
 include_directories(
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        SYSTEM
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/moonlight-common-c/enet/include
         ${CMAKE_CURRENT_SOURCE_DIR}/third-party/nanors
@@ -638,6 +643,8 @@ if(WIN32)
     set_target_properties(sunshine PROPERTIES LINK_SEARCH_START_STATIC 1)
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".dll")
     find_library(ZLIB ZLIB1)
+    list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
+            Wtsapi32.lib)
 endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
@@ -692,25 +699,31 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Adding tools
     install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
     install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
-    install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT sunshinesvc)
-    install(TARGETS elevator RUNTIME DESTINATION "tools" COMPONENT elevator)
 
     # Mandatory tools
     install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
+    install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
+
+    # Mandatory scripts
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
+            DESTINATION "scripts"
+            COMPONENT assets)
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
+            DESTINATION "scripts"
+            COMPONENT assets)
+
+    # Configurable options for the service
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/autostart/"
+            DESTINATION "scripts"
+            COMPONENT autostart)
 
     # scripts
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
             DESTINATION "scripts"
             COMPONENT firewall)
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
-            DESTINATION "scripts"
-            COMPONENT service)
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vigembus/"
             DESTINATION "scripts"
             COMPONENT vigembus)
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
-            DESTINATION "scripts"
-            COMPONENT assets)
 
     # Sunshine assets
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
@@ -729,7 +742,6 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
     # Extra install commands
     # Restores permissions on the install directory
     # Migrates config files from the root into the new config folder
-    # Sets permissions on the config folder so that we can write in it
     # Install service
     SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
             "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
@@ -737,10 +749,10 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\\config\\\" /grant:r Users:\\\(OI\\\)\\\(CI\\\)\\\(F\\\)'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-vigembus.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\autostart-service.bat\\\"'
         NoController:
         ")
 
@@ -762,20 +774,19 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         NoDelete:
         ")
 
-    # Adding an option for the start menu and PATH
-    # TODO: it asks to add it to the PATH but is not working https://gitlab.kitware.com/cmake/cmake/-/issues/15635
+    # Adding an option for the start menu
     set(CPACK_NSIS_MODIFY_PATH "OFF")
     set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
     # This will be shown on the installed apps Windows settings
     set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
     set(CPACK_NSIS_CREATE_ICONS_EXTRA
         "${CPACK_NSIS_CREATE_ICONS_EXTRA}
-        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk' \
-            '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe'
+        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' \
+            '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe' '--shortcut'
         ")
     set(CPACK_NSIS_DELETE_ICONS_EXTRA
         "${CPACK_NSIS_DELETE_ICONS_EXTRA}
-        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME} (Foreground Mode).lnk'
+        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
         ")
 
     # Checking for previous installed versions
@@ -789,57 +800,48 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
             "https://sunshinestream.readthedocs.io" "Sunshine documentation"
             "https://app.lizardbyte.dev" "LizardByte Web Site"
             "https://app.lizardbyte.dev/support" "LizardByte Support")
+    set(CPACK_NSIS_MANIFEST_DPI_AWARE true)
 
     # Setting components groups and dependencies
+    set(CPACK_COMPONENT_GROUP_CORE_EXPANDED true)
+
     # sunshine binary
     set(CPACK_COMPONENT_APPLICATION_DISPLAY_NAME "${CMAKE_PROJECT_NAME}")
-    set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "${CMAKE_PROJECT_NAME} main application.")
-    set(CPACK_COMPONENT_APPLICATION_GROUP "core")
+    set(CPACK_COMPONENT_APPLICATION_DESCRIPTION "${CMAKE_PROJECT_NAME} main application and required components.")
+    set(CPACK_COMPONENT_APPLICATION_GROUP "Core")
     set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
     set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
+    # service auto-start script
+    set(CPACK_COMPONENT_AUTOSTART_DISPLAY_NAME "Launch on Startup")
+    set(CPACK_COMPONENT_AUTOSTART_DESCRIPTION "If enabled, launches Sunshine automatically on system startup.")
+    set(CPACK_COMPONENT_AUTOSTART_GROUP "Core")
+
     # assets
-    set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "assets")
-    set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Shaders, default box art, and web ui.")
-    set(CPACK_COMPONENT_ASSETS_GROUP "core")
+    set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Required Assets")
+    set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Shaders, default box art, and web UI.")
+    set(CPACK_COMPONENT_ASSETS_GROUP "Core")
     set(CPACK_COMPONENT_ASSETS_REQUIRED true)
 
     # audio tool
     set(CPACK_COMPONENT_AUDIO_DISPLAY_NAME "audio-info")
     set(CPACK_COMPONENT_AUDIO_DESCRIPTION "CLI tool providing information about sound devices.")
-    set(CPACK_COMPONENT_AUDIO_GROUP "tools")
-
-    # elevation tool
-    set(CPACK_COMPONENT_ELEVATOR_DISPLAY_NAME "elevator")
-    set(CPACK_COMPONENT_ELEVATOR_DESCRIPTION "CLI tool that assists with elevating \
-     commands when permissions have been denied.")
-    set(CPACK_COMPONENT_ELEVATOR_GROUP "tools")
+    set(CPACK_COMPONENT_AUDIO_GROUP "Tools")
 
     # display tool
     set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
     set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
-    set(CPACK_COMPONENT_DXGI_GROUP "tools")
-
-    # service
-    set(CPACK_COMPONENT_SUNSHINESVC_DISPLAY_NAME "sunshinesvc")
-    set(CPACK_COMPONENT_SUNSHINESVC_DESCRIPTION "CLI tool providing ability to enable/disable the Sunshine service.")
-    set(CPACK_COMPONENT_SUNSHINESVC_GROUP "tools")
-
-    # service scripts
-    set(CPACK_COMPONENT_SERVICE_DISPLAY_NAME "service-scripts")
-    set(CPACK_COMPONENT_SERVICE_DESCRIPTION "Scripts to enable/disable the service.")
-    set(CPACK_COMPONENT_SERVICE_GROUP "scripts")
-    set(CPACK_COMPONENT_SERVICE_DEPENDS sunshinesvc)
+    set(CPACK_COMPONENT_DXGI_GROUP "Tools")
 
     # firewall scripts
-    set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "firewall-scripts")
+    set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "Add Firewall Exclusions")
     set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
-    set(CPACK_COMPONENT_FIREWALL_GROUP "scripts")
+    set(CPACK_COMPONENT_FIREWALL_GROUP "Scripts")
 
     # vigembus scripts
-    set(CPACK_COMPONENT_VIGEMBUS_DISPLAY_NAME "vigembus-scripts")
+    set(CPACK_COMPONENT_VIGEMBUS_DISPLAY_NAME "Virtual Gamepad Support")
     set(CPACK_COMPONENT_VIGEMBUS_DESCRIPTION "Scripts to install and uninstall ViGEmBus for virtual gamepad support.")
-    set(CPACK_COMPONENT_VIGEMBUS_GROUP "scripts")
+    set(CPACK_COMPONENT_VIGEMBUS_GROUP "Scripts")
 endif()
 if(APPLE)
     # TODO: bundle doesn't produce a valid .app use cpack -G DragNDrop
@@ -942,7 +944,7 @@ elseif(UNIX)
 
         if(${SUNSHINE_TRAY} STREQUAL 1)
             install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-                    DESTINATION "/usr/share/icons")
+                    DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
 
             set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \

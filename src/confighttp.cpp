@@ -1,5 +1,9 @@
-// Created by TheElixZammuto on 2021-05-09.
-// TODO: Authentication, better handling of routes common to nvhttp, cleanup
+/**
+ * @file src/confighttp.cpp
+ * @brief todo
+ *
+ * @todo Authentication, better handling of routes common to nvhttp, cleanup
+ */
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -128,7 +132,7 @@ namespace confighttp {
     auto password = authData.substr(index + 1);
     auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
 
-    if (username != config::sunshine.username || hash != config::sunshine.password) {
+    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
       return false;
     }
 
@@ -159,7 +163,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "index.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -170,7 +176,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "pin.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -179,11 +187,11 @@ namespace confighttp {
 
     print_req(request);
 
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
-
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "apps.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
     response->write(header + content, headers);
   }
 
@@ -195,7 +203,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "clients.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -206,7 +216,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "config.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -217,7 +229,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "password.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -229,7 +243,9 @@ namespace confighttp {
     }
     std::string header = read_file(WEB_DIR "header-no-nav.html");
     std::string content = read_file(WEB_DIR "welcome.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -240,7 +256,9 @@ namespace confighttp {
 
     std::string header = read_file(WEB_DIR "header.html");
     std::string content = read_file(WEB_DIR "troubleshooting.html");
-    response->write(header + content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(header + content, headers);
   }
 
   void
@@ -314,7 +332,9 @@ namespace confighttp {
     print_req(request);
 
     std::string content = read_file(config::stream.file_apps.c_str());
-    response->write(content);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    response->write(content, headers);
   }
 
   void
@@ -488,7 +508,7 @@ namespace confighttp {
 
     const std::string coverdir = platf::appdata().string() + "/covers/";
     if (!boost::filesystem::exists(coverdir)) {
-      boost::filesystem::create_directory(coverdir);
+      boost::filesystem::create_directories(coverdir);
     }
 
     std::basic_string path = coverdir + http::url_escape(key) + ".png";
@@ -528,7 +548,6 @@ namespace confighttp {
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
-    outputTree.put("restart_supported", platf::restart_supported());
 
     auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
@@ -579,30 +598,8 @@ namespace confighttp {
 
     print_req(request);
 
-    std::stringstream ss;
-    std::stringstream configStream;
-    ss << request->content.rdbuf();
-    pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
-    if (!platf::restart_supported()) {
-      outputTree.put("status", false);
-      outputTree.put("error", "Restart is not currently supported on this platform");
-      return;
-    }
-
-    if (!platf::restart()) {
-      outputTree.put("status", false);
-      outputTree.put("error", "Restart failed");
-      return;
-    }
-
-    outputTree.put("status", true);
+    // We may not return from this call
+    platf::restart();
   }
 
   void
@@ -638,7 +635,7 @@ namespace confighttp {
       }
       else {
         auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-        if (config::sunshine.username.empty() || (username == config::sunshine.username && hash == config::sunshine.password)) {
+        if (config::sunshine.username.empty() || (boost::iequals(username, config::sunshine.username) && hash == config::sunshine.password)) {
           if (newPassword.empty() || newPassword != confirmPassword) {
             outputTree.put("status", false);
             outputTree.put("error", "Password Mismatch");

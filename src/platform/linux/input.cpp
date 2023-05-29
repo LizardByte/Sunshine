@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input.cpp
+ * @brief todo
+ */
 #include <fcntl.h>
 #include <linux/uinput.h>
 #include <poll.h>
@@ -143,9 +147,9 @@ namespace platf {
   constexpr auto UNKNOWN = 0;
 
   /**
- * @brief Initializes the keycode constants for translating
- *        moonlight keycodes to linux/X11 keycodes
- */
+   * @brief Initializes the keycode constants for translating
+   *        moonlight keycodes to linux/X11 keycodes.
+   */
   static constexpr std::array<keycode_t, 0xE3>
   init_keycodes() {
     std::array<keycode_t, 0xE3> keycodes {};
@@ -1047,16 +1051,16 @@ namespace platf {
   }
 
   /**
- * @brief XTest absolute mouse move.
- * @param input The input_t instance to use.
- * @param x Absolute x position.
- * @param y Absolute y position.
- *
- * EXAMPLES:
- * ```cpp
- * x_abs_mouse(input, 0, 0);
- * ```
- */
+   * @brief XTest absolute mouse move.
+   * @param input The input_t instance to use.
+   * @param x Absolute x position.
+   * @param y Absolute y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_abs_mouse(input, 0, 0);
+   * ```
+   */
   static void
   x_abs_mouse(input_t &input, float x, float y) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1070,17 +1074,17 @@ namespace platf {
   }
 
   /**
- * @brief Absolute mouse move.
- * @param input The input_t instance to use.
- * @param touch_port The touch_port instance to use.
- * @param x Absolute x position.
- * @param y Absolute y position.
- *
- * EXAMPLES:
- * ```cpp
- * abs_mouse(input, touch_port, 0, 0);
- * ```
- */
+   * @brief Absolute mouse move.
+   * @param input The input_t instance to use.
+   * @param touch_port The touch_port instance to use.
+   * @param x Absolute x position.
+   * @param y Absolute y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * abs_mouse(input, touch_port, 0, 0);
+   * ```
+   */
   void
   abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
     auto touchscreen = ((input_raw_t *) input.get())->touch_input.get();
@@ -1101,16 +1105,16 @@ namespace platf {
   }
 
   /**
- * @brief XTest relative mouse move.
- * @param input The input_t instance to use.
- * @param deltaX Relative x position.
- * @param deltaY Relative y position.
- *
- * EXAMPLES:
- * ```cpp
- * x_move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
- * ```
- */
+   * @brief XTest relative mouse move.
+   * @param input The input_t instance to use.
+   * @param deltaX Relative x position.
+   * @param deltaY Relative y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_move_mouse(input, 10, 10);  // Move mouse 10 pixels down and right
+   * ```
+   */
   static void
   x_move_mouse(input_t &input, int deltaX, int deltaY) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1124,16 +1128,16 @@ namespace platf {
   }
 
   /**
- * @brief Relative mouse move.
- * @param input The input_t instance to use.
- * @param deltaX Relative x position.
- * @param deltaY Relative y position.
- *
- * EXAMPLES:
- * ```cpp
- * move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
- * ```
- */
+   * @brief Relative mouse move.
+   * @param input The input_t instance to use.
+   * @param deltaX Relative x position.
+   * @param deltaY Relative y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
+   * ```
+   */
   void
   move_mouse(input_t &input, int deltaX, int deltaY) {
     auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
@@ -1154,16 +1158,16 @@ namespace platf {
   }
 
   /**
- * @brief XTest mouse button press/release.
- * @param input The input_t instance to use.
- * @param button Which mouse button to emulate.
- * @param release Whether the event was a press (false) or a release (true)
- *
- * EXAMPLES:
- * ```cpp
- * x_button_mouse(input, 1, false); // Press left mouse button
- * ```
- */
+   * @brief XTest mouse button press/release.
+   * @param input The input_t instance to use.
+   * @param button Which mouse button to emulate.
+   * @param release Whether the event was a press (false) or a release (true)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_button_mouse(input, 1, false); // Press left mouse button
+   * ```
+   */
   static void
   x_button_mouse(input_t &input, int button, bool release) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1197,16 +1201,16 @@ namespace platf {
   }
 
   /**
- * @brief Mouse button press/release.
- * @param input The input_t instance to use.
- * @param button Which mouse button to emulate.
- * @param release Whether the event was a press (false) or a release (true)
- *
- * EXAMPLES:
- * ```cpp
- * button_mouse(input, 1, false); // Press left mouse button
- * ```
- */
+   * @brief Mouse button press/release.
+   * @param input The input_t instance to use.
+   * @param button Which mouse button to emulate.
+   * @param release Whether the event was a press (false) or a release (true)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * button_mouse(input, 1, false);  // Press left mouse button
+   * ```
+   */
   void
   button_mouse(input_t &input, int button, bool release) {
     auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
@@ -1245,17 +1249,17 @@ namespace platf {
   }
 
   /**
- * @brief XTest mouse scroll.
- * @param input The input_t instance to use.
- * @param distance How far to scroll
- * @param button_pos Which mouse button to emulate for positive scroll.
- * @param button_neg Which mouse button to emulate for negative scroll.
- *
- * EXAMPLES:
- * ```cpp
- * x_scroll(input, 10, 4, 5);
- * ```
- */
+   * @brief XTest mouse scroll.
+   * @param input The input_t instance to use.
+   * @param distance How far to scroll.
+   * @param button_pos Which mouse button to emulate for positive scroll.
+   * @param button_neg Which mouse button to emulate for negative scroll.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_scroll(input, 10, 4, 5);
+   * ```
+   */
   static void
   x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1274,15 +1278,15 @@ namespace platf {
   }
 
   /**
- * @brief Vertical mouse scroll.
- * @param input The input_t instance to use.
- * @param high_res_distance How far to scroll
- *
- * EXAMPLES:
- * ```cpp
- * scroll(input, 1200);
- * ```
- */
+   * @brief Vertical mouse scroll.
+   * @param input The input_t instance to use.
+   * @param high_res_distance How far to scroll.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * scroll(input, 1200);
+   * ```
+   */
   void
   scroll(input_t &input, int high_res_distance) {
     int distance = high_res_distance / 120;
@@ -1299,15 +1303,15 @@ namespace platf {
   }
 
   /**
- * @brief Horizontal mouse scroll.
- * @param input The input_t instance to use.
- * @param high_res_distance How far to scroll
- *
- * EXAMPLES:
- * ```cpp
- * hscroll(input, 1200);
- * ```
- */
+   * @brief Horizontal mouse scroll.
+   * @param input The input_t instance to use.
+   * @param high_res_distance How far to scroll.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * hscroll(input, 1200);
+   * ```
+   */
   void
   hscroll(input_t &input, int high_res_distance) {
     int distance = high_res_distance / 120;
@@ -1333,18 +1337,19 @@ namespace platf {
   }
 
   /**
- * @brief XTest keyboard emulation.
- * @param input The input_t instance to use.
- * @param modcode The moonlight key code.
- * @param release Whether the event was a press (false) or a release (true)
- *
- * EXAMPLES:
- * ```cpp
- * x_keyboard(input, 0x5A, false); // Press Z
- * ```
- */
+   * @brief XTest keyboard emulation.
+   * @param input The input_t instance to use.
+   * @param modcode The moonlight key code.
+   * @param release Whether the event was a press (false) or a release (true).
+   * @param flags SS_KBE_FLAG_* values.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_keyboard(input, 0x5A, false, 0);  // Press Z
+   * ```
+   */
   static void
-  x_keyboard(input_t &input, uint16_t modcode, bool release) {
+  x_keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
 #ifdef SUNSHINE_BUILD_X11
     auto keycode = keysym(modcode);
     if (keycode.keysym == UNKNOWN) {
@@ -1367,21 +1372,22 @@ namespace platf {
   }
 
   /**
- * @brief Keyboard emulation.
- * @param input The input_t instance to use.
- * @param modcode The moonlight key code.
- * @param release Whether the event was a press (false) or a release (true)
- *
- * EXAMPLES:
- * ```cpp
- * keyboard(input, 0x5A, false); // Press Z
- * ```
- */
+   * @brief Keyboard emulation.
+   * @param input The input_t instance to use.
+   * @param modcode The moonlight key code.
+   * @param release Whether the event was a press (false) or a release (true).
+   * @param flags SS_KBE_FLAG_* values.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * keyboard(input, 0x5A, false, 0);  // Press Z
+   * ```
+   */
   void
-  keyboard(input_t &input, uint16_t modcode, bool release) {
+  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto keyboard = ((input_raw_t *) input.get())->keyboard_input.get();
     if (!keyboard) {
-      x_keyboard(input, modcode, release);
+      x_keyboard(input, modcode, release, flags);
       return;
     }
 
@@ -1405,12 +1411,12 @@ namespace platf {
   }
 
   /**
- * Takes an UTF-32 encoded string and returns a hex string representation of the bytes (uppercase)
- *
- * ex: ['👱'] = "1F471" // see UTF encoding at https://www.compart.com/en/unicode/U+1F471
- *
- * adapted from: https://stackoverflow.com/a/7639754
- */
+   * Takes an UTF-32 encoded string and returns a hex string representation of the bytes (uppercase)
+   *
+   * ex: ['👱'] = "1F471" // see UTF encoding at https://www.compart.com/en/unicode/U+1F471
+   *
+   * adapted from: https://stackoverflow.com/a/7639754
+   */
   std::string
   to_hex(const std::basic_string<char32_t> &str) {
     std::stringstream ss;
@@ -1425,16 +1431,16 @@ namespace platf {
   }
 
   /**
- * Here we receive a single UTF-8 encoded char at a time,
- * the trick is to convert it to UTF-32 then send CTRL+SHIFT+U+<HEXCODE> in order to produce any
- * unicode character, see: https://en.wikipedia.org/wiki/Unicode_input
- *
- * ex:
- * - when receiving UTF-8 [0xF0 0x9F 0x91 0xB1] (which is '👱')
- * - we'll convert it to UTF-32 [0x1F471]
- * - then type: CTRL+SHIFT+U+1F471
- * see the conversion at: https://www.compart.com/en/unicode/U+1F471
- */
+   * Here we receive a single UTF-8 encoded char at a time,
+   * the trick is to convert it to UTF-32 then send CTRL+SHIFT+U+{HEXCODE} in order to produce any
+   * unicode character, see: https://en.wikipedia.org/wiki/Unicode_input
+   *
+   * ex:
+   * - when receiving UTF-8 [0xF0 0x9F 0x91 0xB1] (which is '👱')
+   * - we'll convert it to UTF-32 [0x1F471]
+   * - then type: CTRL+SHIFT+U+1F471
+   * see the conversion at: https://www.compart.com/en/unicode/U+1F471
+   */
   void
   unicode(input_t &input, char *utf8, int size) {
     auto kb = ((input_raw_t *) input.get())->keyboard_input.get();
@@ -1547,13 +1553,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new keyboard and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_keyboard = keyboard();
- * ```
- */
+   * @brief Initialize a new keyboard and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_keyboard = keyboard();
+   * ```
+   */
   evdev_t
   keyboard() {
     evdev_t dev { libevdev_new() };
@@ -1576,13 +1582,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new uinput virtual mouse and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_mouse = mouse();
- * ```
- */
+   * @brief Initialize a new `uinput` virtual mouse and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_mouse = mouse();
+   * ```
+   */
   evdev_t
   mouse() {
     evdev_t dev { libevdev_new() };
@@ -1627,13 +1633,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new uinput virtual touchscreen and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_touchscreen = touchscreen();
- * ```
- */
+   * @brief Initialize a new `uinput` virtual touchscreen and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_touchscreen = touchscreen();
+   * ```
+   */
   evdev_t
   touchscreen() {
     evdev_t dev { libevdev_new() };
@@ -1677,13 +1683,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new uinput virtual X360 gamepad and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_x360 = x360();
- * ```
- */
+   * @brief Initialize a new `uinput` virtual X360 gamepad and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_x360 = x360();
+   * ```
+   */
   evdev_t
   x360() {
     evdev_t dev { libevdev_new() };
@@ -1754,13 +1760,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize the input system and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_input = input();
- * ```
- */
+   * @brief Initialize the input system and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_input = input();
+   * ```
+   */
   input_t
   input() {
     input_t result { new input_raw_t() };

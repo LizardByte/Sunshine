@@ -1,7 +1,8 @@
-// Created by loki on 12/14/19.
-
-#ifndef SUNSHINE_PROCESS_H
-#define SUNSHINE_PROCESS_H
+/**
+ * @file src/process.h
+ * @brief todo
+ */
+#pragma once
 
 #ifndef __kernel_entry
   #define __kernel_entry
@@ -13,33 +14,34 @@
 #include <boost/process.hpp>
 
 #include "config.h"
+#include "platform/common.h"
 #include "utility.h"
 
 namespace proc {
   using file_t = util::safe_ptr_v2<FILE, int, fclose>;
 
   typedef config::prep_cmd_t cmd_t;
-  /*
- * pre_cmds -- guaranteed to be executed unless any of the commands fail.
- * detached -- commands detached from Sunshine
- * cmd -- Runs indefinitely until:
- *    No session is running and a different set of commands it to be executed
- *    Command exits
- * working_dir -- the process working directory. This is required for some games to run properly.
- * cmd_output --
- *    empty    -- The output of the commands are appended to the output of sunshine
- *    "null"   -- The output of the commands are discarded
- *    filename -- The output of the commands are appended to filename
- */
+  /**
+   * pre_cmds -- guaranteed to be executed unless any of the commands fail.
+   * detached -- commands detached from Sunshine
+   * cmd -- Runs indefinitely until:
+   *    No session is running and a different set of commands it to be executed
+   *    Command exits
+   * working_dir -- the process working directory. This is required for some games to run properly.
+   * cmd_output --
+   *    empty    -- The output of the commands are appended to the output of sunshine
+   *    "null"   -- The output of the commands are discarded
+   *    filename -- The output of the commands are appended to filename
+   */
   struct ctx_t {
     std::vector<cmd_t> prep_cmds;
 
     /**
-   * Some applications, such as Steam,
-   * either exit quickly, or keep running indefinitely.
-   * Steam.exe is one such application.
-   * That is why some applications need be run and forgotten about
-   */
+     * Some applications, such as Steam,
+     * either exit quickly, or keep running indefinitely.
+     * Steam.exe is one such application.
+     * That is why some applications need be run and forgotten about
+     */
     std::vector<std::string> detached;
 
     std::string name;
@@ -48,6 +50,7 @@ namespace proc {
     std::string output;
     std::string image_path;
     std::string id;
+    bool elevated;
   };
 
   class proc_t {
@@ -65,8 +68,8 @@ namespace proc {
     execute(int app_id);
 
     /**
-   * @return _app_id if a process is running, otherwise returns 0
-   */
+     * @return _app_id if a process is running, otherwise returns 0
+     */
     int
     running();
 
@@ -101,9 +104,9 @@ namespace proc {
   };
 
   /**
- * Calculate a stable id based on name and image data
- * @return tuple of id calculated without index (for use if no collision) and one with
-*/
+   * Calculate a stable id based on name and image data
+   * @return tuple of id calculated without index (for use if no collision) and one with
+   */
   std::tuple<std::string, std::string>
   calculate_app_id(const std::string &app_name, std::string app_image_path, int index);
 
@@ -114,6 +117,8 @@ namespace proc {
   std::optional<proc::proc_t>
   parse(const std::string &file_name);
 
+  std::unique_ptr<platf::deinit_t>
+  init();
+
   extern proc_t proc;
 }  // namespace proc
-#endif  // SUNSHINE_PROCESS_H

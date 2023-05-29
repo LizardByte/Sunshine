@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/input.cpp
+ * @brief todo
+ */
 #include <windows.h>
 
 #include <cmath>
@@ -338,15 +342,18 @@ namespace platf {
   }
 
   void
-  keyboard(input_t &input, uint16_t modcode, bool release) {
+  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto raw = (input_raw_t *) input.get();
 
     INPUT i {};
     i.type = INPUT_KEYBOARD;
     auto &ki = i.ki;
 
-    // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
-    if (modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE && raw->keyboard_layout != NULL) {
+    // If the client did not normalize this VK code to a US English layout, we can't accurately convert it to a scancode.
+    bool send_scancode = !(flags & SS_KBE_FLAG_NON_NORMALIZED) || config::input.always_send_scancodes;
+
+    if (send_scancode && modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE && raw->keyboard_layout != NULL) {
+      // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
       ki.wScan = MapVirtualKeyEx(modcode, MAPVK_VK_TO_VSC, raw->keyboard_layout);
     }
 
@@ -355,7 +362,7 @@ namespace platf {
       ki.dwFlags = KEYEVENTF_SCANCODE;
     }
     else {
-      // If there is no scancode mapping, send it as a regular VK event.
+      // If there is no scancode mapping or it's non-normalized, send it as a regular VK event.
       ki.wVk = modcode;
     }
 
@@ -494,6 +501,7 @@ namespace platf {
   if(flags & LEFT_BUTTON)  buttons |= DS4_BUTTON_SHOULDER_LEFT;
   if(flags & RIGHT_BUTTON) buttons |= DS4_BUTTON_SHOULDER_RIGHT;
   if(flags & START)        buttons |= DS4_BUTTON_OPTIONS;
+  if(flags & BACK)         buttons |= DS4_BUTTON_SHARE;
   if(flags & A)            buttons |= DS4_BUTTON_CROSS;
   if(flags & B)            buttons |= DS4_BUTTON_CIRCLE;
   if(flags & X)            buttons |= DS4_BUTTON_SQUARE;
@@ -510,7 +518,6 @@ namespace platf {
   ds4_special_buttons(const gamepad_state_t &gamepad_state) {
     int buttons {};
 
-    if (gamepad_state.buttonFlags & BACK) buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
     if (gamepad_state.buttonFlags & HOME) buttons |= DS4_SPECIAL_BUTTON_PS;
 
     return (DS4_SPECIAL_BUTTONS) buttons;

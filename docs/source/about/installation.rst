@@ -40,8 +40,8 @@ CUDA is used for NVFBC capture.
    sunshine.pkg.tar.zst                         11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
    sunshine_{arch}.flatpak                      12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
    sunshine-debian-bullseye-{arch}.deb          11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
-   sunshine-fedora-36-{arch}.rpm                12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
    sunshine-fedora-37-{arch}.rpm                12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
+   sunshine-fedora-38-{arch}.rpm                unavailable      unavailable       none
    sunshine-ubuntu-20.04-{arch}.deb             11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
    sunshine-ubuntu-22.04-{arch}.deb             11.8.0           450.80.02         50;52;60;61;62;70;75;80;86;90;35
    ===========================================  ==============   ==============    ================================
@@ -190,11 +190,11 @@ macOS
 -----
 Sunshine on macOS is experimental. Gamepads do not work. Other features may not work as expected.
 
-pkg
+dmg
 ^^^
-.. Warning:: The `pkg` does not include runtime dependencies.
+.. Warning:: The `dmg` does not include runtime dependencies.
 
-#. Download the ``sunshine.pkg`` file and install it as normal.
+#. Download the ``sunshine.dmg`` file and install it.
 
 Uninstall:
    .. code-block:: bash

@@ -1,5 +1,7 @@
-// Created by loki on 5/31/19.
-
+/**
+ * @file src/crypto.cpp
+ * @brief todo
+ */
 #include "crypto.h"
 #include <openssl/pem.h>
 
@@ -35,13 +37,13 @@ namespace crypto {
     }
   }
 
-  /*
- * When certificates from two or more instances of Moonlight have been added to x509_store_t,
- * only one of them will be verified by X509_verify_cert, resulting in only a single instance of
- * Moonlight to be able to use Sunshine
- *
- * To circumvent this, x509_store_t instance will be created for each instance of the certificates.
- */
+  /**
+   * When certificates from two or more instances of Moonlight have been added to x509_store_t,
+   * only one of them will be verified by X509_verify_cert, resulting in only a single instance of
+   * Moonlight to be able to use Sunshine
+   *
+   * To circumvent this, x509_store_t instance will be created for each instance of the certificates.
+   */
   const char *
   cert_chain_t::verify(x509_t::element_type *cert) {
     int err_code = 0;
@@ -399,7 +401,7 @@ namespace crypto {
   sign(const pkey_t &pkey, const std::string_view &data, const EVP_MD *md) {
     md_ctx_t ctx { EVP_MD_CTX_create() };
 
-    if (EVP_DigestSignInit(ctx.get(), nullptr, md, nullptr, pkey.get()) != 1) {
+    if (EVP_DigestSignInit(ctx.get(), nullptr, md, nullptr, (EVP_PKEY *) pkey.get()) != 1) {
       return {};
     }
 
@@ -472,7 +474,7 @@ namespace crypto {
 
   bool
   verify(const x509_t &x509, const std::string_view &data, const std::string_view &signature, const EVP_MD *md) {
-    auto pkey = X509_get_pubkey(x509.get());
+    auto pkey = X509_get0_pubkey(x509.get());
 
     md_ctx_t ctx { EVP_MD_CTX_create() };
 

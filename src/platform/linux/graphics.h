@@ -1,5 +1,8 @@
-#ifndef SUNSHINE_PLATFORM_LINUX_OPENGL_H
-#define SUNSHINE_PLATFORM_LINUX_OPENGL_H
+/**
+ * @file src/platform/linux/graphics.h
+ * @brief todo
+ */
+#pragma once
 
 #include <optional>
 #include <string_view>
@@ -94,8 +97,8 @@ namespace gl {
     }
 
     /**
-   * Copies a part of the framebuffer to texture
-   */
+     * Copies a part of the framebuffer to texture
+     */
     void
     copy(int id, int texture, int offset_x, int offset_y, int width, int height);
   };
@@ -352,5 +355,3 @@ namespace egl {
   bool
   fail();
 }  // namespace egl
-
-#endif

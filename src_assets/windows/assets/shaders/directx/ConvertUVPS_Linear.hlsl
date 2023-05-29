@@ -14,13 +14,16 @@ cbuffer ColorMatrix : register(b0) {
 	float2 range_uv;
 };
 
-//--------------------------------------------------------------------------------------
-// Pixel Shader
-//--------------------------------------------------------------------------------------
+// This is a fast sRGB approximation from Microsoft's ColorSpaceUtility.hlsli
+float3 ApplySRGBCurve(float3 x)
+{
+	return x < 0.0031308 ? 12.92 * x : 1.13005 * sqrt(x - 0.00228) - 0.13448 * x + 0.005719;
+}
+
 float2 main_ps(FragTexWide input) : SV_Target
 {
-	float3 rgb_left = saturate(image.Sample(def_sampler, input.uuv.xz)).rgb;
-	float3 rgb_right = saturate(image.Sample(def_sampler, input.uuv.yz)).rgb;
+	float3 rgb_left = ApplySRGBCurve(saturate(image.Sample(def_sampler, input.uuv.xz)).rgb);
+	float3 rgb_right = ApplySRGBCurve(saturate(image.Sample(def_sampler, input.uuv.yz)).rgb);
 	float3 rgb = (rgb_left + rgb_right) * 0.5;
 	
 	float u = dot(color_vec_u.xyz, rgb) + color_vec_u.w;

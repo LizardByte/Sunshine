@@ -23,7 +23,7 @@ root_dir = os.path.dirname(source_dir)  # the root folder directory
 
 # -- Project information -----------------------------------------------------
 project = 'Sunshine'
-copyright = f'{datetime.now ().year}, {project}'
+project_copyright = f'{datetime.now ().year}, {project}'
 author = 'ReenigneArcher'
 
 # The full version, including alpha/beta/rc tags
@@ -95,8 +95,16 @@ breathe_projects = dict(
 )
 todo_include_todos = True
 
-subprocess.run('doxygen', shell=True, cwd=source_dir)
-
 # disable epub mimetype warnings
 # https://github.com/readthedocs/readthedocs.org/blob/eadf6ac6dc6abc760a91e1cb147cc3c5f37d1ea8/docs/conf.py#L235-L236
 suppress_warnings = ["epub.unknown_project_files"]
+
+# get doxygen version
+doxy_proc = subprocess.run('doxygen --version', shell=True, cwd=source_dir, capture_output=True)
+doxy_version = doxy_proc.stdout.decode('utf-8').strip()
+print('doxygen version: ' + doxy_version)
+
+# run doxygen
+doxy_proc = subprocess.run('doxygen Doxyfile', shell=True, cwd=source_dir)
+if doxy_proc.returncode != 0:
+    raise RuntimeError('doxygen failed with return code ' + str(doxy_proc.returncode))

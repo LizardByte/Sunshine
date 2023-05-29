@@ -1,3 +1,7 @@
+/**
+ * @file src/cbs.cpp
+ * @brief todo
+ */
 extern "C" {
 #include <cbs/cbs_h264.h>
 #include <cbs/cbs_h265.h>
@@ -50,7 +54,7 @@ namespace cbs {
   };
 
   util::buffer_t<std::uint8_t>
-  write(const cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
+  write(cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
     cbs::frag_t frag;
     auto err = ff_cbs_insert_unit_content(&frag, -1, nal, uh, nullptr);
     if (err < 0) {
@@ -87,9 +91,9 @@ namespace cbs {
   make_sps_h264(const AVCodecContext *ctx) {
     H264RawSPS sps {};
 
-    /* b_per_p == ctx->max_b_frames for h264 */
-    /* desired_b_depth == avoption("b_depth") == 1 */
-    /* max_b_depth == std::min(av_log2(ctx->b_per_p) + 1, desired_b_depth) ==> 1 */
+    // b_per_p == ctx->max_b_frames for h264
+    // desired_b_depth == avoption("b_depth") == 1
+    // max_b_depth == std::min(av_log2(ctx->b_per_p) + 1, desired_b_depth) ==> 1
     auto max_b_depth = 1;
     auto dpb_frame = ctx->gop_size == 1 ? 0 : 1 + max_b_depth;
     auto mb_width = (FFALIGN(ctx->width, 16) / 16) * 16;

@@ -1,5 +1,8 @@
-#ifndef vtdevice_h
-#define vtdevice_h
+/**
+ * @file src/platform/macos/nv12_zero_device.h
+ * @brief todo
+ */
+#pragma once
 
 #include "src/platform/common.h"
 
@@ -29,5 +32,3 @@ namespace platf {
   };
 
 }  // namespace platf
-
-#endif /* vtdevice_h */

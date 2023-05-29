@@ -1,5 +1,7 @@
-// Created by loki on 6/20/19.
-
+/**
+ * @file src/input.cpp
+ * @brief todo
+ */
 // define uint32_t for <moonlight-common-c/src/Input.h>
 #include <cstdint>
 extern "C" {
@@ -16,6 +18,9 @@ extern "C" {
 #include "platform/common.h"
 #include "thread_pool.h"
 #include "utility.h"
+
+#include <boost/chrono.hpp>
+#include <boost/thread/thread.hpp>
 
 using namespace std::literals;
 namespace input {
@@ -59,8 +64,22 @@ namespace input {
     gamepad_mask[id] = false;
   }
 
+  typedef uint32_t key_press_id_t;
+  key_press_id_t
+  make_kpid(uint16_t vk, uint8_t flags) {
+    return (key_press_id_t) vk << 8 | flags;
+  }
+  uint16_t
+  vk_from_kpid(key_press_id_t kpid) {
+    return kpid >> 8;
+  }
+  uint8_t
+  flags_from_kpid(key_press_id_t kpid) {
+    return kpid & 0xFF;
+  }
+
   static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
-  static std::unordered_map<short, bool> key_press {};
+  static std::unordered_map<key_press_id_t, bool> key_press {};
   static std::array<std::uint8_t, 5> mouse_press {};
 
   static platf::input_t platf_input;
@@ -116,7 +135,7 @@ namespace input {
         touch_port_event { std::move(touch_port_event) },
         rumble_queue { std::move(rumble_queue) },
         mouse_left_button_timeout {},
-        touch_port { 0, 0, 0, 0, 0, 0, 1.0f } {}
+        touch_port { { 0, 0, 0, 0 }, 0, 0, 1.0f } {}
 
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;
@@ -133,12 +152,12 @@ namespace input {
   };
 
   /**
- * Apply shortcut based on VKEY
- * On success
- *    return > 0
- * On nothing
- *    return 0
- */
+   * Apply shortcut based on VKEY
+   * On success
+   *    return > 0
+   * On nothing
+   *    return 0
+   */
   inline int
   apply_shortcut(short keyCode) {
     constexpr auto VK_F1 = 0x70;
@@ -352,21 +371,20 @@ namespace input {
 
       mouse_press[button] = !release;
     }
-    ///////////////////////////////////
-    /*/
-    * When Moonlight sends mouse input through absolute coordinates,
-    * it's possible that BUTTON_RIGHT is pressed down immediately after releasing BUTTON_LEFT.
-    * As a result, Sunshine will left-click on hyperlinks in the browser before right-clicking
-    *
-    * This can be solved by delaying BUTTON_LEFT, however, any delay on input is undesirable during gaming
-    * As a compromise, Sunshine will only put delays on BUTTON_LEFT when
-    * absolute mouse coordinates have been sent.
-    *
-    * Try to make sure BUTTON_RIGHT gets called before BUTTON_LEFT is released.
-    *
-    * input->mouse_left_button_timeout can only be nullptr
-    * when the last mouse coordinates were absolute
-   /*/
+    /**
+     * When Moonlight sends mouse input through absolute coordinates,
+     * it's possible that BUTTON_RIGHT is pressed down immediately after releasing BUTTON_LEFT.
+     * As a result, Sunshine will left-click on hyperlinks in the browser before right-clicking
+     *
+     * This can be solved by delaying BUTTON_LEFT, however, any delay on input is undesirable during gaming
+     * As a compromise, Sunshine will only put delays on BUTTON_LEFT when
+     * absolute mouse coordinates have been sent.
+     *
+     * Try to make sure BUTTON_RIGHT gets called before BUTTON_LEFT is released.
+     *
+     * input->mouse_left_button_timeout can only be nullptr
+     * when the last mouse coordinates were absolute
+     */
     if (button == BUTTON_LEFT && release && !input->mouse_left_button_timeout) {
       auto f = [=]() {
         auto left_released = mouse_press[BUTTON_LEFT];
@@ -394,7 +412,6 @@ namespace input {
 
       return;
     }
-    ///////////////////////////////////
 
     platf::button_mouse(platf_input, button, release);
   }
@@ -410,8 +427,8 @@ namespace input {
   }
 
   /**
- * Update flags for keyboard shortcut combo's
- */
+   * Update flags for keyboard shortcut combo's
+   */
   inline void
   update_shortcutFlags(int *flags, short keyCode, bool release) {
     switch (keyCode) {
@@ -448,17 +465,66 @@ namespace input {
     }
   }
 
+  bool
+  is_modifier(uint16_t keyCode) {
+    switch (keyCode) {
+      case VKEY_SHIFT:
+      case VKEY_LSHIFT:
+      case VKEY_RSHIFT:
+      case VKEY_CONTROL:
+      case VKEY_LCONTROL:
+      case VKEY_RCONTROL:
+      case VKEY_MENU:
+      case VKEY_LMENU:
+      case VKEY_RMENU:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   void
-  repeat_key(short key_code) {
+  send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers) {
+    if (!release) {
+      // Press any synthetic modifiers required for this key
+      if (synthetic_modifiers & MODIFIER_SHIFT) {
+        platf::keyboard(platf_input, VKEY_SHIFT, false, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_CTRL) {
+        platf::keyboard(platf_input, VKEY_CONTROL, false, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_ALT) {
+        platf::keyboard(platf_input, VKEY_MENU, false, flags);
+      }
+    }
+
+    platf::keyboard(platf_input, map_keycode(key_code), release, flags);
+
+    if (!release) {
+      // Raise any synthetic modifier keys we pressed
+      if (synthetic_modifiers & MODIFIER_SHIFT) {
+        platf::keyboard(platf_input, VKEY_SHIFT, true, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_CTRL) {
+        platf::keyboard(platf_input, VKEY_CONTROL, true, flags);
+      }
+      if (synthetic_modifiers & MODIFIER_ALT) {
+        platf::keyboard(platf_input, VKEY_MENU, true, flags);
+      }
+    }
+  }
+
+  void
+  repeat_key(uint16_t key_code, uint8_t flags, uint8_t synthetic_modifiers) {
     // If key no longer pressed, stop repeating
-    if (!key_press[key_code]) {
+    if (!key_press[make_kpid(key_code, flags)]) {
       key_press_repeat_id = nullptr;
       return;
     }
 
-    platf::keyboard(platf_input, map_keycode(key_code), false);
+    send_key_and_modifiers(key_code, false, flags, synthetic_modifiers);
 
-    key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code).task_id;
+    key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code, flags, synthetic_modifiers).task_id;
   }
 
   void
@@ -470,7 +536,22 @@ namespace input {
     auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
     auto keyCode = packet->keyCode & 0x00FF;
 
-    auto &pressed = key_press[keyCode];
+    // Set synthetic modifier flags if the keyboard packet is requesting modifier
+    // keys that are not current pressed.
+    uint8_t synthetic_modifiers = 0;
+    if (!release && !is_modifier(keyCode)) {
+      if (!(input->shortcutFlags & input_t::SHIFT) && (packet->modifiers & MODIFIER_SHIFT)) {
+        synthetic_modifiers |= MODIFIER_SHIFT;
+      }
+      if (!(input->shortcutFlags & input_t::CTRL) && (packet->modifiers & MODIFIER_CTRL)) {
+        synthetic_modifiers |= MODIFIER_CTRL;
+      }
+      if (!(input->shortcutFlags & input_t::ALT) && (packet->modifiers & MODIFIER_ALT)) {
+        synthetic_modifiers |= MODIFIER_ALT;
+      }
+    }
+
+    auto &pressed = key_press[make_kpid(keyCode, packet->flags)];
     if (!pressed) {
       if (!release) {
         // A new key has been pressed down, we need to check for key combo's
@@ -484,7 +565,7 @@ namespace input {
         }
 
         if (config::input.key_repeat_delay.count() > 0) {
-          key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode).task_id;
+          key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_delay, keyCode, packet->flags, synthetic_modifiers).task_id;
         }
       }
       else {
@@ -499,8 +580,9 @@ namespace input {
 
     pressed = !release;
 
+    send_key_and_modifiers(keyCode, release, packet->flags, synthetic_modifiers);
+
     update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
-    platf::keyboard(platf_input, map_keycode(keyCode), release);
   }
 
   void
@@ -655,6 +737,9 @@ namespace input {
             state.buttonFlags |= platf::HOME;
             platf::gamepad(platf_input, gamepad.id, state);
 
+            // Sleep for a short time to allow the input to be detected
+            boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+
             // Release Home button
             state.buttonFlags &= ~platf::HOME;
             platf::gamepad(platf_input, gamepad.id, state);
@@ -731,7 +816,7 @@ namespace input {
       }
 
       for (auto &kp : key_press) {
-        platf::keyboard(platf_input, kp.first & 0x00FF, true);
+        platf::keyboard(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
         key_press[kp.first] = false;
       }
     });

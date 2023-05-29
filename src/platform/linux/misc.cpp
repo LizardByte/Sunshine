@@ -1,7 +1,7 @@
 /**
- * @file misc.cpp
+ * @file src/misc.cpp
+ * @brief todo
  */
-
 // standard includes
 #include <fstream>
 
@@ -103,15 +103,14 @@ namespace platf {
 
   std::string
   from_sockaddr(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN];
+    char data[INET6_ADDRSTRLEN] = {};
 
     auto family = ip_addr->sa_family;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data,
         INET6_ADDRSTRLEN);
     }
-
-    if (family == AF_INET) {
+    else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data,
         INET_ADDRSTRLEN);
     }
@@ -121,17 +120,16 @@ namespace platf {
 
   std::pair<std::uint16_t, std::string>
   from_sockaddr_ex(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN];
+    char data[INET6_ADDRSTRLEN] = {};
 
     auto family = ip_addr->sa_family;
-    std::uint16_t port;
+    std::uint16_t port = 0;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data,
         INET6_ADDRSTRLEN);
       port = ((sockaddr_in6 *) ip_addr)->sin6_port;
     }
-
-    if (family == AF_INET) {
+    else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data,
         INET_ADDRSTRLEN);
       port = ((sockaddr_in *) ip_addr)->sin_port;
@@ -159,8 +157,7 @@ namespace platf {
   }
 
   bp::child
-  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-    BOOST_LOG(warning) << "run_unprivileged() is not yet implemented for this platform. The new process will run with Sunshine's permissions."sv;
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     if (!group) {
       if (!file) {
         return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
@@ -179,6 +176,28 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Open a url in the default web browser.
+   * @param url The url to open.
+   */
+  void
+  open_url(const std::string &url) {
+    // set working dir to user home directory
+    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
+    std::string cmd = R"(xdg-open ")" + url + R"(")";
+
+    boost::process::environment _env = boost::this_process::environment();
+    std::error_code ec;
+    auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
+    if (ec) {
+      BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+    }
+    else {
+      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+      child.detach();
+    }
+  }
+
   void
   adjust_thread_priority(thread_priority_e priority) {
     // Unimplemented
@@ -194,16 +213,34 @@ namespace platf {
     // Nothing to do
   }
 
-  bool
-  restart_supported() {
-    // Restart not supported yet
-    return false;
+  void
+  restart_on_exit() {
+    char executable[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
+    if (len == -1) {
+      BOOST_LOG(fatal) << "readlink() failed: "sv << errno;
+      return;
+    }
+    executable[len] = '\0';
+
+    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
+    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
+      close(fd);
+    }
+
+    // Re-exec ourselves with the same arguments
+    if (execv(executable, lifetime::get_argv()) < 0) {
+      BOOST_LOG(fatal) << "execv() failed: "sv << errno;
+      return;
+    }
   }
 
-  bool
+  void
   restart() {
-    // Restart not supported yet
-    return false;
+    // Gracefully clean up and restart ourselves instead of exiting
+    atexit(restart_on_exit);
+    lifetime::exit_sunshine(0, true);
   }
 
   bool

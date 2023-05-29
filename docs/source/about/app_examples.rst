@@ -187,3 +187,32 @@ Changing Resolution and Refresh Rate (Windows)
 
 .. Tip:: You can change your host resolution to match the client resolution automatically using the
    `Nonary/ResolutionAutomation <https://github.com/Nonary/ResolutionAutomation/>`_ project.
+
+
+Elevating Commands (Windows)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you've installed Sunshine as a service (default), you can now specify if a command should be elevated with adminsitrative privileges.
+Simply enable the elevated option in the WEB UI, or add it to the JSON configuration.
+This is an option for both prep-cmd and regular commands and will launch the process with the current user without a UAC prompt.
+
+.. Note:: It's important to write the values "true" and "false" as string values, not as the typical true/false values in most JSON.
+
+**Example**
+   .. code-block:: json
+
+        {
+            "name": "Game With AntiCheat that Requires Admin",
+            "output": "",
+            "cmd": "ping 127.0.0.1",
+            "exclude-global-prep-cmd": "false",
+            "elevated": "true",
+            "prep-cmd": [
+                {
+                    "do": "powershell.exe -command \"Start-Streaming\"",
+                    "undo": "powershell.exe -command \"Stop-Streaming\"",
+                    "elevated": "false"
+                }
+            ],
+            "image-path": ""
+        }

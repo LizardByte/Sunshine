@@ -1,7 +1,8 @@
-// Created by loki on 6/9/19.
-
-#ifndef SUNSHINE_VIDEO_H
-#define SUNSHINE_VIDEO_H
+/**
+ * @file src/video.h
+ * @brief todo
+ */
+#pragma once
 
 #include "input.h"
 #include "platform/common.h"
@@ -32,7 +33,7 @@ namespace video {
     }
 
     ~packet_raw_t() {
-      av_packet_unref(this->av_packet);
+      av_packet_free(&this->av_packet);
     }
 
     struct replace_t {
@@ -48,6 +49,8 @@ namespace video {
     AVPacket *av_packet;
     std::vector<replace_t> *replacements;
     void *channel_data;
+
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
   };
 
   using packet_t = std::unique_ptr<packet_raw_t>;
@@ -90,6 +93,8 @@ namespace video {
 
   extern color_t colors[6];
 
+  extern int active_hevc_mode;
+
   void
   capture(
     safe::mail_t mail,
@@ -97,7 +102,5 @@ namespace video {
     void *channel_data);
 
   int
-  init();
+  probe_encoders();
 }  // namespace video
-
-#endif  // SUNSHINE_VIDEO_H

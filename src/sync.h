@@ -1,7 +1,8 @@
-// Created by loki on 16-4-19.
-
-#ifndef SUNSHINE_SYNC_H
-#define SUNSHINE_SYNC_H
+/**
+ * @file src/sync.h
+ * @brief todo
+ */
+#pragma once
 
 #include <array>
 #include <mutex>
@@ -98,5 +99,3 @@ namespace sync_util {
   };
 
 }  // namespace sync_util
-
-#endif  // SUNSHINE_SYNC_H

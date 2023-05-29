@@ -1,6 +1,7 @@
 /**
-* @file nvhttp.h
-*/
+ * @file src/nvhttp.h
+ * @brief todo
+ */
 
 // macros
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
@@ -29,6 +30,7 @@
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
+#include "video.h"
 
 using namespace std::literals;
 namespace nvhttp {
@@ -279,6 +281,7 @@ namespace nvhttp {
     if (sess.async_insert_pin.salt.size() < 32) {
       tree.put("root.paired", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Salt too short");
       return;
     }
 
@@ -374,14 +377,7 @@ namespace nvhttp {
     auto hash = crypto::hash(data);
 
     // if hash not correct, probably MITM
-    if (std::memcmp(hash.data(), sess.clienthash.data(), hash.size())) {
-      // TODO: log
-
-      map_id_sess.erase(client.uniqueID);
-      tree.put("root.paired", 0);
-    }
-
-    if (crypto::verify256(crypto::x509(client.cert), secret, sign)) {
+    if (!std::memcmp(hash.data(), sess.clienthash.data(), hash.size()) && crypto::verify256(crypto::x509(client.cert), secret, sign)) {
       tree.put("root.paired", 1);
       add_cert->raise(crypto::x509(client.cert));
 
@@ -470,11 +466,12 @@ namespace nvhttp {
     auto args = request->parse_query_string();
     if (args.find("uniqueid"s) == std::end(args)) {
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Missing uniqueid parameter");
 
       return;
     }
 
-    auto uniqID { std::move(get_arg(args, "uniqueid")) };
+    auto uniqID { get_arg(args, "uniqueid") };
     auto sess_it = map_id_sess.find(uniqID);
 
     args_t::const_iterator it;
@@ -521,19 +518,20 @@ namespace nvhttp {
     }
     else {
       tree.put("root.<xmlattr>.status_code", 404);
+      tree.put("root.<xmlattr>.status_message", "Invalid pairing request");
     }
   }
 
   /**
- * @brief Compare the user supplied pin to the Moonlight pin.
- * @param pin The user supplied pin.
- * @return `true` if the pin is correct, `false` otherwise.
- *
- * EXAMPLES:
- * ```cpp
- * bool pin_status = nvhttp::pin("1234");
- * ```
- */
+   * @brief Compare the user supplied pin to the Moonlight pin.
+   * @param pin The user supplied pin.
+   * @return `true` if the pin is correct, `false` otherwise.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * bool pin_status = nvhttp::pin("1234");
+   * ```
+   */
   bool
   pin(std::string pin) {
     pt::ptree tree;
@@ -621,21 +619,17 @@ namespace nvhttp {
     tree.put("root.HttpsPort", map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", map_port(PORT_HTTP));
     tree.put("root.mac", platf::get_mac_address(local_endpoint.address().to_string()));
-    tree.put("root.MaxLumaPixelsHEVC", config::video.hevc_mode > 1 ? "1869449984" : "0");
+    tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
     tree.put("root.LocalIP", local_endpoint.address().to_string());
 
-    if (config::video.hevc_mode == 3) {
+    if (video::active_hevc_mode == 3) {
       tree.put("root.ServerCodecModeSupport", "3843");
     }
-    else if (config::video.hevc_mode == 2) {
+    else if (video::active_hevc_mode == 2) {
       tree.put("root.ServerCodecModeSupport", "259");
     }
     else {
       tree.put("root.ServerCodecModeSupport", "3");
-    }
-
-    if (!config::nvhttp.external_ip.empty()) {
-      tree.put("root.ExternalIP", config::nvhttp.external_ip);
     }
 
     pt::ptree display_nodes;
@@ -689,22 +683,6 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     });
 
-    auto args = request->parse_query_string();
-    if (args.find("uniqueid"s) == std::end(args)) {
-      tree.put("root.<xmlattr>.status_code", 400);
-
-      return;
-    }
-
-    auto clientID = get_arg(args, "uniqueid");
-
-    auto client = map_id_client.find(clientID);
-    if (client == std::end(map_id_client)) {
-      tree.put("root.<xmlattr>.status_code", 501);
-
-      return;
-    }
-
     auto &apps = tree.add_child("root", pt::ptree {});
 
     apps.put("<xmlattr>.status_code", 200);
@@ -712,7 +690,7 @@ namespace nvhttp {
     for (auto &proc : proc::proc.get_apps()) {
       pt::ptree app;
 
-      app.put("IsHdrSupported"s, config::video.hevc_mode == 3 ? 1 : 0);
+      app.put("IsHdrSupported"s, video::active_hevc_mode == 3 ? 1 : 0);
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
 
@@ -736,6 +714,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() == config::stream.channels) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "The host's concurrent stream limit has been reached. Stop an existing stream or increase the 'Channels' value in the Sunshine Web UI.");
 
       return;
     }
@@ -748,6 +727,7 @@ namespace nvhttp {
       args.find("appid"s) == std::end(args)) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Missing a required launch parameter");
 
       return;
     }
@@ -758,14 +738,30 @@ namespace nvhttp {
     if (current_appid > 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "An app is already running on this host");
 
       return;
+    }
+
+    // Probe encoders again before streaming to ensure our chosen
+    // encoder matches the active GPU (which could have changed
+    // due to hotplugging, driver crash, primary monitor change,
+    // or any number of other factors).
+    if (rtsp_stream::session_count() == 0) {
+      if (video::probe_encoders()) {
+        tree.put("root.<xmlattr>.status_code", 503);
+        tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
+        tree.put("root.gamesession", 0);
+
+        return;
+      }
     }
 
     if (appid > 0) {
       auto err = proc::proc.execute(appid);
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);
+        tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
         tree.put("root.gamesession", 0);
 
         return;
@@ -798,6 +794,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() == config::stream.channels) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "The host's concurrent stream limit has been reached. Stop an existing stream or increase the 'Channels' value in the Sunshine Web UI.");
 
       return;
     }
@@ -806,6 +803,7 @@ namespace nvhttp {
     if (current_appid == 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "No running app to resume");
 
       return;
     }
@@ -816,8 +814,30 @@ namespace nvhttp {
       args.find("rikeyid"s) == std::end(args)) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Missing a required resume parameter");
 
       return;
+    }
+
+    if (rtsp_stream::session_count() == 0) {
+      // Probe encoders again before streaming to ensure our chosen
+      // encoder matches the active GPU (which could have changed
+      // due to hotplugging, driver crash, primary monitor change,
+      // or any number of other factors).
+      if (video::probe_encoders()) {
+        tree.put("root.resume", 0);
+        tree.put("root.<xmlattr>.status_code", 503);
+        tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
+
+        return;
+      }
+
+      // Newer Moonlight clients send localAudioPlayMode on /resume too,
+      // so we should use it if it's present in the args and there are
+      // no active sessions we could be interfering with.
+      if (args.find("localAudioPlayMode"s) != std::end(args)) {
+        host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+      }
     }
 
     rtsp_stream::launch_session_raise(make_launch_session(host_audio, args));
@@ -845,6 +865,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() != 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
+      tree.put("root.<xmlattr>.status_message", "All sessions must be disconnected before quitting");
 
       return;
     }
@@ -872,13 +893,13 @@ namespace nvhttp {
   }
 
   /**
- * @brief Start the nvhttp server.
- *
- * EXAMPLES:
- * ```cpp
- * nvhttp::start();
- * ```
- */
+   * @brief Start the nvhttp server.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * nvhttp::start();
+   * ```
+   */
   void
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -904,7 +925,7 @@ namespace nvhttp {
 
     auto add_cert = std::make_shared<safe::queue_t<crypto::x509_t>>(30);
 
-    // /resume doesn't get the parameter "localAudioPlayMode"
+    // /resume doesn't always get the parameter "localAudioPlayMode"
     // /launch will store it in host_audio
     bool host_audio {};
 
@@ -913,7 +934,7 @@ namespace nvhttp {
 
     // Verify certificates after establishing connection
     https_server.verify = [&cert_chain, add_cert](SSL *ssl) {
-      auto x509 = SSL_get_peer_certificate(ssl);
+      crypto::x509_t x509 { SSL_get_peer_certificate(ssl) };
       if (!x509) {
         BOOST_LOG(info) << "unknown -- denied"sv;
         return 0;
@@ -924,7 +945,7 @@ namespace nvhttp {
       auto fg = util::fail_guard([&]() {
         char subject_name[256];
 
-        X509_NAME_oneline(X509_get_subject_name(x509), subject_name, sizeof(subject_name));
+        X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name, sizeof(subject_name));
 
         BOOST_LOG(debug) << subject_name << " -- "sv << (verified ? "verified"sv : "denied"sv);
       });
@@ -939,7 +960,7 @@ namespace nvhttp {
         cert_chain.add(std::move(cert));
       }
 
-      auto err_str = cert_chain.verify(x509);
+      auto err_str = cert_chain.verify(x509.get());
       if (err_str) {
         BOOST_LOG(warning) << "SSL Verification error :: "sv << err_str;
 
@@ -1018,13 +1039,13 @@ namespace nvhttp {
   }
 
   /**
- * @brief Remove all paired clients.
- *
- * EXAMPLES:
- * ```cpp
- * nvhttp::erase_all_clients();
- * ```
- */
+   * @brief Remove all paired clients.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * nvhttp::erase_all_clients();
+   * ```
+   */
   void
   erase_all_clients() {
     map_id_client.clear();

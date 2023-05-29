@@ -1,5 +1,9 @@
-
-// adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
+/**
+ * @file src/platform/macos/publish.cpp
+ * @brief todo
+ * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
+ * @todo Use a common file for this and src/platform/linux/publish.cpp
+ */
 #include <thread>
 
 #include "misc.h"
@@ -12,7 +16,9 @@ using namespace std::literals;
 
 namespace avahi {
 
-  /** Error codes used by avahi */
+  /**
+   * @brief Error codes used by avahi.
+   */
   enum err_e {
     OK = 0, /**< OK */
     ERR_FAILURE = -1, /**< Generic error code */
@@ -113,7 +119,9 @@ namespace avahi {
     CLIENT_NO_FAIL = 2 /**< Don't fail if the daemon is not available when avahi_client_new() is called, instead enter CLIENT_CONNECTING state and wait for the daemon to appear */
   };
 
-  /** Some flags for publishing functions */
+  /**
+   * @brief Flags for publishing functions.
+   */
   enum PublishFlags {
     PUBLISH_UNIQUE = 1, /**< For raw records: The RRset is intended to be unique */
     PUBLISH_NO_PROBE = 2, /**< For raw records: Though the RRset is intended to be unique no probes shall be sent */
@@ -434,4 +442,4 @@ namespace platf::publish {
 
     return std::make_unique<deinit_t>(std::thread { avahi::simple_poll_loop, poll.get() });
   }
-};  // namespace platf::publish
+}  // namespace platf::publish

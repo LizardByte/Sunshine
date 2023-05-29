@@ -16,9 +16,15 @@ struct PS_INPUT
 	float2 tex : TEXCOORD;
 };
 
+// This is a fast sRGB approximation from Microsoft's ColorSpaceUtility.hlsli
+float3 ApplySRGBCurve(float3 x)
+{
+	return x < 0.0031308 ? 12.92 * x : 1.13005 * sqrt(x - 0.00228) - 0.13448 * x + 0.005719;
+}
+
 float main_ps(PS_INPUT frag_in) : SV_Target
 {
-	float3 rgb = saturate(image.Sample(def_sampler, frag_in.tex, 0)).rgb;
+	float3 rgb = ApplySRGBCurve(saturate(image.Sample(def_sampler, frag_in.tex, 0)).rgb);
 	float y = dot(color_vec_y.xyz, rgb) + color_vec_y.w;
 
 	return y * range_y.x + range_y.y;

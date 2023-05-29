@@ -1,5 +1,7 @@
-// Created by loki on 2/2/20.
-
+/**
+ * @file src/rstp.cpp
+ * @brief todo
+ */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 extern "C" {
@@ -19,6 +21,7 @@ extern "C" {
 #include "rtsp.h"
 #include "stream.h"
 #include "sync.h"
+#include "video.h"
 
 #include <unordered_map>
 
@@ -489,7 +492,7 @@ namespace rtsp_stream {
     option.content = const_cast<char *>(seqn_str.c_str());
 
     std::stringstream ss;
-    if (config::video.hevc_mode != 1) {
+    if (video::active_hevc_mode != 1) {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
     }
 
@@ -500,10 +503,10 @@ namespace rtsp_stream {
       auto mapping_p = stream_config.mapping;
 
       /**
-     * GFE advertises incorrect mapping for normal quality configurations,
-     * as a result, Moonlight rotates all channels from index '3' to the right
-     * To work around this, rotate channels to the left from index '3'
-     */
+       * GFE advertises incorrect mapping for normal quality configurations,
+       * as a result, Moonlight rotates all channels from index '3' to the right
+       * To work around this, rotate channels to the left from index '3'
+       */
       if (x == audio::SURROUND51 || x == audio::SURROUND71) {
         std::copy_n(mapping_p, stream_config.channelCount, mapping);
         std::rotate(mapping + 3, mapping + 4, mapping + audio::MAX_STREAM_CONFIG);
@@ -690,7 +693,7 @@ namespace rtsp_stream {
       }
     }
 
-    if (config.monitor.videoFormat != 0 && config::video.hevc_mode == 1) {
+    if (config.monitor.videoFormat != 0 && video::active_hevc_mode == 1) {
       BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
       respond(sock, &option, 400, "BAD REQUEST", req->sequenceNumber, {});

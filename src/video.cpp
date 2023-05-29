@@ -1,7 +1,10 @@
-// Created by loki on 6/6/19.
-
+/**
+ * @file src/video.cpp
+ * @brief todo
+ */
 #include <atomic>
 #include <bitset>
+#include <list>
 #include <thread>
 
 extern "C" {
@@ -14,7 +17,6 @@ extern "C" {
 #include "input.h"
 #include "main.h"
 #include "platform/common.h"
-#include "round_robin.h"
 #include "sync.h"
 #include "video.h"
 
@@ -26,9 +28,6 @@ extern "C" {
 
 using namespace std::literals;
 namespace video {
-
-  constexpr auto hevc_nalu = "\000\000\000\001("sv;
-  constexpr auto h264_nalu = "\000\000\000\001e"sv;
 
   void
   free_ctx(AVCodecContext *ctx) {
@@ -141,7 +140,7 @@ namespace video {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
       this->frame = frame;
 
       // If it's a hwframe, allocate buffers for hardware
@@ -166,8 +165,8 @@ namespace video {
     }
 
     /**
-   * When preserving aspect ratio, ensure that padding is black
-   */
+     * When preserving aspect ratio, ensure that padding is black
+     */
     int
     prefill() {
       auto frame = sw_frame ? sw_frame.get() : this->frame;
@@ -277,12 +276,9 @@ namespace video {
     enum flag_e {
       PASSED,  // Is supported
       REF_FRAMES_RESTRICT,  // Set maximum reference frames
-      REF_FRAMES_AUTOSELECT,  // Allow encoder to select maximum reference frames (If !REF_FRAMES_RESTRICT --> REF_FRAMES_AUTOSELECT)
-      SLICE,  // Allow frame to be partitioned into multiple slices
       CBR,  // Some encoders don't support CBR, if not supported --> attempt constant quantatication parameter instead
       DYNAMIC_RANGE,  // hdr
       VUI_PARAMETERS,  // AMD encoder with VAAPI doesn't add VUI parameters to SPS
-      NALU_PREFIX_5b,  // libx264/libx265 have a 3-byte nalu prefix instead of 4-byte nalu prefix
       MAX_FLAGS
     };
 
@@ -294,12 +290,9 @@ namespace video {
       switch (flag) {
         _CONVERT(PASSED);
         _CONVERT(REF_FRAMES_RESTRICT);
-        _CONVERT(REF_FRAMES_AUTOSELECT);
-        _CONVERT(SLICE);
         _CONVERT(CBR);
         _CONVERT(DYNAMIC_RANGE);
         _CONVERT(VUI_PARAMETERS);
-        _CONVERT(NALU_PREFIX_5b);
         _CONVERT(MAX_FLAGS);
       }
 #undef _CONVERT
@@ -403,7 +396,6 @@ namespace video {
   struct sync_session_t {
     sync_session_ctx_t *ctx;
 
-    platf::img_t *img_tmp;
     session_t session;
   };
 
@@ -668,7 +660,7 @@ namespace video {
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "h264_vaapi"s,
     },
-    LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY,
+    LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY | NO_RC_BUF_LIMIT,
 
     vaapi_make_hwdevice_ctx
   };
@@ -710,22 +702,25 @@ namespace video {
   };
 #endif
 
-  static std::vector<encoder_t> encoders {
+  static const std::vector<encoder_t *> encoders {
 #ifndef __APPLE__
-    nvenc,
+    &nvenc,
 #endif
 #ifdef _WIN32
-    quicksync,
-    amdvce,
+    &quicksync,
+    &amdvce,
 #endif
 #ifdef __linux__
-    vaapi,
+    &vaapi,
 #endif
 #ifdef __APPLE__
-    videotoolbox,
+    &videotoolbox,
 #endif
-    software
+    &software
   };
+
+  static encoder_t *chosen_encoder;
+  int active_hevc_mode;
 
   void
   reset_display(std::shared_ptr<platf::display_t> &disp, AVHWDeviceType type, const std::string &display_name, const config_t &config) {
@@ -781,9 +776,12 @@ namespace video {
       }
     }
 
-    if (auto capture_ctx = capture_ctx_queue->pop()) {
-      capture_ctxs.emplace_back(std::move(*capture_ctx));
+    // Wait for the initial capture context or a request to stop the queue
+    auto initial_capture_ctx = capture_ctx_queue->pop();
+    if (!initial_capture_ctx) {
+      return;
     }
+    capture_ctxs.emplace_back(std::move(*initial_capture_ctx));
 
     auto disp = platf::display(map_base_dev_type(encoder.base_dev_type), display_names[display_p], capture_ctxs.front().config);
     if (!disp) {
@@ -791,16 +789,101 @@ namespace video {
     }
     display_wp = disp;
 
-    std::vector<std::shared_ptr<platf::img_t>> imgs(12);
-    auto round_robin = round_robin_util::make_round_robin<std::shared_ptr<platf::img_t>>(std::begin(imgs), std::end(imgs));
+    constexpr auto capture_buffer_size = 12;
+    std::list<std::shared_ptr<platf::img_t>> imgs(capture_buffer_size);
 
-    for (auto &img : imgs) {
-      img = disp->alloc_img();
-      if (!img) {
-        BOOST_LOG(error) << "Couldn't initialize an image"sv;
-        return;
+    std::vector<std::optional<std::chrono::steady_clock::time_point>> imgs_used_timestamps;
+    const std::chrono::seconds trim_timeot = 3s;
+    auto trim_imgs = [&]() {
+      // count allocated and used within current pool
+      size_t allocated_count = 0;
+      size_t used_count = 0;
+      for (const auto &img : imgs) {
+        if (img) {
+          allocated_count += 1;
+          if (img.use_count() > 1) {
+            used_count += 1;
+          }
+        }
       }
-    }
+
+      // remember the timestamp of currently used count
+      const auto now = std::chrono::steady_clock::now();
+      if (imgs_used_timestamps.size() <= used_count) {
+        imgs_used_timestamps.resize(used_count + 1);
+      }
+      imgs_used_timestamps[used_count] = now;
+
+      // decide whether to trim allocated unused above the currently used count
+      // based on last used timestamp and universal timeout
+      size_t trim_target = used_count;
+      for (size_t i = used_count; i < imgs_used_timestamps.size(); i++) {
+        if (imgs_used_timestamps[i] && now - *imgs_used_timestamps[i] < trim_timeot) {
+          trim_target = i;
+        }
+      }
+
+      // trim allocated unused above the newly decided trim target
+      if (allocated_count > trim_target) {
+        size_t to_trim = allocated_count - trim_target;
+        // prioritize trimming least recently used
+        for (auto it = imgs.rbegin(); it != imgs.rend(); it++) {
+          auto &img = *it;
+          if (img && img.use_count() == 1) {
+            img.reset();
+            to_trim -= 1;
+            if (to_trim == 0) break;
+          }
+        }
+        // forget timestamps that no longer relevant
+        imgs_used_timestamps.resize(trim_target + 1);
+      }
+    };
+
+    auto pull_free_image_callback = [&](std::shared_ptr<platf::img_t> &img_out) -> bool {
+      img_out.reset();
+      while (capture_ctx_queue->running()) {
+        // pick first allocated but unused
+        for (auto it = imgs.begin(); it != imgs.end(); it++) {
+          if (*it && it->use_count() == 1) {
+            img_out = *it;
+            if (it != imgs.begin()) {
+              // move image to the front of the list to prioritize its reusal
+              imgs.erase(it);
+              imgs.push_front(img_out);
+            }
+            break;
+          }
+        }
+        // otherwise pick first unallocated
+        if (!img_out) {
+          for (auto it = imgs.begin(); it != imgs.end(); it++) {
+            if (!*it) {
+              // allocate image
+              *it = disp->alloc_img();
+              img_out = *it;
+              if (it != imgs.begin()) {
+                // move image to the front of the list to prioritize its reusal
+                imgs.erase(it);
+                imgs.push_front(img_out);
+              }
+              break;
+            }
+          }
+        }
+        if (img_out) {
+          // trim allocated but unused portion of the pool based on timeouts
+          trim_imgs();
+          img_out->frame_timestamp.reset();
+          return true;
+        }
+        else {
+          // sleep and retry if image pool is full
+          std::this_thread::sleep_for(1ms);
+        }
+      }
+      return false;
+    };
 
     // Capture takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
@@ -808,7 +891,7 @@ namespace video {
     while (capture_ctx_queue->running()) {
       bool artificial_reinit = false;
 
-      auto status = disp->capture([&](std::shared_ptr<platf::img_t> &img, bool frame_captured) -> std::shared_ptr<platf::img_t> {
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
         KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
           if (!capture_ctx->images->running()) {
             capture_ctx = capture_ctxs.erase(capture_ctx);
@@ -824,8 +907,9 @@ namespace video {
         })
 
         if (!capture_ctx_queue->running()) {
-          return nullptr;
+          return false;
         }
+
         while (capture_ctx_queue->peek()) {
           capture_ctxs.emplace_back(std::move(*capture_ctx_queue->pop()));
         }
@@ -834,18 +918,13 @@ namespace video {
           artificial_reinit = true;
 
           display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
-          return nullptr;
+          return false;
         }
 
-        auto &next_img = *round_robin++;
-        while (next_img.use_count() > 1) {
-          // Sleep a bit to avoid starving the encoder threads
-          std::this_thread::sleep_for(2ms);
-        }
+        return true;
+      };
 
-        return next_img;
-      },
-        *round_robin++, &display_cursor);
+      auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
 
       if (artificial_reinit && status != platf::capture_e::error) {
         status = platf::capture_e::reinit;
@@ -899,21 +978,13 @@ namespace video {
 
           display_wp = disp;
 
-          // Re-allocate images
-          for (auto &img : imgs) {
-            img = disp->alloc_img();
-            if (!img) {
-              BOOST_LOG(error) << "Couldn't initialize an image"sv;
-              return;
-            }
-          }
-
           reinit_event.reset();
           continue;
         }
         case platf::capture_e::error:
         case platf::capture_e::ok:
         case platf::capture_e::timeout:
+        case platf::capture_e::interrupted:
           return;
         default:
           BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
@@ -923,7 +994,7 @@ namespace video {
   }
 
   int
-  encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data) {
+  encode(int64_t frame_nr, session_t &session, frame_t::pointer frame, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, const std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
     frame->pts = frame_nr;
 
     auto &ctx = session.ctx;
@@ -931,7 +1002,7 @@ namespace video {
     auto &sps = session.sps;
     auto &vps = session.vps;
 
-    /* send the frame to the encoder */
+    // send the frame to the encoder
     auto ret = avcodec_send_frame(ctx.get(), frame);
     if (ret < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
@@ -974,6 +1045,10 @@ namespace video {
         session.replacements.emplace_back(
           std::string_view((char *) std::begin(sps.old), sps.old.size()),
           std::string_view((char *) std::begin(sps._new), sps._new.size()));
+      }
+
+      if (av_packet && av_packet->pts == frame_nr) {
+        packet->frame_timestamp = frame_timestamp;
       }
 
       packet->replacements = &session.replacements;
@@ -1032,12 +1107,14 @@ namespace video {
 
     ctx->keyint_min = std::numeric_limits<int>::max();
 
-    if (config.numRefFrames == 0) {
-      ctx->refs = video_format[encoder_t::REF_FRAMES_AUTOSELECT] ? 0 : 16;
-    }
-    else {
-      // Some client decoders have limits on the number of reference frames
-      ctx->refs = video_format[encoder_t::REF_FRAMES_RESTRICT] ? config.numRefFrames : 0;
+    // Some client decoders have limits on the number of reference frames
+    if (config.numRefFrames) {
+      if (video_format[encoder_t::REF_FRAMES_RESTRICT]) {
+        ctx->refs = config.numRefFrames;
+      }
+      else {
+        BOOST_LOG(warning) << "Client requested reference frame limit, but encoder doesn't support it!"sv;
+      }
     }
 
     ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
@@ -1146,7 +1223,7 @@ namespace video {
       ctx->slices = std::max(config.slicesPerFrame, config::video.min_threads);
     }
 
-    if (!video_format[encoder_t::SLICE]) {
+    if (encoder.flags & SINGLE_SLICE_ONLY) {
       ctx->slices = 1;
     }
 
@@ -1286,12 +1363,6 @@ namespace video {
       (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat),
     };
 
-    if (!video_format[encoder_t::NALU_PREFIX_5b]) {
-      auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
-
-      session.replacements.emplace_back(nalu_prefix.substr(1), nalu_prefix);
-    }
-
     return std::make_optional(std::move(session));
   }
 
@@ -1317,11 +1388,15 @@ namespace video {
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     auto idr_events = mail->event<bool>(mail::idr);
 
-    // Load a dummy image into the AVFrame to ensure we have something to encode
-    // even if we timeout waiting on the first frame.
-    auto dummy_img = disp->alloc_img();
-    if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
-      return;
+    {
+      // Load a dummy image into the AVFrame to ensure we have something to encode
+      // even if we timeout waiting on the first frame. This is a relatively large
+      // allocation which can be freed immediately after convert(), so we do this
+      // in a separate scope.
+      auto dummy_img = disp->alloc_img();
+      if (!dummy_img || disp->dummy_img(dummy_img.get()) || session->device->convert(*dummy_img)) {
+        return;
+      }
     }
 
     while (true) {
@@ -1336,9 +1411,12 @@ namespace video {
         idr_events->pop();
       }
 
+      std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+
       // Encode at a minimum of 10 FPS to avoid image quality issues with static content
       if (!frame->key_frame || images->peek()) {
         if (auto img = images->pop(100ms)) {
+          frame_timestamp = img->frame_timestamp;
           if (session->device->convert(*img)) {
             BOOST_LOG(error) << "Could not convert image"sv;
             return;
@@ -1349,7 +1427,7 @@ namespace video {
         }
       }
 
-      if (encode(frame_nr++, *session, frame, packets, channel_data)) {
+      if (encode(frame_nr++, *session, frame, packets, channel_data, frame_timestamp)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
@@ -1376,10 +1454,12 @@ namespace video {
     auto offsetY = (config.height - h2) * 0.5f;
 
     return input::touch_port_t {
-      display->offset_x,
-      display->offset_y,
-      config.width,
-      config.height,
+      {
+        display->offset_x,
+        display->offset_y,
+        config.width,
+        config.height,
+      },
       display->env_width,
       display->env_height,
       offsetX,
@@ -1418,14 +1498,14 @@ namespace video {
 
     encode_session.session = std::move(*session);
 
-    return std::move(encode_session);
+    return encode_session;
   }
 
   encode_e
   encode_run_sync(
     std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs,
     encode_session_ctx_queue_t &encode_session_ctx_queue) {
-    const auto &encoder = encoders.front();
+    const auto &encoder = *chosen_encoder;
     auto display_names = platf::display_names(map_base_dev_type(encoder.base_dev_type));
     int display_p = 0;
 
@@ -1483,11 +1563,11 @@ namespace video {
 
     auto ec = platf::capture_e::ok;
     while (encode_session_ctx_queue.running()) {
-      auto snapshot_cb = [&](std::shared_ptr<platf::img_t> &img, bool frame_captured) -> std::shared_ptr<platf::img_t> {
+      auto push_captured_image_callback = [&](std::shared_ptr<platf::img_t> &&img, bool frame_captured) -> bool {
         while (encode_session_ctx_queue.peek()) {
           auto encode_session_ctx = encode_session_ctx_queue.pop();
           if (!encode_session_ctx) {
-            return nullptr;
+            return false;
           }
 
           synced_session_ctxs.emplace_back(std::make_unique<sync_session_ctx_t>(std::move(*encode_session_ctx)));
@@ -1495,7 +1575,7 @@ namespace video {
           auto encode_session = make_synced_session(disp.get(), encoder, *img, *synced_session_ctxs.back());
           if (!encode_session) {
             ec = platf::capture_e::error;
-            return nullptr;
+            return false;
           }
 
           synced_sessions.emplace_back(std::move(*encode_session));
@@ -1514,7 +1594,7 @@ namespace video {
             }));
 
             if (synced_sessions.empty()) {
-              return nullptr;
+              return false;
             }
 
             continue;
@@ -1534,7 +1614,12 @@ namespace video {
             continue;
           }
 
-          if (encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data)) {
+          std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+          if (img) {
+            frame_timestamp = img->frame_timestamp;
+          }
+
+          if (encode(ctx->frame_nr++, pos->session, frame, ctx->packets, ctx->channel_data, frame_timestamp)) {
             BOOST_LOG(error) << "Could not encode video packet"sv;
             ctx->shutdown_event->raise(true);
 
@@ -1551,18 +1636,25 @@ namespace video {
           ec = platf::capture_e::reinit;
 
           display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
-          return nullptr;
+          return false;
         }
 
-        return img;
+        return true;
       };
 
-      auto status = disp->capture(std::move(snapshot_cb), img, &display_cursor);
+      auto pull_free_image_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
+        img_out = img;
+        img_out->frame_timestamp.reset();
+        return true;
+      };
+
+      auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
       switch (status) {
         case platf::capture_e::reinit:
         case platf::capture_e::error:
         case platf::capture_e::ok:
         case platf::capture_e::timeout:
+        case platf::capture_e::interrupted:
           return ec != platf::capture_e::ok ? ec : status;
       }
     }
@@ -1646,7 +1738,7 @@ namespace video {
         display = ref->display_wp->lock();
       }
 
-      auto &encoder = encoders.front();
+      auto &encoder = *chosen_encoder;
       auto pix_fmt = config.dynamicRange == 0 ? map_pix_fmt(encoder.static_pix_fmt) : map_pix_fmt(encoder.dynamic_pix_fmt);
       auto hwdevice = display->make_hwdevice(pix_fmt);
       if (!hwdevice) {
@@ -1682,7 +1774,7 @@ namespace video {
     auto idr_events = mail->event<bool>(mail::idr);
 
     idr_events->raise(true);
-    if (encoders.front().flags & PARALLEL_ENCODING) {
+    if (chosen_encoder->flags & PARALLEL_ENCODING) {
       capture_async(std::move(mail), config, channel_data);
     }
     else {
@@ -1707,7 +1799,6 @@ namespace video {
 
   enum validate_flag_e {
     VUI_PARAMS = 0x01,
-    NALU_PREFIX_5b = 0x02,
   };
 
   int
@@ -1728,12 +1819,12 @@ namespace video {
       return -1;
     }
 
-    auto img = disp->alloc_img();
-    if (!img || disp->dummy_img(img.get())) {
-      return -1;
-    }
-    if (session->device->convert(*img)) {
-      return -1;
+    {
+      // Image buffers are large, so we use a separate scope to free it immediately after convert()
+      auto img = disp->alloc_img();
+      if (!img || disp->dummy_img(img.get()) || session->device->convert(*img)) {
+        return -1;
+      }
     }
 
     auto frame = session->device->frame;
@@ -1742,7 +1833,7 @@ namespace video {
 
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     while (!packets->peek()) {
-      if (encode(1, *session, frame, packets, nullptr)) {
+      if (encode(1, *session, frame, packets, nullptr, {})) {
         return -1;
       }
     }
@@ -1760,17 +1851,11 @@ namespace video {
       flag |= VUI_PARAMS;
     }
 
-    auto nalu_prefix = config.videoFormat ? hevc_nalu : h264_nalu;
-    std::string_view payload { (char *) av_packet->data, (std::size_t) av_packet->size };
-    if (std::search(std::begin(payload), std::end(payload), std::begin(nalu_prefix), std::end(nalu_prefix)) != std::end(payload)) {
-      flag |= NALU_PREFIX_5b;
-    }
-
     return flag;
   }
 
   bool
-  validate_encoder(encoder_t &encoder) {
+  validate_encoder(encoder_t &encoder, bool expect_failure) {
     std::shared_ptr<platf::display_t> disp;
 
     BOOST_LOG(info) << "Trying encoder ["sv << encoder.name << ']';
@@ -1778,23 +1863,22 @@ namespace video {
       BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] failed"sv;
     });
 
-    auto force_hevc = config::video.hevc_mode >= 2;
-    auto test_hevc = force_hevc || (config::video.hevc_mode == 0 && !(encoder.flags & H264_ONLY));
+    auto force_hevc = active_hevc_mode >= 2;
+    auto test_hevc = force_hevc || (active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
 
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
-
-    encoder.hevc[encoder_t::PASSED] = test_hevc;
 
     // First, test encoder viability
     config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
     config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
 
   retry:
-    auto max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
-    auto autoselect_h264 = validate_config(disp, encoder, config_autoselect);
-
-    if (max_ref_frames_h264 < 0 && autoselect_h264 < 0) {
+    // If we're expecting failure, use the autoselect ref config first since that will always succeed
+    // if the encoder is available.
+    auto max_ref_frames_h264 = expect_failure ? -1 : validate_config(disp, encoder, config_max_ref_frames);
+    auto autoselect_h264 = max_ref_frames_h264 >= 0 ? max_ref_frames_h264 : validate_config(disp, encoder, config_autoselect);
+    if (autoselect_h264 < 0) {
       if (encoder.h264.qp && encoder.h264[encoder_t::CBR]) {
         // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
         encoder.h264.capabilities.set();
@@ -1803,10 +1887,13 @@ namespace video {
       }
       return false;
     }
+    else if (expect_failure) {
+      // We expected failure, but actually succeeded. Do the max_ref_frames probe we skipped.
+      max_ref_frames_h264 = validate_config(disp, encoder, config_max_ref_frames);
+    }
 
     std::vector<std::pair<validate_flag_e, encoder_t::flag_e>> packet_deficiencies {
       { VUI_PARAMS, encoder_t::VUI_PARAMETERS },
-      { NALU_PREFIX_5b, encoder_t::NALU_PREFIX_5b },
     };
 
     for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
@@ -1814,20 +1901,16 @@ namespace video {
     }
 
     encoder.h264[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_h264 >= 0;
-    encoder.h264[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_h264 >= 0;
     encoder.h264[encoder_t::PASSED] = true;
 
-    encoder.h264[encoder_t::SLICE] = validate_config(disp, encoder, config_max_ref_frames);
     if (test_hevc) {
       config_max_ref_frames.videoFormat = 1;
       config_autoselect.videoFormat = 1;
 
     retry_hevc:
       auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
-      auto autoselect_hevc = validate_config(disp, encoder, config_autoselect);
-
-      // If HEVC must be supported, but it is not supported
-      if (max_ref_frames_hevc < 0 && autoselect_hevc < 0) {
+      auto autoselect_hevc = max_ref_frames_hevc >= 0 ? max_ref_frames_hevc : validate_config(disp, encoder, config_autoselect);
+      if (autoselect_hevc < 0) {
         if (encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
           // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
           encoder.hevc.capabilities.set();
@@ -1835,6 +1918,7 @@ namespace video {
           goto retry_hevc;
         }
 
+        // If HEVC must be supported, but it is not supported
         if (force_hevc) {
           return false;
         }
@@ -1845,19 +1929,16 @@ namespace video {
       }
 
       encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
-      encoder.hevc[encoder_t::REF_FRAMES_AUTOSELECT] = autoselect_hevc >= 0;
-
       encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
+    }
+    else {
+      // Clear all cap bits for HEVC if we didn't probe it
+      encoder.hevc.capabilities.reset();
     }
 
     std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
       { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } },
     };
-
-    if (!(encoder.flags & SINGLE_SLICE_ONLY)) {
-      configs.emplace_back(
-        std::pair<encoder_t::flag_e, config_t> { encoder_t::SLICE, { 1920, 1080, 60, 1000, 2, 1, 1, 0, 0 } });
-    }
 
     for (auto &[flag, config] : configs) {
       auto h264 = config;
@@ -1866,15 +1947,12 @@ namespace video {
       h264.videoFormat = 0;
       hevc.videoFormat = 1;
 
-      encoder.h264[flag] = validate_config(disp, encoder, h264) >= 0;
+      // HDR is not supported with H.264. Don't bother even trying it.
+      encoder.h264[flag] = flag != encoder_t::DYNAMIC_RANGE && validate_config(disp, encoder, h264) >= 0;
+
       if (encoder.hevc[encoder_t::PASSED]) {
         encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
       }
-    }
-
-    if (encoder.flags & SINGLE_SLICE_ONLY) {
-      encoder.h264.capabilities[encoder_t::SLICE] = false;
-      encoder.hevc.capabilities[encoder_t::SLICE] = false;
     }
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
@@ -1887,97 +1965,104 @@ namespace video {
       BOOST_LOG(warning) << encoder.name << ": hevc missing sps->vui parameters"sv;
     }
 
-    if (!encoder.h264[encoder_t::NALU_PREFIX_5b]) {
-      BOOST_LOG(warning) << encoder.name << ": h264: replacing nalu prefix data"sv;
-    }
-    if (encoder.hevc[encoder_t::PASSED] && !encoder.hevc[encoder_t::NALU_PREFIX_5b]) {
-      BOOST_LOG(warning) << encoder.name << ": hevc: replacing nalu prefix data"sv;
-    }
-
     fg.disable();
     return true;
   }
 
+  /**
+   * This is called once at startup and each time a stream is launched to
+   * ensure the best encoder is selected. Encoder availablility can change
+   * at runtime due to all sorts of things from driver updates to eGPUs.
+   *
+   * This is only safe to call when there is no client actively streaming.
+   */
   int
-  init() {
-    bool encoder_found = false;
+  probe_encoders() {
+    auto encoder_list = encoders;
+
+    // Restart encoder selection
+    auto previous_encoder = chosen_encoder;
+    chosen_encoder = nullptr;
+    active_hevc_mode = config::video.hevc_mode;
+
     if (!config::video.encoder.empty()) {
       // If there is a specific encoder specified, use it if it passes validation
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
-        if (encoder.name == config::video.encoder) {
+        if (encoder->name == config::video.encoder) {
           // Remove the encoder from the list entirely if it fails validation
-          if (!validate_encoder(encoder)) {
-            pos = encoders.erase(pos);
+          if (!validate_encoder(*encoder, previous_encoder && previous_encoder != encoder)) {
+            pos = encoder_list.erase(pos);
             break;
           }
 
           // If we can't satisfy both the encoder and HDR requirement, prefer the encoder over HDR support
-          if (config::video.hevc_mode == 3 && !encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+          if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
             BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HDR on this system"sv;
-            config::video.hevc_mode = 0;
+            active_hevc_mode = 0;
           }
 
-          encoders.clear();
-          encoders.emplace_back(encoder);
-          encoder_found = true;
+          chosen_encoder = encoder;
           break;
         }
 
         pos++;
       });
 
-      if (!encoder_found) {
+      if (chosen_encoder == nullptr) {
         BOOST_LOG(error) << "Couldn't find any working encoder matching ["sv << config::video.encoder << ']';
-        config::video.encoder.clear();
       }
     }
 
     BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
     // If we haven't found an encoder yet, but we want one with HDR support, search for that now.
-    if (!encoder_found && config::video.hevc_mode == 3) {
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
+    if (chosen_encoder == nullptr && active_hevc_mode == 3) {
+      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
         // Remove the encoder from the list entirely if it fails validation
-        if (!validate_encoder(encoder)) {
-          pos = encoders.erase(pos);
+        if (!validate_encoder(*encoder, previous_encoder && previous_encoder != encoder)) {
+          pos = encoder_list.erase(pos);
           continue;
         }
 
         // Skip it if it doesn't support HDR
-        if (!encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+        if (!encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
           pos++;
           continue;
         }
 
-        encoders.clear();
-        encoders.emplace_back(encoder);
-        encoder_found = true;
+        chosen_encoder = encoder;
         break;
       });
 
-      if (!encoder_found) {
+      if (chosen_encoder == nullptr) {
         BOOST_LOG(error) << "Couldn't find any working HDR-capable encoder"sv;
       }
     }
 
     // If no encoder was specified or the specified encoder was unusable, keep trying
     // the remaining encoders until we find one that passes validation.
-    if (!encoder_found) {
-      KITTY_WHILE_LOOP(auto pos = std::begin(encoders), pos != std::end(encoders), {
-        if (!validate_encoder(*pos)) {
-          pos = encoders.erase(pos);
+    if (chosen_encoder == nullptr) {
+      KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
+        auto encoder = *pos;
+
+        // If we've used a previous encoder and it's not this one, we expect this encoder to
+        // fail to validate. It will use a slightly different order of checks to more quickly
+        // eliminate failing encoders.
+        if (!validate_encoder(*encoder, previous_encoder && previous_encoder != encoder)) {
+          pos = encoder_list.erase(pos);
           continue;
         }
 
+        chosen_encoder = encoder;
         break;
       });
     }
 
-    if (encoders.empty()) {
+    if (chosen_encoder == nullptr) {
       BOOST_LOG(fatal) << "Couldn't find any working encoder"sv;
       return -1;
     }
@@ -1986,7 +2071,7 @@ namespace video {
     BOOST_LOG(info) << "// Ignore any errors mentioned above, they are not relevant. //"sv;
     BOOST_LOG(info);
 
-    auto &encoder = encoders.front();
+    auto &encoder = *chosen_encoder;
 
     BOOST_LOG(debug) << "------  h264 ------"sv;
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
@@ -2009,8 +2094,8 @@ namespace video {
       BOOST_LOG(info) << "Found encoder "sv << encoder.name << ": ["sv << encoder.h264.name << ']';
     }
 
-    if (config::video.hevc_mode == 0) {
-      config::video.hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
+    if (active_hevc_mode == 0) {
+      active_hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
     }
 
     return 0;
@@ -2118,7 +2203,7 @@ namespace video {
 
   int
   start_capture_async(capture_thread_async_ctx_t &capture_thread_ctx) {
-    capture_thread_ctx.encoder_p = &encoders.front();
+    capture_thread_ctx.encoder_p = chosen_encoder;
     capture_thread_ctx.reinit_event.reset();
 
     capture_thread_ctx.capture_ctx_queue = std::make_shared<safe::queue_t<capture_ctx_t>>(30);

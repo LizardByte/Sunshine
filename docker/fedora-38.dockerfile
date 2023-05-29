@@ -4,7 +4,7 @@
 # platforms_pr: linux/amd64
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=fedora
-ARG TAG=36
+ARG TAG=38
 FROM ${BASE}:${TAG} AS sunshine-base
 
 FROM sunshine-base as sunshine-build
@@ -30,63 +30,64 @@ set -e
 dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
-  boost-devel-1.76.0* \
-  cmake-3.22.2* \
-  gcc-12.0.1* \
-  gcc-c++-12.0.1* \
-  git-2.39.2* \
-  libappindicator-gtk3-devel-12.10.0* \
-  libcap-devel-2.48* \
-  libcurl-devel-7.82.0* \
-  libdrm-devel-2.4.110* \
-  libevdev-devel-1.12.0* \
-  libva-devel-2.14.0* \
-  libvdpau-devel-1.5* \
-  libX11-devel-1.7.3* \
-  libxcb-devel-1.13.1* \
-  libXcursor-devel-1.2.0* \
-  libXfixes-devel-6.0.0* \
-  libXi-devel-1.8* \
-  libXinerama-devel-1.1.4* \
-  libXrandr-devel-1.5.2* \
-  libXtst-devel-1.2.3* \
-  mesa-libGL-devel-22.0.1* \
-  npm-8.3.1* \
-  numactl-devel-2.0.14* \
-  openssl-devel-3.0.2* \
-  opus-devel-1.3.1* \
-  pulseaudio-libs-devel-15.0* \
-  rpm-build-4.17.0* \
-  wget-1.21.3* \
-  which-2.21*
+  boost-devel-1.78.0* \
+  cmake-3.26.* \
+  gcc-13.0.* \
+  gcc-c++-13.0.* \
+  git \
+  libappindicator-gtk3-devel \
+  libcap-devel \
+  libcurl-devel \
+  libdrm-devel \
+  libevdev-devel \
+  libva-devel \
+  libvdpau-devel \
+  libX11-devel \
+  libxcb-devel \
+  libXcursor-devel \
+  libXfixes-devel \
+  libXi-devel \
+  libXinerama-devel \
+  libXrandr-devel \
+  libXtst-devel \
+  mesa-libGL-devel \
+  nodejs-npm \
+  numactl-devel \
+  openssl-devel \
+  opus-devel \
+  pulseaudio-libs-devel \
+  rpm-build \
+  wget \
+  which
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  dnf -y install intel-mediasdk-devel-22.3.0*
+  dnf -y install intel-mediasdk-devel
 fi
 dnf clean all
 rm -rf /var/cache/yum
 _DEPS
 
-# install cuda
-WORKDIR /build/cuda
-# versions: https://developer.nvidia.com/cuda-toolkit-archive
-ENV CUDA_VERSION="12.0.0"
-ENV CUDA_BUILD="525.60.13"
-# hadolint ignore=SC3010
-RUN <<_INSTALL_CUDA
-#!/bin/bash
-set -e
-cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
-cuda_suffix=""
-if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
-  cuda_suffix="_sbsa"
-fi
-url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
-echo "cuda url: ${url}"
-wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
-chmod a+x ./cuda.run
-./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
-rm ./cuda.run
-_INSTALL_CUDA
+# todo - enable cuda once it's supported for gcc 13 and fedora 38
+## install cuda
+#WORKDIR /build/cuda
+## versions: https://developer.nvidia.com/cuda-toolkit-archive
+#ENV CUDA_VERSION="12.0.0"
+#ENV CUDA_BUILD="525.60.13"
+## hadolint ignore=SC3010
+#RUN <<_INSTALL_CUDA
+##!/bin/bash
+#set -e
+#cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
+#cuda_suffix=""
+#if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
+#  cuda_suffix="_sbsa"
+#fi
+#url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
+#echo "cuda url: ${url}"
+#wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
+#chmod a+x ./cuda.run
+#./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
+#rm ./cuda.run
+#_INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
@@ -99,11 +100,12 @@ RUN npm install
 WORKDIR /build/sunshine/build
 
 # cmake and cpack
+# todo - add cmake argument back in for cuda support "-DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \"
+# todo - re-enable "DSUNSHINE_ENABLE_CUDA"
 RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
-  -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
@@ -111,7 +113,7 @@ cmake \
   -DSUNSHINE_ENABLE_WAYLAND=ON \
   -DSUNSHINE_ENABLE_X11=ON \
   -DSUNSHINE_ENABLE_DRM=ON \
-  -DSUNSHINE_ENABLE_CUDA=ON \
+  -DSUNSHINE_ENABLE_CUDA=OFF \
   /build/sunshine
 make -j "$(nproc)"
 cpack -G RPM
@@ -159,7 +161,7 @@ RUN <<_SETUP_USER
 #!/bin/bash
 set -e
 groupadd -f -g "${PGID}" "${UNAME}"
-useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
+useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine
 ln -s ${HOME}/.config/sunshine /config
 chown -R ${UNAME} ${HOME}

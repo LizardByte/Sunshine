@@ -1,9 +1,8 @@
-//
-// Created by loki on 6/21/19.
-//
-
-#ifndef SUNSHINE_COMMON_H
-#define SUNSHINE_COMMON_H
+/**
+ * @file src/platform/common.h
+ * @brief todo
+ */
+#pragma once
 
 #include <bitset>
 #include <filesystem>
@@ -169,7 +168,7 @@ namespace platf {
     virtual ~deinit_t() = default;
   };
 
-  struct img_t {
+  struct img_t: std::enable_shared_from_this<img_t> {
   public:
     img_t() = default;
 
@@ -185,6 +184,8 @@ namespace platf {
     std::int32_t height {};
     std::int32_t pixel_pitch {};
     std::int32_t row_pitch {};
+
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
 
     virtual ~img_t() = default;
   };
@@ -213,8 +214,8 @@ namespace platf {
     }
 
     /**
-   * implementations must take ownership of 'frame'
-   */
+     * implementations must take ownership of 'frame'
+     */
     virtual int
     set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
@@ -225,14 +226,14 @@ namespace platf {
     set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
 
     /**
-   * Implementations may set parameters during initialization of the hwframes context
-   */
+     * Implementations may set parameters during initialization of the hwframes context
+     */
     virtual void
     init_hwframes(AVHWFramesContext *frames) {};
 
     /**
-   * Implementations may make modifications required before context derivation
-   */
+     * Implementations may make modifications required before context derivation
+     */
     virtual int
     prepare_to_derive_context(int hw_device_type) {
       return 0;
@@ -245,39 +246,53 @@ namespace platf {
     ok,
     reinit,
     timeout,
+    interrupted,
     error
   };
 
   class display_t {
   public:
     /**
-   * When display has a new image ready or a timeout occurs, this callback will be called with the image.
-   * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
-   * 
-   * On Break Request -->
-   *    Returns nullptr
-   * 
-   * On Success -->
-   *    Returns the image object that should be filled next.
-   *    This may or may not be the image send with the callback
-   */
-    using snapshot_cb_t = std::function<std::shared_ptr<img_t>(std::shared_ptr<img_t> &img, bool frame_captured)>;
+     * When display has a new image ready or a timeout occurs, this callback will be called with the image.
+     * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
+     *
+     * On Break Request -->
+     *    Returns false
+     *
+     * On Success -->
+     *    Returns true
+     */
+    using push_captured_image_cb_t = std::function<bool(std::shared_ptr<img_t> &&img, bool frame_captured)>;
+
+    /**
+     * Use to get free image from the pool. Calls must be synchronized.
+     * Blocks until there is free image in the pool or capture is interrupted.
+     *
+     * Returns:
+     *     'true' on success, img_out contains free image
+     *     'false' when capture has been interrupted, img_out contains nullptr
+     */
+    using pull_free_image_cb_t = std::function<bool(std::shared_ptr<img_t> &img_out)>;
 
     display_t() noexcept:
         offset_x { 0 }, offset_y { 0 } {}
 
     /**
-   * snapshot_cb --> the callback
-   * std::shared_ptr<img_t> img --> The first image to use
-   * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
-   * 
-   * Returns either:
-   *    capture_e::ok when stopping
-   *    capture_e::error on error
-   *    capture_e::reinit when need of reinitialization
-   */
+     * push_captured_image_cb --> The callback that is called with captured image,
+     *                            must be called from the same thread as capture()
+     * pull_free_image_cb --> Capture backends call this callback to get empty image
+     *                        from the pool. If backend uses multiple threads, calls to this
+     *                        callback must be synchronized. Calls to this callback and
+     *                        push_captured_image_cb must be synchronized as well.
+     * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
+     *
+     * Returns either:
+     *    capture_e::ok when stopping
+     *    capture_e::error on error
+     *    capture_e::reinit when need of reinitialization
+     */
     virtual capture_e
-    capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) = 0;
+    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;
 
     virtual std::shared_ptr<img_t>
     alloc_img() = 0;
@@ -352,14 +367,14 @@ namespace platf {
   audio_control();
 
   /**
- * display_name --> The name of the monitor that SHOULD be displayed
- *    If display_name is empty --> Use the first monitor that's compatible you can find
- *    If you require to use this parameter in a seperate thread --> make a copy of it.
- * 
- * config --> Stream configuration
- * 
- * Returns display_t based on hwdevice_type
- */
+   * display_name --> The name of the monitor that SHOULD be displayed
+   *    If display_name is empty --> Use the first monitor that's compatible you can find
+   *    If you require to use this parameter in a seperate thread --> make a copy of it.
+   *
+   * config --> Stream configuration
+   *
+   * Returns display_t based on hwdevice_type
+   */
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
@@ -368,7 +383,7 @@ namespace platf {
   display_names(mem_type_e hwdevice_type);
 
   boost::process::child
-  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
   enum class thread_priority_e : int {
     low,
@@ -385,9 +400,7 @@ namespace platf {
   void
   streaming_will_stop();
 
-  bool
-  restart_supported();
-  bool
+  void
   restart();
 
   struct batched_send_info_t {
@@ -409,6 +422,13 @@ namespace platf {
   std::unique_ptr<deinit_t>
   enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
 
+  /**
+   * @brief Open a url in the default web browser.
+   * @param url The url to open.
+   */
+  void
+  open_url(const std::string &url);
+
   input_t
   input();
   void
@@ -422,7 +442,7 @@ namespace platf {
   void
   hscroll(input_t &input, int distance);
   void
-  keyboard(input_t &input, uint16_t modcode, bool release);
+  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags);
   void
   gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
   void
@@ -447,5 +467,3 @@ namespace platf {
   std::vector<std::string_view> &
   supported_gamepads();
 }  // namespace platf
-
-#endif  //SUNSHINE_COMMON_H

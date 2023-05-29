@@ -156,14 +156,12 @@ back_button_timeout
 ^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   If, after the timeout, the back/select button is still pressed down, Home/Guide button press is emulated.
-
-   On Nvidia Shield, the home and power button are not passed to Moonlight.
+   If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.
 
    .. Tip:: If back_button_timeout < 0, then the Home/Guide button will not be emulated.
 
 **Default**
-   ``2000``
+   ``-1``
 
 **Example**
    .. code-block:: text
@@ -199,6 +197,27 @@ key_repeat_frequency
    .. code-block:: text
 
       key_repeat_frequency = 24.9
+
+always_send_scancodes
+^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard input
+   from certain clients that aren't using a US English keyboard layout.
+
+   Enable if keyboard input is not working at all in certain applications.
+
+   Disable if keys on the client are generating the wrong input on the host.
+
+   .. Caution:: Applies to Windows only.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      always_send_scancodes = enabled
 
 keybindings
 ^^^^^^^^^^^
@@ -373,7 +392,7 @@ resolutions
         2560x1080,
         3440x1440,
         1920x1200,
-        3860x2160,
+        3840x2160,
         3840x1600,
       ]
 
@@ -389,7 +408,7 @@ resolutions
         2560x1080,
         3440x1440,
         1920x1200,
-        3860x2160,
+        3840x2160,
         3840x1600,
       ]
 
@@ -447,6 +466,8 @@ audio_sink
 
             tools\audio-info.exe
 
+         .. Tip:: If you have multiple audio devices with identical names, use the Device ID instead.
+
    .. Tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
 
 **Default**
@@ -466,7 +487,7 @@ audio_sink
    **Windows**
       .. code-block:: text
 
-         audio_sink = {0.0.0.00000000}.{FD47D9CC-4218-4135-9CE2-0C195C87405B}
+         audio_sink = Speakers (High Definition Audio Device)
 
 virtual_sink
 ^^^^^^^^^^^^
@@ -481,14 +502,31 @@ virtual_sink
 
       - Stream Streaming Speakers (Linux, macOS, Windows)
 
-        - To use this option, you must have Steam installed and have used Stream remote play at least once.
+        - Steam must be installed.
+        - Enable `install_steam_audio_drivers`_ or use Steam Remote Play at least once to install the drivers.
 
       - `Virtual Audio Cable <https://vb-audio.com/Cable/>`_ (macOS, Windows)
 
 **Example**
    .. code-block:: text
 
-      virtual_sink = {0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}
+      virtual_sink = Steam Streaming Speakers
+
+install_steam_audio_drivers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Installs the Steam Streaming Speakers driver (if Steam is installed) to support surround sound and muting host audio.
+
+   .. Tip:: This option is only supported on Windows.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      install_steam_audio_drivers = enabled
 
 Network
 -------
@@ -790,7 +828,7 @@ capture
    nvfbc      Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for
               NVIDIA cards. For GeForce cards it will only work with drivers patched with
               `nvidia-patch <https://github.com/keylase/nvidia-patch/>`_
-              or `nvlax <https://github.com/keylase/nvidia-patch/>`_.
+              or `nvlax <https://github.com/illnyang/nvlax/>`_.
    wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
    kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability.
               See :ref:`Linux Setup <about/usage:setup>`.

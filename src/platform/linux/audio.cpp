@@ -1,6 +1,7 @@
-//
-// Created by loki on 5/16/21.
-//
+/**
+ * @file src/platform/linux/audio.cpp
+ * @brief todo
+ */
 #include <bitset>
 #include <sstream>
 

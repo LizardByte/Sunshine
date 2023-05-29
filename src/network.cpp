@@ -1,5 +1,7 @@
-// Created by loki on 12/27/19.
-
+/**
+ * @file src/network.cpp
+ * @brief todo
+ */
 #include "network.h"
 #include "utility.h"
 #include <algorithm>
@@ -16,7 +18,8 @@ namespace net {
   std::vector<std::tuple<std::uint32_t, std::uint32_t>> lan_ips {
     ip_block("192.168.0.0/16"sv),
     ip_block("172.16.0.0/12"sv),
-    ip_block("10.0.0.0/8"sv)
+    ip_block("10.0.0.0/8"sv),
+    ip_block("100.64.0.0/10"sv)
   };
 
   std::uint32_t

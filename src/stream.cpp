@@ -1,5 +1,7 @@
-// Created by loki on 6/5/19.
-
+/**
+ * @file src/stream.cpp
+ * @brief todo
+ */
 #include "process.h"
 
 #include <future>
@@ -7,6 +9,8 @@
 
 #include <fstream>
 #include <openssl/err.h>
+
+#include <boost/endian/arithmetic.hpp>
 
 extern "C" {
 #include <moonlight-common-c/src/RtpAudioQueue.h>
@@ -18,6 +22,7 @@ extern "C" {
 #include "input.h"
 #include "main.h"
 #include "network.h"
+#include "stat_trackers.h"
 #include "stream.h"
 #include "sync.h"
 #include "thread_safe.h"
@@ -43,7 +48,7 @@ static const short packetTypes[] = {
   0x0204,  // Frame Stats (unused)
   0x0206,  // Input data
   0x010b,  // Rumble data
-  0x0100,  // Termination
+  0x0109,  // Termination
   0x0200,  // Periodic Ping
   0x0302,  // IDR frame
   0x0001,  // fully encrypted
@@ -74,7 +79,11 @@ namespace stream {
     }
 
     std::uint8_t headerType;  // Always 0x01 for short headers
-    std::uint8_t unknown[2];
+
+    // Sunshine extension
+    // Frame processing latency, in 1/10 ms units
+    //     zero when the frame is repeated or there is no backend implementation
+    boost::endian::little_uint16_at frame_processing_latency;
 
     // Currently known values:
     // 1 = Normal P-frame
@@ -352,11 +361,11 @@ namespace stream {
   };
 
   /**
- * First part of cipher must be struct of type control_encrypted_t
- * 
- * returns empty string_view on failure
- * returns string_view pointing to payload data
- */
+   * First part of cipher must be struct of type control_encrypted_t
+   *
+   * returns empty string_view on failure
+   * returns string_view pointing to payload data
+   */
   template <std::size_t max_payload_size>
   static inline std::string_view
   encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {
@@ -818,6 +827,8 @@ namespace stream {
 
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     while (!shutdown_event->peek()) {
+      bool has_session_awaiting_peer = false;
+
       {
         auto lg = server->_map_addr_session.lock();
 
@@ -843,6 +854,13 @@ namespace stream {
             continue;
           }
 
+          // Remember if we have a session that's waiting for a peer to connect to the
+          // control stream. This ensures the clients are properly notified even when
+          // the app terminates before they finish connecting.
+          if (!session->control.peer) {
+            has_session_awaiting_peer = true;
+          }
+
           auto &rumble_queue = session->control.rumble_queue;
           while (rumble_queue->peek()) {
             auto rumble = rumble_queue->pop();
@@ -864,9 +882,9 @@ namespace stream {
         })
       }
 
-      if (proc::proc.running() == 0) {
-        BOOST_LOG(debug) << "Process terminated"sv;
-
+      // Don't break until any pending sessions either expire or connect
+      if (proc::proc.running() == 0 && !has_session_awaiting_peer) {
+        BOOST_LOG(info) << "Process terminated"sv;
         break;
       }
 
@@ -880,7 +898,7 @@ namespace stream {
     control_terminate_t plaintext;
     plaintext.header.type = packetTypes[IDX_TERMINATION];
     plaintext.header.payloadLength = sizeof(plaintext.ec);
-    plaintext.ec = reason;
+    plaintext.ec = util::endian::big<uint32_t>(reason);
 
     std::array<std::uint8_t,
       sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
@@ -890,11 +908,14 @@ namespace stream {
     for (auto pos = std::begin(*server->_map_addr_session); pos != std::end(*server->_map_addr_session); ++pos) {
       auto session = pos->second.second;
 
-      auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
+      // We may not have gotten far enough to have an ENet connection yet
+      if (session->control.peer) {
+        auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
 
-      if (server->send(payload, session->control.peer)) {
-        TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-        BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+        if (server->send(payload, session->control.peer)) {
+          TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
+          BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+        }
       }
 
       session->shutdown_event->raise(true);
@@ -997,6 +1018,8 @@ namespace stream {
     // Video traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
+    stat_trackers::min_max_avg_tracker<uint16_t> frame_processing_latency_tracker;
+
     while (auto packet = packets->pop()) {
       if (shutdown_event->peek()) {
         break;
@@ -1012,6 +1035,29 @@ namespace stream {
       video_short_frame_header_t frame_header = {};
       frame_header.headerType = 0x01;  // Short header type
       frame_header.frameType = (av_packet->flags & AV_PKT_FLAG_KEY) ? 2 : 1;
+
+      if (packet->frame_timestamp) {
+        auto duration_to_latency = [](const std::chrono::steady_clock::duration &duration) {
+          const auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+          return (uint16_t) std::clamp<decltype(duration_us)>((duration_us + 50) / 100, 0, std::numeric_limits<uint16_t>::max());
+        };
+
+        uint16_t latency = duration_to_latency(std::chrono::steady_clock::now() - *packet->frame_timestamp);
+
+        if (config::sunshine.min_log_level <= 1) {
+          // Print frame processing latency stats to debug log every 20 seconds
+          auto print_info = [&](uint16_t min_latency, uint16_t max_latency, double avg_latency) {
+            auto f = stat_trackers::one_digit_after_decimal();
+            BOOST_LOG(debug) << "Frame processing latency (min/max/avg): " << f % (min_latency / 10.) << "ms/" << f % (max_latency / 10.) << "ms/" << f % (avg_latency / 10.) << "ms";
+          };
+          frame_processing_latency_tracker.collect_and_callback_on_interval(latency, print_info, 20s);
+        }
+
+        frame_header.frame_processing_latency = latency;
+      }
+      else {
+        frame_header.frame_processing_latency = 0;
+      }
 
       std::copy_n((uint8_t *) &frame_header, sizeof(frame_header), std::back_inserter(payload_new));
       std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
@@ -1429,8 +1475,8 @@ namespace stream {
     // Enable QoS tagging on video traffic if requested by the client
     if (session->config.videoQosType) {
       auto address = session->video.peer.address();
-      session->video.qos = std::move(platf::enable_socket_qos(ref->video_sock.native_handle(), address,
-        session->video.peer.port(), platf::qos_data_type_e::video));
+      session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address,
+        session->video.peer.port(), platf::qos_data_type_e::video);
     }
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
@@ -1454,8 +1500,8 @@ namespace stream {
     // Enable QoS tagging on audio traffic if requested by the client
     if (session->config.audioQosType) {
       auto address = session->audio.peer.address();
-      session->audio.qos = std::move(platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
-        session->audio.peer.port(), platf::qos_data_type_e::audio));
+      session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
+        session->audio.peer.port(), platf::qos_data_type_e::audio);
     }
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;

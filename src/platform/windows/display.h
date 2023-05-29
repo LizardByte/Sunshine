@@ -1,9 +1,8 @@
-//
-// Created by loki on 4/23/20.
-//
-
-#ifndef SUNSHINE_DISPLAY_H
-#define SUNSHINE_DISPLAY_H
+/**
+ * @file src/platform/windows/display.h
+ * @brief todo
+ */
+#pragma once
 
 #include <d3d11.h>
 #include <d3d11_4.h>
@@ -110,6 +109,7 @@ namespace platf::dxgi {
     dup_t dup;
     bool has_frame {};
     bool use_dwmflush {};
+    std::chrono::steady_clock::time_point last_protected_content_warning_time {};
 
     capture_e
     next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p);
@@ -125,8 +125,9 @@ namespace platf::dxgi {
   public:
     int
     init(const ::video::config_t &config, const std::string &display_name);
+
     capture_e
-    capture(snapshot_cb_t &&snapshot_cb, std::shared_ptr<img_t> img, bool *cursor) override;
+    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
 
     std::chrono::nanoseconds delay;
 
@@ -168,19 +169,17 @@ namespace platf::dxgi {
     colorspace_to_string(DXGI_COLOR_SPACE_TYPE type);
 
     virtual capture_e
-    snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
     virtual int
     complete_img(img_t *img, bool dummy) = 0;
     virtual std::vector<DXGI_FORMAT>
-    get_supported_sdr_capture_formats() = 0;
-    virtual std::vector<DXGI_FORMAT>
-    get_supported_hdr_capture_formats() = 0;
+    get_supported_capture_formats() = 0;
   };
 
   class display_ram_t: public display_base_t {
   public:
     virtual capture_e
-    snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
     std::shared_ptr<img_t>
     alloc_img() override;
@@ -189,9 +188,7 @@ namespace platf::dxgi {
     int
     complete_img(img_t *img, bool dummy) override;
     std::vector<DXGI_FORMAT>
-    get_supported_sdr_capture_formats() override;
-    std::vector<DXGI_FORMAT>
-    get_supported_hdr_capture_formats() override;
+    get_supported_capture_formats() override;
 
     int
     init(const ::video::config_t &config, const std::string &display_name);
@@ -204,7 +201,7 @@ namespace platf::dxgi {
   class display_vram_t: public display_base_t, public std::enable_shared_from_this<display_vram_t> {
   public:
     virtual capture_e
-    snapshot(img_t *img, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
 
     std::shared_ptr<img_t>
     alloc_img() override;
@@ -213,9 +210,7 @@ namespace platf::dxgi {
     int
     complete_img(img_t *img_base, bool dummy) override;
     std::vector<DXGI_FORMAT>
-    get_supported_sdr_capture_formats() override;
-    std::vector<DXGI_FORMAT>
-    get_supported_hdr_capture_formats() override;
+    get_supported_capture_formats() override;
 
     int
     init(const ::video::config_t &config, const std::string &display_name);
@@ -235,10 +230,10 @@ namespace platf::dxgi {
     gpu_cursor_t cursor_alpha;
     gpu_cursor_t cursor_xor;
 
-    texture2d_t last_frame_copy;
+    texture2d_t old_surface_delayed_destruction;
+    std::chrono::steady_clock::time_point old_surface_timestamp;
+    std::variant<std::monostate, texture2d_t, std::shared_ptr<platf::img_t>> last_frame_variant;
 
     std::atomic<uint32_t> next_image_id;
   };
 }  // namespace platf::dxgi
-
-#endif

@@ -1,3 +1,7 @@
+/**
+ * @file src/httpcommon.cpp
+ * @brief todo
+ */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 #include "process.h"
@@ -89,7 +93,7 @@ namespace http {
       pt::write_json(file, outputTree);
     }
     catch (std::exception &e) {
-      BOOST_LOG(error) << "generating user credentials: "sv << e.what();
+      BOOST_LOG(error) << "error writing to the credentials file, perhaps try this again as an administrator? Details: "sv << e.what();
       return -1;
     }
 

@@ -1,3 +1,7 @@
+/**
+ * @file src/config.cpp
+ * @brief todo
+ */
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +19,10 @@
 #include "utility.h"
 
 #include "platform/common.h"
+
+#ifdef _WIN32
+  #include <shellapi.h>
+#endif
 
 namespace fs = std::filesystem;
 using namespace std::literals;
@@ -374,7 +382,11 @@ namespace config {
     true  // dwmflush
   };
 
-  audio_t audio {};
+  audio_t audio {
+    {},  // audio_sink
+    {},  // virtual_sink
+    true,  // install_steam_drivers
+  };
 
   stream_t stream {
     10s,  // ping_timeout
@@ -402,9 +414,9 @@ namespace config {
       "1280x720"s,
       "1920x1080"s,
       "2560x1080"s,
-      "3440x1440"s
+      "3440x1440"s,
       "1920x1200"s,
-      "3860x2160"s,
+      "3840x2160"s,
       "3840x1600"s,
     },  // supported resolutions
 
@@ -417,7 +429,7 @@ namespace config {
       { 0x11, 0xA2 },
       { 0x12, 0xA4 },
     },
-    2s,  // back_button_timeout
+    -1ms,  // back_button_timeout
     500ms,  // key_repeat_delay
     std::chrono::duration<double> { 1 / 24.9 },  // key_repeat_period
 
@@ -429,6 +441,7 @@ namespace config {
     true,  // keyboard enabled
     true,  // mouse enabled
     true,  // controller enabled
+    true,  // always send scancodes
   };
 
   sunshine_t sunshine {
@@ -816,12 +829,11 @@ namespace config {
     boost::property_tree::read_json(jsonStream, jsonTree);
 
     for (auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
-      auto do_cmd = prep_cmd.get<std::string>("do"s);
-      auto undo_cmd = prep_cmd.get<std::string>("undo"s);
+      auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
+      auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
+      auto elevated = prep_cmd.get_optional<bool>("elevated"s);
 
-      input.emplace_back(
-        std::move(do_cmd),
-        std::move(undo_cmd));
+      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
     }
   }
 
@@ -975,6 +987,7 @@ namespace config {
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);
+    bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
 
     string_restricted_f(vars, "origin_pin_allowed", nvhttp.origin_pin_allowed, { "pc"sv, "lan"sv, "wan"sv });
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, { "pc"sv, "lan"sv, "wan"sv });
@@ -1026,6 +1039,8 @@ namespace config {
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);
     bool_f(vars, "controller", input.controller);
+
+    bool_f(vars, "always_send_scancodes", input.always_send_scancodes);
 
     int port = sunshine.port;
     int_f(vars, "port"s, port);
@@ -1089,6 +1104,10 @@ namespace config {
   int
   parse(int argc, char *argv[]) {
     std::unordered_map<std::string, std::string> cmd_vars;
+#ifdef _WIN32
+    bool shortcut_launch = false;
+    bool service_admin_launch = false;
+#endif
 
     for (auto x = 1; x < argc; ++x) {
       auto line = argv[x];
@@ -1097,6 +1116,14 @@ namespace config {
         print_help(*argv);
         return 1;
       }
+#ifdef _WIN32
+      else if (line == "--shortcut"sv) {
+        shortcut_launch = true;
+      }
+      else if (line == "--shortcut-admin"sv) {
+        service_admin_launch = true;
+      }
+#endif
       else if (*line == '-') {
         if (*(line + 1) == '-') {
           sunshine.cmd.name = line + 2;
@@ -1136,23 +1163,90 @@ namespace config {
       }
     }
 
-    // create appdata folder if it does not exist
-    if (!boost::filesystem::exists(platf::appdata().string())) {
-      boost::filesystem::create_directory(platf::appdata().string());
+    bool config_loaded = false;
+    try {
+      // Create appdata folder if it does not exist
+      if (!boost::filesystem::exists(platf::appdata().string())) {
+        boost::filesystem::create_directories(platf::appdata().string());
+      }
+
+      // Create empty config file if it does not exist
+      if (!fs::exists(sunshine.config_file)) {
+        std::ofstream { sunshine.config_file };
+      }
+
+      // Read config file
+      auto vars = parse_config(read_file(sunshine.config_file.c_str()));
+
+      for (auto &[name, value] : cmd_vars) {
+        vars.insert_or_assign(std::move(name), std::move(value));
+      }
+
+      // Apply the config. Note: This will try to create any paths
+      // referenced in the config, so we may receive exceptions if
+      // the path is incorrect or inaccessible.
+      apply_config(std::move(vars));
+      config_loaded = true;
+    }
+    catch (const std::filesystem::filesystem_error &err) {
+      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
+    }
+    catch (const boost::filesystem::filesystem_error &err) {
+      BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
     }
 
-    // create config file if it does not exist
-    if (!fs::exists(sunshine.config_file)) {
-      std::ofstream { sunshine.config_file };  // create empty config file
+    if (!config_loaded) {
+#ifdef _WIN32
+      BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
+      std::this_thread::sleep_for(10s);
+#endif
+      return -1;
     }
 
-    auto vars = parse_config(read_file(sunshine.config_file.c_str()));
+#ifdef _WIN32
+    // We have to wait until the config is loaded to handle these launches,
+    // because we need to have the correct base port loaded in our config.
+    if (service_admin_launch) {
+      // This is a relaunch as admin to start the service
+      service_ctrl::start_service();
 
-    for (auto &[name, value] : cmd_vars) {
-      vars.insert_or_assign(std::move(name), std::move(value));
+      // Always return 1 to ensure Sunshine doesn't start normally
+      return 1;
     }
+    else if (shortcut_launch) {
+      if (!service_ctrl::is_service_running()) {
+        // If the service isn't running, relaunch ourselves as admin to start it
+        WCHAR executable[MAX_PATH];
+        GetModuleFileNameW(NULL, executable, ARRAYSIZE(executable));
 
-    apply_config(std::move(vars));
+        SHELLEXECUTEINFOW shell_exec_info {};
+        shell_exec_info.cbSize = sizeof(shell_exec_info);
+        shell_exec_info.fMask = SEE_MASK_NOASYNC | SEE_MASK_NO_CONSOLE | SEE_MASK_NOCLOSEPROCESS;
+        shell_exec_info.lpVerb = L"runas";
+        shell_exec_info.lpFile = executable;
+        shell_exec_info.lpParameters = L"--shortcut-admin";
+        shell_exec_info.nShow = SW_NORMAL;
+        if (!ShellExecuteExW(&shell_exec_info)) {
+          auto winerr = GetLastError();
+          std::cout << "Error: ShellExecuteEx() failed:"sv << winerr << std::endl;
+          return 1;
+        }
+
+        // Wait for the elevated process to finish starting the service
+        WaitForSingleObject(shell_exec_info.hProcess, INFINITE);
+        CloseHandle(shell_exec_info.hProcess);
+
+        // Wait for the UI to be ready for connections
+        service_ctrl::wait_for_ui_ready();
+      }
+
+      // Launch the web UI
+      launch_ui();
+
+      // Always return 1 to ensure Sunshine doesn't start normally
+      return 1;
+    }
+#endif
 
     return 0;
   }
