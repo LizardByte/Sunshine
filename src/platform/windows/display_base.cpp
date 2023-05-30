@@ -154,6 +154,10 @@ namespace platf::dxgi {
 
         if (img_out) {
           *next_frame_time += client_frame_interval;
+
+          if (img_out->frame_timestamp) {
+            *next_frame_time -= (std::chrono::steady_clock::now() - *img_out->frame_timestamp);
+          }
         }
         else {
           next_frame_time = std::nullopt;
