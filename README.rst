@@ -92,11 +92,11 @@ Integrations
    :alt: GitHub Workflow Status (localize)
    :target: https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Anightly
 
-.. image:: https://img.shields.io/readthedocs/sunshinestream?label=Docs&style=for-the-badge&logo=readthedocs
+.. image:: https://img.shields.io/readthedocs/sunshinestream.svg?label=Docs&style=for-the-badge&logo=readthedocs
    :alt: Read the Docs
    :target: http://sunshinestream.readthedocs.io/
 
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=localized&style=for-the-badge&query=%24.progress..data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-503956.json&logo=crowdin
+.. image:: https://img.shields.io/badge/dynamic/json.svg?color=blue&label=localized&style=for-the-badge&query=%24.progress..data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-503956.json&logo=crowdin
    :alt: CrowdIn
    :target: https://crowdin.com/project/sunshinestream
 
@@ -109,17 +109,21 @@ Our support methods are listed in our
 Downloads
 ---------
 
-.. image:: https://img.shields.io/github/downloads/lizardbyte/sunshine/total?style=for-the-badge&logo=github
+.. image:: https://img.shields.io/github/downloads/lizardbyte/sunshine/total.svg?style=for-the-badge&logo=github
    :alt: GitHub Releases
    :target: https://github.com/LizardByte/Sunshine/releases/latest
 
-.. image:: https://img.shields.io/docker/pulls/lizardbyte/sunshine?style=for-the-badge&logo=docker
+.. image:: https://img.shields.io/docker/pulls/lizardbyte/sunshine.svg?style=for-the-badge&logo=docker
    :alt: Docker
    :target: https://hub.docker.com/r/lizardbyte/sunshine
 
+.. image:: https://img.shields.io/badge/dynamic/xml.svg?color=orange&label=Winget&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27winget%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=microsoft
+   :alt: Winget Version
+   :target: https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LizardByte/Sunshine
+
 Stats
 ------
-.. image:: https://img.shields.io/github/stars/lizardbyte/sunshine?logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/stars/lizardbyte/sunshine.svg?logo=github&style=for-the-badge
    :alt: GitHub stars
    :target: https://github.com/LizardByte/Sunshine
 
