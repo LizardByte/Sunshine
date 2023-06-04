@@ -779,7 +779,7 @@ namespace platf {
       gamepad_state = gamepad_state_t {};
 
       if (err) {
-        BOOST_LOG(error) << "Could not create Sunshine Gamepad: "sv << strerror(-err);
+        BOOST_LOG(error) << "Could not create Sunshine Gamepad: "sv << strerror(-err) << "for /dev/uinput"sv;
         return -1;
       }
 
