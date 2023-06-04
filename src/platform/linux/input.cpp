@@ -1789,7 +1789,7 @@ namespace platf {
 
     // If we do not have a keyboard, touchscreen, or mouse, fall back to XTest
     if (!gp.mouse_input || !gp.touch_input || !gp.keyboard_input) {
-      BOOST_LOG(error) << "Unable to create some input devices! Are you a member of the 'input' group?"sv;
+      BOOST_LOG(error) << "Unable to create some input devices! Are you a member of the 'input' group? Does your kernel include uinput in /lib/modules/$(uname -r)/modules.builtin?"sv;
 
 #ifdef SUNSHINE_BUILD_X11
       if (x11::init() || x11::tst::init()) {
