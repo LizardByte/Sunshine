@@ -45,9 +45,8 @@ echo "
 
 function install() {
   # user input rules
-  sudo usermod -a -G input $USER
   # shellcheck disable=SC2002
-  cat "$SUNSHINE_SHARE_HERE/udev/rules.d/85-sunshine.rules" | sudo tee /etc/udev/85-sunshine.rules
+  cat "$SUNSHINE_SHARE_HERE/udev/rules.d/85-sunshine.rules" | sudo tee /etc/udev/rules.d/85-sunshine.rules
 
   # sunshine service
   mkdir -p ~/.config/systemd/user

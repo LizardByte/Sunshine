@@ -1,13 +1,155 @@
 # Changelog
 
+## [0.20.0] - 2023-05-28
+**Breaking**
+- (Windows) The Windows installer version of Sunshine is now always launched by the Sunshine Service. Manually launching Sunshine.exe from Program Files is no longer supported. This was necessary to address security issues caused by non-admin users having access to Sunshine's config data. If you have set up Task Scheduler or other mechanisms to launch Sunshine automatically, remove those from your system before updating.
+- (Windows) The Start Menu shortcut has been redesigned for use with the Sunshine Service. It now launches Sunshine in the background (if not already running) and opens the Web UI, avoiding the persistent Command Prompt window present in prior versions. The Start Menu shortcut is now the recommended method for opening the Web UI and launching Sunshine.
+- (Network/UPnP) If the Moonlight Internet Hosting Tool is installed alongside Sunshine, you must remove it or upgrade to v5.6 or later to prevent conflicts with Sunshine's UPnP support. As a reminder, the Moonlight Internet Hosting Tool is not required to stream over the Internet with Sunshine. Instead, simply enable UPnP in the Sunshine Web UI.
+- (Windows) If Steam is installed, the Steam Streaming Speakers driver will be automatically installed when starting a stream for the first time. This behavior can be disabled in the Audio/Video tab of the Web UI. This Steam driver enables support for surround sound and muting host audio without requiring any manual configuration.
+- (Input) The Back Button Timeout option has been renamed to Guide Button Emulation Timeout and has been disabled by default to ensure long presses on the Back button work by default. The previous behavior can be restored by setting the Guide Button Emulation Timeout to 2000.
+- (Windows) The service name of SunshineSvc has been changed to SunshineService to address a false positive in MalwareBytes. If you have any scripts or other logic on your system that is using the service name, you will need to update that for the new name.
+- (Windows) To support new installer features, install-service.bat no longer sets the service to auto-start by default. Users executing install-service.bat manually on the Sunshine portable build must also execute autostart-service.bat to start Sunshine on boot. However, installing the service manually like this is not recommended. Instead, use the Sunshine installer which handles service installation and configuration automatically.
+- (Linux/Fedora) Fedora 36 builds are removed due to upstream end of support
+
+**Added**
+- (Windows) Added an option to launch apps and prep/undo commands as administrator
+- (Installer/Windows) Added an option to choose whether Sunshine launches on boot. If not configured to launch on boot, use the Start Menu shortcut to start Sunshine when desired.
+- (Input/Windows) Added option to send VK codes instead of scancodes for compatibility with iOS/Android devices using non-English keyboard layouts
+- (UI) The Apply/Restart option is now available in the Web UI for all platforms
+- (Systray) Added a Restart option to the system tray context menu
+- (Video/Windows) Added host latency data to video frames. This requires future updates to Moonlight to display in the on-screen overlay.
+- (Audio) Added support for matching Audio Sink and Virtual Sink values on device names
+- (Client) Added friendly error messages for clients when streaming fails to start
+- (Video/Windows) Added warning log messages when Windows is hiding DRM-protected content from display capture
+- (Interop/Windows) Added warning log messages when GeForce Experience is currently using the same ports as Sunshine
+- (Linux/Fedora) Fedora 38 builds are now available
+
+**Changed**
+- (Video) Encoder selection now happens at each stream start for more reliable GPU detection
+- (Video/Windows) The host display now stays on while clients are actively streaming
+- (Audio) Streaming will no longer fail if audio capture is unavailable
+- (Audio/Windows) Sunshine will automatically switch back to the Virtual Sink if the default audio device is changed while streaming
+- (Audio) Changes to the host audio playback option will now take effect when resuming a session from Moonlight
+- (Audio/Windows) Sunshine will switch to a different default audio device if Steam Streaming Speakers are the default when Sunshine starts. This handles cases where Sunshine terminates unexpectedly without restoring the default audio device.
+- (Apps) The Connection Terminated dialog will no longer appear in Moonlight when the app on the host exits normally
+- (Systray/Windows) Quitting Sunshine via the system tray will now stop the Sunshine Service rather than leaving it running and allowing it to restart Sunshine
+- (UI) The 100.64.0.0/10 CGN IP address range is now treated as a LAN address range
+- (Video) Removed a workaround for some versions of Moonlight prior to mid-2022
+- (UI) The PIN field is now cleared after successfully pairing
+- (UI) User names are now treated as case-insensitive
+- (Linux) Changed udev rule to automatically grant access to virtual input devices
+- (UI) Several item descriptions were adjusted to reflect newer configuration recommendations
+- (UI) Placeholder text opacity has been reduced to improve contrast with non-placeholder text
+- (Video/Windows) Minor capture performance improvements
+
+**Fixed**
+- (Video) VRAM usage while streaming is significantly reduced, particularly with higher display resolutions and HDR
+- (Network/UPnP) UPnP support was rewritten to fix several major issues handling router restarts, IP address changes, and port forwarding expiration
+- (Input) Fixed modifier keys from the software keyboard on Android clients
+- (Audio) Fixed handling of default audio device changes while streaming
+- (Windows) Fixed streaming after Microsoft Remote Desktop or Fast User Switching has been used
+- (Input) Fixed some games not recognizing emulated Guide button presses
+- (Video/Windows) Fixed incorrect gamma when using an Advanced Color SDR display on the host
+- (Installer/Windows) The installer is no longer blurry on High DPI systems
+- (Systray/Windows) Fixed multiple system tray icons appearing if Sunshine exits unexpectedly
+- (Systray/Windows) Fixed the system tray icon not appearing in several situations
+- (Windows) Fixed hang on shutdown/restart if mDNS registration fails
+- (UI) Fixed missing response headers
+- (Stability) Fixed several possible crashes in cases where the client did not successfully connect
+- (Stability) Fixed several memory leaks
+- (Input/Windows) Back/Select input now correctly generates the Share button when emulating DS4 controllers
+- (Audio/Windows) Fixed various bugs in audio-info.exe that led to inaccurate output on some systems
+- (Video/Windows) Fixed incorrect resolution values from dxgi-info.exe on High DPI systems
+- (Video/Linux) Fixed poor quality encoding from H.264 on Intel encoders
+- (Config) Fixed a couple of typos in predefined resolutions
+
+**Dependencies**
+- Bump sphinx-copybutton from 0.5.1 to 0.5.2
+- Bump sphinx from 6.13 to 7.0.1
+- Bump third-party/nv-codec-headers from 2055784 to 2cd175b
+- Bump furo from 2023.3.27 to 2023.5.20
+
+**Misc**
+- (Build/Linux) Add X11 to PLATFORM_LIBARIES when found
+- (Build/macOS) Fix compilation with Clang 14
+- (Docs) Fix nvlax URL
+- (Docs) Add diagrams using graphviz
+- (Docs) Improvements to source code documentation
+- (Build) Unpin docker dependencies
+- (Build/Linux) Honor install prefix for tray icon
+- (Build/Windows) Unstripped binaries are now provided as a debuginfo package to support crash dump debugging
+- (Config) Config directories are now created recursively
+
+## [0.19.1] - 2023-03-30
+**Fixed**
+- (Audio) Fixed no audio issue introduced in v0.19.0
+
+## [0.19.0] - 2023-03-29
+**Breaking**
+- (Linux/Flatpak) Moved Flatpak to org.freedesktop.Platform 22.08 and Cuda 12.0.0
+  This will drop support for Nvidia GPUs with compute capability 3.5
+
+**Added**
+- (Input) Added option to suppress input from gamepads, keyboards, or mice
+- (Input/Linux) Added unicode support for remote pasting (may not work on all DEs)
+- (Input/Linux) Added XTest input fallback
+- (UI) Added version notifications to web UI
+- (Linux/Windows) Add system tray icon
+- (Windows) Added ability to safely elevate commands that fail due to insufficient permissions when running as a service
+- (Config) Added global prep commands, and ability to exclude an app from using global prep commands
+- (Installer/Windows) Automatically install ViGEmBus if selected
+
+**Changed**
+- (Logging) Changed client verified messages to debug to prevent spamming the log
+- (Config) Only save non default config values
+- (Service/Linux) Use xdg-desktop-autostart for systemd service
+- (Linux) Added config option to force capture method
+- (Windows) Execute prep command in context of current user
+- (Linux) Allow disconnected X11 outputs
+
+**Fixed**
+- (Input/Windows) Fix issue where internation keys were not translated correct, and modifier keys appeared stuck
+- (Linux) Fixed startup when /dev/dri didn't exist
+- (UI) Changes software encoding settings to select menu instead of text input
+- (Initialization) Do not terminate upon failure, allowing access to the web UI
+
+**Dependencies**
+- Bump third-party/moonlight-common-c from 07beb0f to c9426a6
+- Bump babel from 2.11.0 to 2.12.1
+- Bump @fortawesome/fontawesome-free from 6.2.1 to 6.4.0
+- Bump third-party/ViGEmClient from 9e842ba to 726404e
+- Bump ffmpeg
+- Bump third-party/miniupnp from 014c9df to e439318
+- Bump furo from 2022.12.7 to 2023.3.27
+- Bump third-party/nanors from 395e5ad to e9e242e
+
+**Misc**
+- (GitHub) Shared feature request board with Moonlight
+- (Docs) Improved application examples
+- (Docs) Added WIP documentation for source code using Doxygen and Breathe
+- (Build) Fix linux clang build errors
+- (Build/Archlinux) Skip irrelevant submodules
+- (Build/Archlinux) Disable download timeout
+- (Build/macOS) Support compiling for earlier releases of macOS
+- (Docs) Add favicon
+- (Docs) Add missing config default values
+- (Build) Fix compiler warnings due to depreciated elements in C++17
+- (Build) Fix libcurl link errors
+- (Clang) Adjusted formatting rules
+
+## [0.18.4] - 2023-02-20
+**Fixed**
+- (Linux/AUR) Drop support of AUR package
+- (Docker) General enhancements to docker images
+
 ## [0.18.3] - 2023-02-13
-### Added
+**Added**
 - (Linux) Added PKGBUILD for Archlinux based distros to releases
 - (Linux) Added precompiled package for Archlinux based distros to releases
 - (Docker) Added archlinux docker image (x86_64 only)
 
 ## [0.18.2] - 2023-02-13
-### Fixed
+**Fixed**
 - (Video/KMV/Linux) Fixed wayland capture on Nvidia for KMS
 - (Video/Linux) Implement vaSyncBuffer stuf for libva <2.9.0
 - (UI) Fix issue where mime type was not being set for node_modules when using a reverse proxy
@@ -16,7 +158,7 @@
 - (Video/AMF) Add missing encoder tunables
 
 ## [0.18.1] - 2023-01-31
-### Fixed
+**Fixed**
 - (Linux) Fixed missing dependencies for deb and rpm packages
 - (Linux) Use dynamic boost
 
@@ -25,13 +167,14 @@ Attention, this release contains critical security fixes. Please update as soon 
 encouraging users to change your Sunshine password, especially if you expose the web UI (i.e. port 47790 by default)
 to the internet, or have ever uploaded your logs with verbose output to a public resource.
 
-### Added
+**Added**
 - (Windows) Add support for Intel QuickSync
 - (Linux) Added aarch64 deb and rpm packages
 - (Windows) Add support for hybrid graphics systems, such as laptops with both integrated and discrete GPUs
 - (Linux) Add support for streaming from Steam Deck Gaming Mode
 - (Windows) Add HDR support, see https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/usage.html#hdr-support
-### Fixed
+
+**Fixed**
 - (Network) Refactor code for UPnP port forwarding
 - (Video) Enforce 10 FPS encoding frame rate minimum to improve static image quality
 - (Linux) deb and rpm packages are now specific to destination distro and version
@@ -55,18 +198,20 @@ location which is problematic when running as a service or on a multi-user syste
 as a service, games and applications were launched as SYSTEM. This could lead to issues with save files and other game
 settings. In v0.17.0, games now run under your user account without elevated privileges.
 
-### Breaking
+**Breaking**
 - (Apps) Removed automatic desktop entry (Re-add by adding an empty application named "Desktop" with no commands, "desktop.png" can be added as the image.)
 - (Windows) Improved user upgrade experience (Suggest to manually uninstall existing Sunshine version before this upgrade. Do NOT select to remove everything, if prompted. Make a backup of config files before uninstall.)
 - (Windows) Move config files to specific directory (files will be migrated automatically if using Windows installer)
 - (Dependencies) Fix npm path (breaking change for package maintainers)
-### Added
+
+**Added**
 - (macOS) Added initial support for arm64 on macOS through Macports portfile
 - (Input) Added support for foreign keyboard input
 - (Misc) Logs inside the WebUI and log to file
 - (UI/Windows) Added an Apply button to configuration page when running as a service
 - (Input/Windows) Enable Mouse Keys while streaming for systems with no physical mouse
-### Fixed
+
+**Fixed**
 - (Video) Improved capture performance
 - (Audio) Improved audio bitrate and quality handling
 - (Apps/Windows) Fixed PATH environment variable handling
@@ -90,7 +235,8 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 - (Service/Windows) Self terminate/restart service if process hangs for 10 seconds
 - (Input/Windows) Fix Windows masked cursor blending with GPU encoders
 - (Video) Color conversion fixes and BT.2020 support
-### Dependencies
+
+**Dependencies**
 - Bump ffmpeg from 4.4 to 5.1
 - ffmpeg_patches: add amfenc delay/buffering fix
 - CBS moved to ffmpeg submodules
@@ -103,15 +249,17 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 - Bump @fortawesome/fontawesome-free from 6.2.0 to 6.2.1
 
 ## [0.16.0] - 2022-12-13
-### Added
+**Added**
 - Add cover finder
 - (Docker) Add arm64 docker image
 - (Flatpak) Add installation helper scripts
 - (Windows) Add support for Unicode input messages
-### Fixed
+
+**Fixed**
 - (Linux) Reintroduce Ubuntu 20.04 and 22.04 specific deb packages
 - (Linux) Fixed udev and systemd file locations
-### Dependencies
+
+**Dependencies**
 - Bump babel from 2.10.3 to 2.11.0
 - Bump sphinx-copybutton from 0.5.0 to 0.5.1
 - Bump KSXGitHub/github-actions-deploy-aur from 2.5.0 to 2.6.0
@@ -119,23 +267,26 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 - Update moonlight-common-c
 - Use pre-built ffmpeg from LizardByte/build-deps for all sunshine builds (breaking change for third-party package maintainers)
 - Bump furo from 2022.9.29 to 2022.12.7
-### Misc
+
+**Misc**
 - Misc org level workflow updates
 - Fix misc typos in docs
 - Fix winget release
 
 ## [0.15.0] - 2022-10-30
-### Added
+**Added**
 - (Windows) Add firewall rules scripts
 - (Windows) Automatically add and remove firewall rules at install/uninstall
 - (Windows) Automatically add and remove service at install/uninstall
 - (Docker) Official image added
 - (Linux) Add aarch64 flatpak package
-### Changed
+
+**Changed**
 - (Windows/Linux/MacOS) - Move default config and apps file to assets directory
 - (MacOS) Bump boost to 1.80 for macport builds
 - (Linux) Remove backup and restore of config files
-### Fixed
+
+**Fixed**
 - (Linux) - Create sunshine config directory if it doesn't exist
 - (Linux) Remove portable home and config directories for AppImage
 - (Windows) Include service install and uninstall scripts again
@@ -146,27 +297,31 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 - (Linux) Fix CUDA RGBA to NV12 conversion
 
 ## [0.14.1] - 2022-08-09
-### Added
+**Added**
 - (Linux) Flatpak package added
 - (Linux) AUR package automated updates
 - (Windows) Winget package automated updates
-### Changed
+
+**Changed**
 - (General) Moved repo to @LizardByte GitHub org
 - (WebUI) Fixed button spacing on home page
 - (WebUI) Added Discord WidgetBot Crate
-### Fixed
+
+**Fixed**
 - (Linux/Mac) Default config and app files now copied to user home directory
 - (Windows) Default config and app files now copied to working directory
 
 ## [0.14.0] - 2022-06-15
-### Added
+
+**Added**
 - (Documentation) Added Sphinx documentation available at https://sunshinestream.readthedocs.io/en/latest/
 - (Development) Initial support for Localization
 - (Linux) Add rpm package as release asset
 - (macOS) Add Portfile as release asset
 - (Windows) Add DwmFlush() call  to improve capture
 - (Windows) Add Windows installer
-### Fixed
+
+**Fixed**
 - (AMD) Fixed hwdevice being destroyed before context
 - (Linux) Added missing dependencies to AppImage
 - (Linux) Fixed rumble events causing game to freeze
@@ -177,41 +332,44 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 - (Stream/Video) AVPacket fix
 
 ## [0.13.0] - 2022-02-27
-### Added
+**Added**
 - (macOS) Initial support for macOS (#40)
 
 ## [0.12.0] - 2022-02-13
-### Added
+**Added**
 - New command line argument `--version`
 - Custom png poster support
-### Changed
+
+**Changed**
 - Correct software bitrate calculation
 - Increase vbv-bufsize to 1/10 of requested bitrate
 - Improvements to Web UI
 
 ## [0.11.1] - 2021-10-04
-### Changed
+**Changed**
 - (Linux) Fix search path for config file and assets
 
 ## [0.11.0] - 2021-10-04
-### Added
+**Added**
 - (Linux) Added support for wlroots based compositors on Wayland.
 - (Windows) Added an icon for the executable
-### Changed
+
+**Changed**
 - Fixed a bug causing segfault when connecting multiple controllers.
 - (Linux) Improved NVENC, it now offloads converting images from RGB to NV12
 - (Linux) Fixed a bug causes stuttering
 
 ## [0.10.1] - 2021-08-21
-### Changed
+**Changed**
 - (Linux) Re-enabled KMS
 
 ## [0.10.0] - 2021-08-20
-### Added
+**Added**
 - Added support for Rumble with gamepads.
 - Added support for keyboard shortcuts <--- See the README for details.
 - (Windows) A very basic script has been added in Sunshine-Windows\tools <-- This will start Sunshine at boot with the highest privileges which is needed to display the login prompt.
-### Changed
+
+**Changed**
 - Some cosmetic changes to the WebUI.
 - The first time the WebUI is opened, it will request the creation of a username/password pair from the user.
 - Fixed audio crackling introduced in version 0.8.0
@@ -219,54 +377,58 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 - (Windows) Installing from debian package shouldn't overwrite your configuration files anymore. <-- It's recommended that you back up `/etc/sunshine/` before testing this.
 
 ## [0.9.0] - 2021-07-11
-### Added
+**Added**
 - Added audio encryption
 - (Linux) Added basic NVENC support on Linux
 - (Windows) The Windows version can now capture the lock screen and the UAC prompt as long as it's run through `PsExec.exe` https://docs.microsoft.com/en-us/sysinternals/downloads/psexec
-### Changed
+
+**Changed**
 - Sunshine will now accept expired or not-yet-valid certificates, as long as they are signed properly.
 - Fixed compatibility with iOS version of Moonlight
 - Drastically reduced chance of being forced to skip error correction due to video frame size
 - (Linux) sunshine.service will be installed automatically.
 
 ## [0.8.0] - 2021-06-30
-### Added
+**Added**
 - Added mDNS support: Moonlight will automatically find Sunshine.
 - Added UPnP support. It's off by default.
 
 ## [0.7.7] - 2021-06-24
-### Added
+**Added**
 - (Linux) Added installation package for Debian
-### Changed
+
+**Changed**
 - Fixed incorrect scaling for absolute mouse coordinates when using multiple monitors.
 - Fixed incorrect colors when scaling for software encoder
 
 ## [0.7.1] - 2021-06-18
-### Changed
+**Changed**
 - (Linux) Fixed an issue where it was impossible to start sunshine on ubuntu 20.04
 
 ## [0.7.0] - 2021-06-16
-### Added
+**Added**
 - Added a Web Manager. Accessible through: https://localhost:47990 or https://<ip of your pc>:47990
 - (Linux) Added hardware encoding support for AMD on Linux
-### Changed
+
+**Changed**
 - (Linux) Moved certificates and saved pairings generated during runtime to .config/sunshine on Linux
 
 ## [0.6.0] - 2021-05-26
-### Added
+**Added**
 - Added support for surround audio
-### Changed
+
+**Changed**
 - Maintain aspect ratio when scaling video
 - Fix issue where Sunshine is forced to drop frames when they are too large
 
 ## [0.5.0] - 2021-05-13
-### Added
+**Added**
 - Added support for absolute mouse coordinates
 - (Linux) Added support for streaming specific monitor on Linux
 - (Windows) Added support for AMF on Windows
 
 ## [0.4.0] - 2020-05-03
-### Changed
+**Changed**
 - prep-cmd is now optional in apps.json
 - Fixed bug causing video artifacts
 - Fixed bug preventing Moonlight from closing app on exit
@@ -275,25 +437,25 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 - Fixed bug causing crash when monitor has resolution 1366x768
 
 ## [0.3.1] - 2020-04-24
-### Changed
+**Changed**
 - Fix a memory leak.
 
 ## [0.3.0] - 2020-04-23
-### Changed
+**Changed**
 - Hardware acceleration on NVidia GPU's for Video encoding on Windows
 
 ## [0.2.0] - 2020-03-21
-### Changed
+**Changed**
 - Multicasting is now supported: You can set the maximum simultaneous connections with the configurable option: channels
 - Configuration variables can be overwritten on the command line: "name=value" --> it can be useful to set min_log_level=debug without modifying the configuration file
 - Switches to make testing the pairing mechanism more convenient has been added, see "sunshine --help" for details
 
 ## [0.1.1] - 2020-01-30
-### Added
+**Added**
 - (Linux) Added deb package and service for Linux
 
 ## [0.1.0] - 2020-01-27
-### Added
+**Added**
 - The first official release for Sunshine!
 
 [0.1.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.1.0
@@ -324,3 +486,7 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.18.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.1
 [0.18.2]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.2
 [0.18.3]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.3
+[0.18.4]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.4
+[0.19.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.0
+[0.19.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.1
+[0.20.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.20.0

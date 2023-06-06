@@ -7,7 +7,7 @@ Performance Tips
 
 AMD
 ^^^
-In Windows, enabling `Enahanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
+In Windows, enabling `Enhanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
 applies to `amfenc` and `libx264`.
 
 Nvidia
@@ -107,6 +107,20 @@ log_path
 
       log_path = sunshine.log
 
+global_prep_cmd
+^^^^^^^^^^^^^^^
+
+**Description**
+   A list of commands to be run before/after all applications. If any of the prep-commands fail, starting the application is aborted.
+
+**Default**
+   ``[]``
+
+**Example**
+   .. code-block:: text
+
+      global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
+
 Controls
 --------
 
@@ -142,14 +156,12 @@ back_button_timeout
 ^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   If, after the timeout, the back/select button is still pressed down, Home/Guide button press is emulated.
-
-   On Nvidia Shield, the home and power button are not passed to Moonlight.
+   If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.
 
    .. Tip:: If back_button_timeout < 0, then the Home/Guide button will not be emulated.
 
 **Default**
-   ``2000``
+   ``-1``
 
 **Example**
    .. code-block:: text
@@ -160,7 +172,7 @@ key_repeat_delay
 ^^^^^^^^^^^^^^^^
 
 **Description**
-   The initial delay in milliseconds before repeating keys. Controls how fast keys will repeat themselves.
+   The initial delay, in milliseconds, before repeating keys. Controls how fast keys will repeat themselves.
 
 **Default**
    ``500``
@@ -179,12 +191,33 @@ key_repeat_frequency
    .. Tip:: This configurable option supports decimals.
 
 **Default**
-   .. Todo:: Unknown
+   ``24.9``
 
 **Example**
    .. code-block:: text
 
       key_repeat_frequency = 24.9
+
+always_send_scancodes
+^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard input
+   from certain clients that aren't using a US English keyboard layout.
+
+   Enable if keyboard input is not working at all in certain applications.
+
+   Disable if keys on the client are generating the wrong input on the host.
+
+   .. Caution:: Applies to Windows only.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      always_send_scancodes = enabled
 
 keybindings
 ^^^^^^^^^^^
@@ -197,7 +230,11 @@ keybindings
    .. Hint:: keybindings needs to have a multiple of two elements.
 
 **Default**
-   None
+   .. code-block:: text
+
+      0x10, 0xA0,
+      0x11, 0xA2,
+      0x12, 0xA4
 
 **Example**
    .. code-block:: text
@@ -217,7 +254,7 @@ key_rightalt_to_key_win
    make Sunshine think the Right Alt key is the Windows key.
 
 **Default**
-   None
+   ``disabled``
 
 **Example**
    .. code-block:: text
@@ -281,13 +318,18 @@ output_name
    .. Tip:: To find the name of the appropriate values follow these instructions.
 
       **Linux**
-         .. code-block:: bash
+         During Sunshine startup, you should see the list of detected monitors:
 
-            xrandr --listmonitors
+         .. code-block:: text
 
-         Example output: ``0: +HDMI-1 1920/518x1200/324+0+0  HDMI-1``
+            Info: Detecting connected monitors
+            Info: Detected monitor 0: DVI-D-0, connected: false
+            Info: Detected monitor 1: HDMI-0, connected: true
+            Info: Detected monitor 2: DP-0, connected: true
+            Info: Detected monitor 3: DP-1, connected: false
+            Info: Detected monitor 4: DVI-D-1, connected: false
 
-         You need to use the value before the colon in the output, e.g. ``0``.
+         You need to use the value before the colon in the output, e.g. ``1``.
 
       .. Todo:: macOS
 
@@ -322,7 +364,7 @@ fps
       fps is supported.
 
 **Default**
-   .. Todo:: Unknown
+   ``[10, 30, 60, 90, 120]``
 
 **Example**
    .. code-block:: text
@@ -339,7 +381,20 @@ resolutions
       resolution is supported.
 
 **Default**
-   .. Todo:: Unknown
+   .. code-block:: text
+
+      [
+        352x240,
+        480x360,
+        858x480,
+        1280x720,
+        1920x1080,
+        2560x1080,
+        3440x1440,
+        1920x1200,
+        3840x2160,
+        3840x1600,
+      ]
 
 **Example**
    .. code-block:: text
@@ -353,7 +408,7 @@ resolutions
         2560x1080,
         3440x1440,
         1920x1200,
-        3860x2160,
+        3840x2160,
         3840x1600,
       ]
 
@@ -411,6 +466,10 @@ audio_sink
 
             tools\audio-info.exe
 
+         .. Tip:: If you have multiple audio devices with identical names, use the Device ID instead.
+
+   .. Tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
+
 **Default**
    Sunshine will select the default audio device.
 
@@ -428,7 +487,7 @@ audio_sink
    **Windows**
       .. code-block:: text
 
-         audio_sink = {0.0.0.00000000}.{FD47D9CC-4218-4135-9CE2-0C195C87405B}
+         audio_sink = Speakers (High Definition Audio Device)
 
 virtual_sink
 ^^^^^^^^^^^^
@@ -439,13 +498,35 @@ virtual_sink
 
    .. Tip:: See `audio_sink`_!
 
-**Default**
-   .. Todo:: Unknown
+   .. Tip:: These are some options for virtual sound devices.
+
+      - Stream Streaming Speakers (Linux, macOS, Windows)
+
+        - Steam must be installed.
+        - Enable `install_steam_audio_drivers`_ or use Steam Remote Play at least once to install the drivers.
+
+      - `Virtual Audio Cable <https://vb-audio.com/Cable/>`_ (macOS, Windows)
 
 **Example**
    .. code-block:: text
 
-      virtual_sink = {0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}
+      virtual_sink = Steam Streaming Speakers
+
+install_steam_audio_drivers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Installs the Steam Streaming Speakers driver (if Steam is installed) to support surround sound and muting host audio.
+
+   .. Tip:: This option is only supported on Windows.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      install_steam_audio_drivers = enabled
 
 Network
 -------
@@ -486,7 +567,7 @@ port
    Mic (unused)     48002 UDP    +13
    ================ ============ ===========================
 
-.. Attention:: Custom ports are only allowed on select Moonlight clients.
+.. Attention:: Custom ports may not be supported by all Moonlight clients.
 
 **Default**
    ``47989``
@@ -503,7 +584,7 @@ pkey
    The private key. This must be 2048 bits.
 
 **Default**
-   .. Todo:: Unknown
+   ``credentials/cakey.pem``
 
 **Example**
    .. code-block:: text
@@ -517,7 +598,7 @@ cert
    The certificate. Must be signed with a 2048 bit key.
 
 **Default**
-   .. Todo:: Unknown
+   ``credentials/cacert.pem``
 
 **Example**
    .. code-block:: text
@@ -597,7 +678,7 @@ upnp
    =====     ===========
 
 **Default**
-   ``off``
+   ``disabled``
 
 **Example**
    .. code-block:: text
@@ -608,7 +689,7 @@ ping_timeout
 ^^^^^^^^^^^^
 
 **Description**
-   How long to wait in milliseconds for data from Moonlight before shutting down the stream.
+   How long to wait, in milliseconds, for data from Moonlight before shutting down the stream.
 
 **Default**
    ``10000``
@@ -728,6 +809,40 @@ hevc_mode
 
       hevc_mode = 2
 
+capture
+^^^^^^^
+
+**Description**
+   Force specific screen capture method.
+
+   .. Caution:: Applies to Linux only.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =========  ===========
+   Value      Description
+   =========  ===========
+   nvfbc      Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for
+              NVIDIA cards. For GeForce cards it will only work with drivers patched with
+              `nvidia-patch <https://github.com/keylase/nvidia-patch/>`_
+              or `nvlax <https://github.com/illnyang/nvlax/>`_.
+   wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
+   kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability.
+              See :ref:`Linux Setup <about/usage:setup>`.
+   x11        Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
+   =========  ===========
+   
+**Default**
+   Automatic. Sunshine will use the first capture method available in the order of the table above.
+
+**Example**
+   .. code-block:: text
+
+      capture = kms
+      
 encoder
 ^^^^^^^
 
@@ -784,11 +899,9 @@ sw_preset
    ultrafast fastest
    superfast
    veryfast
-   superfast
    faster
    fast
    medium
-   slow
    slow
    slower
    veryslow  slowest

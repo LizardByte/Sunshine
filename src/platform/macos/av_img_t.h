@@ -1,5 +1,8 @@
-#ifndef av_img_t_h
-#define av_img_t_h
+/**
+ * @file src/platform/macos/av_img_t.h
+ * @brief todo
+ */
+#pragma once
 
 #include "src/platform/common.h"
 
@@ -7,12 +10,10 @@
 #include <CoreVideo/CoreVideo.h>
 
 namespace platf {
-struct av_img_t : public img_t {
-  CVPixelBufferRef pixel_buffer   = nullptr;
-  CMSampleBufferRef sample_buffer = nullptr;
+  struct av_img_t: public img_t {
+    CVPixelBufferRef pixel_buffer = nullptr;
+    CMSampleBufferRef sample_buffer = nullptr;
 
-  ~av_img_t();
-};
-} // namespace platf
-
-#endif /* av_img_t_h */
+    ~av_img_t();
+  };
+}  // namespace platf

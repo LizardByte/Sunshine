@@ -213,10 +213,66 @@
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
+        <div class="form-text">
+          It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
+          In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
+        </div>
       </div>
-      <div class="form-text">
-        It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
-        In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
+      <!-- Global Prep Commands -->
+      <div class="mb-3 d-flex flex-column">
+        <label class="form-label">Command Preparations</label>
+        <div class="form-text">
+          Configure a list of commands to be executed before or after running any application. 
+          If any of the specified preparation commands fail, the application launch process will be aborted.
+        </div>
+        <table class="table" v-if="global_prep_cmd.length > 0">
+          <thead>
+            <tr>
+              <th scope="col"><i class="fas fa-play"></i> Do Command</th>
+              <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
+              <th scope="col" v-if="platform === 'windows'">
+                <i class="fas fa-shield-alt"></i> Run as Admin
+              </th>
+              <th scope="col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(c, i) in global_prep_cmd">
+              <td>
+                <input type="text" class="form-control monospace" v-model="c.do" />
+              </td>
+              <td>
+                <input type="text" class="form-control monospace" v-model="c.undo" />
+              </td>
+              <td v-if="platform === 'windows'">
+                <div class="form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    :id="'prep-cmd-admin-' + i"
+                    v-model="c.elevated"
+                    true-value="true"
+                    false-value="false"
+                  />
+                  <label :for="'prep-cmd-admin-' + i" class="form-check-label"
+                    >Elevated</label
+                  >
+                </div>
+              </td>
+              <td>
+                <button class="btn btn-danger" @click="$delete(global_prep_cmd, i)">
+                  <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn btn-success" @click="add_global_prep_cmd">
+                  <i class="fas fa-plus"></i>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>              
+        <button class="mt-2 btn btn-success" style="margin: 0 auto" @click="add_global_prep_cmd">
+          &plus; Add
+        </button>
       </div>
     </div>
     <!--Files Tab-->
@@ -278,23 +334,72 @@
       </div>
     </div>
     <div v-if="currentTab === 'input'" class="config-page">
-      <!--Back Button Timeout-->
+      <!--Home/Guide Button Emulation Timeout-->
       <div class="mb-3">
         <label for="back_button_timeout" class="form-label"
-          >Back Button Timeout</label
+          >Home/Guide Button Emulation Timeout</label
         >
         <input
           type="text"
           class="form-control"
           id="back_button_timeout"
-          placeholder="2000"
+          placeholder="-1"
           v-model="config.back_button_timeout"
         />
         <div class="form-text">
-          The back/select button on the controller.<br />
-          On the Shield, the home and power button are not passed to  Moonlight.<br />
-          If, after the timeout, the back button is still pressed down, Home/Guide button press is emulated.<br />
-          If back_button_timeout &lt; 0, then the Home/Guide button will not be emulated<br />
+          If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.<br />
+          If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide button.<br />
+        </div>
+      </div>
+      <!--Enable Mouse Input-->
+      <div class="mb-3">
+        <label for="mouse" class="form-label"
+          >Enable Mouse Input</label
+        >
+        <select
+          id="mouse"
+          class="form-select"
+          v-model="config.mouse"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with the mouse
+        </div>
+      </div>
+      <!--Enable Keyboard Input-->
+      <div class="mb-3">
+        <label for="keyboard" class="form-label"
+          >Enable Keyboard Input</label
+        >
+        <select
+          id="keyboard"
+          class="form-select"
+          v-model="config.keyboard"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with the keyboard
+        </div>
+      </div>
+      <!--Enable Gamepad Input-->
+      <div class="mb-3">
+        <label for="gamepad" class="form-label"
+          >Enable Gamepad Input</label
+        >
+        <select
+          id="gamepad"
+          class="form-select"
+          v-model="config.controller"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Allows guests to control the host system with a gamepad / controller
         </div>
       </div>
       <!-- Key Repeat Delay-->
@@ -331,6 +436,27 @@
           This configurable option supports decimals
         </div>
       </div>
+      <!-- Always send scancodes -->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="always_send_scancodes" class="form-label"
+          >Always Send Scancodes</label
+        >
+        <select
+          id="always_send_scancodes"
+          class="form-select"
+          v-model="config.always_send_scancodes"
+        >
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Sending scancodes enhances compatibility with games and apps
+          but may result in incorrect keyboard input from certain clients
+          that aren't using a US English keyboard layout.<br />
+          Enable if keyboard input is not working at all in certain applications.<br />
+          Disable if keys on the client are generating the wrong input on the host.
+        </div>
+      </div>
     </div>
     <!--Files Tab-->
     <div v-if="currentTab === 'av'" class="config-page">
@@ -341,12 +467,13 @@
           type="text"
           class="form-control"
           id="audio_sink"
-          placeholder="{0.0.0.00000000}.{FD47D9CC-4218-4135-9CE2-0C195C87405B}"
+          placeholder="Speakers (High Definition Audio Device)"
           v-model="config.audio_sink"
         />
         <div class="form-text">
-          The name of the audio sink used for Audio Loopback<br />
-          You can find the name of the audio sink using the following command:<br />
+          Manually specify a specific audio device to capture. If unset, the device is chosen automatically.<br />
+          <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
+          If you have multiple audio devices with identical names, you can get the Device ID using the following command:<br />
           <pre>tools\audio-info.exe</pre>
         </div>
       </div>
@@ -399,12 +526,24 @@
           type="text"
           class="form-control"
           id="virtual_sink"
-          placeholder="{0.0.0.00000000}.{8edba70c-1125-467c-b89c-15da389bc1d4}"
+          placeholder="Steam Streaming Speakers"
           v-model="config.virtual_sink"
         />
         <div class="form-text">
-          The virtual sink, is the audio device that's virtual (Like Steam Streaming Speakers), it allows Sunshine to
-          stream audio, while muting the speakers.
+          Manually specify a virtual audio device to use. If unset, the device is chosen automatically.<br />
+          <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
+        </div>
+      </div>
+      <!--Install Steam Audio Drivers-->
+      <div class="mb-3" v-if="platform === 'windows'">
+        <label for="install_steam_audio_drivers" class="form-label">Install Steam Audio Drivers</label>
+        <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          If Steam is installed, this will automatically install the Steam Streaming Speakers driver to support
+          5.1/7.1 surround sound and muting host audio.
         </div>
       </div>
       <!--Adapter Name -->
@@ -418,13 +557,15 @@
           v-model="config.adapter_name"
         />
         <div class="form-text" v-if="platform === 'windows'">
-          You can select the video card you want to stream:<br />
+          Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br />
+          <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br />
+          Note: This GPU must have a display connected and powered on.<br />
           The appropriate values can be found using the following command:<br />
           <pre>tools\dxgi-info.exe</pre>
         </div>
       </div>
       <!--Output Name -->
-      <div class="mb-3" class="config-page" v-if="platform === 'windows'">
+      <div class="mb-3 config-page" v-if="platform === 'windows'">
         <label for="output_name" class="form-label">Output Name</label>
         <input
           type="text"
@@ -434,7 +575,8 @@
           v-model="config.output_name"
         />
         <div class="form-text">
-          You can select the video card you want to stream:<br />
+          Manually specify a display to use for capture. If unset, the primary display is captured.<br />
+          Note: If you specified a GPU above, this display must be connected to that GPU.<br />
           The appropriate values can be found using the following command:<br />
           tools\dxgi-info.exe<br />
         </div>
@@ -451,7 +593,7 @@
           Disable if you encounter any VSync-related issues.
         </div>
       </div>
-      <div class="mb-3" class="config-page" v-if="platform === 'linux'">
+      <div class="mb-3 config-page" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
         <input
           type="text"
@@ -461,9 +603,17 @@
           v-model="config.output_name"
         />
         <div class="form-text">
-          xrandr --listmonitors<br />
-          Example output:
-          <pre>   0: +HDMI-1 1920/518x1200/324+0+0 HDMI-1</pre>
+          During Sunshine startup, you should see the list of detected monitors, e.g.:<br />
+          <br />
+          <pre style="white-space: pre-line;">
+            Info: Detecting connected monitors
+            Info: Detected monitor 0: DVI-D-0, connected: false
+            Info: Detected monitor 1: HDMI-0, connected: true
+            Info: Detected monitor 2: DP-0, connected: true
+            Info: Detected monitor 3: DP-1, connected: false
+            Info: Detected monitor 4: DVI-D-1, connected: false
+          </pre>
+          You need to use the value before the colon in the output, e.g. <b>1</b>.
         </div>
       </div>
     </div>
@@ -540,11 +690,25 @@
           HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
         </div>
       </div>
-      <!--Encoder -->
+      <!--Capture-->
+      <div class="mb-3" v-if="platform === 'linux'">
+        <label for="capture" class="form-label">Force a Specific Capture Method</label>
+        <select id="capture" class="form-select" v-model="config.capture">
+          <option value="">Autodetect</option>
+          <option value="nvfbc">NvFBC</option>
+          <option value="wlr">wlroots</option>
+          <option value="kms">KMS</option>
+          <option value="x11">X11</option>
+        </select>
+        <div class="form-text">
+          Force a specific capture method, otherwise Sunshine will use the first one that works. NvFBC requires patched nvidia drivers.
+        </div>
+      </div>
+      <!--Encoder-->
       <div class="mb-3">
         <label for="encoder" class="form-label">Force a Specific Encoder</label>
         <select id="encoder" class="form-select" v-model="config.encoder">
-          <option value>Autodetect</option>
+          <option value="">Autodetect</option>
           <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
           <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
           <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
@@ -553,7 +717,8 @@
           <option value="software">Software</option>
         </select>
         <div class="form-text">
-          Force a specific encoder, otherwise Sunshine will use the first encoder that is available
+          Force a specific encoder, otherwise Sunshine will use the first encoder that is available<br />
+          Note: If you specify a hardware encoder on Windows, it must match the GPU where the display is connected.
         </div>
       </div>
       <!--FEC Percentage-->
@@ -649,32 +814,33 @@
     <div v-if="currentTab === 'sw'" class="config-page">
       <div class="mb-3">
         <label for="sw_preset" class="form-label">SW Presets</label>
-        <input
-          class="form-control"
-          id="sw_preset"
-          placeholder="superfast"
-          v-model="config.sw_preset"
-        />
+        <select id="sw_preset" class="form-select" v-model="config.sw_preset">
+          <option value="ultrafast">ultrafast</option>
+          <option value="superfast">superfast (default)</option>
+          <option value="veryfast">veryfast</option>
+          <option value="faster">faster</option>
+          <option value="fast">fast</option>
+          <option value="medium">medium</option>
+          <option value="slow">slow</option>
+          <option value="slower">slower</option>
+          <option value="veryslow">veryslow</option>
+        </select>
         <div class="form-text">
-          Available Values: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+          Optimize the trade-off between encoding speed (encoded frames per second) and compression efficiency (quality per bit in the bitstream). Defaults to superfast.
         </div>
       </div>
       <div class="mb-3">
         <label for="sw_tune" class="form-label">SW Tune</label>
-        <input
-          class="form-control"
-          id="sw_tune"
-          placeholder="zerolatency"
-          v-model="config.sw_tune"
-        />
+        <select id="sw_tune" class="form-select" v-model="config.sw_tune">
+          <option value="film">film -- use for high quality movie content; lowers deblocking</option>
+          <option value="animation">animation -- good for cartoons; uses higher deblocking and more reference frames</option>
+          <option value="grain">grain -- preserves the grain structure in old, grainy film material</option>
+          <option value="stillimage">stillimage -- good for slideshow-like content</option>
+          <option value="fastdecode">fastdecode -- allows faster decoding by disabling certain filters</option>
+          <option value="zerolatency">zerolatency -- good for fast encoding and low-latency streaming (default)</option>
+        </select>
         <div class="form-text">
-          Available Tune settings: <br>
-          film - use for high quality movie content; lowers deblocking<br>
-          animation - good for cartoons; uses higher deblocking and more reference frames<br>
-          grain - preserves the grain structure in old, grainy film material<br>
-          stillimage - good for slideshow-like content<br>
-          fastdecode - allows faster decoding by disabling certain filters<br>
-          zerolatency - good for fast encoding and low-latency streaming<br>
+          Tuning options, which are applied after the preset. Defaults to zerolatency.
         </div>
       </div>
     </div>
@@ -835,28 +1001,63 @@
       </div>
     </div>
   </div>
-  <div class="alert alert-success my-4" v-if="saved && restart_supported">
+  <div class="alert alert-success my-4" v-if="saved && !restarted">
     <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
-  </div>
-  <div class="alert alert-success my-4" v-if="saved && !restart_supported">
-    <b>Success!</b> Restart Sunshine to apply changes.
   </div>
   <div class="alert alert-success my-4" v-if="restarted">
     <b>Success!</b> Sunshine is restarting to apply changes.
   </div>
   <div class="mb-3 buttons">
     <button class="btn btn-primary" @click="save">Save</button>
-    <button class="btn btn-success" @click="apply" v-if="saved && restart_supported && !restarted">Apply</button>
+    <button class="btn btn-success" @click="apply" v-if="saved && !restarted">Apply</button>
   </div>
 </div>
 
 <script>
+  // create dictionary for defaultConfig
+  const defaultConfig = {
+    "always_send_scancodes": "enabled",
+    "amd_coder": "auto",
+    "amd_preanalysis": "disabled",
+    "amd_quality": "balanced",
+    "amd_rc": "vbr_latency",
+    "amd_usage": "ultralowlatency",
+    "amd_vbaq": "enabled",
+    "capture": "",
+    "controller": "enabled",
+    "install_steam_audio_drivers": "enabled",
+    "dwmflush": "enabled",
+    "encoder": "",
+    "fps": "[10,30,60,90,120]",
+    "gamepad": "x360",
+    "hevc_mode": 0,
+    "key_rightalt_to_key_win": "disabled",
+    "keyboard": "enabled",
+    "min_log_level": 2,
+    "mouse": "enabled",
+    "nv_coder": "auto",
+    "nv_preset": "p4",
+    "nv_rc": "cbr",
+    "nv_tune": "ull",
+    "origin_pin_allowed": "pc",
+    "origin_web_ui_allowed": "lan",
+    "qsv_coder": "auto",
+    "qsv_preset": "medium",
+    "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3840x2160,3840x1600]",
+    "sw_preset": "superfast",
+    "sw_tune": "zerolatency",
+    "upnp": "disabled",
+    "vt_coder": "auto",
+    "vt_realtime": "enabled",
+    "vt_software": "auto",
+    "global_prep_cmd": "[]",
+  }
+
   new Vue({
     el: "#app",
     data() {
       return {
         platform: "",
-        restart_supported: false,
         saved: false,
         restarted: false,
         config: null,
@@ -865,6 +1066,7 @@
         currentTab: "general",
         resIn: "",
         fpsIn: "",
+        global_prep_cmd: [],
         tabs: [
           {
             id: "general",
@@ -919,60 +1121,35 @@
         .then((r) => {
           this.config = r;
           this.platform = this.config.platform;
-          this.restart_supported = (this.config.restart_supported === "true");
 
           var app = document.getElementById("app");
-          if (this.platform == "windows") {
+          if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "va-api" && el.id !== "vt";
             });
           }
-          if (this.platform == "linux") {
+          if (this.platform === "linux") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
             });
           }
-          if (this.platform == "macos") {
+          if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "va-api";
             });
           }
 
-          delete this.config.status;
+          // remove values we don't want in the config file
           delete this.config.platform;
-          delete this.config.restart_supported;
+          delete this.config.status;
+          delete this.config.version;
           //Populate default values if not present in config
-          this.config.key_rightalt_to_key_win =
-            this.config.key_rightalt_to_key_win || "disabled";
-          this.config.gamepad = this.config.gamepad || "x360";
-          this.config.upnp = this.config.upnp || "disabled";
-          this.config.dwmflush = this.config.dwmflush || "enabled";
-          this.config.min_log_level = this.config.min_log_level || 2;
-          this.config.origin_pin_allowed =
-            this.config.origin_pin_allowed || "pc";
-          this.config.origin_web_ui_allowed =
-            this.config.origin_web_ui_allowed || "lan";
-          this.config.hevc_mode = this.config.hevc_mode || 0;
-          this.config.encoder = this.config.encoder || "";
-          this.config.nv_preset = this.config.nv_preset || "p4";
-          this.config.nv_tune = this.config.nv_tune || "ull";
-          this.config.nv_coder = this.config.nv_coder || "auto";
-          this.config.nv_rc = this.config.nv_rc || "cbr";
-          this.config.qsv_preset = this.config.qsv_preset || "medium";
-          this.config.qsv_coder = this.config.qsv_coder || "auto";
-          this.config.amd_coder = this.config.amd_coder || "auto"
-          this.config.amd_preanalysis = this.config.amd_preanalysis || "disabled";
-          this.config.amd_quality = this.config.amd_quality || "balanced";
-          this.config.amd_rc = this.config.amd_rc || "vbr_latency";
-          this.config.amd_usage = this.config.amd_usage || "ultralowlatency";
-          this.config.amd_vbaq = this.config.amd_vbaq || "enabled";
-          this.config.vt_coder = this.config.vt_coder || "auto";
-          this.config.vt_software = this.config.vt_software || "auto";
-          this.config.vt_realtime = this.config.vt_realtime || "enabled";
-          this.config.fps = this.config.fps || "[10, 30, 60, 90, 120]";
-          this.config.resolutions =
-            this.config.resolutions ||
-            "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3860x2160,3840x1600]";
+          for (let key in defaultConfig) {
+            if (this.config[key] === undefined) {
+              this.config[key] = defaultConfig[key]
+            }
+          }
+
           this.fps = JSON.parse(this.config.fps);
           //Resolutions should be fixed because are not valid JSON
           let res = this.config.resolutions.substring(
@@ -982,6 +1159,9 @@
           let resolutions = [];
           res.split(",").forEach((r) => resolutions.push(r.trim()));
           this.resolutions = resolutions;
+          
+          this.config.global_prep_cmd = this.config.global_prep_cmd || [];
+          this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
         });
     },
     methods: {
@@ -994,33 +1174,81 @@
           this.resolutions.join("," + nl + "    ") +
           nl +
           "]";
-        this.config.fps = JSON.stringify(this.fps);
+        // remove quotes from values in fps
+        this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
+        this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
       },
       save() {
-        this.saved = this.restarted = false;
+        this.saved = false;
+        this.restarted = false;
         this.serialize();
-        fetch("/api/config", {
+
+        // create a temp copy of this.config to use for the post request
+        let config = JSON.parse(JSON.stringify(this.config))
+
+        // delete default values from this.config
+        for (let key in defaultConfig) {
+          let delete_value = false
+          if (key === "resolutions" || key === "fps") {
+            let regex = /([\d]+x[\d]+)/g
+            // Use a regular expression to find each value and replace it with a quoted version
+
+            let config_value = JSON.parse(config[key].replace(regex, '"$1"')).toString()
+            let default_value = JSON.parse(defaultConfig[key].replace(regex, '"$1"')).toString()
+
+            if (config_value === default_value) {
+              delete_value = true
+            }
+          }
+
+          if (config[key] === defaultConfig[key]) {
+            delete_value = true
+          }
+
+          if (delete_value) {
+            delete config[key]
+          }
+        }
+
+        return fetch("/api/config", {
           method: "POST",
-          body: JSON.stringify(this.config),
+          body: JSON.stringify(config),
         }).then((r) => {
-          if (r.status == 200) this.saved = true;
+          if (r.status === 200) {
+            this.saved = true
+            return this.saved
+          }
+          else {
+            return false
+          }
         });
       },
       apply() {
         this.saved = this.restarted = false;
-        this.serialize();
-        fetch("/api/config", {
-          method: "POST",
-          body: JSON.stringify(this.config),
-        }).then((r) => {
-          if (r.status == 200) {
+        let saved = this.save();
+
+        saved.then((result) => {
+          if (result === true) {
+            this.restarted = true;
+            setTimeout(() => {
+              this.saved = this.restarted = false;
+            }, 5000);
             fetch("/api/restart", {
-              method: "POST",
-            }).then((r) => {
-              if (r.status == 200) this.restarted = true;
+              method: "POST"
             });
           }
         });
+      },
+      add_global_prep_cmd() {
+        let template = {
+          do: "",
+          undo: "",
+        };
+
+        if(this.platform === 'windows'){
+          template = {...template, elevated: false};
+        }
+        this.global_prep_cmd.push(template);
       },
     },
   });

@@ -46,6 +46,7 @@ jobs:
       last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
       release_body: ${{ steps.verify_changelog.outputs.changelog_parser_description }}
 
+  # todo - remove this job once versioning is fully automated by cmake
   check_versions:
     name: Check Versions
     runs-on: ubuntu-latest
@@ -161,7 +162,7 @@ jobs:
 
       - name: Setup Dependencies Linux Flatpak
         run: |
-          PLATFORM_VERSION=21.08
+          PLATFORM_VERSION=22.08
 
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -281,6 +282,7 @@ jobs:
             sudo apt-get update -y
             sudo apt-get install -y \
               libboost-filesystem1.71-dev \
+              libboost-locale1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
               libboost-thread1.71-dev \
@@ -307,6 +309,7 @@ jobs:
             sudo apt-get install -y \
               cmake \
               libboost-filesystem-dev \
+              libboost-locale-dev \
               libboost-log-dev \
               libboost-thread-dev \
               libboost-program-options-dev
@@ -316,6 +319,7 @@ jobs:
             build-essential \
             gcc-10 \
             g++-10 \
+            libappindicator3-dev \
             libavdevice-dev \
             libcap-dev \
             libcurl4-openssl-dev \
@@ -360,6 +364,10 @@ jobs:
           sudo rm /root/cuda.run
 
       - name: Build Linux
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir -p build
           mkdir -p artifacts
@@ -466,7 +474,7 @@ jobs:
   build_mac:
     name: MacOS
     runs-on: macos-11
-    needs: setup_release
+    needs: [check_changelog, setup_release]
 
     steps:
       - name: Checkout
@@ -477,12 +485,16 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install boost cmake curl node opus
+          brew install boost cmake curl node opus pkg-config
 
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
       - name: Build MacOS
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           npm install
 
@@ -502,13 +514,10 @@ jobs:
 
           # package
           cpack -G DragNDrop
-          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-dragndrop.dmg
+          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine.dmg
 
-          cpack -G Bundle
-          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-macos-experimental-bundle.dmg
-
-          cpack -G ZIP
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-macos-experimental-archive.zip
+          # cpack -G Bundle
+          # mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-bundle.dmg
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -516,33 +525,23 @@ jobs:
           name: sunshine-macos
           path: artifacts/
 
-      # this step can be removed after packages are fixed
-      - name: Delete experimental packages
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        working-directory: artifacts
-        run: |
-          rm -f ./sunshine-macos-experimental-dragndrop.dmg
-          rm -f ./sunshine-macos-experimental-bundle.dmg
-          rm -f ./sunshine-macos-experimental-archive.zip
-
-#      #  no artifacts to release currently
-#      - name: Create/Update GitHub Release
-#        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
-#        uses: ncipollo/release-action@v1
-#        with:
-#          name: ${{ needs.setup_release.outputs.release_name }}
-#          tag: ${{ needs.setup_release.outputs.release_tag }}
-#          commit: ${{ needs.setup_release.outputs.release_commit }}
-#          artifacts: "*artifacts/*"
-#          token: ${{ secrets.GH_BOT_TOKEN }}
-#          allowUpdates: true
-#          body: ${{ needs.setup_release.outputs.release_body }}
-#          discussionCategory: announcements
-#          prerelease: ${{ needs.setup_release.outputs.pre_release }}
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ needs.setup_release.outputs.release_name }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          commit: ${{ needs.setup_release.outputs.release_commit }}
+          artifacts: "*artifacts/*"
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          discussionCategory: announcements
+          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac_port:
     name: Macports
-    needs: setup_release
+    needs: [check_changelog, setup_release]
     runs-on: macos-11
 
     steps:
@@ -588,7 +587,8 @@ jobs:
 
           mkdir build
           cd build
-          cmake -DGITHUB_COMMIT=${commit} \
+          cmake \
+            -DGITHUB_COMMIT=${commit} \
             -DGITHUB_CLONE_URL=${clone_url} \
             -DSUNSHINE_CONFIGURE_PORTFILE=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
@@ -639,6 +639,8 @@ jobs:
           echo "subportlist=${subportlist}" >> $GITHUB_OUTPUT
 
       - name: Run port lint for all subports
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
         run: |
           set -eu
           fail=0
@@ -660,10 +662,10 @@ jobs:
             echo "::endgroup::"
           done
           exit "$fail"
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
 
       - name: Build subports
+        env:
+          subportlist: ${{ steps.subportlist.outputs.subportlist }}
         run: |
           set -eu
           fail=0
@@ -712,27 +714,6 @@ jobs:
             echo "::endgroup::"
           done
           exit "$fail"
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
-
-      - name: Package
-        run: |
-          # create packages
-          sudo port pkg sunshine
-          sudo port dmg sunshine
-
-          work=$(port work sunshine)
-          echo "Sunshine port work directory: ${work}"
-
-          # move components out of port work directory
-          sudo mv ${work}/Sunshine*component.pkg /tmp/
-
-          # copy artifacts
-          sudo mv ${work}/Sunshine*.pkg ./artifacts/sunshine.pkg
-          sudo mv ${work}/Sunshine*.dmg ./artifacts/sunshine.dmg
-
-          # move components back
-          # sudo mv /tmp/Sunshine*component.pkg ${work}/
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -757,7 +738,7 @@ jobs:
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: setup_release
+    needs: [check_changelog, setup_release]
 
     steps:
       - name: Checkout
@@ -793,10 +774,14 @@ jobs:
 
       - name: Build Windows
         shell: msys2 {0}
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DSUNSHINE_ASSETS_DIR=assets \
             -G "MinGW Makefiles" \
             ..
@@ -813,8 +798,17 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows.exe
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows.zip
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
+
+      - name: Package Windows Debug Info
+        working-directory: build
+        run: |
+          # save the original binaries with debug info
+          7z -r `
+            "-xr!CMakeFiles" `
+            "-xr!cpack_artifacts" `
+            a "../artifacts/sunshine-debuginfo-win32.zip" "*.exe"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3

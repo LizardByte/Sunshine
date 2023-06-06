@@ -2,6 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64
+# no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=fedora
 ARG TAG=37
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -10,6 +11,15 @@ FROM sunshine-base as sunshine-build
 
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
+
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
@@ -20,35 +30,37 @@ set -e
 dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
-  boost-devel-1.78.0* \
-  cmake-3.24.1* \
-  gcc-12.2.1* \
-  gcc-c++-12.2.1* \
-  libcap-devel-2.48* \
-  libcurl-devel-7.85.0* \
-  libdrm-devel-2.4.112* \
-  libevdev-devel-1.13.0* \
-  libva-devel-2.15.0* \
-  libvdpau-devel-1.5* \
-  libX11-devel-1.8.1* \
-  libxcb-devel-1.13.1* \
-  libXcursor-devel-1.2.1* \
-  libXfixes-devel-6.0.0* \
-  libXi-devel-1.8* \
-  libXinerama-devel-1.1.4* \
-  libXrandr-devel-1.5.2* \
-  libXtst-devel-1.2.3* \
-  mesa-libGL-devel-22.2.2* \
-  npm-8.15.0* \
-  numactl-devel-2.0.14* \
-  openssl-devel-3.0.5* \
-  opus-devel-1.3.1* \
-  pulseaudio-libs-devel-16.1* \
-  rpm-build-4.18.0* \
-  wget-1.21.3* \
-  which-2.21*
+  boost-devel-1.78.* \
+  cmake-3.26.* \
+  gcc-12.2.* \
+  gcc-c++-12.2.* \
+  git \
+  libappindicator-gtk3-devel \
+  libcap-devel \
+  libcurl-devel \
+  libdrm-devel \
+  libevdev-devel \
+  libva-devel \
+  libvdpau-devel \
+  libX11-devel \
+  libxcb-devel \
+  libXcursor-devel \
+  libXfixes-devel \
+  libXi-devel \
+  libXinerama-devel \
+  libXrandr-devel \
+  libXtst-devel \
+  mesa-libGL-devel \
+  nodejs-npm \
+  numactl-devel \
+  openssl-devel \
+  opus-devel \
+  pulseaudio-libs-devel \
+  rpm-build \
+  wget \
+  which
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  dnf -y install intel-mediasdk-devel-22.4.4*
+  dnf -y install intel-mediasdk-devel
 fi
 dnf clean all
 rm -rf /var/cache/yum
@@ -78,7 +90,7 @@ _INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY .. .
+COPY --link .. .
 
 # setup npm dependencies
 RUN npm install
@@ -109,12 +121,12 @@ FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
-COPY --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
 FROM sunshine-base as sunshine
 
 # copy deb from builder
-COPY --from=artifacts /sunshine*.rpm /sunshine.rpm
+COPY --link --from=artifacts /sunshine*.rpm /sunshine.rpm
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
@@ -147,7 +159,7 @@ RUN <<_SETUP_USER
 #!/bin/bash
 set -e
 groupadd -f -g "${PGID}" "${UNAME}"
-useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
+useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine
 ln -s ${HOME}/.config/sunshine /config
 chown -R ${UNAME} ${HOME}

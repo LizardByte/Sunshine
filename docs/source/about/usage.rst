@@ -68,16 +68,11 @@ The `deb`, `rpm`, `Flatpak` and `AppImage` packages handle these steps automatic
 
 Sunshine needs access to `uinput` to create mouse and gamepad events.
 
-#. Add user to group `input`, if this is the first time installing.
+#. Create `udev` rules.
       .. code-block:: bash
 
-         sudo usermod -a -G input $USER
-
-#. Create `udev` rules.
-      .. code-block::
-
-         echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' | \
-         sudo tee /etc/udev/rules.d/85-sunshine-input.rules
+         echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
+         sudo tee /etc/udev/rules.d/85-sunshine.rules
 
 #. Optionally, configure autostart service
 
@@ -206,7 +201,7 @@ Application List
 - ``"Variable name":"Variable value"``
 - ``apps`` - The list of applications
 - Advanced users may want to edit the application list manually. The format is ``json``.
-- Example application:
+- Example ``json`` application:
    .. code-block:: json
 
       {
@@ -248,6 +243,8 @@ Application List
 
    - ``working-dir`` - The working directory to use. If not specified, Sunshine will use the application directory.
 
+- For more examples see :ref:`app examples <about/app_examples:app examples>`.
+
 Considerations
 --------------
 - When an application is started, if there is an application already running, it will be terminated.
@@ -256,8 +253,9 @@ Considerations
   - For example, if you attempt to run ``steam`` as a ``cmd`` instead of ``detached`` the stream will immediately fail.
     This is due to the method in which the steam process is executed. Other applications may behave similarly.
 
-- In addition to the apps listed, one app "Desktop" is hardcoded into Sunshine. It does not start an application,
-  instead it simply starts a stream.
+- The "Desktop" app works the same as any other application except it has no commands. It does not start an application,
+  instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
+  the name "Desktop" and "desktop.png" as the image path.
 - For the Linux flatpak you must prepend commands with ``flatpak-spawn --host``.
 
 HDR Support

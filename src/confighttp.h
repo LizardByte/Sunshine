@@ -1,7 +1,8 @@
-// Created by loki on 6/3/19.
-
-#ifndef SUNSHINE_CONFIGHTTP_H
-#define SUNSHINE_CONFIGHTTP_H
+/**
+ * @file src/confighttp.h
+ * @brief todo
+ */
+#pragma once
 
 #include <functional>
 #include <string>
@@ -10,11 +11,11 @@
 
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
 
-
 namespace confighttp {
-constexpr auto PORT_HTTPS = 1;
-void start();
-} // namespace confighttp
+  constexpr auto PORT_HTTPS = 1;
+  void
+  start();
+}  // namespace confighttp
 
 // mime types map
 const std::map<std::string, std::string> mime_types = {
@@ -34,5 +35,3 @@ const std::map<std::string, std::string> mime_types = {
   { "woff2", "font/woff2" },
   { "xml", "text/xml" },
 };
-
-#endif // SUNSHINE_CONFIGHTTP_H

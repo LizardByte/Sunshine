@@ -1,5 +1,10 @@
+/**
+ * @file src/platform/linux/cuda.cu
+ * @brief todo
+ */
 // #include <algorithm>
 #include <helper_math.h>
+#include <chrono>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -29,19 +34,23 @@ using namespace std::literals;
 
 using namespace std::literals;
 
-//////////////////// Special desclarations
+// Special declarations
 /**
- * NVCC segfaults when including <chrono>
- * Therefore, some declarations need to be added explicitely
+ * NVCC tends to have problems with standard headers.
+ * Don't include common.h, instead use bare minimum
+ * of standard headers and duplicate declarations of necessary classes.
+ * Not pretty and extremely error-prone, fix at earliest convenience.
  */
 namespace platf {
-struct img_t {
+struct img_t: std::enable_shared_from_this<img_t> {
 public:
   std::uint8_t *data {};
   std::int32_t width {};
   std::int32_t height {};
   std::int32_t pixel_pitch {};
   std::int32_t row_pitch {};
+
+  std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
 
   virtual ~img_t() = default;
 };
@@ -52,7 +61,7 @@ using __float4 = float[4];
 using __float3 = float[3];
 using __float2 = float[2];
 
-struct __attribute__((__aligned__(16))) color_t {
+struct alignas(16) color_t {
   float4 color_vec_y;
   float4 color_vec_u;
   float4 color_vec_v;
@@ -60,7 +69,7 @@ struct __attribute__((__aligned__(16))) color_t {
   float2 range_uv;
 };
 
-struct __attribute__((__aligned__(16))) color_extern_t {
+struct alignas(16) color_extern_t {
   __float4 color_vec_y;
   __float4 color_vec_u;
   __float4 color_vec_v;
@@ -70,10 +79,10 @@ struct __attribute__((__aligned__(16))) color_extern_t {
 
 static_assert(sizeof(video::color_t) == sizeof(video::color_extern_t), "color matrix struct mismatch");
 
-extern color_t colors[4];
+extern color_t colors[6];
 } // namespace video
 
-//////////////////// End special declarations
+// End special declarations
 
 namespace cuda {
 auto constexpr INVALID_TEXTURE = std::numeric_limits<cudaTextureObject_t>::max();
@@ -225,7 +234,7 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
 
   CU_CHECK_OPT(cudaCreateTextureObject(&tex.texture.linear, &res, &desc, nullptr), "Couldn't create cuda texture that uses linear interpolation");
 
-  return std::move(tex);
+  return tex;
 }
 
 tex_t::tex_t() : array {}, texture { INVALID_TEXTURE } {}

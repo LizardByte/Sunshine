@@ -46,3 +46,7 @@
 	path = third-party/nanors
 	url = https://github.com/sleepybishop/nanors.git
 	branch = master
+[submodule "third-party/tray"]
+	path = third-party/tray
+	url = https://github.com/dmikushin/tray
+	branch = master

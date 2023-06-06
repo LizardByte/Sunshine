@@ -19,8 +19,8 @@ cbuffer ColorMatrix : register(b0) {
 //--------------------------------------------------------------------------------------
 float2 main_ps(FragTexWide input) : SV_Target
 {
-	float3 rgb_left = image.Sample(def_sampler, input.uuv.xz).rgb;
-	float3 rgb_right = image.Sample(def_sampler, input.uuv.yz).rgb;
+	float3 rgb_left = saturate(image.Sample(def_sampler, input.uuv.xz)).rgb;
+	float3 rgb_right = saturate(image.Sample(def_sampler, input.uuv.yz)).rgb;
 	float3 rgb = (rgb_left + rgb_right) * 0.5;
 	
 	float u = dot(color_vec_u.xyz, rgb) + color_vec_u.w;

@@ -1,93 +1,101 @@
-// Created by loki on 16-4-19.
-
-#ifndef SUNSHINE_SYNC_H
-#define SUNSHINE_SYNC_H
+/**
+ * @file src/sync.h
+ * @brief todo
+ */
+#pragma once
 
 #include <array>
 #include <mutex>
 #include <utility>
 
-namespace util {
+namespace sync_util {
 
-template<class T, class M = std::mutex>
-class sync_t {
-public:
-  using value_t = T;
-  using mutex_t = M;
+  template <class T, class M = std::mutex>
+  class sync_t {
+  public:
+    using value_t = T;
+    using mutex_t = M;
 
-  std::lock_guard<mutex_t> lock() {
-    return std::lock_guard { _lock };
-  }
+    std::lock_guard<mutex_t>
+    lock() {
+      return std::lock_guard { _lock };
+    }
 
-  template<class... Args>
-  sync_t(Args &&...args) : raw { std::forward<Args>(args)... } {}
+    template <class... Args>
+    sync_t(Args &&...args):
+        raw { std::forward<Args>(args)... } {}
 
-  sync_t &operator=(sync_t &&other) noexcept {
-    std::lock(_lock, other._lock);
+    sync_t &
+    operator=(sync_t &&other) noexcept {
+      std::lock(_lock, other._lock);
 
-    raw = std::move(other.raw);
+      raw = std::move(other.raw);
 
-    _lock.unlock();
-    other._lock.unlock();
+      _lock.unlock();
+      other._lock.unlock();
 
-    return *this;
-  }
+      return *this;
+    }
 
-  sync_t &operator=(sync_t &other) noexcept {
-    std::lock(_lock, other._lock);
+    sync_t &
+    operator=(sync_t &other) noexcept {
+      std::lock(_lock, other._lock);
 
-    raw = other.raw;
+      raw = other.raw;
 
-    _lock.unlock();
-    other._lock.unlock();
+      _lock.unlock();
+      other._lock.unlock();
 
-    return *this;
-  }
+      return *this;
+    }
 
-  template<class V>
-  sync_t &operator=(V &&val) {
-    auto lg = lock();
+    template <class V>
+    sync_t &
+    operator=(V &&val) {
+      auto lg = lock();
 
-    raw = val;
+      raw = val;
 
-    return *this;
-  }
+      return *this;
+    }
 
-  sync_t &operator=(const value_t &val) noexcept {
-    auto lg = lock();
+    sync_t &
+    operator=(const value_t &val) noexcept {
+      auto lg = lock();
 
-    raw = val;
+      raw = val;
 
-    return *this;
-  }
+      return *this;
+    }
 
-  sync_t &operator=(value_t &&val) noexcept {
-    auto lg = lock();
+    sync_t &
+    operator=(value_t &&val) noexcept {
+      auto lg = lock();
 
-    raw = std::move(val);
+      raw = std::move(val);
 
-    return *this;
-  }
+      return *this;
+    }
 
-  value_t *operator->() {
-    return &raw;
-  }
+    value_t *
+    operator->() {
+      return &raw;
+    }
 
-  value_t &operator*() {
-    return raw;
-  }
+    value_t &
+    operator*() {
+      return raw;
+    }
 
-  const value_t &operator*() const {
-    return raw;
-  }
+    const value_t &
+    operator*() const {
+      return raw;
+    }
 
-  value_t raw;
+    value_t raw;
 
-private:
-  mutex_t _lock;
-};
+  private:
+    mutex_t _lock;
+  };
 
-} // namespace util
-
-
-#endif // SUNSHINE_SYNC_H
+}  // namespace sync_util
