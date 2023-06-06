@@ -9,10 +9,10 @@
       <div v-if="loading">
         Loading Latest Release...
       </div>
-      <div class="alert alert-success" v-if="runningDirtyBuild">
+      <div class="alert alert-success" v-if="buildVersionIsDirty">
         Thank you for helping to make Sunshine a better software! 🌇
       </div>
-      <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable && !runningDirtyBuild">
+      <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable && !buildVersionIsDirty">
         <div class="alert alert-success">
           You're running the latest version of Sunshine
         </div>
@@ -89,7 +89,7 @@
       try {
         this.version = (await fetch("/api/config").then((r) => r.json())).version;
         this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
-        if (this.buildVersionIsNightly()) {
+        if (this.buildVersionIsNightly) {
           this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&status=success&per_page=1").then((r) => r.json())).workflow_runs[0];
         }
       } catch(e){
@@ -97,9 +97,6 @@
       this.loading = false;
     },
     computed: {
-      runningDirtyBuild() {
-        return this.buildVersionIsDirty()
-      },
       stableBuildAvailable() {
         // If we can't get versions, return false
         if (!this.githubVersion || !this.version) return false;
@@ -109,32 +106,30 @@
         if (v.indexOf("v") === 0) v = v.substring(1);
 
         // if nightly or dirty, we do an additional check to make sure it's an actual upgrade.
-        if (this.buildVersionIsNightly() || this.buildVersionIsDirty()) {
+        if (this.buildVersionIsNightly || this.buildVersionIsDirty) {
           const stableVersion = this.version.split('.').slice(0, 3).join('.');
           return this.githubVersion.tag_name.substring(1) > stableVersion;
         }
 
         // return true if the version is different, otherwise false
-        return v !== this.version.split(".")[0];
+        return v !== this.version;
       },
       nightlyBuildAvailable() {
         // Verify nightly data is available and the build version is not stable
         // This is important to ensure the UI does not try to load undefined values.
-        if (!this.nightlyData || this.buildVersionIsStable()) return false;
+        if (!this.nightlyData || this.buildVersionIsStable) return false;
         // If built with dirty git tree, return false
-        if (this.buildVersionIsDirty()) return false;
+        if (this.buildVersionIsDirty) return false;
         // Get the commit hash
         let commit = this.version?.split(".").pop();
         // return true if the commit hash is different, otherwise false
         return this.nightlyData.head_sha.indexOf(commit) !== 0;
-      }
-    },
-    methods: {
-      buildVersionIsDirty() {
+      },
+	  buildVersionIsDirty() {
         return this.version?.split(".").length === 5 &&
           this.version.indexOf("dirty") !== -1
       },
-      buildVersionIsNightly() {
+	  buildVersionIsNightly() {
         return this.version?.split(".").length === 4
       },
       buildVersionIsStable() {
