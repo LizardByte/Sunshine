@@ -18,7 +18,7 @@ void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&in
 
 [[nodiscard]] std::unique_ptr<platf::deinit_t> init();
 
-std::shared_ptr<input_t> alloc(safe::mail_t mail);
+std::shared_ptr<input_t> alloc(safe::mail_t mail,bool gc_persist, int gamepad_mask);
 
 struct touch_port_t : public platf::touch_port_t {
   int env_width, env_height;

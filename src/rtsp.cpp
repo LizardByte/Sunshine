@@ -619,6 +619,8 @@ void cmd_announce(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
   config_t config;
 
   config.audio.flags[audio::config_t::HOST_AUDIO] = launch_session->host_audio;
+  config.gcpersist = launch_session->gc_persist;
+  config.gcmap = launch_session->gamepad_mask;
   try {
     config.audio.channels       = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
     config.audio.mask           = util::from_view(args.at("x-nv-audio.surround.channelMask"sv));

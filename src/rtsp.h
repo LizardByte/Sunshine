@@ -16,6 +16,8 @@ struct launch_session_t {
   crypto::aes_t iv;
 
   bool host_audio;
+  bool gc_persist;
+  int gamepad_mask {};
 };
 
 void launch_session_raise(launch_session_t launch_session);

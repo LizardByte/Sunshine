@@ -407,8 +407,7 @@ input_t input {
   {
     platf::supported_gamepads().front().data(),
     platf::supported_gamepads().front().size(),
-  },    // Default gamepad
-  false //keep first gamepad
+  }    // Default gamepad
 };
 
 sunshine_t sunshine {
@@ -946,7 +945,6 @@ void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     input.key_repeat_delay = std::chrono::milliseconds { to };
   }
 
-  bool_f(vars, "keep_first_gamepad", input.keep_first_gamepad);
   string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
 
   int port = sunshine.port;

@@ -27,6 +27,7 @@ struct config_t {
   int videoQosType;
 
   std::optional<int> gcmap;
+  bool gcpersist;
 };
 
 namespace session {

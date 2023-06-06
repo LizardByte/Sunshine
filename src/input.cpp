@@ -94,10 +94,10 @@ template<std::size_t N>
 void free_gamepad(std::bitset<N> &gamepad_mask, std::bitset<N> &allocated_gamepads, int id) {
   platf::gamepad(platf_input, id, platf::gamepad_state_t {});
 
-  if(id != 0 && config::input.keep_first_gamepad) {
+  /*if(id != 0 && config::input.keep_first_gamepad) {
     platf::free_gamepad(platf_input, id);
     allocated_gamepads[id] = false;
-  }
+  }*/
 
   gamepad_mask[id] = false;
 }
@@ -709,8 +709,7 @@ public:
 
 [[nodiscard]] std::unique_ptr<platf::deinit_t> init() {
   platf_input = platf::input();
-
-  if(config::input.keep_first_gamepad) {
+  /*if(config::input.keep_first_gamepad) {
     //Create a dummy first gamepad that does not disconnect across sessions
     auto dummy_mail = std::make_shared<safe::mail_raw_t>();
     auto input      = std::make_shared<input_t>(
@@ -719,15 +718,17 @@ public:
     if(!platf::alloc_gamepad(platf_input, 0, input->rumble_queue)) {
       allocatedGamepads[0] = true;
     }
-  }
+  }*/
   return std::make_unique<deinit_t>();
 }
 
-std::shared_ptr<input_t> alloc(safe::mail_t mail) {
+std::shared_ptr<input_t> alloc(safe::mail_t mail,bool gc_persist, int gamepad_mask) {
   auto input = std::make_shared<input_t>(
     mail->event<input::touch_port_t>(mail::touch_port),
     mail->queue<platf::rumble_t>(mail::rumble));
-
+  /*BOOST_LOG(info) << "Old State: " << active_gamepad_state << " new: " << gamepad_mask;
+  updateGamepads(input->gamepads, active_gamepad_state, gamepad_mask, input->rumble_queue);
+  active_gamepad_state = gamepad_mask;*/
   // Workaround to ensure new frames will be captured when a client connects
   task_pool.pushDelayed([]() {
     platf::move_mouse(platf_input, 1, 1);

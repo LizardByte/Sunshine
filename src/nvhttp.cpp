@@ -260,6 +260,8 @@ stream::launch_session_t make_launch_session(bool host_audio, const args_t &args
 
   launch_session.host_audio = host_audio;
   launch_session.gcm_key    = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
+  launch_session.gc_persist = util::from_view(get_arg(args, "gcpersist"));
+  launch_session.gamepad_mask = util::from_view(get_arg(args, "remoteControllersBitmap"));
   uint32_t prepend_iv       = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
   auto prepend_iv_p         = (uint8_t *)&prepend_iv;
 

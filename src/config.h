@@ -100,7 +100,6 @@ struct input_t {
   std::chrono::duration<double> key_repeat_period;
 
   std::string gamepad;
-  bool keep_first_gamepad;
 };
 
 namespace flag {

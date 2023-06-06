@@ -1513,7 +1513,7 @@ void join(session_t &session) {
 }
 
 int start(session_t &session, const std::string &addr_string) {
-  session.input = input::alloc(session.mail);
+  session.input = input::alloc(session.mail,session.config.gcpersist,session.config.gcmap.value_or(0));
 
   session.broadcast_ref = broadcast.ref();
   if(!session.broadcast_ref) {
