@@ -902,6 +902,7 @@ elseif(UNIX)
         set(CPACK_DEB_COMPONENT_INSTALL ON)
         set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                 ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
+                libboost-chrono${Boost_VERSION}, \
                 libboost-filesystem${Boost_VERSION}, \
                 libboost-locale${Boost_VERSION}, \
                 libboost-log${Boost_VERSION}, \
