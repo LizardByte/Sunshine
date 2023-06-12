@@ -11,6 +11,7 @@ extern "C" {
 
 #include <bitset>
 #include <chrono>
+#include <thread>
 #include <unordered_map>
 
 #include "config.h"
@@ -19,8 +20,6 @@ extern "C" {
 #include "platform/common.h"
 #include "thread_pool.h"
 #include "utility.h"
-
-#include <boost/thread/thread.hpp>
 
 using namespace std::literals;
 namespace input {
@@ -738,7 +737,7 @@ namespace input {
             platf::gamepad(platf_input, gamepad.id, state);
 
             // Sleep for a short time to allow the input to be detected
-            boost::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
             // Release Home button
             state.buttonFlags &= ~platf::HOME;
