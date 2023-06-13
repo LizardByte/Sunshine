@@ -145,24 +145,24 @@ Flatpak Package
    Additional installation (required)
       .. code-block:: bash
 
-         flatpak run --command=additional-install.sh dev.lizardbyte.sunshine
+         flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 
 Start:
    X11 and NVFBC capture (X11 Only)
       .. code-block:: bash
 
-         flatpak run dev.lizardbyte.sunshine
+         flatpak run dev.lizardbyte.app.Sunshine
 
    KMS capture (Wayland & X11)
       .. code-block:: bash
 
-         sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run dev.lizardbyte.sunshine
+         sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run dev.lizardbyte.app.Sunshine
 
 Uninstall:
    .. code-block:: bash
 
-      flatpak run --command=remove-additional-install.sh dev.lizardbyte.sunshine
-      flatpak uninstall --delete-data dev.lizardbyte.sunshine
+      flatpak run --command=remove-additional-install.sh dev.lizardbyte.app.Sunshine
+      flatpak uninstall --delete-data dev.lizardbyte.app.Sunshine
 
 RPM Package
 ^^^^^^^^^^^
