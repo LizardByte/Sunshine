@@ -1037,6 +1037,7 @@ namespace config {
     string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
 
     bool_f(vars, "mouse", input.mouse);
+    bool_f(vars, "mousex", input.mousex);
     bool_f(vars, "keyboard", input.keyboard);
     bool_f(vars, "controller", input.controller);
 

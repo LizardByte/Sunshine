@@ -108,6 +108,7 @@ namespace config {
 
     bool keyboard;
     bool mouse;
+    bool mousex;
     bool controller;
 
     bool always_send_scancodes;

@@ -27,6 +27,7 @@
 
 #include "src/platform/common.h"
 
+#include "src/config.h"
 #include "misc.h"
 
 // Support older versions
@@ -1783,7 +1784,8 @@ namespace platf {
     gp.mouse_dev = mouse();
     gp.gamepad_dev = x360();
 
-    gp.create_mouse();
+    if (!config::input.mousex)
+        gp.create_mouse();
     gp.create_touchscreen();
     gp.create_keyboard();
 

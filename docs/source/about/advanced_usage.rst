@@ -124,6 +124,18 @@ global_prep_cmd
 Controls
 --------
 
+mouse
+^^^^^
+
+**Description**
+   In Linux use X mouse even if /dev/uinput is present
+
+**Example**
+   .. code-block:: text
+
+      mousex = enabled
+
+
 gamepad
 ^^^^^^^
 
