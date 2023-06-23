@@ -21,6 +21,14 @@ Usage
 
       .. Attention:: The configuration file specified will be created if it doesn't exist.
 
+   **Start Sunshine over SSH (Linux/X11)**
+      .. code-block:: bash
+
+         ssh -t <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
+
+      .. Note:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
+         variable.
+
 #. Configure Sunshine in the web ui
 
    The web ui is available on `https://localhost:47990 <https://localhost:47990>`_ by default. You may replace
