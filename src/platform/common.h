@@ -160,6 +160,14 @@ namespace platf {
     int width, height;
   };
 
+  // These values must match Limelight-internal.h's SS_FF_* constants!
+  namespace platform_caps {
+    typedef uint32_t caps_t;
+
+    constexpr caps_t pen_touch = 0x01;  // Pen and touch events
+    constexpr caps_t controller_touch = 0x02;  // Controller touch events
+  };  // namespace platform_caps
+
   struct gamepad_state_t {
     std::uint32_t buttonFlags;
     std::uint8_t lt;
@@ -474,6 +482,13 @@ namespace platf {
   alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue);
   void
   free_gamepad(input_t &input, int nr);
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities();
 
 #define SERVICE_NAME "Sunshine"
 #define SERVICE_TYPE "_nvstream._tcp"

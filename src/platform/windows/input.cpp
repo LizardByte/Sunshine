@@ -825,4 +825,13 @@ namespace platf {
 
     return gps;
   }
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities() {
+    return 0;
+  }
 }  // namespace platf
