@@ -16,6 +16,7 @@
 #include "config.h"
 #include "platform/common.h"
 #include "utility.h"
+#include "rtsp.h"
 
 namespace proc {
   using file_t = util::safe_ptr_v2<FILE, int, fclose>;
@@ -65,7 +66,7 @@ namespace proc {
         _apps(std::move(apps)) {}
 
     int
-    execute(int app_id);
+    execute(int app_id,rtsp_stream::launch_session_t launch_session);
 
     /**
      * @return _app_id if a process is running, otherwise returns 0

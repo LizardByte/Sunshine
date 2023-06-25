@@ -1,6 +1,6 @@
 /**
  * @file src/process.cpp
- * @brief todo
+ * @brief Handles the startup and shutdown of the apps started by a streaming Session.
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -101,7 +101,7 @@ namespace proc {
   }
 
   int
-  proc_t::execute(int app_id) {
+  proc_t::execute(int app_id,rtsp_stream::launch_session_t launch_session) {
     // Ensure starting from a clean slate
     terminate();
 
@@ -119,6 +119,19 @@ namespace proc {
 
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
+
+    //Add Stream-specific environment variables
+    _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
+    _env["SUNSHINE_APP_NAME"] = _app.name;
+    _env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session.width);
+    _env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session.height);
+    _env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session.fps);
+    _env["SUNSHINE_CLIENT_SOPS"] = launch_session.enable_sops ? "true" : "false";
+    _env["SUNSHINE_CLIENT_HDR"] = launch_session.enable_hdr ? "true" : "false";
+    _env["SUNSHINE_CLIENT_UUID"] = launch_session.uuid;
+    _env["SUNSHINE_CLIENT_UNIQUE_ID"] = launch_session.unique_id;
+    _env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session.gcmap);
+    _env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session.host_audio ? "true" : "false";
 
     if (!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
