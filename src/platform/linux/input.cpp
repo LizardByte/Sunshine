@@ -1818,4 +1818,9 @@ namespace platf {
 
     return gamepads;
   }
+
+  platform_caps::caps_t
+  get_capabilities() {
+    return 0;
+  }
 }  // namespace platf

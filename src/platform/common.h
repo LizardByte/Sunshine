@@ -170,6 +170,14 @@ namespace platf {
     std::int16_t rsY;
   };
 
+  // These values must match Limelight-internal.h's SS_FF_* constants!
+  namespace platform_caps {
+    typedef uint32_t caps_t;
+
+    constexpr caps_t pen_touch = 0x01;  // Pen and touch events
+    constexpr caps_t controller_touch = 0x02; // Controller touch events
+  };
+
   class deinit_t {
   public:
     virtual ~deinit_t() = default;
@@ -459,6 +467,9 @@ namespace platf {
   alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue);
   void
   free_gamepad(input_t &input, int nr);
+
+  platform_caps::caps_t
+  get_capabilities();
 
 #define SERVICE_NAME "Sunshine"
 #define SERVICE_TYPE "_nvstream._tcp"

@@ -600,4 +600,16 @@ namespace platf {
 
     return gps;
   }
+
+  platform_caps::caps_t
+  get_capabilities() {
+    platform_caps::caps_t caps = 0;
+
+    // We supported pen and touch events on Win10 1809+
+    if (GetProcAddress(GetModuleHandleA("user32.dll"), "CreateSyntheticPointerDevice") != nullptr) {
+      caps |= platform_caps::pen_touch;
+    }
+
+    return caps;
+  }
 }  // namespace platf
