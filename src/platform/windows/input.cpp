@@ -520,6 +520,9 @@ namespace platf {
 
     if (gamepad_state.buttonFlags & HOME) buttons |= DS4_SPECIAL_BUTTON_PS;
 
+    // Allow either PS4/PS5 clickpad button or Xbox Series X share button to activate DS4 clickpad
+    if (gamepad_state.buttonFlags & (TOUCHPAD_BUTTON | MISC_BUTTON)) buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
+
     return (DS4_SPECIAL_BUTTONS) buttons;
   }
 
