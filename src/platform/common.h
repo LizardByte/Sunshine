@@ -47,7 +47,8 @@ namespace video {
 }  // namespace video
 
 namespace platf {
-  constexpr auto MAX_GAMEPADS = 32;
+  // Limited by bits in activeGamepadMask
+  constexpr auto MAX_GAMEPADS = 16;
 
   constexpr std::uint32_t DPAD_UP = 0x0001;
   constexpr std::uint32_t DPAD_DOWN = 0x0002;
