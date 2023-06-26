@@ -440,6 +440,16 @@ const KeyCodeMap kKeyCodesMap[] = {
     // Unimplemented
   }
 
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+    // Unimplemented feature - platform_caps::controller_touch
+  }
+
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+    // Unimplemented
+  }
+
   input_t
   input() {
     input_t result { new macos_input_t() };

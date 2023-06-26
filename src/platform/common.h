@@ -176,6 +176,27 @@ namespace platf {
     std::uint16_t capabilities;
     std::uint32_t supportedButtons;
   };
+
+  struct gamepad_touch_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t eventType;
+    std::uint32_t pointerId;
+    float x;
+    float y;
+    float pressure;
+  };
+
+  struct gamepad_motion_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t motionType;
+
+    // Accel: m/s^2
+    // Gyro: deg/s
+    float x;
+    float y;
+    float z;
+  };
+
   // These values must match Limelight-internal.h's SS_FF_* constants!
   namespace platform_caps {
     typedef uint32_t caps_t;
@@ -468,6 +489,10 @@ namespace platf {
   gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
   void
   unicode(input_t &input, char *utf8, int size);
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch);
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion);
 
   int
   alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue);

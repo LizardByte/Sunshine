@@ -1552,6 +1552,16 @@ namespace platf {
     libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
   }
 
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+    // Unimplemented feature - platform_caps::controller_touch
+  }
+
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+    // Unimplemented
+  }
+
   /**
    * @brief Initialize a new keyboard and return it.
    *
