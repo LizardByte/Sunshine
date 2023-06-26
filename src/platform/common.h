@@ -279,6 +279,30 @@ namespace platf {
     std::uint8_t percentage;
   };
 
+  struct touch_input_t {
+    std::uint8_t eventType;
+    std::uint16_t rotation;  // Degrees (0..360) or LI_ROT_UNKNOWN
+    std::uint32_t pointerId;
+    float x;
+    float y;
+    float pressureOrDistance;  // Distance for hover and pressure for contact
+    float contactAreaMajor;
+    float contactAreaMinor;
+  };
+
+  struct pen_input_t {
+    std::uint8_t eventType;
+    std::uint8_t toolType;
+    std::uint8_t penButtons;
+    std::uint8_t tilt;  // Degrees (0..90) or LI_TILT_UNKNOWN
+    std::uint16_t rotation;  // Degrees (0..360) or LI_ROT_UNKNOWN
+    float x;
+    float y;
+    float pressureOrDistance;  // Distance for hover and pressure for contact
+    float contactAreaMajor;
+    float contactAreaMinor;
+  };
+
   class deinit_t {
   public:
     virtual ~deinit_t() = default;
@@ -564,9 +588,37 @@ namespace platf {
   void
   unicode(input_t &input, char *utf8, int size);
 
+  typedef deinit_t client_input_t;
+
+  /**
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input);
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
+
   /**
    * @brief Sends a gamepad touch event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param touch The touch event.
    */
   void
@@ -574,7 +626,7 @@ namespace platf {
 
   /**
    * @brief Sends a gamepad motion event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param motion The motion event.
    */
   void
@@ -582,7 +634,7 @@ namespace platf {
 
   /**
    * @brief Sends a gamepad battery event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param battery The battery event.
    */
   void
@@ -590,7 +642,7 @@ namespace platf {
 
   /**
    * @brief Creates a new virtual gamepad.
-   * @param input The input context.
+   * @param input The global input context.
    * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
    * @param feedback_queue The queue for posting messages back to the client.
