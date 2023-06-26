@@ -170,6 +170,12 @@ namespace platf {
     std::int16_t rsY;
   };
 
+  struct gamepad_arrival_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t type;
+    std::uint16_t capabilities;
+    std::uint32_t supportedButtons;
+  };
   // These values must match Limelight-internal.h's SS_FF_* constants!
   namespace platform_caps {
     typedef uint32_t caps_t;
@@ -464,7 +470,7 @@ namespace platf {
   unicode(input_t &input, char *utf8, int size);
 
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue);
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue);
   void
   free_gamepad(input_t &input, int nr);
 

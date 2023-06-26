@@ -771,7 +771,7 @@ namespace platf {
     }
 
     int
-    alloc_gamepad(int nr, rumble_queue_t &&rumble_queue) {
+    alloc_gamepad(int nr, const gamepad_arrival_t &metadata, rumble_queue_t &&rumble_queue) {
       TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
 
       int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &input);
@@ -1481,7 +1481,7 @@ namespace platf {
   }
 
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue) {
     return ((input_raw_t *) input.get())->alloc_gamepad(nr, std::move(rumble_queue));
   }
 
