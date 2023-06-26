@@ -6,6 +6,7 @@
 
 # ignore repo directories and files
 docs/
+gh-pages-template/
 scripts/
 tools/
 crowdin.yml
