@@ -906,7 +906,6 @@ elseif(UNIX)
                 libboost-locale${Boost_VERSION}, \
                 libboost-log${Boost_VERSION}, \
                 libboost-program-options${Boost_VERSION}, \
-                libboost-thread${Boost_VERSION}, \
                 libcap2, \
                 libcurl4, \
                 libdrm2, \
@@ -926,7 +925,6 @@ elseif(UNIX)
                 boost-locale >= ${Boost_VERSION}, \
                 boost-log >= ${Boost_VERSION}, \
                 boost-program-options >= ${Boost_VERSION}, \
-                boost-thread >= ${Boost_VERSION}, \
                 libcap >= 2.22, \
                 libcurl >= 7.0, \
                 libdrm >= 2.4.97, \

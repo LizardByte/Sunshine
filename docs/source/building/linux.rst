@@ -19,7 +19,6 @@ Install Requirements
           libboost-locale-dev \
           libboost-log-dev \
           libboost-program-options-dev \
-          libboost-thread-dev \
           libcap-dev \  # KMS
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
@@ -100,7 +99,6 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-locale-dev \
           libboost-log-dev \
-          libboost-thread-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
@@ -149,7 +147,6 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-locale-dev \
           libboost-log-dev \
-          libboost-thread-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS

@@ -40,7 +40,6 @@ apt-get install -y --no-install-recommends \
   libboost-locale-dev=1.71.* \
   libboost-log-dev=1.71.* \
   libboost-program-options-dev=1.71.* \
-  libboost-thread-dev=1.71.* \
   libcap-dev \
   libcurl4-openssl-dev \
   libdrm-dev \
