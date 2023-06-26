@@ -2,6 +2,7 @@
  * @file src/platform/windows/input.cpp
  * @brief todo
  */
+#define WINVER 0x0A00
 #include <windows.h>
 
 #include <cmath>
@@ -12,6 +13,14 @@
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
+
+DECLARE_HANDLE(HSYNTHETICPOINTERDEVICE);
+WINUSERAPI HSYNTHETICPOINTERDEVICE WINAPI
+CreateSyntheticPointerDevice(POINTER_INPUT_TYPE pointerType, ULONG maxCount, POINTER_FEEDBACK_MODE mode);
+WINUSERAPI WINBOOL WINAPI
+InjectSyntheticPointerInput(HSYNTHETICPOINTERDEVICE device, CONST POINTER_TYPE_INFO *pointerInfo, UINT32 count);
+WINUSERAPI VOID WINAPI
+DestroySyntheticPointerDevice(HSYNTHETICPOINTERDEVICE device);
 
 namespace platf {
   using namespace std::literals;
@@ -175,11 +184,30 @@ namespace platf {
   struct input_raw_t {
     ~input_raw_t() {
       delete vigem;
+
+      if (pen) {
+        fnDestroySyntheticPointerDevice(pen);
+      }
+      if (touch) {
+        fnDestroySyntheticPointerDevice(touch);
+      }
     }
 
     vigem_t *vigem;
     HKL keyboard_layout;
     HKL active_layout;
+
+    decltype(CreateSyntheticPointerDevice) *fnCreateSyntheticPointerDevice;
+    decltype(InjectSyntheticPointerInput) *fnInjectSyntheticPointerInput;
+    decltype(DestroySyntheticPointerDevice) *fnDestroySyntheticPointerDevice;
+
+    HSYNTHETICPOINTERDEVICE pen {};
+    POINTER_TYPE_INFO penInfo {};
+    UINT32 penFrameId {};
+
+    HSYNTHETICPOINTERDEVICE touch {};
+    POINTER_TYPE_INFO touchInfo[10] {};
+    UINT32 touchFrameId {};
   };
 
   input_t
@@ -207,6 +235,11 @@ namespace platf {
       BOOST_LOG(warning) << "Unable to activate US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
       raw.keyboard_layout = NULL;
     }
+
+    // Get pointers to virtual touch/pen input functions (Win10 1809+)
+    raw.fnCreateSyntheticPointerDevice = (decltype(CreateSyntheticPointerDevice) *) GetProcAddress(GetModuleHandleA("user32.dll"), "CreateSyntheticPointerDevice");
+    raw.fnInjectSyntheticPointerInput = (decltype(InjectSyntheticPointerInput) *) GetProcAddress(GetModuleHandleA("user32.dll"), "InjectSyntheticPointerInput");
+    raw.fnDestroySyntheticPointerDevice = (decltype(DestroySyntheticPointerDevice) *) GetProcAddress(GetModuleHandleA("user32.dll"), "DestroySyntheticPointerDevice");
 
     return result;
   }
@@ -383,6 +416,267 @@ namespace platf {
     }
 
     send_input(i);
+  }
+
+  POINTER_TYPE_INFO *
+  pointer_by_id(input_raw_t *raw, uint32_t pointerId) {
+    // First try to find a matching pointer ID
+    for (int i = 0; i < ARRAYSIZE(raw->touchInfo); i++) {
+      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerId == pointerId &&
+          raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+        return &raw->touchInfo[i];
+      }
+    }
+
+    // If there was none, just grab an unused entry
+    for (int i = 0; i < ARRAYSIZE(raw->touchInfo); i++) {
+      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags == POINTER_FLAG_NONE) {
+        raw->touchInfo[i].touchInfo.pointerInfo.pointerId = pointerId;
+        return &raw->touchInfo[i];
+      }
+    }
+
+    return nullptr;
+  }
+
+  int
+  collapse_touch_info(input_raw_t *raw) {
+    int i;
+
+    // Windows requires all active touches be contiguous when fed into InjectSyntheticPointerInput().
+    for (i = 0; i < ARRAYSIZE(raw->touchInfo); i++) {
+      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags == POINTER_FLAG_NONE) {
+        // This is an empty slot. Look for a later entry to move into this slot.
+        for (int j = i + 1; j < ARRAYSIZE(raw->touchInfo); j++) {
+          if (raw->touchInfo[j].touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+            std::swap(raw->touchInfo[i], raw->touchInfo[j]);
+            break;
+          }
+        }
+
+        // If we didn't find anything, we've reached the end of active slots.
+        if (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags == POINTER_FLAG_NONE) {
+          break;
+        }
+      }
+    }
+
+    return i;
+  }
+
+  void
+  populate_common_pointer_info(POINTER_INFO &pointerInfo, const touch_port_t &touch_port, uint8_t eventType, float x, float y) {
+    switch (eventType) {
+      case LI_TOUCH_EVENT_HOVER:
+        pointerInfo.pointerFlags &= ~POINTER_FLAG_INCONTACT;
+        pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_UPDATE;
+        pointerInfo.ptPixelLocation.x = x * touch_port.width;
+        pointerInfo.ptPixelLocation.y = y * touch_port.height;
+        break;
+      case LI_TOUCH_EVENT_DOWN:
+        pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_DOWN;
+        pointerInfo.ptPixelLocation.x = x * touch_port.width;
+        pointerInfo.ptPixelLocation.y = y * touch_port.height;
+        break;
+      case LI_TOUCH_EVENT_UP:
+        // We expect to get another LI_TOUCH_EVENT_HOVER if the pointer remains in range
+        pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
+        pointerInfo.pointerFlags |= POINTER_FLAG_UP;
+        break;
+      case LI_TOUCH_EVENT_MOVE:
+        pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_UPDATE;
+        pointerInfo.ptPixelLocation.x = x * touch_port.width;
+        pointerInfo.ptPixelLocation.y = y * touch_port.height;
+        break;
+      case LI_TOUCH_EVENT_CANCEL:
+        // We expect to get another LI_TOUCH_EVENT_HOVER if the pointer remains in range
+        pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
+        pointerInfo.pointerFlags |= POINTER_FLAG_CANCELED | POINTER_FLAG_UP;
+        break;
+      case LI_TOUCH_EVENT_HOVER_LEAVE:
+        pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
+        pointerInfo.pointerFlags |= POINTER_FLAG_UPDATE;
+        break;
+      case LI_TOUCH_EVENT_BUTTON_ONLY:
+        break;
+    }
+
+    pointerInfo.dwKeyStates = 0;
+    if (GetKeyState(VK_SHIFT) & 0x8000) {
+      pointerInfo.dwKeyStates |= POINTER_MOD_SHIFT;
+    }
+    if (GetKeyState(VK_CONTROL) & 0x8000) {
+      pointerInfo.dwKeyStates |= POINTER_MOD_CTRL;
+    }
+  }
+
+  // These are edge-triggered pointer state flags that should always be cleared next frame
+  constexpr auto EDGE_TRIGGERED_POINTER_FLAGS = POINTER_FLAG_DOWN | POINTER_FLAG_UP | POINTER_FLAG_CANCELED | POINTER_FLAG_UPDATE;
+
+  void
+  touch(input_t &input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    auto raw = (input_raw_t *) input.get();
+
+    // Bail if we're not running on an OS that supports virtual touch input
+    if (!raw->fnCreateSyntheticPointerDevice ||
+        !raw->fnInjectSyntheticPointerInput ||
+        !raw->fnDestroySyntheticPointerDevice) {
+      BOOST_LOG(warning) << "Touch input requires Windows 10 1809 or later"sv;
+      return;
+    }
+
+    // If there's not already a virtual touch device, create one now.
+    if (!raw->touch) {
+      // Create a multitouch device
+      raw->touch = raw->fnCreateSyntheticPointerDevice(PT_TOUCH, ARRAYSIZE(raw->touchInfo), POINTER_FEEDBACK_DEFAULT);
+      if (!raw->touch) {
+        auto err = GetLastError();
+        BOOST_LOG(warning) << "Failed to create virtual touch device: "sv << err;
+        return;
+      }
+    }
+
+    // Find the entry for this touch
+    auto pointer = pointer_by_id(raw, touch.pointerId);
+    if (!pointer) {
+      BOOST_LOG(warning) << "No unused pointer entries!";
+      return;
+    }
+
+    pointer->type = PT_TOUCH;
+
+    auto &touchInfo = pointer->touchInfo;
+    touchInfo.pointerInfo.pointerType = PT_TOUCH;
+    touchInfo.pointerInfo.frameId = raw->touchFrameId++;
+
+    // Populate shared pointer info fields
+    populate_common_pointer_info(touchInfo.pointerInfo, touch_port, touch.eventType, touch.x, touch.y);
+
+    touchInfo.touchMask = TOUCH_MASK_NONE;
+
+    if (touch.pressure != 0.0f) {
+      touchInfo.touchMask |= TOUCH_MASK_PRESSURE;
+
+      // Convert the 0.0f..1.0f float to the 0..1024 range that Windows uses
+      touchInfo.pressure = (UINT32) (touch.pressure * 1024);
+    }
+    else if (touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_INCONTACT) {
+      // The default touch pressure is 512
+      touchInfo.pressure = 512;
+    }
+    else {
+      touchInfo.pressure = 0;
+    }
+
+    auto occupiedSlots = collapse_touch_info(raw);
+
+    if (!raw->fnInjectSyntheticPointerInput(raw->touch, raw->touchInfo, occupiedSlots)) {
+      auto err = GetLastError();
+      BOOST_LOG(warning) << "Failed to inject virtual touch input: "sv << err;
+      return;
+    }
+
+    // Clear pointer flags that should only remain set for one frame
+    touchInfo.pointerInfo.pointerFlags &= ~EDGE_TRIGGERED_POINTER_FLAGS;
+  }
+
+  void
+  pen(input_t &input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    auto raw = (input_raw_t *) input.get();
+
+    // Bail if we're not running on an OS that supports virtual pen input
+    if (!raw->fnCreateSyntheticPointerDevice ||
+        !raw->fnInjectSyntheticPointerInput ||
+        !raw->fnDestroySyntheticPointerDevice) {
+      BOOST_LOG(warning) << "Pen input requires Windows 10 1809 or later"sv;
+      return;
+    }
+
+    // If there's not already a virtual pen device, create one now.
+    if (!raw->pen) {
+      raw->pen = raw->fnCreateSyntheticPointerDevice(PT_PEN, 1, POINTER_FEEDBACK_DEFAULT);
+      if (!raw->pen) {
+        auto err = GetLastError();
+        BOOST_LOG(warning) << "Failed to create virtual pen device: "sv << err;
+        return;
+      }
+    }
+
+    raw->penInfo.type = PT_PEN;
+
+    auto &penInfo = raw->penInfo.penInfo;
+    penInfo.pointerInfo.pointerType = PT_PEN;
+    penInfo.pointerInfo.pointerId = 0;
+    penInfo.pointerInfo.frameId++;
+
+    // Populate shared pointer info fields
+    populate_common_pointer_info(penInfo.pointerInfo, touch_port, pen.eventType, pen.x, pen.y);
+
+    // Primary pen button is the secondary pointer button on Windows
+    if ((pen.penButtons & LI_PEN_BUTTON_PRIMARY) && !(penInfo.pointerInfo.pointerFlags & POINTER_FLAG_SECONDBUTTON)) {
+      penInfo.pointerInfo.ButtonChangeType = POINTER_CHANGE_SECONDBUTTON_DOWN;
+      penInfo.pointerInfo.pointerFlags |= POINTER_FLAG_SECONDBUTTON;
+      penInfo.penFlags |= PEN_FLAG_BARREL;
+    }
+    else if (!(pen.penButtons & LI_PEN_BUTTON_PRIMARY) && (penInfo.pointerInfo.pointerFlags & POINTER_FLAG_SECONDBUTTON)) {
+      penInfo.pointerInfo.ButtonChangeType = POINTER_CHANGE_SECONDBUTTON_UP;
+      penInfo.pointerInfo.pointerFlags &= ~POINTER_FLAG_SECONDBUTTON;
+      penInfo.penFlags &= ~PEN_FLAG_BARREL;
+    }
+
+    switch (pen.toolType) {
+      default:
+      case LI_TOOL_TYPE_PEN:
+        penInfo.penFlags &= ~PEN_FLAG_ERASER;
+        break;
+      case LI_TOOL_TYPE_ERASER:
+        penInfo.penFlags |= PEN_FLAG_ERASER;
+        break;
+    }
+
+    penInfo.penMask = PEN_MASK_NONE;
+
+    if (pen.pressure != 0.0f) {
+      penInfo.penMask |= PEN_MASK_PRESSURE;
+
+      // Convert the 0.0f..1.0f float to the 0..1024 range that Windows uses
+      penInfo.pressure = (UINT32) (pen.pressure * 1024);
+    }
+    else {
+      // The default pen pressure is 0
+      penInfo.pressure = 0;
+    }
+
+    if (pen.rotation != LI_ROT_UNKNOWN) {
+      penInfo.penMask |= PEN_MASK_ROTATION;
+      penInfo.rotation = pen.rotation;
+    }
+    else {
+      penInfo.rotation = 0;
+    }
+
+    // We require rotation and tilt to perform the polar to cartesian conversion
+    if (pen.tilt != LI_TILT_UNKNOWN && pen.rotation != LI_ROT_UNKNOWN) {
+      auto rotationRads = pen.rotation * (M_PI / 180.f);
+
+      // Convert into cartesian coordinates
+      penInfo.penMask |= PEN_MASK_TILT_X | PEN_MASK_TILT_Y;
+      penInfo.tiltX = (INT32) (std::cos(rotationRads) * pen.tilt);
+      penInfo.tiltY = (INT32) (std::sin(rotationRads) * pen.tilt);
+    }
+    else {
+      penInfo.tiltX = 0;
+      penInfo.tiltY = 0;
+    }
+
+    if (!raw->fnInjectSyntheticPointerInput(raw->pen, &raw->penInfo, 1)) {
+      auto err = GetLastError();
+      BOOST_LOG(warning) << "Failed to inject virtual pen input: "sv << err;
+      return;
+    }
+
+    // Clear pointer flags that should only remain set for one frame
+    penInfo.pointerInfo.pointerFlags &= ~EDGE_TRIGGERED_POINTER_FLAGS;
   }
 
   void

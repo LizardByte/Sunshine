@@ -268,6 +268,33 @@ namespace input {
   }
 
   void
+  print(PSS_TOUCH_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin touch packet--"sv << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "pressure ["sv << from_netfloat(packet->pressure) << ']' << std::endl
+      << "--end touch packet--"sv;
+  }
+
+  void
+  print(PSS_PEN_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin pen packet--"sv << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "toolType ["sv << util::hex(packet->toolType).to_string_view() << ']' << std::endl
+      << "penButtons ["sv << util::hex(packet->penButtons).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "pressure ["sv << from_netfloat(packet->pressure) << ']' << std::endl
+      << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
+      << "tilt ["sv << (uint32_t) packet->tilt << ']' << std::endl
+      << "--end pen packet--"sv;
+  }
+
+  void
   print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
     BOOST_LOG(debug)
       << "--begin controller arrival packet--"sv << std::endl
@@ -334,6 +361,12 @@ namespace input {
       case MULTI_CONTROLLER_MAGIC_GEN5:
         print((PNV_MULTI_CONTROLLER_PACKET) payload);
         break;
+      case SS_TOUCH_MAGIC:
+        print((PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_PEN_MAGIC:
+        print((PSS_PEN_PACKET) payload);
+        break;
       case SS_CONTROLLER_ARRIVAL_MAGIC:
         print((PSS_CONTROLLER_ARRIVAL_PACKET) payload);
         break;
@@ -356,6 +389,29 @@ namespace input {
     platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
   }
 
+  std::pair<float, float>
+  client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
+    auto &touch_port_event = input->touch_port_event;
+    auto &touch_port = input->touch_port;
+    if (touch_port_event->peek()) {
+      touch_port = *touch_port_event->pop();
+    }
+
+    auto scalarX = touch_port.width / size.first;
+    auto scalarY = touch_port.height / size.second;
+
+    float x = val.first * scalarX;
+    float y = val.second * scalarY;
+
+    auto offsetX = touch_port.client_offsetX;
+    auto offsetY = touch_port.client_offsetY;
+
+    std::clamp(x, offsetX, size.first - offsetX);
+    std::clamp(y, offsetY, size.second - offsetY);
+
+    return { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
+  }
+
   void
   passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
     if (!config::input.mouse) {
@@ -364,12 +420,6 @@ namespace input {
 
     if (input->mouse_left_button_timeout == DISABLE_LEFT_BUTTON_DELAY) {
       input->mouse_left_button_timeout = ENABLE_LEFT_BUTTON_DELAY;
-    }
-
-    auto &touch_port_event = input->touch_port_event;
-    auto &touch_port = input->touch_port;
-    if (touch_port_event->peek()) {
-      touch_port = *touch_port_event->pop();
     }
 
     float x = util::endian::big(packet->x);
@@ -386,24 +436,15 @@ namespace input {
     auto width = (float) util::endian::big(packet->width);
     auto height = (float) util::endian::big(packet->height);
 
-    auto scalarX = touch_port.width / width;
-    auto scalarY = touch_port.height / height;
+    auto tpcoords = client_to_touchport(input, { x, y }, { width, height });
 
-    x *= scalarX;
-    y *= scalarY;
-
-    auto offsetX = touch_port.client_offsetX;
-    auto offsetY = touch_port.client_offsetY;
-
-    std::clamp(x, offsetX, width - offsetX);
-    std::clamp(y, offsetY, height - offsetY);
-
+    auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
       touch_port.offset_x, touch_port.offset_y,
       touch_port.env_width, touch_port.env_height
     };
 
-    platf::abs_mouse(platf_input, abs_port, (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv);
+    platf::abs_mouse(platf_input, abs_port, tpcoords.first, tpcoords.second);
   }
 
   void
@@ -742,6 +783,69 @@ namespace input {
   }
 
   void
+  passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+    if (!config::input.mouse) {
+      return;
+    }
+
+    // Convert the client normalized coordinates to touchport coordinates
+    auto coords = client_to_touchport(input, { from_netfloat(packet->x) * 65535.f, from_netfloat(packet->y) * 65535.f }, { 65535.f, 65535.f });
+
+    auto &touch_port = input->touch_port;
+    platf::touch_port_t abs_port {
+      touch_port.offset_x, touch_port.offset_y,
+      touch_port.env_width, touch_port.env_height
+    };
+
+    // Renormalize the coordinates
+    coords.first /= abs_port.width;
+    coords.second /= abs_port.height;
+
+    platf::touch_input_t touch {
+      packet->eventType,
+      util::endian::little(packet->pointerId),
+      coords.first,
+      coords.second,
+      from_netfloat(packet->pressure),
+    };
+
+    platf::touch(platf_input, abs_port, touch);
+  }
+
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_PEN_PACKET packet) {
+    if (!config::input.mouse) {
+      return;
+    }
+
+    // Convert the client normalized coordinates to touchport coordinates
+    auto coords = client_to_touchport(input, { from_netfloat(packet->x) * 65535.f, from_netfloat(packet->y) * 65535.f }, { 65535.f, 65535.f });
+
+    auto &touch_port = input->touch_port;
+    platf::touch_port_t abs_port {
+      touch_port.offset_x, touch_port.offset_y,
+      touch_port.env_width, touch_port.env_height
+    };
+
+    // Renormalize the coordinates
+    coords.first /= abs_port.width;
+    coords.second /= abs_port.height;
+
+    platf::pen_input_t pen {
+      packet->eventType,
+      packet->toolType,
+      packet->penButtons,
+      packet->tilt,
+      util::endian::little(packet->rotation),
+      coords.first,
+      coords.second,
+      from_netfloat(packet->pressure),
+    };
+
+    platf::pen(platf_input, abs_port, pen);
+  }
+
+  void
   passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
     if (!config::input.controller) {
       return;
@@ -944,6 +1048,12 @@ namespace input {
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
+        break;
+      case SS_TOUCH_MAGIC:
+        passthrough(input, (PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_PEN_MAGIC:
+        passthrough(input, (PSS_PEN_PACKET) payload);
         break;
       case SS_CONTROLLER_ARRIVAL_MAGIC:
         passthrough(input, (PSS_CONTROLLER_ARRIVAL_PACKET) payload);

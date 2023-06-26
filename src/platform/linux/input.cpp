@@ -1553,6 +1553,16 @@ namespace platf {
   }
 
   void
+  touch(input_t &input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  void
+  pen(input_t &input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  void
   gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
     // Unimplemented feature - platform_caps::controller_touch
   }
