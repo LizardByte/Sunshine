@@ -2,6 +2,7 @@
  * @file src/platform/windows/input.cpp
  * @brief todo
  */
+#define WINVER 0x0A00
 #include <windows.h>
 
 #include <cmath>
@@ -12,6 +13,16 @@
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
+
+#ifdef __MINGW32__
+DECLARE_HANDLE(HSYNTHETICPOINTERDEVICE);
+WINUSERAPI HSYNTHETICPOINTERDEVICE WINAPI
+CreateSyntheticPointerDevice(POINTER_INPUT_TYPE pointerType, ULONG maxCount, POINTER_FEEDBACK_MODE mode);
+WINUSERAPI BOOL WINAPI
+InjectSyntheticPointerInput(HSYNTHETICPOINTERDEVICE device, CONST POINTER_TYPE_INFO *pointerInfo, UINT32 count);
+WINUSERAPI VOID WINAPI
+DestroySyntheticPointerDevice(HSYNTHETICPOINTERDEVICE device);
+#endif
 
 namespace platf {
   using namespace std::literals;
@@ -390,6 +401,10 @@ namespace platf {
     vigem_t *vigem;
     HKL keyboard_layout;
     HKL active_layout;
+
+    decltype(CreateSyntheticPointerDevice) *fnCreateSyntheticPointerDevice;
+    decltype(InjectSyntheticPointerInput) *fnInjectSyntheticPointerInput;
+    decltype(DestroySyntheticPointerDevice) *fnDestroySyntheticPointerDevice;
   };
 
   input_t
@@ -417,6 +432,11 @@ namespace platf {
       BOOST_LOG(warning) << "Unable to activate US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
       raw.keyboard_layout = NULL;
     }
+
+    // Get pointers to virtual touch/pen input functions (Win10 1809+)
+    raw.fnCreateSyntheticPointerDevice = (decltype(CreateSyntheticPointerDevice) *) GetProcAddress(GetModuleHandleA("user32.dll"), "CreateSyntheticPointerDevice");
+    raw.fnInjectSyntheticPointerInput = (decltype(InjectSyntheticPointerInput) *) GetProcAddress(GetModuleHandleA("user32.dll"), "InjectSyntheticPointerInput");
+    raw.fnDestroySyntheticPointerDevice = (decltype(DestroySyntheticPointerDevice) *) GetProcAddress(GetModuleHandleA("user32.dll"), "DestroySyntheticPointerDevice");
 
     return result;
   }
@@ -580,6 +600,506 @@ namespace platf {
     send_input(i);
   }
 
+  struct client_input_raw_t: public client_input_t {
+    client_input_raw_t(input_t &input) {
+      global = (input_raw_t *) input.get();
+    }
+
+    ~client_input_raw_t() override {
+      if (penRepeatTask) {
+        task_pool.cancel(penRepeatTask);
+      }
+      if (touchRepeatTask) {
+        task_pool.cancel(touchRepeatTask);
+      }
+
+      if (pen) {
+        global->fnDestroySyntheticPointerDevice(pen);
+      }
+      if (touch) {
+        global->fnDestroySyntheticPointerDevice(touch);
+      }
+    }
+
+    input_raw_t *global;
+
+    // Device state and handles for pen and touch input must be stored in the per-client
+    // input context, because each connected client may be sending their own independent
+    // pen/touch events. To maintain separation, we expose separate pen and touch devices
+    // for each client.
+
+    HSYNTHETICPOINTERDEVICE pen {};
+    POINTER_TYPE_INFO penInfo {};
+    thread_pool_util::ThreadPool::task_id_t penRepeatTask {};
+
+    HSYNTHETICPOINTERDEVICE touch {};
+    POINTER_TYPE_INFO touchInfo[10] {};
+    UINT32 activeTouchSlots {};
+    thread_pool_util::ThreadPool::task_id_t touchRepeatTask {};
+  };
+
+  /**
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input) {
+    return std::make_unique<client_input_raw_t>(input);
+  }
+
+  /**
+   * @brief Compacts the touch slots into a contiguous block and updates the active count.
+   * @details Since this swaps entries around, all slot pointers/references are invalid after compaction.
+   * @param raw The client-specific input context.
+   */
+  void
+  perform_touch_compaction(client_input_raw_t *raw) {
+    // Windows requires all active touches be contiguous when fed into InjectSyntheticPointerInput().
+    UINT32 i;
+    for (i = 0; i < ARRAYSIZE(raw->touchInfo); i++) {
+      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags == POINTER_FLAG_NONE) {
+        // This is an empty slot. Look for a later entry to move into this slot.
+        for (UINT32 j = i + 1; j < ARRAYSIZE(raw->touchInfo); j++) {
+          if (raw->touchInfo[j].touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+            std::swap(raw->touchInfo[i], raw->touchInfo[j]);
+            break;
+          }
+        }
+
+        // If we didn't find anything, we've reached the end of active slots.
+        if (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags == POINTER_FLAG_NONE) {
+          break;
+        }
+      }
+    }
+
+    // Update the number of active touch slots
+    raw->activeTouchSlots = i;
+  }
+
+  /**
+   * @brief Gets a pointer slot by client-relative pointer ID, claiming a new one if necessary.
+   * @param raw The raw client-specific input context.
+   * @param pointerId The client's pointer ID.
+   * @param eventType The LI_TOUCH_EVENT value from the client.
+   * @return A pointer to the slot entry.
+   */
+  POINTER_TYPE_INFO *
+  pointer_by_id(client_input_raw_t *raw, uint32_t pointerId, uint8_t eventType) {
+    // Compact active touches into a single contiguous block
+    perform_touch_compaction(raw);
+
+    // Try to find a matching pointer ID
+    for (UINT32 i = 0; i < ARRAYSIZE(raw->touchInfo); i++) {
+      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerId == pointerId &&
+          raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+        if (eventType == LI_TOUCH_EVENT_DOWN && (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_INCONTACT)) {
+          BOOST_LOG(warning) << "Pointer "sv << pointerId << " already down. Did the client drop an up/cancel event?"sv;
+        }
+
+        return &raw->touchInfo[i];
+      }
+    }
+
+    if (eventType != LI_TOUCH_EVENT_HOVER && eventType != LI_TOUCH_EVENT_DOWN) {
+      BOOST_LOG(warning) << "Unexpected new pointer "sv << pointerId << " for event "sv << (uint32_t) eventType << ". Did the client drop a down/hover event?"sv;
+    }
+
+    // If there was none, grab an unused entry and increment the active slot count
+    for (UINT32 i = 0; i < ARRAYSIZE(raw->touchInfo); i++) {
+      if (raw->touchInfo[i].touchInfo.pointerInfo.pointerFlags == POINTER_FLAG_NONE) {
+        raw->touchInfo[i].touchInfo.pointerInfo.pointerId = pointerId;
+        raw->activeTouchSlots = i + 1;
+        return &raw->touchInfo[i];
+      }
+    }
+
+    return nullptr;
+  }
+
+  /**
+   * @brief Populate common `POINTER_INFO` members shared between pen and touch events.
+   * @param pointerInfo The pointer info to populate.
+   * @param touchPort The current viewport for translating to screen coordinates.
+   * @param eventType The type of touch/pen event.
+   * @param x The normalized 0.0-1.0 X coordinate.
+   * @param y The normalized 0.0-1.0 Y coordinate.
+   */
+  void
+  populate_common_pointer_info(POINTER_INFO &pointerInfo, const touch_port_t &touchPort, uint8_t eventType, float x, float y) {
+    switch (eventType) {
+      case LI_TOUCH_EVENT_HOVER:
+        pointerInfo.pointerFlags &= ~POINTER_FLAG_INCONTACT;
+        pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_UPDATE;
+        pointerInfo.ptPixelLocation.x = x * touchPort.width + touchPort.offset_x;
+        pointerInfo.ptPixelLocation.y = y * touchPort.height + touchPort.offset_y;
+        break;
+      case LI_TOUCH_EVENT_DOWN:
+        pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_DOWN;
+        pointerInfo.ptPixelLocation.x = x * touchPort.width + touchPort.offset_x;
+        pointerInfo.ptPixelLocation.y = y * touchPort.height + touchPort.offset_y;
+        break;
+      case LI_TOUCH_EVENT_UP:
+        // We expect to get another LI_TOUCH_EVENT_HOVER if the pointer remains in range
+        pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
+        pointerInfo.pointerFlags |= POINTER_FLAG_UP;
+        break;
+      case LI_TOUCH_EVENT_MOVE:
+        pointerInfo.pointerFlags |= POINTER_FLAG_INRANGE | POINTER_FLAG_INCONTACT | POINTER_FLAG_UPDATE;
+        pointerInfo.ptPixelLocation.x = x * touchPort.width + touchPort.offset_x;
+        pointerInfo.ptPixelLocation.y = y * touchPort.height + touchPort.offset_y;
+        break;
+      case LI_TOUCH_EVENT_CANCEL:
+      case LI_TOUCH_EVENT_CANCEL_ALL:
+        // If we were in contact with the touch surface at the time of the cancellation,
+        // we'll set POINTER_FLAG_UP, otherwise set POINTER_FLAG_UPDATE.
+        if (pointerInfo.pointerFlags & POINTER_FLAG_INCONTACT) {
+          pointerInfo.pointerFlags |= POINTER_FLAG_UP;
+        }
+        else {
+          pointerInfo.pointerFlags |= POINTER_FLAG_UPDATE;
+        }
+        pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
+        pointerInfo.pointerFlags |= POINTER_FLAG_CANCELED;
+        break;
+      case LI_TOUCH_EVENT_HOVER_LEAVE:
+        pointerInfo.pointerFlags &= ~(POINTER_FLAG_INCONTACT | POINTER_FLAG_INRANGE);
+        pointerInfo.pointerFlags |= POINTER_FLAG_UPDATE;
+        break;
+      case LI_TOUCH_EVENT_BUTTON_ONLY:
+        // On Windows, we can only pass buttons if we have an active pointer
+        if (pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+          pointerInfo.pointerFlags |= POINTER_FLAG_UPDATE;
+        }
+        break;
+      default:
+        BOOST_LOG(warning) << "Unknown touch event: "sv << (uint32_t) eventType;
+        break;
+    }
+  }
+
+  // Active pointer interactions sent via InjectSyntheticPointerInput() seem to be automatically
+  // cancelled by Windows if not repeated/updated within about a second. To avoid this, refresh
+  // the injected input periodically.
+  constexpr auto ISPI_REPEAT_INTERVAL = 50ms;
+
+  /**
+   * @brief Repeats the current touch state to avoid the interactions timing out.
+   * @param raw The raw client-specific input context.
+   */
+  void
+  repeat_touch(client_input_raw_t *raw) {
+    if (!raw->global->fnInjectSyntheticPointerInput(raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
+      auto err = GetLastError();
+      BOOST_LOG(warning) << "Failed to refresh virtual touch input: "sv << err;
+    }
+
+    raw->touchRepeatTask = task_pool.pushDelayed(repeat_touch, ISPI_REPEAT_INTERVAL, raw).task_id;
+  }
+
+  /**
+   * @brief Repeats the current pen state to avoid the interactions timing out.
+   * @param raw The raw client-specific input context.
+   */
+  void
+  repeat_pen(client_input_raw_t *raw) {
+    if (!raw->global->fnInjectSyntheticPointerInput(raw->pen, &raw->penInfo, 1)) {
+      auto err = GetLastError();
+      BOOST_LOG(warning) << "Failed to refresh virtual pen input: "sv << err;
+    }
+
+    raw->penRepeatTask = task_pool.pushDelayed(repeat_pen, ISPI_REPEAT_INTERVAL, raw).task_id;
+  }
+
+  /**
+   * @brief Cancels all active touches.
+   * @param raw The raw client-specific input context.
+   */
+  void
+  cancel_all_active_touches(client_input_raw_t *raw) {
+    // Cancel touch repeat callbacks
+    if (raw->touchRepeatTask) {
+      task_pool.cancel(raw->touchRepeatTask);
+      raw->touchRepeatTask = nullptr;
+    }
+
+    // Compact touches to update activeTouchSlots
+    perform_touch_compaction(raw);
+
+    // If we have active slots, cancel them all
+    if (raw->activeTouchSlots > 0) {
+      for (UINT32 i = 0; i < raw->activeTouchSlots; i++) {
+        populate_common_pointer_info(raw->touchInfo[i].touchInfo.pointerInfo, {}, LI_TOUCH_EVENT_CANCEL_ALL, 0.0f, 0.0f);
+        raw->touchInfo[i].touchInfo.touchMask = TOUCH_MASK_NONE;
+      }
+      if (!raw->global->fnInjectSyntheticPointerInput(raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
+        auto err = GetLastError();
+        BOOST_LOG(warning) << "Failed to cancel all virtual touch input: "sv << err;
+      }
+    }
+
+    // Zero all touch state
+    std::memset(raw->touchInfo, 0, sizeof(raw->touchInfo));
+    raw->activeTouchSlots = 0;
+  }
+
+  // These are edge-triggered pointer state flags that should always be cleared next frame
+  constexpr auto EDGE_TRIGGERED_POINTER_FLAGS = POINTER_FLAG_DOWN | POINTER_FLAG_UP | POINTER_FLAG_CANCELED | POINTER_FLAG_UPDATE;
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    auto raw = (client_input_raw_t *) input;
+
+    // Bail if we're not running on an OS that supports virtual touch input
+    if (!raw->global->fnCreateSyntheticPointerDevice ||
+        !raw->global->fnInjectSyntheticPointerInput ||
+        !raw->global->fnDestroySyntheticPointerDevice) {
+      BOOST_LOG(warning) << "Touch input requires Windows 10 1809 or later"sv;
+      return;
+    }
+
+    // If there's not already a virtual touch device, create one now
+    if (!raw->touch) {
+      if (touch.eventType != LI_TOUCH_EVENT_CANCEL_ALL) {
+        BOOST_LOG(info) << "Creating virtual touch input device"sv;
+        raw->touch = raw->global->fnCreateSyntheticPointerDevice(PT_TOUCH, ARRAYSIZE(raw->touchInfo), POINTER_FEEDBACK_DEFAULT);
+        if (!raw->touch) {
+          auto err = GetLastError();
+          BOOST_LOG(warning) << "Failed to create virtual touch device: "sv << err;
+          return;
+        }
+      }
+      else {
+        // No need to cancel anything if we had no touch input device
+        return;
+      }
+    }
+
+    // Cancel touch repeat callbacks
+    if (raw->touchRepeatTask) {
+      task_pool.cancel(raw->touchRepeatTask);
+      raw->touchRepeatTask = nullptr;
+    }
+
+    // If this is a special request to cancel all touches, do that and return
+    if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
+      cancel_all_active_touches(raw);
+      return;
+    }
+
+    // Find or allocate an entry for this touch pointer ID
+    auto pointer = pointer_by_id(raw, touch.pointerId, touch.eventType);
+    if (!pointer) {
+      BOOST_LOG(error) << "No unused pointer entries! Cancelling all active touches!"sv;
+      cancel_all_active_touches(raw);
+      pointer = pointer_by_id(raw, touch.pointerId, touch.eventType);
+    }
+
+    pointer->type = PT_TOUCH;
+
+    auto &touchInfo = pointer->touchInfo;
+    touchInfo.pointerInfo.pointerType = PT_TOUCH;
+
+    // Populate shared pointer info fields
+    populate_common_pointer_info(touchInfo.pointerInfo, touch_port, touch.eventType, touch.x, touch.y);
+
+    touchInfo.touchMask = TOUCH_MASK_NONE;
+
+    // Pressure and contact area only apply to in-contact pointers.
+    //
+    // The clients also pass distance and tool size for hovers, but Windows doesn't
+    // provide APIs to receive that data.
+    if (touchInfo.pointerInfo.pointerFlags & POINTER_FLAG_INCONTACT) {
+      if (touch.pressureOrDistance != 0.0f) {
+        touchInfo.touchMask |= TOUCH_MASK_PRESSURE;
+
+        // Convert the 0.0f..1.0f float to the 0..1024 range that Windows uses
+        touchInfo.pressure = (UINT32) (touch.pressureOrDistance * 1024);
+      }
+      else {
+        // The default touch pressure is 512
+        touchInfo.pressure = 512;
+      }
+
+      if (touch.contactAreaMajor != 0.0f && touch.contactAreaMinor != 0.0f) {
+        // For the purposes of contact area calculation, we will assume the touches
+        // are at a 45 degree angle if rotation is unknown. This will scale the major
+        // axis value by width and height equally.
+        float rotationAngleDegs = touch.rotation == LI_ROT_UNKNOWN ? 45 : touch.rotation;
+
+        float majorAxisAngle = rotationAngleDegs * (M_PI / 180);
+        float minorAxisAngle = majorAxisAngle + (M_PI / 2);
+
+        // Estimate the contact rectangle
+        float contactWidth = (std::cos(majorAxisAngle) * touch.contactAreaMajor) + (std::cos(minorAxisAngle) * touch.contactAreaMinor);
+        float contactHeight = (std::sin(majorAxisAngle) * touch.contactAreaMajor) + (std::sin(minorAxisAngle) * touch.contactAreaMinor);
+
+        // Convert into screen coordinates centered at the touch location and constrained by screen dimensions
+        touchInfo.rcContact.left = std::max<LONG>(touch_port.offset_x, touchInfo.pointerInfo.ptPixelLocation.x - std::floor(contactWidth / 2));
+        touchInfo.rcContact.right = std::min<LONG>(touch_port.offset_x + touch_port.width, touchInfo.pointerInfo.ptPixelLocation.x + std::ceil(contactWidth / 2));
+        touchInfo.rcContact.top = std::max<LONG>(touch_port.offset_y, touchInfo.pointerInfo.ptPixelLocation.y - std::floor(contactHeight / 2));
+        touchInfo.rcContact.bottom = std::min<LONG>(touch_port.offset_y + touch_port.height, touchInfo.pointerInfo.ptPixelLocation.y + std::ceil(contactHeight / 2));
+
+        touchInfo.touchMask |= TOUCH_MASK_CONTACTAREA;
+      }
+    }
+    else {
+      touchInfo.pressure = 0;
+      touchInfo.rcContact = {};
+    }
+
+    if (touch.rotation != LI_ROT_UNKNOWN) {
+      touchInfo.touchMask |= TOUCH_MASK_ORIENTATION;
+      touchInfo.orientation = touch.rotation;
+    }
+    else {
+      touchInfo.orientation = 0;
+    }
+
+    if (!raw->global->fnInjectSyntheticPointerInput(raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
+      auto err = GetLastError();
+      BOOST_LOG(warning) << "Failed to inject virtual touch input: "sv << err;
+      return;
+    }
+
+    // Clear pointer flags that should only remain set for one frame
+    touchInfo.pointerInfo.pointerFlags &= ~EDGE_TRIGGERED_POINTER_FLAGS;
+
+    // If we still have an active touch, refresh the touch state periodically
+    if (raw->activeTouchSlots > 1 || touchInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+      raw->touchRepeatTask = task_pool.pushDelayed(repeat_touch, ISPI_REPEAT_INTERVAL, raw).task_id;
+    }
+  }
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    auto raw = (client_input_raw_t *) input;
+
+    // Bail if we're not running on an OS that supports virtual pen input
+    if (!raw->global->fnCreateSyntheticPointerDevice ||
+        !raw->global->fnInjectSyntheticPointerInput ||
+        !raw->global->fnDestroySyntheticPointerDevice) {
+      BOOST_LOG(warning) << "Pen input requires Windows 10 1809 or later"sv;
+      return;
+    }
+
+    // If there's not already a virtual pen device, create one now
+    if (!raw->pen) {
+      if (pen.eventType != LI_TOUCH_EVENT_CANCEL_ALL) {
+        BOOST_LOG(info) << "Creating virtual pen input device"sv;
+        raw->pen = raw->global->fnCreateSyntheticPointerDevice(PT_PEN, 1, POINTER_FEEDBACK_DEFAULT);
+        if (!raw->pen) {
+          auto err = GetLastError();
+          BOOST_LOG(warning) << "Failed to create virtual pen device: "sv << err;
+          return;
+        }
+      }
+      else {
+        // No need to cancel anything if we had no pen input device
+        return;
+      }
+    }
+
+    // Cancel pen repeat callbacks
+    if (raw->penRepeatTask) {
+      task_pool.cancel(raw->penRepeatTask);
+      raw->penRepeatTask = nullptr;
+    }
+
+    raw->penInfo.type = PT_PEN;
+
+    auto &penInfo = raw->penInfo.penInfo;
+    penInfo.pointerInfo.pointerType = PT_PEN;
+    penInfo.pointerInfo.pointerId = 0;
+
+    // Populate shared pointer info fields
+    populate_common_pointer_info(penInfo.pointerInfo, touch_port, pen.eventType, pen.x, pen.y);
+
+    // Windows only supports a single pen button, so send all buttons as the barrel button
+    if (pen.penButtons) {
+      penInfo.penFlags |= PEN_FLAG_BARREL;
+    }
+    else {
+      penInfo.penFlags &= ~PEN_FLAG_BARREL;
+    }
+
+    switch (pen.toolType) {
+      default:
+      case LI_TOOL_TYPE_PEN:
+        penInfo.penFlags &= ~PEN_FLAG_ERASER;
+        break;
+      case LI_TOOL_TYPE_ERASER:
+        penInfo.penFlags |= PEN_FLAG_ERASER;
+        break;
+      case LI_TOOL_TYPE_UNKNOWN:
+        // Leave tool flags alone
+        break;
+    }
+
+    penInfo.penMask = PEN_MASK_NONE;
+
+    // Windows doesn't support hover distance, so only pass pressure/distance when the pointer is in contact
+    if ((penInfo.pointerInfo.pointerFlags & POINTER_FLAG_INCONTACT) && pen.pressureOrDistance != 0.0f) {
+      penInfo.penMask |= PEN_MASK_PRESSURE;
+
+      // Convert the 0.0f..1.0f float to the 0..1024 range that Windows uses
+      penInfo.pressure = (UINT32) (pen.pressureOrDistance * 1024);
+    }
+    else {
+      // The default pen pressure is 0
+      penInfo.pressure = 0;
+    }
+
+    if (pen.rotation != LI_ROT_UNKNOWN) {
+      penInfo.penMask |= PEN_MASK_ROTATION;
+      penInfo.rotation = pen.rotation;
+    }
+    else {
+      penInfo.rotation = 0;
+    }
+
+    // We require rotation and tilt to perform the polar to cartesian conversion
+    if (pen.tilt != LI_TILT_UNKNOWN && pen.rotation != LI_ROT_UNKNOWN) {
+      auto rotationRads = pen.rotation * (M_PI / 180.f);
+
+      // Convert into cartesian coordinates
+      penInfo.penMask |= PEN_MASK_TILT_X | PEN_MASK_TILT_Y;
+      penInfo.tiltX = (INT32) (std::cos(rotationRads) * pen.tilt);
+      penInfo.tiltY = (INT32) (std::sin(rotationRads) * pen.tilt);
+    }
+    else {
+      penInfo.tiltX = 0;
+      penInfo.tiltY = 0;
+    }
+
+    if (!raw->global->fnInjectSyntheticPointerInput(raw->pen, &raw->penInfo, 1)) {
+      auto err = GetLastError();
+      BOOST_LOG(warning) << "Failed to inject virtual pen input: "sv << err;
+      return;
+    }
+
+    // Clear pointer flags that should only remain set for one frame
+    penInfo.pointerInfo.pointerFlags &= ~EDGE_TRIGGERED_POINTER_FLAGS;
+
+    // If we still have an active pen interaction, refresh the pen state periodically
+    if (penInfo.pointerInfo.pointerFlags != POINTER_FLAG_NONE) {
+      raw->penRepeatTask = task_pool.pushDelayed(repeat_pen, ISPI_REPEAT_INTERVAL, raw).task_id;
+    }
+  }
+
   void
   unicode(input_t &input, char *utf8, int size) {
     // We can do no worse than one UTF-16 character per byte of UTF-8
@@ -611,7 +1131,7 @@ namespace platf {
 
   /**
    * @brief Creates a new virtual gamepad.
-   * @param input The input context.
+   * @param input The global input context.
    * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
    * @param feedback_queue The queue for posting messages back to the client.
@@ -870,7 +1390,7 @@ namespace platf {
 
   /**
    * @brief Sends a gamepad touch event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param touch The touch event.
    */
   void
@@ -970,7 +1490,7 @@ namespace platf {
 
   /**
    * @brief Sends a gamepad motion event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param motion The motion event.
    */
   void
@@ -1002,7 +1522,7 @@ namespace platf {
 
   /**
    * @brief Sends a gamepad battery event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param battery The battery event.
    */
   void
@@ -1110,6 +1630,14 @@ namespace platf {
     // We support controller touchpad input as long as we're not emulating X360
     if (config::input.gamepad != "x360"sv) {
       caps |= platform_caps::controller_touch;
+    }
+
+    // We support pen and touch input on Win10 1809+
+    if (GetProcAddress(GetModuleHandleA("user32.dll"), "CreateSyntheticPointerDevice") != nullptr) {
+      caps |= platform_caps::pen_touch;
+    }
+    else {
+      BOOST_LOG(warning) << "Touch input requires Windows 10 1809 or later"sv;
     }
 
     return caps;

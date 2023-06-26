@@ -449,8 +449,41 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   /**
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input) {
+    // Unused
+    return nullptr;
+  }
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
    * @brief Sends a gamepad touch event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param touch The touch event.
    */
   void
@@ -460,7 +493,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   /**
    * @brief Sends a gamepad motion event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param motion The motion event.
    */
   void
@@ -470,7 +503,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   /**
    * @brief Sends a gamepad battery event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param battery The battery event.
    */
   void
