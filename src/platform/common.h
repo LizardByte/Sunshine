@@ -170,6 +170,13 @@ namespace platf {
     std::int16_t rsY;
   };
 
+  struct gamepad_arrival_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t type;
+    std::uint16_t capabilities;
+    std::uint32_t supportedButtons;
+  };
+
   class deinit_t {
   public:
     virtual ~deinit_t() = default;
@@ -455,8 +462,16 @@ namespace platf {
   void
   unicode(input_t &input, char *utf8, int size);
 
+  /**
+   * @brief Creates a new virtual gamepad.
+   * @param input The input context.
+   * @param nr The assigned controller number.
+   * @param metadata Controller metadata from client (empty if none provided).
+   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @return 0 on success.
+   */
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue);
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue);
   void
   free_gamepad(input_t &input, int nr);
 
