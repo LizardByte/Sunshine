@@ -11,6 +11,7 @@ extern "C" {
 
 #include <bitset>
 #include <chrono>
+#include <cmath>
 #include <list>
 #include <thread>
 #include <unordered_map>
@@ -90,6 +91,18 @@ namespace input {
     return boost::endian::endian_load<float, sizeof(float), boost::endian::order::little>(f);
   }
 
+  /**
+   * @brief Converts a little-endian netfloat to a native endianness float and clamps it.
+   * @param f Netfloat value.
+   * @param min The minimium value for clamping.
+   * @param max The maximum value for clamping.
+   * @return Clamped float value.
+   */
+  float
+  from_clamped_netfloat(netfloat f, float min, float max) {
+    return std::clamp(from_netfloat(f), min, max);
+  }
+
   static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
   static std::unordered_map<key_press_id_t, bool> key_press {};
   static std::array<std::uint8_t, 5> mouse_press {};
@@ -143,6 +156,7 @@ namespace input {
       platf::feedback_queue_t feedback_queue):
         shortcutFlags {},
         gamepads(MAX_GAMEPADS),
+        client_context { platf::allocate_client_input_context(platf_input) },
         touch_port_event { std::move(touch_port_event) },
         feedback_queue { std::move(feedback_queue) },
         mouse_left_button_timeout {},
@@ -152,6 +166,7 @@ namespace input {
     int shortcutFlags;
 
     std::vector<gamepad_t> gamepads;
+    std::unique_ptr<platf::client_input_t> client_context;
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;
     platf::feedback_queue_t feedback_queue;
@@ -275,6 +290,46 @@ namespace input {
   }
 
   /**
+   * @brief Prints a touch packet.
+   * @param packet The touch packet.
+   */
+  void
+  print(PSS_TOUCH_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin touch packet--"sv << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
+      << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
+      << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
+      << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
+      << "--end touch packet--"sv;
+  }
+
+  /**
+   * @brief Prints a pen packet.
+   * @param packet The pen packet.
+   */
+  void
+  print(PSS_PEN_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin pen packet--"sv << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "toolType ["sv << util::hex(packet->toolType).to_string_view() << ']' << std::endl
+      << "penButtons ["sv << util::hex(packet->penButtons).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "pressureOrDistance ["sv << from_netfloat(packet->pressureOrDistance) << ']' << std::endl
+      << "contactAreaMajor ["sv << from_netfloat(packet->contactAreaMajor) << ']' << std::endl
+      << "contactAreaMinor ["sv << from_netfloat(packet->contactAreaMinor) << ']' << std::endl
+      << "rotation ["sv << (uint32_t) packet->rotation << ']' << std::endl
+      << "tilt ["sv << (uint32_t) packet->tilt << ']' << std::endl
+      << "--end pen packet--"sv;
+  }
+
+  /**
    * @brief Prints a controller arrival packet.
    * @param packet The controller arrival packet.
    */
@@ -367,6 +422,12 @@ namespace input {
       case MULTI_CONTROLLER_MAGIC_GEN5:
         print((PNV_MULTI_CONTROLLER_PACKET) payload);
         break;
+      case SS_TOUCH_MAGIC:
+        print((PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_PEN_MAGIC:
+        print((PSS_PEN_PACKET) payload);
+        break;
       case SS_CONTROLLER_ARRIVAL_MAGIC:
         print((PSS_CONTROLLER_ARRIVAL_PACKET) payload);
         break;
@@ -392,6 +453,78 @@ namespace input {
     platf::move_mouse(platf_input, util::endian::big(packet->deltaX), util::endian::big(packet->deltaY));
   }
 
+  /**
+   * @brief Converts client coordinates on the specified surface into screen coordinates.
+   * @param input The input context.
+   * @param val The cartesian coordinate pair to convert.
+   * @param size The size of the client's surface containing the value.
+   * @return The host-relative coordinate pair.
+   */
+  std::pair<float, float>
+  client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
+    auto &touch_port_event = input->touch_port_event;
+    auto &touch_port = input->touch_port;
+    if (touch_port_event->peek()) {
+      touch_port = *touch_port_event->pop();
+    }
+
+    auto scalarX = touch_port.width / size.first;
+    auto scalarY = touch_port.height / size.second;
+
+    float x = std::clamp(val.first, 0.0f, size.first) * scalarX;
+    float y = std::clamp(val.second, 0.0f, size.second) * scalarY;
+
+    auto offsetX = touch_port.client_offsetX;
+    auto offsetY = touch_port.client_offsetY;
+
+    x = std::clamp(x, offsetX, size.first - offsetX);
+    y = std::clamp(y, offsetY, size.second - offsetY);
+
+    return { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
+  }
+
+  /**
+   * @brief Multiplies a polar coordinate pair by a cartesian scaling factor.
+   * @param r The radial coordinate.
+   * @param angle The angular coordinate (radians).
+   * @param scalar The scalar cartesian coordinate pair.
+   * @return The scaled radial coordinate.
+   */
+  float
+  multiply_polar_by_cartesian_scalar(float r, float angle, const std::pair<float, float> &scalar) {
+    // Convert polar to cartesian coordinates
+    float x = r * std::cos(angle);
+    float y = r * std::sin(angle);
+
+    // Scale the values
+    x *= scalar.first;
+    y *= scalar.second;
+
+    // Convert the result back to a polar radial coordinate
+    return std::sqrt(std::pow(x, 2) + std::pow(y, 2));
+  }
+
+  /**
+   * @brief Scales the ellipse axes according to the provided size.
+   * @param val The major and minor axis pair.
+   * @param rotation The rotation value from the touch/pen event.
+   * @param scalar The scalar cartesian coordinate pair.
+   * @return The major and minor axis pair.
+   */
+  std::pair<float, float>
+  scale_client_contact_area(const std::pair<float, float> &val, uint16_t rotation, const std::pair<float, float> &scalar) {
+    // If the rotation is unknown, we'll just scale both axes equally by using
+    // a 45 degree angle for our scaling calculations
+    float angle = rotation == LI_ROT_UNKNOWN ? (M_PI / 4) : (rotation * (M_PI / 180));
+
+    // If we have a major but not a minor axis, treat the touch as circular
+    float major = val.first;
+    float minor = val.second != 0.0f ? val.second : val.first;
+
+    // The minor axis is perpendicular to major axis so the angle must be rotated by 90 degrees
+    return { multiply_polar_by_cartesian_scalar(major, angle, scalar), multiply_polar_by_cartesian_scalar(minor, angle + (M_PI / 2), scalar) };
+  }
+
   void
   passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
     if (!config::input.mouse) {
@@ -400,12 +533,6 @@ namespace input {
 
     if (input->mouse_left_button_timeout == DISABLE_LEFT_BUTTON_DELAY) {
       input->mouse_left_button_timeout = ENABLE_LEFT_BUTTON_DELAY;
-    }
-
-    auto &touch_port_event = input->touch_port_event;
-    auto &touch_port = input->touch_port;
-    if (touch_port_event->peek()) {
-      touch_port = *touch_port_event->pop();
     }
 
     float x = util::endian::big(packet->x);
@@ -422,24 +549,15 @@ namespace input {
     auto width = (float) util::endian::big(packet->width);
     auto height = (float) util::endian::big(packet->height);
 
-    auto scalarX = touch_port.width / width;
-    auto scalarY = touch_port.height / height;
+    auto tpcoords = client_to_touchport(input, { x, y }, { width, height });
 
-    x *= scalarX;
-    y *= scalarY;
-
-    auto offsetX = touch_port.client_offsetX;
-    auto offsetY = touch_port.client_offsetY;
-
-    std::clamp(x, offsetX, width - offsetX);
-    std::clamp(y, offsetY, height - offsetY);
-
+    auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
       touch_port.offset_x, touch_port.offset_y,
       touch_port.env_width, touch_port.env_height
     };
 
-    platf::abs_mouse(platf_input, abs_port, (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv);
+    platf::abs_mouse(platf_input, abs_port, tpcoords.first, tpcoords.second);
   }
 
   void
@@ -739,6 +857,116 @@ namespace input {
     }
 
     input->gamepads[packet->controllerNumber].id = id;
+  }
+
+  /**
+   * @brief Called to pass a touch message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The touch packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+    if (!config::input.mouse) {
+      return;
+    }
+
+    // Convert the client normalized coordinates to touchport coordinates
+    auto coords = client_to_touchport(input,
+      { from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f,
+        from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f },
+      { 65535.f, 65535.f });
+
+    auto &touch_port = input->touch_port;
+    platf::touch_port_t abs_port {
+      touch_port.offset_x, touch_port.offset_y,
+      touch_port.env_width, touch_port.env_height
+    };
+
+    // Renormalize the coordinates
+    coords.first /= abs_port.width;
+    coords.second /= abs_port.height;
+
+    // Normalize rotation value to 0-359 degree range
+    auto rotation = util::endian::little(packet->rotation);
+    if (rotation != LI_ROT_UNKNOWN) {
+      rotation %= 360;
+    }
+
+    // Normalize the contact area based on the touchport
+    auto contact_area = scale_client_contact_area(
+      { from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
+        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f },
+      rotation,
+      { abs_port.width / 65535.f, abs_port.height / 65535.f });
+
+    platf::touch_input_t touch {
+      packet->eventType,
+      rotation,
+      util::endian::little(packet->pointerId),
+      coords.first,
+      coords.second,
+      from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
+      contact_area.first,
+      contact_area.second,
+    };
+
+    platf::touch(input->client_context.get(), abs_port, touch);
+  }
+
+  /**
+   * @brief Called to pass a pen message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The pen packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_PEN_PACKET packet) {
+    if (!config::input.mouse) {
+      return;
+    }
+
+    // Convert the client normalized coordinates to touchport coordinates
+    auto coords = client_to_touchport(input,
+      { from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f,
+        from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f },
+      { 65535.f, 65535.f });
+
+    auto &touch_port = input->touch_port;
+    platf::touch_port_t abs_port {
+      touch_port.offset_x, touch_port.offset_y,
+      touch_port.env_width, touch_port.env_height
+    };
+
+    // Renormalize the coordinates
+    coords.first /= abs_port.width;
+    coords.second /= abs_port.height;
+
+    // Normalize rotation value to 0-359 degree range
+    auto rotation = util::endian::little(packet->rotation);
+    if (rotation != LI_ROT_UNKNOWN) {
+      rotation %= 360;
+    }
+
+    // Normalize the contact area based on the touchport
+    auto contact_area = scale_client_contact_area(
+      { from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
+        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f },
+      rotation,
+      { abs_port.width / 65535.f, abs_port.height / 65535.f });
+
+    platf::pen_input_t pen {
+      packet->eventType,
+      packet->toolType,
+      packet->penButtons,
+      packet->tilt,
+      rotation,
+      coords.first,
+      coords.second,
+      from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
+      contact_area.first,
+      contact_area.second,
+    };
+
+    platf::pen(input->client_context.get(), abs_port, pen);
   }
 
   /**
@@ -1326,6 +1554,12 @@ namespace input {
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
+        break;
+      case SS_TOUCH_MAGIC:
+        passthrough(input, (PSS_TOUCH_PACKET) payload);
+        break;
+      case SS_PEN_MAGIC:
+        passthrough(input, (PSS_PEN_PACKET) payload);
         break;
       case SS_CONTROLLER_ARRIVAL_MAGIC:
         passthrough(input, (PSS_CONTROLLER_ARRIVAL_PACKET) payload);
