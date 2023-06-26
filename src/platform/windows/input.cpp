@@ -26,15 +26,6 @@ namespace platf {
   using client_t = util::safe_ptr<_VIGEM_CLIENT_T, vigem_free>;
   using target_t = util::safe_ptr<_VIGEM_TARGET_T, vigem_target_free>;
 
-  static VIGEM_TARGET_TYPE
-  map(const std::string_view &gp) {
-    if (gp == "x360"sv) {
-      return Xbox360Wired;
-    }
-
-    return DualShock4Wired;
-  }
-
   void CALLBACK
   x360_notify(
     client_t::pointer client,
@@ -423,15 +414,54 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Creates a new virtual gamepad.
+   * @param input The input context.
+   * @param nr The assigned controller number.
+   * @param metadata Controller metadata from client (empty if none provided).
+   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @return 0 on success.
+   */
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue) {
     auto raw = (input_raw_t *) input.get();
 
     if (!raw->vigem) {
       return 0;
     }
 
-    return raw->vigem->alloc_gamepad_interal(nr, rumble_queue, map(config::input.gamepad));
+    VIGEM_TARGET_TYPE selectedGamepadType;
+
+    if (config::input.gamepad == "x360"sv) {
+      BOOST_LOG(info) << "Gamepad " << nr << " will be Xbox 360 controller (manual selection)"sv;
+      selectedGamepadType = Xbox360Wired;
+    }
+    else if (config::input.gamepad == "ps4"sv || config::input.gamepad == "ds4"sv) {
+      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (manual selection)"sv;
+      selectedGamepadType = DualShock4Wired;
+    }
+    else if (metadata.type == LI_CTYPE_PS) {
+      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (auto-selected by client-reported type)"sv;
+      selectedGamepadType = DualShock4Wired;
+    }
+    else if (metadata.type == LI_CTYPE_XBOX) {
+      BOOST_LOG(info) << "Gamepad " << nr << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
+      selectedGamepadType = Xbox360Wired;
+    }
+    else if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
+      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
+      selectedGamepadType = DualShock4Wired;
+    }
+    else if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
+      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
+      selectedGamepadType = DualShock4Wired;
+    }
+    else {
+      BOOST_LOG(info) << "Gamepad " << nr << " will be Xbox 360 controller (default)"sv;
+      selectedGamepadType = Xbox360Wired;
+    }
+
+    return raw->vigem->alloc_gamepad_interal(nr, rumble_queue, selectedGamepadType);
   }
 
   void
@@ -591,11 +621,15 @@ namespace platf {
     delete input;
   }
 
+  /**
+   * @brief Gets the supported gamepads for this platform backend.
+   * @return Vector of gamepad type strings.
+   */
   std::vector<std::string_view> &
   supported_gamepads() {
     // ds4 == ps4
     static std::vector<std::string_view> gps {
-      "x360"sv, "ds4"sv, "ps4"sv
+      "auto"sv, "x360"sv, "ds4"sv, "ps4"sv
     };
 
     return gps;
