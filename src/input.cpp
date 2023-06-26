@@ -264,6 +264,21 @@ namespace input {
       << "--end controller packet--"sv;
   }
 
+  /**
+   * @brief Prints a controller arrival packet.
+   * @param packet The controller arrival packet.
+   */
+  void
+  print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin controller arrival packet--"sv << std::endl
+      << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
+      << "type ["sv << util::hex(packet->type).to_string_view() << ']' << std::endl
+      << "capabilities ["sv << util::hex(packet->capabilities).to_string_view() << ']' << std::endl
+      << "supportedButtonFlags ["sv << util::hex(packet->supportedButtonFlags).to_string_view() << ']' << std::endl
+      << "--end controller arrival packet--"sv;
+  }
+
   void
   print(void *payload) {
     auto header = (PNV_INPUT_HEADER) payload;
@@ -294,6 +309,9 @@ namespace input {
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         print((PNV_MULTI_CONTROLLER_PACKET) payload);
+        break;
+      case SS_CONTROLLER_ARRIVAL_MAGIC:
+        print((PSS_CONTROLLER_ARRIVAL_PACKET) payload);
         break;
     }
   }
@@ -643,7 +661,7 @@ namespace input {
             return -1;
           }
 
-          if (platf::alloc_gamepad(platf_input, id, rumble_queue)) {
+          if (platf::alloc_gamepad(platf_input, id, {}, rumble_queue)) {
             free_id(gamepadMask, id);
             // allocating a gamepad failed: solution: ignore gamepads
             // The implementations of platf::alloc_gamepad already has logging
@@ -656,6 +674,46 @@ namespace input {
     }
 
     return 0;
+  }
+
+  /**
+   * @brief Called to pass a controller arrival message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller arrival packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+    if (!config::input.controller) {
+      return;
+    }
+
+    if (packet->controllerNumber >= gamepadMask.size()) {
+      // Invalid controller number
+      return;
+    }
+
+    if (gamepadMask[packet->controllerNumber]) {
+      // There's already a gamepad in this slot
+      return;
+    }
+
+    platf::gamepad_arrival_t arrival {
+      packet->controllerNumber,
+      packet->type,
+      util::endian::little(packet->capabilities),
+      util::endian::little(packet->supportedButtonFlags),
+    };
+
+    gamepadMask[packet->controllerNumber] = true;
+    input->active_gamepad_state |= (1 << packet->controllerNumber);
+
+    // Allocate a new gamepad
+    if (platf::alloc_gamepad(platf_input, packet->controllerNumber, arrival, input->rumble_queue)) {
+      free_id(gamepadMask, packet->controllerNumber);
+      return;
+    }
+
+    input->gamepads[packet->controllerNumber].id = packet->controllerNumber;
   }
 
   void
@@ -1134,6 +1192,9 @@ namespace input {
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
+        break;
+      case SS_CONTROLLER_ARRIVAL_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_ARRIVAL_PACKET) payload);
         break;
     }
   }
