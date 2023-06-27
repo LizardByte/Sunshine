@@ -192,9 +192,7 @@ modules:
         dest-filename: cuda.run
 
   - name: sunshine
-    disabled: false
     buildsystem: cmake
-    no-make-install: false
     builddir: true
     build-options:
       append-path: /usr/lib/sdk/node18/bin
@@ -204,7 +202,7 @@ modules:
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
-      - -DSUNSHINE_EXECUTABLE_PATH="flatpak run --command=sunshine dev.lizardbyte.sunshine"
+      - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
@@ -228,4 +226,7 @@ modules:
       - sed -r -z -i -e
         's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
         /app/share/sunshine/apps.json
+      - sed -i
+        's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
+        /app/share/sunshine/systemd/user/sunshine.service
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin

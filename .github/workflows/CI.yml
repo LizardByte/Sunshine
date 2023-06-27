@@ -244,13 +244,13 @@ jobs:
         run: |
           sudo su $(whoami) -c '
             flatpak run org.flatpak.Builder --user --repo=local-repo --install-deps-from=flathub --stop-at=cuda \
-            --force-clean --arch=${{ matrix.arch }} --default-branch=master build-sunshine dev.lizardbyte.sunshine.yml
+            --force-clean --arch=${{ matrix.arch }} --default-branch=${{ github.ref_name }} build-sunshine dev.lizardbyte.sunshine.yml
           '
           # Make a copy of flatpak-builder cache before adding the CUDA module.
           cp -r .flatpak-builder copy-of-flatpak-builder
           sudo su $(whoami) -c '
             flatpak run org.flatpak.Builder --user --repo=local-repo --install-deps-from=flathub \
-            --force-clean --arch=${{ matrix.arch }} --default-branch=master build-sunshine dev.lizardbyte.sunshine.yml
+            --force-clean --arch=${{ matrix.arch }} --default-branch=${{ github.ref_name }} build-sunshine dev.lizardbyte.sunshine.yml
           '
           rm -rf .flatpak-builder
           mv copy-of-flatpak-builder .flatpak-builder
@@ -259,9 +259,9 @@ jobs:
         run: |
           flatpak repo --branches build/local-repo
           flatpak build-bundle build/local-repo --arch=${{ matrix.arch }} artifacts/sunshine_${{ matrix.arch }}.flatpak \
-            dev.lizardbyte.sunshine master
+            dev.lizardbyte.sunshine ${{ github.ref_name }}
           flatpak build-bundle --runtime build/local-repo --arch=${{ matrix.arch }} \
-            artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug master
+            artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug ${{ github.ref_name }}
 
       - name: Upload npm Sources Artifacts
         uses: actions/upload-artifact@v3
