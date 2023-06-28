@@ -173,7 +173,11 @@ modules:
       - "*"
     build-options:
       build-args:
-        - --filesystem=/home/runner/work/Sunshine/Sunshine/build/.flatpak-builder/downloads
+        # Value replaced in CI
+        - --filesystem=home
+      env:
+        # Value replaced in CI
+        WORKSPACE: .
       arch:
         x86_64:
           env:
@@ -183,7 +187,7 @@ modules:
             FOLDER: cd13e9c65d4c8f895a968706f46064d536be09f9706bce081cc864b7e4fa4544
     build-commands:
       # Remove CUDA installer from host
-      - rm -r /home/runner/work/Sunshine/Sunshine/build/.flatpak-builder/downloads/${FOLDER}
+      - rm -r ${WORKSPACE}/build/.flatpak-builder/downloads/${FOLDER}
       - chmod u+x ./cuda.run
       - ./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm
         --tmpdir=$FLATPAK_BUILDER_BUILDDIR
