@@ -169,7 +169,7 @@ jobs:
             npm \
             qemu-user-static
           sudo su $(whoami) -c '
-            flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+            flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           '
           sudo su $(whoami) -c '
             flatpak install flathub org.flatpak.Builder org.flathub.flatpak-external-data-checker -y
@@ -246,13 +246,13 @@ jobs:
         run: |
           sudo su $(whoami) -c '
             flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=local-repo --install-deps-from=flathub \
-            --force-clean --stop-at=cuda --default-branch=${{ github.ref_name }} build-sunshine dev.lizardbyte.sunshine.yml
+            --force-clean --stop-at=cuda --default-branch=${{ github.ref_name }} --user build-sunshine dev.lizardbyte.sunshine.yml
           '
           # Make a copy of flatpak-builder cache before adding the CUDA module.
           cp -r .flatpak-builder copy-of-flatpak-builder
           sudo su $(whoami) -c '
             flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=local-repo --install-deps-from=flathub \
-            --force-clean --default-branch=${{ github.ref_name }} build-sunshine dev.lizardbyte.sunshine.yml
+            --force-clean --default-branch=${{ github.ref_name }} --user build-sunshine dev.lizardbyte.sunshine.yml
           '
           rm -rf .flatpak-builder
           mv copy-of-flatpak-builder .flatpak-builder
