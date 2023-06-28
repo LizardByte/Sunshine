@@ -174,10 +174,10 @@ modules:
     build-options:
       build-args:
         # Value replaced in CI
-        - --filesystem=home
+        - --filesystem=""
       env:
         # Value replaced in CI
-        WORKSPACE: .
+        WORKSPACE: ""
       arch:
         x86_64:
           env:
