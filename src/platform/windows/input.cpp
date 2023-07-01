@@ -42,6 +42,122 @@ namespace platf {
     DS4_LIGHTBAR_COLOR /* led_color */,
     void *userdata);
 
+  struct gamepad_context_t {
+    target_t gp;
+    rumble_queue_t rumble_queue;
+
+    union {
+      XUSB_REPORT x360;
+      DS4_REPORT_EX ds4;
+    } report;
+  };
+
+  constexpr float EARTH_G = 9.80665f;
+
+#define MPS2_TO_DS4_ACCEL(x) (int32_t)(((x) / EARTH_G) * 8192)
+#define DPS_TO_DS4_GYRO(x) (int32_t)((x) * (1024 / 64))
+
+#define APPLY_CALIBRATION(val, bias, scale) (int32_t)(((float) (val) + (bias)) / (scale))
+
+  constexpr DS4_TOUCH ds4_touch_unused = {
+    .bPacketCounter = 0,
+    .bIsUpTrackingNum1 = 0x80,
+    .bTouchData1 = { 0x00, 0x00, 0x00 },
+    .bIsUpTrackingNum2 = 0x80,
+    .bTouchData2 = { 0x00, 0x00, 0x00 },
+  };
+
+  // See https://github.com/ViGEm/ViGEmBus/blob/22835473d17fbf0c4d4bb2f2d42fd692b6e44df4/sys/Ds4Pdo.cpp#L153-L164
+  constexpr DS4_REPORT_EX ds4_report_init_ex = {
+    { { .bThumbLX = 0x80,
+      .bThumbLY = 0x80,
+      .bThumbRX = 0x80,
+      .bThumbRY = 0x80,
+      .wButtons = DS4_BUTTON_DPAD_NONE,
+      .bSpecial = 0,
+      .bTriggerL = 0,
+      .bTriggerR = 0,
+      .wTimestamp = 0,
+      .bBatteryLvl = 99,
+      .wGyroX = 0,
+      .wGyroY = 0,
+      .wGyroZ = 0,
+      .wAccelX = 0,
+      .wAccelY = 0,
+      .wAccelZ = 0,
+      ._bUnknown1 = { 0x00, 0x00, 0x00, 0x00, 0x00 },
+      .bBatteryLvlSpecial = 0x10,  // Wired
+      ._bUnknown2 = { 0x00, 0x00 },
+      .bTouchPacketsN = 0,
+      .sCurrentTouch = ds4_touch_unused,
+      .sPreviousTouch = { ds4_touch_unused, ds4_touch_unused } } }
+  };
+
+  /**
+   * @brief Updates the DS4 input report with the provided motion data.
+   * @details Acceleration is in m/s^2 and gyro is in deg/s.
+   * @param gamepad The gamepad to update.
+   * @param motion_type The type of motion data.
+   * @param x X component of motion.
+   * @param y Y component of motion.
+   * @param z Z component of motion.
+   */
+  static void
+  ds4_update_motion(gamepad_context_t &gamepad, uint8_t motion_type, float x, float y, float z) {
+    auto &report = gamepad.report.ds4.Report;
+
+    // Use int32 to process this data, so we can clamp if needed.
+    int32_t intX, intY, intZ;
+
+    switch (motion_type) {
+      case LI_MOTION_TYPE_ACCEL:
+        // Convert to the DS4's accelerometer scale
+        intX = MPS2_TO_DS4_ACCEL(x);
+        intY = MPS2_TO_DS4_ACCEL(y);
+        intZ = MPS2_TO_DS4_ACCEL(z);
+
+        // Apply the inverse of ViGEmBus's calibration data
+        intX = APPLY_CALIBRATION(intX, -297, 1.010796f);
+        intY = APPLY_CALIBRATION(intY, -42, 1.014614f);
+        intZ = APPLY_CALIBRATION(intZ, -512, 1.024768f);
+        break;
+      case LI_MOTION_TYPE_GYRO:
+        // Convert to the DS4's gyro scale
+        intX = DPS_TO_DS4_GYRO(x);
+        intY = DPS_TO_DS4_GYRO(y);
+        intZ = DPS_TO_DS4_GYRO(z);
+
+        // Apply the inverse of ViGEmBus's calibration data
+        intX = APPLY_CALIBRATION(intX, 1, 0.977596f);
+        intY = APPLY_CALIBRATION(intY, 0, 0.972370f);
+        intZ = APPLY_CALIBRATION(intZ, 0, 0.971550f);
+        break;
+      default:
+        return;
+    }
+
+    // Clamp the values to the range of the data type
+    intX = std::clamp(intX, INT16_MIN, INT16_MAX);
+    intY = std::clamp(intY, INT16_MIN, INT16_MAX);
+    intZ = std::clamp(intZ, INT16_MIN, INT16_MAX);
+
+    // Populate the report
+    switch (motion_type) {
+      case LI_MOTION_TYPE_ACCEL:
+        report.wAccelX = (int16_t) intX;
+        report.wAccelY = (int16_t) intY;
+        report.wAccelZ = (int16_t) intZ;
+        break;
+      case LI_MOTION_TYPE_GYRO:
+        report.wGyroX = (int16_t) intX;
+        report.wGyroY = (int16_t) intY;
+        report.wGyroZ = (int16_t) intZ;
+        break;
+      default:
+        return;
+    }
+  }
+
   class vigem_t {
   public:
     int
@@ -62,32 +178,47 @@ namespace platf {
       return 0;
     }
 
+    /**
+     * @brief Attaches a new gamepad.
+     * @param nr The gamepad index.
+     * @param rumble_queue The queue to publish rumble packets.
+     * @param gp_type The type of gamepad.
+     * @return 0 on success.
+     */
     int
-    alloc_gamepad_interal(int nr, rumble_queue_t &rumble_queue, VIGEM_TARGET_TYPE gp_type) {
-      auto &[rumble, gp] = gamepads[nr];
-      assert(!gp);
+    alloc_gamepad_internal(int nr, rumble_queue_t &rumble_queue, VIGEM_TARGET_TYPE gp_type) {
+      auto &gamepad = gamepads[nr];
+      assert(!gamepad.gp);
 
       if (gp_type == Xbox360Wired) {
-        gp.reset(vigem_target_x360_alloc());
+        gamepad.gp.reset(vigem_target_x360_alloc());
+        XUSB_REPORT_INIT(&gamepad.report.x360);
       }
       else {
-        gp.reset(vigem_target_ds4_alloc());
+        gamepad.gp.reset(vigem_target_ds4_alloc());
+
+        // There is no equivalent DS4_REPORT_EX_INIT()
+        gamepad.report.ds4 = ds4_report_init_ex;
+
+        // Set initial accelerometer and gyro state
+        ds4_update_motion(gamepad, LI_MOTION_TYPE_ACCEL, 0.0f, EARTH_G, 0.0f);
+        ds4_update_motion(gamepad, LI_MOTION_TYPE_GYRO, 0.0f, 0.0f, 0.0f);
       }
 
-      auto status = vigem_target_add(client.get(), gp.get());
+      auto status = vigem_target_add(client.get(), gamepad.gp.get());
       if (!VIGEM_SUCCESS(status)) {
         BOOST_LOG(error) << "Couldn't add Gamepad to ViGEm connection ["sv << util::hex(status).to_string_view() << ']';
 
         return -1;
       }
 
-      rumble = std::move(rumble_queue);
+      gamepad.rumble_queue = std::move(rumble_queue);
 
       if (gp_type == Xbox360Wired) {
-        status = vigem_target_x360_register_notification(client.get(), gp.get(), x360_notify, this);
+        status = vigem_target_x360_register_notification(client.get(), gamepad.gp.get(), x360_notify, this);
       }
       else {
-        status = vigem_target_ds4_register_notification(client.get(), gp.get(), ds4_notify, this);
+        status = vigem_target_ds4_register_notification(client.get(), gamepad.gp.get(), ds4_notify, this);
       }
 
       if (!VIGEM_SUCCESS(status)) {
@@ -97,38 +228,51 @@ namespace platf {
       return 0;
     }
 
+    /**
+     * @brief Detaches the specified gamepad
+     * @param nr The gamepad.
+     */
     void
     free_target(int nr) {
-      auto &[_, gp] = gamepads[nr];
+      auto &gamepad = gamepads[nr];
 
-      if (gp && vigem_target_is_attached(gp.get())) {
-        auto status = vigem_target_remove(client.get(), gp.get());
+      if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
+        auto status = vigem_target_remove(client.get(), gamepad.gp.get());
         if (!VIGEM_SUCCESS(status)) {
           BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
         }
       }
 
-      gp.reset();
+      gamepad.gp.reset();
     }
 
+    /**
+     * @brief Pass rumble data back to the host.
+     * @param target The gamepad.
+     * @param smallMotor The small motor.
+     * @param largeMotor The large motor.
+     */
     void
     rumble(target_t::pointer target, std::uint8_t smallMotor, std::uint8_t largeMotor) {
       for (int x = 0; x < gamepads.size(); ++x) {
-        auto &[rumble_queue, gp] = gamepads[x];
+        auto &gamepad = gamepads[x];
 
-        if (gp.get() == target) {
-          rumble_queue->raise(x, ((std::uint16_t) smallMotor) << 8, ((std::uint16_t) largeMotor) << 8);
+        if (gamepad.gp.get() == target) {
+          gamepad.rumble_queue->raise(x, ((std::uint16_t) smallMotor) << 8, ((std::uint16_t) largeMotor) << 8);
 
           return;
         }
       }
     }
 
+    /**
+     * @brief vigem_t destructor.
+     */
     ~vigem_t() {
       if (client) {
-        for (auto &[_, gp] : gamepads) {
-          if (gp && vigem_target_is_attached(gp.get())) {
-            auto status = vigem_target_remove(client.get(), gp.get());
+        for (auto &gamepad : gamepads) {
+          if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
+            auto status = vigem_target_remove(client.get(), gamepad.gp.get());
             if (!VIGEM_SUCCESS(status)) {
               BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
             }
@@ -139,7 +283,7 @@ namespace platf {
       }
     }
 
-    std::vector<std::pair<rumble_queue_t, target_t>> gamepads;
+    std::vector<gamepad_context_t> gamepads;
 
     client_t client;
   };
@@ -461,7 +605,7 @@ namespace platf {
       selectedGamepadType = Xbox360Wired;
     }
 
-    return raw->vigem->alloc_gamepad_interal(nr, rumble_queue, selectedGamepadType);
+    return raw->vigem->alloc_gamepad_internal(nr, rumble_queue, selectedGamepadType);
   }
 
   void
@@ -475,11 +619,53 @@ namespace platf {
     raw->vigem->free_target(nr);
   }
 
-  static VIGEM_ERROR
-  x360_update(client_t::pointer client, target_t::pointer gp, const gamepad_state_t &gamepad_state) {
-    auto &xusb = *(PXUSB_REPORT) &gamepad_state;
+  /**
+   * @brief Converts the standard button flags into X360 format.
+   * @param gamepad_state The gamepad button/axis state sent from the client.
+   * @return XUSB_BUTTON flags.
+   */
+  static XUSB_BUTTON
+  x360_buttons(const gamepad_state_t &gamepad_state) {
+    int buttons {};
 
-    return vigem_target_x360_update(client, gp, xusb);
+    auto flags = gamepad_state.buttonFlags;
+    // clang-format off
+    if(flags & DPAD_UP)      buttons |= XUSB_GAMEPAD_DPAD_UP;
+    if(flags & DPAD_DOWN)    buttons |= XUSB_GAMEPAD_DPAD_DOWN;
+    if(flags & DPAD_LEFT)    buttons |= XUSB_GAMEPAD_DPAD_LEFT;
+    if(flags & DPAD_RIGHT)   buttons |= XUSB_GAMEPAD_DPAD_RIGHT;
+    if(flags & START)        buttons |= XUSB_GAMEPAD_START;
+    if(flags & BACK)         buttons |= XUSB_GAMEPAD_BACK;
+    if(flags & LEFT_STICK)   buttons |= XUSB_GAMEPAD_LEFT_THUMB;
+    if(flags & RIGHT_STICK)  buttons |= XUSB_GAMEPAD_RIGHT_THUMB;
+    if(flags & LEFT_BUTTON)  buttons |= XUSB_GAMEPAD_LEFT_SHOULDER;
+    if(flags & RIGHT_BUTTON) buttons |= XUSB_GAMEPAD_RIGHT_SHOULDER;
+    if(flags & HOME)         buttons |= XUSB_GAMEPAD_GUIDE;
+    if(flags & A)            buttons |= XUSB_GAMEPAD_A;
+    if(flags & B)            buttons |= XUSB_GAMEPAD_B;
+    if(flags & X)            buttons |= XUSB_GAMEPAD_X;
+    if(flags & Y)            buttons |= XUSB_GAMEPAD_Y;
+    // clang-format on
+
+    return (XUSB_BUTTON) buttons;
+  }
+
+  /**
+   * @brief Updates the X360 input report with the provided gamepad state.
+   * @param gamepad The gamepad to update.
+   * @param gamepad_state The gamepad button/axis state sent from the client.
+   */
+  static void
+  x360_update_state(gamepad_context_t &gamepad, const gamepad_state_t &gamepad_state) {
+    auto &report = gamepad.report.x360;
+
+    report.wButtons = x360_buttons(gamepad_state);
+    report.bLeftTrigger = gamepad_state.lt;
+    report.bRightTrigger = gamepad_state.rt;
+    report.sThumbLX = gamepad_state.lsX;
+    report.sThumbLY = gamepad_state.lsY;
+    report.sThumbRX = gamepad_state.rsX;
+    report.sThumbRY = gamepad_state.rsY;
   }
 
   static DS4_DPAD_DIRECTIONS
@@ -520,25 +706,30 @@ namespace platf {
     return DS4_BUTTON_DPAD_NONE;
   }
 
+  /**
+   * @brief Converts the standard button flags into DS4 format.
+   * @param gamepad_state The gamepad button/axis state sent from the client.
+   * @return DS4_BUTTONS flags.
+   */
   static DS4_BUTTONS
   ds4_buttons(const gamepad_state_t &gamepad_state) {
     int buttons {};
 
     auto flags = gamepad_state.buttonFlags;
     // clang-format off
-  if(flags & LEFT_STICK)   buttons |= DS4_BUTTON_THUMB_LEFT;
-  if(flags & RIGHT_STICK)  buttons |= DS4_BUTTON_THUMB_RIGHT;
-  if(flags & LEFT_BUTTON)  buttons |= DS4_BUTTON_SHOULDER_LEFT;
-  if(flags & RIGHT_BUTTON) buttons |= DS4_BUTTON_SHOULDER_RIGHT;
-  if(flags & START)        buttons |= DS4_BUTTON_OPTIONS;
-  if(flags & BACK)         buttons |= DS4_BUTTON_SHARE;
-  if(flags & A)            buttons |= DS4_BUTTON_CROSS;
-  if(flags & B)            buttons |= DS4_BUTTON_CIRCLE;
-  if(flags & X)            buttons |= DS4_BUTTON_SQUARE;
-  if(flags & Y)            buttons |= DS4_BUTTON_TRIANGLE;
+    if(flags & LEFT_STICK)   buttons |= DS4_BUTTON_THUMB_LEFT;
+    if(flags & RIGHT_STICK)  buttons |= DS4_BUTTON_THUMB_RIGHT;
+    if(flags & LEFT_BUTTON)  buttons |= DS4_BUTTON_SHOULDER_LEFT;
+    if(flags & RIGHT_BUTTON) buttons |= DS4_BUTTON_SHOULDER_RIGHT;
+    if(flags & START)        buttons |= DS4_BUTTON_OPTIONS;
+    if(flags & BACK)         buttons |= DS4_BUTTON_SHARE;
+    if(flags & A)            buttons |= DS4_BUTTON_CROSS;
+    if(flags & B)            buttons |= DS4_BUTTON_CIRCLE;
+    if(flags & X)            buttons |= DS4_BUTTON_SQUARE;
+    if(flags & Y)            buttons |= DS4_BUTTON_TRIANGLE;
 
-  if(gamepad_state.lt > 0) buttons |= DS4_BUTTON_TRIGGER_LEFT;
-  if(gamepad_state.rt > 0) buttons |= DS4_BUTTON_TRIGGER_RIGHT;
+    if(gamepad_state.lt > 0) buttons |= DS4_BUTTON_TRIGGER_LEFT;
+    if(gamepad_state.rt > 0) buttons |= DS4_BUTTON_TRIGGER_RIGHT;
     // clang-format on
 
     return (DS4_BUTTONS) buttons;
@@ -568,13 +759,16 @@ namespace platf {
     return new_v == 0 ? 0xFF : (std::uint8_t) new_v;
   }
 
-  static VIGEM_ERROR
-  ds4_update(client_t::pointer client, target_t::pointer gp, const gamepad_state_t &gamepad_state) {
-    DS4_REPORT report;
+  /**
+   * @brief Updates the DS4 input report with the provided gamepad state.
+   * @param gamepad The gamepad to update.
+   * @param gamepad_state The gamepad button/axis state sent from the client.
+   */
+  static void
+  ds4_update_state(gamepad_context_t &gamepad, const gamepad_state_t &gamepad_state) {
+    auto &report = gamepad.report.ds4.Report;
 
-    DS4_REPORT_INIT(&report);
-    DS4_SET_DPAD(&report, ds4_dpad(gamepad_state));
-    report.wButtons |= ds4_buttons(gamepad_state);
+    report.wButtons = ds4_buttons(gamepad_state) | ds4_dpad(gamepad_state);
     report.bSpecial = ds4_special_buttons(gamepad_state);
 
     report.bTriggerL = gamepad_state.lt;
@@ -585,10 +779,14 @@ namespace platf {
 
     report.bThumbRX = to_ds4_triggerX(gamepad_state.rsX);
     report.bThumbRY = to_ds4_triggerY(gamepad_state.rsY);
-
-    return vigem_target_ds4_update(client, gp, report);
   }
 
+  /**
+   * @brief Updates virtual gamepad with the provided gamepad state.
+   * @param input The input context.
+   * @param nr The gamepad index to update.
+   * @param gamepad_state The gamepad button/axis state sent from the client.
+   */
   void
   gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     auto vigem = ((input_raw_t *) input.get())->vigem;
@@ -598,15 +796,17 @@ namespace platf {
       return;
     }
 
-    auto &[_, gp] = vigem->gamepads[nr];
+    auto &gamepad = vigem->gamepads[nr];
 
     VIGEM_ERROR status;
 
-    if (vigem_target_get_type(gp.get()) == Xbox360Wired) {
-      status = x360_update(vigem->client.get(), gp.get(), gamepad_state);
+    if (vigem_target_get_type(gamepad.gp.get()) == Xbox360Wired) {
+      x360_update_state(gamepad, gamepad_state);
+      status = vigem_target_x360_update(vigem->client.get(), gamepad.gp.get(), gamepad.report.x360);
     }
     else {
-      status = ds4_update(vigem->client.get(), gp.get(), gamepad_state);
+      ds4_update_state(gamepad, gamepad_state);
+      status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
     }
 
     if (!VIGEM_SUCCESS(status)) {
