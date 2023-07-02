@@ -134,9 +134,11 @@ pkg_check_modules(CURL REQUIRED libcurl)
 
 if(WIN32)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
+    # 1.82.0+ is required for boost::json::value::set_at_pointer() support
+    find_package(Boost 1.82.0 COMPONENTS locale log filesystem program_options json REQUIRED)
+else()
+    find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
 endif()
-
-find_package(Boost COMPONENTS locale log filesystem program_options REQUIRED)
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
 
@@ -154,6 +156,12 @@ if(WIN32)
 
     add_compile_definitions(SUNSHINE_PLATFORM="windows")
     add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
+
+    include_directories(SYSTEM third-party/nvapi-opensource)
+    file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
+            "third-party/nvapi-opensource/*.h"
+            "src/platform/windows/nvprefs/*.cpp"
+            "src/platform/windows/nvprefs/*.h")
 
     include_directories(SYSTEM third-party/ViGEmClient/include)
 
@@ -177,7 +185,8 @@ if(WIN32)
             third-party/ViGEmClient/include/ViGEm/Client.h
             third-party/ViGEmClient/include/ViGEm/Common.h
             third-party/ViGEmClient/include/ViGEm/Util.h
-            third-party/ViGEmClient/include/ViGEm/km/BusShared.h)
+            third-party/ViGEmClient/include/ViGEm/km/BusShared.h
+            ${NVPREFS_FILES})
 
     set(OPENSSL_LIBRARIES
             libssl.a
@@ -762,6 +771,7 @@ if(WIN32) # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.h
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\sunshine.exe\\\" --restore-nvprefs-undo'
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove ViGEmBus)?' \
             /SD IDNO IDNO NoVigem
