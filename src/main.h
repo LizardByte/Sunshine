@@ -17,6 +17,12 @@
 #include "thread_pool.h"
 #include "thread_safe.h"
 
+#ifdef _WIN32
+  // Declare global singleton used for NVIDIA control panel modifications
+  #include "platform/windows/nvprefs/nvprefs_interface.h"
+extern nvprefs::nvprefs_interface nvprefs_instance;
+#endif
+
 extern thread_pool_util::ThreadPool task_pool;
 extern bool display_cursor;
 
