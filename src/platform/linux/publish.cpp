@@ -55,10 +55,10 @@ namespace avahi {
 
     ERR_NOT_FOUND = -30, /**< Not found */
     ERR_INVALID_CONFIG = -31, /**< Configuration error */
-    ERR_VERSION_MISMATCH = -32, /**< Verson mismatch */
+    ERR_VERSION_MISMATCH = -32, /**< Version mismatch */
     ERR_INVALID_SERVICE_SUBTYPE = -33, /**< Invalid service subtype */
     ERR_INVALID_PACKET = -34, /**< Invalid packet */
-    ERR_INVALID_DNS_ERROR = -35, /**< Invlaid DNS return code */
+    ERR_INVALID_DNS_ERROR = -35, /**< Invalid DNS return code */
     ERR_DNS_FORMERR = -36, /**< DNS Error: Form error */
     ERR_DNS_SERVFAIL = -37, /**< DNS Error: Server Failure */
     ERR_DNS_NXDOMAIN = -38, /**< DNS Error: No such domain */
@@ -107,7 +107,7 @@ namespace avahi {
   };
 
   enum EntryGroupState {
-    ENTRY_GROUP_UNCOMMITED, /**< The group has not yet been commited, the user must still call avahi_entry_group_commit() */
+    ENTRY_GROUP_UNCOMMITED, /**< The group has not yet been committed, the user must still call avahi_entry_group_commit() */
     ENTRY_GROUP_REGISTERING, /**< The entries of the group are currently being registered */
     ENTRY_GROUP_ESTABLISHED, /**< The entries have successfully been established */
     ENTRY_GROUP_COLLISION, /**< A name collision for one of the entries in the group has been detected, the entries have been withdrawn */
