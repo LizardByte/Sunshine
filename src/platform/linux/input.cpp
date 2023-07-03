@@ -884,7 +884,7 @@ namespace platf {
 
       // on error
       if (polls_recv[x].revents & (POLLHUP | POLLRDHUP | POLLERR)) {
-        BOOST_LOG(warning) << "Gamepad ["sv << x << "] file discriptor closed unexpectedly"sv;
+        BOOST_LOG(warning) << "Gamepad ["sv << x << "] file descriptor closed unexpectedly"sv;
 
         polls.erase(poll);
         effects.erase(effect_it);
