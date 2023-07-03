@@ -1070,7 +1070,7 @@ namespace platf::dxgi {
       auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
 
       // Finish creating the image (if it hasn't happened already),
-      // also creates synchonization primitives for shared access from multiple direct3d devices.
+      // also creates synchronization primitives for shared access from multiple direct3d devices.
       if (complete_img(d3d_img.get(), dummy)) return { nullptr, nullptr };
 
       // This image is shared between capture direct3d device and encoders direct3d devices,

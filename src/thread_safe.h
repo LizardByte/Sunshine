@@ -38,7 +38,7 @@ namespace safe {
       _cv.notify_all();
     }
 
-    // pop and view shoud not be used interchangeably
+    // pop and view should not be used interchangeably
     status_t
     pop() {
       std::unique_lock ul { _lock };
@@ -60,7 +60,7 @@ namespace safe {
       return val;
     }
 
-    // pop and view shoud not be used interchangeably
+    // pop and view should not be used interchangeably
     template <class Rep, class Period>
     status_t
     pop(std::chrono::duration<Rep, Period> delay) {
@@ -81,7 +81,7 @@ namespace safe {
       return val;
     }
 
-    // pop and view shoud not be used interchangeably
+    // pop and view should not be used interchangeably
     const status_t &
     view() {
       std::unique_lock ul { _lock };
@@ -101,7 +101,7 @@ namespace safe {
       return _status;
     }
 
-    // pop and view shoud not be used interchangeably
+    // pop and view should not be used interchangeably
     template <class Rep, class Period>
     status_t
     view(std::chrono::duration<Rep, Period> delay) {
