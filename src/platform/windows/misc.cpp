@@ -751,7 +751,7 @@ namespace platf {
           for (DWORD i = 0; i < wlan_interface_list->dwNumberOfItems; i++) {
             if (wlan_interface_list->InterfaceInfo[i].isState == wlan_interface_state_connected) {
               // Enable media streaming mode for 802.11 wireless interfaces to reduce latency and
-              // unneccessary background scanning operations that cause packet loss and jitter.
+              // unnecessary background scanning operations that cause packet loss and jitter.
               //
               // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
               // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
