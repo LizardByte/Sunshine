@@ -193,7 +193,7 @@ namespace gl {
     ctx.AttachShader(program.handle(), frag.handle());
 
     // p_handle stores a copy of the program handle, since program will be moved before
-    // the fail guard funcion is called.
+    // the fail guard function is called.
     auto fg = util::fail_guard([p_handle = program.handle(), &vert, &frag]() {
       ctx.DetachShader(p_handle, vert.handle());
       ctx.DetachShader(p_handle, frag.handle());

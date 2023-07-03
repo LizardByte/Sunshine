@@ -298,7 +298,7 @@ namespace platf {
      *                        from the pool. If backend uses multiple threads, calls to this
      *                        callback must be synchronized. Calls to this callback and
      *                        push_captured_image_cb must be synchronized as well.
-     * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
+     * bool *cursor --> A pointer to the flag that indicates whether the cursor should be captured as well
      *
      * Returns either:
      *    capture_e::ok when stopping
@@ -383,7 +383,7 @@ namespace platf {
   /**
    * display_name --> The name of the monitor that SHOULD be displayed
    *    If display_name is empty --> Use the first monitor that's compatible you can find
-   *    If you require to use this parameter in a seperate thread --> make a copy of it.
+   *    If you require to use this parameter in a separate thread --> make a copy of it.
    *
    * config --> Stream configuration
    *

@@ -183,7 +183,7 @@ namespace cuda {
 
     int width, height;
 
-    // When heigth and width don't change, it's not necessary to use linear interpolation
+    // When height and width don't change, it's not necessary to use linear interpolation
     bool linear_interpolation;
 
     sws_t sws;

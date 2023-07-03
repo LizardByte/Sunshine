@@ -1971,7 +1971,7 @@ namespace video {
 
   /**
    * This is called once at startup and each time a stream is launched to
-   * ensure the best encoder is selected. Encoder availablility can change
+   * ensure the best encoder is selected. Encoder availability can change
    * at runtime due to all sorts of things from driver updates to eGPUs.
    *
    * This is only safe to call when there is no client actively streaming.

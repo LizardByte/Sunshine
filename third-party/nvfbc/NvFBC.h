@@ -654,7 +654,7 @@ typedef struct _NVFBC_CREATE_HANDLE_PARAMS {
   /*!
    * [in] Whether NvFBC should not create and manage its own graphics context
    *
-   * NvFBC internally uses OpenGL to perfom graphics operations on the
+   * NvFBC internally uses OpenGL to perform graphics operations on the
    * captured frames.  By default, NvFBC will create and manage (e.g., make
    * current, detect new threads, etc.) its own OpenGL context.
    *
@@ -866,7 +866,7 @@ typedef struct _NVFBC_CREATE_CAPTURE_SESSION_PARAMS {
   /*!
    * [in] Whether NvFBC should not attempt to recover from modesets.
    *
-   * NvFBC is able to detect when a modeset event occured and can automatically
+   * NvFBC is able to detect when a modeset event occurred and can automatically
    * re-create a capture session with the same settings as before, then resume
    * its frame capture session transparently.
    *
@@ -1562,7 +1562,7 @@ NvFBCCreateHandle(NVFBC_SESSION_HANDLE *pSessionHandle, NVFBC_CREATE_HANDLE_PARA
  *
  * This function implicitly calls NvFBCReleaseContext().
  *
- * After this fucntion returns, it is not possible to use this session handle
+ * After this function returns, it is not possible to use this session handle
  * for any further API call.
  *
  * \param [in] sessionHandle
@@ -1643,7 +1643,7 @@ NvFBCBindContext(const NVFBC_SESSION_HANDLE sessionHandle, NVFBC_BIND_CONTEXT_PA
  * If the FBC context is bound to a different thread, ::NVFBC_ERR_CONTEXT is
  * returned.
  *
- * If the FBC context is already released, this functino has no effects.
+ * If the FBC context is already released, this function has no effects.
  *
  * \param [in] sessionHandle
  *   FBC session handle.

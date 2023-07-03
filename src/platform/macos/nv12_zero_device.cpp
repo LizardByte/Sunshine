@@ -82,7 +82,7 @@ namespace platf {
     this->resolution_fn = resolution_fn;
 
     // we never use this pointer but it's existence is checked/used
-    // by the platform independed code
+    // by the platform independent code
     data = this;
 
     return 0;

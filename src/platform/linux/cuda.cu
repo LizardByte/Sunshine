@@ -198,10 +198,10 @@ __global__ void RGBA_to_NV12(
 
   dstUV[0] = uv.x;
   dstUV[1] = uv.y;
-  dstY0[0]  = calcY(rgb_lt, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
-  dstY0[1]  = calcY(rgb_rt, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
-  dstY1[0]  = calcY(rgb_lb, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
-  dstY1[1]  = calcY(rgb_rb, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visisble
+  dstY0[0]  = calcY(rgb_lt, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visible
+  dstY0[1]  = calcY(rgb_rt, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visible
+  dstY1[0]  = calcY(rgb_lb, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visible
+  dstY1[1]  = calcY(rgb_rb, color_matrix) * 245.0f; // 245.0f is a magic number to ensure slight changes in luminosity are more visible
 }
 
 int tex_t::copy(std::uint8_t *src, int height, int pitch) {
