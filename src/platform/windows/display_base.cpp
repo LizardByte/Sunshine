@@ -510,7 +510,11 @@ namespace platf::dxgi {
         PD3DKMTSetProcessSchedulingPriorityClass fn =
           (PD3DKMTSetProcessSchedulingPriorityClass) GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
         if (fn) {
-          status = fn(GetCurrentProcess(), D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME);
+          // Set scheduling priority to "high" for NVIDIA, or to "realtime" for other gpu vendors
+          // As of 2023.07, NVIDIA driver has unfixed bug(s) where "realtime" can cause unrecoverable encoding freeze or outright driver crash
+          // This issue happens more frequently with HAGS, in DX12 games or when VRAM is filled close to max capacity
+          // Track OBS to see if they find better workaround or NVIDIA fixes it on their end, they seem to be in communication
+          status = fn(GetCurrentProcess(), adapter_desc.VendorId == 0x10DE ? D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH : D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME);
           if (FAILED(status)) {
             BOOST_LOG(warning) << "Failed to set realtime GPU priority. Please run application as administrator for optimal performance.";
           }
