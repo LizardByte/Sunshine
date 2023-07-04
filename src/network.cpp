@@ -106,7 +106,7 @@ namespace net {
     enet_address_set_host(&addr, "0.0.0.0");
     enet_address_set_port(&addr, port);
 
-    return host_t { enet_host_create(AF_INET, &addr, peers, 1, 0, 0) };
+    return host_t { enet_host_create(AF_INET, &addr, peers, 0, 0, 0) };
   }
 
   void
