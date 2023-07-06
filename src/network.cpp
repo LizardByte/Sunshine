@@ -19,7 +19,8 @@ namespace net {
     ip_block("192.168.0.0/16"sv),
     ip_block("172.16.0.0/12"sv),
     ip_block("10.0.0.0/8"sv),
-    ip_block("100.64.0.0/10"sv)
+    ip_block("100.64.0.0/10"sv),
+    ip_block("169.254.0.0/16"sv)
   };
 
   std::uint32_t
