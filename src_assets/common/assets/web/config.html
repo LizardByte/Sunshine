@@ -94,10 +94,11 @@
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="gamepad" class="form-label">Gamepads</label>
         <select id="gamepad" class="form-select" v-model="config.gamepad">
+          <option value="auto">Automatic</option>
           <option value="ds4">DS4 (PS4)</option>
           <option value="x360">X360 (Xbox 360)</option>
         </select>
-        <div class="form-text">Choose which type of gamepad to Emulate on the host</div>
+        <div class="form-text">Choose which type of gamepad to emulate on the host</div>
       </div>
       <!--Ping Timeout-->
       <div class="mb-3">
@@ -1029,7 +1030,7 @@
     "dwmflush": "enabled",
     "encoder": "",
     "fps": "[10,30,60,90,120]",
-    "gamepad": "x360",
+    "gamepad": "auto",
     "hevc_mode": 0,
     "key_rightalt_to_key_win": "disabled",
     "keyboard": "enabled",

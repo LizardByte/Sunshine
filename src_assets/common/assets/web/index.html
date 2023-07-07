@@ -90,7 +90,7 @@
         this.version = (await fetch("/api/config").then((r) => r.json())).version;
         this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
         if (this.buildVersionIsNightly) {
-          this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&status=success&per_page=1").then((r) => r.json())).workflow_runs[0];
+          this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&event=push&exclude_pull_requests=true&per_page=1").then((r) => r.json())).workflow_runs[0];
         }
       } catch(e){
       }
