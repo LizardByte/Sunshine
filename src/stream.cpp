@@ -759,7 +759,6 @@ namespace stream {
         std::copy(payload.end() - 16, payload.end(), std::begin(iv));
       }
 
-      input::print(plaintext.data());
       input::passthrough(session->input, std::move(plaintext));
     });
 
@@ -818,7 +817,6 @@ namespace stream {
       constexpr auto skip = sizeof(std::uint16_t) * 2;
       plaintext.erase(std::begin(plaintext), std::begin(plaintext) + skip);
 
-      input::print(plaintext.data());
       input::passthrough(session->input, std::move(plaintext));
     });
 

@@ -285,7 +285,6 @@ jobs:
               libboost-locale1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
-              libboost-thread1.71-dev \
               libboost-program-options1.71-dev
 
             # Install cmake
@@ -311,7 +310,6 @@ jobs:
               libboost-filesystem-dev \
               libboost-locale-dev \
               libboost-log-dev \
-              libboost-thread-dev \
               libboost-program-options-dev
           fi
 
