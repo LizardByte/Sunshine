@@ -24,6 +24,7 @@ namespace rtsp_stream {
     int fps;
     int gcmap;
     int appid;
+    int surround_info;
     bool enable_hdr;
     bool enable_sops;
   };
