@@ -178,6 +178,13 @@ jobs:
             org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
             "
 
+      - name: Create Additional Disk Space
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo docker rmi $(docker images -a -q)
+          df -h
+
       - name: Cache Flatpak build
         uses: actions/cache@v3
         with:
