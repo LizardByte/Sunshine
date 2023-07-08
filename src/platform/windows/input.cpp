@@ -516,6 +516,7 @@ namespace platf {
       case VK_LEFT:
       case VK_RIGHT:
       case VK_DIVIDE:
+      case VK_APPS:
         ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
         break;
       default:
