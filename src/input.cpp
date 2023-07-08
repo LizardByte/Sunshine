@@ -1228,6 +1228,10 @@ namespace input {
       }
 
       for (auto &kp : key_press) {
+        if (!kp.second) {
+          // already released
+          continue;
+        }
         platf::keyboard(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
         key_press[kp.first] = false;
       }
