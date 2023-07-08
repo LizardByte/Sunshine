@@ -185,6 +185,32 @@ namespace platf {
     std::uint32_t supportedButtons;
   };
 
+  struct gamepad_touch_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t eventType;
+    std::uint32_t pointerId;
+    float x;
+    float y;
+    float pressure;
+  };
+
+  struct gamepad_motion_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t motionType;
+
+    // Accel: m/s^2
+    // Gyro: deg/s
+    float x;
+    float y;
+    float z;
+  };
+
+  struct gamepad_battery_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t state;
+    std::uint8_t percentage;
+  };
+
   class deinit_t {
   public:
     virtual ~deinit_t() = default;
@@ -469,6 +495,30 @@ namespace platf {
   gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
   void
   unicode(input_t &input, char *utf8, int size);
+
+  /**
+   * @brief Sends a gamepad touch event to the OS.
+   * @param input The input context.
+   * @param touch The touch event.
+   */
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch);
+
+  /**
+   * @brief Sends a gamepad motion event to the OS.
+   * @param input The input context.
+   * @param motion The motion event.
+   */
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion);
+
+  /**
+   * @brief Sends a gamepad battery event to the OS.
+   * @param input The input context.
+   * @param battery The battery event.
+   */
+  void
+  gamepad_battery(input_t &input, const gamepad_battery_t &battery);
 
   /**
    * @brief Creates a new virtual gamepad.
