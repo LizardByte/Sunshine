@@ -22,6 +22,8 @@ extern "C" {
 #include "thread_pool.h"
 #include "utility.h"
 
+#include <boost/endian/buffers.hpp>
+
 using namespace std::literals;
 namespace input {
 
@@ -76,6 +78,16 @@ namespace input {
   uint8_t
   flags_from_kpid(key_press_id_t kpid) {
     return kpid & 0xFF;
+  }
+
+  /**
+   * @brief Converts a little-endian netfloat to a native endianness float.
+   * @param f Netfloat value.
+   * @return Float value.
+   */
+  float
+  from_netfloat(netfloat f) {
+    return boost::endian::endian_load<float, sizeof(float), boost::endian::order::little>(f);
   }
 
   static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
@@ -279,6 +291,53 @@ namespace input {
       << "--end controller arrival packet--"sv;
   }
 
+  /**
+   * @brief Prints a controller touch packet.
+   * @param packet The controller touch packet.
+   */
+  void
+  print(PSS_CONTROLLER_TOUCH_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin controller touch packet--"sv << std::endl
+      << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "pressure ["sv << from_netfloat(packet->pressure) << ']' << std::endl
+      << "--end controller touch packet--"sv;
+  }
+
+  /**
+   * @brief Prints a controller motion packet.
+   * @param packet The controller motion packet.
+   */
+  void
+  print(PSS_CONTROLLER_MOTION_PACKET packet) {
+    BOOST_LOG(verbose)
+      << "--begin controller motion packet--"sv << std::endl
+      << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
+      << "motionType ["sv << util::hex(packet->motionType).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "z ["sv << from_netfloat(packet->z) << ']' << std::endl
+      << "--end controller motion packet--"sv;
+  }
+
+  /**
+   * @brief Prints a controller battery packet.
+   * @param packet The controller battery packet.
+   */
+  void
+  print(PSS_CONTROLLER_BATTERY_PACKET packet) {
+    BOOST_LOG(verbose)
+      << "--begin controller battery packet--"sv << std::endl
+      << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
+      << "batteryState ["sv << util::hex(packet->batteryState).to_string_view() << ']' << std::endl
+      << "batteryPercentage ["sv << util::hex(packet->batteryPercentage).to_string_view() << ']' << std::endl
+      << "--end controller battery packet--"sv;
+  }
+
   void
   print(void *payload) {
     auto header = (PNV_INPUT_HEADER) payload;
@@ -312,6 +371,15 @@ namespace input {
         break;
       case SS_CONTROLLER_ARRIVAL_MAGIC:
         print((PSS_CONTROLLER_ARRIVAL_PACKET) payload);
+        break;
+      case SS_CONTROLLER_TOUCH_MAGIC:
+        print((PSS_CONTROLLER_TOUCH_PACKET) payload);
+        break;
+      case SS_CONTROLLER_MOTION_MAGIC:
+        print((PSS_CONTROLLER_MOTION_PACKET) payload);
+        break;
+      case SS_CONTROLLER_BATTERY_MAGIC:
+        print((PSS_CONTROLLER_BATTERY_PACKET) payload);
         break;
     }
   }
@@ -714,6 +782,116 @@ namespace input {
     }
 
     input->gamepads[packet->controllerNumber].id = packet->controllerNumber;
+  }
+
+  /**
+   * @brief Called to pass a controller touch message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller touch packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
+    if (!config::input.controller) {
+      return;
+    }
+
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      return;
+    }
+
+    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      return;
+    }
+
+    auto &gamepad = input->gamepads[packet->controllerNumber];
+    if (gamepad.id < 0) {
+      return;
+    }
+
+    platf::gamepad_touch_t touch {
+      packet->controllerNumber,
+      packet->eventType,
+      util::endian::little(packet->pointerId),
+      from_netfloat(packet->x),
+      from_netfloat(packet->y),
+      from_netfloat(packet->pressure),
+    };
+
+    platf::gamepad_touch(platf_input, touch);
+  }
+
+  /**
+   * @brief Called to pass a controller motion message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller motion packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
+    if (!config::input.controller) {
+      return;
+    }
+
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      return;
+    }
+
+    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      return;
+    }
+
+    auto &gamepad = input->gamepads[packet->controllerNumber];
+    if (gamepad.id < 0) {
+      return;
+    }
+
+    platf::gamepad_motion_t motion {
+      packet->controllerNumber,
+      packet->motionType,
+      from_netfloat(packet->x),
+      from_netfloat(packet->y),
+      from_netfloat(packet->z),
+    };
+
+    platf::gamepad_motion(platf_input, motion);
+  }
+
+  /**
+   * @brief Called to pass a controller battery message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller battery packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
+    if (!config::input.controller) {
+      return;
+    }
+
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      return;
+    }
+
+    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      return;
+    }
+
+    auto &gamepad = input->gamepads[packet->controllerNumber];
+    if (gamepad.id < 0) {
+      return;
+    }
+
+    platf::gamepad_battery_t battery {
+      packet->controllerNumber,
+      packet->batteryState,
+      packet->batteryPercentage
+    };
+
+    platf::gamepad_battery(platf_input, battery);
   }
 
   void
@@ -1195,6 +1373,15 @@ namespace input {
         break;
       case SS_CONTROLLER_ARRIVAL_MAGIC:
         passthrough(input, (PSS_CONTROLLER_ARRIVAL_PACKET) payload);
+        break;
+      case SS_CONTROLLER_TOUCH_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_TOUCH_PACKET) payload);
+        break;
+      case SS_CONTROLLER_MOTION_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_MOTION_PACKET) payload);
+        break;
+      case SS_CONTROLLER_BATTERY_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_BATTERY_PACKET) payload);
         break;
     }
   }
