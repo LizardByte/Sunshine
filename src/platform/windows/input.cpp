@@ -42,6 +42,12 @@ namespace platf {
     DS4_LIGHTBAR_COLOR /* led_color */,
     void *userdata);
 
+  struct gp_touch_context_t {
+    uint8_t pointerIndex;
+    uint16_t x;
+    uint16_t y;
+  };
+
   struct gamepad_context_t {
     target_t gp;
     feedback_queue_t feedback_queue;
@@ -50,6 +56,10 @@ namespace platf {
       XUSB_REPORT x360;
       DS4_REPORT_EX ds4;
     } report;
+
+    // Map from pointer ID to pointer index
+    std::map<uint32_t, uint8_t> pointer_id_map;
+    uint8_t available_pointers;
 
     gamepad_feedback_msg_t last_rumble;
     gamepad_feedback_msg_t last_rgb_led;
@@ -81,7 +91,7 @@ namespace platf {
       .bTriggerL = 0,
       .bTriggerR = 0,
       .wTimestamp = 0,
-      .bBatteryLvl = 99,
+      .bBatteryLvl = 0xFF,
       .wGyroX = 0,
       .wGyroY = 0,
       .wGyroZ = 0,
@@ -89,9 +99,9 @@ namespace platf {
       .wAccelY = 0,
       .wAccelZ = 0,
       ._bUnknown1 = { 0x00, 0x00, 0x00, 0x00, 0x00 },
-      .bBatteryLvlSpecial = 0x10,  // Wired
+      .bBatteryLvlSpecial = 0x1A,  // Wired - Full battery
       ._bUnknown2 = { 0x00, 0x00 },
-      .bTouchPacketsN = 0,
+      .bTouchPacketsN = 1,
       .sCurrentTouch = ds4_touch_unused,
       .sPreviousTouch = { ds4_touch_unused, ds4_touch_unused } } }
   };
@@ -206,6 +216,13 @@ namespace platf {
         // Set initial accelerometer and gyro state
         ds4_update_motion(gamepad, LI_MOTION_TYPE_ACCEL, 0.0f, EARTH_G, 0.0f);
         ds4_update_motion(gamepad, LI_MOTION_TYPE_GYRO, 0.0f, 0.0f, 0.0f);
+
+        // Request motion events from the client at 100 Hz
+        feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(nr, LI_MOTION_TYPE_ACCEL, 100));
+        feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(nr, LI_MOTION_TYPE_GYRO, 100));
+
+        // We support pointer index 0 and 1
+        gamepad.available_pointers = 0x3;
       }
 
       auto status = vigem_target_add(client.get(), gamepad.gp.get());
@@ -828,6 +845,9 @@ namespace platf {
     }
 
     auto &gamepad = vigem->gamepads[nr];
+    if (!gamepad.gp) {
+      return;
+    }
 
     VIGEM_ERROR status;
 
@@ -852,7 +872,97 @@ namespace platf {
    */
   void
   gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
-    // Unimplemented feature - platform_caps::controller_touch
+    auto vigem = ((input_raw_t *) input.get())->vigem;
+
+    // If there is no gamepad support
+    if (!vigem) {
+      return;
+    }
+
+    auto &gamepad = vigem->gamepads[touch.gamepadNumber];
+    if (!gamepad.gp) {
+      return;
+    }
+
+    // Touch is only supported on DualShock 4 controllers
+    if (vigem_target_get_type(gamepad.gp.get()) != DualShock4Wired) {
+      return;
+    }
+
+    auto &report = gamepad.report.ds4.Report;
+
+    uint8_t pointerIndex;
+    if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+      if (gamepad.available_pointers & 0x1) {
+        // Reserve pointer index 0 for this touch
+        gamepad.pointer_id_map[touch.pointerId] = pointerIndex = 0;
+        gamepad.available_pointers &= ~(1 << pointerIndex);
+
+        // Set pointer 0 down
+        report.sCurrentTouch.bIsUpTrackingNum1 &= ~0x80;
+        report.sCurrentTouch.bIsUpTrackingNum1++;
+      }
+      else if (gamepad.available_pointers & 0x2) {
+        // Reserve pointer index 1 for this touch
+        gamepad.pointer_id_map[touch.pointerId] = pointerIndex = 1;
+        gamepad.available_pointers &= ~(1 << pointerIndex);
+
+        // Set pointer 1 down
+        report.sCurrentTouch.bIsUpTrackingNum2 &= ~0x80;
+        report.sCurrentTouch.bIsUpTrackingNum2++;
+      }
+      else {
+        BOOST_LOG(warning) << "No more free pointer indices! Did the client miss an touch up event?"sv;
+        return;
+      }
+    }
+    else {
+      auto i = gamepad.pointer_id_map.find(touch.pointerId);
+      if (i == gamepad.pointer_id_map.end()) {
+        BOOST_LOG(warning) << "Pointer ID not found! Did the client miss a touch down event?"sv;
+        return;
+      }
+
+      pointerIndex = (*i).second;
+
+      if (touch.eventType == LI_TOUCH_EVENT_UP) {
+        // Remove the pointer index mapping
+        gamepad.pointer_id_map.erase(i);
+
+        // Set pointer up
+        if (pointerIndex == 0) {
+          report.sCurrentTouch.bIsUpTrackingNum1 |= 0x80;
+        }
+        else {
+          report.sCurrentTouch.bIsUpTrackingNum2 |= 0x80;
+        }
+
+        // Free the pointer index
+        gamepad.available_pointers |= (1 << pointerIndex);
+      }
+    }
+
+    // Touchpad is 1920x943 according to ViGEm
+    uint16_t x = touch.x * 1920;
+    uint16_t y = touch.y * 943;
+    uint8_t touchData[] = {
+      (uint8_t) (x & 0xFF),  // Low 8 bits of X
+      (uint8_t) (((x >> 8) & 0x0F) | ((y & 0x0F) << 4)),  // High 4 bits of X and low 4 bits of Y
+      (uint8_t) (((y >> 4) & 0xFF))  // High 8 bits of Y
+    };
+
+    report.sCurrentTouch.bPacketCounter++;
+    if (pointerIndex == 0) {
+      memcpy(report.sCurrentTouch.bTouchData1, touchData, sizeof(touchData));
+    }
+    else {
+      memcpy(report.sCurrentTouch.bTouchData2, touchData, sizeof(touchData));
+    }
+
+    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
+    if (!VIGEM_SUCCESS(status)) {
+      BOOST_LOG(warning) << "Couldn't send gamepad touch input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+    }
   }
 
   /**
@@ -862,7 +972,29 @@ namespace platf {
    */
   void
   gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
-    // Unimplemented
+    auto vigem = ((input_raw_t *) input.get())->vigem;
+
+    // If there is no gamepad support
+    if (!vigem) {
+      return;
+    }
+
+    auto &gamepad = vigem->gamepads[motion.gamepadNumber];
+    if (!gamepad.gp) {
+      return;
+    }
+
+    // Motion is only supported on DualShock 4 controllers
+    if (vigem_target_get_type(gamepad.gp.get()) != DualShock4Wired) {
+      return;
+    }
+
+    ds4_update_motion(gamepad, motion.motionType, motion.x, motion.y, motion.z);
+
+    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
+    if (!VIGEM_SUCCESS(status)) {
+      BOOST_LOG(warning) << "Couldn't send gamepad motion input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+    }
   }
 
   /**
@@ -872,7 +1004,75 @@ namespace platf {
    */
   void
   gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
-    // Unimplemented
+    auto vigem = ((input_raw_t *) input.get())->vigem;
+
+    // If there is no gamepad support
+    if (!vigem) {
+      return;
+    }
+
+    auto &gamepad = vigem->gamepads[battery.gamepadNumber];
+    if (!gamepad.gp) {
+      return;
+    }
+
+    // Battery is only supported on DualShock 4 controllers
+    if (vigem_target_get_type(gamepad.gp.get()) != DualShock4Wired) {
+      return;
+    }
+
+    // For details on the report format of these battery level fields, see:
+    // https://github.com/torvalds/linux/blob/946c6b59c56dc6e7d8364a8959cb36bf6d10bc37/drivers/hid/hid-playstation.c#L2305-L2314
+
+    auto &report = gamepad.report.ds4.Report;
+
+    // Update the battery state if it is known
+    switch (battery.state) {
+      case LI_BATTERY_STATE_CHARGING:
+      case LI_BATTERY_STATE_DISCHARGING:
+        if (battery.state == LI_BATTERY_STATE_CHARGING) {
+          report.bBatteryLvlSpecial |= 0x10;  // Connected via USB
+        }
+        else {
+          report.bBatteryLvlSpecial &= ~0x10;  // Not connected via USB
+        }
+
+        // If there was a special battery status set before, clear that and
+        // initialize the battery level to 50%. It will be overwritten below
+        // if the actual percentage is known.
+        if ((report.bBatteryLvlSpecial & 0xF) > 0xA) {
+          report.bBatteryLvlSpecial = (report.bBatteryLvlSpecial & ~0xF) | 0x5;
+        }
+        break;
+
+      case LI_BATTERY_STATE_FULL:
+        report.bBatteryLvlSpecial = 0x1B;  // USB + Battery Full
+        report.bBatteryLvl = 0xFF;
+        break;
+
+      case LI_BATTERY_STATE_NOT_PRESENT:
+      case LI_BATTERY_STATE_NOT_CHARGING:
+        report.bBatteryLvlSpecial = 0x1F;  // USB + Charging Error
+        break;
+
+      default:
+        break;
+    }
+
+    // Update the battery level if it is known
+    if (battery.percentage != LI_BATTERY_PERCENTAGE_UNKNOWN) {
+      report.bBatteryLvl = battery.percentage * 255 / 100;
+
+      // Don't overwrite low nibble if there's a special status there (see above)
+      if ((report.bBatteryLvlSpecial & 0x10) && (report.bBatteryLvlSpecial & 0xF) <= 0xA) {
+        report.bBatteryLvlSpecial = (report.bBatteryLvlSpecial & ~0xF) | ((battery.percentage + 5) / 10);
+      }
+    }
+
+    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
+    if (!VIGEM_SUCCESS(status)) {
+      BOOST_LOG(warning) << "Couldn't send gamepad battery input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+    }
   }
 
   void
@@ -902,6 +1102,13 @@ namespace platf {
    */
   platform_caps::caps_t
   get_capabilities() {
-    return 0;
+    platform_caps::caps_t caps = 0;
+
+    // We support controller touchpad input as long as we're not emulating X360
+    if (config::input.gamepad != "x360"sv) {
+      caps |= platform_caps::controller_touch;
+    }
+
+    return caps;
   }
 }  // namespace platf
