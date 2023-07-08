@@ -39,6 +39,9 @@ extern "C" {
 #define IDX_REQUEST_IDR_FRAME 9
 #define IDX_ENCRYPTED 10
 #define IDX_HDR_MODE 11
+#define IDX_RUMBLE_TRIGGER_DATA 12
+#define IDX_SET_MOTION_EVENT 13
+#define IDX_SET_RGB_LED 14
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -53,6 +56,9 @@ static const short packetTypes[] = {
   0x0302,  // IDR frame
   0x0001,  // fully encrypted
   0x010e,  // HDR mode
+  0x5500,  // Rumble triggers (Sunshine protocol extension)
+  0x5501,  // Set motion event (Sunshine protocol extension)
+  0x5502,  // Set RGB LED (Sunshine protocol extension)
 };
 
 namespace asio = boost::asio;
@@ -144,6 +150,31 @@ namespace stream {
     std::uint16_t id;
     std::uint16_t lowfreq;
     std::uint16_t highfreq;
+  };
+
+  struct control_rumble_triggers_t {
+    control_header_v2 header;
+
+    std::uint16_t id;
+    std::uint16_t left;
+    std::uint16_t right;
+  };
+
+  struct control_set_motion_event_t {
+    control_header_v2 header;
+
+    std::uint16_t id;
+    std::uint16_t reportrate;
+    std::uint8_t type;
+  };
+
+  struct control_set_rgb_led_t {
+    control_header_v2 header;
+
+    std::uint16_t id;
+    std::uint8_t r;
+    std::uint8_t g;
+    std::uint8_t b;
   };
 
   struct control_hdr_mode_t {
@@ -350,7 +381,7 @@ namespace stream {
       net::peer_t peer;
       std::uint8_t seq;
 
-      platf::rumble_queue_t rumble_queue;
+      platf::feedback_queue_t feedback_queue;
       safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
     } control;
 
@@ -621,37 +652,106 @@ namespace stream {
     return replaced;
   }
 
+  /**
+   * @brief Pass gamepad feedback data back to the client.
+   * @param session The session object.
+   * @param msg The message to pass.
+   * @return 0 on success.
+   */
   int
-  send_rumble(session_t *session, std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq) {
+  send_feedback_msg(session_t *session, platf::gamepad_feedback_msg_t &msg) {
     if (!session->control.peer) {
-      BOOST_LOG(warning) << "Couldn't send rumble data, still waiting for PING from Moonlight"sv;
+      BOOST_LOG(warning) << "Couldn't send gamepad feedback data, still waiting for PING from Moonlight"sv;
       // Still waiting for PING from Moonlight
       return -1;
     }
 
-    control_rumble_t plaintext;
-    plaintext.header.type = packetTypes[IDX_RUMBLE_DATA];
-    plaintext.header.payloadLength = sizeof(control_rumble_t) - sizeof(control_header_v2);
+    std::string payload;
+    if (msg.type == platf::gamepad_feedback_e::rumble) {
+      control_rumble_t plaintext;
+      plaintext.header.type = packetTypes[IDX_RUMBLE_DATA];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
 
-    plaintext.useless = 0xC0FFEE;
-    plaintext.id = util::endian::little(id);
-    plaintext.lowfreq = util::endian::little(lowfreq);
-    plaintext.highfreq = util::endian::little(highfreq);
+      auto &data = msg.data.rumble;
 
-    BOOST_LOG(verbose) << id << " :: "sv << util::hex(lowfreq).to_string_view() << " :: "sv << util::hex(highfreq).to_string_view();
-    std::array<std::uint8_t,
-      sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
-      encrypted_payload;
+      plaintext.useless = 0xC0FFEE;
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.lowfreq = util::endian::little(data.lowfreq);
+      plaintext.highfreq = util::endian::little(data.highfreq);
 
-    auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
-    if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
-      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
-      BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
+      BOOST_LOG(verbose) << "Rumble: "sv << msg.id << " :: "sv << util::hex(data.lowfreq).to_string_view() << " :: "sv << util::hex(data.highfreq).to_string_view();
+      std::array<std::uint8_t,
+        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
 
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    }
+    else if (msg.type == platf::gamepad_feedback_e::rumble_triggers) {
+      control_rumble_triggers_t plaintext;
+      plaintext.header.type = packetTypes[IDX_RUMBLE_TRIGGER_DATA];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      auto &data = msg.data.rumble_triggers;
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.left = util::endian::little(data.left_trigger);
+      plaintext.right = util::endian::little(data.right_trigger);
+
+      BOOST_LOG(verbose) << "Rumble triggers: "sv << msg.id << " :: "sv << util::hex(data.left_trigger).to_string_view() << " :: "sv << util::hex(data.right_trigger).to_string_view();
+      std::array<std::uint8_t,
+        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    }
+    else if (msg.type == platf::gamepad_feedback_e::set_motion_event_state) {
+      control_set_motion_event_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_MOTION_EVENT];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      auto &data = msg.data.motion_event_state;
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.reportrate = util::endian::little(data.report_rate);
+      plaintext.type = data.motion_type;
+
+      BOOST_LOG(verbose) << "Motion event state: "sv << msg.id << " :: "sv << util::hex(data.report_rate).to_string_view() << " :: "sv << util::hex(data.motion_type).to_string_view();
+      std::array<std::uint8_t,
+        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    }
+    else if (msg.type == platf::gamepad_feedback_e::set_rgb_led) {
+      control_set_rgb_led_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_RGB_LED];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      auto &data = msg.data.rgb_led;
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.r = data.r;
+      plaintext.g = data.g;
+      plaintext.b = data.b;
+
+      BOOST_LOG(verbose) << "RGB: "sv << msg.id << " :: "sv << util::hex(data.r).to_string_view() << util::hex(data.g).to_string_view() << util::hex(data.b).to_string_view();
+      std::array<std::uint8_t,
+        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    }
+    else {
+      BOOST_LOG(error) << "Unknown gamepad feedback message type"sv;
       return -1;
     }
 
-    BOOST_LOG(debug) << "Send gamepadnr ["sv << id << "] with lowfreq ["sv << lowfreq << "] and highfreq ["sv << highfreq << ']';
+    if (session->broadcast_ref->control_server.send(payload, session->control.peer)) {
+      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
+      BOOST_LOG(warning) << "Couldn't send gamepad feedback to ["sv << addr << ':' << port << ']';
+
+      return -1;
+    }
 
     return 0;
   }
@@ -858,22 +958,20 @@ namespace stream {
           if (!session->control.peer) {
             has_session_awaiting_peer = true;
           }
+          else {
+            auto &feedback_queue = session->control.feedback_queue;
+            while (feedback_queue->peek()) {
+              auto feedback_msg = feedback_queue->pop();
 
-          auto &rumble_queue = session->control.rumble_queue;
-          while (rumble_queue->peek()) {
-            auto rumble = rumble_queue->pop();
+              send_feedback_msg(session, *feedback_msg);
+            }
 
-            send_rumble(session, rumble->id, rumble->lowfreq, rumble->highfreq);
-          }
+            auto &hdr_queue = session->control.hdr_queue;
+            while (session->control.peer && hdr_queue->peek()) {
+              auto hdr_info = hdr_queue->pop();
 
-          // Unlike rumble which we send as best-effort, HDR state messages are critical
-          // for proper functioning of some clients. We must wait to pop entries from
-          // the queue until we're sure we have a peer to send them to.
-          auto &hdr_queue = session->control.hdr_queue;
-          while (session->control.peer && hdr_queue->peek()) {
-            auto hdr_info = hdr_queue->pop();
-
-            send_hdr_mode(session, std::move(hdr_info));
+              send_hdr_mode(session, std::move(hdr_info));
+            }
           }
 
           ++pos;
@@ -1648,7 +1746,7 @@ namespace stream {
 
       session->config = config;
 
-      session->control.rumble_queue = mail->queue<platf::rumble_t>(mail::rumble);
+      session->control.feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
       session->control.hdr_queue = mail->event<video::hdr_info_t>(mail::hdr);
       session->control.iv = iv;
       session->control.cipher = crypto::cipher::gcm_t {

@@ -44,12 +44,15 @@ namespace platf {
 
   struct gamepad_context_t {
     target_t gp;
-    rumble_queue_t rumble_queue;
+    feedback_queue_t feedback_queue;
 
     union {
       XUSB_REPORT x360;
       DS4_REPORT_EX ds4;
     } report;
+
+    gamepad_feedback_msg_t last_rumble;
+    gamepad_feedback_msg_t last_rgb_led;
   };
 
   constexpr float EARTH_G = 9.80665f;
@@ -181,12 +184,12 @@ namespace platf {
     /**
      * @brief Attaches a new gamepad.
      * @param nr The gamepad index.
-     * @param rumble_queue The queue to publish rumble packets.
+     * @param feedback_queue The queue for posting messages back to the client.
      * @param gp_type The type of gamepad.
      * @return 0 on success.
      */
     int
-    alloc_gamepad_internal(int nr, rumble_queue_t &rumble_queue, VIGEM_TARGET_TYPE gp_type) {
+    alloc_gamepad_internal(int nr, feedback_queue_t &feedback_queue, VIGEM_TARGET_TYPE gp_type) {
       auto &gamepad = gamepads[nr];
       assert(!gamepad.gp);
 
@@ -212,7 +215,7 @@ namespace platf {
         return -1;
       }
 
-      gamepad.rumble_queue = std::move(rumble_queue);
+      gamepad.feedback_queue = std::move(feedback_queue);
 
       if (gp_type == Xbox360Wired) {
         status = vigem_target_x360_register_notification(client.get(), gamepad.gp.get(), x360_notify, this);
@@ -247,19 +250,52 @@ namespace platf {
     }
 
     /**
-     * @brief Pass rumble data back to the host.
+     * @brief Pass rumble data back to the client.
      * @param target The gamepad.
-     * @param smallMotor The small motor.
      * @param largeMotor The large motor.
+     * @param smallMotor The small motor.
      */
     void
-    rumble(target_t::pointer target, std::uint8_t smallMotor, std::uint8_t largeMotor) {
+    rumble(target_t::pointer target, std::uint8_t largeMotor, std::uint8_t smallMotor) {
       for (int x = 0; x < gamepads.size(); ++x) {
         auto &gamepad = gamepads[x];
 
         if (gamepad.gp.get() == target) {
-          gamepad.rumble_queue->raise(x, ((std::uint16_t) smallMotor) << 8, ((std::uint16_t) largeMotor) << 8);
+          // Convert from 8-bit to 16-bit values
+          uint16_t normalizedLargeMotor = largeMotor << 8;
+          uint16_t normalizedSmallMotor = smallMotor << 8;
 
+          // Don't resend duplicate rumble data
+          if (normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq ||
+              normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
+            gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rumble(x, normalizedLargeMotor, normalizedSmallMotor);
+            gamepad.feedback_queue->raise(msg);
+            gamepad.last_rumble = msg;
+          }
+          return;
+        }
+      }
+    }
+
+    /**
+     * @brief Pass RGB LED data back to the client.
+     * @param target The gamepad.
+     * @param r The red channel.
+     * @param g The red channel.
+     * @param b The red channel.
+     */
+    void
+    set_rgb_led(target_t::pointer target, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+      for (int x = 0; x < gamepads.size(); ++x) {
+        auto &gamepad = gamepads[x];
+
+        if (gamepad.gp.get() == target) {
+          // Don't resend duplicate RGB data
+          if (r != gamepad.last_rgb_led.data.rgb_led.r || g != gamepad.last_rgb_led.data.rgb_led.g || b != gamepad.last_rgb_led.data.rgb_led.b) {
+            gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rgb_led(x, r, g, b);
+            gamepad.feedback_queue->raise(msg);
+            gamepad.last_rgb_led = msg;
+          }
           return;
         }
       }
@@ -299,7 +335,7 @@ namespace platf {
       << "largeMotor: "sv << (int) largeMotor << std::endl
       << "smallMotor: "sv << (int) smallMotor;
 
-    task_pool.push(&vigem_t::rumble, (vigem_t *) userdata, target, smallMotor, largeMotor);
+    task_pool.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
   }
 
   void CALLBACK
@@ -307,13 +343,17 @@ namespace platf {
     client_t::pointer client,
     target_t::pointer target,
     std::uint8_t largeMotor, std::uint8_t smallMotor,
-    DS4_LIGHTBAR_COLOR /* led_color */,
+    DS4_LIGHTBAR_COLOR led_color,
     void *userdata) {
     BOOST_LOG(debug)
       << "largeMotor: "sv << (int) largeMotor << std::endl
-      << "smallMotor: "sv << (int) smallMotor;
+      << "smallMotor: "sv << (int) smallMotor << std::endl
+      << "LED: "sv << util::hex(led_color.Red).to_string_view() << ' '
+      << util::hex(led_color.Green).to_string_view() << ' '
+      << util::hex(led_color.Blue).to_string_view() << std::endl;
 
-    task_pool.push(&vigem_t::rumble, (vigem_t *) userdata, target, smallMotor, largeMotor);
+    task_pool.push(&vigem_t::rumble, (vigem_t *) userdata, target, largeMotor, smallMotor);
+    task_pool.push(&vigem_t::set_rgb_led, (vigem_t *) userdata, target, led_color.Red, led_color.Green, led_color.Blue);
   }
 
   struct input_raw_t {
@@ -554,11 +594,11 @@ namespace platf {
    * @param input The input context.
    * @param nr The assigned controller number.
    * @param metadata Controller metadata from client (empty if none provided).
-   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue) {
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     auto raw = (input_raw_t *) input.get();
 
     if (!raw->vigem) {
@@ -596,7 +636,7 @@ namespace platf {
       selectedGamepadType = Xbox360Wired;
     }
 
-    return raw->vigem->alloc_gamepad_internal(nr, rumble_queue, selectedGamepadType);
+    return raw->vigem->alloc_gamepad_internal(nr, feedback_queue, selectedGamepadType);
   }
 
   void

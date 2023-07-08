@@ -293,11 +293,11 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The input context.
    * @param nr The assigned controller number.
    * @param metadata Controller metadata from client (empty if none provided).
-   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue) {
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
     return -1;
   }

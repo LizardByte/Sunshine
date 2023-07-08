@@ -133,7 +133,7 @@ namespace platf {
     }
   });
 
-  using mail_evdev_t = std::tuple<int, uinput_t::pointer, rumble_queue_t, pollfd_t>;
+  using mail_evdev_t = std::tuple<int, uinput_t::pointer, feedback_queue_t, pollfd_t>;
 
   struct keycode_t {
     std::uint32_t keycode;
@@ -452,7 +452,7 @@ namespace platf {
   public:
     KITTY_DEFAULT_CONSTR_MOVE(effect_t)
 
-    effect_t(int gamepadnr, uinput_t::pointer dev, rumble_queue_t &&q):
+    effect_t(int gamepadnr, uinput_t::pointer dev, feedback_queue_t &&q):
         gamepadnr { gamepadnr }, dev { dev }, rumble_queue { std::move(q) }, gain { 0xFFFF }, id_to_data {} {}
 
     class data_t {
@@ -634,7 +634,7 @@ namespace platf {
     // Used as ID for adding/removinf devices from evdev notifications
     uinput_t::pointer dev;
 
-    rumble_queue_t rumble_queue;
+    feedback_queue_t rumble_queue;
 
     int gain;
 
@@ -774,11 +774,11 @@ namespace platf {
      * @brief Creates a new virtual gamepad.
      * @param nr The assigned controller number.
      * @param metadata Controller metadata from client (empty if none provided).
-     * @param rumble_queue The queue for posting rumble messages to the client.
+     * @param feedback_queue The queue for posting messages back to the client.
      * @return 0 on success.
      */
     int
-    alloc_gamepad(int nr, const gamepad_arrival_t &metadata, rumble_queue_t &&rumble_queue) {
+    alloc_gamepad(int nr, const gamepad_arrival_t &metadata, feedback_queue_t &&feedback_queue) {
       TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
 
       int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &input);
@@ -803,7 +803,7 @@ namespace platf {
       rumble_ctx->rumble_queue_queue.raise(
         nr,
         input.get(),
-        std::move(rumble_queue),
+        std::move(feedback_queue),
         pollfd_t {
           dup(libevdev_uinput_get_fd(input.get())),
           (std::int16_t) POLLIN,
@@ -1048,9 +1048,9 @@ namespace platf {
           TUPLE_2D(weak, strong, effect.rumble(now));
 
           if (old_weak != weak || old_strong != strong) {
-            BOOST_LOG(debug) << "Sending haptic feedback: lowfreq [0x"sv << util::hex(weak).to_string_view() << "]: highfreq [0x"sv << util::hex(strong).to_string_view() << ']';
+            BOOST_LOG(debug) << "Sending haptic feedback: lowfreq [0x"sv << util::hex(strong).to_string_view() << "]: highfreq [0x"sv << util::hex(weak).to_string_view() << ']';
 
-            effect.rumble_queue->raise(effect.gamepadnr, weak, strong);
+            effect.rumble_queue->raise(gamepad_feedback_msg_t::make_rumble(effect.gamepadnr, strong, weak));
           }
         }
       }
@@ -1492,12 +1492,12 @@ namespace platf {
    * @param input The input context.
    * @param nr The assigned controller number.
    * @param metadata Controller metadata from client (empty if none provided).
-   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue) {
-    return ((input_raw_t *) input.get())->alloc_gamepad(nr, metadata, std::move(rumble_queue));
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+    return ((input_raw_t *) input.get())->alloc_gamepad(nr, metadata, std::move(feedback_queue));
   }
 
   void
