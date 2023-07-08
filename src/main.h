@@ -62,7 +62,7 @@ namespace mail {
   // Local mail
   MAIL(touch_port);
   MAIL(idr);
-  MAIL(rumble);
+  MAIL(gamepad_feedback);
   MAIL(hdr);
 #undef MAIL
 

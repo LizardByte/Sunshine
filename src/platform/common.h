@@ -72,17 +72,75 @@ namespace platf {
   constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;
   constexpr std::uint32_t MISC_BUTTON = 0x200000;
 
-  struct rumble_t {
-    KITTY_DEFAULT_CONSTR(rumble_t)
-
-    rumble_t(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq):
-        id { id }, lowfreq { lowfreq }, highfreq { highfreq } {}
-
-    std::uint16_t id;
-    std::uint16_t lowfreq;
-    std::uint16_t highfreq;
+  enum class gamepad_feedback_e {
+    rumble,
+    rumble_triggers,
+    set_motion_event_state,
+    set_rgb_led,
   };
-  using rumble_queue_t = safe::mail_raw_t::queue_t<rumble_t>;
+
+  struct gamepad_feedback_msg_t {
+    static gamepad_feedback_msg_t
+    make_rumble(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::rumble;
+      msg.id = id;
+      msg.data.rumble = { lowfreq, highfreq };
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_rumble_triggers(std::uint16_t id, std::uint16_t left, std::uint16_t right) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::rumble_triggers;
+      msg.id = id;
+      msg.data.rumble_triggers = { left, right };
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_motion_event_state(std::uint16_t id, std::uint8_t motion_type, std::uint16_t report_rate) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_motion_event_state;
+      msg.id = id;
+      msg.data.motion_event_state.motion_type = motion_type;
+      msg.data.motion_event_state.report_rate = report_rate;
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_rgb_led(std::uint16_t id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_rgb_led;
+      msg.id = id;
+      msg.data.rgb_led = { r, g, b };
+      return msg;
+    }
+
+    gamepad_feedback_e type;
+    std::uint16_t id;
+    union {
+      struct {
+        std::uint16_t lowfreq;
+        std::uint16_t highfreq;
+      } rumble;
+      struct {
+        std::uint16_t left_trigger;
+        std::uint16_t right_trigger;
+      } rumble_triggers;
+      struct {
+        std::uint16_t report_rate;
+        std::uint8_t motion_type;
+      } motion_event_state;
+      struct {
+        std::uint8_t r;
+        std::uint8_t g;
+        std::uint8_t b;
+      } rgb_led;
+    } data;
+  };
+
+  using feedback_queue_t = safe::mail_raw_t::queue_t<gamepad_feedback_msg_t>;
 
   namespace speaker {
     enum speaker_e {
@@ -525,11 +583,11 @@ namespace platf {
    * @param input The input context.
    * @param nr The assigned controller number.
    * @param metadata Controller metadata from client (empty if none provided).
-   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue);
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
   void
   free_gamepad(input_t &input, int nr);
 
