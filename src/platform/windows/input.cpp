@@ -470,28 +470,22 @@ namespace platf {
     i.type = INPUT_MOUSE;
     auto &mi = i.mi;
 
-    int mouse_button;
     if (button == 1) {
       mi.dwFlags = release ? MOUSEEVENTF_LEFTUP : MOUSEEVENTF_LEFTDOWN;
-      mouse_button = VK_LBUTTON;
     }
     else if (button == 2) {
       mi.dwFlags = release ? MOUSEEVENTF_MIDDLEUP : MOUSEEVENTF_MIDDLEDOWN;
-      mouse_button = VK_MBUTTON;
     }
     else if (button == 3) {
       mi.dwFlags = release ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_RIGHTDOWN;
-      mouse_button = VK_RBUTTON;
     }
     else if (button == 4) {
       mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
       mi.mouseData = XBUTTON1;
-      mouse_button = VK_XBUTTON1;
     }
     else {
       mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
       mi.mouseData = XBUTTON2;
-      mouse_button = VK_XBUTTON2;
     }
 
     send_input(i);
