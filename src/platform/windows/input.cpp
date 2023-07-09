@@ -408,8 +408,6 @@ namespace platf {
 
   void
   button_mouse(input_t &input, int button, bool release) {
-    constexpr auto KEY_STATE_DOWN = (SHORT) 0x8000;
-
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -437,14 +435,6 @@ namespace platf {
       mi.dwFlags = release ? MOUSEEVENTF_XUP : MOUSEEVENTF_XDOWN;
       mi.mouseData = XBUTTON2;
       mouse_button = VK_XBUTTON2;
-    }
-
-    auto key_state = GetAsyncKeyState(mouse_button);
-    bool key_state_down = (key_state & KEY_STATE_DOWN) != 0;
-    if (key_state_down != release) {
-      BOOST_LOG(warning) << "Button state of mouse_button ["sv << button << "] does not match the desired state"sv;
-
-      return;
     }
 
     send_input(i);
