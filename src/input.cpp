@@ -142,7 +142,6 @@ namespace input {
       safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
       platf::feedback_queue_t feedback_queue):
         shortcutFlags {},
-        active_gamepad_state {},
         gamepads(MAX_GAMEPADS),
         touch_port_event { std::move(touch_port_event) },
         feedback_queue { std::move(feedback_queue) },
@@ -152,7 +151,6 @@ namespace input {
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;
 
-    std::uint16_t active_gamepad_state;
     std::vector<gamepad_t> gamepads;
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;
@@ -702,48 +700,6 @@ namespace input {
     platf::unicode(platf_input, packet->text, size);
   }
 
-  int
-  updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std::int16_t new_state, const platf::feedback_queue_t &feedback_queue) {
-    auto xorGamepadMask = old_state ^ new_state;
-    if (!xorGamepadMask) {
-      return 0;
-    }
-
-    for (int x = 0; x < sizeof(std::int16_t) * 8; ++x) {
-      if ((xorGamepadMask >> x) & 1) {
-        auto &gamepad = gamepads[x];
-
-        if ((old_state >> x) & 1) {
-          if (gamepad.id < 0) {
-            return -1;
-          }
-
-          free_gamepad(platf_input, gamepad.id);
-          gamepad.id = -1;
-        }
-        else {
-          auto id = alloc_id(gamepadMask);
-
-          if (id < 0) {
-            // Out of gamepads
-            return -1;
-          }
-
-          if (platf::alloc_gamepad(platf_input, id, {}, feedback_queue)) {
-            free_id(gamepadMask, id);
-            // allocating a gamepad failed: solution: ignore gamepads
-            // The implementations of platf::alloc_gamepad already has logging
-            return -1;
-          }
-
-          gamepad.id = id;
-        }
-      }
-    }
-
-    return 0;
-  }
-
   /**
    * @brief Called to pass a controller arrival message to the platform backend.
    * @param input The input context pointer.
@@ -755,13 +711,13 @@ namespace input {
       return;
     }
 
-    if (packet->controllerNumber >= gamepadMask.size()) {
-      // Invalid controller number
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
       return;
     }
 
-    if (gamepadMask[packet->controllerNumber]) {
-      // There's already a gamepad in this slot
+    if (input->gamepads[packet->controllerNumber].id >= 0) {
+      BOOST_LOG(warning) << "ControllerNumber already allocated ["sv << packet->controllerNumber << ']';
       return;
     }
 
@@ -772,16 +728,18 @@ namespace input {
       util::endian::little(packet->supportedButtonFlags),
     };
 
-    gamepadMask[packet->controllerNumber] = true;
-    input->active_gamepad_state |= (1 << packet->controllerNumber);
-
-    // Allocate a new gamepad
-    if (platf::alloc_gamepad(platf_input, packet->controllerNumber, arrival, input->feedback_queue)) {
-      free_id(gamepadMask, packet->controllerNumber);
+    auto id = alloc_id(gamepadMask);
+    if (id < 0) {
       return;
     }
 
-    input->gamepads[packet->controllerNumber].id = packet->controllerNumber;
+    // Allocate a new gamepad
+    if (platf::alloc_gamepad(platf_input, id, arrival, input->feedback_queue)) {
+      free_id(gamepadMask, id);
+      return;
+    }
+
+    input->gamepads[packet->controllerNumber].id = id;
   }
 
   /**
@@ -800,13 +758,9 @@ namespace input {
       return;
     }
 
-    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
-      return;
-    }
-
     auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
@@ -838,13 +792,9 @@ namespace input {
       return;
     }
 
-    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
-      return;
-    }
-
     auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
@@ -875,13 +825,9 @@ namespace input {
       return;
     }
 
-    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
-      return;
-    }
-
     auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
@@ -900,29 +846,40 @@ namespace input {
       return;
     }
 
-    if (updateGamepads(input->gamepads, input->active_gamepad_state, packet->activeGamepadMask, input->feedback_queue)) {
-      return;
-    }
-
-    input->active_gamepad_state = packet->activeGamepadMask;
-
     if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
       BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
 
       return;
     }
 
-    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+    auto &gamepad = input->gamepads[packet->controllerNumber];
 
+    // If this is an event for a new gamepad, create the gamepad now. Ideally, the client would
+    // send a controller arrival instead of this but it's still supported for legacy clients.
+    if ((packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id < 0) {
+      auto id = alloc_id(gamepadMask);
+      if (id < 0) {
+        return;
+      }
+
+      if (platf::alloc_gamepad(platf_input, id, {}, input->feedback_queue)) {
+        free_id(gamepadMask, id);
+        return;
+      }
+
+      gamepad.id = id;
+    }
+    else if (!(packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id >= 0) {
+      // If this is the final event for a gamepad being removed, free the gamepad and return.
+      free_gamepad(platf_input, gamepad.id);
+      gamepad.id = -1;
       return;
     }
-
-    auto &gamepad = input->gamepads[packet->controllerNumber];
 
     // If this gamepad has not been initialized, ignore it.
     // This could happen when platf::alloc_gamepad fails
     if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
