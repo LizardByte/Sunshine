@@ -130,7 +130,18 @@ namespace proc {
     _env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session.gcmap);
     _env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session.host_audio ? "true" : "false";
     _env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session.enable_sops ? "true" : "false";
-    _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION_RAW"] = std::to_string(launch_session.surround_info);
+    int channelCount = launch_session.surround_info & (65535);
+    switch (channelCount) {
+      case 2:
+        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.1";
+        break;
+      case 6:
+        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "5.1";
+        break;
+      case 8:
+        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
+        break;
+    }
 
     if (!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
