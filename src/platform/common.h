@@ -47,23 +47,30 @@ namespace video {
 }  // namespace video
 
 namespace platf {
-  constexpr auto MAX_GAMEPADS = 32;
+  // Limited by bits in activeGamepadMask
+  constexpr auto MAX_GAMEPADS = 16;
 
-  constexpr std::uint16_t DPAD_UP = 0x0001;
-  constexpr std::uint16_t DPAD_DOWN = 0x0002;
-  constexpr std::uint16_t DPAD_LEFT = 0x0004;
-  constexpr std::uint16_t DPAD_RIGHT = 0x0008;
-  constexpr std::uint16_t START = 0x0010;
-  constexpr std::uint16_t BACK = 0x0020;
-  constexpr std::uint16_t LEFT_STICK = 0x0040;
-  constexpr std::uint16_t RIGHT_STICK = 0x0080;
-  constexpr std::uint16_t LEFT_BUTTON = 0x0100;
-  constexpr std::uint16_t RIGHT_BUTTON = 0x0200;
-  constexpr std::uint16_t HOME = 0x0400;
-  constexpr std::uint16_t A = 0x1000;
-  constexpr std::uint16_t B = 0x2000;
-  constexpr std::uint16_t X = 0x4000;
-  constexpr std::uint16_t Y = 0x8000;
+  constexpr std::uint32_t DPAD_UP = 0x0001;
+  constexpr std::uint32_t DPAD_DOWN = 0x0002;
+  constexpr std::uint32_t DPAD_LEFT = 0x0004;
+  constexpr std::uint32_t DPAD_RIGHT = 0x0008;
+  constexpr std::uint32_t START = 0x0010;
+  constexpr std::uint32_t BACK = 0x0020;
+  constexpr std::uint32_t LEFT_STICK = 0x0040;
+  constexpr std::uint32_t RIGHT_STICK = 0x0080;
+  constexpr std::uint32_t LEFT_BUTTON = 0x0100;
+  constexpr std::uint32_t RIGHT_BUTTON = 0x0200;
+  constexpr std::uint32_t HOME = 0x0400;
+  constexpr std::uint32_t A = 0x1000;
+  constexpr std::uint32_t B = 0x2000;
+  constexpr std::uint32_t X = 0x4000;
+  constexpr std::uint32_t Y = 0x8000;
+  constexpr std::uint32_t PADDLE1 = 0x010000;
+  constexpr std::uint32_t PADDLE2 = 0x020000;
+  constexpr std::uint32_t PADDLE3 = 0x040000;
+  constexpr std::uint32_t PADDLE4 = 0x080000;
+  constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;
+  constexpr std::uint32_t MISC_BUTTON = 0x200000;
 
   struct rumble_t {
     KITTY_DEFAULT_CONSTR(rumble_t)
@@ -154,13 +161,20 @@ namespace platf {
   };
 
   struct gamepad_state_t {
-    std::uint16_t buttonFlags;
+    std::uint32_t buttonFlags;
     std::uint8_t lt;
     std::uint8_t rt;
     std::int16_t lsX;
     std::int16_t lsY;
     std::int16_t rsX;
     std::int16_t rsY;
+  };
+
+  struct gamepad_arrival_t {
+    std::uint8_t gamepadNumber;
+    std::uint8_t type;
+    std::uint16_t capabilities;
+    std::uint32_t supportedButtons;
   };
 
   class deinit_t {
@@ -284,7 +298,7 @@ namespace platf {
      *                        from the pool. If backend uses multiple threads, calls to this
      *                        callback must be synchronized. Calls to this callback and
      *                        push_captured_image_cb must be synchronized as well.
-     * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
+     * bool *cursor --> A pointer to the flag that indicates whether the cursor should be captured as well
      *
      * Returns either:
      *    capture_e::ok when stopping
@@ -369,7 +383,7 @@ namespace platf {
   /**
    * display_name --> The name of the monitor that SHOULD be displayed
    *    If display_name is empty --> Use the first monitor that's compatible you can find
-   *    If you require to use this parameter in a seperate thread --> make a copy of it.
+   *    If you require to use this parameter in a separate thread --> make a copy of it.
    *
    * config --> Stream configuration
    *
@@ -448,8 +462,16 @@ namespace platf {
   void
   unicode(input_t &input, char *utf8, int size);
 
+  /**
+   * @brief Creates a new virtual gamepad.
+   * @param input The input context.
+   * @param nr The assigned controller number.
+   * @param metadata Controller metadata from client (empty if none provided).
+   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @return 0 on success.
+   */
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue);
+  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue);
   void
   free_gamepad(input_t &input, int nr);
 
