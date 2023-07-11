@@ -236,15 +236,25 @@ namespace platf {
     std::int16_t rsY;
   };
 
+  struct gamepad_id_t {
+    // The global index is used when looking up gamepads in the platform's
+    // gamepad array. It identifies gamepads uniquely among all clients.
+    int globalIndex;
+
+    // The client-relative index is the controller number as reported by the
+    // client. It must be used when communicating back to the client via
+    // the input feedback queue.
+    std::uint8_t clientRelativeIndex;
+  };
+
   struct gamepad_arrival_t {
-    std::uint8_t gamepadNumber;
     std::uint8_t type;
     std::uint16_t capabilities;
     std::uint32_t supportedButtons;
   };
 
   struct gamepad_touch_t {
-    std::uint8_t gamepadNumber;
+    gamepad_id_t id;
     std::uint8_t eventType;
     std::uint32_t pointerId;
     float x;
@@ -253,7 +263,7 @@ namespace platf {
   };
 
   struct gamepad_motion_t {
-    std::uint8_t gamepadNumber;
+    gamepad_id_t id;
     std::uint8_t motionType;
 
     // Accel: m/s^2
@@ -264,7 +274,7 @@ namespace platf {
   };
 
   struct gamepad_battery_t {
-    std::uint8_t gamepadNumber;
+    gamepad_id_t id;
     std::uint8_t state;
     std::uint8_t percentage;
   };
@@ -581,13 +591,13 @@ namespace platf {
   /**
    * @brief Creates a new virtual gamepad.
    * @param input The input context.
-   * @param nr The assigned controller number.
+   * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
    * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
   void
   free_gamepad(input_t &input, int nr);
 

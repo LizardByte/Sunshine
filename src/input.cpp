@@ -722,7 +722,6 @@ namespace input {
     }
 
     platf::gamepad_arrival_t arrival {
-      packet->controllerNumber,
       packet->type,
       util::endian::little(packet->capabilities),
       util::endian::little(packet->supportedButtonFlags),
@@ -734,7 +733,7 @@ namespace input {
     }
 
     // Allocate a new gamepad
-    if (platf::alloc_gamepad(platf_input, id, arrival, input->feedback_queue)) {
+    if (platf::alloc_gamepad(platf_input, { id, packet->controllerNumber }, arrival, input->feedback_queue)) {
       free_id(gamepadMask, id);
       return;
     }
@@ -765,7 +764,7 @@ namespace input {
     }
 
     platf::gamepad_touch_t touch {
-      packet->controllerNumber,
+      { gamepad.id, packet->controllerNumber },
       packet->eventType,
       util::endian::little(packet->pointerId),
       from_netfloat(packet->x),
@@ -799,7 +798,7 @@ namespace input {
     }
 
     platf::gamepad_motion_t motion {
-      packet->controllerNumber,
+      { gamepad.id, packet->controllerNumber },
       packet->motionType,
       from_netfloat(packet->x),
       from_netfloat(packet->y),
@@ -832,7 +831,7 @@ namespace input {
     }
 
     platf::gamepad_battery_t battery {
-      packet->controllerNumber,
+      { gamepad.id, packet->controllerNumber },
       packet->batteryState,
       packet->batteryPercentage
     };
@@ -862,7 +861,7 @@ namespace input {
         return;
       }
 
-      if (platf::alloc_gamepad(platf_input, id, {}, input->feedback_queue)) {
+      if (platf::alloc_gamepad(platf_input, { id, (uint8_t) packet->controllerNumber }, {}, input->feedback_queue)) {
         free_id(gamepadMask, id);
         return;
       }
