@@ -452,7 +452,7 @@ namespace platf {
   public:
     KITTY_DEFAULT_CONSTR_MOVE(effect_t)
 
-    effect_t(int gamepadnr, uinput_t::pointer dev, feedback_queue_t &&q):
+    effect_t(std::uint8_t gamepadnr, uinput_t::pointer dev, feedback_queue_t &&q):
         gamepadnr { gamepadnr }, dev { dev }, rumble_queue { std::move(q) }, gain { 0xFFFF }, id_to_data {} {}
 
     class data_t {
@@ -628,8 +628,8 @@ namespace platf {
       BOOST_LOG(debug) << "Removed rumble effect id ["sv << id << ']';
     }
 
-    // Used as ID for rumble notifications
-    int gamepadnr;
+    // Client-relative gamepad index for rumble notifications
+    std::uint8_t gamepadnr;
 
     // Used as ID for adding/removinf devices from evdev notifications
     uinput_t::pointer dev;
@@ -772,14 +772,14 @@ namespace platf {
 
     /**
      * @brief Creates a new virtual gamepad.
-     * @param nr The assigned controller number.
+     * @param id The gamepad ID.
      * @param metadata Controller metadata from client (empty if none provided).
      * @param feedback_queue The queue for posting messages back to the client.
      * @return 0 on success.
      */
     int
-    alloc_gamepad(int nr, const gamepad_arrival_t &metadata, feedback_queue_t &&feedback_queue) {
-      TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
+    alloc_gamepad(const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t &&feedback_queue) {
+      TUPLE_2D_REF(input, gamepad_state, gamepads[id.globalIndex]);
 
       int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &input);
 
@@ -791,7 +791,7 @@ namespace platf {
       }
 
       std::stringstream ss;
-      ss << "sunshine_gamepad_"sv << nr;
+      ss << "sunshine_gamepad_"sv << id.globalIndex;
       auto gamepad_path = platf::appdata() / ss.str();
 
       if (std::filesystem::is_symlink(gamepad_path)) {
@@ -801,7 +801,7 @@ namespace platf {
       auto dev_node = libevdev_uinput_get_devnode(input.get());
 
       rumble_ctx->rumble_queue_queue.raise(
-        nr,
+        id.clientRelativeIndex,
         input.get(),
         std::move(feedback_queue),
         pollfd_t {
@@ -1490,14 +1490,14 @@ namespace platf {
   /**
    * @brief Creates a new virtual gamepad.
    * @param input The input context.
-   * @param nr The assigned controller number.
+   * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
    * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
-    return ((input_raw_t *) input.get())->alloc_gamepad(nr, metadata, std::move(feedback_queue));
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+    return ((input_raw_t *) input.get())->alloc_gamepad(id, metadata, std::move(feedback_queue));
   }
 
   void

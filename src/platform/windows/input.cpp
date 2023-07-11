@@ -61,6 +61,8 @@ namespace platf {
     std::map<uint32_t, uint8_t> pointer_id_map;
     uint8_t available_pointers;
 
+    uint8_t client_relative_index;
+
     gamepad_feedback_msg_t last_rumble;
     gamepad_feedback_msg_t last_rgb_led;
   };
@@ -193,15 +195,17 @@ namespace platf {
 
     /**
      * @brief Attaches a new gamepad.
-     * @param nr The gamepad index.
+     * @param id The gamepad ID.
      * @param feedback_queue The queue for posting messages back to the client.
      * @param gp_type The type of gamepad.
      * @return 0 on success.
      */
     int
-    alloc_gamepad_internal(int nr, feedback_queue_t &feedback_queue, VIGEM_TARGET_TYPE gp_type) {
-      auto &gamepad = gamepads[nr];
+    alloc_gamepad_internal(const gamepad_id_t &id, feedback_queue_t &feedback_queue, VIGEM_TARGET_TYPE gp_type) {
+      auto &gamepad = gamepads[id.globalIndex];
       assert(!gamepad.gp);
+
+      gamepad.client_relative_index = id.clientRelativeIndex;
 
       if (gp_type == Xbox360Wired) {
         gamepad.gp.reset(vigem_target_x360_alloc());
@@ -218,8 +222,8 @@ namespace platf {
         ds4_update_motion(gamepad, LI_MOTION_TYPE_GYRO, 0.0f, 0.0f, 0.0f);
 
         // Request motion events from the client at 100 Hz
-        feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(nr, LI_MOTION_TYPE_ACCEL, 100));
-        feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(nr, LI_MOTION_TYPE_GYRO, 100));
+        feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(gamepad.client_relative_index, LI_MOTION_TYPE_ACCEL, 100));
+        feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(gamepad.client_relative_index, LI_MOTION_TYPE_GYRO, 100));
 
         // We support pointer index 0 and 1
         gamepad.available_pointers = 0x3;
@@ -285,7 +289,9 @@ namespace platf {
           // Don't resend duplicate rumble data
           if (normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq ||
               normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
-            gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rumble(x, normalizedLargeMotor, normalizedSmallMotor);
+            // We have to use the client-relative index when communicating back to the client
+            gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rumble(
+              gamepad.client_relative_index, normalizedLargeMotor, normalizedSmallMotor);
             gamepad.feedback_queue->raise(msg);
             gamepad.last_rumble = msg;
           }
@@ -308,8 +314,11 @@ namespace platf {
 
         if (gamepad.gp.get() == target) {
           // Don't resend duplicate RGB data
-          if (r != gamepad.last_rgb_led.data.rgb_led.r || g != gamepad.last_rgb_led.data.rgb_led.g || b != gamepad.last_rgb_led.data.rgb_led.b) {
-            gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rgb_led(x, r, g, b);
+          if (r != gamepad.last_rgb_led.data.rgb_led.r ||
+              g != gamepad.last_rgb_led.data.rgb_led.g ||
+              b != gamepad.last_rgb_led.data.rgb_led.b) {
+            // We have to use the client-relative index when communicating back to the client
+            gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rgb_led(gamepad.client_relative_index, r, g, b);
             gamepad.feedback_queue->raise(msg);
             gamepad.last_rgb_led = msg;
           }
@@ -603,13 +612,13 @@ namespace platf {
   /**
    * @brief Creates a new virtual gamepad.
    * @param input The input context.
-   * @param nr The assigned controller number.
+   * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
    * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     auto raw = (input_raw_t *) input.get();
 
     if (!raw->vigem) {
@@ -619,35 +628,35 @@ namespace platf {
     VIGEM_TARGET_TYPE selectedGamepadType;
 
     if (config::input.gamepad == "x360"sv) {
-      BOOST_LOG(info) << "Gamepad " << nr << " will be Xbox 360 controller (manual selection)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (manual selection)"sv;
       selectedGamepadType = Xbox360Wired;
     }
     else if (config::input.gamepad == "ps4"sv || config::input.gamepad == "ds4"sv) {
-      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (manual selection)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (manual selection)"sv;
       selectedGamepadType = DualShock4Wired;
     }
     else if (metadata.type == LI_CTYPE_PS) {
-      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (auto-selected by client-reported type)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by client-reported type)"sv;
       selectedGamepadType = DualShock4Wired;
     }
     else if (metadata.type == LI_CTYPE_XBOX) {
-      BOOST_LOG(info) << "Gamepad " << nr << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
       selectedGamepadType = Xbox360Wired;
     }
     else if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
-      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
       selectedGamepadType = DualShock4Wired;
     }
     else if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
-      BOOST_LOG(info) << "Gamepad " << nr << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
       selectedGamepadType = DualShock4Wired;
     }
     else {
-      BOOST_LOG(info) << "Gamepad " << nr << " will be Xbox 360 controller (default)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (default)"sv;
       selectedGamepadType = Xbox360Wired;
     }
 
-    return raw->vigem->alloc_gamepad_internal(nr, feedback_queue, selectedGamepadType);
+    return raw->vigem->alloc_gamepad_internal(id, feedback_queue, selectedGamepadType);
   }
 
   void
@@ -873,7 +882,7 @@ namespace platf {
       return;
     }
 
-    auto &gamepad = vigem->gamepads[touch.gamepadNumber];
+    auto &gamepad = vigem->gamepads[touch.id.globalIndex];
     if (!gamepad.gp) {
       return;
     }
@@ -973,7 +982,7 @@ namespace platf {
       return;
     }
 
-    auto &gamepad = vigem->gamepads[motion.gamepadNumber];
+    auto &gamepad = vigem->gamepads[motion.id.globalIndex];
     if (!gamepad.gp) {
       return;
     }
@@ -1005,7 +1014,7 @@ namespace platf {
       return;
     }
 
-    auto &gamepad = vigem->gamepads[battery.gamepadNumber];
+    auto &gamepad = vigem->gamepads[battery.id.globalIndex];
     if (!gamepad.gp) {
       return;
     }
