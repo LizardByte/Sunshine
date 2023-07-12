@@ -1639,11 +1639,14 @@ namespace stream {
         // Cancel the kill task if we manage to return from this function
         task_pool.cancel(force_kill);
       });
-
-      BOOST_LOG(debug) << "Waiting for video to end..."sv;
-      session.videoThread.join();
-      BOOST_LOG(debug) << "Waiting for audio to end..."sv;
-      session.audioThread.join();
+      if (session.videoThread.joinable()) {
+        BOOST_LOG(debug) << "Waiting for video to end..."sv;
+        session.videoThread.join();
+      }
+      if (session.audioThread.joinable()) {
+        BOOST_LOG(debug) << "Waiting for audio to end..."sv;
+        session.audioThread.join();
+      }
       BOOST_LOG(debug) << "Waiting for control to end..."sv;
       session.controlEnd.view();
       // Reset input on session stop to avoid stuck repeated keys
@@ -1723,9 +1726,10 @@ namespace stream {
 
       session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-      session.audioThread = std::thread { audioThread, &session };
-      session.videoThread = std::thread { videoThread, &session };
-
+      if (!session.config.inputOnly) {
+        session.audioThread = std::thread { audioThread, &session };
+        session.videoThread = std::thread { videoThread, &session };
+      }
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 
       // If this is the first session, invoke the platform callbacks

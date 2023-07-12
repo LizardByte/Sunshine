@@ -267,6 +267,7 @@ namespace nvhttp {
 
     launch_session.host_audio = host_audio;
     launch_session.gcm_key = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
+    launch_session.input_only = util::from_view(get_arg(args, "sunshineInputOnly"));
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
 
