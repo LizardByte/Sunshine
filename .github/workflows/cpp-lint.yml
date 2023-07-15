@@ -26,20 +26,38 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Find cpp files
-        id: cpp_files
+        id: find_files
         run: |
-          cpp_files=$(find . -type f -iname "*.cpp" -o -iname "*.h" -o -iname "*.m" -o -iname "*.mm")
+          # find files
+          found_files=$(find . -type f -iname "*.cpp" -o -iname "*.h" -o -iname "*.m" -o -iname "*.mm")
+          ignore_files=$(find . -type f -iname ".clang-format-ignore")
 
-          echo "found cpp files: ${cpp_files}"
+          # Loop through each C++ file
+          for file in $found_files; do
+            for ignore_file in $ignore_files; do
+              ignore_directory=$(dirname "$ignore_file")
+              # if directory of ignore_file is beginning of file
+              if [[ "$file" == "$ignore_directory"* ]]; then
+                echo "ignoring file: ${file}"
+                found_files="${found_files//${file}/}"
+                break 1
+              fi
+            done
+          done
+
+          # remove empty lines
+          found_files=$(echo "$found_files" | sed '/^\s*$/d')
+
+          echo "found cpp files: ${found_files}"
 
           # do not quote to keep this as a single line
-          echo cpp_files=${cpp_files} >> $GITHUB_OUTPUT
+          echo found_files=${found_files} >> $GITHUB_OUTPUT
 
       - name: Clang format lint
-        if: ${{ steps.cpp_files.outputs.cpp_files }}
+        if: ${{ steps.find_files.outputs.found_files }}
         uses: DoozyX/clang-format-lint-action@v0.15
         with:
-          source: ${{ steps.cpp_files.outputs.cpp_files }}
+          source: ${{ steps.find_files.outputs.found_files }}
           extensions: 'cpp,h,m,mm'
           clangFormatVersion: 15
           style: file
@@ -50,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: clang-format-fixes
-          path: ${{ steps.cpp_files.outputs.cpp_files }}
+          path: ${{ steps.find_files.outputs.found_files }}
 
   cmake-lint:
     name: CMake Lint
@@ -70,15 +88,33 @@ jobs:
           python -m pip install --upgrade pip setuptools cmakelang
 
       - name: Find cmake files
-        id: cmake_files
+        id: find_files
         run: |
-          cmake_files=$(find . -type f -iname "CMakeLists.txt" -o -iname "*.cmake")
+          # find files
+          found_files=$(find . -type f -iname "CMakeLists.txt" -o -iname "*.cmake")
+          ignore_files=$(find . -type f -iname ".cmake-lint-ignore")
 
-          echo "found cmake files: ${cmake_files}"
+          # Loop through each C++ file
+          for file in $found_files; do
+            for ignore_file in $ignore_files; do
+              ignore_directory=$(dirname "$ignore_file")
+              # if directory of ignore_file is beginning of file
+              if [[ "$file" == "$ignore_directory"* ]]; then
+                echo "ignoring file: ${file}"
+                found_files="${found_files//${file}/}"
+                break 1
+              fi
+            done
+          done
+
+          # remove empty lines
+          found_files=$(echo "$found_files" | sed '/^\s*$/d')
+
+          echo "found cmake files: ${found_files}"
 
           # do not quote to keep this as a single line
-          echo cmake_files=${cmake_files} >> $GITHUB_OUTPUT
+          echo found_files=${found_files} >> $GITHUB_OUTPUT
 
       - name: Test with cmake-lint
         run: |
-          cmake-lint --line-width 120 --tab-size 4 ${{ steps.cmake_files.outputs.cmake_files }}
+          cmake-lint --line-width 120 --tab-size 4 ${{ steps.find_files.outputs.found_files }}

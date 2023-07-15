@@ -178,6 +178,13 @@ jobs:
             org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
             "
 
+      - name: Create Additional Disk Space
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo docker rmi $(docker images -a -q)
+          df -h
+
       - name: Cache Flatpak build
         uses: actions/cache@v3
         with:
@@ -285,7 +292,6 @@ jobs:
               libboost-locale1.71-dev \
               libboost-log1.71-dev \
               libboost-regex1.71-dev \
-              libboost-thread1.71-dev \
               libboost-program-options1.71-dev
 
             # Install cmake
@@ -311,7 +317,6 @@ jobs:
               libboost-filesystem-dev \
               libboost-locale-dev \
               libboost-log-dev \
-              libboost-thread-dev \
               libboost-program-options-dev
           fi
 

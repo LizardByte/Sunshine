@@ -19,7 +19,8 @@ namespace net {
     ip_block("192.168.0.0/16"sv),
     ip_block("172.16.0.0/12"sv),
     ip_block("10.0.0.0/8"sv),
-    ip_block("100.64.0.0/10"sv)
+    ip_block("100.64.0.0/10"sv),
+    ip_block("169.254.0.0/16"sv)
   };
 
   std::uint32_t
@@ -106,7 +107,7 @@ namespace net {
     enet_address_set_host(&addr, "0.0.0.0");
     enet_address_set_port(&addr, port);
 
-    return host_t { enet_host_create(AF_INET, &addr, peers, 1, 0, 0) };
+    return host_t { enet_host_create(AF_INET, &addr, peers, 0, 0, 0) };
   }
 
   void
