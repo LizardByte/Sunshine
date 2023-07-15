@@ -273,9 +273,9 @@ namespace nvhttp {
     int x = 0;
     std::string segment;
     while (std::getline(mode, segment, 'x')) {
-      if (x == 0) launch_session.width = stoi(segment);
-      if (x == 1) launch_session.height = stoi(segment);
-      if (x == 2) launch_session.fps = stoi(segment);
+      if (x == 0) launch_session.width = atoi(segment.c_str());
+      if (x == 1) launch_session.height = atoi(segment.c_str());
+      if (x == 2) launch_session.fps = atoi(segment.c_str());
       x++;
     }
     launch_session.unique_id = (get_arg(args, "uniqueid"));
