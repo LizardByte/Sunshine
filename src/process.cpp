@@ -133,7 +133,7 @@ namespace proc {
     int channelCount = launch_session.surround_info & (65535);
     switch (channelCount) {
       case 2:
-        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.1";
+        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
         break;
       case 6:
         _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "5.1";
