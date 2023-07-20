@@ -1,0 +1,62 @@
+---
+name: Build GH-Pages
+
+on:
+  pull_request:
+    branches: [master, nightly]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update_pages:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+          path: gh-pages
+          persist-credentials: false  # otherwise, the token used is the GITHUB_TOKEN, instead of the personal token
+          fetch-depth: 0  # otherwise, will fail to push refs to dest repo
+
+      - name: Prepare gh-pages
+        run: |
+          # empty contents
+          rm -f -r ./gh-pages/*
+
+          # copy template back to pages
+          cp -f -r ./gh-pages-template/. ./gh-pages/
+
+      - name: Upload Artifacts
+        if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: gh-pages
+          if-no-files-found: error  # 'warn' or 'ignore' are also available, defaults to `warn`
+          path: |
+            ${{ github.workspace }}/gh-pages
+            !**/*.git
+
+      - name: Deploy to gh-pages
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+          (github.event_name == 'workflow_dispatch')
+        uses: actions-js/push@v1.4
+        with:
+          github_token: ${{ secrets.GH_BOT_TOKEN }}
+          author_email: ${{ secrets.GH_BOT_EMAIL }}
+          author_name: ${{ secrets.GH_BOT_NAME }}
+          directory: gh-pages
+          branch: gh-pages
+          force: false
+          message: sync gh-pages to ${{ github.sha }}
