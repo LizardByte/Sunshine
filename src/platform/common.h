@@ -72,17 +72,75 @@ namespace platf {
   constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;
   constexpr std::uint32_t MISC_BUTTON = 0x200000;
 
-  struct rumble_t {
-    KITTY_DEFAULT_CONSTR(rumble_t)
-
-    rumble_t(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq):
-        id { id }, lowfreq { lowfreq }, highfreq { highfreq } {}
-
-    std::uint16_t id;
-    std::uint16_t lowfreq;
-    std::uint16_t highfreq;
+  enum class gamepad_feedback_e {
+    rumble,
+    rumble_triggers,
+    set_motion_event_state,
+    set_rgb_led,
   };
-  using rumble_queue_t = safe::mail_raw_t::queue_t<rumble_t>;
+
+  struct gamepad_feedback_msg_t {
+    static gamepad_feedback_msg_t
+    make_rumble(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::rumble;
+      msg.id = id;
+      msg.data.rumble = { lowfreq, highfreq };
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_rumble_triggers(std::uint16_t id, std::uint16_t left, std::uint16_t right) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::rumble_triggers;
+      msg.id = id;
+      msg.data.rumble_triggers = { left, right };
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_motion_event_state(std::uint16_t id, std::uint8_t motion_type, std::uint16_t report_rate) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_motion_event_state;
+      msg.id = id;
+      msg.data.motion_event_state.motion_type = motion_type;
+      msg.data.motion_event_state.report_rate = report_rate;
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_rgb_led(std::uint16_t id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_rgb_led;
+      msg.id = id;
+      msg.data.rgb_led = { r, g, b };
+      return msg;
+    }
+
+    gamepad_feedback_e type;
+    std::uint16_t id;
+    union {
+      struct {
+        std::uint16_t lowfreq;
+        std::uint16_t highfreq;
+      } rumble;
+      struct {
+        std::uint16_t left_trigger;
+        std::uint16_t right_trigger;
+      } rumble_triggers;
+      struct {
+        std::uint16_t report_rate;
+        std::uint8_t motion_type;
+      } motion_event_state;
+      struct {
+        std::uint8_t r;
+        std::uint8_t g;
+        std::uint8_t b;
+      } rgb_led;
+    } data;
+  };
+
+  using feedback_queue_t = safe::mail_raw_t::queue_t<gamepad_feedback_msg_t>;
 
   namespace speaker {
     enum speaker_e {
@@ -160,6 +218,14 @@ namespace platf {
     int width, height;
   };
 
+  // These values must match Limelight-internal.h's SS_FF_* constants!
+  namespace platform_caps {
+    typedef uint32_t caps_t;
+
+    constexpr caps_t pen_touch = 0x01;  // Pen and touch events
+    constexpr caps_t controller_touch = 0x02;  // Controller touch events
+  };  // namespace platform_caps
+
   struct gamepad_state_t {
     std::uint32_t buttonFlags;
     std::uint8_t lt;
@@ -170,11 +236,47 @@ namespace platf {
     std::int16_t rsY;
   };
 
+  struct gamepad_id_t {
+    // The global index is used when looking up gamepads in the platform's
+    // gamepad array. It identifies gamepads uniquely among all clients.
+    int globalIndex;
+
+    // The client-relative index is the controller number as reported by the
+    // client. It must be used when communicating back to the client via
+    // the input feedback queue.
+    std::uint8_t clientRelativeIndex;
+  };
+
   struct gamepad_arrival_t {
-    std::uint8_t gamepadNumber;
     std::uint8_t type;
     std::uint16_t capabilities;
     std::uint32_t supportedButtons;
+  };
+
+  struct gamepad_touch_t {
+    gamepad_id_t id;
+    std::uint8_t eventType;
+    std::uint32_t pointerId;
+    float x;
+    float y;
+    float pressure;
+  };
+
+  struct gamepad_motion_t {
+    gamepad_id_t id;
+    std::uint8_t motionType;
+
+    // Accel: m/s^2
+    // Gyro: deg/s
+    float x;
+    float y;
+    float z;
+  };
+
+  struct gamepad_battery_t {
+    gamepad_id_t id;
+    std::uint8_t state;
+    std::uint8_t percentage;
   };
 
   class deinit_t {
@@ -298,7 +400,7 @@ namespace platf {
      *                        from the pool. If backend uses multiple threads, calls to this
      *                        callback must be synchronized. Calls to this callback and
      *                        push_captured_image_cb must be synchronized as well.
-     * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
+     * bool *cursor --> A pointer to the flag that indicates whether the cursor should be captured as well
      *
      * Returns either:
      *    capture_e::ok when stopping
@@ -383,7 +485,7 @@ namespace platf {
   /**
    * display_name --> The name of the monitor that SHOULD be displayed
    *    If display_name is empty --> Use the first monitor that's compatible you can find
-   *    If you require to use this parameter in a seperate thread --> make a copy of it.
+   *    If you require to use this parameter in a separate thread --> make a copy of it.
    *
    * config --> Stream configuration
    *
@@ -463,17 +565,48 @@ namespace platf {
   unicode(input_t &input, char *utf8, int size);
 
   /**
+   * @brief Sends a gamepad touch event to the OS.
+   * @param input The input context.
+   * @param touch The touch event.
+   */
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch);
+
+  /**
+   * @brief Sends a gamepad motion event to the OS.
+   * @param input The input context.
+   * @param motion The motion event.
+   */
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion);
+
+  /**
+   * @brief Sends a gamepad battery event to the OS.
+   * @param input The input context.
+   * @param battery The battery event.
+   */
+  void
+  gamepad_battery(input_t &input, const gamepad_battery_t &battery);
+
+  /**
    * @brief Creates a new virtual gamepad.
    * @param input The input context.
-   * @param nr The assigned controller number.
+   * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
-   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue);
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
   void
   free_gamepad(input_t &input, int nr);
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities();
 
 #define SERVICE_NAME "Sunshine"
 #define SERVICE_TYPE "_nvstream._tcp"

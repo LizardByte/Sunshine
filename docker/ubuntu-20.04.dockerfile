@@ -101,7 +101,7 @@ url="${cmake_prefix}${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${cmake_arch}.
 echo "cmake url: ${url}"
 wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cmake.sh
 sh ./cmake.sh --prefix=/usr/local --skip-license
-cmake --version
+rm ./cmake.sh
 _INSTALL_CMAKE
 
 # install cuda

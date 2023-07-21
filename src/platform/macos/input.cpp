@@ -291,13 +291,13 @@ const KeyCodeMap kKeyCodesMap[] = {
   /**
    * @brief Creates a new virtual gamepad.
    * @param input The input context.
-   * @param nr The assigned controller number.
+   * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
-   * @param rumble_queue The queue for posting rumble messages to the client.
+   * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
   int
-  alloc_gamepad(input_t &input, int nr, const gamepad_arrival_t &metadata, rumble_queue_t rumble_queue) {
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
     return -1;
   }
@@ -448,6 +448,36 @@ const KeyCodeMap kKeyCodesMap[] = {
     // Unimplemented
   }
 
+  /**
+   * @brief Sends a gamepad touch event to the OS.
+   * @param input The input context.
+   * @param touch The touch event.
+   */
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+    // Unimplemented feature - platform_caps::controller_touch
+  }
+
+  /**
+   * @brief Sends a gamepad motion event to the OS.
+   * @param input The input context.
+   * @param motion The motion event.
+   */
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+    // Unimplemented
+  }
+
+  /**
+   * @brief Sends a gamepad battery event to the OS.
+   * @param input The input context.
+   * @param battery The battery event.
+   */
+  void
+  gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
+    // Unimplemented
+  }
+
   input_t
   input() {
     input_t result { new macos_input_t() };
@@ -478,7 +508,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     macos_input->last_mouse_event[2][0] = 0;
     macos_input->last_mouse_event[2][1] = 0;
 
-    BOOST_LOG(debug) << "Display "sv << macos_input->display << ", pixel dimention: " << CGDisplayPixelsWide(macos_input->display) << "x"sv << CGDisplayPixelsHigh(macos_input->display);
+    BOOST_LOG(debug) << "Display "sv << macos_input->display << ", pixel dimension: " << CGDisplayPixelsWide(macos_input->display) << "x"sv << CGDisplayPixelsHigh(macos_input->display);
 
     return result;
   }
@@ -499,5 +529,14 @@ const KeyCodeMap kKeyCodesMap[] = {
     static std::vector<std::string_view> gamepads { ""sv };
 
     return gamepads;
+  }
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities() {
+    return 0;
   }
 }  // namespace platf
