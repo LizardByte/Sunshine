@@ -684,6 +684,8 @@ namespace rtsp_stream {
       return;
     }
 
+    config.inputOnly = launch_session->input_only;
+
     // When using stereo audio, the audio quality is (strangely) indicated by whether the Host field
     // in the RTSP message matches a local interface's IP address. Fortunately, Moonlight always sends
     // 0.0.0.0 when it wants low quality, so it is easy to check without enumerating interfaces.

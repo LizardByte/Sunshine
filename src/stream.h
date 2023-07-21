@@ -28,6 +28,7 @@ namespace stream {
     int videoQosType;
 
     std::optional<int> gcmap;
+    bool inputOnly;
   };
 
   namespace session {

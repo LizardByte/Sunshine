@@ -17,6 +17,7 @@ namespace rtsp_stream {
     crypto::aes_t iv;
 
     bool host_audio;
+    bool input_only;
   };
 
   void
