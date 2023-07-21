@@ -157,9 +157,9 @@ if(WIN32)
     add_compile_definitions(SUNSHINE_PLATFORM="windows")
     add_subdirectory(tools)  # This is temporary, only tools for Windows are needed, for now
 
-    include_directories(SYSTEM third-party/nvapi-opensource)
+    include_directories(SYSTEM third-party/nvapi-open-source-sdk)
     file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
-            "third-party/nvapi-opensource/*.h"
+            "third-party/nvapi-open-source-sdk/*.h"
             "src/platform/windows/nvprefs/*.cpp"
             "src/platform/windows/nvprefs/*.h")
 
