@@ -199,6 +199,19 @@
           resolutions and fps are supported.<br>
           This setting does <b>not</b> change how the screen stream is sent to Moonlight
         </div>
+        <div class="mb-3">
+          <label for="max_bitrate" class="form-label">Max Bitrate</label>
+          <input
+            type="number"
+            class="form-control"
+            id="max_bitrate"
+            placeholder="5000"
+            v-model="config.max_bitrate"
+          />
+          <div class="form-text">
+            Maximum bitrate for streaming. If not specified, the default bitrate is used
+          </div>
+        </div>
       </div>
       <!-- Mapping Key AltRight to Key Windows -->
       <div class="mb-3">
@@ -1051,6 +1064,7 @@
     "vt_realtime": "enabled",
     "vt_software": "auto",
     "global_prep_cmd": "[]",
+    "max_bitrate": 0,
   }
 
   new Vue({
@@ -1159,6 +1173,7 @@
           let resolutions = [];
           res.split(",").forEach((r) => resolutions.push(r.trim()));
           this.resolutions = resolutions;
+          this.max_bitrate = this.config.max_bitrate || 0;
           
           this.config.global_prep_cmd = this.config.global_prep_cmd || [];
           this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
