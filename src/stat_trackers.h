@@ -34,7 +34,7 @@ namespace stat_trackers {
 
   private:
     struct {
-      std::chrono::steady_clock::steady_clock::time_point last_callback_time = std::chrono::steady_clock::now();
+      std::chrono::steady_clock::time_point last_callback_time = std::chrono::steady_clock::now();
       T stat_min = std::numeric_limits<T>::max();
       T stat_max = 0;
       double stat_total = 0;
