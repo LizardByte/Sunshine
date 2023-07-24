@@ -1043,9 +1043,11 @@
     "encoder": "",
     "fps": "[10,30,60,90,120]",
     "gamepad": "x360",
+    "global_prep_cmd": "[]",
     "hevc_mode": 0,
     "key_rightalt_to_key_win": "disabled",
     "keyboard": "enabled",
+    "max_bitrate": 0,
     "min_log_level": 2,
     "mouse": "enabled",
     "nv_coder": "auto",
@@ -1063,8 +1065,6 @@
     "vt_coder": "auto",
     "vt_realtime": "enabled",
     "vt_software": "auto",
-    "global_prep_cmd": "[]",
-    "max_bitrate": 0,
   }
 
   new Vue({
@@ -1173,7 +1173,6 @@
           let resolutions = [];
           res.split(",").forEach((r) => resolutions.push(r.trim()));
           this.resolutions = resolutions;
-          this.max_bitrate = this.config.max_bitrate || 0;
           
           this.config.global_prep_cmd = this.config.global_prep_cmd || [];
           this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);

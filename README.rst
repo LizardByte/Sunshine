@@ -126,4 +126,3 @@ Stats
 .. _nvenc support matrix: https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new
 .. _obs-amd hardware support: https://github.com/obsproject/obs-amd-encoder/wiki/Hardware-Support
 .. _VAAPI hardware support: https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html
-

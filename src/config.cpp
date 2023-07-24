@@ -421,7 +421,7 @@ namespace config {
     },  // supported resolutions
 
     { 10, 30, 60, 90, 120 },  // supported fps
-    0,
+    0, // max bitrate
   };
 
   input_t input {

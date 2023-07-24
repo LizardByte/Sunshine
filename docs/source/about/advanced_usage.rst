@@ -412,6 +412,20 @@ resolutions
         3840x1600,
       ]
 
+max_bitrate
+^^^^^^^^^^^
+
+**Description**
+   The maximum bitrate (in Kbps) that Sunshine will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.
+
+**Default**
+   ``0``
+
+**Example**
+   .. code-block:: text
+
+      max_bitrate = 5000
+
 dwmflush
 ^^^^^^^^
 
