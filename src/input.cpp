@@ -10,6 +10,9 @@ extern "C" {
 }
 
 #include <bitset>
+#include <chrono>
+#include <list>
+#include <thread>
 #include <unordered_map>
 
 #include "config.h"
@@ -19,8 +22,7 @@ extern "C" {
 #include "thread_pool.h"
 #include "utility.h"
 
-#include <boost/chrono.hpp>
-#include <boost/thread/thread.hpp>
+#include <boost/endian/buffers.hpp>
 
 using namespace std::literals;
 namespace input {
@@ -78,6 +80,16 @@ namespace input {
     return kpid & 0xFF;
   }
 
+  /**
+   * @brief Converts a little-endian netfloat to a native endianness float.
+   * @param f Netfloat value.
+   * @return Float value.
+   */
+  float
+  from_netfloat(netfloat f) {
+    return boost::endian::endian_load<float, sizeof(float), boost::endian::order::little>(f);
+  }
+
   static task_pool_util::TaskPool::task_id_t key_press_repeat_id {};
   static std::unordered_map<key_press_id_t, bool> key_press {};
   static std::array<std::uint8_t, 5> mouse_press {};
@@ -128,23 +140,24 @@ namespace input {
 
     input_t(
       safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
-      platf::rumble_queue_t rumble_queue):
+      platf::feedback_queue_t feedback_queue):
         shortcutFlags {},
-        active_gamepad_state {},
         gamepads(MAX_GAMEPADS),
         touch_port_event { std::move(touch_port_event) },
-        rumble_queue { std::move(rumble_queue) },
+        feedback_queue { std::move(feedback_queue) },
         mouse_left_button_timeout {},
         touch_port { { 0, 0, 0, 0 }, 0, 0, 1.0f } {}
 
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;
 
-    std::uint16_t active_gamepad_state;
     std::vector<gamepad_t> gamepads;
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;
-    platf::rumble_queue_t rumble_queue;
+    platf::feedback_queue_t feedback_queue;
+
+    std::list<std::vector<uint8_t>> input_queue;
+    std::mutex input_queue_lock;
 
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;
 
@@ -251,7 +264,7 @@ namespace input {
       << "--begin controller packet--"sv << std::endl
       << "controllerNumber ["sv << packet->controllerNumber << ']' << std::endl
       << "activeGamepadMask ["sv << util::hex(packet->activeGamepadMask).to_string_view() << ']' << std::endl
-      << "buttonFlags ["sv << util::hex(packet->buttonFlags).to_string_view() << ']' << std::endl
+      << "buttonFlags ["sv << util::hex((uint32_t) packet->buttonFlags | (packet->buttonFlags2 << 16)).to_string_view() << ']' << std::endl
       << "leftTrigger ["sv << util::hex(packet->leftTrigger).to_string_view() << ']' << std::endl
       << "rightTrigger ["sv << util::hex(packet->rightTrigger).to_string_view() << ']' << std::endl
       << "leftStickX ["sv << packet->leftStickX << ']' << std::endl
@@ -259,6 +272,68 @@ namespace input {
       << "rightStickX ["sv << packet->rightStickX << ']' << std::endl
       << "rightStickY ["sv << packet->rightStickY << ']' << std::endl
       << "--end controller packet--"sv;
+  }
+
+  /**
+   * @brief Prints a controller arrival packet.
+   * @param packet The controller arrival packet.
+   */
+  void
+  print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin controller arrival packet--"sv << std::endl
+      << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
+      << "type ["sv << util::hex(packet->type).to_string_view() << ']' << std::endl
+      << "capabilities ["sv << util::hex(packet->capabilities).to_string_view() << ']' << std::endl
+      << "supportedButtonFlags ["sv << util::hex(packet->supportedButtonFlags).to_string_view() << ']' << std::endl
+      << "--end controller arrival packet--"sv;
+  }
+
+  /**
+   * @brief Prints a controller touch packet.
+   * @param packet The controller touch packet.
+   */
+  void
+  print(PSS_CONTROLLER_TOUCH_PACKET packet) {
+    BOOST_LOG(debug)
+      << "--begin controller touch packet--"sv << std::endl
+      << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
+      << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
+      << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "pressure ["sv << from_netfloat(packet->pressure) << ']' << std::endl
+      << "--end controller touch packet--"sv;
+  }
+
+  /**
+   * @brief Prints a controller motion packet.
+   * @param packet The controller motion packet.
+   */
+  void
+  print(PSS_CONTROLLER_MOTION_PACKET packet) {
+    BOOST_LOG(verbose)
+      << "--begin controller motion packet--"sv << std::endl
+      << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
+      << "motionType ["sv << util::hex(packet->motionType).to_string_view() << ']' << std::endl
+      << "x ["sv << from_netfloat(packet->x) << ']' << std::endl
+      << "y ["sv << from_netfloat(packet->y) << ']' << std::endl
+      << "z ["sv << from_netfloat(packet->z) << ']' << std::endl
+      << "--end controller motion packet--"sv;
+  }
+
+  /**
+   * @brief Prints a controller battery packet.
+   * @param packet The controller battery packet.
+   */
+  void
+  print(PSS_CONTROLLER_BATTERY_PACKET packet) {
+    BOOST_LOG(verbose)
+      << "--begin controller battery packet--"sv << std::endl
+      << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
+      << "batteryState ["sv << util::hex(packet->batteryState).to_string_view() << ']' << std::endl
+      << "batteryPercentage ["sv << util::hex(packet->batteryPercentage).to_string_view() << ']' << std::endl
+      << "--end controller battery packet--"sv;
   }
 
   void
@@ -291,6 +366,18 @@ namespace input {
         break;
       case MULTI_CONTROLLER_MAGIC_GEN5:
         print((PNV_MULTI_CONTROLLER_PACKET) payload);
+        break;
+      case SS_CONTROLLER_ARRIVAL_MAGIC:
+        print((PSS_CONTROLLER_ARRIVAL_PACKET) payload);
+        break;
+      case SS_CONTROLLER_TOUCH_MAGIC:
+        print((PSS_CONTROLLER_TOUCH_PACKET) payload);
+        break;
+      case SS_CONTROLLER_MOTION_MAGIC:
+        print((PSS_CONTROLLER_MOTION_PACKET) payload);
+        break;
+      case SS_CONTROLLER_BATTERY_MAGIC:
+        print((PSS_CONTROLLER_BATTERY_PACKET) payload);
         break;
     }
   }
@@ -613,46 +700,143 @@ namespace input {
     platf::unicode(platf_input, packet->text, size);
   }
 
-  int
-  updateGamepads(std::vector<gamepad_t> &gamepads, std::int16_t old_state, std::int16_t new_state, const platf::rumble_queue_t &rumble_queue) {
-    auto xorGamepadMask = old_state ^ new_state;
-    if (!xorGamepadMask) {
-      return 0;
+  /**
+   * @brief Called to pass a controller arrival message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller arrival packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+    if (!config::input.controller) {
+      return;
     }
 
-    for (int x = 0; x < sizeof(std::int16_t) * 8; ++x) {
-      if ((xorGamepadMask >> x) & 1) {
-        auto &gamepad = gamepads[x];
-
-        if ((old_state >> x) & 1) {
-          if (gamepad.id < 0) {
-            return -1;
-          }
-
-          free_gamepad(platf_input, gamepad.id);
-          gamepad.id = -1;
-        }
-        else {
-          auto id = alloc_id(gamepadMask);
-
-          if (id < 0) {
-            // Out of gamepads
-            return -1;
-          }
-
-          if (platf::alloc_gamepad(platf_input, id, rumble_queue)) {
-            free_id(gamepadMask, id);
-            // allocating a gamepad failed: solution: ignore gamepads
-            // The implementations of platf::alloc_gamepad already has logging
-            return -1;
-          }
-
-          gamepad.id = id;
-        }
-      }
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      return;
     }
 
-    return 0;
+    if (input->gamepads[packet->controllerNumber].id >= 0) {
+      BOOST_LOG(warning) << "ControllerNumber already allocated ["sv << packet->controllerNumber << ']';
+      return;
+    }
+
+    platf::gamepad_arrival_t arrival {
+      packet->type,
+      util::endian::little(packet->capabilities),
+      util::endian::little(packet->supportedButtonFlags),
+    };
+
+    auto id = alloc_id(gamepadMask);
+    if (id < 0) {
+      return;
+    }
+
+    // Allocate a new gamepad
+    if (platf::alloc_gamepad(platf_input, { id, packet->controllerNumber }, arrival, input->feedback_queue)) {
+      free_id(gamepadMask, id);
+      return;
+    }
+
+    input->gamepads[packet->controllerNumber].id = id;
+  }
+
+  /**
+   * @brief Called to pass a controller touch message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller touch packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
+    if (!config::input.controller) {
+      return;
+    }
+
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      return;
+    }
+
+    auto &gamepad = input->gamepads[packet->controllerNumber];
+    if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      return;
+    }
+
+    platf::gamepad_touch_t touch {
+      { gamepad.id, packet->controllerNumber },
+      packet->eventType,
+      util::endian::little(packet->pointerId),
+      from_netfloat(packet->x),
+      from_netfloat(packet->y),
+      from_netfloat(packet->pressure),
+    };
+
+    platf::gamepad_touch(platf_input, touch);
+  }
+
+  /**
+   * @brief Called to pass a controller motion message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller motion packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
+    if (!config::input.controller) {
+      return;
+    }
+
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      return;
+    }
+
+    auto &gamepad = input->gamepads[packet->controllerNumber];
+    if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      return;
+    }
+
+    platf::gamepad_motion_t motion {
+      { gamepad.id, packet->controllerNumber },
+      packet->motionType,
+      from_netfloat(packet->x),
+      from_netfloat(packet->y),
+      from_netfloat(packet->z),
+    };
+
+    platf::gamepad_motion(platf_input, motion);
+  }
+
+  /**
+   * @brief Called to pass a controller battery message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The controller battery packet.
+   */
+  void
+  passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
+    if (!config::input.controller) {
+      return;
+    }
+
+    if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
+      BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
+      return;
+    }
+
+    auto &gamepad = input->gamepads[packet->controllerNumber];
+    if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+      return;
+    }
+
+    platf::gamepad_battery_t battery {
+      { gamepad.id, packet->controllerNumber },
+      packet->batteryState,
+      packet->batteryPercentage
+    };
+
+    platf::gamepad_battery(platf_input, battery);
   }
 
   void
@@ -661,35 +845,47 @@ namespace input {
       return;
     }
 
-    if (updateGamepads(input->gamepads, input->active_gamepad_state, packet->activeGamepadMask, input->rumble_queue)) {
-      return;
-    }
-
-    input->active_gamepad_state = packet->activeGamepadMask;
-
     if (packet->controllerNumber < 0 || packet->controllerNumber >= input->gamepads.size()) {
       BOOST_LOG(warning) << "ControllerNumber out of range ["sv << packet->controllerNumber << ']';
 
       return;
     }
 
-    if (!((input->active_gamepad_state >> packet->controllerNumber) & 1)) {
-      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
+    auto &gamepad = input->gamepads[packet->controllerNumber];
 
+    // If this is an event for a new gamepad, create the gamepad now. Ideally, the client would
+    // send a controller arrival instead of this but it's still supported for legacy clients.
+    if ((packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id < 0) {
+      auto id = alloc_id(gamepadMask);
+      if (id < 0) {
+        return;
+      }
+
+      if (platf::alloc_gamepad(platf_input, { id, (uint8_t) packet->controllerNumber }, {}, input->feedback_queue)) {
+        free_id(gamepadMask, id);
+        return;
+      }
+
+      gamepad.id = id;
+    }
+    else if (!(packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id >= 0) {
+      // If this is the final event for a gamepad being removed, free the gamepad and return.
+      free_gamepad(platf_input, gamepad.id);
+      gamepad.id = -1;
       return;
     }
-
-    auto &gamepad = input->gamepads[packet->controllerNumber];
 
     // If this gamepad has not been initialized, ignore it.
     // This could happen when platf::alloc_gamepad fails
     if (gamepad.id < 0) {
+      BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
     std::uint16_t bf = packet->buttonFlags;
+    std::uint32_t bf2 = packet->buttonFlags2;
     platf::gamepad_state_t gamepad_state {
-      bf,
+      bf | (bf2 << 16),
       packet->leftTrigger,
       packet->rightTrigger,
       packet->leftStickX,
@@ -738,7 +934,7 @@ namespace input {
             platf::gamepad(platf_input, gamepad.id, state);
 
             // Sleep for a short time to allow the input to be detected
-            boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
             // Release Home button
             state.buttonFlags &= ~platf::HOME;
@@ -761,12 +957,350 @@ namespace input {
     gamepad.gamepad_state = gamepad_state;
   }
 
-  void
-  passthrough_helper(std::shared_ptr<input_t> input, std::vector<std::uint8_t> &&input_data) {
-    void *payload = input_data.data();
-    auto header = (PNV_INPUT_HEADER) payload;
+  enum class batch_result_e {
+    batched,  // This entry was batched with the source entry
+    not_batchable,  // Not eligible to batch but continue attempts to batch
+    terminate_batch,  // Stop trying to batch with this entry
+  };
 
-    switch (util::endian::little(header->magic)) {
+  /**
+   * @brief Batch two relative mouse messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
+    short deltaX, deltaY;
+
+    // Batching is safe as long as the result doesn't overflow a 16-bit integer
+    if (!__builtin_add_overflow(util::endian::big(dest->deltaX), util::endian::big(src->deltaX), &deltaX)) {
+      return batch_result_e::terminate_batch;
+    }
+    if (!__builtin_add_overflow(util::endian::big(dest->deltaY), util::endian::big(src->deltaY), &deltaY)) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the sum of deltas
+    dest->deltaX = util::endian::big(deltaX);
+    dest->deltaY = util::endian::big(deltaY);
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two absolute mouse messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PNV_ABS_MOUSE_MOVE_PACKET dest, PNV_ABS_MOUSE_MOVE_PACKET src) {
+    // Batching must only happen if the reference width and height don't change
+    if (dest->width != src->width || dest->height != src->height) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the latest absolute position
+    *dest = *src;
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two vertical scroll messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PNV_SCROLL_PACKET dest, PNV_SCROLL_PACKET src) {
+    short scrollAmt;
+
+    // Batching is safe as long as the result doesn't overflow a 16-bit integer
+    if (!__builtin_add_overflow(util::endian::big(dest->scrollAmt1), util::endian::big(src->scrollAmt1), &scrollAmt)) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the sum of delta
+    dest->scrollAmt1 = util::endian::big(scrollAmt);
+    dest->scrollAmt2 = util::endian::big(scrollAmt);
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two horizontal scroll messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PSS_HSCROLL_PACKET dest, PSS_HSCROLL_PACKET src) {
+    short scrollAmt;
+
+    // Batching is safe as long as the result doesn't overflow a 16-bit integer
+    if (!__builtin_add_overflow(util::endian::big(dest->scrollAmount), util::endian::big(src->scrollAmount), &scrollAmt)) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the sum of delta
+    dest->scrollAmount = util::endian::big(scrollAmt);
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two controller state messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PNV_MULTI_CONTROLLER_PACKET dest, PNV_MULTI_CONTROLLER_PACKET src) {
+    // Do not allow batching if the active controllers change
+    if (dest->activeGamepadMask != src->activeGamepadMask) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // We can only batch entries for the same controller, but allow batching attempts to continue
+    // in case we have more packets for this controller later in the queue.
+    if (dest->controllerNumber != src->controllerNumber) {
+      return batch_result_e::not_batchable;
+    }
+
+    // Do not allow batching if the button state changes on this controller
+    if (dest->buttonFlags != src->buttonFlags || dest->buttonFlags2 != src->buttonFlags2) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the latest state
+    *dest = *src;
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two touch messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
+    // Only batch hover or move events
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
+        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Don't batch beyond state changing events
+    if (src->eventType != LI_TOUCH_EVENT_MOVE &&
+        src->eventType != LI_TOUCH_EVENT_HOVER) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Batched events must be the same pointer ID
+    if (dest->pointerId != src->pointerId) {
+      return batch_result_e::not_batchable;
+    }
+
+    // The pointer must be in the same state
+    if (dest->eventType != src->eventType) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the latest state
+    *dest = *src;
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two pen messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
+    // Only batch hover or move events
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
+        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Batched events must be the same type
+    if (dest->eventType != src->eventType) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Do not allow batching if the button state changes
+    if (dest->penButtons != src->penButtons) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Do not batch beyond tool changes
+    if (dest->toolType != src->toolType) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the latest state
+    *dest = *src;
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two controller touch messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
+    // Only batch hover or move events
+    if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
+        dest->eventType != LI_TOUCH_EVENT_HOVER) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // We can only batch entries for the same controller, but allow batching attempts to continue
+    // in case we have more packets for this controller later in the queue.
+    if (dest->controllerNumber != src->controllerNumber) {
+      return batch_result_e::not_batchable;
+    }
+
+    // Don't batch beyond state changing events
+    if (src->eventType != LI_TOUCH_EVENT_MOVE &&
+        src->eventType != LI_TOUCH_EVENT_HOVER) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Batched events must be the same pointer ID
+    if (dest->pointerId != src->pointerId) {
+      return batch_result_e::not_batchable;
+    }
+
+    // The pointer must be in the same state
+    if (dest->eventType != src->eventType) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // Take the latest state
+    *dest = *src;
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two controller motion messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PSS_CONTROLLER_MOTION_PACKET dest, PSS_CONTROLLER_MOTION_PACKET src) {
+    // We can only batch entries for the same controller, but allow batching attempts to continue
+    // in case we have more packets for this controller later in the queue.
+    if (dest->controllerNumber != src->controllerNumber) {
+      return batch_result_e::not_batchable;
+    }
+
+    // Batched events must be the same sensor
+    if (dest->motionType != src->motionType) {
+      return batch_result_e::not_batchable;
+    }
+
+    // Take the latest state
+    *dest = *src;
+    return batch_result_e::batched;
+  }
+
+  /**
+   * @brief Batch two input messages.
+   * @param dest The original packet to batch into.
+   * @param src A later packet to attempt to batch.
+   * @return `batch_result_e` : The status of the batching operation.
+   */
+  batch_result_e
+  batch(PNV_INPUT_HEADER dest, PNV_INPUT_HEADER src) {
+    // We can only batch if the packet types are the same
+    if (dest->magic != src->magic) {
+      return batch_result_e::terminate_batch;
+    }
+
+    // We can only batch certain message types
+    switch (util::endian::little(dest->magic)) {
+      case MOUSE_MOVE_REL_MAGIC_GEN5:
+        return batch((PNV_REL_MOUSE_MOVE_PACKET) dest, (PNV_REL_MOUSE_MOVE_PACKET) src);
+      case MOUSE_MOVE_ABS_MAGIC:
+        return batch((PNV_ABS_MOUSE_MOVE_PACKET) dest, (PNV_ABS_MOUSE_MOVE_PACKET) src);
+      case SCROLL_MAGIC_GEN5:
+        return batch((PNV_SCROLL_PACKET) dest, (PNV_SCROLL_PACKET) src);
+      case SS_HSCROLL_MAGIC:
+        return batch((PSS_HSCROLL_PACKET) dest, (PSS_HSCROLL_PACKET) src);
+      case MULTI_CONTROLLER_MAGIC_GEN5:
+        return batch((PNV_MULTI_CONTROLLER_PACKET) dest, (PNV_MULTI_CONTROLLER_PACKET) src);
+      case SS_TOUCH_MAGIC:
+        return batch((PSS_TOUCH_PACKET) dest, (PSS_TOUCH_PACKET) src);
+      case SS_PEN_MAGIC:
+        return batch((PSS_PEN_PACKET) dest, (PSS_PEN_PACKET) src);
+      case SS_CONTROLLER_TOUCH_MAGIC:
+        return batch((PSS_CONTROLLER_TOUCH_PACKET) dest, (PSS_CONTROLLER_TOUCH_PACKET) src);
+      case SS_CONTROLLER_MOTION_MAGIC:
+        return batch((PSS_CONTROLLER_MOTION_PACKET) dest, (PSS_CONTROLLER_MOTION_PACKET) src);
+      default:
+        // Not a batchable message type
+        return batch_result_e::terminate_batch;
+    }
+  }
+
+  /**
+   * @brief Called on a thread pool thread to process an input message.
+   * @param input The input context pointer.
+   */
+  void
+  passthrough_next_message(std::shared_ptr<input_t> input) {
+    // 'entry' backs the 'payload' pointer, so they must remain in scope together
+    std::vector<uint8_t> entry;
+    PNV_INPUT_HEADER payload;
+
+    // Lock the input queue while batching, but release it before sending
+    // the input to the OS. This avoids potentially lengthy lock contention
+    // in the control stream thread while input is being processed by the OS.
+    {
+      std::lock_guard<std::mutex> lg(input->input_queue_lock);
+
+      // If all entries have already been processed, nothing to do
+      if (input->input_queue.empty()) {
+        return;
+      }
+
+      // Pop off the first entry, which we will send
+      entry = input->input_queue.front();
+      payload = (PNV_INPUT_HEADER) entry.data();
+      input->input_queue.pop_front();
+
+      // Try to batch with remaining items on the queue
+      auto i = input->input_queue.begin();
+      while (i != input->input_queue.end()) {
+        auto batchable_entry = *i;
+        auto batchable_payload = (PNV_INPUT_HEADER) batchable_entry.data();
+
+        auto batch_result = batch(payload, batchable_payload);
+        if (batch_result == batch_result_e::terminate_batch) {
+          // Stop batching
+          break;
+        }
+        else if (batch_result == batch_result_e::batched) {
+          // Erase this entry since it was batched
+          i = input->input_queue.erase(i);
+        }
+        else {
+          // We couldn't batch this entry, but try to batch later entries.
+          i++;
+        }
+      }
+    }
+
+    // Print the final input packet
+    input::print((void *) payload);
+
+    // Send the batched input to the OS
+    switch (util::endian::little(payload->magic)) {
       case MOUSE_MOVE_REL_MAGIC_GEN5:
         passthrough(input, (PNV_REL_MOUSE_MOVE_PACKET) payload);
         break;
@@ -793,12 +1327,33 @@ namespace input {
       case MULTI_CONTROLLER_MAGIC_GEN5:
         passthrough(input, (PNV_MULTI_CONTROLLER_PACKET) payload);
         break;
+      case SS_CONTROLLER_ARRIVAL_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_ARRIVAL_PACKET) payload);
+        break;
+      case SS_CONTROLLER_TOUCH_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_TOUCH_PACKET) payload);
+        break;
+      case SS_CONTROLLER_MOTION_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_MOTION_PACKET) payload);
+        break;
+      case SS_CONTROLLER_BATTERY_MAGIC:
+        passthrough(input, (PSS_CONTROLLER_BATTERY_PACKET) payload);
+        break;
     }
   }
 
+  /**
+   * @brief Called on the control stream thread to queue an input message.
+   * @param input The input context pointer.
+   * @param input_data The input message.
+   */
   void
   passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
-    task_pool.push(passthrough_helper, input, move_by_copy_util::cmove(input_data));
+    {
+      std::lock_guard<std::mutex> lg(input->input_queue_lock);
+      input->input_queue.push_back(std::move(input_data));
+    }
+    task_pool.push(passthrough_next_message, input);
   }
 
   void
@@ -816,6 +1371,10 @@ namespace input {
       }
 
       for (auto &kp : key_press) {
+        if (!kp.second) {
+          // already released
+          continue;
+        }
         platf::keyboard(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
         key_press[kp.first] = false;
       }
@@ -840,7 +1399,7 @@ namespace input {
   alloc(safe::mail_t mail) {
     auto input = std::make_shared<input_t>(
       mail->event<input::touch_port_t>(mail::touch_port),
-      mail->queue<platf::rumble_t>(mail::rumble));
+      mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback));
 
     // Workaround to ensure new frames will be captured when a client connects
     task_pool.pushDelayed([]() {

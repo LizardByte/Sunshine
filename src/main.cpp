@@ -46,6 +46,11 @@ safe::mail_t mail::man;
 using namespace std::literals;
 namespace bl = boost::log;
 
+#ifdef _WIN32
+// Define global singleton used for NVIDIA control panel modifications
+nvprefs::nvprefs_interface nvprefs_instance;
+#endif
+
 thread_pool_util::ThreadPool task_pool;
 bl::sources::severity_logger<int> verbose(0);  // Dominating output
 bl::sources::severity_logger<int> debug(1);  // Follow what is happening
@@ -111,6 +116,22 @@ namespace version {
     return 0;
   }
 }  // namespace version
+
+#ifdef _WIN32
+namespace restore_nvprefs_undo {
+  int
+  entry(const char *name, int argc, char *argv[]) {
+    // Restore global NVIDIA control panel settings to the undo file
+    // left by improper termination of sunshine.exe, if it exists.
+    // This entry point is typically called by the uninstaller.
+    if (nvprefs_instance.load()) {
+      nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+      nvprefs_instance.unload();
+    }
+    return 0;
+  }
+}  // namespace restore_nvprefs_undo
+#endif
 
 namespace lifetime {
   static char **argv;
@@ -413,7 +434,10 @@ namespace gen_creds {
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   { "creds"sv, gen_creds::entry },
   { "help"sv, help::entry },
-  { "version"sv, version::entry }
+  { "version"sv, version::entry },
+#ifdef _WIN32
+  { "restore-nvprefs-undo"sv, restore_nvprefs_undo::entry },
+#endif
 };
 
 #ifdef _WIN32
@@ -568,6 +592,21 @@ main(int argc, char *argv[]) {
 
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
+
+#ifdef WIN32
+  // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
+  if (nvprefs_instance.load()) {
+    // Restore global settings to the undo file left by improper termination of sunshine.exe
+    nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+    // Modify application settings for sunshine.exe
+    nvprefs_instance.modify_application_profile();
+    // Modify global settings, undo file is produced in the process to restore after improper termination
+    nvprefs_instance.modify_global_profile();
+    // Unload dynamic library to survive driver reinstallation
+    nvprefs_instance.unload();
+  }
+#endif
+
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
@@ -673,6 +712,14 @@ main(int argc, char *argv[]) {
   // stop system tray
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
   system_tray::end_tray();
+#endif
+
+#ifdef WIN32
+  // Restore global NVIDIA control panel settings
+  if (nvprefs_instance.owning_undo_file() && nvprefs_instance.load()) {
+    nvprefs_instance.restore_global_profile();
+    nvprefs_instance.unload();
+  }
 #endif
 
   return lifetime::desired_exit_code;

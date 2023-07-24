@@ -492,6 +492,10 @@ namespace rtsp_stream {
     option.content = const_cast<char *>(seqn_str.c_str());
 
     std::stringstream ss;
+
+    // Tell the client about our supported features
+    ss << "a=x-ss-general.featureFlags: " << (uint32_t) platf::get_capabilities();
+
     if (video::active_hevc_mode != 1) {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
     }

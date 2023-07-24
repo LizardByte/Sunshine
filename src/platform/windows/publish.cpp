@@ -29,7 +29,7 @@ using namespace std::literals;
 #define SV(quote) __SV(quote)
 
 extern "C" {
-constexpr auto MY_DNS_REQUEST_PENDING = 9506L;
+constexpr auto DNS_REQUEST_PENDING = 9506L;
 
 #ifndef __MINGW32__
 constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;

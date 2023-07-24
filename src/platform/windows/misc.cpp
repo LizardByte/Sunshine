@@ -33,6 +33,8 @@
 #include "src/utility.h"
 #include <iterator>
 
+#include "nvprefs/nvprefs_interface.h"
+
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
 #ifndef UDP_SEND_MSG_SIZE
   #define UDP_SEND_MSG_SIZE 2
@@ -740,6 +742,16 @@ namespace platf {
     // Promote ourselves to high priority class
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
+    // Modify NVIDIA control panel settings again, in case they have been changed externally since sunshine launch
+    if (nvprefs_instance.load()) {
+      if (!nvprefs_instance.owning_undo_file()) {
+        nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+      }
+      nvprefs_instance.modify_application_profile();
+      nvprefs_instance.modify_global_profile();
+      nvprefs_instance.unload();
+    }
+
     // Enable low latency mode on all connected WLAN NICs if wlanapi.dll is available
     if (fn_WlanOpenHandle) {
       DWORD negotiated_version;
@@ -751,7 +763,7 @@ namespace platf {
           for (DWORD i = 0; i < wlan_interface_list->dwNumberOfItems; i++) {
             if (wlan_interface_list->InterfaceInfo[i].isState == wlan_interface_state_connected) {
               // Enable media streaming mode for 802.11 wireless interfaces to reduce latency and
-              // unneccessary background scanning operations that cause packet loss and jitter.
+              // unnecessary background scanning operations that cause packet loss and jitter.
               //
               // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
               // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming

@@ -94,10 +94,11 @@
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="gamepad" class="form-label">Gamepads</label>
         <select id="gamepad" class="form-select" v-model="config.gamepad">
+          <option value="auto">Automatic</option>
           <option value="ds4">DS4 (PS4)</option>
           <option value="x360">X360 (Xbox 360)</option>
         </select>
-        <div class="form-text">Choose which type of gamepad to Emulate on the host</div>
+        <div class="form-text">Choose which type of gamepad to emulate on the host</div>
       </div>
       <!--Ping Timeout-->
       <div class="mb-3">
@@ -940,7 +941,7 @@
         <select id="amd_rc" class="form-select" v-model="config.amd_rc">
           <option value="cqp">cqp -- constant qp mode</option>
           <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
-          <option value="vbr_peak">vbr_peak -- peak contrained variable bitrate</option>
+          <option value="vbr_peak">vbr_peak -- peak constrained variable bitrate</option>
           <option value="cbr">cbr -- constant bitrate</option>
         </select>
       </div>

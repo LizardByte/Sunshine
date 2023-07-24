@@ -50,3 +50,7 @@
 	path = third-party/tray
 	url = https://github.com/dmikushin/tray
 	branch = master
+[submodule "third-party/nvapi-open-source-sdk"]
+	path = third-party/nvapi-open-source-sdk
+	url = https://github.com/LizardByte/nvapi-open-source-sdk
+	branch = sdk

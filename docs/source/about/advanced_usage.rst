@@ -140,17 +140,18 @@ gamepad
    =====     ===========
    Value     Description
    =====     ===========
-   x360      xbox 360 controller
-   ds4       dualshock controller (PS4)
+   auto      Selected based on information from client
+   x360      Xbox 360 controller
+   ds4       DualShock 4 controller (PS4)
    =====     ===========
 
 **Default**
-   ``x360``
+   ``auto``
 
 **Example**
    .. code-block:: text
 
-      gamepad = x360
+      gamepad = auto
 
 back_button_timeout
 ^^^^^^^^^^^^^^^^^^^
