@@ -560,7 +560,7 @@ namespace stream {
       auto parity_shards = (data_shards * fecpercentage + 99) / 100;
 
       // increase the FEC percentage for this frame if the parity shard minimum is not met
-      if (parity_shards < minparityshards) {
+      if (parity_shards < minparityshards && fecpercentage != 0) {
         parity_shards = minparityshards;
         fecpercentage = (100 * parity_shards) / data_shards;
 
@@ -568,15 +568,6 @@ namespace stream {
       }
 
       auto nr_shards = data_shards + parity_shards;
-      if (nr_shards > DATA_SHARDS_MAX) {
-        BOOST_LOG(warning)
-          << "Number of fragments for reed solomon exceeds DATA_SHARDS_MAX"sv << std::endl
-          << nr_shards << " > "sv << DATA_SHARDS_MAX
-          << ", skipping error correction"sv;
-
-        nr_shards = data_shards;
-        fecpercentage = 0;
-      }
 
       util::buffer_t<char> shards { nr_shards * blocksize };
       util::buffer_t<uint8_t *> shards_p { nr_shards };
@@ -589,7 +580,7 @@ namespace stream {
         shards_p[x] = (uint8_t *) &shards[x * blocksize];
       }
 
-      if (data_shards + parity_shards <= DATA_SHARDS_MAX) {
+      if (fecpercentage != 0) {
         // packets = parity_shards + data_shards
         rs_t rs { reed_solomon_new(data_shards, parity_shards) };
 
@@ -1185,38 +1176,57 @@ namespace stream {
 
       payload = std::string_view { (char *) payload_new.data(), payload_new.size() };
 
-      // With a fecpercentage of 255, if payload_new is broken up into more than a 100 data_shards
-      // it will generate greater than DATA_SHARDS_MAX shards.
-      // Therefore, we start breaking the data up into three separate fec blocks.
-      auto multi_fec_threshold = 90 * blocksize;
+      // There are 2 bits for FEC block count for a maximum of 4 FEC blocks
+      constexpr auto MAX_FEC_BLOCKS = 4;
 
-      // We can go up to 4 fec blocks, but 3 is plenty
-      constexpr auto MAX_FEC_BLOCKS = 3;
+      // The max number of data shards per block is found by solving this system of equations for D:
+      // D = 255 - P
+      // P = D * F
+      // which results in the solution:
+      // D = 255 / (1 + F)
+      // multiplied by 100 since F is the percentage as an integer:
+      // D = (255 * 100) / (100 + F)
+      auto max_data_shards_per_fec_block = (DATA_SHARDS_MAX * 100) / (100 + fecPercentage);
+
+      // Compute the number of FEC blocks needed for this frame using the block size and max shards
+      auto max_data_per_fec_block = max_data_shards_per_fec_block * blocksize;
+      auto fec_blocks_needed = (payload.size() + (max_data_per_fec_block - 1)) / max_data_per_fec_block;
+
+      // If the number of FEC blocks needed exceeds the protocol limit, turn off FEC for this frame.
+      // For normal FEC percentages, this should only happen for enormous frames (over 800 packets at 20%).
+      if (fec_blocks_needed > MAX_FEC_BLOCKS) {
+        BOOST_LOG(warning) << "Skipping FEC for abnormally large encoded frame (needed "sv << fec_blocks_needed << " FEC blocks)"sv;
+        fecPercentage = 0;
+        fec_blocks_needed = MAX_FEC_BLOCKS;
+      }
 
       std::array<std::string_view, MAX_FEC_BLOCKS> fec_blocks;
       decltype(fec_blocks)::iterator
         fec_blocks_begin = std::begin(fec_blocks),
-        fec_blocks_end = std::begin(fec_blocks) + 1;
+        fec_blocks_end = std::begin(fec_blocks) + fec_blocks_needed;
 
-      auto lastBlockIndex = 0;
-      if (payload.size() > multi_fec_threshold) {
-        BOOST_LOG(verbose) << "Generating multiple FEC blocks"sv;
+      BOOST_LOG(verbose) << "Generating "sv << fec_blocks_needed << " FEC blocks"sv;
 
-        // Align individual fec blocks to blocksize
-        auto unaligned_size = payload.size() / MAX_FEC_BLOCKS;
-        auto aligned_size = ((unaligned_size + (blocksize - 1)) / blocksize) * blocksize;
+      // Align individual FEC blocks to blocksize
+      auto unaligned_size = payload.size() / fec_blocks_needed;
+      auto aligned_size = ((unaligned_size + (blocksize - 1)) / blocksize) * blocksize;
 
-        // Break the data up into 3 blocks, each containing multiple complete video packets.
-        fec_blocks[0] = payload.substr(0, aligned_size);
-        fec_blocks[1] = payload.substr(aligned_size, aligned_size);
-        fec_blocks[2] = payload.substr(aligned_size * 2);
-
-        lastBlockIndex = 2 << 6;
-        fec_blocks_end = std::end(fec_blocks);
+      // If we exceed the 10-bit FEC packet index (which means our frame exceeded 4096 packets),
+      // the frame will be unrecoverable. Log an error for this case.
+      if (aligned_size / blocksize >= 1024) {
+        BOOST_LOG(error) << "Encoder produced a frame too large to send! Is the encoder broken? (needed "sv << (aligned_size / blocksize) << " packets)"sv;
       }
-      else {
-        BOOST_LOG(verbose) << "Generating single FEC block"sv;
-        fec_blocks[0] = payload;
+
+      // Split the data into aligned FEC blocks
+      for (int x = 0; x < fec_blocks_needed; ++x) {
+        if (x == fec_blocks_needed - 1) {
+          // The last block must extend to the end of the payload
+          fec_blocks[x] = payload.substr(x * aligned_size);
+        }
+        else {
+          // Earlier blocks just extend to the next block offset
+          fec_blocks[x] = payload.substr(x * aligned_size, aligned_size);
+        }
       }
 
       try {
@@ -1233,7 +1243,7 @@ namespace stream {
 
             // Match multiFecFlags with Moonlight
             inspect->packet.multiFecFlags = 0x10;
-            inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
+            inspect->packet.multiFecBlocks = (blockIndex << 4) | ((fec_blocks_needed - 1) << 6);
 
             if (x == 0) {
               inspect->packet.flags |= FLAG_SOF;
@@ -1263,7 +1273,7 @@ namespace stream {
             inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
             inspect->rtp.timestamp = util::endian::big<uint32_t>(timestamp);
 
-            inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
+            inspect->packet.multiFecBlocks = (blockIndex << 4) | ((fec_blocks_needed - 1) << 6);
             inspect->packet.frameIndex = av_packet->pts;
           }
 
