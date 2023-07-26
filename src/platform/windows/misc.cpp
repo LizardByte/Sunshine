@@ -346,7 +346,7 @@ namespace platf {
 
   // Note: This does NOT append a null terminator
   void
-  append_string_to_environment_block(wchar_t *env_block, int &offset, const std::wstring &wstr) {
+  append_string_to_environment_block(std::vector<wchar_t> &env_block, int &offset, const std::wstring &wstr) {
     std::memcpy(&env_block[offset], wstr.data(), wstr.length() * sizeof(wchar_t));
     offset += wstr.length();
   }
@@ -362,7 +362,7 @@ namespace platf {
 
     size += 1 /* L'\0' */;
 
-    wchar_t env_block[size];
+    std::vector<wchar_t> env_block(size);
     int offset = 0;
     for (const auto &entry : env) {
       auto name = entry.get_name();
@@ -378,7 +378,7 @@ namespace platf {
     // Append a final null terminator
     env_block[offset++] = L'\0';
 
-    return std::wstring(env_block, offset);
+    return std::wstring(env_block.data(), offset);
   }
 
   LPPROC_THREAD_ATTRIBUTE_LIST
