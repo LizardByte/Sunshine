@@ -6,6 +6,7 @@
 
 #include "process.h"
 
+#include <codecvt>
 #include <filesystem>
 #include <string>
 #include <vector>

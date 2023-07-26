@@ -11,6 +11,8 @@
 
 #include <boost/asio/ip/host_name.hpp>
 
+#include <codecvt>
+
 #include "misc.h"
 #include "src/config.h"
 #include "src/main.h"
