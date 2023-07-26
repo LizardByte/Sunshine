@@ -29,7 +29,7 @@ using namespace std::literals;
 #define SV(quote) __SV(quote)
 
 extern "C" {
-#ifndef __MINGW32__
+#ifndef _WIN32
 constexpr auto DNS_REQUEST_PENDING = 9506L;
 constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
 constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
@@ -40,7 +40,7 @@ constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
 constexpr auto SERVICE_INSTANCE_NAME = SV(SERVICE_NAME "." SERVICE_TYPE "." SERVICE_DOMAIN);
 constexpr auto SERVICE_TYPE_DOMAIN = SV(SERVICE_TYPE "." SERVICE_DOMAIN);
 
-#ifndef __MINGW32__
+#ifndef _WIN32
 typedef struct _DNS_SERVICE_INSTANCE {
   LPWSTR pszInstanceName;
   LPWSTR pszHostName;
@@ -70,7 +70,7 @@ DNS_SERVICE_REGISTER_COMPLETE(
 
 typedef DNS_SERVICE_REGISTER_COMPLETE *PDNS_SERVICE_REGISTER_COMPLETE;
 
-#ifndef __MINGW32__
+#ifndef _WIN32
 typedef struct _DNS_SERVICE_CANCEL {
   PVOID reserved;
 } DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;
