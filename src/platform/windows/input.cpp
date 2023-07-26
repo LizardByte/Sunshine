@@ -152,9 +152,9 @@ namespace platf {
     }
 
     // Clamp the values to the range of the data type
-    intX = std::clamp(intX, INT16_MIN, INT16_MAX);
-    intY = std::clamp(intY, INT16_MIN, INT16_MAX);
-    intZ = std::clamp(intZ, INT16_MIN, INT16_MAX);
+    intX = std::clamp<int32_t>(intX, INT16_MIN, INT16_MAX);
+    intY = std::clamp<int32_t>(intY, INT16_MIN, INT16_MAX);
+    intZ = std::clamp<int32_t>(intZ, INT16_MIN, INT16_MAX);
 
     // Populate the report
     switch (motion_type) {
