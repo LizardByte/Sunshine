@@ -11,8 +11,8 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavutil/hwcontext_d3d11va.h>
 }
+#include <libavutil/hwcontext_d3d11va.h>
 
 #include "display.h"
 #include "misc.h"
