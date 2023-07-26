@@ -114,28 +114,31 @@ namespace system_tray {
   }
 
   // Tray menu
-  static struct tray tray = {
+  static tray_menu donate_menu[] = {
+    { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
+    { .text = "MEE6", .cb = tray_donate_mee6_cb },
+    { .text = "Patreon", .cb = tray_donate_patreon_cb },
+    { .text = "PayPal", .cb = tray_donate_paypal_cb },
+    { .text = nullptr }
+  };
+
+  static tray_menu root_menu[] = {
+    // todo - use boost/locale to translate menu strings
+    { .text = "Open Sunshine", .cb = tray_open_ui_cb },
+    { .text = "-" },
+    { .text = "Donate", .submenu = donate_menu },
+    { .text = "-" },
+    { .text = "Restart", .cb = tray_restart_cb },
+    { .text = "Quit", .cb = tray_quit_cb },
+    { .text = nullptr }
+  };
+
+  static tray tray_icon = {
     .icon = TRAY_ICON,
   #if defined(_WIN32)
     .tooltip = const_cast<char *>("Sunshine"),  // cast the string literal to a non-const char* pointer
   #endif
-    .menu =
-      (struct tray_menu[]) {
-        // todo - use boost/locale to translate menu strings
-        { .text = "Open Sunshine", .cb = tray_open_ui_cb },
-        { .text = "-" },
-        { .text = "Donate",
-          .submenu =
-            (struct tray_menu[]) {
-              { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
-              { .text = "MEE6", .cb = tray_donate_mee6_cb },
-              { .text = "Patreon", .cb = tray_donate_patreon_cb },
-              { .text = "PayPal", .cb = tray_donate_paypal_cb },
-              { .text = nullptr } } },
-        { .text = "-" },
-        { .text = "Restart", .cb = tray_restart_cb },
-        { .text = "Quit", .cb = tray_quit_cb },
-        { .text = nullptr } },
+    .menu = root_menu
   };
 
   /**
@@ -220,7 +223,7 @@ namespace system_tray {
     }
   #endif
 
-    if (tray_init(&tray) < 0) {
+    if (tray_init(&tray_icon) < 0) {
       BOOST_LOG(warning) << "Failed to create system tray"sv;
       return 1;
     }
@@ -241,7 +244,7 @@ namespace system_tray {
    */
   void
   run_tray() {
-    // create the system tray
+  // create the system tray
   #if defined(__APPLE__) || defined(__MACH__)
     // macOS requires that UI elements be created on the main thread
     // creating tray using dispatch queue does not work, although the code doesn't actually throw any (visible) errors
