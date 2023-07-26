@@ -15,7 +15,7 @@ namespace uuid_util {
 
     static uuid_t
     generate(std::default_random_engine &engine) {
-      std::uniform_int_distribution<std::uint8_t> dist(0, std::numeric_limits<std::uint8_t>::max());
+      std::uniform_int_distribution<std::uint16_t> dist(0, std::numeric_limits<std::uint8_t>::max());
 
       uuid_t buf;
       for (auto &el : buf.b8) {
