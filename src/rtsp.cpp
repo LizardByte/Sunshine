@@ -602,21 +602,16 @@ namespace rtsp_stream {
 
     std::vector<std::string_view> lines;
 
-    auto whitespace = [](char ch) {
+    auto linebreak = [](char ch) {
       return ch == '\n' || ch == '\r';
     };
 
-    {
-      auto pos = std::begin(payload);
-      auto begin = pos;
-      while (pos != std::end(payload)) {
-        if (whitespace(*pos++)) {
-          lines.emplace_back(begin, pos - begin - 1);
-
-          while (pos != std::end(payload) && whitespace(*pos)) { ++pos; }
-          begin = pos;
-        }
-      }
+    // split payload by lines
+    for (auto left = std::begin(payload); left = std::find_if_not(left, std::end(payload), linebreak), left != std::end(payload);) {
+      auto right = std::find_if(left + 1, std::end(payload), linebreak);
+      lines.emplace_back(std::addressof(*left), std::distance(left, right));
+      if (right == std::end(payload)) break;
+      left = right + 1;
     }
 
     std::string_view client;
