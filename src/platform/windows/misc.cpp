@@ -182,7 +182,7 @@ namespace platf {
 
   bool
   IsUserAdmin(HANDLE user_token) {
-    WINBOOL ret;
+    BOOL ret;
     SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
     PSID AdministratorsGroup;
     ret = AllocateAndInitializeSid(
