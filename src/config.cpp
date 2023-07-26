@@ -474,7 +474,7 @@ namespace config {
   }
 
   std::string
-  to_string(const char *begin, const char *end) {
+  to_string(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
     std::string result;
 
     KITTY_WHILE_LOOP(auto pos = begin, pos != end, {
