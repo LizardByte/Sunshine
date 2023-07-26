@@ -1145,7 +1145,8 @@ namespace config {
           sunshine.config_file = line;
         }
         else {
-          TUPLE_EL(var, 1, parse_option(line, line_end));
+          std::string_view line_sv(line, line_end - line);
+          TUPLE_EL(var, 1, parse_option(std::begin(line_sv), std::end(line_sv)));
           if (!var) {
             print_help(*argv);
             return -1;
