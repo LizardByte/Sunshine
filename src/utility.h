@@ -285,10 +285,10 @@ namespace util {
       }
     }
     else {
-      --end;
       for (auto it = std::begin(hex); it < std::end(hex);) {
+        end--;
         *it++ = _bits[((uint8_t) *end) / 16];
-        *it++ = _bits[((uint8_t) *end--) % 16];
+        *it++ = _bits[((uint8_t) *end) % 16];
       }
     }
 
