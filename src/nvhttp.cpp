@@ -654,7 +654,7 @@ namespace nvhttp {
     }
 
     pt::ptree display_nodes;
-    for (auto &resolution : config::nvhttp.resolutions) {
+    for (std::string_view resolution : config::nvhttp.resolutions) {
       auto pred = [](auto ch) { return ch == ' ' || ch == '\t' || ch == 'x'; };
 
       auto middle = std::find_if(std::begin(resolution), std::end(resolution), pred);
@@ -663,8 +663,8 @@ namespace nvhttp {
         continue;
       }
 
-      auto width = util::from_chars(&*std::begin(resolution), &*middle);
-      auto height = util::from_chars(&*(middle + 1), &*std::end(resolution));
+      auto width = util::from_chars(std::to_address(std::begin(resolution)), std::to_address(middle));
+      auto height = util::from_chars(std::to_address(middle + 1), std::to_address(std::end(resolution)));
       for (auto fps : config::nvhttp.fps) {
         pt::ptree display_node;
         display_node.put("Width", width);
