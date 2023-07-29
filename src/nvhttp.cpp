@@ -17,6 +17,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <string>
 
 // local includes
 #include "config.h"
@@ -267,12 +268,32 @@ namespace nvhttp {
 
     launch_session.host_audio = host_audio;
     launch_session.gcm_key = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
+    std::stringstream mode = std::stringstream(get_arg(args, "mode"));
+    // Split mode by the char "x", to populate width/height/fps
+    int x = 0;
+    std::string segment;
+    while (std::getline(mode, segment, 'x')) {
+      if (x == 0) launch_session.width = atoi(segment.c_str());
+      if (x == 1) launch_session.height = atoi(segment.c_str());
+      if (x == 2) launch_session.fps = atoi(segment.c_str());
+      x++;
+    }
+    launch_session.unique_id = (get_arg(args, "uniqueid"));
+    launch_session.uuid = (get_arg(args, "uuid"));
+    launch_session.appid = util::from_view(get_arg(args, "appid"));
+    launch_session.enable_sops = util::from_view(get_arg(args, "sops"));
+    launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo"));
+    launch_session.gcmap = util::from_view(get_arg(args, "gcmap"));
+    launch_session.enable_hdr = 0;
+    if (args.find("enableHdr"s) != std::end(args)) {
+      launch_session.enable_hdr = util::from_view(get_arg(args, "enableHdr"));
+    }
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
 
     auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
     std::fill(next, std::end(launch_session.iv), 0);
-
+    BOOST_LOG(error) << launch_session.width << " h: " << launch_session.height << " fps: " << launch_session.fps;
     return launch_session;
   }
 
@@ -757,8 +778,11 @@ namespace nvhttp {
       }
     }
 
+    host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+    auto launch_session = make_launch_session(host_audio, args);
+
     if (appid > 0) {
-      auto err = proc::proc.execute(appid);
+      auto err = proc::proc.execute(appid, launch_session);
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);
         tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
@@ -768,8 +792,7 @@ namespace nvhttp {
       }
     }
 
-    host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-    rtsp_stream::launch_session_raise(make_launch_session(host_audio, args));
+    rtsp_stream::launch_session_raise(launch_session);
 
     tree.put("root.<xmlattr>.status_code", 200);
     tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
