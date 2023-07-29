@@ -17,6 +17,16 @@ namespace rtsp_stream {
     crypto::aes_t iv;
 
     bool host_audio;
+    std::string unique_id;
+    std::string uuid;
+    int width;
+    int height;
+    int fps;
+    int gcmap;
+    int appid;
+    int surround_info;
+    bool enable_hdr;
+    bool enable_sops;
   };
 
   void

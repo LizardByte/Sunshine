@@ -302,6 +302,26 @@
           must be a PNG file. If not set, Sunshine will send default box image.
         </div>
       </div>
+      <div class="env-hint">
+        <div class="form-text"><b>About Environment Variables: </b> All commands get these environment variables by default: </div>
+        <table>
+          <tr><td><b>Var Name</b></td><td><b></b></td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_APP_ID</td><td>App ID</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_APP_NAME</td><td>App Name</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_WIDTH</td><td>The Width requested by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HEIGHT</td><td>The Height requested by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_FPS</td><td>The FPS requested by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HDR</td><td>(true/false) if HDR is enabled by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_GCMAP</td><td>(int) the requested gamepad mask, in a bitset/bitfield format</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HOST_AUDIO</td><td>(true/false) if the client has requested host audio</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td><td>(true/false) if the client has requested the option to optimize the game for optimal streaming</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td><td>The Audio Configuration requested by the client (2.0/5.1/7.1)</td></tr>
+        </table>
+        <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution Automation:</b> <pre>cmd /C &lt;qres path&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre></div>
+        <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution Automation:</b> <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --range 60"</pre></div>
+        <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for Resolution Automation:</b> <pre>sh -c "displayplacer "id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre></div>
+        <div class="form-text"><a href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/app_examples.html" target="_blank">See More</a></div>
+      </div>
       <!--buttons-->
       <div class="d-flex">
         <button @click="showEditForm = false" class="btn btn-secondary m-2">
@@ -548,6 +568,10 @@
     padding: 1em;
     border: 1px solid #dee2e6;
     border-top: none;
+  }
+
+  td {
+    padding: 0 0.5em;
   }
 
 </style>
