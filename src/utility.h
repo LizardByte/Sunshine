@@ -446,7 +446,7 @@ namespace util {
 
   inline std::int64_t
   from_view(const std::string_view &number) {
-    return from_chars(std::to_address(std::begin(number)), std::to_address(std::end(number)));
+    return from_chars(std::addressof(*std::begin(number)), std::addressof(*std::end(number)));
   }
 
   template <class X, class Y>

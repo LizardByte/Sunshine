@@ -348,7 +348,7 @@ namespace proc {
       if (next != std::end(val_raw)) {
         switch (*next) {
           case '(': {
-            ss.write(std::to_address(pos), (dollar - pos));
+            ss.write(std::addressof(*pos), (dollar - pos));
             auto var_begin = next + 1;
             auto var_end = find_match(next, std::end(val_raw));
             auto var_name = std::string { var_begin, var_end };
@@ -373,7 +373,7 @@ namespace proc {
             break;
           }
           case '$':
-            ss.write(std::to_address(pos), (next - pos));
+            ss.write(std::addressof(*pos), (next - pos));
             pos = next + 1;
             ++next;
             break;
@@ -386,7 +386,7 @@ namespace proc {
       }
     }
 
-    ss.write(std::to_address(pos), (dollar - pos));
+    ss.write(std::addressof(*pos), (dollar - pos));
 
     return ss.str();
   }

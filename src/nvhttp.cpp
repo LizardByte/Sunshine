@@ -663,8 +663,8 @@ namespace nvhttp {
         continue;
       }
 
-      auto width = util::from_chars(std::to_address(std::begin(resolution)), std::to_address(middle));
-      auto height = util::from_chars(std::to_address(middle + 1), std::to_address(std::end(resolution)));
+      auto width = util::from_chars(std::addressof(*std::begin(resolution)), std::addressof(*middle));
+      auto height = util::from_chars(std::addressof(*(middle + 1)), std::addressof(*std::end(resolution)));
       for (auto fps : config::nvhttp.fps) {
         pt::ptree display_node;
         display_node.put("Width", width);

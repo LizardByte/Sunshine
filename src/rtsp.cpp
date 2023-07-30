@@ -59,7 +59,7 @@ namespace rtsp_stream {
 
     void
     read() {
-      if (begin == std::to_address(std::end(msg_buf))) {
+      if (begin == std::addressof(*std::end(msg_buf))) {
         BOOST_LOG(error) << "RTSP: read(): Exceeded maximum rtsp packet size: "sv << msg_buf.size();
 
         respond(sock, nullptr, 400, "BAD REQUEST", 0, {});
@@ -70,7 +70,7 @@ namespace rtsp_stream {
       }
 
       sock.async_read_some(
-        boost::asio::buffer(begin, (std::size_t)(std::to_address(std::end(msg_buf)) - begin)),
+        boost::asio::buffer(begin, (std::size_t)(std::addressof(*std::end(msg_buf)) - begin)),
         boost::bind(
           &socket_t::handle_read, shared_from_this(),
           boost::asio::placeholders::error,
@@ -79,7 +79,7 @@ namespace rtsp_stream {
 
     void
     read_payload() {
-      if (begin == std::to_address(std::end(msg_buf))) {
+      if (begin == std::addressof(*std::end(msg_buf))) {
         BOOST_LOG(error) << "RTSP: read_payload(): Exceeded maximum rtsp packet size: "sv << msg_buf.size();
 
         respond(sock, nullptr, 400, "BAD REQUEST", 0, {});
@@ -90,7 +90,7 @@ namespace rtsp_stream {
       }
 
       sock.async_read_some(
-        boost::asio::buffer(begin, (std::size_t)(std::to_address(std::end(msg_buf)) - begin)),
+        boost::asio::buffer(begin, (std::size_t)(std::addressof(*std::end(msg_buf)) - begin)),
         boost::bind(
           &socket_t::handle_payload, shared_from_this(),
           boost::asio::placeholders::error,
@@ -141,7 +141,7 @@ namespace rtsp_stream {
           std::string_view content { option->content };
           auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) { return (bool) std::isdigit(ch); });
 
-          content_length = util::from_chars(std::to_address(begin), std::to_address(std::end(content)));
+          content_length = util::from_chars(std::addressof(*begin), std::addressof(*std::end(content)));
           break;
         }
       }
@@ -546,7 +546,7 @@ namespace rtsp_stream {
     std::string_view target { req->message.request.target };
     auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
     auto end = std::find(begin, std::end(target), '/');
-    std::string_view type { std::to_address(begin), (size_t) std::distance(begin, end) };
+    std::string_view type { std::addressof(*begin), (size_t) std::distance(begin, end) };
 
     std::uint16_t port;
     if (type == "audio"sv) {

@@ -32,14 +32,14 @@ namespace net {
     std::uint32_t ip = 0;
     auto shift = 24;
     while (temp_end != end) {
-      ip += (util::from_chars(std::to_address(begin), std::to_address(temp_end)) << shift);
+      ip += (util::from_chars(std::addressof(*begin), std::addressof(*temp_end)) << shift);
       shift -= 8;
 
       begin = temp_end + 1;
       temp_end = std::find(begin, end, '.');
     }
 
-    ip += util::from_chars(std::to_address(begin), std::to_address(end));
+    ip += util::from_chars(std::addressof(*begin), std::addressof(*end));
 
     return ip;
   }
@@ -50,9 +50,9 @@ namespace net {
     auto begin = std::begin(ip_str);
     auto end = std::find(begin, std::end(ip_str), '/');
 
-    auto addr = ip({ std::to_address(begin), (std::size_t)(end - begin) });
+    auto addr = ip({ std::addressof(*begin), (std::size_t)(end - begin) });
 
-    auto bits = 32 - util::from_chars(std::to_address(end + 1), std::to_address(std::end(ip_str)));
+    auto bits = 32 - util::from_chars(std::addressof(*(end + 1)), std::addressof(*std::end(ip_str)));
 
     return { addr, addr + ((1 << bits) - 1) };
   }
