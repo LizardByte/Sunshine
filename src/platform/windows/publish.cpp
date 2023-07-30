@@ -31,38 +31,11 @@ using namespace std::literals;
 #define SV(quote) __SV(quote)
 
 extern "C" {
-#ifndef _WIN32
-constexpr auto DNS_REQUEST_PENDING = 9506L;
-constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
-constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
-#endif
 
 #define SERVICE_DOMAIN "local"
 
 constexpr auto SERVICE_INSTANCE_NAME = SV(SERVICE_NAME "." SERVICE_TYPE "." SERVICE_DOMAIN);
 constexpr auto SERVICE_TYPE_DOMAIN = SV(SERVICE_TYPE "." SERVICE_DOMAIN);
-
-#ifndef _WIN32
-typedef struct _DNS_SERVICE_INSTANCE {
-  LPWSTR pszInstanceName;
-  LPWSTR pszHostName;
-
-  IP4_ADDRESS *ip4Address;
-  IP6_ADDRESS *ip6Address;
-
-  WORD wPort;
-  WORD wPriority;
-  WORD wWeight;
-
-  // Property list
-  DWORD dwPropertyCount;
-
-  PWSTR *keys;
-  PWSTR *values;
-
-  DWORD dwInterfaceIndex;
-} DNS_SERVICE_INSTANCE, *PDNS_SERVICE_INSTANCE;
-#endif
 
 typedef VOID WINAPI
 DNS_SERVICE_REGISTER_COMPLETE(
@@ -71,22 +44,6 @@ DNS_SERVICE_REGISTER_COMPLETE(
   _In_ PDNS_SERVICE_INSTANCE pInstance);
 
 typedef DNS_SERVICE_REGISTER_COMPLETE *PDNS_SERVICE_REGISTER_COMPLETE;
-
-#ifndef _WIN32
-typedef struct _DNS_SERVICE_CANCEL {
-  PVOID reserved;
-} DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;
-
-typedef struct _DNS_SERVICE_REGISTER_REQUEST {
-  ULONG Version;
-  ULONG InterfaceIndex;
-  PDNS_SERVICE_INSTANCE pServiceInstance;
-  PDNS_SERVICE_REGISTER_COMPLETE pRegisterCompletionCallback;
-  PVOID pQueryContext;
-  HANDLE hCredentials;
-  BOOL unicastEnabled;
-} DNS_SERVICE_REGISTER_REQUEST, *PDNS_SERVICE_REGISTER_REQUEST;
-#endif
 
 _FN(_DnsServiceFreeInstance, VOID, (_In_ PDNS_SERVICE_INSTANCE pInstance));
 _FN(_DnsServiceDeRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));
