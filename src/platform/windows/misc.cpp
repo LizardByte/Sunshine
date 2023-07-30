@@ -40,9 +40,6 @@
   #define UDP_SEND_MSG_SIZE 2
 #endif
 
-// MinGW headers are missing qWAVE stuff
-typedef UINT32 QOS_FLOWID, *PQOS_FLOWID;
-#define QOS_NON_ADAPTIVE_FLOW 0x00000002
 #include <qos2.h>
 
 #ifndef WLAN_API_MAKE_VERSION
