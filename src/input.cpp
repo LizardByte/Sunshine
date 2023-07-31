@@ -995,9 +995,9 @@ namespace input {
       { gamepad.id, packet->controllerNumber },
       packet->eventType,
       util::endian::little(packet->pointerId),
-      from_netfloat(packet->x),
-      from_netfloat(packet->y),
-      from_netfloat(packet->pressure),
+      from_clamped_netfloat(packet->x, 0.0f, 1.0f),
+      from_clamped_netfloat(packet->y, 0.0f, 1.0f),
+      from_clamped_netfloat(packet->pressure, 0.0f, 1.0f),
     };
 
     platf::gamepad_touch(platf_input, touch);
