@@ -31,8 +31,8 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
-  gcc-10=10.3.* \
-  g++-10=10.3.* \
+  gcc-10=10.5.* \
+  g++-10=10.5.* \
   git \
   libappindicator3-dev \
   libavdevice-dev \
