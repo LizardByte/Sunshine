@@ -282,9 +282,9 @@ namespace nvhttp {
       if (x == 2) launch_session.fps = atoi(segment.c_str());
       x++;
     }
-    launch_session.unique_id = (get_arg(args, "uniqueid", "0123456789ABCDEF"));
-    launch_session.uuid = (get_arg(args, "uuid", "00000000000000000000000000000000"));
-    launch_session.appid = util::from_view(get_arg(args, "appid", "0123456789"));
+    launch_session.unique_id = (get_arg(args, "uniqueid", "unknown"));
+    launch_session.uuid = (get_arg(args, "uuid", "unknown"));
+    launch_session.appid = util::from_view(get_arg(args, "appid", "unknown"));
     launch_session.enable_sops = util::from_view(get_arg(args, "sops", "0"));
     launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "0"));
     launch_session.gcmap = util::from_view(get_arg(args, "gcmap", "0"));
