@@ -4,6 +4,7 @@
  */
 #include "graphics.h"
 #include "src/video.h"
+#include "src/config.h"
 
 #include <fcntl.h>
 
@@ -48,13 +49,19 @@ namespace gl {
     ctx.GenTextures(textures.size(), textures.begin());
 
     float color[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    
+    GLint filtering = GL_LINEAR;
+    if (config::video.point_filtering)
+    {
+      filtering = GL_POINT;
+    }
 
     for (auto tex : textures) {
       gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
       gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);  // x
       gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);  // y
-      gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-      gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering);
+      gl::ctx.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering);
       gl::ctx.TexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, color);
     }
 

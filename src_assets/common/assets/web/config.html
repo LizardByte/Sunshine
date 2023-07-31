@@ -594,6 +594,17 @@
           Disable if you encounter any VSync-related issues.
         </div>
       </div>
+      <div class="mb-3" v-if="platform === 'windows' || platform === 'linux'">
+        <label for="point_filtering" class="form-label">Nearest Point filtering</label>
+        <select id="point_filtering" class="form-select" v-model="config.point_filtering">
+          <option value="disabled">Disabled</option>
+          <option value="enabled">Enabled</option>
+        </select>
+        <div class="form-text">
+          Enable this to not interpolate captured screen to video size.<br />
+          May be useful for pixel-perfect streaming.
+        </div>
+      </div>
       <div class="mb-3 config-page" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
         <input

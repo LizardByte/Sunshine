@@ -379,7 +379,8 @@ namespace config {
     {},  // encoder
     {},  // adapter_name
     {},  // output_name
-    true  // dwmflush
+    true,  // dwmflush
+    false //point_filtering
   };
 
   audio_t audio {
@@ -969,6 +970,7 @@ namespace config {
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
     bool_f(vars, "dwmflush", video.dwmflush);
+    bool_f(vars, "point_filtering", video.point_filtering);
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
