@@ -1439,6 +1439,17 @@ namespace platf {
         return;
       }
     }
+    else if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
+      // Raise both pointers
+      report.sCurrentTouch.bIsUpTrackingNum1 |= 0x80;
+      report.sCurrentTouch.bIsUpTrackingNum2 |= 0x80;
+
+      // Remove all pointer index mappings
+      gamepad.pointer_id_map.clear();
+
+      // All pointers are now available
+      gamepad.available_pointers = 0x3;
+    }
     else {
       auto i = gamepad.pointer_id_map.find(touch.pointerId);
       if (i == gamepad.pointer_id_map.end()) {
@@ -1448,7 +1459,7 @@ namespace platf {
 
       pointerIndex = (*i).second;
 
-      if (touch.eventType == LI_TOUCH_EVENT_UP) {
+      if (touch.eventType == LI_TOUCH_EVENT_UP || touch.eventType == LI_TOUCH_EVENT_CANCEL) {
         // Remove the pointer index mapping
         gamepad.pointer_id_map.erase(i);
 
@@ -1463,6 +1474,10 @@ namespace platf {
         // Free the pointer index
         gamepad.available_pointers |= (1 << pointerIndex);
       }
+      else if (touch.eventType != LI_TOUCH_EVENT_MOVE) {
+        BOOST_LOG(warning) << "Unsupported touch event for gamepad: "sv << (uint32_t) touch.eventType;
+        return;
+      }
     }
 
     // Touchpad is 1920x943 according to ViGEm
@@ -1475,11 +1490,13 @@ namespace platf {
     };
 
     report.sCurrentTouch.bPacketCounter++;
-    if (pointerIndex == 0) {
-      memcpy(report.sCurrentTouch.bTouchData1, touchData, sizeof(touchData));
-    }
-    else {
-      memcpy(report.sCurrentTouch.bTouchData2, touchData, sizeof(touchData));
+    if (touch.eventType != LI_TOUCH_EVENT_CANCEL_ALL) {
+      if (pointerIndex == 0) {
+        memcpy(report.sCurrentTouch.bTouchData1, touchData, sizeof(touchData));
+      }
+      else {
+        memcpy(report.sCurrentTouch.bTouchData2, touchData, sizeof(touchData));
+      }
     }
 
     auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
