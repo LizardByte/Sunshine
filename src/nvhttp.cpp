@@ -271,7 +271,7 @@ namespace nvhttp {
     rtsp_stream::launch_session_t launch_session;
 
     launch_session.host_audio = host_audio;
-    launch_session.gcm_key = util::from_hex<crypto::aes_t>(get_arg(args, "rikey", "0"), true);
+    launch_session.gcm_key = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
     std::stringstream mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
     int x = 0;
@@ -283,16 +283,13 @@ namespace nvhttp {
       x++;
     }
     launch_session.unique_id = (get_arg(args, "uniqueid", "unknown"));
-    launch_session.uuid = (get_arg(args, "uuid", "unknown"));
     launch_session.appid = util::from_view(get_arg(args, "appid", "unknown"));
     launch_session.enable_sops = util::from_view(get_arg(args, "sops", "0"));
-    launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "0"));
+    launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
     launch_session.gcmap = util::from_view(get_arg(args, "gcmap", "0"));
-    launch_session.enable_hdr = 0;
-    if (args.find("enableHdr"s) != std::end(args)) {
-      launch_session.enable_hdr = util::from_view(get_arg(args, "enableHdr", "0"));
-    }
-    uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid", "0")));
+    launch_session.enable_hdr = util::from_view(get_arg(args, "enableHdr", "0"));
+
+    uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
 
     auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
