@@ -153,9 +153,13 @@ namespace nvhttp {
   };
 
   std::string
-  get_arg(const args_t &args, const char *name) {
+  get_arg(const args_t &args, const char *name, const char *default_value = nullptr) {
     auto it = args.find(name);
     if (it == std::end(args)) {
+      if (default_value != NULL) {
+        return std::string(default_value);
+      }
+
       throw std::out_of_range(name);
     }
     return it->second;
@@ -268,7 +272,7 @@ namespace nvhttp {
 
     launch_session.host_audio = host_audio;
     launch_session.gcm_key = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
-    std::stringstream mode = std::stringstream(get_arg(args, "mode"));
+    std::stringstream mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
     int x = 0;
     std::string segment;
@@ -278,16 +282,13 @@ namespace nvhttp {
       if (x == 2) launch_session.fps = atoi(segment.c_str());
       x++;
     }
-    launch_session.unique_id = (get_arg(args, "uniqueid"));
-    launch_session.uuid = (get_arg(args, "uuid"));
-    launch_session.appid = util::from_view(get_arg(args, "appid"));
-    launch_session.enable_sops = util::from_view(get_arg(args, "sops"));
-    launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo"));
-    launch_session.gcmap = util::from_view(get_arg(args, "gcmap"));
-    launch_session.enable_hdr = 0;
-    if (args.find("enableHdr"s) != std::end(args)) {
-      launch_session.enable_hdr = util::from_view(get_arg(args, "enableHdr"));
-    }
+    launch_session.unique_id = (get_arg(args, "uniqueid", "unknown"));
+    launch_session.appid = util::from_view(get_arg(args, "appid", "unknown"));
+    launch_session.enable_sops = util::from_view(get_arg(args, "sops", "0"));
+    launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
+    launch_session.gcmap = util::from_view(get_arg(args, "gcmap", "0"));
+    launch_session.enable_hdr = util::from_view(get_arg(args, "enableHdr", "0"));
+
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
 
