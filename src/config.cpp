@@ -842,6 +842,7 @@ namespace config {
     std::vector<std::string> list;
     list_string_f(vars, name, list);
 
+    input.clear();
     for (auto &el : list) {
       std::string_view val = el;
 
