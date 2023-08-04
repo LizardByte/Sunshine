@@ -441,6 +441,10 @@ namespace platf {
     return result;
   }
 
+  /**
+   * @brief Calls SendInput() and switches input desktops if required.
+   * @param i The `INPUT` struct to send.
+   */
   void
   send_input(INPUT &i) {
   retry:
@@ -453,6 +457,29 @@ namespace platf {
       }
       BOOST_LOG(error) << "Couldn't send input"sv;
     }
+  }
+
+  /**
+   * @brief Calls InjectSyntheticPointerInput() and switches input desktops if required.
+   * @details Must only be called if InjectSyntheticPointerInput() is available.
+   * @param input The global input context.
+   * @param device The synthetic pointer device handle.
+   * @param pointerInfo An array of `POINTER_TYPE_INFO` structs.
+   * @param count The number of elements in `pointerInfo`.
+   * @return true if input was successfully injected.
+   */
+  bool
+  inject_synthetic_pointer_input(input_raw_t *input, HSYNTHETICPOINTERDEVICE device, const POINTER_TYPE_INFO *pointerInfo, UINT32 count) {
+  retry:
+    if (!input->fnInjectSyntheticPointerInput(device, pointerInfo, count)) {
+      auto hDesk = syncThreadDesktop();
+      if (_lastKnownInputDesktop != hDesk) {
+        _lastKnownInputDesktop = hDesk;
+        goto retry;
+      }
+      return false;
+    }
+    return true;
   }
 
   void
@@ -790,7 +817,7 @@ namespace platf {
    */
   void
   repeat_touch(client_input_raw_t *raw) {
-    if (!raw->global->fnInjectSyntheticPointerInput(raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
+    if (!inject_synthetic_pointer_input(raw->global, raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
       auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to refresh virtual touch input: "sv << err;
     }
@@ -804,7 +831,7 @@ namespace platf {
    */
   void
   repeat_pen(client_input_raw_t *raw) {
-    if (!raw->global->fnInjectSyntheticPointerInput(raw->pen, &raw->penInfo, 1)) {
+    if (!inject_synthetic_pointer_input(raw->global, raw->pen, &raw->penInfo, 1)) {
       auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to refresh virtual pen input: "sv << err;
     }
@@ -833,7 +860,7 @@ namespace platf {
         populate_common_pointer_info(raw->touchInfo[i].touchInfo.pointerInfo, {}, LI_TOUCH_EVENT_CANCEL_ALL, 0.0f, 0.0f);
         raw->touchInfo[i].touchInfo.touchMask = TOUCH_MASK_NONE;
       }
-      if (!raw->global->fnInjectSyntheticPointerInput(raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
+      if (!inject_synthetic_pointer_input(raw->global, raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
         auto err = GetLastError();
         BOOST_LOG(warning) << "Failed to cancel all virtual touch input: "sv << err;
       }
@@ -963,7 +990,7 @@ namespace platf {
       touchInfo.orientation = 0;
     }
 
-    if (!raw->global->fnInjectSyntheticPointerInput(raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
+    if (!inject_synthetic_pointer_input(raw->global, raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
       auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to inject virtual touch input: "sv << err;
       return;
@@ -1085,7 +1112,7 @@ namespace platf {
       penInfo.tiltY = 0;
     }
 
-    if (!raw->global->fnInjectSyntheticPointerInput(raw->pen, &raw->penInfo, 1)) {
+    if (!inject_synthetic_pointer_input(raw->global, raw->pen, &raw->penInfo, 1)) {
       auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to inject virtual pen input: "sv << err;
       return;
