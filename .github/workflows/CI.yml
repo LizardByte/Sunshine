@@ -851,7 +851,10 @@ jobs:
   release-winget:
     name: Release to WinGet
     needs: [setup_release, build_win]
-    if: ${{ needs.setup_release.outputs.create_release == 'true' && github.ref == 'refs/heads/master' }}
+    if: |
+      (github.repository_owner == 'LizardByte' &&
+      needs.setup_release.outputs.create_release == 'true' &&
+      github.ref == 'refs/heads/master')
     runs-on: windows-latest  # the required action can only be run on Windows
     steps:
       - name: Release to WinGet
