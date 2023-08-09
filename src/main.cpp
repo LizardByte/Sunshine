@@ -473,6 +473,9 @@ main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
+  // Switch default C standard library locale to UTF-8 on Windows 10 1803+
+  setlocale(LC_ALL, ".UTF-8");
+
   // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
   SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
 
@@ -515,6 +518,9 @@ main(int argc, char *argv[]) {
   });
   window_thread.detach();
 #endif
+
+  // Use UTF-8 conversion for the default C++ locale (used by boost::log)
+  std::locale::global(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
 
   mail::man = std::make_shared<safe::mail_raw_t>();
 
