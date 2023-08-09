@@ -477,8 +477,8 @@ namespace input {
     auto offsetX = touch_port.client_offsetX;
     auto offsetY = touch_port.client_offsetY;
 
-    x = std::clamp(x, offsetX, size.first - offsetX);
-    y = std::clamp(y, offsetY, size.second - offsetY);
+    x = std::clamp(x, offsetX, (size.first * scalarX) - offsetX);
+    y = std::clamp(y, offsetY, (size.second * scalarY) - offsetY);
 
     return { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
   }
