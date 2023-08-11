@@ -31,9 +31,9 @@ dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
   boost-devel-1.78.0* \
-  cmake-3.26.* \
-  gcc-13.0.* \
-  gcc-c++-13.0.* \
+  cmake-3.27.* \
+  gcc-13.2.* \
+  gcc-c++-13.2.* \
   git \
   libappindicator-gtk3-devel \
   libcap-devel \
