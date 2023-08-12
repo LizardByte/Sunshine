@@ -195,16 +195,17 @@ namespace cbs {
     auto vps_p = ((CodedBitstreamH265Context *) ctx->priv_data)->active_vps;
     auto sps_p = ((CodedBitstreamH265Context *) ctx->priv_data)->active_sps;
 
-    H265RawSPS sps { *sps_p };
-    H265RawVPS vps { *vps_p };
+    // These are very large structs that cannot safely be stored on the stack
+    auto sps = std::make_unique<H265RawSPS>(*sps_p);
+    auto vps = std::make_unique<H265RawVPS>(*vps_p);
 
-    vps.profile_tier_level.general_profile_compatibility_flag[4] = 1;
-    sps.profile_tier_level.general_profile_compatibility_flag[4] = 1;
+    vps->profile_tier_level.general_profile_compatibility_flag[4] = 1;
+    sps->profile_tier_level.general_profile_compatibility_flag[4] = 1;
 
-    auto &vui = sps.vui;
+    auto &vui = sps->vui;
     std::memset(&vui, 0, sizeof(vui));
 
-    sps.vui_parameters_present_flag = 1;
+    sps->vui_parameters_present_flag = 1;
 
     // skip sample aspect ratio
 
@@ -216,11 +217,11 @@ namespace cbs {
     vui.transfer_characteristics = avctx->color_trc;
     vui.matrix_coefficients = avctx->colorspace;
 
-    vui.vui_timing_info_present_flag = vps.vps_timing_info_present_flag;
-    vui.vui_num_units_in_tick = vps.vps_num_units_in_tick;
-    vui.vui_time_scale = vps.vps_time_scale;
-    vui.vui_poc_proportional_to_timing_flag = vps.vps_poc_proportional_to_timing_flag;
-    vui.vui_num_ticks_poc_diff_one_minus1 = vps.vps_num_ticks_poc_diff_one_minus1;
+    vui.vui_timing_info_present_flag = vps->vps_timing_info_present_flag;
+    vui.vui_num_units_in_tick = vps->vps_num_units_in_tick;
+    vui.vui_time_scale = vps->vps_time_scale;
+    vui.vui_poc_proportional_to_timing_flag = vps->vps_poc_proportional_to_timing_flag;
+    vui.vui_num_ticks_poc_diff_one_minus1 = vps->vps_num_ticks_poc_diff_one_minus1;
     vui.vui_hrd_parameters_present_flag = 0;
 
     vui.bitstream_restriction_flag = 1;
@@ -236,12 +237,12 @@ namespace cbs {
 
     return hevc_t {
       nal_t {
-        write(write_ctx, vps.nal_unit_header.nal_unit_type, (void *) &vps.nal_unit_header, AV_CODEC_ID_H265),
+        write(write_ctx, vps->nal_unit_header.nal_unit_type, (void *) &vps->nal_unit_header, AV_CODEC_ID_H265),
         write(ctx, vps_p->nal_unit_header.nal_unit_type, (void *) &vps_p->nal_unit_header, AV_CODEC_ID_H265),
       },
 
       nal_t {
-        write(write_ctx, sps.nal_unit_header.nal_unit_type, (void *) &sps.nal_unit_header, AV_CODEC_ID_H265),
+        write(write_ctx, sps->nal_unit_header.nal_unit_type, (void *) &sps->nal_unit_header, AV_CODEC_ID_H265),
         write(ctx, sps_p->nal_unit_header.nal_unit_type, (void *) &sps_p->nal_unit_header, AV_CODEC_ID_H265),
       },
     };
