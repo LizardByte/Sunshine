@@ -35,6 +35,8 @@ jobs:
             const supported_languages = ['cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift']
 
             const remap_languages = {
+              'c++': 'cpp',
+              'c#': 'csharp',
               'kotlin': 'java',
               'typescript': 'javascript',
             }
@@ -45,7 +47,7 @@ jobs:
               "include": []
             }
 
-            for (const [key, value] of Object.entries(response.data)) {
+            for (let [key, value] of Object.entries(response.data)) {
               // remap language
               if (remap_languages[key.toLowerCase()]) {
                 console.log(`Remapping language: ${key} to ${remap_languages[key.toLowerCase()]}`)
@@ -95,6 +97,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          submodules: recursive
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
@@ -109,8 +113,17 @@ jobs:
           # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
           # queries: security-extended,security-and-quality
 
+      # Pre autobuild
+      # create a file named .codeql-prebuild-${{ matrix.language }}.sh in the root of your repository
+      - name: Prebuild
+        run: |
+          # check if .qodeql-prebuild-${{ matrix.language }}.sh exists
+          if [ -f "./.codeql-prebuild-${{ matrix.language }}.sh" ]; then
+            echo "Running .codeql-prebuild-${{ matrix.language }}.sh"
+            ./.codeql-prebuild-${{ matrix.language }}.sh
+          fi
+
       # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
-      # TODO: If this step fails, then we need to create a method to build the project using an automated method.
       - name: Autobuild
         uses: github/codeql-action/autobuild@v2
 
