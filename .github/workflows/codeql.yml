@@ -1,0 +1,120 @@
+---
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# This workflow will analyze all supported languages in the repository using CodeQL Analysis.
+
+name: "CodeQL"
+
+on:
+  push:
+    branches: ["master", "nightly"]
+  pull_request:
+    branches: ["master", "nightly"]
+  schedule:
+    - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
+
+jobs:
+  languages:
+    name: Get language matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.lang.outputs.result }}
+      continue: ${{ steps.continue.outputs.result }}
+    steps:
+      - name: Get repo languages
+        uses: actions/github-script@v6
+        id: lang
+        with:
+          script: |
+            // CodeQL supports ['cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift']
+            // Use only 'java' to analyze code written in Java, Kotlin or both
+            // Use only 'javascript' to analyze code written in JavaScript, TypeScript or both
+            // Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
+            const supported_languages = ['cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift']
+
+            const remap_languages = {
+              'kotlin': 'java',
+              'typescript': 'javascript',
+            }
+
+            const repo = context.repo
+            const response = await github.rest.repos.listLanguages(repo)
+            let matrix = {
+              "include": []
+            }
+
+            for (const [key, value] of Object.entries(response.data)) {
+              // remap language
+              if (remap_languages[key.toLowerCase()]) {
+                console.log(`Remapping language: ${key} to ${remap_languages[key.toLowerCase()]}`)
+                key = remap_languages[key.toLowerCase()]
+              }
+              if (supported_languages.includes(key.toLowerCase()) &&
+                  !matrix['include'].includes({"language": key.toLowerCase()})) {
+                console.log(`Found supported language: ${key}`)
+                matrix['include'].push({"language": key.toLowerCase()})
+              }
+            }
+
+            // print languages
+            console.log(`matrix: ${JSON.stringify(matrix)}`)
+
+            return matrix
+
+      - name: Continue
+        uses: actions/github-script@v6
+        id: continue
+        with:
+          script: |
+            // if matrix['include'] is an empty list return false, otherwise true
+            const matrix = ${{ steps.lang.outputs.result }}  // this is already json encoded
+
+            if (matrix['include'].length == 0) {
+              return false
+            } else {
+              return true
+            }
+
+  analyze:
+    name: Analyze
+    if: ${{ needs.languages.outputs.continue == 'true' }}
+    needs: [languages]
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.languages.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Initializes the CodeQL tools for scanning.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          # If you wish to specify custom queries, you can do so here or in a config file.
+          # By default, queries listed here will override any specified in a config file.
+          # Prefix the list here with "+" to use these queries and those in the config file.
+
+          # yamllint disable-line rule:line-length
+          # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
+          # queries: security-extended,security-and-quality
+
+      # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
+      # TODO: If this step fails, then we need to create a method to build the project using an automated method.
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{matrix.language}}"
