@@ -19,6 +19,12 @@
 
 .. toctree::
    :maxdepth: 2
+   :caption: Guides
+
+   guides/linux
+
+.. toctree::
+   :maxdepth: 2
    :caption: Troubleshooting
 
    troubleshooting/general
