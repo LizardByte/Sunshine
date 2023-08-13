@@ -389,4 +389,10 @@ namespace platf::dxgi {
 
     return 0;
   }
+
+  std::unique_ptr<avcodec_encode_device_t>
+  display_ram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+    return std::make_unique<avcodec_encode_device_t>();
+  }
+
 }  // namespace platf::dxgi
