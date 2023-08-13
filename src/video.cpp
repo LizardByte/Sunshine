@@ -376,7 +376,7 @@ namespace video {
       operator[](flag_e flag) {
         return capabilities[(std::size_t) flag];
       }
-    } hevc, h264;
+    } av1, hevc, h264;
 
     uint32_t flags;
   };
@@ -577,6 +577,16 @@ namespace video {
       // HDR-specific options
       {},
       std::nullopt,  // QP
+      "av1_nvenc"s,
+    },
+    {
+      // Common options
+      {},
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      std::nullopt,  // QP
       "hevc_nvenc"s,
     },
     {
@@ -609,6 +619,23 @@ namespace video {
       cuda_init_avcodec_hardware_input_buffer
   #endif
       ),
+    {
+      // Common options
+      {
+        { "delay"s, 0 },
+        { "forced-idr"s, 1 },
+        { "zerolatency"s, 1 },
+        { "preset"s, &config::video.nv.nv_preset },
+        { "tune"s, &config::video.nv.nv_tune },
+        { "rc"s, &config::video.nv.nv_rc },
+      },
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      std::nullopt,
+      "av1_nvenc"s,
+    },
     {
       // Common options
       {
@@ -668,6 +695,22 @@ namespace video {
         { "async_depth"s, 1 },
         { "low_delay_brc"s, 1 },
         { "low_power"s, 1 },
+      },
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+      "av1_qsv"s,
+    },
+    {
+      // Common options
+      {
+        { "preset"s, &config::video.qsv.qsv_preset },
+        { "forced_idr"s, 1 },
+        { "async_depth"s, 1 },
+        { "low_delay_brc"s, 1 },
+        { "low_power"s, 1 },
         { "recovery_point_sei"s, 0 },
         { "pic_timing_sei"s, 0 },
       },
@@ -718,6 +761,20 @@ namespace video {
       // Common options
       {
         { "filler_data"s, true },
+        { "preanalysis"s, &config::video.amd.amd_preanalysis },
+        { "quality"s, &config::video.amd.amd_quality_av1 },
+        { "rc"s, &config::video.amd.amd_rc_av1 },
+        { "usage"s, &config::video.amd.amd_usage_av1 },
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
+      "av1_amf"s,
+    },
+    {
+      // Common options
+      {
+        { "filler_data"s, true },
         { "gops_per_idr"s, 1 },
         { "header_insertion_mode"s, "idr"s },
         { "preanalysis"s, &config::video.amd.amd_preanalysis },
@@ -763,6 +820,20 @@ namespace video {
       AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
       nullptr),
     {
+      // libsvtav1 takes different presets than libx264/libx265.
+      // We set an infinite GOP length, use a low delay prediction structure,
+      // force I frames to be key frames, and set max bitrate to default to work
+      // around a FFmpeg bug with CBR mode.
+      {
+        { "svtav1-params"s, "keyint=-1:pred-struct=1:force-key-frames=1:mbr=0"s },
+        { "preset"s, &config::video.sw.svtav1_preset },
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+      "libsvtav1"s,
+    },
+    {
       // x265's Info SEI is so long that it causes the IDR picture data to be
       // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
       // It also looks like gop_size isn't passed on to x265, so we have to set
@@ -804,6 +875,17 @@ namespace video {
       // Common options
       {
         { "async_depth"s, 1 },
+        { "idr_interval"s, std::numeric_limits<int>::max() },
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+      "av1_vaapi"s,
+    },
+    {
+      // Common options
+      {
+        { "async_depth"s, 1 },
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
@@ -836,6 +918,18 @@ namespace video {
       AV_PIX_FMT_VIDEOTOOLBOX,
       AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
       nullptr),
+    {
+      // Common options
+      {
+        { "allow_sw"s, &config::video.vt.vt_allow_sw },
+        { "require_sw"s, &config::video.vt.vt_require_sw },
+        { "realtime"s, &config::video.vt.vt_realtime },
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      std::nullopt,
+      "av1_videotoolbox"s,
+    },
     {
       // Common options
       {
@@ -883,6 +977,7 @@ namespace video {
 
   static encoder_t *chosen_encoder;
   int active_hevc_mode;
+  int active_av1_mode;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
 
   void
@@ -1265,7 +1360,9 @@ namespace video {
 
     bool hardware = platform_formats->avcodec_base_dev_type != AV_HWDEVICE_TYPE_NONE;
 
-    auto &video_format = config.videoFormat == 0 ? encoder.h264 : encoder.hevc;
+    auto &video_format = config.videoFormat == 0 ? encoder.h264 :
+                         config.videoFormat == 1 ? encoder.hevc :
+                                                   encoder.av1;
     if (!video_format[encoder_t::PASSED]) {
       BOOST_LOG(error) << encoder.name << ": "sv << video_format.name << " mode not supported"sv;
       return nullptr;
@@ -1289,14 +1386,19 @@ namespace video {
     ctx->time_base = AVRational { 1, config.framerate };
     ctx->framerate = AVRational { config.framerate, 1 };
 
-    if (config.videoFormat == 0) {
-      ctx->profile = FF_PROFILE_H264_HIGH;
-    }
-    else if (config.dynamicRange == 0) {
-      ctx->profile = FF_PROFILE_HEVC_MAIN;
-    }
-    else {
-      ctx->profile = FF_PROFILE_HEVC_MAIN_10;
+    switch (config.videoFormat) {
+      case 0:
+        ctx->profile = FF_PROFILE_H264_HIGH;
+        break;
+
+      case 1:
+        ctx->profile = config.dynamicRange ? FF_PROFILE_HEVC_MAIN_10 : FF_PROFILE_HEVC_MAIN;
+        break;
+
+      case 2:
+        // AV1 supports both 8 and 10 bit encoding with the same Main profile
+        ctx->profile = FF_PROFILE_AV1_MAIN;
+        break;
     }
 
     // B-frames delay decoder output, so never use them
@@ -1444,7 +1546,7 @@ namespace video {
       }
 
       if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
-        if (!hardware && (ctx->slices > 1 || config.videoFormat != 0)) {
+        if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
           // Use a larger rc_buffer_size for software encoding when slices are enabled,
           // because libx264 can severely degrade quality if the buffer is too small.
           // libx265 encounters this issue more frequently, so always scale the
@@ -1540,7 +1642,7 @@ namespace video {
       std::move(encode_device_final),
 
       // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
-      (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat));
+      config.videoFormat <= 1 ? (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat) : 0);
 
     return session;
   }
@@ -2099,14 +2201,18 @@ namespace video {
     }
 
     int flag = 0;
-    if (auto packet_avcodec = dynamic_cast<packet_raw_avcodec *>(packet.get())) {
-      if (cbs::validate_sps(packet_avcodec->av_packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
+
+    // This check only applies for H.264 and HEVC
+    if (config.videoFormat <= 1) {
+      if (auto packet_avcodec = dynamic_cast<packet_raw_avcodec *>(packet.get())) {
+        if (cbs::validate_sps(packet_avcodec->av_packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
+          flag |= VUI_PARAMS;
+        }
+      }
+      else {
+        // Don't check it for non-avcodec encoders.
         flag |= VUI_PARAMS;
       }
-    }
-    else {
-      // Don't check it for non-avcodec encoders.
-      flag |= VUI_PARAMS;
     }
 
     return flag;
@@ -2124,8 +2230,12 @@ namespace video {
     auto force_hevc = active_hevc_mode >= 2;
     auto test_hevc = force_hevc || (active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
 
+    auto force_av1 = active_av1_mode >= 2;
+    auto test_av1 = force_av1 || (active_av1_mode == 0 && !(encoder.flags & H264_ONLY));
+
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
+    encoder.av1.capabilities.set();
 
     // First, test encoder viability
     config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
@@ -2194,6 +2304,39 @@ namespace video {
       encoder.hevc.capabilities.reset();
     }
 
+    if (test_av1) {
+      config_max_ref_frames.videoFormat = 2;
+      config_autoselect.videoFormat = 2;
+
+    retry_av1:
+      auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
+      auto autoselect_av1 = max_ref_frames_av1 >= 0 ? max_ref_frames_av1 : validate_config(disp, encoder, config_autoselect);
+      if (autoselect_av1 < 0) {
+        if (encoder.av1.qp && encoder.av1[encoder_t::CBR]) {
+          // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
+          encoder.av1.capabilities.set();
+          encoder.av1[encoder_t::CBR] = false;
+          goto retry_av1;
+        }
+
+        // If AV1 must be supported, but it is not supported
+        if (force_av1) {
+          return false;
+        }
+      }
+
+      for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
+        encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
+      }
+
+      encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
+      encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
+    }
+    else {
+      // Clear all cap bits for AV1 if we didn't probe it
+      encoder.av1.capabilities.reset();
+    }
+
     std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
       { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } },
     };
@@ -2201,15 +2344,21 @@ namespace video {
     for (auto &[flag, config] : configs) {
       auto h264 = config;
       auto hevc = config;
+      auto av1 = config;
 
       h264.videoFormat = 0;
       hevc.videoFormat = 1;
+      av1.videoFormat = 2;
 
       // HDR is not supported with H.264. Don't bother even trying it.
       encoder.h264[flag] = flag != encoder_t::DYNAMIC_RANGE && validate_config(disp, encoder, h264) >= 0;
 
       if (encoder.hevc[encoder_t::PASSED]) {
         encoder.hevc[flag] = validate_config(disp, encoder, hevc) >= 0;
+      }
+
+      if (encoder.av1[encoder_t::PASSED]) {
+        encoder.av1[flag] = validate_config(disp, encoder, av1) >= 0;
       }
     }
 
@@ -2242,6 +2391,7 @@ namespace video {
     auto previous_encoder = chosen_encoder;
     chosen_encoder = nullptr;
     active_hevc_mode = config::video.hevc_mode;
+    active_av1_mode = config::video.av1_mode;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
     if (!config::video.encoder.empty()) {
@@ -2258,8 +2408,12 @@ namespace video {
 
           // If we can't satisfy both the encoder and HDR requirement, prefer the encoder over HDR support
           if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
-            BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HDR on this system"sv;
+            BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HEVC Main10 on this system"sv;
             active_hevc_mode = 0;
+          }
+          if (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE]) {
+            BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support AV1 Main10 on this system"sv;
+            active_av1_mode = 0;
           }
 
           chosen_encoder = encoder;
@@ -2277,7 +2431,7 @@ namespace video {
     BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
     // If we haven't found an encoder yet, but we want one with HDR support, search for that now.
-    if (chosen_encoder == nullptr && active_hevc_mode == 3) {
+    if (chosen_encoder == nullptr && (active_hevc_mode == 3 || active_av1_mode == 3)) {
       KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
@@ -2288,7 +2442,8 @@ namespace video {
         }
 
         // Skip it if it doesn't support HDR
-        if (!encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
+        if ((active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) ||
+            (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE])) {
           pos++;
           continue;
         }
@@ -2340,6 +2495,7 @@ namespace video {
       BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.h264[flag] ? ": supported"sv : ": unsupported"sv);
     }
     BOOST_LOG(debug) << "-------------------"sv;
+    BOOST_LOG(info) << "Found H.264 encoder: "sv << encoder.h264.name << " ["sv << encoder.name << ']';
 
     if (encoder.hevc[encoder_t::PASSED]) {
       BOOST_LOG(debug) << "------  hevc ------"sv;
@@ -2349,14 +2505,26 @@ namespace video {
       }
       BOOST_LOG(debug) << "-------------------"sv;
 
-      BOOST_LOG(info) << "Found encoder "sv << encoder.name << ": ["sv << encoder.h264.name << ", "sv << encoder.hevc.name << ']';
+      BOOST_LOG(info) << "Found HEVC encoder: "sv << encoder.hevc.name << " ["sv << encoder.name << ']';
     }
-    else {
-      BOOST_LOG(info) << "Found encoder "sv << encoder.name << ": ["sv << encoder.h264.name << ']';
+
+    if (encoder.av1[encoder_t::PASSED]) {
+      BOOST_LOG(debug) << "------  av1 ------"sv;
+      for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
+        auto flag = (encoder_t::flag_e) x;
+        BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.av1[flag] ? ": supported"sv : ": unsupported"sv);
+      }
+      BOOST_LOG(debug) << "-------------------"sv;
+
+      BOOST_LOG(info) << "Found AV1 encoder: "sv << encoder.av1.name << " ["sv << encoder.name << ']';
     }
 
     if (active_hevc_mode == 0) {
       active_hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
+    }
+
+    if (active_av1_mode == 0) {
+      active_av1_mode = encoder.av1[encoder_t::PASSED] ? (encoder.av1[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
     }
 
     return 0;

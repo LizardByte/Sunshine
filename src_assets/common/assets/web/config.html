@@ -691,6 +691,28 @@
           HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
         </div>
       </div>
+      <!--AV1 Support -->
+      <div class="mb-3">
+        <label for="av1_mode" class="form-label">AV1 Support</label>
+        <select id="av1_mode" class="form-select" v-model="config.av1_mode">
+          <option value="0">
+            Sunshine will specify support for AV1 based on encoder
+          </option>
+          <option value="1">
+            Sunshine will not advertise support for AV1
+          </option>
+          <option value="2">
+            Sunshine will advertise support for AV1 Main 8-bit profile
+          </option>
+          <option value="3">
+            Sunshine will advertise support for AV1 Main 8-bit and 10-bit (HDR) profiles
+          </option>
+        </select>
+        <div class="form-text">
+          Allows the client to request AV1 Main 8-bit or 10-bit video streams.<br />
+          AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
+        </div>
+      </div>
       <!--Capture-->
       <div class="mb-3" v-if="platform === 'linux'">
         <label for="capture" class="form-label">Force a Specific Capture Method</label>
@@ -1032,6 +1054,7 @@
     "fps": "[10,30,60,90,120]",
     "gamepad": "auto",
     "hevc_mode": 0,
+    "av1_mode": 0,
     "key_rightalt_to_key_win": "disabled",
     "keyboard": "enabled",
     "min_log_level": 2,
