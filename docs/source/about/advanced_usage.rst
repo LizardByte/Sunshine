@@ -810,6 +810,37 @@ hevc_mode
 
       hevc_mode = 2
 
+av1_mode
+^^^^^^^^^
+
+**Description**
+   Allows the client to request AV1 Main 8-bit or 10-bit video streams.
+
+   .. Warning:: AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software
+      encoding.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =====     ===========
+   Value     Description
+   =====     ===========
+   0         advertise support for AV1 based on encoder
+   1         do not advertise support for AV1
+   2         advertise support for AV1 Main 8-bit profile
+   3         advertise support for AV1 Main 8-bit and 10-bit (HDR) profiles
+   =====     ===========
+
+**Default**
+   ``0``
+
+**Example**
+   .. code-block:: text
+
+      av1_mode = 2
+
 capture
 ^^^^^^^
 

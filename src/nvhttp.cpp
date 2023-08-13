@@ -643,15 +643,20 @@ namespace nvhttp {
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
     tree.put("root.LocalIP", local_endpoint.address().to_string());
 
-    if (video::active_hevc_mode == 3) {
-      tree.put("root.ServerCodecModeSupport", "3843");
+    uint32_t codec_mode_flags = SCM_H264;
+    if (video::active_hevc_mode >= 2) {
+      codec_mode_flags |= SCM_HEVC;
     }
-    else if (video::active_hevc_mode == 2) {
-      tree.put("root.ServerCodecModeSupport", "259");
+    if (video::active_hevc_mode >= 3) {
+      codec_mode_flags |= SCM_HEVC_MAIN10;
     }
-    else {
-      tree.put("root.ServerCodecModeSupport", "3");
+    if (video::active_av1_mode >= 2) {
+      codec_mode_flags |= SCM_AV1_MAIN8;
     }
+    if (video::active_av1_mode >= 3) {
+      codec_mode_flags |= SCM_AV1_MAIN10;
+    }
+    tree.put("root.ServerCodecModeSupport", codec_mode_flags);
 
     pt::ptree display_nodes;
     for (auto &resolution : config::nvhttp.resolutions) {

@@ -137,7 +137,7 @@ namespace video {
        SDR encoding colorspace (encoderCscMode >> 1) : 0 - BT.601, 1 - BT.709, 2 - BT.2020 */
     int encoderCscMode;
 
-    int videoFormat;  // 0 - H.264, 1 - HEVC
+    int videoFormat;  // 0 - H.264, 1 - HEVC, 2 - AV1
 
     /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
        HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
@@ -145,6 +145,7 @@ namespace video {
   };
 
   extern int active_hevc_mode;
+  extern int active_av1_mode;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
 
   void
