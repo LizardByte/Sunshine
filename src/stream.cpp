@@ -98,7 +98,11 @@ namespace stream {
     // 5 = P-frame after reference frame invalidation
     std::uint8_t frameType;
 
-    std::uint8_t unknown2[4];
+    // Length of the final packet payload for codecs that cannot handle
+    // zero padding, such as AV1 (Sunshine extension).
+    boost::endian::little_uint16_at lastPayloadLen;
+
+    std::uint8_t unknown[2];
   };
 
   static_assert(
@@ -1120,13 +1124,31 @@ namespace stream {
       auto lowseq = session->video.lowseq;
 
       std::string_view payload { (char *) packet->data(), packet->data_size() };
-      std::vector<uint8_t> payload_new;
+      std::vector<uint8_t> payload_with_replacements;
+
+      // Apply replacements on the packet payload before performing any other operations.
+      // We need to know the final frame size to calculate the last packet size, and we
+      // must avoid matching replacements against the frame header or any other non-video
+      // part of the payload.
+      if (packet->is_idr() && packet->replacements) {
+        for (auto &replacement : *packet->replacements) {
+          auto frame_old = replacement.old;
+          auto frame_new = replacement._new;
+
+          payload_with_replacements = replace(payload, frame_old, frame_new);
+          payload = { (char *) payload_with_replacements.data(), payload_with_replacements.size() };
+        }
+      }
 
       video_short_frame_header_t frame_header = {};
       frame_header.headerType = 0x01;  // Short header type
       frame_header.frameType = packet->is_idr()                     ? 2 :
                                packet->after_ref_frame_invalidation ? 5 :
                                                                       1;
+      frame_header.lastPayloadLen = (payload.size() + sizeof(frame_header)) % (session->config.packetsize - sizeof(NV_VIDEO_PACKET));
+      if (frame_header.lastPayloadLen == 0) {
+        frame_header.lastPayloadLen = session->config.packetsize - sizeof(NV_VIDEO_PACKET);
+      }
 
       if (packet->frame_timestamp) {
         auto duration_to_latency = [](const std::chrono::steady_clock::duration &duration) {
@@ -1151,20 +1173,11 @@ namespace stream {
         frame_header.frame_processing_latency = 0;
       }
 
+      std::vector<uint8_t> payload_new;
       std::copy_n((uint8_t *) &frame_header, sizeof(frame_header), std::back_inserter(payload_new));
       std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
 
       payload = { (char *) payload_new.data(), payload_new.size() };
-
-      if (packet->is_idr() && packet->replacements) {
-        for (auto &replacement : *packet->replacements) {
-          auto frame_old = replacement.old;
-          auto frame_new = replacement._new;
-
-          payload_new = replace(payload, frame_old, frame_new);
-          payload = { (char *) payload_new.data(), payload_new.size() };
-        }
-      }
 
       // insert packet headers
       auto blocksize = session->config.packetsize + MAX_RTP_HEADER_SIZE;
