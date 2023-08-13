@@ -124,6 +124,11 @@ namespace nvenc {
         init_params.encodeGUID = NV_ENC_CODEC_HEVC_GUID;
         break;
 
+      case 2:
+        // AV1
+        init_params.encodeGUID = NV_ENC_CODEC_AV1_GUID;
+        break;
+
       default:
         BOOST_LOG(error) << "NvEnc: unknown video format " << client_config.videoFormat;
         return false;
@@ -291,6 +296,33 @@ namespace nvenc {
         set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, 5);
         set_minqp_if_enabled(config.min_qp_hevc);
         fill_vui(format_config.hevcVUIParameters);
+        break;
+      }
+
+      case 2: {
+        // AV1
+        auto &format_config = enc_config.encodeCodecConfig.av1Config;
+        format_config.repeatSeqHdr = 1;
+        format_config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
+        format_config.chromaFormatIDC = 1;  // YUV444 not supported by NVENC yet
+        format_config.enableBitstreamPadding = config.insert_filler_data;
+        if (buffer_is_10bit()) {
+          format_config.inputPixelBitDepthMinus8 = 2;
+          format_config.pixelBitDepthMinus8 = 2;
+        }
+        format_config.colorPrimaries = colorspace.primaries;
+        format_config.transferCharacteristics = colorspace.tranfer_function;
+        format_config.matrixCoefficients = colorspace.matrix;
+        format_config.colorRange = colorspace.full_range;
+        set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numFwdRefs, 8);
+        set_minqp_if_enabled(config.min_qp_av1);
+
+        if (client_config.slicesPerFrame > 1) {
+          // NVENC only supports slice counts that are powers of two, so we'll pick powers of two
+          // with bias to rows due to hopefully more similar macroblocks with a row vs a column.
+          format_config.numTileRows = std::pow(2, std::ceil(std::log2(client_config.slicesPerFrame) / 2));
+          format_config.numTileColumns = std::pow(2, std::floor(std::log2(client_config.slicesPerFrame) / 2));
+        }
         break;
       }
     }
