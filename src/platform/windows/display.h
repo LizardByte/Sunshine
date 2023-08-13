@@ -194,6 +194,9 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
     cursor_t cursor;
     D3D11_MAPPED_SUBRESOURCE img_info;
     texture2d_t texture;
