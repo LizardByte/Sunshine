@@ -13,9 +13,6 @@ cmake-build*
 node_modules/
 package-lock.json
 
-# python
-*env*/
-
 # Translations
 *.mo
 *.pot
