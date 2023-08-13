@@ -249,7 +249,7 @@ namespace nvenc {
       if (config.enable_min_qp) {
         enc_config.rcParams.enableMinQP = 1;
         enc_config.rcParams.minQP.qpInterP = value;
-        enc_config.rcParams.minQP.qpInterP = value;
+        enc_config.rcParams.minQP.qpIntra = value;
       }
     };
 
