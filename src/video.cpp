@@ -760,7 +760,7 @@ namespace video {
     {
       // Common options
       {
-        { "filler_data"s, true },
+        { "filler_data"s, false },
         { "preanalysis"s, &config::video.amd.amd_preanalysis },
         { "quality"s, &config::video.amd.amd_quality_av1 },
         { "rc"s, &config::video.amd.amd_rc_av1 },
@@ -774,7 +774,7 @@ namespace video {
     {
       // Common options
       {
-        { "filler_data"s, true },
+        { "filler_data"s, false },
         { "gops_per_idr"s, 1 },
         { "header_insertion_mode"s, "idr"s },
         { "preanalysis"s, &config::video.amd.amd_preanalysis },
@@ -793,7 +793,7 @@ namespace video {
     {
       // Common options
       {
-        { "filler_data"s, true },
+        { "filler_data"s, false },
         { "log_to_dbg"s, "1"s },
         { "preanalysis"s, &config::video.amd.amd_preanalysis },
         { "qmax"s, 51 },
