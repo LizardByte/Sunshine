@@ -565,7 +565,6 @@ namespace platf {
     // we make a clone to prevent side effects to the shared environment.
     bp::environment cloned_env = env;
 
-
     if (ec) {
       // In the event that startup_info failed, return a blank child process.
       return bp::child();
