@@ -560,9 +560,11 @@ namespace platf {
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
     PROCESS_INFORMATION process_info;
 
-    // We need to clone the environment because boost shares it with all processes.
-    // Since we are making actual mutations to the environment, this is done to avoid side effects.
+    // Clone the environment to create a local copy. Boost.Process (bp) shares the environment with all spawned processes.
+    // Since we're going to modify the 'env' variable by merging user-specific environment variables into it,
+    // we make a clone to prevent side effects to the shared environment.
     bp::environment cloned_env = env;
+
 
     if (ec) {
       // In the event that startup_info failed, return a blank child process.
