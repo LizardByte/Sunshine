@@ -562,7 +562,7 @@ namespace platf {
 
     // Clone the environment to create a local copy. Boost.Process (bp) shares the environment with all spawned processes.
     // Since we're going to modify the 'env' variable by merging user-specific environment variables into it,
-    // we make a clone to prevent side effects to the shared environment. 
+    // we make a clone to prevent side effects to the shared environment.
     bp::environment cloned_env = env;
 
     if (ec) {
