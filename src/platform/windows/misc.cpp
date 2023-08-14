@@ -539,26 +539,6 @@ namespace platf {
     return startup_info;
   }
 
-  PVOID
-  CloneEnvironmentBlock(PVOID env_block) {
-    // Calculate the size of the original environment block
-    PWCHAR c = (PWCHAR) env_block;
-    size_t size = 0;
-    while (*c != UNICODE_NULL) {
-      size += (wcslen(c) + 1) * sizeof(WCHAR);
-      c += wcslen(c) + 1;
-    }
-    size += sizeof(WCHAR);  // Add size for the final null character
-
-    // Allocate new memory for the clone
-    PVOID clone = (PVOID) new WCHAR[size / sizeof(WCHAR)];
-
-    // Copy the contents
-    memcpy(clone, env_block, size);
-
-    return clone;
-  }
-
   /**
    * @brief Run a command on the users profile.
    *
@@ -586,7 +566,7 @@ namespace platf {
 
     // Clone the environment, since it is shared with all commands and we are making modifications to it.
     bp::environment cloned_env = env;
-    
+
     if (ec) {
       // In the event that startup_info failed, return a blank child process.
       return bp::child();
