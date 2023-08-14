@@ -280,11 +280,6 @@ namespace platf {
       return false;
     }
 
-    // Guard to ensure that DestroyEnvironmentBlock is called when the function exits
-    auto fail_guard = util::fail_guard([&env_block] {
-      DestroyEnvironmentBlock(env_block);
-    });
-
     // Parse the environment block and populate env
     for (auto c = (PWCHAR) env_block; *c != UNICODE_NULL; c += wcslen(c) + 1) {
       // Environment variable entries end with a null-terminator, so std::wstring() will get an entire entry.
@@ -310,6 +305,7 @@ namespace platf {
       }
     }
 
+    DestroyEnvironmentBlock(env_block);
     return true;
   }
 
@@ -564,7 +560,8 @@ namespace platf {
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
     PROCESS_INFORMATION process_info;
 
-    // Clone the environment, since it is shared with all commands and we are making modifications to it.
+    // We need to clone the environment because boost shares it with all processes.
+    // Since we are making actual mutations to the environment, this is done to avoid side effects.
     bp::environment cloned_env = env;
 
     if (ec) {
