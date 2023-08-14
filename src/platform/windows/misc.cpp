@@ -604,7 +604,7 @@ namespace platf {
 
       // Open the process as the current user account, elevation is handled in the token itself.
       ec = impersonate_current_user(user_token, [&]() {
-        std::wstring env_block = create_environment_block(env);
+        std::wstring env_block = create_environment_block(cloned_env);
         ret = CreateProcessAsUserW(user_token,
           NULL,
           (LPWSTR) wcmd.c_str(),
@@ -637,7 +637,7 @@ namespace platf {
         return bp::child();
       }
 
-      std::wstring env_block = create_environment_block(env);
+      std::wstring env_block = create_environment_block(cloned_env);
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
         NULL,
