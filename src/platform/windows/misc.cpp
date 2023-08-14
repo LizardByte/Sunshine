@@ -298,8 +298,6 @@ namespace platf {
       if (itr != env.cend()) {
         // Use this existing name if it is already present to ensure we merge properly
         env_name = itr->get_name();
-        // Remove existing name-value pair before replacing it, to prevent a resource leak when executing commands.
-        env.erase(env_name);
       }
 
       // For the PATH variable, we will merge the values together
@@ -541,6 +539,26 @@ namespace platf {
     return startup_info;
   }
 
+  PVOID
+  CloneEnvironmentBlock(PVOID env_block) {
+    // Calculate the size of the original environment block
+    PWCHAR c = (PWCHAR) env_block;
+    size_t size = 0;
+    while (*c != UNICODE_NULL) {
+      size += (wcslen(c) + 1) * sizeof(WCHAR);
+      c += wcslen(c) + 1;
+    }
+    size += sizeof(WCHAR);  // Add size for the final null character
+
+    // Allocate new memory for the clone
+    PVOID clone = (PVOID) new WCHAR[size / sizeof(WCHAR)];
+
+    // Copy the contents
+    memcpy(clone, env_block, size);
+
+    return clone;
+  }
+
   /**
    * @brief Run a command on the users profile.
    *
@@ -566,6 +584,9 @@ namespace platf {
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
     PROCESS_INFORMATION process_info;
 
+    // Clone the environment, since it is shared with all commands and we are making modifications to it.
+    bp::environment cloned_env = env;
+    
     if (ec) {
       // In the event that startup_info failed, return a blank child process.
       return bp::child();
@@ -596,7 +617,7 @@ namespace platf {
       });
 
       // Populate env with user-specific environment variables
-      if (!merge_user_environment_block(env, user_token)) {
+      if (!merge_user_environment_block(cloned_env, user_token)) {
         ec = std::make_error_code(std::errc::not_enough_memory);
         return bp::child();
       }
@@ -631,7 +652,7 @@ namespace platf {
       });
 
       // Populate env with user-specific environment variables
-      if (!merge_user_environment_block(env, process_token)) {
+      if (!merge_user_environment_block(cloned_env, process_token)) {
         ec = std::make_error_code(std::errc::not_enough_memory);
         return bp::child();
       }
