@@ -280,6 +280,11 @@ namespace platf {
       return false;
     }
 
+    // Guard to ensure that DestroyEnvironmentBlock is called when the function exits
+    auto fail_guard = util::fail_guard([&env_block] {
+      DestroyEnvironmentBlock(env_block);
+    });
+
     // Parse the environment block and populate env
     for (auto c = (PWCHAR) env_block; *c != UNICODE_NULL; c += wcslen(c) + 1) {
       // Environment variable entries end with a null-terminator, so std::wstring() will get an entire entry.
@@ -293,6 +298,8 @@ namespace platf {
       if (itr != env.cend()) {
         // Use this existing name if it is already present to ensure we merge properly
         env_name = itr->get_name();
+        // Remove existing name-value pair before replacing it, to prevent a resource leak when executing commands.
+        env.erase(env_name);
       }
 
       // For the PATH variable, we will merge the values together
@@ -305,7 +312,6 @@ namespace platf {
       }
     }
 
-    DestroyEnvironmentBlock(env_block);
     return true;
   }
 
