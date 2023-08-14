@@ -560,6 +560,11 @@ namespace platf {
     STARTUPINFOEXW startup_info = create_startup_info(file, ec);
     PROCESS_INFORMATION process_info;
 
+    // Clone the environment to create a local copy. Boost.Process (bp) shares the environment with all spawned processes.
+    // Since we're going to modify the 'env' variable by merging user-specific environment variables into it,
+    // we make a clone to prevent side effects to the shared environment.
+    bp::environment cloned_env = env;
+
     if (ec) {
       // In the event that startup_info failed, return a blank child process.
       return bp::child();
@@ -590,14 +595,14 @@ namespace platf {
       });
 
       // Populate env with user-specific environment variables
-      if (!merge_user_environment_block(env, user_token)) {
+      if (!merge_user_environment_block(cloned_env, user_token)) {
         ec = std::make_error_code(std::errc::not_enough_memory);
         return bp::child();
       }
 
       // Open the process as the current user account, elevation is handled in the token itself.
       ec = impersonate_current_user(user_token, [&]() {
-        std::wstring env_block = create_environment_block(env);
+        std::wstring env_block = create_environment_block(cloned_env);
         ret = CreateProcessAsUserW(user_token,
           NULL,
           (LPWSTR) wcmd.c_str(),
@@ -625,12 +630,12 @@ namespace platf {
       });
 
       // Populate env with user-specific environment variables
-      if (!merge_user_environment_block(env, process_token)) {
+      if (!merge_user_environment_block(cloned_env, process_token)) {
         ec = std::make_error_code(std::errc::not_enough_memory);
         return bp::child();
       }
 
-      std::wstring env_block = create_environment_block(env);
+      std::wstring env_block = create_environment_block(cloned_env);
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
         NULL,
