@@ -96,7 +96,7 @@ namespace cbs {
 
     cbs::frag_t frag;
 
-    int err = ff_cbs_read_packet(ctx.get(), &frag, &*packet);
+    int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
     if (err < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
       BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
