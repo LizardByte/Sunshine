@@ -294,7 +294,6 @@ namespace nvhttp {
 
     auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
     std::fill(next, std::end(launch_session.iv), 0);
-    BOOST_LOG(error) << launch_session.width << " h: " << launch_session.height << " fps: " << launch_session.fps;
     return launch_session;
   }
 
