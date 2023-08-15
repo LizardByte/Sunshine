@@ -13,6 +13,8 @@
 
 #include <newdev.h>
 
+#include <avrt.h>
+
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
@@ -449,6 +451,14 @@ namespace platf::audio {
         return -1;
       }
 
+      {
+        DWORD task_index = 0;
+        mmcss_task_handle = AvSetMmThreadCharacteristics("Pro Audio", &task_index);
+        if (!mmcss_task_handle) {
+          BOOST_LOG(error) << "Couldn't associate audio capture thread with Pro Audio MMCSS task [0x" << util::hex(GetLastError()).to_string_view() << ']';
+        }
+      }
+
       status = audio_client->Start();
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't start recording [0x"sv << util::hex(status).to_string_view() << ']';
@@ -466,6 +476,10 @@ namespace platf::audio {
 
       if (audio_client) {
         audio_client->Stop();
+      }
+
+      if (mmcss_task_handle) {
+        AvRevertMmThreadCharacteristics(mmcss_task_handle);
       }
     }
 
@@ -571,6 +585,8 @@ namespace platf::audio {
     util::buffer_t<std::int16_t> sample_buf;
     std::int16_t *sample_buf_pos;
     int channels;
+
+    HANDLE mmcss_task_handle = NULL;
   };
 
   class audio_control_t: public ::platf::audio_control_t {
