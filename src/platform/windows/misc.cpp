@@ -565,7 +565,7 @@ namespace platf {
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
    */
   bp::child
-  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     BOOL ret;
     // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
     std::wstring wcmd = converter.from_bytes(cmd);
