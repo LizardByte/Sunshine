@@ -547,7 +547,7 @@ namespace platf {
   display_names(mem_type_e hwdevice_type);
 
   boost::process::child
-  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
   enum class thread_priority_e : int {
     low,
