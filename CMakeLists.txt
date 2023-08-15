@@ -204,6 +204,7 @@ if(WIN32)
             dwmapi
             userenv
             synchronization.lib
+            avrt
             ${CURL_STATIC_LIBRARIES})
 
     set_source_files_properties(third-party/ViGEmClient/src/ViGEmClient.cpp
