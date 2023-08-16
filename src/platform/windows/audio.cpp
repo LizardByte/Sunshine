@@ -550,6 +550,10 @@ namespace platf::audio {
         sample_aligned.uninitialized = std::end(sample_buf) - sample_buf_pos;
         auto n = std::min(sample_aligned.uninitialized, block_aligned.audio_sample_size * channels);
 
+        if (n < block_aligned.audio_sample_size * channels) {
+          BOOST_LOG(warning) << "Audio capture buffer overflow";
+        }
+
         if (buffer_flags & AUDCLNT_BUFFERFLAGS_SILENT) {
           std::fill_n(sample_buf_pos, n, 0);
         }
