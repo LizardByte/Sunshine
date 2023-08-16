@@ -54,3 +54,7 @@
 	path = third-party/nvapi-open-source-sdk
 	url = https://github.com/LizardByte/nvapi-open-source-sdk
 	branch = sdk
+[submodule "third-party/ffmpeg-linux-powerpc64le"]
+	path = third-party/ffmpeg-linux-powerpc64le
+	url = https://github.com/LizardByte/build-deps
+	branch = ffmpeg-linux-powerpc64le
