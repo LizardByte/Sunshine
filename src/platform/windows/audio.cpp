@@ -543,6 +543,10 @@ namespace platf::audio {
             return capture_e::error;
         }
 
+        if (buffer_flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
+          BOOST_LOG(debug) << "Audio capture signaled buffer discontinuity";
+        }
+
         sample_aligned.uninitialized = std::end(sample_buf) - sample_buf_pos;
         auto n = std::min(sample_aligned.uninitialized, block_aligned.audio_sample_size * channels);
 
