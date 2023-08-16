@@ -8,7 +8,6 @@
    about/third_party_packages
    about/usage
    about/guides/guides
-   about/guides/app_examples
    about/advanced_usage
    about/changelog
 
