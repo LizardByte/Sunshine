@@ -251,7 +251,7 @@ Application List
 
    - ``working-dir`` - The working directory to use. If not specified, Sunshine will use the application directory.
 
-- For more examples see :ref:`app examples <about/app_examples:app examples>`.
+- For more examples see :ref:`app examples <about/guides/app_examples:app examples>`.
 
 Considerations
 --------------

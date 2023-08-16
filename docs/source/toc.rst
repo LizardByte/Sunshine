@@ -7,7 +7,8 @@
    about/docker
    about/third_party_packages
    about/usage
-   about/app_examples
+   about/guides/guides
+   about/guides/app_examples
    about/advanced_usage
    about/changelog
 
@@ -16,12 +17,6 @@
    :caption: GameStream
 
    gamestream/gamestream
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Guides
-
-   guides/linux
 
 .. toctree::
    :maxdepth: 2
