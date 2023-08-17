@@ -1282,6 +1282,10 @@ namespace video {
         return ret;
       }
 
+      if (frame->key_frame && !(av_packet->flags & AV_PKT_FLAG_KEY)) {
+        BOOST_LOG(error) << "Encoder did not produce IDR frame when requested!"sv;
+      }
+
       if (session.inject) {
         if (session.inject == 1) {
           auto h264 = cbs::make_sps_h264(ctx.get(), av_packet);
