@@ -831,7 +831,15 @@ namespace video {
       {},  // SDR-specific options
       {},  // HDR-specific options
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+
+#ifdef ENABLE_BROKEN_AV1_ENCODER
+      // Due to bugs preventing on-demand IDR frames from working and very poor
+      // real-time encoding performance, we do not enable libsvtav1 by default.
+      // It is only suitable for testing AV1 until the IDR frame issue is fixed.
       "libsvtav1"s,
+#else
+      {},
+#endif
     },
     {
       // x265's Info SEI is so long that it causes the IDR picture data to be
