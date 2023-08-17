@@ -855,7 +855,7 @@ jobs:
       (github.repository_owner == 'LizardByte' &&
       needs.setup_release.outputs.create_release == 'true' &&
       github.ref == 'refs/heads/master')
-    runs-on: windows-latest  # the required action can only be run on Windows
+    runs-on: ubuntu-latest
     steps:
       - name: Release to WinGet
         uses: vedantmgoyal2009/winget-releaser@v2
