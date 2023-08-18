@@ -2,7 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64
 # archlinux does not have an arm64 base image
-# no-cache-filters: sunshine-base,artifacts,sunshine
+# no-cache-filters: artifacts,sunshine
 ARG BASE=archlinux
 ARG TAG=base-devel
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -11,7 +11,7 @@ FROM ${BASE}:${TAG} AS sunshine-base
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --disable-download-timeout --noconfirm \
+pacman -Syu --disable-download-timeout  --needed --noconfirm \
   archlinux-keyring
 _DEPS
 
@@ -38,7 +38,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --disable-download-timeout --noconfirm \
+pacman -Syu --disable-download-timeout --needed --noconfirm \
   base-devel \
   cmake \
   cuda \
@@ -102,7 +102,7 @@ COPY --link --from=artifacts /sunshine.pkg.tar.zst /
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
-pacman -U --disable-download-timeout --noconfirm \
+pacman -U --disable-download-timeout --needed --noconfirm \
   /sunshine.pkg.tar.zst
 _INSTALL_SUNSHINE
 
