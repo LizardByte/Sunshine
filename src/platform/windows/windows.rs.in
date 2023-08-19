@@ -1,1 +1,36 @@
+#include "winver.h"
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+PRODUCTVERSION  @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName",      "LizardByte\0"
+            VALUE "FileDescription",  "Sunshine\0"
+            VALUE "FileVersion",      "@PROJECT_VERSION@\0"
+            VALUE "InternalName",     "Sunshine\0"
+            VALUE "LegalCopyright",   "https://raw.githubusercontent.com/LizardByte/Sunshine/master/LICENSE\0"
+            VALUE "ProductName",      "Sunshine\0"
+            VALUE "ProductVersion",   "@PROJECT_VERSION@\0"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        /* The following line should only be modified for localized versions.     */
+        /* It consists of any number of WORD,WORD pairs, with each pair           */
+        /* describing a language,codepage combination supported by the file.      */
+        /*                                                                        */
+        /* For example, a file might have values "0x409,1252" indicating that it  */
+        /* supports English language (0x409) in the Windows ANSI codepage (1252). */
+
+        VALUE "Translation", 0x409, 1252
+
+    END
+END
 SuperDuperAmazing   ICON    DISCARDABLE    "@SUNSHINE_ICON_PATH@"
