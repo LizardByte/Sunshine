@@ -57,4 +57,17 @@ namespace video {
   const color_t *
   color_vectors_from_colorspace(colorspace_e colorspace, bool full_range);
 
+  /**
+   * @brief New version of `color_vectors_from_colorspace()` function that better adheres to the standards.
+   *        Returned vectors are used to perform RGB->YUV conversion.
+   *        Unlike its predecessor, color vectors will produce output in `UINT` range, not `UNORM` range.
+   *        Input is still in `UNORM` range. Returned vectors won't modify color primaries and color
+   *        transfer function.
+   * @param colorspace Targeted YUV colorspace.
+   * @return `const color_t*` that contains RGB->YUV transformation vectors.
+   *         Components `range_y` and `range_uv` are there for backwards compatibility
+   *         and can be ignored in the computation.
+   */
+  const color_t *
+  new_color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace);
 }  // namespace video
