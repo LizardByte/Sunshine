@@ -1,6 +1,6 @@
 /**
  * @file src/nvenc/nvenc_utils.h
- * @brief Declarations for base NVENC utilities.
+ * @brief Declarations for NVENC utilities.
  */
 #pragma once
 

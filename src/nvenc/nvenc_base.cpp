@@ -1,6 +1,6 @@
 /**
  * @file src/nvenc/nvenc_base.cpp
- * @brief Definitions for base NVENC encoder.
+ * @brief Definitions for abstract platform-agnostic base of standalone NVENC encoder.
  */
 #include "nvenc_base.h"
 
@@ -85,9 +85,8 @@ namespace {
 
 namespace nvenc {
 
-  nvenc_base::nvenc_base(NV_ENC_DEVICE_TYPE device_type, void *device):
-      device_type(device_type),
-      device(device) {
+  nvenc_base::nvenc_base(NV_ENC_DEVICE_TYPE device_type):
+      device_type(device_type) {
   }
 
   nvenc_base::~nvenc_base() {
@@ -115,19 +114,19 @@ namespace nvenc {
     session_params.deviceType = device_type;
     session_params.apiVersion = minimum_api_version;
     if (nvenc_failed(nvenc->nvEncOpenEncodeSessionEx(&session_params, &encoder))) {
-      BOOST_LOG(error) << "NvEncOpenEncodeSessionEx failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncOpenEncodeSessionEx() failed: " << last_nvenc_error_string;
       return false;
     }
 
     uint32_t encode_guid_count = 0;
     if (nvenc_failed(nvenc->nvEncGetEncodeGUIDCount(encoder, &encode_guid_count))) {
-      BOOST_LOG(error) << "NvEncGetEncodeGUIDCount failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncGetEncodeGUIDCount() failed: " << last_nvenc_error_string;
       return false;
     };
 
     std::vector<GUID> encode_guids(encode_guid_count);
     if (nvenc_failed(nvenc->nvEncGetEncodeGUIDs(encoder, encode_guids.data(), encode_guids.size(), &encode_guid_count))) {
-      BOOST_LOG(error) << "NvEncGetEncodeGUIDs failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncGetEncodeGUIDs() failed: " << last_nvenc_error_string;
       return false;
     }
 
@@ -176,7 +175,7 @@ namespace nvenc {
     };
 
     auto buffer_is_yuv444 = [&]() {
-      return buffer_format == NV_ENC_BUFFER_FORMAT_YUV444 || buffer_format == NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
+      return buffer_format == NV_ENC_BUFFER_FORMAT_AYUV || buffer_format == NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
     };
 
     {
@@ -220,7 +219,7 @@ namespace nvenc {
 
     NV_ENC_PRESET_CONFIG preset_config = { min_struct_version(NV_ENC_PRESET_CONFIG_VER), { min_struct_version(NV_ENC_CONFIG_VER, 7, 8) } };
     if (nvenc_failed(nvenc->nvEncGetEncodePresetConfigEx(encoder, init_params.encodeGUID, init_params.presetGUID, init_params.tuningInfo, &preset_config))) {
-      BOOST_LOG(error) << "NvEncGetEncodePresetConfigEx failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncGetEncodePresetConfigEx() failed: " << last_nvenc_error_string;
       return false;
     }
 
@@ -228,7 +227,6 @@ namespace nvenc {
     enc_config.profileGUID = NV_ENC_CODEC_PROFILE_AUTOSELECT_GUID;
     enc_config.gopLength = NVENC_INFINITE_GOPLENGTH;
     enc_config.frameIntervalP = 1;
-    enc_config.rcParams.enableAQ = config.adaptive_quantization;
     enc_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
     enc_config.rcParams.zeroReorderDelay = 1;
     enc_config.rcParams.enableLookahead = 0;
@@ -282,7 +280,7 @@ namespace nvenc {
       }
     };
 
-    auto fill_h264_hevc_vui = [&colorspace](auto &vui_config) {
+    auto fill_h264_hevc_vui = [&](auto &vui_config) {
       vui_config.videoSignalTypePresentFlag = 1;
       vui_config.videoFormat = NV_ENC_VUI_VIDEO_FORMAT_UNSPECIFIED;
       vui_config.videoFullRangeFlag = colorspace.full_range;
@@ -290,7 +288,7 @@ namespace nvenc {
       vui_config.colourPrimaries = colorspace.primaries;
       vui_config.transferCharacteristics = colorspace.tranfer_function;
       vui_config.colourMatrix = colorspace.matrix;
-      vui_config.chromaSampleLocationFlag = 1;
+      vui_config.chromaSampleLocationFlag = buffer_is_yuv444() ? 0 : 1;
       vui_config.chromaSampleLocationTop = 0;
       vui_config.chromaSampleLocationBot = 0;
     };
@@ -331,7 +329,9 @@ namespace nvenc {
         auto &format_config = enc_config.encodeCodecConfig.av1Config;
         format_config.repeatSeqHdr = 1;
         format_config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
-        format_config.chromaFormatIDC = 1;  // YUV444 not supported by NVENC yet
+        if (buffer_is_yuv444()) {
+          format_config.chromaFormatIDC = 3;
+        }
         format_config.enableBitstreamPadding = config.insert_filler_data;
         if (buffer_is_10bit()) {
           format_config.inputPixelBitDepthMinus8 = 2;
@@ -341,7 +341,7 @@ namespace nvenc {
         format_config.transferCharacteristics = colorspace.tranfer_function;
         format_config.matrixCoefficients = colorspace.matrix;
         format_config.colorRange = colorspace.full_range;
-        format_config.chromaSamplePosition = 1;
+        format_config.chromaSamplePosition = buffer_is_yuv444() ? 0 : 1;
         set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numFwdRefs, 8);
         set_minqp_if_enabled(config.min_qp_av1);
 
@@ -358,7 +358,7 @@ namespace nvenc {
     init_params.encodeConfig = &enc_config;
 
     if (nvenc_failed(nvenc->nvEncInitializeEncoder(encoder, &init_params))) {
-      BOOST_LOG(error) << "NvEncInitializeEncoder failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncInitializeEncoder() failed: " << last_nvenc_error_string;
       return false;
     }
 
@@ -366,14 +366,14 @@ namespace nvenc {
       NV_ENC_EVENT_PARAMS event_params = { min_struct_version(NV_ENC_EVENT_PARAMS_VER) };
       event_params.completionEvent = async_event_handle;
       if (nvenc_failed(nvenc->nvEncRegisterAsyncEvent(encoder, &event_params))) {
-        BOOST_LOG(error) << "NvEncRegisterAsyncEvent failed: " << last_error_string;
+        BOOST_LOG(error) << "NvEnc: NvEncRegisterAsyncEvent() failed: " << last_nvenc_error_string;
         return false;
       }
     }
 
     NV_ENC_CREATE_BITSTREAM_BUFFER create_bitstream_buffer = { min_struct_version(NV_ENC_CREATE_BITSTREAM_BUFFER_VER) };
     if (nvenc_failed(nvenc->nvEncCreateBitstreamBuffer(encoder, &create_bitstream_buffer))) {
-      BOOST_LOG(error) << "NvEncCreateBitstreamBuffer failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncCreateBitstreamBuffer() failed: " << last_nvenc_error_string;
       return false;
     }
     output_bitstream = create_bitstream_buffer.bitstreamBuffer;
@@ -388,8 +388,13 @@ namespace nvenc {
     }
 
     {
+      auto video_format_string = client_config.videoFormat == 0 ? "H.264 " :
+                                 client_config.videoFormat == 1 ? "HEVC " :
+                                 client_config.videoFormat == 2 ? "AV1 " :
+                                                                  " ";
       std::string extra;
       if (init_params.enableEncodeAsync) extra += " async";
+      if (buffer_is_yuv444()) extra += " yuv444";
       if (buffer_is_10bit()) extra += " 10-bit";
       if (enc_config.rcParams.multiPass != NV_ENC_MULTI_PASS_DISABLED) extra += " two-pass";
       if (config.vbv_percentage_increase > 0 && get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) extra += " vbv+" + std::to_string(config.vbv_percentage_increase);
@@ -398,7 +403,8 @@ namespace nvenc {
       if (enc_config.rcParams.enableAQ) extra += " spatial-aq";
       if (enc_config.rcParams.enableMinQP) extra += " qpmin=" + std::to_string(enc_config.rcParams.minQP.qpInterP);
       if (config.insert_filler_data) extra += " filler-data";
-      BOOST_LOG(info) << "NvEnc: created encoder " << quality_preset_string_from_guid(init_params.presetGUID) << extra;
+
+      BOOST_LOG(info) << "NvEnc: created encoder " << video_format_string << quality_preset_string_from_guid(init_params.presetGUID) << extra;
     }
 
     encoder_state = {};
@@ -409,20 +415,28 @@ namespace nvenc {
   void
   nvenc_base::destroy_encoder() {
     if (output_bitstream) {
-      nvenc->nvEncDestroyBitstreamBuffer(encoder, output_bitstream);
+      if (nvenc_failed(nvenc->nvEncDestroyBitstreamBuffer(encoder, output_bitstream))) {
+        BOOST_LOG(error) << "NvEnc: NvEncDestroyBitstreamBuffer() failed: " << last_nvenc_error_string;
+      }
       output_bitstream = nullptr;
     }
     if (encoder && async_event_handle) {
       NV_ENC_EVENT_PARAMS event_params = { min_struct_version(NV_ENC_EVENT_PARAMS_VER) };
       event_params.completionEvent = async_event_handle;
-      nvenc->nvEncUnregisterAsyncEvent(encoder, &event_params);
+      if (nvenc_failed(nvenc->nvEncUnregisterAsyncEvent(encoder, &event_params))) {
+        BOOST_LOG(error) << "NvEnc: NvEncUnregisterAsyncEvent() failed: " << last_nvenc_error_string;
+      }
     }
     if (registered_input_buffer) {
-      nvenc->nvEncUnregisterResource(encoder, registered_input_buffer);
+      if (nvenc_failed(nvenc->nvEncUnregisterResource(encoder, registered_input_buffer))) {
+        BOOST_LOG(error) << "NvEnc: NvEncUnregisterResource() failed: " << last_nvenc_error_string;
+      }
       registered_input_buffer = nullptr;
     }
     if (encoder) {
-      nvenc->nvEncDestroyEncoder(encoder);
+      if (nvenc_failed(nvenc->nvEncDestroyEncoder(encoder))) {
+        BOOST_LOG(error) << "NvEnc: NvEncDestroyEncoder() failed: " << last_nvenc_error_string;
+      }
       encoder = nullptr;
     }
 
@@ -439,14 +453,23 @@ namespace nvenc {
     assert(registered_input_buffer);
     assert(output_bitstream);
 
+    if (!synchronize_input_buffer()) {
+      BOOST_LOG(error) << "NvEnc: failed to synchronize input buffer";
+      return {};
+    }
+
     NV_ENC_MAP_INPUT_RESOURCE mapped_input_buffer = { min_struct_version(NV_ENC_MAP_INPUT_RESOURCE_VER) };
     mapped_input_buffer.registeredResource = registered_input_buffer;
 
     if (nvenc_failed(nvenc->nvEncMapInputResource(encoder, &mapped_input_buffer))) {
-      BOOST_LOG(error) << "NvEncMapInputResource failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncMapInputResource() failed: " << last_nvenc_error_string;
       return {};
     }
-    auto unmap_guard = util::fail_guard([&] { nvenc->nvEncUnmapInputResource(encoder, &mapped_input_buffer); });
+    auto unmap_guard = util::fail_guard([&] {
+      if (nvenc_failed(nvenc->nvEncUnmapInputResource(encoder, mapped_input_buffer.mappedResource))) {
+        BOOST_LOG(error) << "NvEnc: NvEncUnmapInputResource() failed: " << last_nvenc_error_string;
+      }
+    });
 
     NV_ENC_PIC_PARAMS pic_params = { min_struct_version(NV_ENC_PIC_PARAMS_VER, 4, 6) };
     pic_params.inputWidth = encoder_params.width;
@@ -460,7 +483,7 @@ namespace nvenc {
     pic_params.completionEvent = async_event_handle;
 
     if (nvenc_failed(nvenc->nvEncEncodePicture(encoder, &pic_params))) {
-      BOOST_LOG(error) << "NvEncEncodePicture failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncEncodePicture() failed: " << last_nvenc_error_string;
       return {};
     }
 
@@ -474,7 +497,7 @@ namespace nvenc {
     }
 
     if (nvenc_failed(nvenc->nvEncLockBitstream(encoder, &lock_bitstream))) {
-      BOOST_LOG(error) << "NvEncLockBitstream failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncLockBitstream() failed: " << last_nvenc_error_string;
       return {};
     }
 
@@ -498,7 +521,7 @@ namespace nvenc {
     }
 
     if (nvenc_failed(nvenc->nvEncUnlockBitstream(encoder, lock_bitstream.outputBitstream))) {
-      BOOST_LOG(error) << "NvEncUnlockBitstream failed: " << last_error_string;
+      BOOST_LOG(error) << "NvEnc: NvEncUnlockBitstream() failed: " << last_nvenc_error_string;
     }
 
     encoder_state.frame_size_logger.collect_and_log(encoded_frame.data.size() / 1000.);
@@ -535,7 +558,7 @@ namespace nvenc {
 
     for (auto i = first_frame; i <= last_frame; i++) {
       if (nvenc_failed(nvenc->nvEncInvalidateRefFrames(encoder, i))) {
-        BOOST_LOG(error) << "NvEncInvalidateRefFrames " << i << " failed: " << last_error_string;
+        BOOST_LOG(error) << "NvEnc: NvEncInvalidateRefFrames() " << i << " failed: " << last_nvenc_error_string;
         return false;
       }
     }
@@ -576,20 +599,22 @@ namespace nvenc {
         nvenc_status_case(NV_ENC_ERR_RESOURCE_REGISTER_FAILED);
         nvenc_status_case(NV_ENC_ERR_RESOURCE_NOT_REGISTERED);
         nvenc_status_case(NV_ENC_ERR_RESOURCE_NOT_MAPPED);
-        // Newer versions of sdk may add more constants, look for them the end of NVENCSTATUS enum
+        // Newer versions of sdk may add more constants, look for them at the end of NVENCSTATUS enum
 #undef nvenc_status_case
         default:
           return std::to_string(status);
       }
     };
 
-    last_error_string.clear();
+    last_nvenc_error_string.clear();
     if (status != NV_ENC_SUCCESS) {
+      /* This API function gives broken strings more often than not
       if (nvenc && encoder) {
-        last_error_string = nvenc->nvEncGetLastErrorString(encoder);
-        if (!last_error_string.empty()) last_error_string += " ";
+        last_nvenc_error_string = nvenc->nvEncGetLastErrorString(encoder);
+        if (!last_nvenc_error_string.empty()) last_nvenc_error_string += " ";
       }
-      last_error_string += status_string(status);
+      */
+      last_nvenc_error_string += status_string(status);
       return true;
     }
 
