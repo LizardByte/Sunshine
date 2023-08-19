@@ -206,6 +206,9 @@ namespace platf {
     yuv420p10,
     nv12,
     p010,
+    ayuv,
+    yuv444p16,
+    y410,
     unknown
   };
 
@@ -220,6 +223,9 @@ namespace platf {
       _CONVERT(yuv420p10);
       _CONVERT(nv12);
       _CONVERT(p010);
+      _CONVERT(ayuv);
+      _CONVERT(yuv444p16);
+      _CONVERT(y410);
       _CONVERT(unknown);
     }
 #undef _CONVERT
