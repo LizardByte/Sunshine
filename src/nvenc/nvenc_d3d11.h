@@ -10,25 +10,24 @@ namespace nvenc {
 
   _COM_SMARTPTR_TYPEDEF(ID3D11Device, IID_ID3D11Device);
   _COM_SMARTPTR_TYPEDEF(ID3D11Texture2D, IID_ID3D11Texture2D);
+  _COM_SMARTPTR_TYPEDEF(IDXGIDevice, IID_IDXGIDevice);
+  _COM_SMARTPTR_TYPEDEF(IDXGIAdapter, IID_IDXGIAdapter);
 
-  class nvenc_d3d11 final: public nvenc_base {
+  class nvenc_d3d11: public nvenc_base {
   public:
-    nvenc_d3d11(ID3D11Device *d3d_device);
-    ~nvenc_d3d11();
+    nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
+        nvenc_base(device_type) {}
 
-    ID3D11Texture2D *
-    get_input_texture();
+    virtual ~nvenc_d3d11();
 
-  private:
+    virtual ID3D11Texture2D *
+    get_input_texture() = 0;
+
+  protected:
     bool
     init_library() override;
 
-    bool
-    create_and_register_input_buffer() override;
-
     HMODULE dll = NULL;
-    const ID3D11DevicePtr d3d_device;
-    ID3D11Texture2DPtr d3d_input_texture;
   };
 
 }  // namespace nvenc
