@@ -24,6 +24,7 @@
 #include "crypto.h"
 #include "main.h"
 #include "platform/common.h"
+#include "system_tray.h"
 #include "utility.h"
 
 #ifdef _WIN32
@@ -245,7 +246,7 @@ namespace proc {
   void
   proc_t::terminate() {
     std::error_code ec;
-
+    std::string old_app_name = proc::proc.get_app_name(proc::proc.running());
     // Ensure child process is terminated
     placebo = false;
     process_end(_process, _process_handle);
@@ -279,6 +280,11 @@ namespace proc {
     }
 
     _pipe.reset();
+    // Only show the Stopped notification if we actually have an app to stop
+    // Since terminate() is always run when a new app has started
+    if (old_app_name.length() > 0) {
+      system_tray::update_tray_stopped(old_app_name);
+    }
   }
 
   const std::vector<ctx_t> &
@@ -302,6 +308,14 @@ namespace proc {
     auto app_image_path = iter == _apps.end() ? std::string() : iter->image_path;
 
     return validate_app_image_path(app_image_path);
+  }
+
+  std::string
+  proc_t::get_app_name(int app_id) {
+    auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
+      return app.id == std::to_string(app_id);
+    });
+    return iter == _apps.end() ? std::string() : iter->name;
   }
 
   proc_t::~proc_t() {
