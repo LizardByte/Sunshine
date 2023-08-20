@@ -280,11 +280,13 @@ namespace proc {
     }
 
     _pipe.reset();
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
     if (old_app_name.length() > 0) {
       system_tray::update_tray_stopped(old_app_name);
     }
+#endif
   }
 
   const std::vector<ctx_t> &
