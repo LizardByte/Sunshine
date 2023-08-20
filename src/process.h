@@ -82,7 +82,8 @@ namespace proc {
     get_apps();
     std::string
     get_app_image(int app_id);
-
+    std::string
+    get_app_name(int app_id);
     void
     terminate();
 

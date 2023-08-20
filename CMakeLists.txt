@@ -439,7 +439,8 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
 
     # tray icon
     if(${SUNSHINE_ENABLE_TRAY})
-        pkg_check_modules(APPINDICATOR appindicator3-0.1)
+        pkg_check_modules(APPINDICATOR ayatana-appindicator3-0.1)
+        pkg_check_modules(LIBNOTIFY libnotify)
         if(NOT APPINDICATOR_FOUND)
             message(WARNING "Couldn't find appindicator, disabling tray icon")
             set(SUNSHINE_TRAY 0)
@@ -448,7 +449,7 @@ ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
             link_directories(${APPINDICATOR_LIBRARY_DIRS})
 
             list(APPEND PLATFORM_TARGET_FILES third-party/tray/tray_linux.c)
-            list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES})
+            list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES} ${LIBNOTIFY_LIBRARIES})
         endif()
     else()
         set(SUNSHINE_TRAY 0)
