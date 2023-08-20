@@ -224,7 +224,7 @@ namespace nvenc {
       enc_config.rcParams.vbvBufferSize = client_config.bitrate * 1000 / client_config.framerate;
     }
 
-    auto set_common_format_config = [&](auto &format_config) {
+    auto set_h264_hevc_common_format_config = [&](auto &format_config) {
       format_config.repeatSPSPPS = 1;
       format_config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
       format_config.sliceMode = 3;
@@ -259,7 +259,7 @@ namespace nvenc {
       }
     };
 
-    auto fill_vui = [&colorspace](auto &vui_config) {
+    auto fill_h264_hevc_vui = [&colorspace](auto &vui_config) {
       vui_config.videoSignalTypePresentFlag = 1;
       vui_config.videoFormat = NV_ENC_VUI_VIDEO_FORMAT_UNSPECIFIED;
       vui_config.videoFullRangeFlag = colorspace.full_range;
@@ -277,7 +277,7 @@ namespace nvenc {
         // H.264
         enc_config.profileGUID = buffer_is_yuv444() ? NV_ENC_H264_PROFILE_HIGH_444_GUID : NV_ENC_H264_PROFILE_HIGH_GUID;
         auto &format_config = enc_config.encodeCodecConfig.h264Config;
-        set_common_format_config(format_config);
+        set_h264_hevc_common_format_config(format_config);
         if (config.h264_cavlc || !get_encoder_cap(NV_ENC_CAPS_SUPPORT_CABAC)) {
           format_config.entropyCodingMode = NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC;
         }
@@ -286,20 +286,20 @@ namespace nvenc {
         }
         set_ref_frames(format_config.maxNumRefFrames, format_config.numRefL0, 5);
         set_minqp_if_enabled(config.min_qp_h264);
-        fill_vui(format_config.h264VUIParameters);
+        fill_h264_hevc_vui(format_config.h264VUIParameters);
         break;
       }
 
       case 1: {
         // HEVC
         auto &format_config = enc_config.encodeCodecConfig.hevcConfig;
-        set_common_format_config(format_config);
+        set_h264_hevc_common_format_config(format_config);
         if (buffer_is_10bit()) {
           format_config.pixelBitDepthMinus8 = 2;
         }
         set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, 5);
         set_minqp_if_enabled(config.min_qp_hevc);
-        fill_vui(format_config.hevcVUIParameters);
+        fill_h264_hevc_vui(format_config.hevcVUIParameters);
         break;
       }
 
