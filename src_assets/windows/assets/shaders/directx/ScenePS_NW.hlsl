@@ -8,7 +8,7 @@ struct PS_INPUT
     float2 tex : TEXCOORD;
 };
 
-cbuffer SdrScaling : register(b0) {
+cbuffer SdrScaling : register(b1) {
     float scale_factor;
 };
 
