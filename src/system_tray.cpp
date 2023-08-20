@@ -287,7 +287,7 @@ namespace system_tray {
     tray.icon = TRAY_ICON_PLAYING;
     tray.notification_title = "Stream Started";
     char msg[256];
-    sprintf_s(msg, "Streaming Started for App %s", app_name.c_str());
+    sprintf(msg, "Streaming Started for App %s", app_name.c_str());
     tray.notification_text = msg;
     tray.notification_icon = TRAY_ICON_PLAYING;
     tray_update(&tray);
@@ -302,7 +302,7 @@ namespace system_tray {
     tray.icon = TRAY_ICON_PAUSING;
     tray_update(&tray);
     char msg[256];
-    sprintf_s(msg, "Streaming paused for App %s", app_name.c_str());
+    sprintf(msg, "Streaming paused for App %s", app_name.c_str());
     tray.icon = TRAY_ICON_PAUSING;
     tray.notification_title = "Stream Paused";
     tray.notification_text = msg;
@@ -319,7 +319,7 @@ namespace system_tray {
     tray.icon = TRAY_ICON;
     tray_update(&tray);
     char msg[256];
-    sprintf_s(msg, "Application %s successfuly stopped", app_name.c_str());
+    sprintf(msg, "Application %s successfuly stopped", app_name.c_str());
     tray.icon = TRAY_ICON;
     tray.notification_icon = TRAY_ICON;
     tray.notification_title = "Application Stopped";
