@@ -490,16 +490,21 @@ namespace nvenc {
   nvenc_base::invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame) {
     if (!encoder || !encoder_params.rfi) return false;
 
-    if (first_frame == encoder_state.last_rfi_range.first &&
+    if (first_frame >= encoder_state.last_rfi_range.first &&
         last_frame <= encoder_state.last_rfi_range.second) {
       BOOST_LOG(debug) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " already done";
       return true;
     }
 
+    if (last_frame < first_frame) {
+      BOOST_LOG(error) << "NvEnc: invaid rfi request " << first_frame << "-" << last_frame << ", generating IDR";
+      return false;
+    }
+
     BOOST_LOG(debug) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " expanding to last encoded frame " << encoder_state.last_encoded_frame_index;
     last_frame = encoder_state.last_encoded_frame_index;
 
-    if (last_frame < first_frame || last_frame - first_frame + 1 >= encoder_params.ref_frames_in_dpb) {
+    if (last_frame - first_frame + 1 >= encoder_params.ref_frames_in_dpb) {
       BOOST_LOG(debug) << "NvEnc: rfi request too large, generating IDR";
       return false;
     }
