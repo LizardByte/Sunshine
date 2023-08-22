@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "nvenc/nvenc_config.h"
+
 namespace config {
   struct video_t {
     // ffmpeg params
@@ -26,12 +28,13 @@ namespace config {
       std::optional<int> svtav1_preset;
     } sw;
 
+    nvenc::nvenc_config nv;
+
     struct {
-      std::optional<int> nv_preset;
-      std::optional<int> nv_tune;
-      std::optional<int> nv_rc;
-      int nv_coder;
-    } nv;
+      int preset;
+      int multipass;
+      int h264_coder;
+    } nv_legacy;
 
     struct {
       std::optional<int> qsv_preset;

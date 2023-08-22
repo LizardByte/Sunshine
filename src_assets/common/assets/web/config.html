@@ -872,41 +872,60 @@
     <div v-if="currentTab === 'nv'" class="config-page">
       <!--NVENC SETTINGS-->
       <div class="mb-3">
-        <label for="nv_preset" class="form-label">NVENC Preset</label>
-        <select id="nv_preset" class="form-select" v-model="config.nv_preset">
-          <option value="p1">p1 -- fastest (lowest quality)</option>
-          <option value="p2">p2 -- faster (lower quality)</option>
-          <option value="p3">p3 -- fast (low quality)</option>
-          <option value="p4">p4 -- medium (default)</option>
-          <option value="p5">p5 -- slow (good quality)</option>
-          <option value="p6">p6 -- slower (better quality)</option>
-          <option value="p7">p7 -- slowest (best quality)</option>
+        <label for="nvenc_preset" class="form-label">Performance preset</label>
+        <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
+          <option value="1">P1 (fastest, default)</option>
+          <option value="2">P2</option>
+          <option value="3">P3</option>
+          <option value="4">P4</option>
+          <option value="5">P5</option>
+          <option value="6">P6</option>
+          <option value="7">P7 (slowest)</option>
         </select>
+        <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
+          <strong>increased encoding latency</strong>.<br>
+          Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by
+          increasing bitrate.
+        </div>
       </div>
       <div class="mb-3">
-        <label for="nv_tune" class="form-label">NVENC Tune</label>
-        <select id="nv_tune" class="form-select" v-model="config.nv_tune">
-          <option value="hq">hq -- high quality</option>
-          <option value="ll">ll -- low latency</option>
-          <option value="ull">ull -- ultra low latency (default)</option>
-          <option value="lossless">lossless -- lossless</option>
+        <label for="nvenc_twopass" class="form-label">Two-pass mode</label>
+        <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
+          <option value="disabled">Disabled (fastest, not recommended)</option>
+          <option value="quarter_res">Quarter resolution (faster, default)</option>
+          <option value="full_res">Full resolution (slower)</option>
         </select>
+        <div class="form-text">Adds preliminary encoding pass.<br>
+          This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere to
+          bitrate limits.<br>
+          Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss.
+        </div>
       </div>
-      <div class="mb-3">
-        <label for="nv_rc" class="form-label">NVENC Rate Control</label>
-        <select id="nv_rc" class="form-select" v-model="config.nv_rc">
-          <option value="constqp">constqp -- constant qp mode</option>
-          <option value="vbr">vbr -- variable bitrate</option>
-          <option value="cbr">cbr -- constant bitrate (default)</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label for="nv_coder" class="form-label">NVENC Coder (H264)</label>
-        <select id="nv_coder" class="form-select" v-model="config.nv_coder">
-          <option value="auto">auto -- let ffmpeg decide (default)</option>
-          <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
-          <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
-        </select>
+      <div class="accordion">
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse"
+              data-bs-target="#panelsStayOpen-collapseOne">
+              Miscellaneous options
+            </button>
+          </h2>
+          <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
+            aria-labelledby="panelsStayOpen-headingOne">
+            <div class="accordion-body">
+              <div>
+                <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
+                <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
+                  <option value="disabled">Disabled (default)</option>
+                  <option value="enabled">Enabled</option>
+                </select>
+                <div class="form-text">Simpler form of entropy coding.<br>
+                  CAVLC needs around 10% more bitrate for same quality.<br>
+                  Only relevant for really old decoding devices.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <!--Intel Encoder Settings-->
@@ -1061,10 +1080,9 @@
     "keyboard": "enabled",
     "min_log_level": 2,
     "mouse": "enabled",
-    "nv_coder": "auto",
-    "nv_preset": "p4",
-    "nv_rc": "cbr",
-    "nv_tune": "ull",
+    "nvenc_preset": "1",
+    "nvenc_twopass": "quarter_res",
+    "nvenc_h264_cavlc": "disabled",
     "origin_pin_allowed": "pc",
     "origin_web_ui_allowed": "lan",
     "qsv_coder": "auto",
