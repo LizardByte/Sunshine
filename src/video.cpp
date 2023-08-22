@@ -601,7 +601,7 @@ namespace video {
     },
     PARALLEL_ENCODING | REF_FRAMES_INVALIDATION  // flags
   };
-#else
+#elif !defined(__APPLE__)
   static encoder_t nvenc {
     "nvenc"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -625,9 +625,10 @@ namespace video {
         { "delay"s, 0 },
         { "forced-idr"s, 1 },
         { "zerolatency"s, 1 },
-        { "preset"s, &config::video.nv.nv_preset },
-        { "tune"s, &config::video.nv.nv_tune },
-        { "rc"s, &config::video.nv.nv_rc },
+        { "preset"s, &config::video.nv_legacy.preset },
+        { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
+        { "rc"s, NV_ENC_PARAMS_RC_CBR },
+        { "multipass"s, &config::video.nv_legacy.multipass },
       },
       // SDR-specific options
       {},
@@ -642,9 +643,10 @@ namespace video {
         { "delay"s, 0 },
         { "forced-idr"s, 1 },
         { "zerolatency"s, 1 },
-        { "preset"s, &config::video.nv.nv_preset },
-        { "tune"s, &config::video.nv.nv_tune },
-        { "rc"s, &config::video.nv.nv_rc },
+        { "preset"s, &config::video.nv_legacy.preset },
+        { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
+        { "rc"s, NV_ENC_PARAMS_RC_CBR },
+        { "multipass"s, &config::video.nv_legacy.multipass },
       },
       // SDR-specific options
       {
@@ -662,10 +664,11 @@ namespace video {
         { "delay"s, 0 },
         { "forced-idr"s, 1 },
         { "zerolatency"s, 1 },
-        { "preset"s, &config::video.nv.nv_preset },
-        { "tune"s, &config::video.nv.nv_tune },
-        { "rc"s, &config::video.nv.nv_rc },
-        { "coder"s, &config::video.nv.nv_coder },
+        { "preset"s, &config::video.nv_legacy.preset },
+        { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
+        { "rc"s, NV_ENC_PARAMS_RC_CBR },
+        { "coder"s, &config::video.nv_legacy.h264_coder },
+        { "multipass"s, &config::video.nv_legacy.multipass },
       },
       // SDR-specific options
       {

@@ -24,6 +24,11 @@
   #include <shellapi.h>
 #endif
 
+#ifndef __APPLE__
+  // For NVENC legacy constants
+  #include <ffnvcodec/nvEncodeAPI.h>
+#endif
+
 namespace fs = std::filesystem;
 using namespace std::literals;
 
@@ -35,96 +40,16 @@ using namespace std::literals;
 namespace config {
 
   namespace nv {
-#ifdef __APPLE__
-  // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
-  #define NV_ENC_TUNING_INFO_HIGH_QUALITY 1
-  #define NV_ENC_TUNING_INFO_LOW_LATENCY 2
-  #define NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY 3
-  #define NV_ENC_TUNING_INFO_LOSSLESS 4
-  #define NV_ENC_PARAMS_RC_CONSTQP 0x0
-  #define NV_ENC_PARAMS_RC_VBR 0x1
-  #define NV_ENC_PARAMS_RC_CBR 0x2
-  #define NV_ENC_H264_ENTROPY_CODING_MODE_CABAC 1
-  #define NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC 2
-#else
-  #include <ffnvcodec/nvEncodeAPI.h>
-#endif
 
-    enum preset_e : int {
-      p1 = 12,  // PRESET_P1, // must be kept in sync with <libavcodec/nvenc.h>
-      p2,  // PRESET_P2,
-      p3,  // PRESET_P3,
-      p4,  // PRESET_P4,
-      p5,  // PRESET_P5,
-      p6,  // PRESET_P6,
-      p7  // PRESET_P7
-    };
-
-    enum tune_e : int {
-      hq = NV_ENC_TUNING_INFO_HIGH_QUALITY,
-      ll = NV_ENC_TUNING_INFO_LOW_LATENCY,
-      ull = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY,
-      lossless = NV_ENC_TUNING_INFO_LOSSLESS
-    };
-
-    enum rc_e : int {
-      constqp = NV_ENC_PARAMS_RC_CONSTQP, /**< Constant QP mode */
-      vbr = NV_ENC_PARAMS_RC_VBR, /**< Variable bitrate mode */
-      cbr = NV_ENC_PARAMS_RC_CBR /**< Constant bitrate mode */
-    };
-
-    enum coder_e : int {
-      _auto = 0,
-      cabac = NV_ENC_H264_ENTROPY_CODING_MODE_CABAC,
-      cavlc = NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC,
-    };
-
-    std::optional<preset_e>
-    preset_from_view(const std::string_view &preset) {
-#define _CONVERT_(x) \
-  if (preset == #x##sv) return x
-      _CONVERT_(p1);
-      _CONVERT_(p2);
-      _CONVERT_(p3);
-      _CONVERT_(p4);
-      _CONVERT_(p5);
-      _CONVERT_(p6);
-      _CONVERT_(p7);
-#undef _CONVERT_
-      return std::nullopt;
+    nvenc::nvenc_two_pass
+    twopass_from_view(const std::string_view &preset) {
+      if (preset == "disabled") return nvenc::nvenc_two_pass::disabled;
+      if (preset == "quarter_res") return nvenc::nvenc_two_pass::quarter_resolution;
+      if (preset == "full_res") return nvenc::nvenc_two_pass::full_resolution;
+      BOOST_LOG(warning) << "config: unknown nvenc_twopass value: " << preset;
+      return nvenc::nvenc_two_pass::quarter_resolution;
     }
 
-    std::optional<tune_e>
-    tune_from_view(const std::string_view &tune) {
-#define _CONVERT_(x) \
-  if (tune == #x##sv) return x
-      _CONVERT_(hq);
-      _CONVERT_(ll);
-      _CONVERT_(ull);
-      _CONVERT_(lossless);
-#undef _CONVERT_
-      return std::nullopt;
-    }
-
-    std::optional<rc_e>
-    rc_from_view(const std::string_view &rc) {
-#define _CONVERT_(x) \
-  if (rc == #x##sv) return x
-      _CONVERT_(constqp);
-      _CONVERT_(vbr);
-      _CONVERT_(cbr);
-#undef _CONVERT_
-      return std::nullopt;
-    }
-
-    int
-    coder_from_view(const std::string_view &coder) {
-      if (coder == "auto"sv) return _auto;
-      if (coder == "cabac"sv || coder == "ac"sv) return cabac;
-      if (coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
-
-      return -1;
-    }
   }  // namespace nv
 
   namespace amd {
@@ -400,12 +325,8 @@ namespace config {
       11,  // superfast
     },  // software
 
-    {
-      nv::p4,  // preset
-      nv::ull,  // tune
-      nv::cbr,  // rc
-      nv::_auto  // coder
-    },  // nv
+    {},  // nv
+    {},  // nv_legacy
 
     {
       qsv::medium,  // preset
@@ -638,6 +559,16 @@ namespace config {
     input = std::move(it->second);
 
     vars.erase(it);
+  }
+
+  template <typename T, typename F>
+  void
+  generic_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, T &input, F &&f) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+    if (!tmp.empty()) {
+      input = f(tmp);
+    }
   }
 
   void
@@ -989,10 +920,18 @@ namespace config {
       video.sw.svtav1_preset = sw::svtav1_preset_from_view(video.sw.sw_preset);
     }
     string_f(vars, "sw_tune", video.sw.sw_tune);
-    int_f(vars, "nv_preset", video.nv.nv_preset, nv::preset_from_view);
-    int_f(vars, "nv_tune", video.nv.nv_tune, nv::tune_from_view);
-    int_f(vars, "nv_rc", video.nv.nv_rc, nv::rc_from_view);
-    int_f(vars, "nv_coder", video.nv.nv_coder, nv::coder_from_view);
+
+    int_between_f(vars, "nvenc_preset", video.nv.quality_preset, { 1, 7 });
+    generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
+    bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
+
+#ifndef __APPLE__
+    video.nv_legacy.preset = video.nv.quality_preset + 11;
+    video.nv_legacy.multipass = video.nv.two_pass == nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
+                                video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
+                                                                                                 NV_ENC_MULTI_PASS_DISABLED;
+    video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
+#endif
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
     int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
