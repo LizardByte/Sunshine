@@ -874,12 +874,8 @@ namespace platf::dxgi {
     init_encoder(const ::video::config_t &client_config, const ::video::sunshine_colorspace_t &colorspace) override {
       if (!nvenc_d3d) return false;
 
-      nvenc::nvenc_config nvenc_config;
-      nvenc_config.quality_preset = config::video.nv.nv_preset ? (*config::video.nv.nv_preset - 11) : 1;
-      nvenc_config.h264_cavlc = (config::video.nv.nv_coder == NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC);
-
       auto nvenc_colorspace = nvenc::nvenc_colorspace_from_sunshine_colorspace(colorspace);
-      if (!nvenc_d3d->create_encoder(nvenc_config, client_config, nvenc_colorspace, buffer_format)) return false;
+      if (!nvenc_d3d->create_encoder(config::video.nv, client_config, nvenc_colorspace, buffer_format)) return false;
 
       base.apply_colorspace(colorspace);
       return base.init_output(nvenc_d3d->get_input_texture(), client_config.width, client_config.height) == 0;
