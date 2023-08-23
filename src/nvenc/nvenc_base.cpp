@@ -246,6 +246,7 @@ namespace nvenc {
         ref_frames_option = 1;
         encoder_params.rfi = false;
       }
+      encoder_params.ref_frames_in_dpb = ref_frames_option;
       // This limits ref frames any frame can use to 1, but allows larger buffer size for fallback if some frames are invalidated through rfi
       L0_option = NV_ENC_NUM_REF_FRAMES_1;
     };
@@ -489,33 +490,36 @@ namespace nvenc {
   nvenc_base::invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame) {
     if (!encoder || !encoder_params.rfi) return false;
 
-    if (last_frame < first_frame ||
-        encoder_state.last_encoded_frame_index < first_frame ||
-        encoder_state.last_encoded_frame_index > first_frame + 100) {
-      BOOST_LOG(error) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " invalid range (last encoded frame " << encoder_state.last_encoded_frame_index << ")";
-      return false;
-    }
-
     if (first_frame >= encoder_state.last_rfi_range.first &&
         last_frame <= encoder_state.last_rfi_range.second) {
       BOOST_LOG(debug) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " already done";
       return true;
     }
 
+    if (last_frame < first_frame) {
+      BOOST_LOG(error) << "NvEnc: invaid rfi request " << first_frame << "-" << last_frame << ", generating IDR";
+      return false;
+    }
+
     BOOST_LOG(debug) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " expanding to last encoded frame " << encoder_state.last_encoded_frame_index;
+    last_frame = encoder_state.last_encoded_frame_index;
+
+    if (last_frame - first_frame + 1 >= encoder_params.ref_frames_in_dpb) {
+      BOOST_LOG(debug) << "NvEnc: rfi request too large, generating IDR";
+      return false;
+    }
 
     encoder_state.rfi_needs_confirmation = true;
-    encoder_state.last_rfi_range = { first_frame, encoder_state.last_encoded_frame_index };
+    encoder_state.last_rfi_range = { first_frame, last_frame };
 
-    bool result = true;
-    for (auto i = first_frame; i <= encoder_state.last_encoded_frame_index; i++) {
+    for (auto i = first_frame; i <= last_frame; i++) {
       if (nvenc_failed(nvenc->nvEncInvalidateRefFrames(encoder, i))) {
         BOOST_LOG(error) << "NvEncInvalidateRefFrames " << i << " failed: " << last_error_string;
-        result = false;
+        return false;
       }
     }
 
-    return result;
+    return true;
   }
 
   bool

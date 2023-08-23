@@ -56,6 +56,7 @@ namespace nvenc {
       uint32_t width = 0;
       uint32_t height = 0;
       NV_ENC_BUFFER_FORMAT buffer_format = NV_ENC_BUFFER_FORMAT_UNDEFINED;
+      uint32_t ref_frames_in_dpb = 0;
       bool rfi = false;
     } encoder_params;
 
