@@ -9,19 +9,10 @@ FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM sunshine-base as sunshine-build
+FROM sunshine-base as sunshine-build-prep
 
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
-
-ARG BRANCH
-ARG BUILD_VERSION
-ARG COMMIT
-# note: BUILD_VERSION may be blank
-
-ENV BRANCH=${BRANCH}
-ENV BUILD_VERSION=${BUILD_VERSION}
-ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
@@ -31,6 +22,7 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
+  fuse \
   gcc-10=10.5.* \
   g++-10=10.5.* \
   git \
@@ -133,6 +125,17 @@ COPY --link .. .
 # setup npm dependencies
 RUN npm install
 
+FROM sunshine-build-prep as sunshine-build
+
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
+
 # setup build directory
 WORKDIR /build/sunshine/build
 
@@ -155,11 +158,101 @@ make -j "$(nproc)"
 cpack -G DEB
 _MAKE
 
+FROM sunshine-build-prep as sunshine-build-appimage
+
+ARG TARGETPLATFORM
+RUN echo "target_platform: ${TARGETPLATFORM}"
+
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
+
+# setup build directory
+WORKDIR /build/sunshine/build
+
+# cmake
+# hadolint ignore=SC3010
+RUN <<_MAKE
+#!/bin/bash
+set -e
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  cmake \
+    -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DSUNSHINE_ASSETS_DIR=share/sunshine \
+    -DSUNSHINE_CONFIGURE_APPIMAGE=ON \
+    -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
+    -DSUNSHINE_ENABLE_WAYLAND=ON \
+    -DSUNSHINE_ENABLE_X11=ON \
+    -DSUNSHINE_ENABLE_DRM=ON \
+    -DSUNSHINE_ENABLE_CUDA=ON \
+    /build/sunshine
+  make -j "$(nproc)"
+fi
+_MAKE
+
+# package appimage
+# hadolint ignore=SC3010
+RUN <<_PACKAGE
+#!/bin/bash
+set -e
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  make install DESTDIR=AppDir
+
+  # custom AppRun file
+  cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
+  chmod +x ./AppDir/AppRun
+
+  # AppImage
+  # https://docs.appimage.org/packaging-guide/index.html
+  wget --progress=bar:force:noscroll -q --show-progress \
+    https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+  chmod +x linuxdeploy-x86_64.AppImage
+
+  ./linuxdeploy-x86_64.AppImage \
+    --appdir ./AppDir \
+    --executable ./sunshine \
+    --icon-file "../sunshine.png" \
+    --desktop-file "./sunshine.desktop" \
+    --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
+    --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
+    --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
+    --output appimage
+
+  # rename
+  mv ./Sunshine*.AppImage ./sunshine.AppImage
+fi
+_PACKAGE
+
+# verify AppImage
+# hadolint ignore=SC3010
+RUN <<_VERIFY
+#!/bin/bash
+set -e
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  wget --progress=bar:force:noscroll -q --show-progress \
+    https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
+  chmod +x appimagelint-x86_64.AppImage
+
+  ./appimagelint-x86_64.AppImage ./sunshine.AppImage
+fi
+_VERIFY
+
 FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
+
+# use asterisk as the file may sometimes not exist
+COPY --link --from=sunshine-build-appimage /build/sunshine/build/*sunshine.AppImage /sunshine.AppImage
 
 FROM sunshine-base as sunshine
 

@@ -11,7 +11,7 @@ FROM ${BASE}:${TAG} AS sunshine-base
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --disable-download-timeout  --needed --noconfirm \
+pacman -Syu --disable-download-timeout --needed --noconfirm \
   archlinux-keyring
 _DEPS
 
