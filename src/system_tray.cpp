@@ -287,8 +287,9 @@ namespace system_tray {
     tray.icon = TRAY_ICON_PLAYING;
     tray.notification_title = "Stream Started";
     char msg[256];
-    sprintf(msg, "Streaming Started for %s", app_name.c_str());
+    sprintf(msg, "Streaming started for %s", app_name.c_str());
     tray.notification_text = msg;
+    tray.tooltip = msg;
     tray.notification_icon = TRAY_ICON_PLAYING;
     tray_update(&tray);
   }
@@ -306,6 +307,7 @@ namespace system_tray {
     tray.icon = TRAY_ICON_PAUSING;
     tray.notification_title = "Stream Paused";
     tray.notification_text = msg;
+    tray.tooltip = msg;
     tray.notification_icon = TRAY_ICON_PAUSING;
     tray_update(&tray);
   }
@@ -324,6 +326,7 @@ namespace system_tray {
     tray.notification_icon = TRAY_ICON;
     tray.notification_title = "Application Stopped";
     tray.notification_text = msg;
+    tray.tooltip = "Sunshine";
     tray_update(&tray);
   }
 
@@ -339,6 +342,7 @@ namespace system_tray {
     tray.notification_title = "Incoming Pairing Request";
     tray.notification_text = "Click here to complete the pairing process";
     tray.notification_icon = TRAY_ICON_LOCKED;
+    tray.tooltip = "Sunshine";
     tray.notification_cb = []() {
       launch_ui_with_path("/pin");
     };
