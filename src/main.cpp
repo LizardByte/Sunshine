@@ -534,6 +534,31 @@ main(int argc, char *argv[]) {
   else {
     av_log_set_level(AV_LOG_DEBUG);
   }
+  av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {
+    static int print_prefix = 1;
+    char buffer[1024];
+
+    av_log_format_line(ptr, level, fmt, vl, buffer, sizeof(buffer), &print_prefix);
+    if (level <= AV_LOG_FATAL) {
+      BOOST_LOG(fatal) << buffer;
+    }
+    else if (level <= AV_LOG_ERROR) {
+      BOOST_LOG(error) << buffer;
+    }
+    else if (level <= AV_LOG_WARNING) {
+      BOOST_LOG(warning) << buffer;
+    }
+    else if (level <= AV_LOG_INFO) {
+      BOOST_LOG(info) << buffer;
+    }
+    else if (level <= AV_LOG_VERBOSE) {
+      // AV_LOG_VERBOSE is less verbose than AV_LOG_DEBUG
+      BOOST_LOG(debug) << buffer;
+    }
+    else {
+      BOOST_LOG(verbose) << buffer;
+    }
+  });
 
   sink = boost::make_shared<text_sink>();
 
