@@ -3,3 +3,4 @@ furo==2023.7.26
 m2r2==0.3.3.post2
 Sphinx==7.1.2
 sphinx-copybutton==0.5.2
+sphinx_inline_tabs==2023.4.21
