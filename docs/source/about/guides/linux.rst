@@ -23,7 +23,7 @@ The virtual display is accelerated by the NVidia GPU using the TwinView configur
 
 The Big Picture
 ^^^^^^^^^^^^^^^
-Once you are done, you will need to perform these there steps:
+Once you are done, you will need to perform these 3 steps:
 
 #. Turn on the host machine
 #. Start sunshine on remote host with a script that:
