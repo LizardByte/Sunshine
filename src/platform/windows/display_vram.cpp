@@ -25,6 +25,8 @@ extern "C" {
 
 #include <AMF/core/Factory.h>
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"
 namespace platf {
   using namespace std::literals;
@@ -1326,60 +1328,6 @@ namespace platf::dxgi {
       return -1;
     }
 
-    DXGI_ADAPTER_DESC adapter_desc;
-    adapter->GetDesc(&adapter_desc);
-
-    // Perform AMF version checks if we're using an AMD GPU. This check is placed in display_vram_t
-    // to avoid hitting the display_ram_t path which uses software encoding and doesn't touch AMF.
-    if ((config.dynamicRange || config.videoFormat == 2) && adapter_desc.VendorId == 0x1002) {
-      HMODULE amfrt = LoadLibraryW(AMF_DLL_NAME);
-      if (amfrt) {
-        auto unload_amfrt = util::fail_guard([amfrt]() {
-          FreeLibrary(amfrt);
-        });
-
-        auto fnAMFQueryVersion = (AMFQueryVersion_Fn) GetProcAddress(amfrt, AMF_QUERY_VERSION_FUNCTION_NAME);
-        if (fnAMFQueryVersion) {
-          amf_uint64 version;
-          auto result = fnAMFQueryVersion(&version);
-          if (result == AMF_OK) {
-            if (config.videoFormat == 2 && version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
-              // AMF 1.4.30 adds ultra low latency mode for AV1. Don't use AV1 on earlier versions.
-              // This corresponds to driver version 23.5.2 (23.10.01.45) or newer.
-              BOOST_LOG(warning) << "AV1 encoding is disabled on AMF version "sv
-                                 << AMF_GET_MAJOR_VERSION(version) << '.'
-                                 << AMF_GET_MINOR_VERSION(version) << '.'
-                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
-                                 << AMF_GET_BUILD_VERSION(version);
-              BOOST_LOG(warning) << "If your AMD GPU supports AV1 encoding, update your graphics drivers!"sv;
-              return -1;
-            }
-            else if (config.dynamicRange && version < AMF_MAKE_FULL_VERSION(1, 4, 23, 0)) {
-              // Older versions of the AMD AMF runtime can crash when fed P010 surfaces.
-              // Fail if AMF version is below 1.4.23 where HEVC Main10 encoding was introduced.
-              // AMF 1.4.23 corresponds to driver version 21.12.1 (21.40.11.03) or newer.
-              BOOST_LOG(warning) << "HDR encoding is disabled on AMF version "sv
-                                 << AMF_GET_MAJOR_VERSION(version) << '.'
-                                 << AMF_GET_MINOR_VERSION(version) << '.'
-                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
-                                 << AMF_GET_BUILD_VERSION(version);
-              BOOST_LOG(warning) << "If your AMD GPU supports HEVC Main10 encoding, update your graphics drivers!"sv;
-              return -1;
-            }
-          }
-          else {
-            BOOST_LOG(warning) << "AMFQueryVersion() failed: "sv << result;
-          }
-        }
-        else {
-          BOOST_LOG(warning) << "AMF DLL missing export: "sv << AMF_QUERY_VERSION_FUNCTION_NAME;
-        }
-      }
-      else {
-        BOOST_LOG(warning) << "Detected AMD GPU but AMF failed to load"sv;
-      }
-    }
-
     D3D11_SAMPLER_DESC sampler_desc {};
     sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -1579,6 +1527,91 @@ namespace platf::dxgi {
       DXGI_FORMAT_B8G8R8X8_UNORM,
       DXGI_FORMAT_R8G8B8A8_UNORM,
     };
+  }
+
+  /**
+   * @brief Checks that a given codec is supported by the display device.
+   * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
+   * @param config The codec configuration.
+   * @return true if supported, false otherwise.
+   */
+  bool
+  display_vram_t::is_codec_supported(std::string_view name, const ::video::config_t &config) {
+    DXGI_ADAPTER_DESC adapter_desc;
+    adapter->GetDesc(&adapter_desc);
+
+    if (adapter_desc.VendorId == 0x1002) {  // AMD
+      // If it's not an AMF encoder, it's not compatible with an AMD GPU
+      if (!boost::algorithm::ends_with(name, "_amf")) {
+        return false;
+      }
+
+      // Perform AMF version checks if we're using an AMD GPU. This check is placed in display_vram_t
+      // to avoid hitting the display_ram_t path which uses software encoding and doesn't touch AMF.
+      HMODULE amfrt = LoadLibraryW(AMF_DLL_NAME);
+      if (amfrt) {
+        auto unload_amfrt = util::fail_guard([amfrt]() {
+          FreeLibrary(amfrt);
+        });
+
+        auto fnAMFQueryVersion = (AMFQueryVersion_Fn) GetProcAddress(amfrt, AMF_QUERY_VERSION_FUNCTION_NAME);
+        if (fnAMFQueryVersion) {
+          amf_uint64 version;
+          auto result = fnAMFQueryVersion(&version);
+          if (result == AMF_OK) {
+            if (config.videoFormat == 2 && version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
+              // AMF 1.4.30 adds ultra low latency mode for AV1. Don't use AV1 on earlier versions.
+              // This corresponds to driver version 23.5.2 (23.10.01.45) or newer.
+              BOOST_LOG(warning) << "AV1 encoding is disabled on AMF version "sv
+                                 << AMF_GET_MAJOR_VERSION(version) << '.'
+                                 << AMF_GET_MINOR_VERSION(version) << '.'
+                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
+                                 << AMF_GET_BUILD_VERSION(version);
+              BOOST_LOG(warning) << "If your AMD GPU supports AV1 encoding, update your graphics drivers!"sv;
+              return false;
+            }
+            else if (config.dynamicRange && version < AMF_MAKE_FULL_VERSION(1, 4, 23, 0)) {
+              // Older versions of the AMD AMF runtime can crash when fed P010 surfaces.
+              // Fail if AMF version is below 1.4.23 where HEVC Main10 encoding was introduced.
+              // AMF 1.4.23 corresponds to driver version 21.12.1 (21.40.11.03) or newer.
+              BOOST_LOG(warning) << "HDR encoding is disabled on AMF version "sv
+                                 << AMF_GET_MAJOR_VERSION(version) << '.'
+                                 << AMF_GET_MINOR_VERSION(version) << '.'
+                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
+                                 << AMF_GET_BUILD_VERSION(version);
+              BOOST_LOG(warning) << "If your AMD GPU supports HEVC Main10 encoding, update your graphics drivers!"sv;
+              return false;
+            }
+          }
+          else {
+            BOOST_LOG(warning) << "AMFQueryVersion() failed: "sv << result;
+          }
+        }
+        else {
+          BOOST_LOG(warning) << "AMF DLL missing export: "sv << AMF_QUERY_VERSION_FUNCTION_NAME;
+        }
+      }
+      else {
+        BOOST_LOG(warning) << "Detected AMD GPU but AMF failed to load"sv;
+      }
+    }
+    else if (adapter_desc.VendorId == 0x8086) {  // Intel
+      // If it's not a QSV encoder, it's not compatible with an Intel GPU
+      if (!boost::algorithm::ends_with(name, "_qsv")) {
+        return false;
+      }
+    }
+    else if (adapter_desc.VendorId == 0x10de) {  // Nvidia
+      // If it's not an NVENC encoder, it's not compatible with an Nvidia GPU
+      if (!boost::algorithm::ends_with(name, "_nvenc")) {
+        return false;
+      }
+    }
+    else {
+      BOOST_LOG(warning) << "Unknown GPU vendor ID: " << util::hex(adapter_desc.VendorId).to_string_view();
+    }
+
+    return true;
   }
 
   std::unique_ptr<avcodec_encode_device_t>

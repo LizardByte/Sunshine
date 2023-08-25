@@ -219,6 +219,9 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) override;
+
     std::unique_ptr<avcodec_encode_device_t>
     make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
 

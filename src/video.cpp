@@ -1377,7 +1377,7 @@ namespace video {
     auto &video_format = config.videoFormat == 0 ? encoder.h264 :
                          config.videoFormat == 1 ? encoder.hevc :
                                                    encoder.av1;
-    if (!video_format[encoder_t::PASSED]) {
+    if (!video_format[encoder_t::PASSED] || !disp->is_codec_supported(video_format.name, config)) {
       BOOST_LOG(error) << encoder.name << ": "sv << video_format.name << " mode not supported"sv;
       return nullptr;
     }
@@ -2254,6 +2254,17 @@ namespace video {
     // First, test encoder viability
     config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
     config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
+
+    // If the encoder isn't supported at all (not even H.264), bail early
+    reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, config_autoselect);
+    if (!disp) {
+      return false;
+    }
+    if (!disp->is_codec_supported(encoder.h264.name, config_autoselect)) {
+      fg.disable();
+      BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] is not supported on this GPU"sv;
+      return false;
+    }
 
   retry:
     // If we're expecting failure, use the autoselect ref config first since that will always succeed
