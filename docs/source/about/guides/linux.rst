@@ -13,7 +13,7 @@ This is a guide to setup remote SSH into host to startup X server and sunshine w
 The virtual display is accelerated by the NVidia GPU using the TwinView configuration.
 
 .. Attention::
-	This guide is specific for Xorg and NVidia GPUs. I start the X Server using the ``startx`` command.
+	This guide is specific for Xorg and NVidia GPUs. I start the X server using the ``startx`` command.
 	I also only tested this on an Artix runit init system on LAN.
 	I didn't have to do anything special with pulseaudio (pipewire untested).
 
@@ -28,17 +28,18 @@ Once you are done, you will need to perform these 3 steps:
 #. Turn on the host machine
 #. Start sunshine on remote host with a script that:
 	- Edits permissions of ``/dev/uinput`` (added sudo config to execute script with no password prompt)
-	- Starts X Server with ``startx``
+	- Starts X server with ``startx``
 	- Starts ``Sunshine`` 
 #. Startup Moonlight on the client of interest and connect to host
 
 .. admonition:: Alternative to SSH
 	:class: seealso
 
-	**Step 2** can be replaced with autologin and starting sunshine as a service or putting ``sunshine &`` in your ``.xinitrc`` file.
+	**Step 2** can be replaced with autologin and starting sunshine as a service or putting ``sunshine &`` in your ``.xinitrc`` file 
+	if you start your X server with ``startx``.
 	In this case workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered for "physical" login.
 	See :ref:`Linux Setup <about/usage:linux>`. I personally think autologin compromises the security of the PC, so I went with the remote SSH route.
-	I also find remote development is fun!
+	I use the PC more than for gaming, so I don't need a virtual display everytime I turn on the PC (E.g running updates, config changes, file/media server).
 
 First we will setup the host and then the SSH Client (Which may not be the same as the machine running the moonlight client)
 
@@ -47,11 +48,12 @@ Host Setup
 
 We will be setting up:
 
-#. Static IP setup
-#. SSH Server setup
-#. Virtual Display Acceleration via NVIDIA's TwinView X11 Config
-#. Script for ``uinput`` permission workaround
-#. Script to put everything together to startup X server and Sunshine
+#. `Static IP Setup <static ip setup_>`_
+#. `SSH Server setup <ssh server setup_>`_
+#. `Virtual Display Acceleration via NVIDIA's TwinView X11 Config <virtual display setup_>`_
+#. `Script for uinput permission workaround <uinput workaround_>`_
+#. `Script to put everything together to startup X server and Sunshine <putting everything together_>`_
+
 
 Static IP Setup
 +++++++++++++++
@@ -182,7 +184,7 @@ UINPUT Workaround
 Two scripts will need to be written to get this setup
 
 #. Script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
-#. Script to start up X Server and sunshine
+#. Script to start up X server and sunshine
 
 **Setup Script**
 
@@ -222,12 +224,12 @@ Putting Everything Together
 	# Check existing X server
 	ps -e | grep X >/dev/null
 	[[ ${?} -ne 0 ]] && {
-	  echo "Starting X Server"
+	  echo "Starting X server"
 	  startx &>/dev/null &
 	  [[ ${?} -eq 0 ]] && {
-	    echo "X Server started successfully"
-	  } || echo "X Server failed to start"
-	} || echo "X Server already running"
+	    echo "X server started successfully"
+	  } || echo "X server failed to start"
+	} || echo "X server already running"
 
 	# Check if sunshine is already running
 	ps -e | grep -e .*sunshine$ >/dev/null
@@ -246,8 +248,8 @@ SSH Client Setup
 
 We will be setting up:
 
-#. SSH key generation
-#. Script to SSH into host to execute sunshine start up script
+#. `SSH key generation <ssh key authentication setup_>`_
+#. `Script to SSH into host to execute sunshine start up script <ssh client script_>`_
 
 SSH Key Authentication Setup
 +++++++++++++++++++++++++++++
@@ -265,9 +267,9 @@ SSH Key Authentication Setup
    Now you can use ``ssh <some_alias>``.  
    ``ssh <some_alias> <commands/script>`` will execute the command or script on the remote host.
 
-SSH Script
-++++++++++
-This bash script will automate the startup of the X Server and Sunshine on the host.
+SSH Client Script
++++++++++++++++++
+This bash script will automate the startup of the X server and Sunshine on the host.
 This can be run on linux / macOS system.
 On Windows, this can be run inside a ``git-bash``
 
