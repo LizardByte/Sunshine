@@ -141,8 +141,6 @@ This is only available for NVidia GPUs
 		Identifier     "Card0"
 		Driver         "nvidia"
 		VendorName     "NVIDIA Corporation"
-
-		#refer to the link below for more information on each of the following options.
 		Option         "MetaModes"          "1920x1080"
 		Option         "ConnectedMonitor"   "DP-0"
 		Option         "ModeValidation" "NoDFPNativeResolutionCheck,NoVirtualSizeCheck,NoMaxPClkCheck,NoHorizSyncCheck,NoVertRefreshCheck,NoWidthAlignmentCheck"
