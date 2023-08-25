@@ -278,10 +278,11 @@ You must have an HDR-capable display or EDID emulator dongle connected to your h
 - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows 10 OS HDR support may not display in HDR.
 - Some GPUs can produce lower image quality or encoding performance when streaming in HDR compared to SDR.
 
-Tutorials
----------
-Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.
+Tutorials and Guides
+--------------------
+Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.  
+Guides are available :doc:`here <./guides/guides>`
 
 .. admonition:: Community!
 
-   Tutorials are community generated. Want to contribute? Reach out to us on our discord server.
+   Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.
