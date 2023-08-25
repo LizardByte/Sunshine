@@ -480,6 +480,17 @@ namespace platf {
       return false;
     }
 
+    /**
+     * @brief Checks that a given codec is supported by the display device.
+     * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
+     * @param config The codec configuration.
+     * @return true if supported, false otherwise.
+     */
+    virtual bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) {
+      return true;
+    }
+
     virtual ~display_t() = default;
 
     // Offsets for when streaming a specific monitor. By default, they are 0.
