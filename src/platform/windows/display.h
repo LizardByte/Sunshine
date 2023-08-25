@@ -13,6 +13,7 @@
 
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "src/video.h"
 
 namespace platf::dxgi {
   extern const char *format_str[];
@@ -193,6 +194,9 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
     cursor_t cursor;
     D3D11_MAPPED_SUBRESOURCE img_info;
     texture2d_t texture;
@@ -215,8 +219,11 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
-    std::shared_ptr<platf::hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) override;
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
+    std::unique_ptr<nvenc_encode_device_t>
+    make_nvenc_encode_device(pix_fmt_e pix_fmt) override;
 
     sampler_state_t sampler_linear;
 

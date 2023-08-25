@@ -19,8 +19,6 @@ typedef long NTSTATUS;
 #include "src/platform/common.h"
 #include "src/video.h"
 
-#include <AMF/core/Factory.h>
-
 namespace platf {
   using namespace std::literals;
 }
@@ -486,45 +484,6 @@ namespace platf::dxgi {
     }
 
     dup.use_dwmflush = config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false;
-
-    // Older versions of the AMD AMF runtime can crash when fed P010 surfaces, so we'll
-    // check the AMF version if we are using HDR on an AMD GPU to avoid possibly crashing.
-    if (config.dynamicRange && adapter_desc.VendorId == 0x1002) {
-      HMODULE amfrt = LoadLibraryW(AMF_DLL_NAME);
-      if (amfrt) {
-        auto unload_amfrt = util::fail_guard([amfrt]() {
-          FreeLibrary(amfrt);
-        });
-
-        auto fnAMFQueryVersion = (AMFQueryVersion_Fn) GetProcAddress(amfrt, AMF_QUERY_VERSION_FUNCTION_NAME);
-        if (fnAMFQueryVersion) {
-          amf_uint64 version;
-          auto result = fnAMFQueryVersion(&version);
-          if (result == AMF_OK) {
-            // Fail if AMF version is below 1.4.23 where HEVC Main10 encoding was introduced.
-            // AMF 1.4.23 corresponds to driver version 21.12.1 (21.40.11.03) or newer.
-            if (version < AMF_MAKE_FULL_VERSION(1, 4, 23, 0)) {
-              BOOST_LOG(warning) << "HDR encoding is disabled on AMF version "sv
-                                 << AMF_GET_MAJOR_VERSION(version) << '.'
-                                 << AMF_GET_MINOR_VERSION(version) << '.'
-                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
-                                 << AMF_GET_BUILD_VERSION(version);
-              BOOST_LOG(warning) << "If your AMD GPU supports HEVC Main10 encoding, update your graphics drivers!"sv;
-              return -1;
-            }
-          }
-          else {
-            BOOST_LOG(warning) << "AMFQueryVersion() failed: "sv << result;
-          }
-        }
-        else {
-          BOOST_LOG(warning) << "AMF DLL missing export: "sv << AMF_QUERY_VERSION_FUNCTION_NAME;
-        }
-      }
-      else {
-        BOOST_LOG(warning) << "Detected AMD GPU but AMF failed to load"sv;
-      }
-    }
 
     // Bump up thread priority
     {

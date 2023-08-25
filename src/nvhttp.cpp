@@ -287,14 +287,13 @@ namespace nvhttp {
     launch_session.enable_sops = util::from_view(get_arg(args, "sops", "0"));
     launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
     launch_session.gcmap = util::from_view(get_arg(args, "gcmap", "0"));
-    launch_session.enable_hdr = util::from_view(get_arg(args, "enableHdr", "0"));
+    launch_session.enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
 
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
 
     auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
     std::fill(next, std::end(launch_session.iv), 0);
-    BOOST_LOG(error) << launch_session.width << " h: " << launch_session.height << " fps: " << launch_session.fps;
     return launch_session;
   }
 
@@ -644,15 +643,20 @@ namespace nvhttp {
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
     tree.put("root.LocalIP", local_endpoint.address().to_string());
 
-    if (video::active_hevc_mode == 3) {
-      tree.put("root.ServerCodecModeSupport", "3843");
+    uint32_t codec_mode_flags = SCM_H264;
+    if (video::active_hevc_mode >= 2) {
+      codec_mode_flags |= SCM_HEVC;
     }
-    else if (video::active_hevc_mode == 2) {
-      tree.put("root.ServerCodecModeSupport", "259");
+    if (video::active_hevc_mode >= 3) {
+      codec_mode_flags |= SCM_HEVC_MAIN10;
     }
-    else {
-      tree.put("root.ServerCodecModeSupport", "3");
+    if (video::active_av1_mode >= 2) {
+      codec_mode_flags |= SCM_AV1_MAIN8;
     }
+    if (video::active_av1_mode >= 3) {
+      codec_mode_flags |= SCM_AV1_MAIN10;
+    }
+    tree.put("root.ServerCodecModeSupport", codec_mode_flags);
 
     pt::ptree display_nodes;
     for (auto &resolution : config::nvhttp.resolutions) {

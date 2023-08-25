@@ -607,27 +607,8 @@ namespace egl {
   }
 
   void
-  sws_t::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {
-    video::color_t *color_p;
-    switch (colorspace) {
-      case 5:  // SWS_CS_SMPTE170M
-        color_p = &video::colors[0];
-        break;
-      case 1:  // SWS_CS_ITU709
-        color_p = &video::colors[2];
-        break;
-      case 9:  // SWS_CS_BT2020
-        color_p = &video::colors[4];
-        break;
-      default:
-        BOOST_LOG(warning) << "Colorspace: ["sv << colorspace << "] not yet supported: switching to default"sv;
-        color_p = &video::colors[0];
-    };
-
-    if (color_range > 1) {
-      // Full range
-      ++color_p;
-    }
+  sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
+    auto color_p = video::color_vectors_from_colorspace(colorspace);
 
     std::string_view members[] {
       util::view(color_p->color_vec_y),
@@ -741,7 +722,7 @@ namespace egl {
     gl::ctx.UseProgram(sws.program[1].handle());
     gl::ctx.Uniform1fv(loc_width_i, 1, &width_i);
 
-    auto color_p = &video::colors[0];
+    auto color_p = video::color_vectors_from_colorspace(video::colorspace_e::rec601, false);
     std::pair<const char *, std::string_view> members[] {
       std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
       std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),

@@ -768,13 +768,13 @@ namespace platf {
         return capture_e::ok;
       }
 
-      std::shared_ptr<hwdevice_t>
-      make_hwdevice(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t>
+      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_hwdevice(width, height, false);
+          return va::make_avcodec_encode_device(width, height, false);
         }
 
-        return std::make_shared<hwdevice_t>();
+        return std::make_unique<avcodec_encode_device_t>();
       }
 
       capture_e
@@ -843,10 +843,10 @@ namespace platf {
       display_vram_t(mem_type_e mem_type):
           display_t(mem_type) {}
 
-      std::shared_ptr<hwdevice_t>
-      make_hwdevice(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t>
+      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_hwdevice(width, height, dup(card.fd.el), img_offset_x, img_offset_y, true);
+          return va::make_avcodec_encode_device(width, height, dup(card.fd.el), img_offset_x, img_offset_y, true);
         }
 
         BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);

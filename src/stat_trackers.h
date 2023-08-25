@@ -32,6 +32,11 @@ namespace stat_trackers {
       data.calls += 1;
     }
 
+    void
+    reset() {
+      data = {};
+    }
+
   private:
     struct {
       std::chrono::steady_clock::steady_clock::time_point last_callback_time = std::chrono::steady_clock::now();

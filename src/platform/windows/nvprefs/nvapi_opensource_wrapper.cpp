@@ -24,8 +24,7 @@ namespace {
 #undef NVAPI_INTERFACE
 #define NVAPI_INTERFACE NvAPI_Status __cdecl
 
-extern void *
-nvapi_QueryInterface(NvU32 id);
+extern void *__cdecl nvapi_QueryInterface(NvU32 id);
 
 NVAPI_INTERFACE
 NvAPI_Initialize() {
