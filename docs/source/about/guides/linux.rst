@@ -1,25 +1,44 @@
 Linux
 ======
+
 Collection of Sunshine Linux host guides.
 
 Remote SSH Headless Setup
 -------------------------
-Author: Eric Dong
+Author: *Eric Dong*  
+
+Difficulty: *Intermediate*
 
 This is a guide to setup remote SSH into host to startup X server and sunshine without physical login and dummy plug.
+The virtual display is accelerated by the NVidia GPU using the TwinView configuration.
 
-.. Attention:: This guide is specific for Xorg and NVidia GPUs. I start the Xserver using the ``startx`` command. I also only tested this on an Artix runit init system on LAN. I didn't have to do anything special with pulseaudio. Not sure if pipewire works.
+.. Attention::
+	This guide is specific for Xorg and NVidia GPUs. I start the X Server using the ``startx`` command.
+	I also only tested this on an Artix runit init system on LAN.
+	I didn't have to do anything special with pulseaudio (pipewire untested).
+
+.. tip:: 
+	Prior to editing any system configurations, you should make a copy of the original file.
+	This will allow you to use it for reference or revert your changes easily.
 
 The Big Picture
 ^^^^^^^^^^^^^^^
 Once you are done, you will need to perform these there steps:
 
-1. Turn on the host machine
-2. Start sunshine on remote host with a script that:
+#. Turn on the host machine
+#. Start sunshine on remote host with a script that:
 	- Edits permissions of ``/dev/uinput`` (added sudo config to execute script with no password prompt)
 	- Starts X Server with ``startx``
 	- Starts ``Sunshine`` 
-3. Startup Moonlight on the client of interest and connect to host
+#. Startup Moonlight on the client of interest and connect to host
+
+.. admonition:: Alternative to SSH
+	:class: seealso
+
+	**Step 2** can be replaced with autologin and starting sunshine as a service or putting ``sunshine &`` in your ``.xinitrc`` file.
+	In this case workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered for "physical" login.
+	See :ref:`Linux Setup <about/usage:linux>`. I personally think autologin compromises the security of the PC, so I went with the remote SSH route.
+	I also find remote development is fun!
 
 First we will setup the host and then the SSH Client (Which may not be the same as the machine running the moonlight client)
 
@@ -28,25 +47,77 @@ Host Setup
 
 We will be setting up:
 
-1. Static IP setup
-2. Disable PAM in sshd
-3. Virtual Display Acceleration via NVIDIA's TwinView X11 Config
-4. Script for ``uinput`` permission workaround
-5. Script to put everything together to startup X server and Sunshine
+#. Static IP setup
+#. SSH Server setup
+#. Virtual Display Acceleration via NVIDIA's TwinView X11 Config
+#. Script for ``uinput`` permission workaround
+#. Script to put everything together to startup X server and Sunshine
 
 Static IP Setup
 +++++++++++++++
-Setup static IP Address for host. For LAN connections you can use DHCP reservation within your assigned range 192.168.x.x. This will allow you to ssh to the host consistently, so the assigned IP address does not change.
+Setup static IP Address for host. For LAN connections you can use DHCP reservation within your assigned range 
+192.168.x.x. This will allow you to ssh to the host consistently, so the assigned IP address does not change.
 
-Disabling PAM in sshd
-+++++++++++++++++++++
-I noticed when the ssh session is disconnected for any reason, `pulseaudio` would disconnect. This is due to PAM handling sessions. When running `dmesg`, I noticed `elogind` would say removed user session.
+SSH Server setup
+++++++++++++++++
 
-According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ disabling PAM increases security, but reduces certain functionality in terms of session handling. 
+.. note:: Most distros have OpenSSH already installed. If it is not present, install OpenSSH using your package manager.
+
+.. tab:: Ubuntu
+
+	.. code-block:: sh
+
+		sudo apt update
+		sudo apt install openssh-server
+
+
+.. tab:: Arch
+
+	.. code-block:: sh
+
+		sudo pacman -S openssh
+
+.. important::
+	If you are using runit, you will also need to install ``openssh-runit``
+	and run 
+	
+	``ln -s /etc/runit/sv/sshd /run/runit/service``
+
+
+**Disabling PAM in sshd**
+
+.. tip::
+	Run the command to check the ssh configuration prior to restarting the sshd service.
+
+	``sudo sshd -t -f /etc/ssh/sshd_config``
+
+	An incorrect configuration will prevent the sshd service from starting, which might mean losing access to reach the server.
+
+I noticed when the ssh session is disconnected for any reason, ``pulseaudio`` would disconnect.
+This is due to PAM handling sessions. When running ``dmesg``, I noticed ``elogind`` would say removed user session.
+
+According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ 
+disabling PAM increases security, but reduces certain functionality in terms of session handling. 
 *Do so at your own risk!*
 
 Reference:
-https://forums.gentoo.org/viewtopic-t-1090186-start-0.html
+`<https://forums.gentoo.org/viewtopic-t-1090186-start-0.html>`_
+
+After making changes to the sshd_config, restart the sshd service for changes to take into effect.
+
+.. tab:: SystemD
+
+    .. code-block:: sh
+
+		sudo systemctl restart sshd.service
+
+.. tab:: Runit
+
+    .. code-block:: sh
+
+		sudo sv restart sshd
+
+----
 
 Virtual Display Setup
 +++++++++++++++++++++
@@ -86,19 +157,37 @@ This is only available for NVidia GPUs
 		EndSubSection
 	EndSection
 
-The ``ConnectedMonitor`` tricks the GPU into thinking a monitor is connected, even if there is none actually connected! This allows a virtual display to be created that is accelerated with your GPU! The ``ModeValidation`` option disables valid resolution checks, so you can choose any resolution on the host!
+.. note::
+	The ``ConnectedMonitor`` tricks the GPU into thinking a monitor is connected, even if there is none actually connected! 
+	This allows a virtual display to be created that is accelerated with your GPU! The ``ModeValidation`` option disables valid resolution checks,
+	so you can choose any resolution on the host!
 
 
 UINPUT Workaround
 ++++++++++++++++++
 
-*Script*
-Two scripts will need to be written to get this setup
-1. Script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
-2. Script to start up Xserver and sunshine
+.. admonition:: Why is this necessary?
+	:class: important
 
-*Setup Script*
+	After I setup the :ref:`udev rule <about/usage:linux>` to get access to ``/dev/uinput``,
+	I noticed when I sshed into the host without physical login, the ACL permissions on ``/dev/uinput`` were not changed.
+	So I asked `reddit <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`_.
+	I discovered that SSH sessions are not the same as a physical login.
+	I suppose it's not possible for SSH to trigger a udev rule.
+
+.. caution:: Do so at your own risk! It is more secure to give sudo and no password prompt to a single script, than a generic executable like chown.
+
+**Script**
+
+Two scripts will need to be written to get this setup
+
+#. Script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
+#. Script to start up X Server and sunshine
+
+**Setup Script**
+
 We will manually change the permissions of ``/dev/uinput`` using ``chown``. You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/<user>``
+
 .. code-block::
 
 	<user> ALL=(ALL:ALL) ALL, NOPASSWD: /home/<user>/scripts/sunshine-setup.sh
@@ -106,11 +195,11 @@ We will manually change the permissions of ``/dev/uinput`` using ``chown``. You 
 These changes allow the script to use sudo without being prompted with a password.
 
 
-Everything Together Now!
-+++++++++++++++++++++++++
+Putting Everything Together
++++++++++++++++++++++++++++
 
 
-*sunshine-setup.sh*
+**sunshine-setup.sh**
 
 .. code-block:: sh
 
@@ -122,7 +211,7 @@ Everything Together Now!
 	# use rfkill list to get the id of the Wiresless LAN
 	# rfkill block <wireless_lan_index>
 
-*Sunshine Startup Script*
+**Sunshine Startup Script**
 
 .. code-block:: sh
 
@@ -133,20 +222,23 @@ Everything Together Now!
 	# Check existing X server
 	ps -e | grep X >/dev/null
 	[[ ${?} -ne 0 ]] && {
-		echo "Starting Xserver"
-		startx &>/dev/null &
-	} || echo "Xserver already running"
+	  echo "Starting X Server"
+	  startx &>/dev/null &
+	  [[ ${?} -eq 0 ]] && {
+	    echo "X Server started successfully"
+	  } || echo "X Server failed to start"
+	} || echo "X Server already running"
 
 	# Check if sunshine is already running
 	ps -e | grep -e .*sunshine$ >/dev/null
 	[[ ${?} -ne 0 ]] && {
-		sudo ~/scripts/update-udev.sh
-		sleep 1
-		echo "Starting Sunshine!"
-		sunshine >/dev/null
-		echo "test"
-		pkill -ef sunshine
-		pkill -ef X
+	  sudo ~/scripts/update-udev.sh
+	  sleep 1
+	  echo "Starting Sunshine!"
+	  sunshine > /dev/null &
+	  [[ ${?} -eq 0 ]] && {
+	    echo "Sunshine started successfully"
+	  } || echo "Sunshine failed to start"
 	} || echo "Sunshine is already running"
 
 SSH Client Setup
@@ -154,27 +246,28 @@ SSH Client Setup
 
 We will be setting up:
 
-1. SSH key generation
-2. Script to SSH into host to execute sunshine script from Host Setup in step 4.
+#. SSH key generation
+#. Script to SSH into host to execute sunshine start up script
 
 SSH Key Authentication Setup
 +++++++++++++++++++++++++++++
 
-1. Setup your SSH keys with ``ssh-keygen`` and use ``ssh-copy-id`` to authorize remote login to your host. Run ``ssh <user>@<ip_address>`` to login to your host. SSH keys automate login so you don't need to input your password!
-2. Optionally setup a ``~/.ssh/config`` file to simplify the ``ssh`` command
+#. Setup your SSH keys with ``ssh-keygen`` and use ``ssh-copy-id`` to authorize remote login to your host. Run ``ssh <user>@<ip_address>`` to login to your host. SSH keys automate login so you don't need to input your password!
+#. Optionally setup a ``~/.ssh/config`` file to simplify the ``ssh`` command
+   
    .. code-block::
 
 		Host <some_alias>
-			Hostname <ip_address>
-			User <username>
-			IdentityFile ~/.ssh/<your_private_key>
+		    Hostname <ip_address>
+		    User <username>
+		    IdentityFile ~/.ssh/<your_private_key>
 
    Now you can use ``ssh <some_alias>``.  
    ``ssh <some_alias> <commands/script>`` will execute the command or script on the remote host.
 
 SSH Script
 ++++++++++
-This bash script will automate the startup of the Xserver and Sunshine on the host.
+This bash script will automate the startup of the X Server and Sunshine on the host.
 This can be run on linux / macOS system.
 On Windows, this can be run inside a ``git-bash``
 
@@ -186,15 +279,17 @@ For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android a
 
 	ssh_args="eric@192.168.1.3"
 
-	check_host(){
+	check_ssh(){
 	  result=1
 	  while [[ $result -ne 0 ]]
 	  do
 	    echo "checking host..."
-		ssh $ssh_args "exit 0" 2>/dev/null
-		result=$?
-		[[ $result -ne 0 ]] && echo "Failed to ssh to $ssh_args, with exit code $result"
-		  sleep 2
+	    ssh $ssh_args "exit 0" 2>/dev/null
+	    result=$?
+	    [[ $result -ne 0 ]] && {
+	  	  echo "Failed to ssh to $ssh_args, with exit code $result"
+	    }
+	    sleep 3
 	  done
 	  echo "Host is ready for streaming!"
 	}
@@ -202,17 +297,14 @@ For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android a
 	start_stream(){
 	  echo "Starting sunshine server on host..."
 	  echo "Start moonlight on your client of choice"
-	  ssh $ssh_args "~/scripts/sunshine.sh &" 
+	  ssh -f $ssh_args "~/scripts/sunshine.sh &"
 	}
 
-	cleanup(){
-	  ssh $ssh_args "pkill -ef sunshine"
-	  ssh $ssh_args "pkill -ef X"
-	}
-
-	check_host
+	check_ssh
 	start_stream
+	exit_code=${?}
 
-	# Doing ctrl + c will continue the script and activate the cleanup
-	#cleanup
+	sleep 3
+	exit ${exit_code}
+
 
