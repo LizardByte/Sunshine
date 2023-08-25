@@ -2297,22 +2297,28 @@ namespace video {
       config_max_ref_frames.videoFormat = 1;
       config_autoselect.videoFormat = 1;
 
-    retry_hevc:
-      auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
-      auto autoselect_hevc = max_ref_frames_hevc >= 0 ? max_ref_frames_hevc : validate_config(disp, encoder, config_autoselect);
-      if (autoselect_hevc < 0 && encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
-        // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
-        encoder.hevc.capabilities.set();
-        encoder.hevc[encoder_t::CBR] = false;
-        goto retry_hevc;
-      }
+      if (disp->is_codec_supported(encoder.hevc.name, config_autoselect)) {
+      retry_hevc:
+        auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
+        auto autoselect_hevc = max_ref_frames_hevc >= 0 ? max_ref_frames_hevc : validate_config(disp, encoder, config_autoselect);
+        if (autoselect_hevc < 0 && encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
+          // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
+          encoder.hevc.capabilities.set();
+          encoder.hevc[encoder_t::CBR] = false;
+          goto retry_hevc;
+        }
 
-      for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-        encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
-      }
+        for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
+          encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
+        }
 
-      encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
-      encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
+        encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
+        encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
+      }
+      else {
+        BOOST_LOG(info) << "Encoder ["sv << encoder.hevc.name << "] is not supported on this GPU"sv;
+        encoder.hevc.capabilities.reset();
+      }
     }
     else {
       // Clear all cap bits for HEVC if we didn't probe it
@@ -2323,22 +2329,28 @@ namespace video {
       config_max_ref_frames.videoFormat = 2;
       config_autoselect.videoFormat = 2;
 
-    retry_av1:
-      auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
-      auto autoselect_av1 = max_ref_frames_av1 >= 0 ? max_ref_frames_av1 : validate_config(disp, encoder, config_autoselect);
-      if (autoselect_av1 < 0 && encoder.av1.qp && encoder.av1[encoder_t::CBR]) {
-        // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
-        encoder.av1.capabilities.set();
-        encoder.av1[encoder_t::CBR] = false;
-        goto retry_av1;
-      }
+      if (disp->is_codec_supported(encoder.av1.name, config_autoselect)) {
+      retry_av1:
+        auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
+        auto autoselect_av1 = max_ref_frames_av1 >= 0 ? max_ref_frames_av1 : validate_config(disp, encoder, config_autoselect);
+        if (autoselect_av1 < 0 && encoder.av1.qp && encoder.av1[encoder_t::CBR]) {
+          // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
+          encoder.av1.capabilities.set();
+          encoder.av1[encoder_t::CBR] = false;
+          goto retry_av1;
+        }
 
-      for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-        encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
-      }
+        for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
+          encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
+        }
 
-      encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
-      encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
+        encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
+        encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
+      }
+      else {
+        BOOST_LOG(info) << "Encoder ["sv << encoder.av1.name << "] is not supported on this GPU"sv;
+        encoder.av1.capabilities.reset();
+      }
     }
     else {
       // Clear all cap bits for AV1 if we didn't probe it
