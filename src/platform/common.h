@@ -586,9 +586,22 @@ namespace platf {
     std::uintptr_t native_socket;
     boost::asio::ip::address &target_address;
     uint16_t target_port;
+    boost::asio::ip::address &source_address;
   };
   bool
   send_batch(batched_send_info_t &send_info);
+
+  struct send_info_t {
+    const char *buffer;
+    size_t size;
+
+    std::uintptr_t native_socket;
+    boost::asio::ip::address &target_address;
+    uint16_t target_port;
+    boost::asio::ip::address &source_address;
+  };
+  bool
+  send(send_info_t &send_info);
 
   enum class qos_data_type_e : int {
     audio,

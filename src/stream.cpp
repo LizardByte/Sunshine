@@ -355,6 +355,8 @@ namespace stream {
 
     safe::shared_t<broadcast_ctx_t>::ptr_t broadcast_ref;
 
+    boost::asio::ip::address localAddress;
+
     struct {
       int lowseq;
       udp::endpoint peer;
@@ -465,6 +467,12 @@ namespace stream {
 
       session_p->control.peer = peer;
       session_port = port;
+
+      // Use the local address from the control connection as the source address
+      // for other communications to the client. This is necessary to ensure
+      // proper routing on multi-homed hosts.
+      auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
+      session_p->localAddress = boost::asio::ip::make_address(local_address);
 
       return session_p;
     }
@@ -1283,6 +1291,7 @@ namespace stream {
             (uintptr_t) sock.native_handle(),
             peer_address,
             session->video.peer.port(),
+            session->localAddress,
           };
 
           // Use a batched send if it's supported on this platform
@@ -1290,7 +1299,16 @@ namespace stream {
             // Batched send is not available, so send each packet individually
             BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
             for (auto x = 0; x < shards.size(); ++x) {
-              sock.send_to(asio::buffer(shards[x]), session->video.peer);
+              auto send_info = platf::send_info_t {
+                shards[x].data(),
+                shards[x].size(),
+                (uintptr_t) sock.native_handle(),
+                peer_address,
+                session->video.peer.port(),
+                session->localAddress,
+              };
+
+              platf::send(send_info);
             }
           }
 
