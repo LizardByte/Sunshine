@@ -120,7 +120,28 @@ namespace platf::dxgi {
 
   capture_e
   display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
-    const auto client_frame_interval = std::chrono::nanoseconds { 1s } / client_frame_rate;
+    auto calculate_client_frame_interval = [&]() -> std::chrono::nanoseconds {
+      double display_frame_rate = (double) display_refresh_rate.Numerator / display_refresh_rate.Denominator;
+
+      double client_frame_rate_adjusted;
+      if (client_frame_rate >= display_frame_rate) {
+        client_frame_rate_adjusted = display_frame_rate * std::round(client_frame_rate / display_frame_rate);
+      }
+      else {
+        client_frame_rate_adjusted = display_frame_rate / std::round(display_frame_rate / client_frame_rate);
+      }
+
+      // Adjust capture frame interval when display refresh rate is not integral but very close to requested fps.
+      // Can only decrease requested fps, otherwise client may start accumulating frames and suffer increased latency.
+      if (client_frame_rate > client_frame_rate_adjusted && client_frame_rate_adjusted / client_frame_rate > 0.99) {
+        BOOST_LOG(info) << "Adjusted capture rate to " << client_frame_rate_adjusted << "fps to better match display";
+        return std::chrono::nanoseconds(std::llround(std::nano::den / client_frame_rate_adjusted));
+      }
+
+      return std::chrono::nanoseconds(1s) / client_frame_rate;
+    };
+
+    const auto client_frame_interval = calculate_client_frame_interval();
     std::optional<std::chrono::steady_clock::time_point> next_frame_time;
 
     // Keep the display awake during capture. If the display goes to sleep during
