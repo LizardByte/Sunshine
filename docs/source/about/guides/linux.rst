@@ -28,7 +28,7 @@ Once you are done, you will need to perform these 3 steps:
 #. Turn on the host machine
 #. Start sunshine on remote host with a script that:
 	- Edits permissions of ``/dev/uinput`` (added sudo config to execute script with no password prompt)
-	- Starts X server with ``startx``
+	- Starts X server with ``startx`` on virtual display
 	- Starts ``Sunshine`` 
 #. Startup Moonlight on the client of interest and connect to host
 
@@ -37,7 +37,7 @@ Once you are done, you will need to perform these 3 steps:
 
 	**Step 2** can be replaced with autologin and starting sunshine as a service or putting ``sunshine &`` in your ``.xinitrc`` file 
 	if you start your X server with ``startx``.
-	In this case workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered for "physical" login.
+	In this case, the workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered for "physical" login.
 	See :ref:`Linux Setup <about/usage:linux>`. I personally think autologin compromises the security of the PC, so I went with the remote SSH route.
 	I use the PC more than for gaming, so I don't need a virtual display everytime I turn on the PC (E.g running updates, config changes, file/media server).
 
@@ -51,7 +51,7 @@ We will be setting up:
 #. `Static IP Setup <static ip setup_>`_
 #. `SSH Server setup <ssh server setup_>`_
 #. `Virtual Display Acceleration via NVIDIA's TwinView X11 Config <virtual display setup_>`_
-#. `Script for uinput permission workaround <uinput workaround_>`_
+#. `Script for uinput permission workaround <uinput permissions workaround_>`_
 #. `Script to put everything together to startup X server and Sunshine <putting everything together_>`_
 
 
@@ -72,21 +72,47 @@ SSH Server setup
 		sudo apt update
 		sudo apt install openssh-server
 
-
-.. tab:: Arch
+.. tab:: Arch/Artix
 
 	.. code-block:: sh
 
 		sudo pacman -S openssh
+		# Install  openssh-<other_init> if you are not using SystemD
+		# E.g. sudo pacman -S openssh-runit
 
-.. important::
-	If you are using runit, you will also need to install ``openssh-runit``
-	and run 
-	
-	``ln -s /etc/runit/sv/sshd /run/runit/service``
+
+Next make sure the OpenSSH daemon is enabled to run when the system starts.
+
+.. tab:: SystemD
+
+    .. code-block:: sh
+
+		sudo systemctl enable sshd.service
+		sudo systemctl start sshd.service  # Starts the service now
+		sudo systemctl status sshd.service # See if the service is running
+
+.. tab:: Runit
+
+	.. code-block:: sh
+
+		sudo ln -s /etc/runit/sv/sshd /run/runit/service # Enables the OpenSSH daemon to run when system starts
+		sudo sv start sshd  # Starts the service now
+		sudo sv status sshd # See if the service is running
 
 
 **Disabling PAM in sshd**
+
+I noticed when the ssh session is disconnected for any reason, ``pulseaudio`` would disconnect.
+This is due to PAM handling sessions. When running ``dmesg``, I noticed ``elogind`` would say removed user session.
+In this `Gentoo Forums post <https://forums.gentoo.org/viewtopic-t-1090186-start-0.html>`_, someone had a similar issue with me.
+Starting the X server in the background and exiting out of the console would cause your session to be removed.
+
+.. caution::
+	According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ 
+	disabling PAM increases security, but reduces certain functionality in terms of session handling. 
+	*Do so at your own risk!*
+
+After making changes to the sshd_config, restart the sshd service for changes to take into effect.
 
 .. tip::
 	Run the command to check the ssh configuration prior to restarting the sshd service.
@@ -94,18 +120,6 @@ SSH Server setup
 	``sudo sshd -t -f /etc/ssh/sshd_config``
 
 	An incorrect configuration will prevent the sshd service from starting, which might mean losing access to reach the server.
-
-I noticed when the ssh session is disconnected for any reason, ``pulseaudio`` would disconnect.
-This is due to PAM handling sessions. When running ``dmesg``, I noticed ``elogind`` would say removed user session.
-
-According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ 
-disabling PAM increases security, but reduces certain functionality in terms of session handling. 
-*Do so at your own risk!*
-
-Reference:
-`<https://forums.gentoo.org/viewtopic-t-1090186-start-0.html>`_
-
-After making changes to the sshd_config, restart the sshd service for changes to take into effect.
 
 .. tab:: SystemD
 
@@ -123,7 +137,10 @@ After making changes to the sshd_config, restart the sshd service for changes to
 
 Virtual Display Setup
 +++++++++++++++++++++
-This is only available for NVidia GPUs
+
+There is no need to buy a dummy plugin, when you can just use this config to get a virtual display for free!
+
+.. important:: This is only available for NVidia GPUs using Xorg
 
 .. code-block::  
 
@@ -161,10 +178,17 @@ This is only available for NVidia GPUs
 	The ``ConnectedMonitor`` tricks the GPU into thinking a monitor is connected, even if there is none actually connected! 
 	This allows a virtual display to be created that is accelerated with your GPU! The ``ModeValidation`` option disables valid resolution checks,
 	so you can choose any resolution on the host!
+	
+	**References**
+
+	* `issue comment on virtual-display-linux <https://github.com/dianariyanto/virtual-display-linux/issues/9#issuecomment-786389065>`_
+	* `Nvidia Documentation on Configuring TwinView <https://download.nvidia.com/XFree86/Linux-x86/270.29/README/configtwinview.html>`_
+	* `Arch Wiki Nvidia#TwinView <https://wiki.archlinux.org/title/NVIDIA#TwinView>`_
+	* `Unix Stack Exchange - How to add virtual display monitor with Nvidia proprietary driver <https://unix.stackexchange.com/questions/559918/how-to-add-virtual-monitor-with-nvidia-proprietary-driver>`_
 
 
-UINPUT Workaround
-++++++++++++++++++
+Uinput Permissions Workaround
++++++++++++++++++++++++++++++
 
 .. admonition:: Why is this necessary?
 	:class: important
@@ -175,31 +199,17 @@ UINPUT Workaround
 	I discovered that SSH sessions are not the same as a physical login.
 	I suppose it's not possible for SSH to trigger a udev rule.
 
-.. caution:: Do so at your own risk! It is more secure to give sudo and no password prompt to a single script, than a generic executable like chown.
-
 **Script**
 
 Two scripts will need to be written to get this setup
 
-#. Script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
-#. Script to start up X server and sunshine
+#. sunshine-setup script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
+#. Script that will run the sunshine-setup script, start up X server, and sunshine. *This is your wrapper entrypoint script that the ssh client will run to start streaming with sunshine*.
 
 **Setup Script**
 
-We will manually change the permissions of ``/dev/uinput`` using ``chown``. You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/<user>``
-
-.. code-block::
-
-	<user> ALL=(ALL:ALL) ALL, NOPASSWD: /home/<user>/scripts/sunshine-setup.sh
-
-These changes allow the script to use sudo without being prompted with a password.
-
-
-Putting Everything Together
-+++++++++++++++++++++++++++
-
-
-**sunshine-setup.sh**
+This script will take care of any precondtions prior to starting up sunshine.
+Create a script named something like ``sunshine-setup.sh``:
 
 .. code-block:: sh
 
@@ -210,6 +220,28 @@ Putting Everything Together
 	# blocks wifi, so ethernet is used
 	# use rfkill list to get the id of the Wiresless LAN
 	# rfkill block <wireless_lan_index>
+
+We will manually change the permissions of ``/dev/uinput`` using ``chown``.
+You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/<user>``
+
+.. caution::
+	Do so at your own risk! It is more secure to give sudo and no password prompt to a single script, than a generic executable like chown.
+	Be very careful of messing this config up.
+
+.. warning::
+	IF YOU MAKE A TYPO, YOU LOSE THE ABILITY TO USE SUDO. Fortunately, your system is not borked,
+	you will need to login as root to fix the config.
+
+.. code-block::
+
+	<user> ALL=(ALL:ALL) ALL, NOPASSWD: /home/<user>/scripts/sunshine-setup.sh
+
+These changes allow the script to use sudo without being prompted with a password.
+
+E.g. ``sudo /path/to/sunshine-setup.sh``
+
+Putting Everything Together
++++++++++++++++++++++++++++
 
 **Sunshine Startup Script**
 
@@ -232,7 +264,7 @@ Putting Everything Together
 	# Check if sunshine is already running
 	ps -e | grep -e .*sunshine$ >/dev/null
 	[[ ${?} -ne 0 ]] && {
-	  sudo ~/scripts/update-udev.sh
+	  sudo ~/scripts/sunshine-setup.sh
 	  sleep 1
 	  echo "Starting Sunshine!"
 	  sunshine > /dev/null &
@@ -240,6 +272,12 @@ Putting Everything Together
 	    echo "Sunshine started successfully"
 	  } || echo "Sunshine failed to start"
 	} || echo "Sunshine is already running"
+
+	# Add any other Programs that you want to startup automatically
+	# steam &> /dev/null &
+	# firefox &
+
+----
 
 SSH Client Setup
 ^^^^^^^^^^^^^^^^
@@ -307,4 +345,7 @@ For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android a
 	sleep 3
 	exit ${exit_code}
 
+Done
+^^^^
 
+Congrats you can now stream your desktop headless! When trying this the first time, keep your monitors close by incase something isn't working right.
