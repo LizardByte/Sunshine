@@ -1389,9 +1389,17 @@ namespace stream {
       auto &shards_p = session->audio.shards_p;
 
       std::copy_n(audio_packet->payload(), bytes, shards_p[sequenceNumber % RTPA_DATA_SHARDS]);
+      auto peer_address = session->audio.peer.address();
       try {
-        sock.send_to(asio::buffer((char *) audio_packet.get(), sizeof(audio_packet_raw_t) + bytes), session->audio.peer);
-
+        auto send_info = platf::send_info_t {
+          (const char *) audio_packet.get(),
+          sizeof(audio_packet_raw_t) + bytes,
+          (uintptr_t) sock.native_handle(),
+          peer_address,
+          session->audio.peer.port(),
+          session->localAddress,
+        };
+        platf::send(send_info);
         BOOST_LOG(verbose) << "Audio ["sv << sequenceNumber << "] ::  send..."sv;
 
         auto &fec_packet = session->audio.fec_packet;
@@ -1409,7 +1417,16 @@ namespace stream {
             fec_packet->rtp.sequenceNumber = util::endian::big<std::uint16_t>(sequenceNumber + x + 1);
             fec_packet->fecHeader.fecShardIndex = x;
             memcpy(fec_packet->payload(), shards_p[RTPA_DATA_SHARDS + x], bytes);
-            sock.send_to(asio::buffer((char *) fec_packet.get(), sizeof(audio_fec_packet_raw_t) + bytes), session->audio.peer);
+
+            auto send_info = platf::send_info_t {
+              (const char *) fec_packet.get(),
+              sizeof(audio_fec_packet_raw_t) + bytes,
+              (uintptr_t) sock.native_handle(),
+              peer_address,
+              session->audio.peer.port(),
+              session->localAddress,
+            };
+            platf::send(send_info);
             BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
           }
         }
