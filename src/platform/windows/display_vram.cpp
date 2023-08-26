@@ -957,7 +957,7 @@ namespace platf::dxgi {
     }
 
     const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
-    const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
+    const bool frame_update_flag = frame_info.LastPresentTime.QuadPart != 0;
     const bool update_flag = mouse_update_flag || frame_update_flag;
 
     if (!update_flag) {
