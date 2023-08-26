@@ -2,6 +2,12 @@
  * @file src/platform/macos/misc.mm
  * @brief todo
  */
+
+// Required for IPV6_PKTINFO with Darwin headers
+#ifndef __APPLE_USE_RFC_3542
+  #define __APPLE_USE_RFC_3542 1
+#endif
+
 #include <Foundation/Foundation.h>
 #include <arpa/inet.h>
 #include <dlfcn.h>
@@ -15,6 +21,7 @@
 #include "src/main.h"
 #include "src/platform/common.h"
 
+#include <boost/asio/ip/address.hpp>
 #include <boost/process.hpp>
 
 using namespace std::literals;
@@ -245,10 +252,132 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
+  struct sockaddr_in
+  to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
+    struct sockaddr_in saddr_v4 = {};
+
+    saddr_v4.sin_family = AF_INET;
+    saddr_v4.sin_port = htons(port);
+
+    auto addr_bytes = address.to_bytes();
+    memcpy(&saddr_v4.sin_addr, addr_bytes.data(), sizeof(saddr_v4.sin_addr));
+
+    return saddr_v4;
+  }
+
+  struct sockaddr_in6
+  to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
+    struct sockaddr_in6 saddr_v6 = {};
+
+    saddr_v6.sin6_family = AF_INET6;
+    saddr_v6.sin6_port = htons(port);
+    saddr_v6.sin6_scope_id = address.scope_id();
+
+    auto addr_bytes = address.to_bytes();
+    memcpy(&saddr_v6.sin6_addr, addr_bytes.data(), sizeof(saddr_v6.sin6_addr));
+
+    return saddr_v6;
+  }
+
   bool
   send_batch(batched_send_info_t &send_info) {
     // Fall back to unbatched send calls
     return false;
+  }
+
+  bool
+  send(send_info_t &send_info) {
+    auto sockfd = (int) send_info.native_socket;
+    struct msghdr msg = {};
+
+    // Convert the target address into a sockaddr
+    struct sockaddr_in taddr_v4 = {};
+    struct sockaddr_in6 taddr_v6 = {};
+    if (send_info.target_address.is_v6()) {
+      taddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
+
+      msg.msg_name = (struct sockaddr *) &taddr_v6;
+      msg.msg_namelen = sizeof(taddr_v6);
+    }
+    else {
+      taddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
+
+      msg.msg_name = (struct sockaddr *) &taddr_v4;
+      msg.msg_namelen = sizeof(taddr_v4);
+    }
+
+    union {
+      char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+      struct cmsghdr alignment;
+    } cmbuf;
+    socklen_t cmbuflen = 0;
+
+    msg.msg_control = cmbuf.buf;
+    msg.msg_controllen = sizeof(cmbuf.buf);
+
+    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
+    if (send_info.source_address.is_v6()) {
+      struct in6_pktinfo pktInfo;
+
+      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
+      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+    }
+    else {
+      struct in_pktinfo pktInfo;
+
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+    }
+
+    struct iovec iov = {};
+    iov.iov_base = (void *) send_info.buffer;
+    iov.iov_len = send_info.size;
+
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    msg.msg_controllen = cmbuflen;
+
+    auto bytes_sent = sendmsg(sockfd, &msg, 0);
+
+    // If there's no send buffer space, wait for some to be available
+    while (bytes_sent < 0 && errno == EAGAIN) {
+      struct pollfd pfd;
+
+      pfd.fd = sockfd;
+      pfd.events = POLLOUT;
+
+      if (poll(&pfd, 1, -1) != 1) {
+        BOOST_LOG(warning) << "poll() failed: "sv << errno;
+        break;
+      }
+
+      // Try to send again
+      bytes_sent = sendmsg(sockfd, &msg, 0);
+    }
+
+    if (bytes_sent < 0) {
+      BOOST_LOG(warning) << "sendmsg() failed: "sv << errno;
+      return false;
+    }
+
+    return true;
   }
 
   std::unique_ptr<deinit_t>
