@@ -591,7 +591,7 @@ namespace nvhttp {
 
     response->close_connection_after_response = true;
 
-    auto address = request->remote_endpoint().address().to_string();
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     auto ip_type = net::from_address(address);
     if (ip_type > http::origin_pin_allowed) {
       BOOST_LOG(info) << "/pin: ["sv << address << "] -- denied"sv;
@@ -639,9 +639,24 @@ namespace nvhttp {
     tree.put("root.uniqueid", http::unique_id);
     tree.put("root.HttpsPort", map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", map_port(PORT_HTTP));
-    tree.put("root.mac", platf::get_mac_address(local_endpoint.address().to_string()));
+    tree.put("root.mac", platf::get_mac_address(net::addr_to_normalized_string(local_endpoint.address())));
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
-    tree.put("root.LocalIP", local_endpoint.address().to_string());
+
+    // Moonlight clients track LAN IPv6 addresses separately from LocalIP which is expected to
+    // always be an IPv4 address. If we return that same IPv6 address here, it will clobber the
+    // stored LAN IPv4 address. To avoid this, we need to return an IPv4 address in this field
+    // when we get a request over IPv6.
+    //
+    // HACK: We should return the IPv4 address of local interface here, but we don't currently
+    // have that implemented. For now, we will emulate the behavior of GFE+GS-IPv6-Forwarder,
+    // which returns 127.0.0.1 as LocalIP for IPv6 connections. Moonlight clients with IPv6
+    // support know to ignore this bogus address.
+    if (local_endpoint.address().is_v6() && !local_endpoint.address().to_v6().is_v4_mapped()) {
+      tree.put("root.LocalIP", "127.0.0.1");
+    }
+    else {
+      tree.put("root.LocalIP", net::addr_to_normalized_string(local_endpoint.address()));
+    }
 
     uint32_t codec_mode_flags = SCM_H264;
     if (video::active_hevc_mode >= 2) {
@@ -800,7 +815,7 @@ namespace nvhttp {
     rtsp_stream::launch_session_raise(launch_session);
 
     tree.put("root.<xmlattr>.status_code", 200);
-    tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
+    tree.put("root.sessionUrl0", "rtsp://"s + net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
     tree.put("root.gamesession", 1);
   }
 
@@ -871,7 +886,7 @@ namespace nvhttp {
     rtsp_stream::launch_session_raise(make_launch_session(host_audio, args));
 
     tree.put("root.<xmlattr>.status_code", 200);
-    tree.put("root.sessionUrl0", "rtsp://"s + request->local_endpoint().address().to_string() + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
+    tree.put("root.sessionUrl0", "rtsp://"s + net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
     tree.put("root.resume", 1);
   }
 
@@ -934,6 +949,7 @@ namespace nvhttp {
 
     auto port_http = map_port(PORT_HTTP);
     auto port_https = map_port(PORT_HTTPS);
+    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
 
@@ -1026,7 +1042,7 @@ namespace nvhttp {
     https_server.resource["^/cancel$"]["GET"] = cancel;
 
     https_server.config.reuse_address = true;
-    https_server.config.address = "0.0.0.0"s;
+    https_server.config.address = net::af_to_any_address_string(address_family);
     https_server.config.port = port_https;
 
     http_server.default_resource["GET"] = not_found<SimpleWeb::HTTP>;
@@ -1035,7 +1051,7 @@ namespace nvhttp {
     http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
 
     http_server.config.reuse_address = true;
-    http_server.config.address = "0.0.0.0"s;
+    http_server.config.address = net::af_to_any_address_string(address_family);
     http_server.config.port = port_http;
 
     auto accept_and_run = [&](auto *http_server) {

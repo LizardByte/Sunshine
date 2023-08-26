@@ -102,12 +102,96 @@ namespace net {
     return "wan"sv;
   }
 
+  /**
+   * @brief Returns the `af_e` enum value for the `address_family` config option value.
+   * @param view The config option value.
+   * @return The `af_e` enum value.
+   */
+  af_e
+  af_from_enum_string(const std::string_view &view) {
+    if (view == "ipv4") {
+      return IPV4;
+    }
+    if (view == "both") {
+      return BOTH;
+    }
+
+    // avoid warning
+    return BOTH;
+  }
+
+  /**
+   * @brief Returns the wildcard binding address for a given address family.
+   * @param af Address family.
+   * @return Normalized address.
+   */
+  std::string_view
+  af_to_any_address_string(af_e af) {
+    switch (af) {
+      case IPV4:
+        return "0.0.0.0"sv;
+      case BOTH:
+        return "::"sv;
+    }
+
+    // avoid warning
+    return "::"sv;
+  }
+
+  /**
+   * @brief Converts an address to a normalized form.
+   * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
+   * @param address The address to normalize.
+   * @return Normalized address.
+   */
+  boost::asio::ip::address
+  normalize_address(boost::asio::ip::address address) {
+    // Convert IPv6-mapped IPv4 addresses into regular IPv4 addresses
+    if (address.is_v6()) {
+      auto v6 = address.to_v6();
+      if (v6.is_v4_mapped()) {
+        return boost::asio::ip::make_address_v4(boost::asio::ip::v4_mapped, v6);
+      }
+    }
+
+    return address;
+  }
+
+  /**
+   * @brief Returns the given address in normalized string form.
+   * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
+   * @param address The address to normalize.
+   * @return Normalized address in string form.
+   */
+  std::string
+  addr_to_normalized_string(boost::asio::ip::address address) {
+    return normalize_address(address).to_string();
+  }
+
+  /**
+   * @brief Returns the given address in a normalized form for in the host portion of a URL.
+   * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
+   * @param address The address to normalize and escape.
+   * @return Normalized address in URL-escaped string.
+   */
+  std::string
+  addr_to_url_escaped_string(boost::asio::ip::address address) {
+    address = normalize_address(address);
+    if (address.is_v6()) {
+      return "["s + address.to_string() + ']';
+    }
+    else {
+      return address.to_string();
+    }
+  }
+
   host_t
-  host_create(ENetAddress &addr, std::size_t peers, std::uint16_t port) {
-    enet_address_set_host(&addr, "0.0.0.0");
+  host_create(af_e af, ENetAddress &addr, std::size_t peers, std::uint16_t port) {
+    auto any_addr = net::af_to_any_address_string(af);
+    enet_address_set_host(&addr, any_addr.data());
     enet_address_set_port(&addr, port);
 
-    return host_t { enet_host_create(AF_INET, &addr, peers, 0, 0, 0) };
+    return host_t { enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, peers, 0, 0, 0) };
   }
 
   void
