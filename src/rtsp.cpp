@@ -225,7 +225,7 @@ namespace rtsp_stream {
     }
 
     int
-    bind(std::uint16_t port, boost::system::error_code &ec) {
+    bind(net::af_e af, std::uint16_t port, boost::system::error_code &ec) {
       {
         auto lg = _session_slots.lock();
 
@@ -233,14 +233,14 @@ namespace rtsp_stream {
         _slot_count = config::stream.channels;
       }
 
-      acceptor.open(tcp::v4(), ec);
+      acceptor.open(af == net::IPV4 ? tcp::v4() : tcp::v6(), ec);
       if (ec) {
         return -1;
       }
 
       acceptor.set_option(boost::asio::socket_base::reuse_address { true });
 
-      acceptor.bind(tcp::endpoint(tcp::v4(), port), ec);
+      acceptor.bind(tcp::endpoint(af == net::IPV4 ? tcp::v4() : tcp::v6(), port), ec);
       if (ec) {
         return -1;
       }
@@ -766,7 +766,7 @@ namespace rtsp_stream {
     server.map("PLAY"sv, &cmd_play);
 
     boost::system::error_code ec;
-    if (server.bind(map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
+    if (server.bind(net::af_from_enum_string(config::sunshine.address_family), map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
       BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << map_port(rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
       shutdown_event->raise(true);
 

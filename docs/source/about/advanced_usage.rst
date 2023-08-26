@@ -557,6 +557,30 @@ port
 
       port = 47989
 
+address_family
+^^^^^^^^^^^^^^
+
+**Description**
+   Set the address family that Sunshine will use.
+
+.. table::
+   :widths: auto
+
+   =====     ===========
+   Value     Description
+   =====     ===========
+   ipv4      IPv4 only
+   both      IPv4+IPv6
+   =====     ===========
+
+**Default**
+   ``ipv4``
+
+**Example**
+   .. code-block:: text
+
+      address_family = both
+
 pkey
 ^^^^
 
