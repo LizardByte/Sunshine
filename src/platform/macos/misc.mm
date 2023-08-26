@@ -326,7 +326,7 @@ namespace platf {
       cmbuflen += CMSG_SPACE(sizeof(pktInfo));
 
       pktinfo_cm->cmsg_level = IPPROTO_IPV6;
-      pktinfo_cm->cmsg_level = IPV6_PKTINFO;
+      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     }

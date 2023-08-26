@@ -980,7 +980,7 @@ namespace platf {
       cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
 
       cm->cmsg_level = IPPROTO_IPV6;
-      cm->cmsg_level = IPV6_PKTINFO;
+      cm->cmsg_type = IPV6_PKTINFO;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
       memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
     }
@@ -1061,7 +1061,7 @@ namespace platf {
       cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
 
       cm->cmsg_level = IPPROTO_IPV6;
-      cm->cmsg_level = IPV6_PKTINFO;
+      cm->cmsg_type = IPV6_PKTINFO;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
       memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
     }
