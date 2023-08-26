@@ -7,55 +7,28 @@
 #include <algorithm>
 
 using namespace std::literals;
+
+namespace ip = boost::asio::ip;
+
 namespace net {
-  // In the format "xxx.xxx.xxx.xxx/x"
-  std::pair<std::uint32_t, std::uint32_t>
-  ip_block(const std::string_view &ip);
-
-  std::vector<std::pair<std::uint32_t, std::uint32_t>> pc_ips {
-    ip_block("127.0.0.1/32"sv)
+  std::vector<ip::network_v4> pc_ips_v4 {
+    ip::make_network_v4("127.0.0.0/8"sv),
   };
-  std::vector<std::tuple<std::uint32_t, std::uint32_t>> lan_ips {
-    ip_block("192.168.0.0/16"sv),
-    ip_block("172.16.0.0/12"sv),
-    ip_block("10.0.0.0/8"sv),
-    ip_block("100.64.0.0/10"sv),
-    ip_block("169.254.0.0/16"sv)
+  std::vector<ip::network_v4> lan_ips_v4 {
+    ip::make_network_v4("192.168.0.0/16"sv),
+    ip::make_network_v4("172.16.0.0/12"sv),
+    ip::make_network_v4("10.0.0.0/8"sv),
+    ip::make_network_v4("100.64.0.0/10"sv),
+    ip::make_network_v4("169.254.0.0/16"sv),
   };
 
-  std::uint32_t
-  ip(const std::string_view &ip_str) {
-    auto begin = std::begin(ip_str);
-    auto end = std::end(ip_str);
-    auto temp_end = std::find(begin, end, '.');
-
-    std::uint32_t ip = 0;
-    auto shift = 24;
-    while (temp_end != end) {
-      ip += (util::from_chars(begin, temp_end) << shift);
-      shift -= 8;
-
-      begin = temp_end + 1;
-      temp_end = std::find(begin, end, '.');
-    }
-
-    ip += util::from_chars(begin, end);
-
-    return ip;
-  }
-
-  // In the format "xxx.xxx.xxx.xxx/x"
-  std::pair<std::uint32_t, std::uint32_t>
-  ip_block(const std::string_view &ip_str) {
-    auto begin = std::begin(ip_str);
-    auto end = std::find(begin, std::end(ip_str), '/');
-
-    auto addr = ip({ begin, (std::size_t)(end - begin) });
-
-    auto bits = 32 - util::from_chars(end + 1, std::end(ip_str));
-
-    return { addr, addr + ((1 << bits) - 1) };
-  }
+  std::vector<ip::network_v6> pc_ips_v6 {
+    ip::make_network_v6("::1/128"sv),
+  };
+  std::vector<ip::network_v6> lan_ips_v6 {
+    ip::make_network_v6("fc00::/7"sv),
+    ip::make_network_v6("fe80::/64"sv),
+  };
 
   net_e
   from_enum_string(const std::string_view &view) {
@@ -68,19 +41,35 @@ namespace net {
 
     return PC;
   }
+
   net_e
   from_address(const std::string_view &view) {
-    auto addr = ip(view);
+    auto addr = ip::make_address(view);
 
-    for (auto [ip_low, ip_high] : pc_ips) {
-      if (addr >= ip_low && addr <= ip_high) {
-        return PC;
+    if (addr.is_v6()) {
+      for (auto &range : pc_ips_v6) {
+        if (range.hosts().find(addr.to_v6()) != range.hosts().end()) {
+          return PC;
+        }
+      }
+
+      for (auto &range : lan_ips_v6) {
+        if (range.hosts().find(addr.to_v6()) != range.hosts().end()) {
+          return LAN;
+        }
       }
     }
+    else {
+      for (auto &range : pc_ips_v4) {
+        if (range.hosts().find(addr.to_v4()) != range.hosts().end()) {
+          return PC;
+        }
+      }
 
-    for (auto [ip_low, ip_high] : lan_ips) {
-      if (addr >= ip_low && addr <= ip_high) {
-        return LAN;
+      for (auto &range : lan_ips_v4) {
+        if (range.hosts().find(addr.to_v4()) != range.hosts().end()) {
+          return LAN;
+        }
       }
     }
 
