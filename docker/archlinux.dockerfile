@@ -11,7 +11,7 @@ FROM ${BASE}:${TAG} AS sunshine-base
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --disable-download-timeout  --needed --noconfirm \
+pacman -Syu --disable-download-timeout --needed --noconfirm \
   archlinux-keyring
 _DEPS
 
@@ -102,6 +102,9 @@ COPY --link --from=artifacts /sunshine.pkg.tar.zst /
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
+# update keyring to prevent cached keyring errors
+pacman -Syu --disable-download-timeout --needed --noconfirm \
+  archlinux-keyring
 pacman -U --disable-download-timeout --needed --noconfirm \
   /sunshine.pkg.tar.zst
 _INSTALL_SUNSHINE
