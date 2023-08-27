@@ -1377,7 +1377,7 @@ namespace video {
     auto &video_format = config.videoFormat == 0 ? encoder.h264 :
                          config.videoFormat == 1 ? encoder.hevc :
                                                    encoder.av1;
-    if (!video_format[encoder_t::PASSED]) {
+    if (!video_format[encoder_t::PASSED] || !disp->is_codec_supported(video_format.name, config)) {
       BOOST_LOG(error) << encoder.name << ": "sv << video_format.name << " mode not supported"sv;
       return nullptr;
     }
@@ -2241,11 +2241,8 @@ namespace video {
       BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] failed"sv;
     });
 
-    auto force_hevc = active_hevc_mode >= 2;
-    auto test_hevc = force_hevc || (active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
-
-    auto force_av1 = active_av1_mode >= 2;
-    auto test_av1 = force_av1 || (active_av1_mode == 0 && !(encoder.flags & H264_ONLY));
+    auto test_hevc = active_hevc_mode >= 2 || (active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
+    auto test_av1 = active_av1_mode >= 2 || (active_av1_mode == 0 && !(encoder.flags & H264_ONLY));
 
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
@@ -2254,6 +2251,17 @@ namespace video {
     // First, test encoder viability
     config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
     config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
+
+    // If the encoder isn't supported at all (not even H.264), bail early
+    reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, config_autoselect);
+    if (!disp) {
+      return false;
+    }
+    if (!disp->is_codec_supported(encoder.h264.name, config_autoselect)) {
+      fg.disable();
+      BOOST_LOG(info) << "Encoder ["sv << encoder.name << "] is not supported on this GPU"sv;
+      return false;
+    }
 
   retry:
     // If we're expecting failure, use the autoselect ref config first since that will always succeed
@@ -2289,29 +2297,28 @@ namespace video {
       config_max_ref_frames.videoFormat = 1;
       config_autoselect.videoFormat = 1;
 
-    retry_hevc:
-      auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
-      auto autoselect_hevc = max_ref_frames_hevc >= 0 ? max_ref_frames_hevc : validate_config(disp, encoder, config_autoselect);
-      if (autoselect_hevc < 0) {
-        if (encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
+      if (disp->is_codec_supported(encoder.hevc.name, config_autoselect)) {
+      retry_hevc:
+        auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
+        auto autoselect_hevc = max_ref_frames_hevc >= 0 ? max_ref_frames_hevc : validate_config(disp, encoder, config_autoselect);
+        if (autoselect_hevc < 0 && encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
           // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
           encoder.hevc.capabilities.set();
           encoder.hevc[encoder_t::CBR] = false;
           goto retry_hevc;
         }
 
-        // If HEVC must be supported, but it is not supported
-        if (force_hevc) {
-          return false;
+        for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
+          encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
         }
-      }
 
-      for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-        encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
+        encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
+        encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
       }
-
-      encoder.hevc[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_hevc >= 0;
-      encoder.hevc[encoder_t::PASSED] = max_ref_frames_hevc >= 0 || autoselect_hevc >= 0;
+      else {
+        BOOST_LOG(info) << "Encoder ["sv << encoder.hevc.name << "] is not supported on this GPU"sv;
+        encoder.hevc.capabilities.reset();
+      }
     }
     else {
       // Clear all cap bits for HEVC if we didn't probe it
@@ -2322,29 +2329,28 @@ namespace video {
       config_max_ref_frames.videoFormat = 2;
       config_autoselect.videoFormat = 2;
 
-    retry_av1:
-      auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
-      auto autoselect_av1 = max_ref_frames_av1 >= 0 ? max_ref_frames_av1 : validate_config(disp, encoder, config_autoselect);
-      if (autoselect_av1 < 0) {
-        if (encoder.av1.qp && encoder.av1[encoder_t::CBR]) {
+      if (disp->is_codec_supported(encoder.av1.name, config_autoselect)) {
+      retry_av1:
+        auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
+        auto autoselect_av1 = max_ref_frames_av1 >= 0 ? max_ref_frames_av1 : validate_config(disp, encoder, config_autoselect);
+        if (autoselect_av1 < 0 && encoder.av1.qp && encoder.av1[encoder_t::CBR]) {
           // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
           encoder.av1.capabilities.set();
           encoder.av1[encoder_t::CBR] = false;
           goto retry_av1;
         }
 
-        // If AV1 must be supported, but it is not supported
-        if (force_av1) {
-          return false;
+        for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
+          encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
         }
-      }
 
-      for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
-        encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
+        encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
+        encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
       }
-
-      encoder.av1[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_av1 >= 0;
-      encoder.av1[encoder_t::PASSED] = max_ref_frames_av1 >= 0 || autoselect_av1 >= 0;
+      else {
+        BOOST_LOG(info) << "Encoder ["sv << encoder.av1.name << "] is not supported on this GPU"sv;
+        encoder.av1.capabilities.reset();
+      }
     }
     else {
       // Clear all cap bits for AV1 if we didn't probe it
@@ -2408,6 +2414,27 @@ namespace video {
     active_av1_mode = config::video.av1_mode;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
+    auto adjust_encoder_constraints = [&](encoder_t *encoder) {
+      // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
+      if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Main10 on this system"sv;
+        active_hevc_mode = 0;
+      }
+      else if (active_hevc_mode == 2 && !encoder->hevc[encoder_t::PASSED]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC on this system"sv;
+        active_hevc_mode = 0;
+      }
+
+      if (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 on this system"sv;
+        active_av1_mode = 0;
+      }
+      else if (active_av1_mode == 2 && !encoder->av1[encoder_t::PASSED]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 on this system"sv;
+        active_av1_mode = 0;
+      }
+    };
+
     if (!config::video.encoder.empty()) {
       // If there is a specific encoder specified, use it if it passes validation
       KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
@@ -2420,15 +2447,8 @@ namespace video {
             break;
           }
 
-          // If we can't satisfy both the encoder and HDR requirement, prefer the encoder over HDR support
-          if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
-            BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support HEVC Main10 on this system"sv;
-            active_hevc_mode = 0;
-          }
-          if (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE]) {
-            BOOST_LOG(warning) << "Encoder ["sv << config::video.encoder << "] does not support AV1 Main10 on this system"sv;
-            active_av1_mode = 0;
-          }
+          // We will return an encoder here even if it fails one of the codec requirements specified by the user
+          adjust_encoder_constraints(encoder);
 
           chosen_encoder = encoder;
           break;
@@ -2444,8 +2464,8 @@ namespace video {
 
     BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
-    // If we haven't found an encoder yet, but we want one with HDR support, search for that now.
-    if (chosen_encoder == nullptr && (active_hevc_mode == 3 || active_av1_mode == 3)) {
+    // If we haven't found an encoder yet, but we want one with specific codec support, search for that now.
+    if (chosen_encoder == nullptr && (active_hevc_mode >= 2 || active_av1_mode >= 2)) {
       KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
@@ -2455,7 +2475,14 @@ namespace video {
           continue;
         }
 
-        // Skip it if it doesn't support HDR
+        // Skip it if it doesn't support the specified codec at all
+        if ((active_hevc_mode >= 2 && !encoder->hevc[encoder_t::PASSED]) ||
+            (active_av1_mode >= 2 && !encoder->av1[encoder_t::PASSED])) {
+          pos++;
+          continue;
+        }
+
+        // Skip it if it doesn't support HDR on the specified codec
         if ((active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) ||
             (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE])) {
           pos++;
@@ -2467,7 +2494,7 @@ namespace video {
       });
 
       if (chosen_encoder == nullptr) {
-        BOOST_LOG(error) << "Couldn't find any working HDR-capable encoder"sv;
+        BOOST_LOG(error) << "Couldn't find any working encoder that meets HEVC/AV1 requirements"sv;
       }
     }
 
@@ -2484,6 +2511,9 @@ namespace video {
           pos = encoder_list.erase(pos);
           continue;
         }
+
+        // We will return an encoder here even if it fails one of the codec requirements specified by the user
+        adjust_encoder_constraints(encoder);
 
         chosen_encoder = encoder;
         break;

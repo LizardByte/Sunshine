@@ -796,7 +796,7 @@ hevc_mode
    =====     ===========
    Value     Description
    =====     ===========
-   0         advertise support for HEVC based on encoder
+   0         advertise support for HEVC based on encoder capabilities (recommended)
    1         do not advertise support for HEVC
    2         advertise support for HEVC Main profile
    3         advertise support for HEVC Main and Main10 (HDR) profiles
@@ -827,7 +827,7 @@ av1_mode
    =====     ===========
    Value     Description
    =====     ===========
-   0         advertise support for AV1 based on encoder
+   0         advertise support for AV1 based on encoder capabilities (recommended)
    1         do not advertise support for AV1
    2         advertise support for AV1 Main 8-bit profile
    3         advertise support for AV1 Main 8-bit and 10-bit (HDR) profiles
