@@ -65,6 +65,7 @@ namespace config {
     std::string adapter_name;
     std::string output_name;
     bool dwmflush;
+    bool point_filtering;
   };
 
   struct audio_t {

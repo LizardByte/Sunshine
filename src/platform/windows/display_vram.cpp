@@ -22,6 +22,7 @@ extern "C" {
 #include "src/nvenc/nvenc_d3d11.h"
 #include "src/nvenc/nvenc_utils.h"
 #include "src/video.h"
+#include "src/config.h"
 
 #include <AMF/core/Factory.h>
 
@@ -624,8 +625,14 @@ namespace platf::dxgi {
         return -1;
       }
 
+      D3D11_FILTER filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+      if (config::video.point_filtering)
+      {
+        filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+      }
+
       D3D11_SAMPLER_DESC sampler_desc {};
-      sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+      sampler_desc.Filter = filter;
       sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
       sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
       sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -1328,8 +1335,14 @@ namespace platf::dxgi {
       return -1;
     }
 
+    D3D11_FILTER filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    if (config::video.point_filtering)
+    {
+      filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    }
+
     D3D11_SAMPLER_DESC sampler_desc {};
-    sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler_desc.Filter = filter;
     sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
     sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;

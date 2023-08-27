@@ -434,6 +434,21 @@ dwmflush
 
       dwmflush = enabled
 
+point_filtering
+^^^^^^^^^^^^^^^
+
+**Description**
+   Enable nearest point filtering for scaling from captured screen to streamed video.
+   May be useful for retro games or pixel-perfect streaming to low-resolution devices (PlayStation Vita, for example).
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      point_filtering = enabled
+
 Audio
 -----
 
