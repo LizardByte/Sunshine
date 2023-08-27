@@ -120,29 +120,30 @@ namespace platf::dxgi {
 
   capture_e
   display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
-    auto calculate_client_frame_interval = [&]() -> std::chrono::nanoseconds {
-      double display_frame_rate = (double) display_refresh_rate.Numerator / display_refresh_rate.Denominator;
-
-      double client_frame_rate_adjusted;
-      if (client_frame_rate >= display_frame_rate) {
-        client_frame_rate_adjusted = display_frame_rate * std::round(client_frame_rate / display_frame_rate);
-      }
-      else {
-        client_frame_rate_adjusted = display_frame_rate / std::round(display_frame_rate / client_frame_rate);
-      }
-
+    auto adjust_client_frame_rate = [&]() -> DXGI_RATIONAL {
       // Adjust capture frame interval when display refresh rate is not integral but very close to requested fps.
-      // Can only decrease requested fps, otherwise client may start accumulating frames and suffer increased latency.
-      if (client_frame_rate > client_frame_rate_adjusted && client_frame_rate_adjusted / client_frame_rate > 0.99) {
-        BOOST_LOG(info) << "Adjusted capture rate to " << client_frame_rate_adjusted << "fps to better match display";
-        return std::chrono::nanoseconds(std::llround(std::nano::den / client_frame_rate_adjusted));
+      if (display_refresh_rate.Denominator > 1) {
+        DXGI_RATIONAL candidate = display_refresh_rate;
+        if (client_frame_rate % display_refresh_rate_rounded == 0) {
+          candidate.Numerator *= client_frame_rate / display_refresh_rate_rounded;
+        }
+        else if (display_refresh_rate_rounded % client_frame_rate == 0) {
+          candidate.Denominator *= display_refresh_rate_rounded / client_frame_rate;
+        }
+        double candidate_rate = (double) candidate.Numerator / candidate.Denominator;
+        // Can only decrease requested fps, otherwise client may start accumulating frames and suffer increased latency.
+        if (client_frame_rate > candidate_rate && candidate_rate / client_frame_rate > 0.99) {
+          BOOST_LOG(info) << "Adjusted capture rate to " << candidate_rate << "fps to better match display";
+          return candidate;
+        }
       }
 
-      return std::chrono::nanoseconds(1s) / client_frame_rate;
+      return { (uint32_t) client_frame_rate, 1 };
     };
 
-    const auto client_frame_interval = calculate_client_frame_interval();
-    std::optional<std::chrono::steady_clock::time_point> next_frame_time;
+    DXGI_RATIONAL client_frame_rate_adjusted = adjust_client_frame_rate();
+    std::optional<std::chrono::steady_clock::time_point> frame_pacing_group_start;
+    uint32_t frame_pacing_group_frames = 0;
 
     // Keep the display awake during capture. If the display goes to sleep during
     // capture, best case is that capture stops until it powers back on. However,
@@ -167,12 +168,18 @@ namespace platf::dxgi {
       std::shared_ptr<img_t> img_out;
 
       // Try to continue frame pacing group, snapshot() is called with zero timeout after waiting for client frame interval
-      if (next_frame_time) {
-        const auto sleep_period = *next_frame_time - std::chrono::steady_clock::now();
+      if (frame_pacing_group_start) {
+        const uint32_t seconds = (uint64_t) frame_pacing_group_frames * client_frame_rate_adjusted.Denominator / client_frame_rate_adjusted.Numerator;
+        const uint32_t remainder = (uint64_t) frame_pacing_group_frames * client_frame_rate_adjusted.Denominator % client_frame_rate_adjusted.Numerator;
+        const auto sleep_target = *frame_pacing_group_start +
+                                  std::chrono::nanoseconds(1s) * seconds +
+                                  std::chrono::nanoseconds(1s) * remainder / client_frame_rate_adjusted.Numerator;
+        const auto sleep_period = sleep_target - std::chrono::steady_clock::now();
 
         if (sleep_period <= 0ns) {
           // We missed next frame time, invalidating current frame pacing group
-          next_frame_time = std::nullopt;
+          frame_pacing_group_start = std::nullopt;
+          frame_pacing_group_frames = 0;
           status = capture_e::timeout;
         }
         else {
@@ -184,34 +191,35 @@ namespace platf::dxgi {
               auto f = stat_trackers::one_digit_after_decimal();
               BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
             };
-            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - *next_frame_time;
+            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - sleep_target;
             sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
           }
 
           status = snapshot(pull_free_image_cb, img_out, 0ms, *cursor);
 
           if (status == capture_e::ok && img_out) {
-            *next_frame_time += client_frame_interval;
+            frame_pacing_group_frames += 1;
           }
           else {
-            next_frame_time = std::nullopt;
+            frame_pacing_group_start = std::nullopt;
+            frame_pacing_group_frames = 0;
           }
         }
       }
 
       // Start new frame pacing group if necessary, snapshot() is called with non-zero timeout
-      if (status == capture_e::timeout || (status == capture_e::ok && !next_frame_time)) {
+      if (status == capture_e::timeout || (status == capture_e::ok && !frame_pacing_group_start)) {
         status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
 
         if (status == capture_e::ok && img_out) {
-          next_frame_time = img_out->frame_timestamp;
+          frame_pacing_group_start = img_out->frame_timestamp;
 
-          if (!next_frame_time) {
+          if (!frame_pacing_group_start) {
             BOOST_LOG(warning) << "snapshot() provided image without timestamp";
-            next_frame_time = std::chrono::steady_clock::now();
+            frame_pacing_group_start = std::chrono::steady_clock::now();
           }
 
-          *next_frame_time += client_frame_interval;
+          frame_pacing_group_frames = 1;
         }
       }
 
