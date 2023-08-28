@@ -257,8 +257,8 @@ namespace stream {
   class control_server_t {
   public:
     int
-    bind(std::uint16_t port) {
-      _host = net::host_create(_addr, config::stream.channels, port);
+    bind(net::af_e address_family, std::uint16_t port) {
+      _host = net::host_create(address_family, _addr, config::stream.channels, port);
 
       return !(bool) _host;
     }
@@ -1442,39 +1442,41 @@ namespace stream {
 
   int
   start_broadcast(broadcast_ctx_t &ctx) {
+    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
     auto control_port = map_port(CONTROL_PORT);
     auto video_port = map_port(VIDEO_STREAM_PORT);
     auto audio_port = map_port(AUDIO_STREAM_PORT);
 
-    if (ctx.control_server.bind(control_port)) {
+    if (ctx.control_server.bind(address_family, control_port)) {
       BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
 
       return -1;
     }
 
     boost::system::error_code ec;
-    ctx.video_sock.open(udp::v4(), ec);
+    ctx.video_sock.open(protocol, ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.video_sock.bind(udp::endpoint(udp::v4(), video_port), ec);
+    ctx.video_sock.bind(udp::endpoint(protocol, video_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.audio_sock.open(udp::v4(), ec);
+    ctx.audio_sock.open(protocol, ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't open socket for Audio server: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.audio_sock.bind(udp::endpoint(udp::v4(), audio_port), ec);
+    ctx.audio_sock.bind(udp::endpoint(protocol, audio_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
 

@@ -413,27 +413,6 @@ resolutions
         3840x1600,
       ]
 
-dwmflush
-^^^^^^^^
-
-**Description**
-   Invoke DwmFlush() to sync screen capture to the Windows presentation interval.
-
-   .. Caution:: Applies to Windows only. Alleviates visual stuttering during mouse movement.
-      If enabled, this feature will automatically deactivate if the client framerate exceeds
-      the host monitor's current refresh rate.
-
-   .. Note:: If you disable this option, you may see video stuttering during mouse movement in certain scenarios.
-      It is recommended to leave enabled when possible.
-
-**Default**
-   ``enabled``
-
-**Example**
-   .. code-block:: text
-
-      dwmflush = enabled
-
 Audio
 -----
 
@@ -577,6 +556,30 @@ port
    .. code-block:: text
 
       port = 47989
+
+address_family
+^^^^^^^^^^^^^^
+
+**Description**
+   Set the address family that Sunshine will use.
+
+.. table::
+   :widths: auto
+
+   =====     ===========
+   Value     Description
+   =====     ===========
+   ipv4      IPv4 only
+   both      IPv4+IPv6
+   =====     ===========
+
+**Default**
+   ``ipv4``
+
+**Example**
+   .. code-block:: text
+
+      address_family = both
 
 pkey
 ^^^^

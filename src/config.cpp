@@ -438,7 +438,6 @@ namespace config {
     {},  // encoder
     {},  // adapter_name
     {},  // output_name
-    true  // dwmflush
   };
 
   audio_t audio {
@@ -512,7 +511,8 @@ namespace config {
     {},  // Password Salt
     platf::appdata().string() + "/sunshine.conf",  // config file
     {},  // cmd args
-    47989,
+    47989,  // Base port number
+    "ipv4",  // Address family
     platf::appdata().string() + "/sunshine.log",  // log file
     {},  // prep commands
   };
@@ -1034,7 +1034,6 @@ namespace config {
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
-    bool_f(vars, "dwmflush", video.dwmflush);
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -1111,6 +1110,8 @@ namespace config {
     int port = sunshine.port;
     int_f(vars, "port"s, port);
     sunshine.port = (std::uint16_t) port;
+
+    string_restricted_f(vars, "address_family", sunshine.address_family, { "ipv4"sv, "both"sv });
 
     bool upnp = false;
     bool_f(vars, "upnp"s, upnp);

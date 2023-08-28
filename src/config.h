@@ -64,7 +64,6 @@ namespace config {
     std::string encoder;
     std::string adapter_name;
     std::string output_name;
-    bool dwmflush;
   };
 
   struct audio_t {
@@ -156,6 +155,8 @@ namespace config {
     } cmd;
 
     std::uint16_t port;
+    std::string address_family;
+
     std::string log_file;
 
     std::vector<prep_cmd_t> prep_cmds;

@@ -92,6 +92,84 @@ namespace upnp {
     }
 
     /**
+     * @brief Opens pinholes for IPv6 traffic if the IGD is capable.
+     * @details Not many IGDs support this feature, so we perform error logging with debug level.
+     * @return true if the pinholes were opened successfully.
+     */
+    bool
+    create_ipv6_pinholes() {
+      int err;
+      device_t device { upnpDiscover(2000, nullptr, nullptr, 0, IPv6, 2, &err) };
+      if (!device || err) {
+        BOOST_LOG(debug) << "Couldn't discover any IPv6 UPNP devices"sv;
+        return false;
+      }
+
+      IGDdatas data;
+      urls_t urls;
+      std::array<char, INET6_ADDRESS_STRLEN> lan_addr;
+      auto status = UPNP_GetValidIGD(device.get(), &urls.el, &data, lan_addr.data(), lan_addr.size());
+      if (status != 1 && status != 2) {
+        BOOST_LOG(debug) << "No valid IPv6 IGD: "sv << status_string(status);
+        return false;
+      }
+
+      if (data.IPv6FC.controlurl[0] != 0) {
+        int firewallEnabled, pinholeAllowed;
+
+        // Check if this firewall supports IPv6 pinholes
+        err = UPNP_GetFirewallStatus(urls->controlURL_6FC, data.IPv6FC.servicetype, &firewallEnabled, &pinholeAllowed);
+        if (err == UPNPCOMMAND_SUCCESS) {
+          BOOST_LOG(debug) << "UPnP IPv6 firewall control available. Firewall is "sv
+                           << (firewallEnabled ? "enabled"sv : "disabled"sv)
+                           << ", pinhole is "sv
+                           << (pinholeAllowed ? "allowed"sv : "disallowed"sv);
+
+          if (pinholeAllowed) {
+            // Create pinholes for each port
+            auto mapping_period = std::to_string(PORT_MAPPING_LIFETIME.count());
+            auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+
+            for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
+              auto mapping = *it;
+              char uniqueId[8];
+
+              // Open a pinhole for the LAN port, since there will be no WAN->LAN port mapping on IPv6
+              err = UPNP_AddPinhole(urls->controlURL_6FC,
+                data.IPv6FC.servicetype,
+                "", "0",
+                lan_addr.data(),
+                mapping.port.lan.c_str(),
+                mapping.port.proto.c_str(),
+                mapping_period.c_str(),
+                uniqueId);
+              if (err == UPNPCOMMAND_SUCCESS) {
+                BOOST_LOG(debug) << "Successfully created pinhole for "sv << mapping.port.proto << ' ' << mapping.port.lan;
+              }
+              else {
+                BOOST_LOG(debug) << "Failed to create pinhole for "sv << mapping.port.proto << ' ' << mapping.port.lan << ": "sv << err;
+              }
+            }
+
+            return err == 0;
+          }
+          else {
+            BOOST_LOG(debug) << "IPv6 pinholes are not allowed by the IGD"sv;
+            return false;
+          }
+        }
+        else {
+          BOOST_LOG(debug) << "Failed to get IPv6 firewall status: "sv << err;
+          return false;
+        }
+      }
+      else {
+        BOOST_LOG(debug) << "IPv6 Firewall Control is not supported by the IGD"sv;
+        return false;
+      }
+    }
+
+    /**
      * @brief Maps a port via UPnP.
      * @param data IGDdatas from UPNP_GetValidIGD()
      * @param urls urls_t from UPNP_GetValidIGD()
@@ -232,6 +310,7 @@ namespace upnp {
       bool mapped = false;
       IGDdatas data;
       urls_t mapped_urls;
+      auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
       // Refresh UPnP rules every few minutes. They can be lost if the router reboots,
       // WAN IP address changes, or various other conditions.
@@ -239,7 +318,7 @@ namespace upnp {
         int err = 0;
         device_t device { upnpDiscover(2000, nullptr, nullptr, 0, IPv4, 2, &err) };
         if (!device || err) {
-          BOOST_LOG(warning) << "Couldn't discover any UPNP devices"sv;
+          BOOST_LOG(warning) << "Couldn't discover any IPv4 UPNP devices"sv;
           mapped = false;
           continue;
         }
@@ -268,6 +347,14 @@ namespace upnp {
 
         if (!mapped) {
           BOOST_LOG(info) << "Completed UPnP port mappings to "sv << lan_addr_str << " via "sv << urls->rootdescURL;
+        }
+
+        // If we are listening on IPv6 and the IGD has an IPv6 firewall enabled, try to create IPv6 firewall pinholes
+        if (address_family == net::af_e::BOTH) {
+          if (create_ipv6_pinholes() && !mapped) {
+            // Only log the first time through
+            BOOST_LOG(info) << "Successfully opened IPv6 pinholes on the IGD"sv;
+          }
         }
 
         mapped = true;
