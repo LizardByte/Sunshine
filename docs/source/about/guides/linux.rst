@@ -3,19 +3,19 @@ Linux
 
 Collection of Sunshine Linux host guides.
 
-Remote SSH Headless Setup
--------------------------
-Author: *Eric Dong*  
-
-Difficulty: *Intermediate*
+Remote SSH Headless Setup (Experimental)
+----------------------------------------
+Author: *Eric Dong* | Difficulty: *Intermediate*
 
 This is a guide to setup remote SSH into host to startup X server and sunshine without physical login and dummy plug.
 The virtual display is accelerated by the NVidia GPU using the TwinView configuration.
 
 .. Attention::
-	This guide is specific for Xorg and NVidia GPUs. I start the X server using the ``startx`` command.
-	I also only tested this on an Artix runit init system on LAN.
-	I didn't have to do anything special with pulseaudio (pipewire untested).
+    This guide is specific for Xorg and NVidia GPUs. I start the X server using the ``startx`` command.
+    I also only tested this on an Artix runit init system on LAN.
+    I didn't have to do anything special with pulseaudio (pipewire untested).
+    
+    Keep your monitors plugged in until the `checkpoint step <#checkpoint>`_
 
 .. tip:: 
 	Prior to editing any system configurations, you should make a copy of the original file.
@@ -52,7 +52,7 @@ We will be setting up:
 #. `SSH Server setup <ssh server setup_>`_
 #. `Virtual Display Acceleration via NVIDIA's TwinView X11 Config <virtual display setup_>`_
 #. `Script for uinput permission workaround <uinput permissions workaround_>`_
-#. `Script to put everything together to startup X server and Sunshine <putting everything together_>`_
+#. `Script to put everything together to startup X server and Sunshine <stream launcher script_>`_
 
 
 Static IP Setup
@@ -114,6 +114,12 @@ Starting the X server in the background and exiting out of the console would cau
 	According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ 
 	disabling PAM increases security, but reduces certain functionality in terms of session handling. 
 	*Do so at your own risk!*
+
+Edit the ``sshd_config`` file with the following to disable PAM
+
+.. code-block:: sh
+
+   usePAM no
 
 After making changes to the sshd_config, restart the sshd service for changes to take into effect.
 
@@ -193,6 +199,13 @@ There is no need to buy a dummy plugin, when you can just use this config to get
 Uinput Permissions Workaround
 +++++++++++++++++++++++++++++
 
+**Steps**
+
+We can use chown to change the permissions from a script. Since this requires ``sudo``, we will need to update the sudo configuration to execute this without being prompted for a password.
+
+#. Create a ``sunshine-setup.sh`` script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
+#. Update user sudo configuration ``/etc/sudoers.d/<user>`` to execute the ``sunshine-setup.sh`` script.
+
 .. admonition:: Why is this necessary?
 	:class: important
 
@@ -201,13 +214,6 @@ Uinput Permissions Workaround
 	So I asked `reddit <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`_.
 	I discovered that SSH sessions are not the same as a physical login.
 	I suppose it's not possible for SSH to trigger a udev rule.
-
-**Script**
-
-Two scripts will need to be written to get this setup
-
-#. sunshine-setup script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
-#. Script that will run the sunshine-setup script, start up X server, and sunshine. *This is your wrapper entrypoint script that the ssh client will run to start streaming with sunshine*.
 
 **Setup Script**
 
@@ -224,6 +230,8 @@ Create a script named something like ``sunshine-setup.sh``:
 	# use rfkill list to get the id of the Wiresless LAN
 	# rfkill block <wireless_lan_index>
 
+**Sudo Configuration**
+
 We will manually change the permissions of ``/dev/uinput`` using ``chown``.
 You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/<user>``
 
@@ -232,8 +240,10 @@ You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/
 	Be very careful of messing this config up.
 
 .. warning::
-	IF YOU MAKE A TYPO, YOU LOSE THE ABILITY TO USE SUDO. Fortunately, your system is not borked,
-	you will need to login as root to fix the config.
+	If you make a typo, *YOU LOSE THE ABILITY TO USE SUDO*. Fortunately, your system is not borked,
+	you will need to login as root to fix the config. You may want to setup a backup user / SSH into the host as root to fix the config if this happens. Otherwise you will need to plug your machine back into a monitor and login as root to fix this. To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
+
+Replace ``<user>`` with your user:
 
 .. code-block::
 
@@ -243,42 +253,49 @@ These changes allow the script to use sudo without being prompted with a passwor
 
 E.g. ``sudo /path/to/sunshine-setup.sh``
 
-Putting Everything Together
-+++++++++++++++++++++++++++
+
+Stream Launcher Script
+++++++++++++++++++++++
+
+This is the main entrypoint script that will run the sunshine-setup script, start up X server, and sunshine. *This is your wrapper entrypoint script that the ssh client will run to start streaming with sunshine*.
+
 
 **Sunshine Startup Script**
 
+This guide will refer to this script as ``~/scripts/sunshine.sh``
+
 .. code-block:: sh
 
-	#!/bin/bash
+    #!/bin/bash
 
-	export DISPLAY=:0
+    export DISPLAY=:0
 
-	# Check existing X server
-	ps -e | grep X >/dev/null
-	[[ ${?} -ne 0 ]] && {
+    # Check existing X server
+    ps -e | grep X >/dev/null
+    [[ ${?} -ne 0 ]] && {
 	  echo "Starting X server"
 	  startx &>/dev/null &
 	  [[ ${?} -eq 0 ]] && {
 	    echo "X server started successfully"
 	  } || echo "X server failed to start"
-	} || echo "X server already running"
+    } || echo "X server already running"
 
-	# Check if sunshine is already running
-	ps -e | grep -e .*sunshine$ >/dev/null
-	[[ ${?} -ne 0 ]] && {
+    # Check if sunshine is already running
+    ps -e | grep -e .*sunshine$ >/dev/null
+    [[ ${?} -ne 0 ]] && {
 	  sudo ~/scripts/sunshine-setup.sh
-	  sleep 1
 	  echo "Starting Sunshine!"
 	  sunshine > /dev/null &
 	  [[ ${?} -eq 0 ]] && {
 	    echo "Sunshine started successfully"
 	  } || echo "Sunshine failed to start"
-	} || echo "Sunshine is already running"
+    } || echo "Sunshine is already running"
 
-	# Add any other Programs that you want to startup automatically
-	# steam &> /dev/null &
-	# firefox &
+    # Add any other Programs that you want to startup automatically
+    # E.g.
+    # steam &> /dev/null &
+    # firefox &> /dev/null &
+    # kdeconnect-app &> /dev/null &
 
 ----
 
@@ -288,7 +305,7 @@ SSH Client Setup
 We will be setting up:
 
 #. `SSH key generation <ssh key authentication setup_>`_
-#. `Script to SSH into host to execute sunshine start up script <ssh client script_>`_
+#. `Script to SSH into host to execute sunshine start up script (optional) <ssh client script (optional)_>`_
 
 SSH Key Authentication Setup
 +++++++++++++++++++++++++++++
@@ -306,22 +323,47 @@ SSH Key Authentication Setup
    Now you can use ``ssh <some_alias>``.  
    ``ssh <some_alias> <commands/script>`` will execute the command or script on the remote host.
 
-SSH Client Script
-+++++++++++++++++
-This bash script will automate the startup of the X server and Sunshine on the host.
+Checkpoint
+++++++++++
+
+Let's make sure your setup is working so far!
+
+**Test Steps**
+
+With your monitor still plugged into your PC:
+
+#. ``ssh <alias>``
+#. ``~/scripts/sunshine.sh``
+#. ``nvidia-smi``
+
+   You should see the sunshine and Xorg processing running:
+
+   .. code-block::
+    
+       # TODO Add nvidia-smi output here
+#. Connect to host from a moonlight client
+
+*Now unplug your monitors and repeat steps 1 - 4*
+
+
+SSH Client Script (Optional)
+++++++++++++++++++++++++++++
+
+At this point you have a working setup! For convience I created this bash script to automate the startup of the X server and Sunshine on the host.
 This can be run on linux / macOS system.
 On Windows, this can be run inside a ``git-bash``
 
-For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android and ``ISH`` for IOS 
+For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android and ``ISH`` for IOS. The neat part is that you can execute one script to launch sunshine from your phone / tablet!
 
 .. code-block:: sh
 
 	#!/bin/bash
 
-	ssh_args="eric@192.168.1.3"
+	ssh_args="<user>@192.168.X.X" # Or use alias set in ~/.ssh/config
 
 	check_ssh(){
 	  result=1
+      # Note this checks infinitely, you could update this to have a max # of retries
 	  while [[ $result -ne 0 ]]
 	  do
 	    echo "checking host..."
@@ -338,6 +380,7 @@ For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android a
 	start_stream(){
 	  echo "Starting sunshine server on host..."
 	  echo "Start moonlight on your client of choice"
+      # -f runs ssh in the background
 	  ssh -f $ssh_args "~/scripts/sunshine.sh &"
 	}
 
@@ -352,3 +395,6 @@ Done
 ^^^^
 
 Congrats you can now stream your desktop headless! When trying this the first time, keep your monitors close by incase something isn't working right.
+
+If you have any feedback and any suggestions, feel free to make a post on Discord!
+
