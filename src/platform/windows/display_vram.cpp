@@ -16,8 +16,16 @@ extern "C" {
 
 #include "display.h"
 #include "misc.h"
+#include "src/config.h"
 #include "src/main.h"
+#include "src/nvenc/nvenc_config.h"
+#include "src/nvenc/nvenc_d3d11.h"
+#include "src/nvenc/nvenc_utils.h"
 #include "src/video.h"
+
+#include <AMF/core/Factory.h>
+
+#include <boost/algorithm/string/predicate.hpp>
 
 #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"
 namespace platf {
@@ -361,10 +369,10 @@ namespace platf::dxgi {
     return compile_shader(file, "main_vs", "vs_5_0");
   }
 
-  class hwdevice_t: public platf::hwdevice_t {
+  class d3d_base_encode_device final {
   public:
     int
-    convert(platf::img_t &img_base) override {
+    convert(platf::img_t &img_base) {
       // Garbage collect mapped capture images whose weak references have expired
       for (auto it = img_ctx_map.begin(); it != img_ctx_map.end();) {
         if (it->second.img_weak.expired()) {
@@ -413,28 +421,15 @@ namespace platf::dxgi {
     }
 
     void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
-      switch (colorspace) {
-        case 5:  // SWS_CS_SMPTE170M
-          color_p = &::video::colors[0];
-          break;
-        case 1:  // SWS_CS_ITU709
-          color_p = &::video::colors[2];
-          break;
-        case 9:  // SWS_CS_BT2020
-          color_p = &::video::colors[4];
-          break;
-        default:
-          BOOST_LOG(warning) << "Colorspace: ["sv << colorspace << "] not yet supported: switching to default"sv;
-          color_p = &::video::colors[0];
-      };
+    apply_colorspace(const ::video::sunshine_colorspace_t &colorspace) {
+      auto color_vectors = ::video::color_vectors_from_colorspace(colorspace);
 
-      if (color_range > 1) {
-        // Full range
-        ++color_p;
+      if (!color_vectors) {
+        BOOST_LOG(error) << "No vector data for colorspace"sv;
+        return;
       }
 
-      auto color_matrix = make_buffer((device_t::pointer) data, *color_p);
+      auto color_matrix = make_buffer(device.get(), *color_vectors);
       if (!color_matrix) {
         BOOST_LOG(warning) << "Failed to create color matrix"sv;
         return;
@@ -445,78 +440,14 @@ namespace platf::dxgi {
       this->color_matrix = std::move(color_matrix);
     }
 
-    void
-    init_hwframes(AVHWFramesContext *frames) override {
-      // We may be called with a QSV or D3D11VA context
-      if (frames->device_ctx->type == AV_HWDEVICE_TYPE_D3D11VA) {
-        auto d3d11_frames = (AVD3D11VAFramesContext *) frames->hwctx;
-
-        // The encoder requires textures with D3D11_BIND_RENDER_TARGET set
-        d3d11_frames->BindFlags = D3D11_BIND_RENDER_TARGET;
-        d3d11_frames->MiscFlags = 0;
-      }
-
-      // We require a single texture
-      frames->initial_pool_size = 1;
-    }
-
     int
-    prepare_to_derive_context(int hw_device_type) override {
-      // QuickSync requires our device to be multithread-protected
-      if (hw_device_type == AV_HWDEVICE_TYPE_QSV) {
-        multithread_t mt;
+    init_output(ID3D11Texture2D *frame_texture, int width, int height) {
+      // The underlying frame pool owns the texture, so we must reference it for ourselves
+      frame_texture->AddRef();
+      output_texture.reset(frame_texture);
 
-        auto status = device->QueryInterface(IID_ID3D11Multithread, (void **) &mt);
-        if (FAILED(status)) {
-          BOOST_LOG(warning) << "Failed to query ID3D11Multithread interface from device [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
-
-        mt->SetMultithreadProtected(TRUE);
-      }
-
-      return 0;
-    }
-
-    int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
-      this->hwframe.reset(frame);
-      this->frame = frame;
-
-      // Populate this frame with a hardware buffer if one isn't there already
-      if (!frame->buf[0]) {
-        auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
-        if (err) {
-          char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-          BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
-          return -1;
-        }
-      }
-
-      // If this is a frame from a derived context, we'll need to map it to D3D11
-      ID3D11Texture2D *frame_texture;
-      if (frame->format != AV_PIX_FMT_D3D11) {
-        frame_t d3d11_frame { av_frame_alloc() };
-
-        d3d11_frame->format = AV_PIX_FMT_D3D11;
-
-        auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
-        if (err) {
-          char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-          BOOST_LOG(error) << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
-          return -1;
-        }
-
-        // Get the texture from the mapped frame
-        frame_texture = (ID3D11Texture2D *) d3d11_frame->data[0];
-      }
-      else {
-        // Otherwise, we can just use the texture inside the original frame
-        frame_texture = (ID3D11Texture2D *) frame->data[0];
-      }
-
-      auto out_width = frame->width;
-      auto out_height = frame->height;
+      auto out_width = width;
+      auto out_height = height;
 
       float in_width = display->width;
       float in_height = display->height;
@@ -533,10 +464,6 @@ namespace platf::dxgi {
       outY_view = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
       outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
-      // The underlying frame pool owns the texture, so we must reference it for ourselves
-      frame_texture->AddRef();
-      hwframe_texture.reset(frame_texture);
-
       float info_in[16 / sizeof(float)] { 1.0f / (float) out_width_f };  // aligned to 16-byte
       info_scene = make_buffer(device.get(), info_in);
 
@@ -550,7 +477,7 @@ namespace platf::dxgi {
         D3D11_RTV_DIMENSION_TEXTURE2D
       };
 
-      auto status = device->CreateRenderTargetView(hwframe_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
+      auto status = device->CreateRenderTargetView(output_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
@@ -558,7 +485,7 @@ namespace platf::dxgi {
 
       nv12_rt_desc.Format = (format == DXGI_FORMAT_P010) ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
 
-      status = device->CreateRenderTargetView(hwframe_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
+      status = device->CreateRenderTargetView(output_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
@@ -574,9 +501,7 @@ namespace platf::dxgi {
     }
 
     int
-    init(
-      std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p,
-      pix_fmt_e pix_fmt) {
+    init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
       D3D_FEATURE_LEVEL featureLevels[] {
         D3D_FEATURE_LEVEL_11_1,
         D3D_FEATURE_LEVEL_11_0,
@@ -614,8 +539,6 @@ namespace platf::dxgi {
       if (FAILED(status)) {
         BOOST_LOG(warning) << "Failed to increase encoding GPU thread priority. Please run application as administrator for optimal performance.";
       }
-
-      data = device.get();
 
       format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
       status = device->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
@@ -673,7 +596,13 @@ namespace platf::dxgi {
         return -1;
       }
 
-      color_matrix = make_buffer(device.get(), ::video::colors[0]);
+      auto default_color_vectors = ::video::color_vectors_from_colorspace(::video::colorspace_e::rec601, false);
+      if (!default_color_vectors) {
+        BOOST_LOG(error) << "Missing color vectors for Rec. 601"sv;
+        return -1;
+      }
+
+      color_matrix = make_buffer(device.get(), *default_color_vectors);
       if (!color_matrix) {
         BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
         return -1;
@@ -721,7 +650,6 @@ namespace platf::dxgi {
       return 0;
     }
 
-  private:
     struct encoder_img_ctx_t {
       // Used to determine if the underlying texture changes.
       // Not safe for actual use by the encoder!
@@ -789,9 +717,6 @@ namespace platf::dxgi {
       return 0;
     }
 
-  public:
-    frame_t hwframe;
-
     ::video::color_t *color_p;
 
     buf_t info_scene;
@@ -804,9 +729,6 @@ namespace platf::dxgi {
 
     render_target_t nv12_Y_rt;
     render_target_t nv12_UV_rt;
-
-    // The image referenced by hwframe
-    texture2d_t hwframe_texture;
 
     // d3d_img_t::id -> encoder_img_ctx_t
     // These store the encoder textures for each img_t that passes through
@@ -830,6 +752,149 @@ namespace platf::dxgi {
 
     device_t device;
     device_ctx_t device_ctx;
+
+    texture2d_t output_texture;
+  };
+
+  class d3d_avcodec_encode_device_t: public avcodec_encode_device_t {
+  public:
+    int
+    init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
+      int result = base.init(display, adapter_p, pix_fmt);
+      data = base.device.get();
+      return result;
+    }
+
+    int
+    convert(platf::img_t &img_base) override {
+      return base.convert(img_base);
+    }
+
+    void
+    apply_colorspace() override {
+      base.apply_colorspace(colorspace);
+    }
+
+    void
+    init_hwframes(AVHWFramesContext *frames) override {
+      // We may be called with a QSV or D3D11VA context
+      if (frames->device_ctx->type == AV_HWDEVICE_TYPE_D3D11VA) {
+        auto d3d11_frames = (AVD3D11VAFramesContext *) frames->hwctx;
+
+        // The encoder requires textures with D3D11_BIND_RENDER_TARGET set
+        d3d11_frames->BindFlags = D3D11_BIND_RENDER_TARGET;
+        d3d11_frames->MiscFlags = 0;
+      }
+
+      // We require a single texture
+      frames->initial_pool_size = 1;
+    }
+
+    int
+    prepare_to_derive_context(int hw_device_type) override {
+      // QuickSync requires our device to be multithread-protected
+      if (hw_device_type == AV_HWDEVICE_TYPE_QSV) {
+        multithread_t mt;
+
+        auto status = base.device->QueryInterface(IID_ID3D11Multithread, (void **) &mt);
+        if (FAILED(status)) {
+          BOOST_LOG(warning) << "Failed to query ID3D11Multithread interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+          return -1;
+        }
+
+        mt->SetMultithreadProtected(TRUE);
+      }
+
+      return 0;
+    }
+
+    int
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+      this->hwframe.reset(frame);
+      this->frame = frame;
+
+      // Populate this frame with a hardware buffer if one isn't there already
+      if (!frame->buf[0]) {
+        auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
+        if (err) {
+          char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+          BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+          return -1;
+        }
+      }
+
+      // If this is a frame from a derived context, we'll need to map it to D3D11
+      ID3D11Texture2D *frame_texture;
+      if (frame->format != AV_PIX_FMT_D3D11) {
+        frame_t d3d11_frame { av_frame_alloc() };
+
+        d3d11_frame->format = AV_PIX_FMT_D3D11;
+
+        auto err = av_hwframe_map(d3d11_frame.get(), frame, AV_HWFRAME_MAP_WRITE | AV_HWFRAME_MAP_OVERWRITE);
+        if (err) {
+          char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+          BOOST_LOG(error) << "Failed to map D3D11 frame: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+          return -1;
+        }
+
+        // Get the texture from the mapped frame
+        frame_texture = (ID3D11Texture2D *) d3d11_frame->data[0];
+      }
+      else {
+        // Otherwise, we can just use the texture inside the original frame
+        frame_texture = (ID3D11Texture2D *) frame->data[0];
+      }
+
+      return base.init_output(frame_texture, frame->width, frame->height);
+    }
+
+  private:
+    d3d_base_encode_device base;
+    frame_t hwframe;
+  };
+
+  class d3d_nvenc_encode_device_t: public nvenc_encode_device_t {
+  public:
+    bool
+    init_device(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
+      buffer_format = nvenc::nvenc_format_from_sunshine_format(pix_fmt);
+      if (buffer_format == NV_ENC_BUFFER_FORMAT_UNDEFINED) {
+        BOOST_LOG(error) << "Unexpected pixel format for NvENC ["sv << from_pix_fmt(pix_fmt) << ']';
+        return false;
+      }
+
+      if (base.init(display, adapter_p, pix_fmt)) return false;
+
+      nvenc_d3d = std::make_unique<nvenc::nvenc_d3d11>(base.device.get());
+      nvenc = nvenc_d3d.get();
+
+      return true;
+    }
+
+    bool
+    init_encoder(const ::video::config_t &client_config, const ::video::sunshine_colorspace_t &colorspace) override {
+      if (!nvenc_d3d) return false;
+
+      nvenc::nvenc_config nvenc_config;
+      nvenc_config.quality_preset = config::video.nv.nv_preset ? (*config::video.nv.nv_preset - 11) : 1;
+      nvenc_config.h264_cavlc = (config::video.nv.nv_coder == NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC);
+
+      auto nvenc_colorspace = nvenc::nvenc_colorspace_from_sunshine_colorspace(colorspace);
+      if (!nvenc_d3d->create_encoder(nvenc_config, client_config, nvenc_colorspace, buffer_format)) return false;
+
+      base.apply_colorspace(colorspace);
+      return base.init_output(nvenc_d3d->get_input_texture(), client_config.width, client_config.height) == 0;
+    }
+
+    int
+    convert(platf::img_t &img_base) override {
+      return base.convert(img_base);
+    }
+
+  private:
+    d3d_base_encode_device base;
+    std::unique_ptr<nvenc::nvenc_d3d11> nvenc_d3d;
+    NV_ENC_BUFFER_FORMAT buffer_format = NV_ENC_BUFFER_FORMAT_UNDEFINED;
   };
 
   bool
@@ -892,7 +957,7 @@ namespace platf::dxgi {
     }
 
     const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
-    const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
+    const bool frame_update_flag = frame_info.LastPresentTime.QuadPart != 0;
     const bool update_flag = mouse_update_flag || frame_update_flag;
 
     if (!update_flag) {
@@ -1464,26 +1529,117 @@ namespace platf::dxgi {
     };
   }
 
-  std::shared_ptr<platf::hwdevice_t>
-  display_vram_t::make_hwdevice(pix_fmt_e pix_fmt) {
+  /**
+   * @brief Checks that a given codec is supported by the display device.
+   * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
+   * @param config The codec configuration.
+   * @return true if supported, false otherwise.
+   */
+  bool
+  display_vram_t::is_codec_supported(std::string_view name, const ::video::config_t &config) {
+    DXGI_ADAPTER_DESC adapter_desc;
+    adapter->GetDesc(&adapter_desc);
+
+    if (adapter_desc.VendorId == 0x1002) {  // AMD
+      // If it's not an AMF encoder, it's not compatible with an AMD GPU
+      if (!boost::algorithm::ends_with(name, "_amf")) {
+        return false;
+      }
+
+      // Perform AMF version checks if we're using an AMD GPU. This check is placed in display_vram_t
+      // to avoid hitting the display_ram_t path which uses software encoding and doesn't touch AMF.
+      HMODULE amfrt = LoadLibraryW(AMF_DLL_NAME);
+      if (amfrt) {
+        auto unload_amfrt = util::fail_guard([amfrt]() {
+          FreeLibrary(amfrt);
+        });
+
+        auto fnAMFQueryVersion = (AMFQueryVersion_Fn) GetProcAddress(amfrt, AMF_QUERY_VERSION_FUNCTION_NAME);
+        if (fnAMFQueryVersion) {
+          amf_uint64 version;
+          auto result = fnAMFQueryVersion(&version);
+          if (result == AMF_OK) {
+            if (config.videoFormat == 2 && version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
+              // AMF 1.4.30 adds ultra low latency mode for AV1. Don't use AV1 on earlier versions.
+              // This corresponds to driver version 23.5.2 (23.10.01.45) or newer.
+              BOOST_LOG(warning) << "AV1 encoding is disabled on AMF version "sv
+                                 << AMF_GET_MAJOR_VERSION(version) << '.'
+                                 << AMF_GET_MINOR_VERSION(version) << '.'
+                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
+                                 << AMF_GET_BUILD_VERSION(version);
+              BOOST_LOG(warning) << "If your AMD GPU supports AV1 encoding, update your graphics drivers!"sv;
+              return false;
+            }
+            else if (config.dynamicRange && version < AMF_MAKE_FULL_VERSION(1, 4, 23, 0)) {
+              // Older versions of the AMD AMF runtime can crash when fed P010 surfaces.
+              // Fail if AMF version is below 1.4.23 where HEVC Main10 encoding was introduced.
+              // AMF 1.4.23 corresponds to driver version 21.12.1 (21.40.11.03) or newer.
+              BOOST_LOG(warning) << "HDR encoding is disabled on AMF version "sv
+                                 << AMF_GET_MAJOR_VERSION(version) << '.'
+                                 << AMF_GET_MINOR_VERSION(version) << '.'
+                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
+                                 << AMF_GET_BUILD_VERSION(version);
+              BOOST_LOG(warning) << "If your AMD GPU supports HEVC Main10 encoding, update your graphics drivers!"sv;
+              return false;
+            }
+          }
+          else {
+            BOOST_LOG(warning) << "AMFQueryVersion() failed: "sv << result;
+          }
+        }
+        else {
+          BOOST_LOG(warning) << "AMF DLL missing export: "sv << AMF_QUERY_VERSION_FUNCTION_NAME;
+        }
+      }
+      else {
+        BOOST_LOG(warning) << "Detected AMD GPU but AMF failed to load"sv;
+      }
+    }
+    else if (adapter_desc.VendorId == 0x8086) {  // Intel
+      // If it's not a QSV encoder, it's not compatible with an Intel GPU
+      if (!boost::algorithm::ends_with(name, "_qsv")) {
+        return false;
+      }
+    }
+    else if (adapter_desc.VendorId == 0x10de) {  // Nvidia
+      // If it's not an NVENC encoder, it's not compatible with an Nvidia GPU
+      if (!boost::algorithm::ends_with(name, "_nvenc")) {
+        return false;
+      }
+    }
+    else {
+      BOOST_LOG(warning) << "Unknown GPU vendor ID: " << util::hex(adapter_desc.VendorId).to_string_view();
+    }
+
+    return true;
+  }
+
+  std::unique_ptr<avcodec_encode_device_t>
+  display_vram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
     if (pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
       BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
 
       return nullptr;
     }
 
-    auto hwdevice = std::make_shared<hwdevice_t>();
+    auto device = std::make_unique<d3d_avcodec_encode_device_t>();
 
-    auto ret = hwdevice->init(
-      shared_from_this(),
-      adapter.get(),
-      pix_fmt);
+    auto ret = device->init(shared_from_this(), adapter.get(), pix_fmt);
 
     if (ret) {
       return nullptr;
     }
 
-    return hwdevice;
+    return device;
+  }
+
+  std::unique_ptr<nvenc_encode_device_t>
+  display_vram_t::make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+    auto device = std::make_unique<d3d_nvenc_encode_device_t>();
+    if (!device->init_device(shared_from_this(), adapter.get(), pix_fmt)) {
+      return nullptr;
+    }
+    return device;
   }
 
   int

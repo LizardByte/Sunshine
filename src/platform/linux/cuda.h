@@ -6,6 +6,8 @@
 
 #if defined(SUNSHINE_BUILD_CUDA)
 
+  #include "src/video_colorspace.h"
+
   #include <cstdint>
   #include <memory>
   #include <optional>
@@ -13,7 +15,7 @@
   #include <vector>
 
 namespace platf {
-  class hwdevice_t;
+  class avcodec_encode_device_t;
   class img_t;
 }  // namespace platf
 
@@ -23,8 +25,8 @@ namespace cuda {
     std::vector<std::string>
     display_names();
   }
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, bool vram);
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, bool vram);
   int
   init();
 }  // namespace cuda
@@ -109,7 +111,7 @@ namespace cuda {
     convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport);
 
     void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
+    apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 
     int
     load_ram(platf::img_t &img, cudaArray_t array);

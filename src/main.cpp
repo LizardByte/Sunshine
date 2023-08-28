@@ -473,6 +473,9 @@ main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
+  // Switch default C standard library locale to UTF-8 on Windows 10 1803+
+  setlocale(LC_ALL, ".UTF-8");
+
   // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
   SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
 
@@ -516,6 +519,9 @@ main(int argc, char *argv[]) {
   window_thread.detach();
 #endif
 
+  // Use UTF-8 conversion for the default C++ locale (used by boost::log)
+  std::locale::global(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
+
   mail::man = std::make_shared<safe::mail_raw_t>();
 
   if (config::parse(argc, argv)) {
@@ -528,6 +534,31 @@ main(int argc, char *argv[]) {
   else {
     av_log_set_level(AV_LOG_DEBUG);
   }
+  av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {
+    static int print_prefix = 1;
+    char buffer[1024];
+
+    av_log_format_line(ptr, level, fmt, vl, buffer, sizeof(buffer), &print_prefix);
+    if (level <= AV_LOG_FATAL) {
+      BOOST_LOG(fatal) << buffer;
+    }
+    else if (level <= AV_LOG_ERROR) {
+      BOOST_LOG(error) << buffer;
+    }
+    else if (level <= AV_LOG_WARNING) {
+      BOOST_LOG(warning) << buffer;
+    }
+    else if (level <= AV_LOG_INFO) {
+      BOOST_LOG(info) << buffer;
+    }
+    else if (level <= AV_LOG_VERBOSE) {
+      // AV_LOG_VERBOSE is less verbose than AV_LOG_DEBUG
+      BOOST_LOG(debug) << buffer;
+    }
+    else {
+      BOOST_LOG(verbose) << buffer;
+    }
+  });
 
   sink = boost::make_shared<text_sink>();
 

@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include "platform/common.h"
+#include "rtsp.h"
 #include "utility.h"
 
 namespace proc {
@@ -65,7 +66,7 @@ namespace proc {
         _apps(std::move(apps)) {}
 
     int
-    execute(int app_id);
+    execute(int app_id, rtsp_stream::launch_session_t launch_session);
 
     /**
      * @return _app_id if a process is running, otherwise returns 0

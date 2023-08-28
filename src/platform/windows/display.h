@@ -13,6 +13,7 @@
 
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "src/video.h"
 
 namespace platf::dxgi {
   extern const char *format_str[];
@@ -108,7 +109,6 @@ namespace platf::dxgi {
   public:
     dup_t dup;
     bool has_frame {};
-    bool use_dwmflush {};
     std::chrono::steady_clock::time_point last_protected_content_warning_time {};
 
     capture_e
@@ -126,10 +126,11 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    void
+    high_precision_sleep(std::chrono::nanoseconds duration);
+
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
-
-    std::chrono::nanoseconds delay;
 
     factory1_t factory;
     adapter_t adapter;
@@ -137,9 +138,15 @@ namespace platf::dxgi {
     device_t device;
     device_ctx_t device_ctx;
     duplication_t dup;
+    DXGI_RATIONAL display_refresh_rate;
+    int display_refresh_rate_rounded;
+
+    int client_frame_rate;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
+
+    util::safe_ptr_v2<std::remove_pointer_t<HANDLE>, BOOL, CloseHandle> timer;
 
     typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
       D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,
@@ -193,6 +200,9 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
     cursor_t cursor;
     D3D11_MAPPED_SUBRESOURCE img_info;
     texture2d_t texture;
@@ -215,8 +225,14 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
-    std::shared_ptr<platf::hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) override;
+    bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) override;
+
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
+    std::unique_ptr<nvenc_encode_device_t>
+    make_nvenc_encode_device(pix_fmt_e pix_fmt) override;
 
     sampler_state_t sampler_linear;
 

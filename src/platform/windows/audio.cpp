@@ -2,6 +2,7 @@
  * @file src/platform/windows/audio.cpp
  * @brief todo
  */
+#define INITGUID
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <roapi.h>
@@ -12,9 +13,7 @@
 
 #include <newdev.h>
 
-#define INITGUID
-#include <propkeydef.h>
-#undef INITGUID
+#include <avrt.h>
 
 #include "src/config.h"
 #include "src/main.h"
@@ -28,11 +27,6 @@
 DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
-
-const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
-const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
-const IID IID_IAudioClient = __uuidof(IAudioClient);
-const IID IID_IAudioCaptureClient = __uuidof(IAudioCaptureClient);
 
 #if defined(__x86_64) || defined(_M_AMD64)
   #define STEAM_DRIVER_SUBDIR L"x64"
@@ -457,6 +451,14 @@ namespace platf::audio {
         return -1;
       }
 
+      {
+        DWORD task_index = 0;
+        mmcss_task_handle = AvSetMmThreadCharacteristics("Pro Audio", &task_index);
+        if (!mmcss_task_handle) {
+          BOOST_LOG(error) << "Couldn't associate audio capture thread with Pro Audio MMCSS task [0x" << util::hex(GetLastError()).to_string_view() << ']';
+        }
+      }
+
       status = audio_client->Start();
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't start recording [0x"sv << util::hex(status).to_string_view() << ']';
@@ -474,6 +476,10 @@ namespace platf::audio {
 
       if (audio_client) {
         audio_client->Stop();
+      }
+
+      if (mmcss_task_handle) {
+        AvRevertMmThreadCharacteristics(mmcss_task_handle);
       }
     }
 
@@ -537,8 +543,16 @@ namespace platf::audio {
             return capture_e::error;
         }
 
+        if (buffer_flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
+          BOOST_LOG(debug) << "Audio capture signaled buffer discontinuity";
+        }
+
         sample_aligned.uninitialized = std::end(sample_buf) - sample_buf_pos;
         auto n = std::min(sample_aligned.uninitialized, block_aligned.audio_sample_size * channels);
+
+        if (n < block_aligned.audio_sample_size * channels) {
+          BOOST_LOG(warning) << "Audio capture buffer overflow";
+        }
 
         if (buffer_flags & AUDCLNT_BUFFERFLAGS_SILENT) {
           std::fill_n(sample_buf_pos, n, 0);
@@ -579,6 +593,8 @@ namespace platf::audio {
     util::buffer_t<std::int16_t> sample_buf;
     std::int16_t *sample_buf_pos;
     int channels;
+
+    HANDLE mmcss_task_handle = NULL;
   };
 
   class audio_control_t: public ::platf::audio_control_t {

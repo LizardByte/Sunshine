@@ -13,6 +13,7 @@
 #include "src/main.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
+#include "src/video_colorspace.h"
 
 extern "C" {
 #include <moonlight-common-c/src/Limelight.h>
@@ -45,6 +46,9 @@ namespace boost {
 namespace video {
   struct config_t;
 }  // namespace video
+namespace nvenc {
+  class nvenc_base;
+}
 
 namespace platf {
   // Limited by bits in activeGamepadMask
@@ -279,6 +283,30 @@ namespace platf {
     std::uint8_t percentage;
   };
 
+  struct touch_input_t {
+    std::uint8_t eventType;
+    std::uint16_t rotation;  // Degrees (0..360) or LI_ROT_UNKNOWN
+    std::uint32_t pointerId;
+    float x;
+    float y;
+    float pressureOrDistance;  // Distance for hover and pressure for contact
+    float contactAreaMajor;
+    float contactAreaMinor;
+  };
+
+  struct pen_input_t {
+    std::uint8_t eventType;
+    std::uint8_t toolType;
+    std::uint8_t penButtons;
+    std::uint8_t tilt;  // Degrees (0..90) or LI_TILT_UNKNOWN
+    std::uint16_t rotation;  // Degrees (0..360) or LI_ROT_UNKNOWN
+    float x;
+    float y;
+    float pressureOrDistance;  // Distance for hover and pressure for contact
+    float contactAreaMajor;
+    float contactAreaMinor;
+  };
+
   class deinit_t {
   public:
     virtual ~deinit_t() = default;
@@ -320,13 +348,26 @@ namespace platf {
     std::optional<null_t> null;
   };
 
-  struct hwdevice_t {
+  struct encode_device_t {
+    virtual ~encode_device_t() = default;
+
+    virtual int
+    convert(platf::img_t &img) = 0;
+
+    video::sunshine_colorspace_t colorspace;
+  };
+
+  struct avcodec_encode_device_t: encode_device_t {
     void *data {};
     AVFrame *frame {};
 
-    virtual int
-    convert(platf::img_t &img) {
+    int
+    convert(platf::img_t &img) override {
       return -1;
+    }
+
+    virtual void
+    apply_colorspace() {
     }
 
     /**
@@ -337,9 +378,6 @@ namespace platf {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
       return -1;
     };
-
-    virtual void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
 
     /**
      * Implementations may set parameters during initialization of the hwframes context
@@ -354,8 +392,13 @@ namespace platf {
     prepare_to_derive_context(int hw_device_type) {
       return 0;
     };
+  };
 
-    virtual ~hwdevice_t() = default;
+  struct nvenc_encode_device_t: encode_device_t {
+    virtual bool
+    init_encoder(const video::config_t &client_config, const video::sunshine_colorspace_t &colorspace) = 0;
+
+    nvenc::nvenc_base *nvenc = nullptr;
   };
 
   enum class capture_e : int {
@@ -416,9 +459,14 @@ namespace platf {
     virtual int
     dummy_img(img_t *img) = 0;
 
-    virtual std::shared_ptr<hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) {
-      return std::make_shared<hwdevice_t>();
+    virtual std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+      return nullptr;
+    }
+
+    virtual std::unique_ptr<nvenc_encode_device_t>
+    make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+      return nullptr;
     }
 
     virtual bool
@@ -430,6 +478,17 @@ namespace platf {
     get_hdr_metadata(SS_HDR_METADATA &metadata) {
       std::memset(&metadata, 0, sizeof(metadata));
       return false;
+    }
+
+    /**
+     * @brief Checks that a given codec is supported by the display device.
+     * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
+     * @param config The codec configuration.
+     * @return true if supported, false otherwise.
+     */
+    virtual bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) {
+      return true;
     }
 
     virtual ~display_t() = default;
@@ -499,7 +558,7 @@ namespace platf {
   display_names(mem_type_e hwdevice_type);
 
   boost::process::child
-  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
   enum class thread_priority_e : int {
     low,
@@ -527,9 +586,22 @@ namespace platf {
     std::uintptr_t native_socket;
     boost::asio::ip::address &target_address;
     uint16_t target_port;
+    boost::asio::ip::address &source_address;
   };
   bool
   send_batch(batched_send_info_t &send_info);
+
+  struct send_info_t {
+    const char *buffer;
+    size_t size;
+
+    std::uintptr_t native_socket;
+    boost::asio::ip::address &target_address;
+    uint16_t target_port;
+    boost::asio::ip::address &source_address;
+  };
+  bool
+  send(send_info_t &send_info);
 
   enum class qos_data_type_e : int {
     audio,
@@ -564,9 +636,37 @@ namespace platf {
   void
   unicode(input_t &input, char *utf8, int size);
 
+  typedef deinit_t client_input_t;
+
+  /**
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input);
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
+
   /**
    * @brief Sends a gamepad touch event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param touch The touch event.
    */
   void
@@ -574,7 +674,7 @@ namespace platf {
 
   /**
    * @brief Sends a gamepad motion event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param motion The motion event.
    */
   void
@@ -582,7 +682,7 @@ namespace platf {
 
   /**
    * @brief Sends a gamepad battery event to the OS.
-   * @param input The input context.
+   * @param input The global input context.
    * @param battery The battery event.
    */
   void
@@ -590,7 +690,7 @@ namespace platf {
 
   /**
    * @brief Creates a new virtual gamepad.
-   * @param input The input context.
+   * @param input The global input context.
    * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
    * @param feedback_queue The queue for posting messages back to the client.

@@ -40,9 +40,11 @@
   #define UDP_SEND_MSG_SIZE 2
 #endif
 
-// MinGW headers are missing qWAVE stuff
-typedef UINT32 QOS_FLOWID, *PQOS_FLOWID;
-#define QOS_NON_ADAPTIVE_FLOW 0x00000002
+// PROC_THREAD_ATTRIBUTE_JOB_LIST is currently missing from MinGW headers
+#ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
+  #define PROC_THREAD_ATTRIBUTE_JOB_LIST ProcThreadAttributeValue(13, FALSE, TRUE, FALSE)
+#endif
+
 #include <qos2.h>
 
 #ifndef WLAN_API_MAKE_VERSION
@@ -414,11 +416,10 @@ namespace platf {
    * @param cmd The command that was used to launch the process.
    * @param ec A reference to an `std::error_code` object that will store any error that occurred during the launch.
    * @param process_info A reference to a `PROCESS_INFORMATION` structure that contains information about the new process.
-   * @param group A pointer to a `bp::group` object that will add the new process to its group, if not null.
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch failed.
    */
   bp::child
-  create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info, bp::group *group) {
+  create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info) {
     // Use RAII to ensure the process is closed when we're done with it, even if there was an error.
     auto close_process_handles = util::fail_guard([process_launched, process_info]() {
       if (process_launched) {
@@ -435,11 +436,6 @@ namespace platf {
     if (process_launched) {
       // If the launch was successful, create a new bp::child object representing the new process
       auto child = bp::child((bp::pid_t) process_info.dwProcessId);
-      if (group) {
-        // If a group was provided, add the new process to the group
-        group->add(child);
-      }
-
       BOOST_LOG(info) << cmd << " running with PID "sv << child.id();
       return child;
     }
@@ -494,17 +490,18 @@ namespace platf {
   /**
    * @brief A function to create a `STARTUPINFOEXW` structure for launching a process.
    * @param file A pointer to a `FILE` object that will be used as the standard output and error for the new process, or null if not needed.
+   * @param job A job object handle to insert the new process into. This pointer must remain valid for the life of this startup info!
    * @param ec A reference to a `std::error_code` object that will store any error that occurred during the creation of the structure.
    * @return A `STARTUPINFOEXW` structure that contains information about how to launch the new process.
    */
   STARTUPINFOEXW
-  create_startup_info(FILE *file, std::error_code &ec) {
+  create_startup_info(FILE *file, HANDLE *job, std::error_code &ec) {
     // Initialize a zeroed-out STARTUPINFOEXW structure and set its size
     STARTUPINFOEXW startup_info = {};
     startup_info.StartupInfo.cb = sizeof(startup_info);
 
-    // Allocate a process attribute list with space for 1 element
-    startup_info.lpAttributeList = allocate_proc_thread_attr_list(1);
+    // Allocate a process attribute list with space for 2 elements
+    startup_info.lpAttributeList = allocate_proc_thread_attr_list(2);
     if (startup_info.lpAttributeList == NULL) {
       // If the allocation failed, set ec to an appropriate error code and return the structure
       ec = std::make_error_code(std::errc::not_enough_memory);
@@ -535,6 +532,20 @@ namespace platf {
         NULL);
     }
 
+    if (job) {
+      // Atomically insert the new process into the specified job.
+      //
+      // Note: The value we point to here must be valid for the lifetime of the attribute list,
+      // so we take a HANDLE* instead of just a HANDLE to use the caller's stack storage.
+      UpdateProcThreadAttribute(startup_info.lpAttributeList,
+        0,
+        PROC_THREAD_ATTRIBUTE_JOB_LIST,
+        job,
+        sizeof(*job),
+        NULL,
+        NULL);
+    }
+
     return startup_info;
   }
 
@@ -554,14 +565,20 @@ namespace platf {
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
    */
   bp::child
-  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     BOOL ret;
     // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
     std::wstring wcmd = converter.from_bytes(cmd);
     std::wstring start_dir = converter.from_bytes(working_dir.string());
 
-    STARTUPINFOEXW startup_info = create_startup_info(file, ec);
+    HANDLE job = group ? group->native_handle() : nullptr;
+    STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
     PROCESS_INFORMATION process_info;
+
+    // Clone the environment to create a local copy. Boost.Process (bp) shares the environment with all spawned processes.
+    // Since we're going to modify the 'env' variable by merging user-specific environment variables into it,
+    // we make a clone to prevent side effects to the shared environment.
+    bp::environment cloned_env = env;
 
     if (ec) {
       // In the event that startup_info failed, return a blank child process.
@@ -593,14 +610,14 @@ namespace platf {
       });
 
       // Populate env with user-specific environment variables
-      if (!merge_user_environment_block(env, user_token)) {
+      if (!merge_user_environment_block(cloned_env, user_token)) {
         ec = std::make_error_code(std::errc::not_enough_memory);
         return bp::child();
       }
 
       // Open the process as the current user account, elevation is handled in the token itself.
       ec = impersonate_current_user(user_token, [&]() {
-        std::wstring env_block = create_environment_block(env);
+        std::wstring env_block = create_environment_block(cloned_env);
         ret = CreateProcessAsUserW(user_token,
           NULL,
           (LPWSTR) wcmd.c_str(),
@@ -628,12 +645,12 @@ namespace platf {
       });
 
       // Populate env with user-specific environment variables
-      if (!merge_user_environment_block(env, process_token)) {
+      if (!merge_user_environment_block(cloned_env, process_token)) {
         ec = std::make_error_code(std::errc::not_enough_memory);
         return bp::child();
       }
 
-      std::wstring env_block = create_environment_block(env);
+      std::wstring env_block = create_environment_block(cloned_env);
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
         NULL,
@@ -647,7 +664,7 @@ namespace platf {
     }
 
     // Use the results of the launch to create a bp::child object
-    return create_boost_child_from_results(ret, cmd, ec, process_info, group);
+    return create_boost_child_from_results(ret, cmd, ec, process_info);
   }
 
   /**
@@ -921,19 +938,19 @@ namespace platf {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR
-    SOCKADDR_IN saddr_v4;
-    SOCKADDR_IN6 saddr_v6;
+    SOCKADDR_IN taddr_v4;
+    SOCKADDR_IN6 taddr_v6;
     if (send_info.target_address.is_v6()) {
-      saddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
+      taddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
 
-      msg.name = (PSOCKADDR) &saddr_v6;
-      msg.namelen = sizeof(saddr_v6);
+      msg.name = (PSOCKADDR) &taddr_v6;
+      msg.namelen = sizeof(taddr_v6);
     }
     else {
-      saddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
+      taddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
 
-      msg.name = (PSOCKADDR) &saddr_v4;
-      msg.namelen = sizeof(saddr_v4);
+      msg.name = (PSOCKADDR) &taddr_v4;
+      msg.namelen = sizeof(taddr_v4);
     }
 
     WSABUF buf;
@@ -944,23 +961,135 @@ namespace platf {
     msg.dwBufferCount = 1;
     msg.dwFlags = 0;
 
-    char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD))];
+    // At most, one DWORD option and one PKTINFO option
+    char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD)) +
+               std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
+    ULONG cmbuflen = 0;
+
     msg.Control.buf = cmbuf;
-    msg.Control.len = 0;
+    msg.Control.len = sizeof(cmbuf);
+
+    auto cm = WSA_CMSG_FIRSTHDR(&msg);
+    if (send_info.source_address.is_v6()) {
+      IN6_PKTINFO pktInfo;
+
+      SOCKADDR_IN6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IPV6;
+      cm->cmsg_type = IPV6_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    }
+    else {
+      IN_PKTINFO pktInfo;
+
+      SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      pktInfo.ipi_addr = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IP;
+      cm->cmsg_type = IP_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    }
 
     if (send_info.block_count > 1) {
-      msg.Control.len += WSA_CMSG_SPACE(sizeof(DWORD));
+      cmbuflen += WSA_CMSG_SPACE(sizeof(DWORD));
 
-      auto cm = WSA_CMSG_FIRSTHDR(&msg);
+      cm = WSA_CMSG_NXTHDR(&msg, cm);
       cm->cmsg_level = IPPROTO_UDP;
       cm->cmsg_type = UDP_SEND_MSG_SIZE;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(DWORD));
       *((DWORD *) WSA_CMSG_DATA(cm)) = send_info.block_size;
     }
 
+    msg.Control.len = cmbuflen;
+
     // If USO is not supported, this will fail and the caller will fall back to unbatched sends.
     DWORD bytes_sent;
     return WSASendMsg((SOCKET) send_info.native_socket, &msg, 1, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
+  }
+
+  bool
+  send(send_info_t &send_info) {
+    WSAMSG msg;
+
+    // Convert the target address into a SOCKADDR
+    SOCKADDR_IN taddr_v4;
+    SOCKADDR_IN6 taddr_v6;
+    if (send_info.target_address.is_v6()) {
+      taddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
+
+      msg.name = (PSOCKADDR) &taddr_v6;
+      msg.namelen = sizeof(taddr_v6);
+    }
+    else {
+      taddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
+
+      msg.name = (PSOCKADDR) &taddr_v4;
+      msg.namelen = sizeof(taddr_v4);
+    }
+
+    WSABUF buf;
+    buf.buf = (char *) send_info.buffer;
+    buf.len = send_info.size;
+
+    msg.lpBuffers = &buf;
+    msg.dwBufferCount = 1;
+    msg.dwFlags = 0;
+
+    char cmbuf[std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
+    ULONG cmbuflen = 0;
+
+    msg.Control.buf = cmbuf;
+    msg.Control.len = sizeof(cmbuf);
+
+    auto cm = WSA_CMSG_FIRSTHDR(&msg);
+    if (send_info.source_address.is_v6()) {
+      IN6_PKTINFO pktInfo;
+
+      SOCKADDR_IN6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IPV6;
+      cm->cmsg_type = IPV6_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    }
+    else {
+      IN_PKTINFO pktInfo;
+
+      SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      pktInfo.ipi_addr = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += WSA_CMSG_SPACE(sizeof(pktInfo));
+
+      cm->cmsg_level = IPPROTO_IP;
+      cm->cmsg_type = IP_PKTINFO;
+      cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
+      memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
+    }
+
+    msg.Control.len = cmbuflen;
+
+    DWORD bytes_sent;
+    if (WSASendMsg((SOCKET) send_info.native_socket, &msg, 1, &bytes_sent, nullptr, nullptr) == SOCKET_ERROR) {
+      auto winerr = WSAGetLastError();
+      BOOST_LOG(warning) << "WSASendMsg() failed: "sv << winerr;
+      return false;
+    }
+
+    return true;
   }
 
   class qos_t: public deinit_t {
