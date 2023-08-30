@@ -3,6 +3,8 @@ Linux
 
 Collection of Sunshine Linux host guides.
 
+.. _remote-ssh-headless-setup:
+
 Remote SSH Headless Setup (Experimental)
 ----------------------------------------
 Author: *Eric Dong* | Difficulty: *Intermediate*
@@ -61,14 +63,14 @@ Setup static IP Address for host. For LAN connections you can use DHCP reservati
 192.168.x.x. This will allow you to ssh to the host consistently, so the assigned IP address does not change. Usually your ISP supports this through editing the settings through your router.
 
 .. tip::
-   Most routers settings can be accessed at ``192.168.1.1``. Default router admin credentials are usually printed on the back of your router.
+   Most routers settings can be accessed at ``192.168.1.1`` from the web browser. Default router admin credentials are usually printed on the back of your router.
 
 SSH Server setup
 ++++++++++++++++
 
 .. note:: Most distros have OpenSSH already installed. If it is not present, install OpenSSH using your package manager.
 
-.. tab:: Ubuntu
+.. tab:: Debian/Ubuntu
 
 	.. code-block:: sh
 
@@ -83,6 +85,22 @@ SSH Server setup
 		# Install  openssh-<other_init> if you are not using SystemD
 		# E.g. sudo pacman -S openssh-runit
 
+.. tab:: Alpine
+
+   .. code-block:: sh
+
+        sudo apk update
+        sudo apk add openssh
+
+.. tab:: CentOS/RHEL/Fedora
+
+    .. code-block:: sh
+        
+        # CentOS/RHEL 7
+        sudo yum install openssh-server
+        
+        # Fedora/CentOS/RHEL 8
+        sudo dnf install openssh-server
 
 Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
@@ -102,6 +120,13 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 		sudo sv start sshd  # Starts the service now
 		sudo sv status sshd # See if the service is running
 
+.. tab:: OpenRC
+   
+    .. code-block:: sh
+
+        rc-update add sshd # Enables service
+        rc-status # List services to verify sshd is enabled
+        rc-service sshd start # Starts the service now
 
 **Disabling PAM in sshd**
 
@@ -141,6 +166,12 @@ After making changes to the sshd_config, restart the sshd service for changes to
     .. code-block:: sh
 
 		sudo sv restart sshd
+
+.. tab:: OpenRC
+
+    .. code-block:: sh
+
+		sudo rc-service sshd restart
 
 ----
 
@@ -201,10 +232,10 @@ Uinput Permissions Workaround
 
 **Steps**
 
-We can use chown to change the permissions from a script. Since this requires ``sudo``, we will need to update the sudo configuration to execute this without being prompted for a password.
+We can use ``chown`` to change the permissions from a script. Since this requires ``sudo``, we will need to update the sudo configuration to execute this without being prompted for a password.
 
 #. Create a ``sunshine-setup.sh`` script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
-#. Update user sudo configuration ``/etc/sudoers.d/<user>`` to execute the ``sunshine-setup.sh`` script.
+#. Update user sudo configuration ``/etc/sudoers.d/<user>`` to allow the ``sunshine-setup.sh`` script to be executed with ``sudo``.
 
 .. admonition:: Why is this necessary?
 	:class: important
@@ -237,17 +268,16 @@ You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/
 
 .. caution::
 	Do so at your own risk! It is more secure to give sudo and no password prompt to a single script, than a generic executable like chown.
-	Be very careful of messing this config up.
 
 .. warning::
-	If you make a typo, *YOU LOSE THE ABILITY TO USE SUDO*. Fortunately, your system is not borked,
+	Be very careful of messing this config up. If you make a typo, *YOU LOSE THE ABILITY TO USE SUDO*. Fortunately, your system is not borked,
 	you will need to login as root to fix the config. You may want to setup a backup user / SSH into the host as root to fix the config if this happens. Otherwise you will need to plug your machine back into a monitor and login as root to fix this. To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
 
-Replace ``<user>`` with your user:
+Replace ``<user>`` with your user and add the absolute path to your script:
 
 .. code-block::
 
-	<user> ALL=(ALL:ALL) ALL, NOPASSWD: /home/<user>/scripts/sunshine-setup.sh
+	<user> ALL=(ALL:ALL) ALL, NOPASSWD: /path/to/sunshine-setup.sh
 
 These changes allow the script to use sudo without being prompted with a password.
 
@@ -262,7 +292,7 @@ This is the main entrypoint script that will run the sunshine-setup script, star
 
 **Sunshine Startup Script**
 
-This guide will refer to this script as ``~/scripts/sunshine.sh``
+This guide will refer to this script as ``~/scripts/sunshine.sh``. The setup script will be referred as ``~/scripts/sunshine-setup.sh``
 
 .. code-block:: sh
 
@@ -339,11 +369,40 @@ With your monitor still plugged into your PC:
    You should see the sunshine and Xorg processing running:
 
    .. code-block::
-    
-       # TODO Add nvidia-smi output here
+       
+       $ nvidia-smi
+       Tue Aug 29 18:38:46 2023
+       +---------------------------------------------------------------------------------------+
+       | NVIDIA-SMI 535.104.05             Driver Version: 535.104.05   CUDA Version: 12.2     |
+       |-----------------------------------------+----------------------+----------------------+
+       | GPU  Name                 Persistence-M | Bus-Id        Disp.A | Volatile Uncorr. ECC |
+       | Fan  Temp   Perf          Pwr:Usage/Cap |         Memory-Usage | GPU-Util  Compute M. |
+       |                                         |                      |               MIG M. |
+       |=========================================+======================+======================|
+       |   0  NVIDIA GeForce RTX 3070        Off | 00000000:01:00.0  On |                  N/A |
+       | 30%   46C    P2              45W / 220W |    549MiB /  8192MiB |      2%      Default |
+       |                                         |                      |                  N/A |
+       +-----------------------------------------+----------------------+----------------------+
+       
+       +---------------------------------------------------------------------------------------+
+       | Processes:                                                                            |
+       |  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
+       |        ID   ID                                                             Usage      |
+       |=======================================================================================|
+       |    0   N/A  N/A      1393      G   /usr/lib/Xorg                                86MiB |
+       |    0   N/A  N/A      1440    C+G   sunshine                                    293MiB |
+       +---------------------------------------------------------------------------------------+
+ 
+#. Check ``/dev/uinput`` permissions
+   
+   .. code-block:: sh
+
+       $ ls -l /dev/uinput
+       crw------- 1 <user> <primary_group> 10, 223 Aug 29 17:31 /dev/uinput
+
 #. Connect to host from a moonlight client
 
-*Now unplug your monitors and repeat steps 1 - 4*
+*Now unplug your monitors and repeat steps 1 - 5*
 
 
 SSH Client Script (Optional)
