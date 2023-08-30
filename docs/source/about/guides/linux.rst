@@ -72,14 +72,14 @@ SSH Server setup
 
 .. tab:: Debian/Ubuntu
 
-	.. code-block:: sh
+	.. code-block:: bash
 
 		sudo apt update
 		sudo apt install openssh-server
 
 .. tab:: Arch/Artix
 
-	.. code-block:: sh
+	.. code-block:: bash
 
 		sudo pacman -S openssh
 		# Install  openssh-<other_init> if you are not using SystemD
@@ -87,14 +87,14 @@ SSH Server setup
 
 .. tab:: Alpine
 
-   .. code-block:: sh
+   .. code-block:: bash
 
         sudo apk update
         sudo apk add openssh
 
 .. tab:: CentOS/RHEL/Fedora
 
-    .. code-block:: sh
+    .. code-block:: bash
         
         # CentOS/RHEL 7
         sudo yum install openssh-server
@@ -106,7 +106,7 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
 .. tab:: SystemD
 
-    .. code-block:: sh
+    .. code-block:: bash
 
 		sudo systemctl enable sshd.service
 		sudo systemctl start sshd.service  # Starts the service now
@@ -114,7 +114,7 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
 .. tab:: Runit
 
-	.. code-block:: sh
+	.. code-block:: bash
 
 		sudo ln -s /etc/runit/sv/sshd /run/runit/service # Enables the OpenSSH daemon to run when system starts
 		sudo sv start sshd  # Starts the service now
@@ -122,7 +122,7 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
 .. tab:: OpenRC
    
-    .. code-block:: sh
+    .. code-block:: bash
 
         rc-update add sshd # Enables service
         rc-status # List services to verify sshd is enabled
@@ -142,7 +142,7 @@ Starting the X server in the background and exiting out of the console would cau
 
 Edit the ``sshd_config`` file with the following to disable PAM
 
-.. code-block:: sh
+.. code-block:: bash
 
    usePAM no
 
@@ -157,19 +157,19 @@ After making changes to the sshd_config, restart the sshd service for changes to
 
 .. tab:: SystemD
 
-    .. code-block:: sh
+    .. code-block:: bash
 
 		sudo systemctl restart sshd.service
 
 .. tab:: Runit
 
-    .. code-block:: sh
+    .. code-block:: bash
 
 		sudo sv restart sshd
 
 .. tab:: OpenRC
 
-    .. code-block:: sh
+    .. code-block:: bash
 
 		sudo rc-service sshd restart
 
@@ -251,7 +251,7 @@ We can use ``chown`` to change the permissions from a script. Since this require
 This script will take care of any precondtions prior to starting up sunshine.
 Create a script named something like ``sunshine-setup.sh``:
 
-.. code-block:: sh
+.. code-block:: bash
 
 	#!/bin/bash
 	chown <user>:<user> /dev/uinput
@@ -294,7 +294,7 @@ This is the main entrypoint script that will run the sunshine-setup script, star
 
 This guide will refer to this script as ``~/scripts/sunshine.sh``. The setup script will be referred as ``~/scripts/sunshine-setup.sh``
 
-.. code-block:: sh
+.. code-block:: bash
 
     #!/bin/bash
 
@@ -395,7 +395,7 @@ With your monitor still plugged into your PC:
  
 #. Check ``/dev/uinput`` permissions
    
-   .. code-block:: sh
+   .. code-block:: bash
 
        $ ls -l /dev/uinput
        crw------- 1 <user> <primary_group> 10, 223 Aug 29 17:31 /dev/uinput
@@ -414,7 +414,7 @@ On Windows, this can be run inside a ``git-bash``
 
 For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android and ``ISH`` for IOS. The neat part is that you can execute one script to launch sunshine from your phone / tablet!
 
-.. code-block:: sh
+.. code-block:: bash
 
 	#!/bin/bash
 
