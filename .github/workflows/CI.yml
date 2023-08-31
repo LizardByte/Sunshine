@@ -634,104 +634,33 @@ jobs:
           echo "/opt/local/bin" >> $GITHUB_PATH
           echo "/opt/local/sbin" >> $GITHUB_PATH
 
-      - name: Determine list of subports
-        id: subportlist
+      - name: Run port lint
         run: |
-          set -eu
-          port=Sunshine
-          subportlist=""
+          port -q lint "Sunshine"
 
-          echo "Listing subports for Sunshine"
-          new_subports=$(mpbb \
-            --work-dir /tmp/mpbb \
-            list-subports \
-            --archive-site= \
-            --archive-site-private= \
-            --include-deps=no \
-            "$port" \
-            | tr '\n' ' ')
-          for subport in $new_subports; do
-            echo "$subport"
-            subportlist="$subportlist $subport"
-          done
-          echo "subportlist=${subportlist}" >> $GITHUB_OUTPUT
-
-      - name: Run port lint for all subports
+      - name: Build port
         env:
           subportlist: ${{ steps.subportlist.outputs.subportlist }}
         run: |
-          set -eu
-          fail=0
-          for subport in $subportlist; do
-            echo "::group::${subport}"
-            path=$(port file "$subport")
-            messagetype="warning"
-            if ! messages=$(port -q lint "$subport" 2>&1); then
-              messagetype="error"
-              fail=1
-            fi
-            if [ -n "$messages" ]; then
-              echo "$messages"
-              # See https://github.com/actions/toolkit/issues/193#issuecomment-605394935
-              encoded_messages="port lint ${subport}:%0A"
-              encoded_messages+="$(echo "${messages}" | sed -E 's/$/%0A/g' | tr -d '\n')"
-              echo "::${messagetype} file=${path#${PWD}/ports/},line=1,col=1::${encoded_messages}"
-            fi
-            echo "::endgroup::"
-          done
-          exit "$fail"
+          subport="Sunshine"
 
-      - name: Build subports
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
-        run: |
-          set -eu
-          fail=0
-          for subport in $subportlist; do
-            workdir="/tmp/mpbb/$subport"
-            mkdir -p "$workdir/logs"
-            touch "$workdir/logs/dependencies-progress.txt"
-            echo "::group::Cleaning up between ports"
-            sudo mpbb --work-dir "$workdir" cleanup
-            echo "::endgroup::"
-            echo "::group::Installing dependencies for ${subport}"
-            sudo mpbb \
-              --work-dir "$workdir" \
-              install-dependencies \
-              "$subport" >"$workdir/logs/install-dependencies.log" 2>&1 &
-            deps_pid=$!
-            tail -f "$workdir/logs/dependencies-progress.txt" 2>/dev/null &
-            tail_pid=$!
-            set +e
-            wait "$deps_pid"
-            deps_exit=$?
-            set -e
-            kill "$tail_pid" || true
-            if [ "$deps_exit" -ne 0 ]; then
-              echo "::endgroup::"
-              echo "::error::Failed to install dependencies for ${subport}"
-              fail=1
-              continue
-            fi
-            echo "::endgroup::"
-            echo "::group::Installing ${subport}"
-            set +e
-            sudo mpbb \
-              --work-dir "$workdir" \
-              install-port \
-              --source \
-              "$subport"
-            install_exit=$?
-            set -e
-            if [ "$install_exit" -ne 0 ]; then
-              echo "::endgroup::"
-              echo "::error::Failed to install ${subport}"
-              fail=1
-              continue
-            fi
-            echo "::endgroup::"
-          done
-          exit "$fail"
+          workdir="/tmp/mpbb/$subport"
+          mkdir -p "$workdir/logs"
+
+          echo "::group::Installing dependencies"
+          sudo mpbb \
+            --work-dir "$workdir" \
+            install-dependencies \
+            "$subport"
+          echo "::endgroup::"
+
+          echo "::group::Installing ${subport}"
+          sudo mpbb \
+            --work-dir "$workdir" \
+            install-port \
+            --source \
+            "$subport"
+          echo "::endgroup::"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
