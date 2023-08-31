@@ -17,7 +17,7 @@ Graph
 CrowdIn
 -------
 The translations occur on
-`CrowdIn <https://crowdin.com/project/sunshinestream>`_. Feel free to contribute to localization there.
+`CrowdIn <https://crowdin.com/project/sunshinestream>`__. Feel free to contribute to localization there.
 Only elements of the API are planned to be translated.
 
 .. Attention:: The rest API has not yet been implemented.
@@ -49,10 +49,12 @@ situations. For example if a system tray icon is added it should be localized as
    .. code-block:: cpp
 
       #include <boost/locale.hpp>
-      boost::locale::translate("Hello world!")
+      #include <string>
+
+      std::string msg = boost::locale::translate("Hello world!");
 
 .. Tip:: More examples can be found in the documentation for
-   `boost locale <https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html>`_.
+   `boost locale <https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html>`__.
 
 .. Warning:: This is for information only. Contributors should never include manually updated template files, or
    manually compiled language files in Pull Requests.
@@ -68,7 +70,7 @@ any of the following paths are modified.
 
 When testing locally it may be desirable to manually extract, initialize, update, and compile strings. Python is
 required for this, along with the python dependencies in the `./scripts/requirements.txt` file. Additionally,
-`xgettext <https://www.gnu.org/software/gettext/>`_ must be installed.
+`xgettext <https://www.gnu.org/software/gettext/>`__ must be installed.
 
 **Extract, initialize, and update**
    .. code-block:: bash

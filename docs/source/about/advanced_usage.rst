@@ -226,7 +226,7 @@ keybindings
 **Description**
    Sometimes it may be useful to map keybindings. Wayland won't allow clients to capture the Win Key for example.
 
-   .. Tip:: See `virtual key codes <https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes>`_
+   .. Tip:: See `virtual key codes <https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes>`__
 
    .. Hint:: keybindings needs to have a multiple of two elements.
 
@@ -438,8 +438,8 @@ audio_sink
 
       **macOS**
          Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
-         `Soundflower <https://github.com/mattingalls/Soundflower>`_ or
-         `BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
+         `Soundflower <https://github.com/mattingalls/Soundflower>`__ or
+         `BlackHole <https://github.com/ExistentialAudio/BlackHole>`__.
 
       **Windows**
          .. code-block:: batch
@@ -485,7 +485,7 @@ virtual_sink
         - Steam must be installed.
         - Enable `install_steam_audio_drivers`_ or use Steam Remote Play at least once to install the drivers.
 
-      - `Virtual Audio Cable <https://vb-audio.com/Cable/>`_ (macOS, Windows)
+      - `Virtual Audio Cable <https://vb-audio.com/Cable/>`__ (macOS, Windows)
 
 **Example**
    .. code-block:: text
@@ -862,8 +862,8 @@ capture
    =========  ===========
    nvfbc      Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for
               NVIDIA cards. For GeForce cards it will only work with drivers patched with
-              `nvidia-patch <https://github.com/keylase/nvidia-patch/>`_
-              or `nvlax <https://github.com/illnyang/nvlax/>`_.
+              `nvidia-patch <https://github.com/keylase/nvidia-patch/>`__
+              or `nvlax <https://github.com/illnyang/nvlax/>`__.
    wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
    kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability.
               See :ref:`Linux Setup <about/usage:setup>`.
@@ -914,7 +914,7 @@ sw_preset
 
    .. Note:: This option only applies when using software `encoder`_.
 
-   .. Note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`_.
+   .. Note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`__.
 
          A preset is a collection of options that will provide a certain encoding speed to compression ratio. A slower
          preset will provide better compression (compression is quality per filesize). This means that, for example, if
@@ -958,7 +958,7 @@ sw_tune
 
    .. Note:: This option only applies when using software `encoder`_.
 
-   .. Note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`_.
+   .. Note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`__.
 
          You can optionally use -tune to change settings based upon the specifics of your input.
 
@@ -993,7 +993,7 @@ nv_preset
    The encoder preset to use.
 
    .. Note:: This option only applies when using nvenc `encoder`_. For more information on the presets, see
-      `nvenc preset migration guide <https://docs.nvidia.com/video-technologies/video-codec-sdk/nvenc-preset-migration-guide/>`_.
+      `nvenc preset migration guide <https://docs.nvidia.com/video-technologies/video-codec-sdk/nvenc-preset-migration-guide/>`__.
 
 **Choices**
 
