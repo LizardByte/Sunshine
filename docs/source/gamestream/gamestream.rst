@@ -7,7 +7,7 @@ outperforms GameStream, so rest assured that Sunshine will be equally performant
 Migration
 ---------
 We have developed a simple migration tool to help you migrate your GameStream games and apps to Sunshine automatically.
-Please check out our `GSMS <https://github.com/LizardByte/GSMS>`_ project if you're interested in an automated
+Please check out our `GSMS <https://github.com/LizardByte/GSMS>`__ project if you're interested in an automated
 migration option. At the time of writing this GSMS offers the ability to migrate your custom games and apps. The
 working directory, command, and image are all set in Sunshine's ``apps.json`` file. The box-art image is also copied
 to a specified directory.

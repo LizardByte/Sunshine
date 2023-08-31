@@ -1,6 +1,6 @@
 Build
 =====
-Sunshine binaries are built using `CMake <https://cmake.org/>`_. Cross compilation is not
+Sunshine binaries are built using `CMake <https://cmake.org/>`__. Cross compilation is not
 supported. That means the binaries must be built on the target operating system and architecture.
 
 Building Locally
@@ -8,7 +8,7 @@ Building Locally
 
 Clone
 ^^^^^
-Ensure `git <https://git-scm.com/>`_ is installed and run the following:
+Ensure `git <https://git-scm.com/>`__ is installed and run the following:
    .. code-block:: bash
 
       git clone https://github.com/lizardbyte/sunshine.git --recurse-submodules

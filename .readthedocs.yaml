@@ -12,7 +12,12 @@ build:
   tools:
     python: "3.11"
   apt_packages:
-    - graphviz
+    - graphviz  # required to build diagrams
+    - libboost-locale-dev  # required for rstcheck in cpp code block
+  jobs:
+    post_build:
+      - rstcheck -r .  # lint rst files
+      # - rstfmt --check --diff -w 120 .  # check rst formatting
 
 # submodules required for include statements
 submodules:

@@ -27,7 +27,7 @@ Follow the instructions for your preferred package type below.
 
 CUDA is used for NVFBC capture.
 
-.. Tip:: See `CUDA GPUS <https://developer.nvidia.com/cuda-gpus>`_ to cross reference Compute Capability to your GPU.
+.. Tip:: See `CUDA GPUS <https://developer.nvidia.com/cuda-gpus>`__ to cross reference Compute Capability to your GPU.
 
 .. table::
    :widths: auto
@@ -128,7 +128,7 @@ Uninstall:
 
 Flatpak Package
 ^^^^^^^^^^^^^^^
-#. Install `Flatpak <https://flatpak.org/setup/>`_ as required.
+#. Install `Flatpak <https://flatpak.org/setup/>`__ as required.
 #. Download ``sunshine_{arch}.flatpak`` and run the following code.
 
    .. Note:: Be sure to replace ``{arch}`` with the architecture for your operating system.
@@ -205,7 +205,7 @@ Uninstall:
 
 Portfile
 ^^^^^^^^
-#. Install `MacPorts <https://www.macports.org>`_
+#. Install `MacPorts <https://www.macports.org>`__
 #. Update the Macports sources.
 
    .. code-block:: bash
@@ -244,7 +244,7 @@ Installer
 .. Attention:: You should carefully select or unselect the options you want to install. Do not blindly install or enable
    features.
 
-To uninstall, find Sunshine in the list `here <ms-settings:installed-apps>`_ and select "Uninstall" from the overflow
+To uninstall, find Sunshine in the list `here <ms-settings:installed-apps>`__ and select "Uninstall" from the overflow
 menu. Different versions of Windows may provide slightly different steps for uninstall.
 
 Standalone

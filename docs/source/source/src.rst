@@ -10,7 +10,7 @@ Example Documentation Blocks
 
 **file.h**
 
-.. code-block:: cpp
+.. code-block:: c
 
    // functions
    int main(int argc, char *argv[]);
