@@ -3,7 +3,7 @@ Windows
 
 Requirements
 ------------
-First you need to install `MSYS2 <https://www.msys2.org>`_, then startup "MSYS2 MinGW 64-bit" and execute the following
+First you need to install `MSYS2 <https://www.msys2.org>`__, then startup "MSYS2 MinGW 64-bit" and execute the following
 codes.
 
 Update all packages:
@@ -21,7 +21,7 @@ Install dependencies:
 
 npm dependencies
 ----------------
-Install nodejs and npm. Downloads available `here <https://nodejs.org/en/download/>`_.
+Install nodejs and npm. Downloads available `here <https://nodejs.org/en/download/>`__.
 
 Install npm dependencies.
    .. code-block:: bash

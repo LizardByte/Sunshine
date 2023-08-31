@@ -13,12 +13,12 @@ Test clang-format locally.
 
 Sphinx
 ------
-Sunshine uses `Sphinx <https://www.sphinx-doc.org/en/master/>`_ for documentation building. Sphinx, along with other
+Sunshine uses `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for documentation building. Sphinx, along with other
 required python dependencies are included in the `./docs/requirements.txt` file. Python is required to build
 sphinx docs. Installation and setup of python will not be covered here.
 
 Doxygen is used to generate the XML files required by Sphinx. Doxygen can be obtained from
-`Doxygen downloads <https://www.doxygen.nl/download.html>`_. Ensure that the `doxygen` executable is in your path.
+`Doxygen downloads <https://www.doxygen.nl/download.html>`__. Ensure that the `doxygen` executable is in your path.
 
 The config file for Sphinx is `docs/source/conf.py`. This is already included in the repo and should not be modified.
 
@@ -36,6 +36,21 @@ Test with Sphinx
 
       cd docs
       sphinx-build -b html source build
+
+Lint with rstcheck
+   .. code-block:: bash
+
+      rstcheck -r .
+
+Check formatting with rstfmt
+   .. code-block:: bash
+
+      rstfmt --check --diff -w 120 .
+
+Format inplace with rstfmt
+   .. code-block:: bash
+
+      rstfmt -w 120 .
 
 Unit Testing
 ------------

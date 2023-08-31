@@ -31,7 +31,7 @@ Usage
 
 #. Configure Sunshine in the web ui
 
-   The web ui is available on `https://localhost:47990 <https://localhost:47990>`_ by default. You may replace
+   The web ui is available on `https://localhost:47990 <https://localhost:47990>`__ by default. You may replace
    `localhost` with your internal ip address.
 
    .. Attention:: Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
@@ -86,7 +86,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
    - filename: ``~/.config/systemd/user/sunshine.service``
    - contents:
-         .. code-block::
+         .. code-block:: cfg
 
             [Unit]
             Description=Sunshine self-hosted game stream host for Moonlight.
@@ -148,8 +148,8 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 macOS
 ^^^^^
 Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
-`Soundflower <https://github.com/mattingalls/Soundflower>`_ or
-`BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
+`Soundflower <https://github.com/mattingalls/Soundflower>`__ or
+`BlackHole <https://github.com/ExistentialAudio/BlackHole>`__.
 
 .. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
@@ -163,7 +163,7 @@ Configure autostart service
 
 Windows
 ^^^^^^^
-For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`_
+For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`__
 
 Sunshine firewall
    **Add rule**
@@ -280,7 +280,7 @@ You must have an HDR-capable display or EDID emulator dongle connected to your h
 
 Tutorials
 ---------
-Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.
+Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`__.
 
 .. admonition:: Community!
 

@@ -1,6 +1,6 @@
 Overview
 ========
-LizardByte has the full documentation hosted on `Read the Docs <https://sunshinestream.readthedocs.io/>`_.
+LizardByte has the full documentation hosted on `Read the Docs <https://sunshinestream.readthedocs.io/>`__.
 
 About
 -----
@@ -104,7 +104,7 @@ Support
 -------
 
 Our support methods are listed in our
-`LizardByte Docs <https://lizardbyte.readthedocs.io/en/latest/about/support.html>`_.
+`LizardByte Docs <https://lizardbyte.readthedocs.io/en/latest/about/support.html>`__.
 
 Downloads
 ---------
