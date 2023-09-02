@@ -49,7 +49,7 @@
 [submodule "third-party/tray"]
 	path = third-party/tray
 	url = https://github.com/LizardByte/tray
-	branch = balloons
+	branch = master
 [submodule "third-party/nvapi-open-source-sdk"]
 	path = third-party/nvapi-open-source-sdk
 	url = https://github.com/LizardByte/nvapi-open-source-sdk
