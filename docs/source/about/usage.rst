@@ -255,6 +255,9 @@ Application List
 
 Considerations
 --------------
+- On Windows, Sunshine uses the Desktop Duplication API which only supports capturing from the GPU used for display.
+  If you want to capture and encode on the eGPU, connect a display or HDMI dummy display dongle to it and run the games
+  on that display.
 - When an application is started, if there is an application already running, it will be terminated.
 - When the application has been shutdown, the stream shuts down as well.
 
