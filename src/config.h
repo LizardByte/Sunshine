@@ -29,6 +29,7 @@ namespace config {
     } sw;
 
     nvenc::nvenc_config nv;
+    bool nv_realtime_hags;
 
     struct {
       int preset;

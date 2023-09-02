@@ -157,7 +157,44 @@ namespace platf::dxgi {
       D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME
     } D3DKMT_SCHEDULINGPRIORITYCLASS;
 
+    typedef UINT D3DKMT_HANDLE;
+
+    typedef struct _D3DKMT_OPENADAPTERFROMLUID {
+      LUID AdapterLuid;
+      D3DKMT_HANDLE hAdapter;
+    } D3DKMT_OPENADAPTERFROMLUID;
+
+    typedef struct _D3DKMT_WDDM_2_7_CAPS {
+      union {
+        struct
+        {
+          UINT HwSchSupported : 1;
+          UINT HwSchEnabled : 1;
+          UINT HwSchEnabledByDefault : 1;
+          UINT IndependentVidPnVSyncControl : 1;
+          UINT Reserved : 28;
+        };
+        UINT Value;
+      };
+    } D3DKMT_WDDM_2_7_CAPS;
+
+    typedef struct _D3DKMT_QUERYADAPTERINFO {
+      D3DKMT_HANDLE hAdapter;
+      UINT Type;
+      VOID *pPrivateDriverData;
+      UINT PrivateDriverDataSize;
+    } D3DKMT_QUERYADAPTERINFO;
+
+    const UINT KMTQAITYPE_WDDM_2_7_CAPS = 70;
+
+    typedef struct _D3DKMT_CLOSEADAPTER {
+      D3DKMT_HANDLE hAdapter;
+    } D3DKMT_CLOSEADAPTER;
+
     typedef NTSTATUS(WINAPI *PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+    typedef NTSTATUS(WINAPI *PD3DKMTOpenAdapterFromLuid)(D3DKMT_OPENADAPTERFROMLUID *);
+    typedef NTSTATUS(WINAPI *PD3DKMTQueryAdapterInfo)(D3DKMT_QUERYADAPTERINFO *);
+    typedef NTSTATUS(WINAPI *PD3DKMTCloseAdapter)(D3DKMT_CLOSEADAPTER *);
 
     virtual bool
     is_hdr() override;

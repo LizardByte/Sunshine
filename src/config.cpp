@@ -326,6 +326,7 @@ namespace config {
     },  // software
 
     {},  // nv
+    true,  // nv_realtime_hags
     {},  // nv_legacy
 
     {
@@ -924,6 +925,7 @@ namespace config {
     int_between_f(vars, "nvenc_preset", video.nv.quality_preset, { 1, 7 });
     generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
     bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
+    bool_f(vars, "nvenc_realtime_hags", video.nv_realtime_hags);
 
 #ifndef __APPLE__
     video.nv_legacy.preset = video.nv.quality_preset + 11;

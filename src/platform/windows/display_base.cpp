@@ -564,17 +564,64 @@ namespace platf::dxgi {
 
       HMODULE gdi32 = GetModuleHandleA("GDI32");
       if (gdi32) {
-        PD3DKMTSetProcessSchedulingPriorityClass fn =
-          (PD3DKMTSetProcessSchedulingPriorityClass) GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
-        if (fn) {
-          // Set scheduling priority to "high" for NVIDIA, or to "realtime" for other gpu vendors
-          // As of 2023.07, NVIDIA driver has unfixed bug(s) where "realtime" can cause unrecoverable encoding freeze or outright driver crash
-          // This issue happens more frequently with HAGS, in DX12 games or when VRAM is filled close to max capacity
-          // Track OBS to see if they find better workaround or NVIDIA fixes it on their end, they seem to be in communication
-          status = fn(GetCurrentProcess(), adapter_desc.VendorId == 0x10DE ? D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH : D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME);
-          if (FAILED(status)) {
-            BOOST_LOG(warning) << "Failed to set realtime GPU priority. Please run application as administrator for optimal performance.";
+        auto check_hags = [&](const LUID &adapter) -> bool {
+          auto d3dkmt_open_adapter = (PD3DKMTOpenAdapterFromLuid) GetProcAddress(gdi32, "D3DKMTOpenAdapterFromLuid");
+          auto d3dkmt_query_adapter_info = (PD3DKMTQueryAdapterInfo) GetProcAddress(gdi32, "D3DKMTQueryAdapterInfo");
+          auto d3dkmt_close_adapter = (PD3DKMTCloseAdapter) GetProcAddress(gdi32, "D3DKMTCloseAdapter");
+          if (!d3dkmt_open_adapter || !d3dkmt_query_adapter_info || !d3dkmt_close_adapter) {
+            BOOST_LOG(error) << "Couldn't load d3dkmt functions from gdi32.dll to determine GPU HAGS status";
+            return false;
           }
+
+          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = { adapter };
+          if (FAILED(d3dkmt_open_adapter(&d3dkmt_adapter))) {
+            BOOST_LOG(error) << "D3DKMTOpenAdapterFromLuid() failed while trying to determine GPU HAGS status";
+            return false;
+          }
+
+          bool result;
+
+          D3DKMT_WDDM_2_7_CAPS d3dkmt_adapter_caps = {};
+          D3DKMT_QUERYADAPTERINFO d3dkmt_adapter_info = {};
+          d3dkmt_adapter_info.hAdapter = d3dkmt_adapter.hAdapter;
+          d3dkmt_adapter_info.Type = KMTQAITYPE_WDDM_2_7_CAPS;
+          d3dkmt_adapter_info.pPrivateDriverData = &d3dkmt_adapter_caps;
+          d3dkmt_adapter_info.PrivateDriverDataSize = sizeof(d3dkmt_adapter_caps);
+
+          if (SUCCEEDED(d3dkmt_query_adapter_info(&d3dkmt_adapter_info))) {
+            result = d3dkmt_adapter_caps.HwSchEnabled;
+          }
+          else {
+            BOOST_LOG(warning) << "D3DKMTQueryAdapterInfo() failed while trying to determine GPU HAGS status";
+            result = false;
+          }
+
+          D3DKMT_CLOSEADAPTER d3dkmt_close_adapter_wrap = { d3dkmt_adapter.hAdapter };
+          if (FAILED(d3dkmt_close_adapter(&d3dkmt_close_adapter_wrap))) {
+            BOOST_LOG(error) << "D3DKMTCloseAdapter() failed while trying to determine GPU HAGS status";
+          }
+
+          return result;
+        };
+
+        auto d3dkmt_set_process_priority = (PD3DKMTSetProcessSchedulingPriorityClass) GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
+        if (d3dkmt_set_process_priority) {
+          auto priority = D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME;
+          bool hags_enabled = check_hags(adapter_desc.AdapterLuid);
+          if (adapter_desc.VendorId == 0x10DE) {
+            // As of 2023.07, NVIDIA driver has unfixed bug(s) where "realtime" can cause unrecoverable encoding freeze or outright driver crash
+            // This issue happens more frequently with HAGS, in DX12 games or when VRAM is filled close to max capacity
+            // Track OBS to see if they find better workaround or NVIDIA fixes it on their end, they seem to be in communication
+            if (hags_enabled && !config::video.nv_realtime_hags) priority = D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH;
+          }
+          BOOST_LOG(info) << "Active GPU has HAGS " << (hags_enabled ? "enabled" : "disabled");
+          BOOST_LOG(info) << "Using " << (priority == D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH ? "high" : "realtime") << " GPU priority";
+          if (FAILED(d3dkmt_set_process_priority(GetCurrentProcess(), priority))) {
+            BOOST_LOG(warning) << "Failed to adjust GPU priority. Please run application as administrator for optimal performance.";
+          }
+        }
+        else {
+          BOOST_LOG(error) << "Couldn't load D3DKMTSetProcessSchedulingPriorityClass function from gdi32.dll to adjust GPU priority";
         }
       }
 
