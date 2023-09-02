@@ -912,6 +912,19 @@
           <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
             aria-labelledby="panelsStayOpen-headingOne">
             <div class="accordion-body">
+              <div class="mb-3" v-if="platform === 'windows'">
+                <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated gpu scheduling</label>
+                <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
+                  <option value="disabled">Disabled</option>
+                  <option value="enabled">Enabled (default)</option>
+                </select>
+                <div class="form-text">Currently NVIDIA drivers may freeze in encoder when
+                  <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
+                  is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
+                  Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture
+                  performance when the GPU is heavily loaded.
+                </div>
+              </div>
               <div>
                 <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
                 <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
@@ -1082,6 +1095,7 @@
     "mouse": "enabled",
     "nvenc_preset": "1",
     "nvenc_twopass": "quarter_res",
+    "nvenc_realtime_hags": "enabled",
     "nvenc_h264_cavlc": "disabled",
     "origin_pin_allowed": "pc",
     "origin_web_ui_allowed": "lan",
