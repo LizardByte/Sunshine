@@ -117,7 +117,7 @@ namespace proc {
 
     _app_id = app_id;
     _app = *iter;
-
+  
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
 
@@ -245,9 +245,8 @@ namespace proc {
 
   void
   proc_t::terminate() {
+    bool has_run = _app_id > 0;
     std::error_code ec;
-    std::string old_app_name = proc::proc.get_app_name(proc::proc.running());
-    // Ensure child process is terminated
     placebo = false;
     process_end(_process, _process_handle);
     _process = bp::child();
@@ -283,8 +282,8 @@ namespace proc {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
-    if (old_app_name.length() > 0) {
-      system_tray::update_tray_stopped(old_app_name);
+    if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
+      system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
     }
 #endif
   }
@@ -313,11 +312,8 @@ namespace proc {
   }
 
   std::string
-  proc_t::get_app_name(int app_id) {
-    auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
-      return app.id == std::to_string(app_id);
-    });
-    return iter == _apps.end() ? std::string() : iter->name;
+  proc_t::get_last_run_app_name() {
+    return _app.name;
   }
 
   proc_t::~proc_t() {

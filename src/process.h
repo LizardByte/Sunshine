@@ -83,7 +83,7 @@ namespace proc {
     std::string
     get_app_image(int app_id);
     std::string
-    get_app_name(int app_id);
+    get_last_run_app_name();
     void
     terminate();
 
