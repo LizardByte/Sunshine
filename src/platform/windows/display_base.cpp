@@ -668,8 +668,9 @@ namespace platf::dxgi {
     BOOST_LOG(info) << "Desktop format ["sv << dxgi_format_to_string(dup_desc.ModeDesc.Format) << ']';
 
     display_refresh_rate = dup_desc.ModeDesc.RefreshRate;
-    display_refresh_rate_rounded = lround((double) display_refresh_rate.Numerator / display_refresh_rate.Denominator);
-    BOOST_LOG(info) << "Display refresh rate [" << display_refresh_rate_rounded << "Hz]";
+    double display_refresh_rate_decimal = (double) display_refresh_rate.Numerator / display_refresh_rate.Denominator;
+    BOOST_LOG(info) << "Display refresh rate [" << display_refresh_rate_decimal << "Hz]";
+    display_refresh_rate_rounded = lround(display_refresh_rate_decimal);
 
     client_frame_rate = config.framerate;
     BOOST_LOG(info) << "Requested frame rate [" << client_frame_rate << "fps]";
