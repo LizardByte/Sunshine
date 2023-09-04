@@ -472,6 +472,17 @@ namespace platf::dxgi {
       }
       device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
 
+      {
+        int32_t rotation_modifier = display->display_rotation == DXGI_MODE_ROTATION_UNSPECIFIED ? 0 : display->display_rotation - 1;
+        int32_t rotation_data[16 / sizeof(int32_t)] { -rotation_modifier };  // aligned to 16-byte
+        auto rotation = make_buffer(device.get(), rotation_data);
+        if (!rotation) {
+          BOOST_LOG(error) << "Failed to create display rotation vertex constant buffer";
+          return -1;
+        }
+        device_ctx->VSSetConstantBuffers(1, 1, &rotation);
+      }
+
       D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
         format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
         D3D11_RTV_DIMENSION_TEXTURE2D
@@ -618,7 +629,11 @@ namespace platf::dxgi {
         convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(),
         &input_layout);
 
-      this->display = std::move(display);
+      this->display = std::dynamic_pointer_cast<display_base_t>(display);
+      if (!this->display) {
+        return -1;
+      }
+      display = nullptr;
 
       blend_disable = make_blend(device.get(), false, false);
       if (!blend_disable) {
@@ -735,7 +750,7 @@ namespace platf::dxgi {
     // amongst multiple hwdevice_t objects (and therefore multiple ID3D11Devices).
     std::map<uint32_t, encoder_img_ctx_t> img_ctx_map;
 
-    std::shared_ptr<platf::display_t> display;
+    std::shared_ptr<display_base_t> display;
 
     vs_t convert_UV_vs;
     ps_t convert_UV_ps;
@@ -988,8 +1003,11 @@ namespace platf::dxgi {
     }
 
     if (frame_info.LastMouseUpdateTime.QuadPart) {
-      cursor_alpha.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
-      cursor_xor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y, frame_info.PointerPosition.Visible);
+      cursor_alpha.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y,
+        width, height, display_rotation, frame_info.PointerPosition.Visible);
+
+      cursor_xor.set_pos(frame_info.PointerPosition.Position.x, frame_info.PointerPosition.Position.y,
+        width, height, display_rotation, frame_info.PointerPosition.Visible);
     }
 
     const bool blend_mouse_cursor_flag = (cursor_alpha.visible || cursor_xor.visible) && cursor_visible;
@@ -1008,7 +1026,7 @@ namespace platf::dxgi {
 
       // It's possible for our display enumeration to race with mode changes and result in
       // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
-      if (desc.Width != width || desc.Height != height) {
+      if (desc.Width != width_before_rotation || desc.Height != height_before_rotation) {
         BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
         return capture_e::reinit;
       }
@@ -1109,8 +1127,8 @@ namespace platf::dxgi {
 
       // Otherwise create a new surface.
       D3D11_TEXTURE2D_DESC t {};
-      t.Width = width;
-      t.Height = height;
+      t.Width = width_before_rotation;
+      t.Height = height_before_rotation;
       t.MipLevels = 1;
       t.ArraySize = 1;
       t.SampleDesc.Count = 1;
@@ -1344,6 +1362,17 @@ namespace platf::dxgi {
       return -1;
     }
 
+    {
+      int32_t rotation_modifier = display_rotation == DXGI_MODE_ROTATION_UNSPECIFIED ? 0 : display_rotation - 1;
+      int32_t rotation_data[16 / sizeof(int32_t)] { rotation_modifier };  // aligned to 16-byte
+      auto rotation = make_buffer(device.get(), rotation_data);
+      if (!rotation) {
+        BOOST_LOG(error) << "Failed to create display rotation vertex constant buffer";
+        return -1;
+      }
+      device_ctx->VSSetConstantBuffers(1, 1, &rotation);
+    }
+
     if (config.dynamicRange && is_hdr()) {
       // This shader will normalize scRGB white levels to a user-defined white level
       status = device->CreatePixelShader(scene_NW_ps_hlsl->GetBufferPointer(), scene_NW_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
@@ -1392,8 +1421,8 @@ namespace platf::dxgi {
     auto img = std::make_shared<img_d3d_t>();
 
     // Initialize format-independent fields
-    img->width = width;
-    img->height = height;
+    img->width = width_before_rotation;
+    img->height = height_before_rotation;
     img->id = next_image_id++;
 
     return img;
