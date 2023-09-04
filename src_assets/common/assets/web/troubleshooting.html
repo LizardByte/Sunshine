@@ -96,8 +96,9 @@
     computed: {
       actualLogs(){
         if(!this.logFilter)return this.logs;
+        const logFilter = this.logFilter.toLowerCase();
         let lines = this.logs.split("\n");
-        lines = lines.filter(x => x.indexOf(this.logFilter) != -1);
+        lines = lines.filter(x => x.toLowerCase().indexOf(logFilter) != -1);
         return lines.join("\n");
       }
     },
