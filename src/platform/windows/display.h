@@ -329,8 +329,8 @@ namespace platf::dxgi {
     blend_t blend_invert;
     blend_t blend_disable;
 
-    ps_t scene_ps;
-    vs_t scene_vs;
+    ps_t cursor_ps;
+    vs_t cursor_vs;
 
     gpu_cursor_t cursor_alpha;
     gpu_cursor_t cursor_xor;

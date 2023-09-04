@@ -107,6 +107,7 @@ namespace platf::dxgi {
   blob_t convert_UV_linear_ps_hlsl;
   blob_t convert_UV_PQ_ps_hlsl;
   blob_t scene_vs_hlsl;
+  blob_t cursor_vs_hlsl;
   blob_t convert_Y_ps_hlsl;
   blob_t convert_Y_linear_ps_hlsl;
   blob_t convert_Y_PQ_ps_hlsl;
@@ -1235,8 +1236,8 @@ namespace platf::dxgi {
     }
 
     auto blend_cursor = [&](img_d3d_t &d3d_img) {
-      device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
-      device_ctx->PSSetShader(scene_ps.get(), nullptr, 0);
+      device_ctx->VSSetShader(cursor_vs.get(), nullptr, 0);
+      device_ctx->PSSetShader(cursor_ps.get(), nullptr, 0);
       device_ctx->OMSetRenderTargets(1, &d3d_img.capture_rt, nullptr);
 
       if (cursor_alpha.texture.get()) {
@@ -1356,7 +1357,7 @@ namespace platf::dxgi {
       return -1;
     }
 
-    status = device->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
+    status = device->CreateVertexShader(cursor_vs_hlsl->GetBufferPointer(), cursor_vs_hlsl->GetBufferSize(), nullptr, &cursor_vs);
     if (status) {
       BOOST_LOG(error) << "Failed to create scene vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -1370,12 +1371,12 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to create display rotation vertex constant buffer";
         return -1;
       }
-      device_ctx->VSSetConstantBuffers(1, 1, &rotation);
+      device_ctx->VSSetConstantBuffers(2, 1, &rotation);
     }
 
     if (config.dynamicRange && is_hdr()) {
       // This shader will normalize scRGB white levels to a user-defined white level
-      status = device->CreatePixelShader(scene_NW_ps_hlsl->GetBufferPointer(), scene_NW_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+      status = device->CreatePixelShader(scene_NW_ps_hlsl->GetBufferPointer(), scene_NW_ps_hlsl->GetBufferSize(), nullptr, &cursor_ps);
       if (status) {
         BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
@@ -1394,7 +1395,7 @@ namespace platf::dxgi {
       device_ctx->PSSetConstantBuffers(1, 1, &sdr_multiplier);
     }
     else {
-      status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
+      status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &cursor_ps);
       if (status) {
         BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
@@ -1671,6 +1672,11 @@ namespace platf::dxgi {
     BOOST_LOG(info) << "Compiling shaders..."sv;
     scene_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/SceneVS.hlsl");
     if (!scene_vs_hlsl) {
+      return -1;
+    }
+
+    cursor_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/CursorVS.hlsl");
+    if (!cursor_vs_hlsl) {
       return -1;
     }
 
