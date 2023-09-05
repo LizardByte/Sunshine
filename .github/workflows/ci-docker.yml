@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Find dockerfiles
         id: find
@@ -86,7 +86,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Verify Changelog
         id: verify_changelog
@@ -162,7 +162,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Hadolint
         id: hadolint
@@ -193,7 +193,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v7
+        uses: easimon/maximize-build-space@v8
         with:
           root-reserve-mb: 30720  # https://github.com/easimon/maximize-build-space#caveats
           remove-dotnet: 'true'
@@ -203,7 +203,7 @@ jobs:
           remove-docker-images: 'true'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
