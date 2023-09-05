@@ -15,6 +15,10 @@ on:
   schedule:
     - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   languages:
     name: Get language matrix
@@ -96,7 +100,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
