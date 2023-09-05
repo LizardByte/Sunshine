@@ -264,15 +264,15 @@ jobs:
           prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_linux:
-    name: Linux
+    name: Linux ${{ matrix.type }}
     runs-on: ubuntu-${{ matrix.dist }}
     needs: [check_changelog, setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
         include:  # package these differently
-          - type: appimage
-            EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
+          - type: AppImage
+            EXTRA_ARGS: '-DSUNSHINE_BUILD_APPIMAGE=ON'
             dist: 20.04
 
     steps:
@@ -406,6 +406,7 @@ jobs:
           make -j ${nproc}
 
       - name: Package Linux - CPACK
+        # todo - this is no longer used
         if: ${{ matrix.type == 'cpack' }}
         working-directory: build
         run: |
@@ -418,13 +419,13 @@ jobs:
           fi
 
       - name: Set AppImage Version
-        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
+        if: ${{ matrix.type == 'AppImage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
 
       - name: Package Linux - AppImage
-        if: ${{ matrix.type == 'appimage' }}
+        if: ${{ matrix.type == 'AppImage' }}
         working-directory: build
         run: |
           # install sunshine to the DESTDIR
@@ -460,7 +461,7 @@ jobs:
           chmod +x ../artifacts/sunshine.AppImage
 
       - name: Verify AppImage
-        if: ${{ matrix.type == 'appimage' }}
+        if: ${{ matrix.type == 'AppImage' }}
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage

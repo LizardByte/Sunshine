@@ -223,7 +223,7 @@ modules:
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
-      - -DSUNSHINE_CONFIGURE_FLATPAK=ON
+      - -DSUNSHINE_BUILD_FLATPAK=ON
     sources:
       - type: git
         url: "@GITHUB_CLONE_URL@"

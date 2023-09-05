@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=@PROJECT_NAME@
-Exec=sunshine
+Exec=flatpak run dev.lizardbyte.sunshine
 Version=1.0
 Comment=@PROJECT_DESCRIPTION@
 Icon=sunshine
