@@ -7,3 +7,6 @@ Comment=@PROJECT_DESCRIPTION@
 Icon=sunshine
 Categories=Utility;
 Terminal=true
+X-AppImage-Name=sunshine
+X-AppImage-Version=@PROJECT_VERSION@
+X-AppImage-Arch=x86_64
