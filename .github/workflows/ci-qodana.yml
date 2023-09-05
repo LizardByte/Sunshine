@@ -214,7 +214,7 @@ jobs:
       - name: Qodana
         id: qodana
         continue-on-error: true  # ensure dispatch-qodana job is run
-        uses: JetBrains/qodana-action@v2023.2.1
+        uses: JetBrains/qodana-action@v2023.2.6
         with:
           additional-cache-hash: ${{ github.ref }}-${{ matrix.language }}
           artifact-name: qodana-${{ matrix.language }}  # yamllint disable-line rule:line-length
