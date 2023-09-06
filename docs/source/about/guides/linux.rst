@@ -409,7 +409,7 @@ With your monitor still plugged into your Sunshine host PC:
 
       crw------- 1 <user> <primary_group> 10, 223 Aug 29 17:31 /dev/uinput
 
-#. Connect to host from a moonlight client
+#. Connect to Sunshine host from a moonlight client
 
 *Now unplug your monitors and repeat steps 1 - 5*
 
