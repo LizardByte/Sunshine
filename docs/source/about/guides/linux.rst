@@ -127,9 +127,9 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
    
     .. code-block:: bash
 
-        rc-update add sshd # Enables service
-        rc-status # List services to verify sshd is enabled
-        rc-service sshd start # Starts the service now
+        rc-update add sshd  # Enables service
+        rc-status  # List services to verify sshd is enabled
+        rc-service sshd start  # Starts the service now
 
 **Disabling PAM in sshd**
 
