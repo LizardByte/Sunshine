@@ -189,7 +189,7 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
 .. important::
    This is only available for NVidia GPUs using Xorg.
 
-.. code-block::  
+.. code-block:: xorg.conf
 
 	Section "ServerLayout"
 		Identifier     "TwinLayout"
