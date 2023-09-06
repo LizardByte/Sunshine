@@ -56,7 +56,7 @@ We will be setting up:
 #. `SSH Server Setup <ssh server setup_>`_
 #. `Virtual Display Acceleration via NVIDIA's TwinView X11 Config <virtual display setup_>`_
 #. `Script for uinput permission workaround <uinput permissions workaround_>`_
-#. `Script to put everything together to startup X server and Sunshine <stream launcher script_>`_
+#. `Script to combine X server and Sunshine startup <stream launcher script_>`_
 
 
 Static IP Setup
