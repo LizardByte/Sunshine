@@ -403,8 +403,11 @@ With your monitor still plugged into your Sunshine host PC:
    
    .. code-block:: bash
 
-       $ ls -l /dev/uinput
-       crw------- 1 <user> <primary_group> 10, 223 Aug 29 17:31 /dev/uinput
+      ls -l /dev/uinput
+
+   .. code-block:: console
+
+      crw------- 1 <user> <primary_group> 10, 223 Aug 29 17:31 /dev/uinput
 
 #. Connect to host from a moonlight client
 
