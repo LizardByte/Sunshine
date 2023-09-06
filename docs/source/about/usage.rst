@@ -34,7 +34,7 @@ Usage
 
          ssh <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
       
-      .. Note:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
+      .. tip:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
          variable.
       
       .. admonition:: Guide
