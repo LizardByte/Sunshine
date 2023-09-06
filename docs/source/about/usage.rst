@@ -44,7 +44,7 @@ Usage
 
 #. Configure Sunshine in the web ui
 
-   The web ui is available on `https://localhost:47990 <https://localhost:47990>`_ by default. You may replace
+   The web ui is available on `https://localhost:47990 <https://localhost:47990>`__ by default. You may replace
    `localhost` with your internal ip address.
 
    .. Attention:: Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
@@ -99,7 +99,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
    - filename: ``~/.config/systemd/user/sunshine.service``
    - contents:
-         .. code-block::
+         .. code-block:: cfg
 
             [Unit]
             Description=Sunshine self-hosted game stream host for Moonlight.
@@ -161,8 +161,8 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 macOS
 ^^^^^
 Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
-`Soundflower <https://github.com/mattingalls/Soundflower>`_ or
-`BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
+`Soundflower <https://github.com/mattingalls/Soundflower>`__ or
+`BlackHole <https://github.com/ExistentialAudio/BlackHole>`__.
 
 .. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
@@ -176,7 +176,7 @@ Configure autostart service
 
 Windows
 ^^^^^^^
-For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`_
+For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`__
 
 Sunshine firewall
    **Add rule**
@@ -268,6 +268,9 @@ Application List
 
 Considerations
 --------------
+- On Windows, Sunshine uses the Desktop Duplication API which only supports capturing from the GPU used for display.
+  If you want to capture and encode on the eGPU, connect a display or HDMI dummy display dongle to it and run the games
+  on that display.
 - When an application is started, if there is an application already running, it will be terminated.
 - When the application has been shutdown, the stream shuts down as well.
 

@@ -68,7 +68,7 @@ else
   sub_version=""
 fi
 cmake \
-  -DSUNSHINE_CONFIGURE_AUR=ON \
+  -DSUNSHINE_CONFIGURE_PKGBUILD=ON \
   -DSUNSHINE_SUB_VERSION="${sub_version}" \
   -DGITHUB_CLONE_URL="${CLONE_URL}" \
   -DGITHUB_COMMIT="${COMMIT}" \

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+    <id>@PROJECT_NAME@.desktop</id>
+    <metadata_license>@PROJECT_LICENSE@</metadata_license>
+    <project_license>@PROJECT_LICENSE@</project_license>
+    <name>@PROJECT_NAME@</name>
+    <url type="homepage">@CMAKE_PROJECT_HOMEPAGE_URL@</url>
+    <summary>@PROJECT_DESCRIPTION@</summary>
+    <description>
+        <p>
+            @PROJECT_LONG_DESCRIPTION@
+        </p>
+    </description>
+    <screenshots>
+        <screenshot type="default">
+            <image>https://app.lizardbyte.dev/Sunshine/assets/images/AdobeStock_305732536_1920x1280.jpg</image>
+            <caption>Sunshine</caption>
+        </screenshot>
+    </screenshots>
+</component>

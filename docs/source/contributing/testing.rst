@@ -13,7 +13,7 @@ Test clang-format locally.
 
 Sphinx
 ------
-Sunshine uses `Sphinx <https://www.sphinx-doc.org/en/master/>`_ for documentation building. Sphinx, along with other
+Sunshine uses `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for documentation building. Sphinx, along with other
 required python dependencies are included in the `./docs/requirements.txt` file. Python is required to build
 sphinx docs. Installation and setup of python will not be covered here.
 
@@ -39,6 +39,21 @@ Test with Sphinx
 
       cd docs
       sphinx-build -b html source build
+
+Lint with rstcheck
+   .. code-block:: bash
+
+      rstcheck -r .
+
+Check formatting with rstfmt
+   .. code-block:: bash
+
+      rstfmt --check --diff -w 120 .
+
+Format inplace with rstfmt
+   .. code-block:: bash
+
+      rstfmt -w 120 .
 
 Unit Testing
 ------------

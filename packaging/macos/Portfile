@@ -37,7 +37,7 @@ depends_lib              port:avahi \
                          port:npm9 \
                          port:pkgconfig
 
-boost.version            1.80
+boost.version            1.81
 
 configure.args           -DCMAKE_INSTALL_PREFIX=${prefix} \
                          -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets

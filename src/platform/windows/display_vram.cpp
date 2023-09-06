@@ -435,7 +435,6 @@ namespace platf::dxgi {
         return;
       }
 
-      device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
       device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
       this->color_matrix = std::move(color_matrix);
     }
@@ -471,6 +470,7 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to create info scene buffer"sv;
         return -1;
       }
+      device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
 
       D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
         format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
@@ -607,6 +607,7 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
         return -1;
       }
+      device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
 
       D3D11_INPUT_ELEMENT_DESC layout_desc {
         "SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
@@ -640,8 +641,6 @@ namespace platf::dxgi {
       }
 
       device_ctx->IASetInputLayout(input_layout.get());
-      device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
-      device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
 
       device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
       device_ctx->PSSetSamplers(0, 1, &sampler_linear);
@@ -1367,7 +1366,7 @@ namespace platf::dxgi {
         return -1;
       }
 
-      device_ctx->PSSetConstantBuffers(0, 1, &sdr_multiplier);
+      device_ctx->PSSetConstantBuffers(1, 1, &sdr_multiplier);
     }
     else {
       status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);

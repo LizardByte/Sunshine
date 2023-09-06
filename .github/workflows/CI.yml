@@ -31,7 +31,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Verify Changelog
         id: verify_changelog
@@ -55,7 +55,7 @@ jobs:
     # base_ref for pull request check, ref for push
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Check CMakeLists.txt Version
         run: |
@@ -168,7 +168,7 @@ jobs:
           remove-docker-images: 'false'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Dependencies Linux Flatpak
         run: |
@@ -264,15 +264,15 @@ jobs:
           prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_linux:
-    name: Linux
+    name: Linux ${{ matrix.type }}
     runs-on: ubuntu-${{ matrix.dist }}
     needs: [check_changelog, setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
         include:  # package these differently
-          - type: appimage
-            EXTRA_ARGS: '-DSUNSHINE_CONFIGURE_APPIMAGE=ON'
+          - type: AppImage
+            EXTRA_ARGS: '-DSUNSHINE_BUILD_APPIMAGE=ON'
             dist: 20.04
 
     steps:
@@ -287,7 +287,7 @@ jobs:
           remove-docker-images: 'false'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -406,6 +406,7 @@ jobs:
           make -j ${nproc}
 
       - name: Package Linux - CPACK
+        # todo - this is no longer used
         if: ${{ matrix.type == 'cpack' }}
         working-directory: build
         run: |
@@ -418,13 +419,13 @@ jobs:
           fi
 
       - name: Set AppImage Version
-        if: ${{ matrix.type == 'appimage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
+        if: ${{ matrix.type == 'AppImage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
 
       - name: Package Linux - AppImage
-        if: ${{ matrix.type == 'appimage' }}
+        if: ${{ matrix.type == 'AppImage' }}
         working-directory: build
         run: |
           # install sunshine to the DESTDIR
@@ -460,7 +461,7 @@ jobs:
           chmod +x ../artifacts/sunshine.AppImage
 
       - name: Verify AppImage
-        if: ${{ matrix.type == 'appimage' }}
+        if: ${{ matrix.type == 'AppImage' }}
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage
@@ -496,7 +497,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -564,17 +565,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Checkout ports
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: macports/macports-ports
           fetch-depth: 64
           path: ports
 
       - name: Checkout mpbb
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: macports/mpbb
           path: mpbb
@@ -634,104 +635,33 @@ jobs:
           echo "/opt/local/bin" >> $GITHUB_PATH
           echo "/opt/local/sbin" >> $GITHUB_PATH
 
-      - name: Determine list of subports
-        id: subportlist
+      - name: Run port lint
         run: |
-          set -eu
-          port=Sunshine
-          subportlist=""
+          port -q lint "Sunshine"
 
-          echo "Listing subports for Sunshine"
-          new_subports=$(mpbb \
-            --work-dir /tmp/mpbb \
-            list-subports \
-            --archive-site= \
-            --archive-site-private= \
-            --include-deps=no \
-            "$port" \
-            | tr '\n' ' ')
-          for subport in $new_subports; do
-            echo "$subport"
-            subportlist="$subportlist $subport"
-          done
-          echo "subportlist=${subportlist}" >> $GITHUB_OUTPUT
-
-      - name: Run port lint for all subports
+      - name: Build port
         env:
           subportlist: ${{ steps.subportlist.outputs.subportlist }}
         run: |
-          set -eu
-          fail=0
-          for subport in $subportlist; do
-            echo "::group::${subport}"
-            path=$(port file "$subport")
-            messagetype="warning"
-            if ! messages=$(port -q lint "$subport" 2>&1); then
-              messagetype="error"
-              fail=1
-            fi
-            if [ -n "$messages" ]; then
-              echo "$messages"
-              # See https://github.com/actions/toolkit/issues/193#issuecomment-605394935
-              encoded_messages="port lint ${subport}:%0A"
-              encoded_messages+="$(echo "${messages}" | sed -E 's/$/%0A/g' | tr -d '\n')"
-              echo "::${messagetype} file=${path#${PWD}/ports/},line=1,col=1::${encoded_messages}"
-            fi
-            echo "::endgroup::"
-          done
-          exit "$fail"
+          subport="Sunshine"
 
-      - name: Build subports
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
-        run: |
-          set -eu
-          fail=0
-          for subport in $subportlist; do
-            workdir="/tmp/mpbb/$subport"
-            mkdir -p "$workdir/logs"
-            touch "$workdir/logs/dependencies-progress.txt"
-            echo "::group::Cleaning up between ports"
-            sudo mpbb --work-dir "$workdir" cleanup
-            echo "::endgroup::"
-            echo "::group::Installing dependencies for ${subport}"
-            sudo mpbb \
-              --work-dir "$workdir" \
-              install-dependencies \
-              "$subport" >"$workdir/logs/install-dependencies.log" 2>&1 &
-            deps_pid=$!
-            tail -f "$workdir/logs/dependencies-progress.txt" 2>/dev/null &
-            tail_pid=$!
-            set +e
-            wait "$deps_pid"
-            deps_exit=$?
-            set -e
-            kill "$tail_pid" || true
-            if [ "$deps_exit" -ne 0 ]; then
-              echo "::endgroup::"
-              echo "::error::Failed to install dependencies for ${subport}"
-              fail=1
-              continue
-            fi
-            echo "::endgroup::"
-            echo "::group::Installing ${subport}"
-            set +e
-            sudo mpbb \
-              --work-dir "$workdir" \
-              install-port \
-              --source \
-              "$subport"
-            install_exit=$?
-            set -e
-            if [ "$install_exit" -ne 0 ]; then
-              echo "::endgroup::"
-              echo "::error::Failed to install ${subport}"
-              fail=1
-              continue
-            fi
-            echo "::endgroup::"
-          done
-          exit "$fail"
+          workdir="/tmp/mpbb/$subport"
+          mkdir -p "$workdir/logs"
+
+          echo "::group::Installing dependencies"
+          sudo mpbb \
+            --work-dir "$workdir" \
+            install-dependencies \
+            "$subport"
+          echo "::endgroup::"
+
+          echo "::group::Installing ${subport}"
+          sudo mpbb \
+            --work-dir "$workdir" \
+            install-port \
+            --source \
+            "$subport"
+          echo "::endgroup::"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
@@ -760,7 +690,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 

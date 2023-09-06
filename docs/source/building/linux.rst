@@ -174,10 +174,10 @@ CUDA
 If the version of CUDA available from your distro is not adequate, manually install CUDA.
 
 .. Tip:: The version of CUDA you use will determine compatibility with various GPU generations.
-   See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`_ for more info.
+   See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`__ for more info.
 
    Select the appropriate run file based on your desired CUDA version and architecture according to
-   `CUDA Toolkit Archive <https://developer.nvidia.com/cuda-toolkit-archive>`_.
+   `CUDA Toolkit Archive <https://developer.nvidia.com/cuda-toolkit-archive>`__.
 
 .. code-block:: bash
 

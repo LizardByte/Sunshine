@@ -350,7 +350,7 @@ namespace video {
       option_t(const option_t &) = default;
 
       std::string name;
-      std::variant<int, int *, std::optional<int> *, std::string, std::string *> value;
+      std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *> value;
 
       option_t(std::string &&name, decltype(value) &&value):
           name { std::move(name) }, value { std::move(value) } {}
@@ -761,7 +761,7 @@ namespace video {
       // Common options
       {
         { "filler_data"s, false },
-        { "log_to_dbg"s, config::sunshine.min_log_level < 2 ? 1 : 0 },
+        { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "preanalysis"s, &config::video.amd.amd_preanalysis },
         { "quality"s, &config::video.amd.amd_quality_av1 },
         { "rc"s, &config::video.amd.amd_rc_av1 },
@@ -776,7 +776,7 @@ namespace video {
       // Common options
       {
         { "filler_data"s, false },
-        { "log_to_dbg"s, config::sunshine.min_log_level < 2 ? 1 : 0 },
+        { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "gops_per_idr"s, 1 },
         { "header_insertion_mode"s, "idr"s },
         { "preanalysis"s, &config::video.amd.amd_preanalysis },
@@ -796,7 +796,7 @@ namespace video {
       // Common options
       {
         { "filler_data"s, false },
-        { "log_to_dbg"s, config::sunshine.min_log_level < 2 ? 1 : 0 },
+        { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "preanalysis"s, &config::video.amd.amd_preanalysis },
         { "qmax"s, 51 },
         { "qmin"s, 0 },
@@ -1529,6 +1529,7 @@ namespace video {
           [&](int v) { av_dict_set_int(&options, option.name.c_str(), v, 0); },
           [&](int *v) { av_dict_set_int(&options, option.name.c_str(), *v, 0); },
           [&](std::optional<int> *v) { if(*v) av_dict_set_int(&options, option.name.c_str(), **v, 0); },
+          [&](std::function<int()> v) { av_dict_set_int(&options, option.name.c_str(), v(), 0); },
           [&](const std::string &v) { av_dict_set(&options, option.name.c_str(), v.c_str(), 0); },
           [&](std::string *v) { if(!v->empty()) av_dict_set(&options, option.name.c_str(), v->c_str(), 0); } },
         option.value);

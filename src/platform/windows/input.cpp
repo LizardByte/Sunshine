@@ -1098,14 +1098,17 @@ namespace platf {
       penInfo.rotation = 0;
     }
 
-    // We require rotation and tilt to perform the polar to cartesian conversion
+    // We require rotation and tilt to perform the conversion to X and Y tilt angles
     if (pen.tilt != LI_TILT_UNKNOWN && pen.rotation != LI_ROT_UNKNOWN) {
       auto rotationRads = pen.rotation * (M_PI / 180.f);
+      auto tiltRads = pen.tilt * (M_PI / 180.f);
+      auto r = std::sin(tiltRads);
+      auto z = std::cos(tiltRads);
 
-      // Convert into cartesian coordinates
+      // Convert polar coordinates into X and Y tilt angles
       penInfo.penMask |= PEN_MASK_TILT_X | PEN_MASK_TILT_Y;
-      penInfo.tiltX = (INT32) (std::cos(rotationRads) * pen.tilt);
-      penInfo.tiltY = (INT32) (std::sin(rotationRads) * pen.tilt);
+      penInfo.tiltX = (INT32) (std::atan2(std::sin(-rotationRads) * r, z) * 180.f / M_PI);
+      penInfo.tiltY = (INT32) (std::atan2(std::cos(-rotationRads) * r, z) * 180.f / M_PI);
     }
     else {
       penInfo.tiltX = 0;
