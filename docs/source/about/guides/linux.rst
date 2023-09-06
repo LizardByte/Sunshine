@@ -53,7 +53,7 @@ Host Setup
 We will be setting up:
 
 #. `Static IP Setup <static ip setup_>`_
-#. `SSH Server setup <ssh server setup_>`_
+#. `SSH Server Setup <ssh server setup_>`_
 #. `Virtual Display Acceleration via NVIDIA's TwinView X11 Config <virtual display setup_>`_
 #. `Script for uinput permission workaround <uinput permissions workaround_>`_
 #. `Script to put everything together to startup X server and Sunshine <stream launcher script_>`_
