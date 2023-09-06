@@ -145,7 +145,7 @@ Starting the X server in the background and exiting out of the console would cau
 
 Edit the ``sshd_config`` file with the following to disable PAM.
 
-.. code-block:: bash
+.. code-block:: text
 
    usePAM no
 
