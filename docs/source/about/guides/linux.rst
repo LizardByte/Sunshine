@@ -280,7 +280,6 @@ You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/
 	Be very careful of messing this config up. If you make a typo, *YOU LOSE THE ABILITY TO USE SUDO*. Fortunately, your system is not borked,
 	you will need to login as root to fix the config. You may want to setup a backup user / SSH into the host as root to fix the config if this happens. Otherwise you will need to plug your machine back into a monitor and login as root to fix this. To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
 
-Replace ``<user>`` with your user and add the absolute path to your script:
 
 .. code-block::
 
