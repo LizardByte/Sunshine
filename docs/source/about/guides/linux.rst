@@ -152,11 +152,13 @@ Edit the ``sshd_config`` file with the following to disable PAM.
 After making changes to the sshd_config, restart the sshd service for changes to take into effect.
 
 .. tip::
-	Run the command to check the ssh configuration prior to restarting the sshd service.
+   Run the command to check the ssh configuration prior to restarting the sshd service.
 
-	``sudo sshd -t -f /etc/ssh/sshd_config``
+   .. code-block:: bash
 
-	An incorrect configuration will prevent the sshd service from starting, which might mean losing access to reach the server.
+      sudo sshd -t -f /etc/ssh/sshd_config
+
+   An incorrect configuration will prevent the sshd service from starting, which might mean losing SSH access to the server.
 
 .. tab:: SystemD
 
