@@ -65,7 +65,7 @@ Setup static IP Address for host. For LAN connections you can use DHCP reservati
 192.168.x.x. This will allow you to ssh to the host consistently, so the assigned IP address does not change. Usually your ISP supports this through editing the settings through your router.
 
 
-SSH Server setup
+SSH Server Setup
 ++++++++++++++++
 
 .. note:: Most distros have OpenSSH already installed. If it is not present, install OpenSSH using your package manager.
