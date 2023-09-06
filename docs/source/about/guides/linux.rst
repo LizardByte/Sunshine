@@ -191,35 +191,35 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
 
 .. code-block:: xorg.conf
 
-	Section "ServerLayout"
-		Identifier     "TwinLayout"
-		Screen         0 "metaScreen" 0 0
-	EndSection
+   Section "ServerLayout"
+       Identifier "TwinLayout"
+       Screen 0 "metaScreen" 0 0
+   EndSection
 
-	Section "Monitor"
-		Identifier     "Monitor0"
-		Option         "Enable" "true"
-	EndSection
+   Section "Monitor"
+       Identifier "Monitor0"
+       Option "Enable" "true"
+   EndSection
 
-	Section "Device"
-		Identifier     "Card0"
-		Driver         "nvidia"
-		VendorName     "NVIDIA Corporation"
-		Option         "MetaModes"          "1920x1080"
-		Option         "ConnectedMonitor"   "DP-0"
-		Option         "ModeValidation" "NoDFPNativeResolutionCheck,NoVirtualSizeCheck,NoMaxPClkCheck,NoHorizSyncCheck,NoVertRefreshCheck,NoWidthAlignmentCheck"
-	EndSection
+   Section "Device"
+       Identifier "Card0"
+       Driver "nvidia"
+       VendorName "NVIDIA Corporation"
+       Option "MetaModes" "1920x1080"
+       Option "ConnectedMonitor" "DP-0"
+       Option "ModeValidation" "NoDFPNativeResolutionCheck,NoVirtualSizeCheck,NoMaxPClkCheck,NoHorizSyncCheck,NoVertRefreshCheck,NoWidthAlignmentCheck"
+   EndSection
 
-	Section "Screen"
-		Identifier     "metaScreen"
-		Device         "Card0"
-		Monitor        "Monitor0"
-		DefaultDepth    24
-		Option         "TwinView" "True"
-		SubSection "Display"
-			Modes          "1920x1080"
-		EndSubSection
-	EndSection
+   Section "Screen"
+       Identifier "metaScreen"
+       Device "Card0"
+       Monitor "Monitor0"
+       DefaultDepth 24
+       Option "TwinView" "True"
+       SubSection "Display"
+           Modes "1920x1080"
+       EndSubSection
+   EndSection
 
 .. note::
 	The ``ConnectedMonitor`` tricks the GPU into thinking a monitor is connected, even if there is none actually connected! 
