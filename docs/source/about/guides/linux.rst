@@ -149,7 +149,7 @@ Edit the ``sshd_config`` file with the following to disable PAM.
 
    usePAM no
 
-After making changes to the sshd_config, restart the sshd service for changes to take into effect.
+After making changes to the ``sshd_config``, restart the sshd service for changes to take effect.
 
 .. tip::
    Run the command to check the ssh configuration prior to restarting the sshd service.
