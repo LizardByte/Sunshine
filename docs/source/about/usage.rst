@@ -295,8 +295,9 @@ You must have an HDR-capable display or EDID emulator dongle connected to your h
 
 Tutorials and Guides
 --------------------
-Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.  
-Guides are available :doc:`here <./guides/guides>`
+Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.
+
+Guides are available :doc:`here <./guides/guides>`.
 
 .. admonition:: Community!
 
