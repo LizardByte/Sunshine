@@ -374,7 +374,7 @@ With your monitor still plugged into your Sunshine host PC:
 
    You should see the sunshine and Xorg processing running:
 
-   .. code-block::
+   .. code-block:: console
        
        $ nvidia-smi
        Tue Aug 29 18:38:46 2023
