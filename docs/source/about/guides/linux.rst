@@ -113,7 +113,7 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
 		sudo systemctl enable sshd.service
 		sudo systemctl start sshd.service  # Starts the service now
-		sudo systemctl status sshd.service # See if the service is running
+		sudo systemctl status sshd.service  # See if the service is running
 
 .. tab:: Runit
 
