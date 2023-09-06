@@ -31,7 +31,7 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Verify Changelog
         id: verify_changelog
@@ -55,7 +55,7 @@ jobs:
     # base_ref for pull request check, ref for push
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Check CMakeLists.txt Version
         run: |
@@ -168,7 +168,7 @@ jobs:
           remove-docker-images: 'false'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Dependencies Linux Flatpak
         run: |
@@ -287,7 +287,7 @@ jobs:
           remove-docker-images: 'false'
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -497,7 +497,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -565,17 +565,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Checkout ports
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: macports/macports-ports
           fetch-depth: 64
           path: ports
 
       - name: Checkout mpbb
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: macports/mpbb
           path: mpbb
@@ -690,7 +690,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
