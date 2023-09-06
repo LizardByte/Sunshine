@@ -95,13 +95,15 @@ SSH Server Setup
 
 .. tab:: CentOS/RHEL/Fedora
 
-    .. code-block:: bash
-        
-        # CentOS/RHEL 7
-        sudo yum install openssh-server
-        
-        # Fedora/CentOS/RHEL 8
-        sudo dnf install openssh-server
+   **CentOS/RHEL 7**
+   .. code-block:: bash
+
+      sudo yum install openssh-server
+
+   **CentOS/Fedora/RHEL 8**
+   .. code-block:: bash
+
+      sudo dnf install openssh-server
 
 Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
