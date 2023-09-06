@@ -183,7 +183,7 @@ After making changes to the ``sshd_config``, restart the sshd service for change
 Virtual Display Setup
 +++++++++++++++++++++
 
-There is no need to buy a dummy plugin, when you can just use this config to get a virtual display for free!
+As an alternative to a dummy dongle, you can use this config to create a virtual display.
 
 .. important:: This is only available for NVidia GPUs using Xorg
 
