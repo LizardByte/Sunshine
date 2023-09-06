@@ -271,7 +271,7 @@ Create a script named something like ``sunshine-setup.sh``:
 **Sudo Configuration**
 
 We will manually change the permissions of ``/dev/uinput`` using ``chown``.
-You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/<user>``
+You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/${USER}``
 
 .. caution::
 	Do so at your own risk! It is more secure to give sudo and no password prompt to a single script, than a generic executable like chown.
