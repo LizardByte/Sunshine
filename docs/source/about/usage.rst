@@ -37,10 +37,9 @@ Usage
       .. tip:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
          variable.
       
-      .. admonition:: Guide
-        :class: important
+      .. seealso::
 
-        See :ref:`remote-ssh-headless-setup` on how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)
+         See :ref:`remote-ssh-headless-setup` on how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)
 
 #. Configure Sunshine in the web ui
 
