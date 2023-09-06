@@ -420,7 +420,7 @@ SSH Client Script (Optional)
 At this point you have a working setup! For convience I created this bash script to automate the startup of the X server and Sunshine on the host.
 This can be run on Unix systems, or on Windows using the ``git-bash`` or any bash shell.
 
-For Android/IOS you can install linux emulators. E.g. ``Userland`` for Android and ``ISH`` for IOS. The neat part is that you can execute one script to launch sunshine from your phone / tablet!
+For Android/iOS you can install Linux emulators, e.g. ``Userland`` for Android and ``ISH`` for iOS. The neat part is that you can execute one script to launch Sunshine from your phone or tablet!
 
 .. code-block:: bash
 
