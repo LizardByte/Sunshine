@@ -36,8 +36,9 @@ Once you are done, you will need to perform these 3 steps:
 
 #. Startup Moonlight on the client of interest and connect to host
 
-.. admonition:: Alternative to SSH
-	:class: seealso
+.. hint::
+
+   As an alternative to SSH...
 
 	**Step 2** can be replaced with autologin and starting sunshine as a service or putting ``sunshine &`` in your ``.xinitrc`` file 
 	if you start your X server with ``startx``.
