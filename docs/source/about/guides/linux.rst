@@ -29,9 +29,11 @@ Once you are done, you will need to perform these 3 steps:
 
 #. Turn on the host machine
 #. Start sunshine on remote host with a script that:
-	- Edits permissions of ``/dev/uinput`` (added sudo config to execute script with no password prompt)
-	- Starts X server with ``startx`` on virtual display
-	- Starts ``Sunshine`` 
+
+   - Edits permissions of ``/dev/uinput`` (added sudo config to execute script with no password prompt)
+   - Starts X server with ``startx`` on virtual display
+   - Starts ``Sunshine`` 
+
 #. Startup Moonlight on the client of interest and connect to host
 
 .. admonition:: Alternative to SSH
