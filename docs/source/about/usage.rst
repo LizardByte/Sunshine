@@ -28,7 +28,8 @@ Usage
 
          ssh <user>@<ip_address> 'export DISPLAY=:0; sunshine'
       
-      If you are logged into the host with only a tty, you can use ``startx`` to start the X server prior to executing sunshine. You nay need to add ``sleep`` between ``startx`` and ``sunshine`` to allow more time for the display to be ready.
+      If you are logged into the host with only a tty (teletypewriter), you can use ``startx`` to start the X server prior to executing sunshine.
+      You nay need to add ``sleep`` between ``startx`` and ``sunshine`` to allow more time for the display to be ready.
 
       .. code-block:: bash
 
