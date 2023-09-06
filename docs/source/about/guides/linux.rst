@@ -179,7 +179,6 @@ After making changes to the ``sshd_config``, restart the sshd service for change
 
 		sudo rc-service sshd restart
 
-----
 
 Virtual Display Setup
 +++++++++++++++++++++
