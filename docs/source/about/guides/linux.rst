@@ -135,7 +135,7 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
 I noticed when the ssh session is disconnected for any reason, ``pulseaudio`` would disconnect.
 This is due to PAM handling sessions. When running ``dmesg``, I noticed ``elogind`` would say removed user session.
-In this `Gentoo Forums post <https://forums.gentoo.org/viewtopic-t-1090186-start-0.html>`_, someone had a similar issue with me.
+In this `Gentoo Forums post <https://forums.gentoo.org/viewtopic-t-1090186-start-0.html>`_, someone had a similar issue.
 Starting the X server in the background and exiting out of the console would cause your session to be removed.
 
 .. caution::
