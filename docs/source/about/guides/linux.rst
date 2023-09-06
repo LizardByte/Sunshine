@@ -62,8 +62,6 @@ Static IP Setup
 Setup static IP Address for host. For LAN connections you can use DHCP reservation within your assigned range.
 192.168.x.x. This will allow you to ssh to the host consistently, so the assigned IP address does not change. Usually your ISP supports this through editing the settings through your router.
 
-.. tip::
-   Most routers settings can be accessed at ``192.168.1.1`` from the web browser. Default router admin credentials are usually printed on the back of your router.
 
 SSH Server setup
 ++++++++++++++++
