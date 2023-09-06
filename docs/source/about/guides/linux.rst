@@ -119,9 +119,9 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
 	.. code-block:: bash
 
-		sudo ln -s /etc/runit/sv/sshd /run/runit/service # Enables the OpenSSH daemon to run when system starts
+		sudo ln -s /etc/runit/sv/sshd /run/runit/service  # Enables the OpenSSH daemon to run when system starts
 		sudo sv start sshd  # Starts the service now
-		sudo sv status sshd # See if the service is running
+		sudo sv status sshd  # See if the service is running
 
 .. tab:: OpenRC
    
