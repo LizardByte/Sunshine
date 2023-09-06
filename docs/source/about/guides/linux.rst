@@ -366,7 +366,7 @@ Let's make sure your setup is working so far!
 
 **Test Steps**
 
-With your monitor still plugged into your PC:
+With your monitor still plugged into your Sunshine host PC:
 
 #. ``ssh <alias>``
 #. ``~/scripts/sunshine.sh``
