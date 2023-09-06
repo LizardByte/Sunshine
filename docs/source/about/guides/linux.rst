@@ -143,7 +143,7 @@ Starting the X server in the background and exiting out of the console would cau
 	disabling PAM increases security, but reduces certain functionality in terms of session handling. 
 	*Do so at your own risk!*
 
-Edit the ``sshd_config`` file with the following to disable PAM
+Edit the ``sshd_config`` file with the following to disable PAM.
 
 .. code-block:: bash
 
