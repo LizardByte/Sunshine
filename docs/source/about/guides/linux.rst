@@ -86,7 +86,7 @@ SSH Server Setup
 
       sudo pacman -S openssh
       # Install  openssh-<other_init> if you are not using SystemD
-      # E.g. sudo pacman -S openssh-runit
+      # e.g. sudo pacman -S openssh-runit
 
 .. tab:: Alpine
 
@@ -299,7 +299,7 @@ You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/
 
 These changes allow the script to use sudo without being prompted with a password.
 
-E.g. ``sudo /path/to/sunshine-setup.sh``
+e.g. ``sudo /path/to/sunshine-setup.sh``
 
 
 Stream Launcher Script
@@ -342,7 +342,7 @@ The setup script will be referred as ``~/scripts/sunshine-setup.sh``
     } || echo "Sunshine is already running"
 
     # Add any other Programs that you want to startup automatically
-    # E.g.
+    # e.g.
     # steam &> /dev/null &
     # firefox &> /dev/null &
     # kdeconnect-app &> /dev/null &
