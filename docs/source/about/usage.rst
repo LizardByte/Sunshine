@@ -296,6 +296,11 @@ You must have an HDR-capable display or EDID emulator dongle connected to your h
 - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows 10 OS HDR support may not display in HDR.
 - Some GPUs can produce lower image quality or encoding performance when streaming in HDR compared to SDR.
 
+.. seealso::
+   `Arch wiki on HDR Support for Linux <https://wiki.archlinux.org/title/HDR_monitor_support>`__ and
+   `Reddit Guide for HDR Support for AMD GPUs
+   <https://www.reddit.com/r/linux_gaming/comments/10m2gyx/guide_alpha_test_hdr_on_linux>`__
+
 Tutorials and Guides
 --------------------
 Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.
