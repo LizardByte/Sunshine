@@ -3,8 +3,6 @@ Linux
 
 Collection of Sunshine Linux host guides.
 
-.. _remote-ssh-headless-setup:
-
 Remote SSH Headless Setup (Experimental)
 ----------------------------------------
 Author: *Eric Dong* | Difficulty: *Intermediate*
@@ -19,7 +17,7 @@ The virtual display is accelerated by the NVidia GPU using the TwinView configur
 
     Keep your monitors plugged in until the `checkpoint step <#checkpoint>`_
 
-.. tip:: 
+.. tip::
    Prior to editing any system configurations, you should make a copy of the original file.
    This will allow you to use it for reference or revert your changes easily.
 
@@ -32,7 +30,7 @@ Once you are done, you will need to perform these 3 steps:
 
    - Edits permissions of ``/dev/uinput`` (added sudo config to execute script with no password prompt)
    - Starts X server with ``startx`` on virtual display
-   - Starts ``Sunshine`` 
+   - Starts ``Sunshine``
 
 #. Startup Moonlight on the client of interest and connect to host
 
@@ -55,11 +53,11 @@ Host Setup
 
 We will be setting up:
 
-#. `Static IP Setup <static ip setup_>`_
-#. `SSH Server Setup <ssh server setup_>`_
-#. `Virtual Display Acceleration via NVIDIA's TwinView X11 Config <virtual display setup_>`_
-#. `Script for uinput permission workaround <uinput permissions workaround_>`_
-#. `Script to combine X server and Sunshine startup <stream launcher script_>`_
+#. `Static IP Setup`_
+#. `SSH Server Setup`_
+#. `Virtual Display Setup`_
+#. `Uinput Permissions Workaround`_
+#. `Stream Launcher Script`_
 
 
 Static IP Setup
@@ -139,12 +137,13 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
 I noticed when the ssh session is disconnected for any reason, ``pulseaudio`` would disconnect.
 This is due to PAM handling sessions. When running ``dmesg``, I noticed ``elogind`` would say removed user session.
-In this `Gentoo Forums post <https://forums.gentoo.org/viewtopic-t-1090186-start-0.html>`_, someone had a similar issue.
-Starting the X server in the background and exiting out of the console would cause your session to be removed.
+In this `Gentoo Forums post <https://forums.gentoo.org/viewtopic-t-1090186-start-0.html>`__,
+someone had a similar issue. Starting the X server in the background and exiting out of the console would cause your
+session to be removed.
 
 .. caution::
-   According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ 
-   disabling PAM increases security, but reduces certain functionality in terms of session handling. 
+   According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`__
+   disabling PAM increases security, but reduces certain functionality in terms of session handling.
    *Do so at your own risk!*
 
 Edit the ``sshd_config`` file with the following to disable PAM.
@@ -232,10 +231,13 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
 
    **References**
 
-   * `issue comment on virtual-display-linux <https://github.com/dianariyanto/virtual-display-linux/issues/9#issuecomment-786389065>`_
-   * `Nvidia Documentation on Configuring TwinView <https://download.nvidia.com/XFree86/Linux-x86/270.29/README/configtwinview.html>`_
-   * `Arch Wiki Nvidia#TwinView <https://wiki.archlinux.org/title/NVIDIA#TwinView>`_
-   * `Unix Stack Exchange - How to add virtual display monitor with Nvidia proprietary driver <https://unix.stackexchange.com/questions/559918/how-to-add-virtual-monitor-with-nvidia-proprietary-driver>`_
+   - `issue comment on virtual-display-linux
+     <https://github.com/dianariyanto/virtual-display-linux/issues/9#issuecomment-786389065>`__
+   - `Nvidia Documentation on Configuring TwinView
+     <https://download.nvidia.com/XFree86/Linux-x86/270.29/README/configtwinview.html>`__
+   - `Arch Wiki Nvidia#TwinView <https://wiki.archlinux.org/title/NVIDIA#TwinView>`__
+   - `Unix Stack Exchange - How to add virtual display monitor with Nvidia proprietary driver
+     <https://unix.stackexchange.com/questions/559918/how-to-add-virtual-monitor-with-nvidia-proprietary-driver>`__
 
 
 Uinput Permissions Workaround
@@ -251,12 +253,11 @@ we will need to update the sudo configuration to execute this without being prom
 #. Update user sudo configuration ``/etc/sudoers.d/<user>`` to allow the ``sunshine-setup.sh``
    script to be executed with ``sudo``.
 
-.. admonition:: Why is this necessary?
-   :class: important
-
+.. important::
    After I setup the :ref:`udev rule <about/usage:linux>` to get access to ``/dev/uinput``,
    I noticed when I sshed into the host without physical login, the ACL permissions on ``/dev/uinput`` were not changed.
-   So I asked `reddit <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`_.
+   So I asked `reddit
+   <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`__.
    I discovered that SSH sessions are not the same as a physical login.
    I suppose it's not possible for SSH to trigger a udev rule.
 
@@ -268,7 +269,7 @@ Create a script named something like ``sunshine-setup.sh``:
 .. code-block:: bash
 
    #!/bin/bash
-   chown <user>:<user> /dev/uinput
+   chown $(id -un):$(id -gn) /dev/uinput
 
    # Optional
    # blocks wifi, so ethernet is used
@@ -292,7 +293,7 @@ You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/
    To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
 
 
-.. code-block::
+.. code-block:: text
 
    <user> ALL=(ALL:ALL) ALL, NOPASSWD: /path/to/sunshine-setup.sh
 
@@ -353,8 +354,8 @@ SSH Client Setup
 
 We will be setting up:
 
-#. `SSH key generation <ssh key authentication setup_>`_
-#. `Script to SSH into host to execute sunshine start up script (optional) <ssh client script (optional)_>`_
+#. `SSH Key Authentication Setup`_
+#. `SSH Client Script (Optional)`_
 
 SSH Key Authentication Setup
 +++++++++++++++++++++++++++++
@@ -364,14 +365,14 @@ SSH Key Authentication Setup
    SSH keys automate login so you don't need to input your password!
 #. Optionally setup a ``~/.ssh/config`` file to simplify the ``ssh`` command
 
-   .. code-block::
+   .. code-block:: text
 
       Host <some_alias>
           Hostname <ip_address>
           User <username>
           IdentityFile ~/.ssh/<your_private_key>
 
-   Now you can use ``ssh <some_alias>``.  
+   Now you can use ``ssh <some_alias>``.
    ``ssh <some_alias> <commands/script>`` will execute the command or script on the remote host.
 
 Checkpoint

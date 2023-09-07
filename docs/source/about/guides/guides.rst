@@ -1,7 +1,7 @@
 Guides
 ======
 
-Collection of guides written by the community! 
+Collection of guides written by the community!
 
 .. toctree::
    :maxdepth: 2

@@ -28,7 +28,8 @@ Usage
 
          ssh <user>@<ip_address> 'export DISPLAY=:0; sunshine'
 
-      If you are logged into the host with only a tty (teletypewriter), you can use ``startx`` to start the X server prior to executing sunshine.
+      If you are logged into the host with only a tty (teletypewriter), you can use ``startx`` to start the
+      X server prior to executing sunshine.
       You nay need to add ``sleep`` between ``startx`` and ``sunshine`` to allow more time for the display to be ready.
 
       .. code-block:: bash
@@ -40,7 +41,8 @@ Usage
 
       .. seealso::
 
-         See :ref:`remote-ssh-headless-setup` on how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)
+         See :ref:`Remote SSH Headless Setup <about/guides/linux:Remote SSH Headless Setup (Experimental)>` on
+         how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)
 
 #. Configure Sunshine in the web ui
 
