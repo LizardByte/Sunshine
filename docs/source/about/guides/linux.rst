@@ -305,8 +305,8 @@ e.g. ``sudo /path/to/sunshine-setup.sh``
 Stream Launcher Script
 ++++++++++++++++++++++
 
-This is the main entrypoint script that will run the sunshine-setup script, start up X server, and sunshine.
-*This is your wrapper entrypoint script that the ssh client will run to start streaming with sunshine*.
+This is the main entrypoint script that will run the ``sunshine-setup.sh`` script, start up X server, and Sunshine.
+*The client will call this script that runs on the host*.
 
 
 **Sunshine Startup Script**
