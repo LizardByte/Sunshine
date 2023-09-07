@@ -41,7 +41,8 @@ Usage
 
       .. seealso::
 
-         See :ref:`Remote SSH Headless Setup <about/guides/linux:Remote SSH Headless Setup (Experimental)>` on
+         See :ref:`Remote SSH Headless Setup
+         <about/guides/linux/headless_ssh:Remote SSH Headless Setup (Experimental)>` on
          how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)
 
 #. Configure Sunshine in the web ui

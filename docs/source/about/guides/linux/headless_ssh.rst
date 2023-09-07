@@ -1,10 +1,6 @@
-Linux
-======
-
-Collection of Sunshine Linux host guides.
-
 Remote SSH Headless Setup (Experimental)
-----------------------------------------
+========================================
+
 Author: *Eric Dong* | Difficulty: *Intermediate*
 
 This is a guide to setup remote SSH into host to startup X server and sunshine without physical login and dummy plug.
@@ -22,7 +18,7 @@ The virtual display is accelerated by the NVidia GPU using the TwinView configur
    This will allow you to use it for reference or revert your changes easily.
 
 The Big Picture
-^^^^^^^^^^^^^^^
+---------------
 Once you are done, you will need to perform these 3 steps:
 
 #. Turn on the host machine
@@ -49,7 +45,7 @@ First we will setup the host and then the SSH Client (Which may not be the same 
 moonlight client)
 
 Host Setup
-^^^^^^^^^^
+----------
 
 We will be setting up:
 
@@ -61,14 +57,14 @@ We will be setting up:
 
 
 Static IP Setup
-+++++++++++++++
+^^^^^^^^^^^^^^^
 Setup static IP Address for host. For LAN connections you can use DHCP reservation within your assigned range.
 e.g. 192.168.x.x. This will allow you to ssh to the host consistently, so the assigned IP address does
 not change. It is preferred to set this through your router config.
 
 
 SSH Server Setup
-++++++++++++++++
+^^^^^^^^^^^^^^^^
 
 .. note::
    Most distros have OpenSSH already installed. If it is not present, install OpenSSH using your package manager.
@@ -184,7 +180,7 @@ After making changes to the ``sshd_config``, restart the sshd service for change
 
 
 Virtual Display Setup
-+++++++++++++++++++++
+^^^^^^^^^^^^^^^^^^^^^
 
 As an alternative to a dummy dongle, you can use this config to create a virtual display.
 
@@ -241,7 +237,7 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
 
 
 Uinput Permissions Workaround
-+++++++++++++++++++++++++++++
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Steps**
 
@@ -303,7 +299,7 @@ e.g. ``sudo /path/to/sunshine-setup.sh``
 
 
 Stream Launcher Script
-++++++++++++++++++++++
+^^^^^^^^^^^^^^^^^^^^^^
 
 This is the main entrypoint script that will run the ``sunshine-setup.sh`` script, start up X server, and Sunshine.
 *The client will call this script that runs on the host*.
@@ -350,7 +346,7 @@ The setup script will be referred as ``~/scripts/sunshine-setup.sh``
 ----
 
 SSH Client Setup
-^^^^^^^^^^^^^^^^
+----------------
 
 We will be setting up:
 
@@ -358,7 +354,7 @@ We will be setting up:
 #. `SSH Client Script (Optional)`_
 
 SSH Key Authentication Setup
-+++++++++++++++++++++++++++++
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #. Setup your SSH keys with ``ssh-keygen`` and use ``ssh-copy-id`` to authorize remote login to your host.
    Run ``ssh <user>@<ip_address>`` to login to your host.
@@ -376,7 +372,7 @@ SSH Key Authentication Setup
    ``ssh <some_alias> <commands/script>`` will execute the command or script on the remote host.
 
 Checkpoint
-++++++++++
+^^^^^^^^^^
 
 Let's make sure your setup is working so far!
 
@@ -431,7 +427,7 @@ With your monitor still plugged into your Sunshine host PC:
 
 
 SSH Client Script (Optional)
-++++++++++++++++++++++++++++
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 At this point you have a working setup! For convience I created this bash script to automate the
 startup of the X server and Sunshine on the host.
@@ -477,7 +473,7 @@ The neat part is that you can execute one script to launch Sunshine from your ph
    exit ${exit_code}
 
 Done
-^^^^
+----
 
 Congrats you can now stream your desktop headless! When trying this the first time,
 keep your monitors close by incase something isn't working right.
