@@ -15,7 +15,7 @@ The virtual display is accelerated by the NVidia GPU using the TwinView configur
     I also only tested this on an Artix runit init system on LAN.
     I didn't have to do anything special with pulseaudio (pipewire untested).
 
-    Keep your monitors plugged in until the `checkpoint step <#checkpoint>`_
+    Keep your monitors plugged in until the `Checkpoint`_ step
 
 .. tip::
    Prior to editing any system configurations, you should make a copy of the original file.
