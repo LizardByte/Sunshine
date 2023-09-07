@@ -253,7 +253,7 @@ we will need to update the sudo configuration to execute this without being prom
 #. Update user sudo configuration ``/etc/sudoers.d/<user>`` to allow the ``sunshine-setup.sh``
    script to be executed with ``sudo``.
 
-.. important::
+.. note::
    After I setup the :ref:`udev rule <about/usage:linux>` to get access to ``/dev/uinput``,
    I noticed when I sshed into the host without physical login, the ACL permissions on ``/dev/uinput`` were not changed.
    So I asked `reddit
