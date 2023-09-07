@@ -19,7 +19,7 @@ sphinx docs. Installation and setup of python will not be covered here.
 
 Doxygen is used to generate the XML files required by Sphinx. Doxygen can be obtained from
 `Doxygen downloads <https://www.doxygen.nl/download.html>`_. Ensure that the `doxygen` executable is in your path.
-   
+
 .. seealso::
    Sphinx is configured to use the graphviz extension. To obtain the dot executable from the Graphviz library,
    see the `library’s downloads section <https://graphviz.org/download/>`_.

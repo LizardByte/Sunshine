@@ -27,17 +27,17 @@ Usage
       .. code-block:: bash
 
          ssh <user>@<ip_address> 'export DISPLAY=:0; sunshine'
-      
+
       If you are logged into the host with only a tty (teletypewriter), you can use ``startx`` to start the X server prior to executing sunshine.
       You nay need to add ``sleep`` between ``startx`` and ``sunshine`` to allow more time for the display to be ready.
 
       .. code-block:: bash
 
          ssh <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
-      
+
       .. tip:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
          variable.
-      
+
       .. seealso::
 
          See :ref:`remote-ssh-headless-setup` on how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)

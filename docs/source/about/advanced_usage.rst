@@ -869,7 +869,7 @@ capture
               See :ref:`Linux Setup <about/usage:linux>`.
    x11        Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
    =========  ===========
-   
+
 **Default**
    Automatic. Sunshine will use the first capture method available in the order of the table above.
 
@@ -877,7 +877,7 @@ capture
    .. code-block:: text
 
       capture = kms
-      
+
 encoder
 ^^^^^^^
 

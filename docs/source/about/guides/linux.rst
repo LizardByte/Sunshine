@@ -12,16 +12,16 @@ Author: *Eric Dong* | Difficulty: *Intermediate*
 This is a guide to setup remote SSH into host to startup X server and sunshine without physical login and dummy plug.
 The virtual display is accelerated by the NVidia GPU using the TwinView configuration.
 
-.. Attention::
+.. attention::
     This guide is specific for Xorg and NVidia GPUs. I start the X server using the ``startx`` command.
     I also only tested this on an Artix runit init system on LAN.
     I didn't have to do anything special with pulseaudio (pipewire untested).
-    
+
     Keep your monitors plugged in until the `checkpoint step <#checkpoint>`_
 
 .. tip:: 
-	Prior to editing any system configurations, you should make a copy of the original file.
-	This will allow you to use it for reference or revert your changes easily.
+   Prior to editing any system configurations, you should make a copy of the original file.
+   This will allow you to use it for reference or revert your changes easily.
 
 The Big Picture
 ^^^^^^^^^^^^^^^
@@ -40,13 +40,15 @@ Once you are done, you will need to perform these 3 steps:
 
    As an alternative to SSH...
 
-	**Step 2** can be replaced with autologin and starting sunshine as a service or putting ``sunshine &`` in your ``.xinitrc`` file 
-	if you start your X server with ``startx``.
-	In this case, the workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered for "physical" login.
-	See :ref:`Linux Setup <about/usage:linux>`. I personally think autologin compromises the security of the PC, so I went with the remote SSH route.
-	I use the PC more than for gaming, so I don't need a virtual display everytime I turn on the PC (E.g running updates, config changes, file/media server).
+   **Step 2** can be replaced with autologin and starting sunshine as a service or putting
+   ``sunshine &`` in your ``.xinitrc`` file if you start your X server with ``startx``.
+   In this case, the workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered
+   for "physical" login. See :ref:`Linux Setup <about/usage:linux>`. I personally think autologin compromises the
+   security of the PC, so I went with the remote SSH route. I use the PC more than for gaming, so I don't need a
+   virtual display everytime I turn on the PC (E.g running updates, config changes, file/media server).
 
-First we will setup the host and then the SSH Client (Which may not be the same as the machine running the moonlight client)
+First we will setup the host and then the SSH Client (Which may not be the same as the machine running the
+moonlight client)
 
 Host Setup
 ^^^^^^^^^^
@@ -70,22 +72,23 @@ not change. It is preferred to set this through your router config.
 SSH Server Setup
 ++++++++++++++++
 
-.. note:: Most distros have OpenSSH already installed. If it is not present, install OpenSSH using your package manager.
+.. note::
+   Most distros have OpenSSH already installed. If it is not present, install OpenSSH using your package manager.
 
 .. tab:: Debian/Ubuntu
 
-	.. code-block:: bash
+   .. code-block:: bash
 
-		sudo apt update
-		sudo apt install openssh-server
+      sudo apt update
+      sudo apt install openssh-server
 
 .. tab:: Arch/Artix
 
-	.. code-block:: bash
+   .. code-block:: bash
 
-		sudo pacman -S openssh
-		# Install  openssh-<other_init> if you are not using SystemD
-		# E.g. sudo pacman -S openssh-runit
+      sudo pacman -S openssh
+      # Install  openssh-<other_init> if you are not using SystemD
+      # E.g. sudo pacman -S openssh-runit
 
 .. tab:: Alpine
 
@@ -97,14 +100,14 @@ SSH Server Setup
 .. tab:: CentOS/RHEL/Fedora
 
    **CentOS/RHEL 7**
-   .. code-block:: bash
+      .. code-block:: bash
 
-      sudo yum install openssh-server
+         sudo yum install openssh-server
 
    **CentOS/Fedora/RHEL 8**
-   .. code-block:: bash
+      .. code-block:: bash
 
-      sudo dnf install openssh-server
+         sudo dnf install openssh-server
 
 Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
@@ -112,20 +115,20 @@ Next make sure the OpenSSH daemon is enabled to run when the system starts.
 
     .. code-block:: bash
 
-		sudo systemctl enable sshd.service
-		sudo systemctl start sshd.service  # Starts the service now
-		sudo systemctl status sshd.service  # See if the service is running
+      sudo systemctl enable sshd.service
+      sudo systemctl start sshd.service  # Starts the service now
+      sudo systemctl status sshd.service  # See if the service is running
 
 .. tab:: Runit
 
-	.. code-block:: bash
+   .. code-block:: bash
 
-		sudo ln -s /etc/runit/sv/sshd /run/runit/service  # Enables the OpenSSH daemon to run when system starts
-		sudo sv start sshd  # Starts the service now
-		sudo sv status sshd  # See if the service is running
+      sudo ln -s /etc/runit/sv/sshd /run/runit/service  # Enables the OpenSSH daemon to run when system starts
+      sudo sv start sshd  # Starts the service now
+      sudo sv status sshd  # See if the service is running
 
 .. tab:: OpenRC
-   
+
     .. code-block:: bash
 
         rc-update add sshd  # Enables service
@@ -140,9 +143,9 @@ In this `Gentoo Forums post <https://forums.gentoo.org/viewtopic-t-1090186-start
 Starting the X server in the background and exiting out of the console would cause your session to be removed.
 
 .. caution::
-	According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ 
-	disabling PAM increases security, but reduces certain functionality in terms of session handling. 
-	*Do so at your own risk!*
+   According to this `article <https://devicetests.com/ssh-usepam-security-session-status>`_ 
+   disabling PAM increases security, but reduces certain functionality in terms of session handling. 
+   *Do so at your own risk!*
 
 Edit the ``sshd_config`` file with the following to disable PAM.
 
@@ -159,25 +162,26 @@ After making changes to the ``sshd_config``, restart the sshd service for change
 
       sudo sshd -t -f /etc/ssh/sshd_config
 
-   An incorrect configuration will prevent the sshd service from starting, which might mean losing SSH access to the server.
+   An incorrect configuration will prevent the sshd service from starting, which might mean
+   losing SSH access to the server.
 
 .. tab:: SystemD
 
     .. code-block:: bash
 
-		sudo systemctl restart sshd.service
+      sudo systemctl restart sshd.service
 
 .. tab:: Runit
 
     .. code-block:: bash
 
-		sudo sv restart sshd
+      sudo sv restart sshd
 
 .. tab:: OpenRC
 
     .. code-block:: bash
 
-		sudo rc-service sshd restart
+      sudo rc-service sshd restart
 
 
 Virtual Display Setup
@@ -221,16 +225,17 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
    EndSection
 
 .. note::
-	The ``ConnectedMonitor`` tricks the GPU into thinking a monitor is connected, even if there is none actually connected! 
-	This allows a virtual display to be created that is accelerated with your GPU! The ``ModeValidation`` option disables valid resolution checks,
-	so you can choose any resolution on the host!
-	
-	**References**
+   The ``ConnectedMonitor`` tricks the GPU into thinking a monitor is connected,
+   even if there is none actually connected! This allows a virtual display to be created that is accelerated with
+   your GPU! The ``ModeValidation`` option disables valid resolution checks, so you can choose any
+   resolution on the host!
 
-	* `issue comment on virtual-display-linux <https://github.com/dianariyanto/virtual-display-linux/issues/9#issuecomment-786389065>`_
-	* `Nvidia Documentation on Configuring TwinView <https://download.nvidia.com/XFree86/Linux-x86/270.29/README/configtwinview.html>`_
-	* `Arch Wiki Nvidia#TwinView <https://wiki.archlinux.org/title/NVIDIA#TwinView>`_
-	* `Unix Stack Exchange - How to add virtual display monitor with Nvidia proprietary driver <https://unix.stackexchange.com/questions/559918/how-to-add-virtual-monitor-with-nvidia-proprietary-driver>`_
+   **References**
+
+   * `issue comment on virtual-display-linux <https://github.com/dianariyanto/virtual-display-linux/issues/9#issuecomment-786389065>`_
+   * `Nvidia Documentation on Configuring TwinView <https://download.nvidia.com/XFree86/Linux-x86/270.29/README/configtwinview.html>`_
+   * `Arch Wiki Nvidia#TwinView <https://wiki.archlinux.org/title/NVIDIA#TwinView>`_
+   * `Unix Stack Exchange - How to add virtual display monitor with Nvidia proprietary driver <https://unix.stackexchange.com/questions/559918/how-to-add-virtual-monitor-with-nvidia-proprietary-driver>`_
 
 
 Uinput Permissions Workaround
@@ -238,19 +243,22 @@ Uinput Permissions Workaround
 
 **Steps**
 
-We can use ``chown`` to change the permissions from a script. Since this requires ``sudo``, we will need to update the sudo configuration to execute this without being prompted for a password.
+We can use ``chown`` to change the permissions from a script. Since this requires ``sudo``,
+we will need to update the sudo configuration to execute this without being prompted for a password.
 
-#. Create a ``sunshine-setup.sh`` script to update permissions on ``/dev/uinput``. Since we aren't logged into the host, the udev rule doesn't apply.
-#. Update user sudo configuration ``/etc/sudoers.d/<user>`` to allow the ``sunshine-setup.sh`` script to be executed with ``sudo``.
+#. Create a ``sunshine-setup.sh`` script to update permissions on ``/dev/uinput``. Since we aren't logged into the host,
+   the udev rule doesn't apply.
+#. Update user sudo configuration ``/etc/sudoers.d/<user>`` to allow the ``sunshine-setup.sh``
+   script to be executed with ``sudo``.
 
 .. admonition:: Why is this necessary?
-	:class: important
+   :class: important
 
-	After I setup the :ref:`udev rule <about/usage:linux>` to get access to ``/dev/uinput``,
-	I noticed when I sshed into the host without physical login, the ACL permissions on ``/dev/uinput`` were not changed.
-	So I asked `reddit <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`_.
-	I discovered that SSH sessions are not the same as a physical login.
-	I suppose it's not possible for SSH to trigger a udev rule.
+   After I setup the :ref:`udev rule <about/usage:linux>` to get access to ``/dev/uinput``,
+   I noticed when I sshed into the host without physical login, the ACL permissions on ``/dev/uinput`` were not changed.
+   So I asked `reddit <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`_.
+   I discovered that SSH sessions are not the same as a physical login.
+   I suppose it's not possible for SSH to trigger a udev rule.
 
 **Setup Script**
 
@@ -259,13 +267,13 @@ Create a script named something like ``sunshine-setup.sh``:
 
 .. code-block:: bash
 
-	#!/bin/bash
-	chown <user>:<user> /dev/uinput
+   #!/bin/bash
+   chown <user>:<user> /dev/uinput
 
-	# Optional
-	# blocks wifi, so ethernet is used
-	# use rfkill list to get the id of the Wiresless LAN
-	# rfkill block <wireless_lan_index>
+   # Optional
+   # blocks wifi, so ethernet is used
+   # use rfkill list to get the id of the Wiresless LAN
+   # rfkill block <wireless_lan_index>
 
 **Sudo Configuration**
 
@@ -273,16 +281,20 @@ We will manually change the permissions of ``/dev/uinput`` using ``chown``.
 You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/${USER}``
 
 .. danger::
-	Do so at your own risk! It is more secure to give sudo and no password prompt to a single script, than a generic executable like chown.
+   Do so at your own risk! It is more secure to give sudo and no password prompt to a single script,
+   than a generic executable like chown.
 
 .. warning::
-	Be very careful of messing this config up. If you make a typo, *YOU LOSE THE ABILITY TO USE SUDO*. Fortunately, your system is not borked,
-	you will need to login as root to fix the config. You may want to setup a backup user / SSH into the host as root to fix the config if this happens. Otherwise you will need to plug your machine back into a monitor and login as root to fix this. To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
+   Be very careful of messing this config up. If you make a typo, *YOU LOSE THE ABILITY TO USE SUDO*.
+   Fortunately, your system is not borked, you will need to login as root to fix the config.
+   You may want to setup a backup user / SSH into the host as root to fix the config if this happens.
+   Otherwise you will need to plug your machine back into a monitor and login as root to fix this.
+   To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
 
 
 .. code-block::
 
-	<user> ALL=(ALL:ALL) ALL, NOPASSWD: /path/to/sunshine-setup.sh
+   <user> ALL=(ALL:ALL) ALL, NOPASSWD: /path/to/sunshine-setup.sh
 
 These changes allow the script to use sudo without being prompted with a password.
 
@@ -292,12 +304,14 @@ E.g. ``sudo /path/to/sunshine-setup.sh``
 Stream Launcher Script
 ++++++++++++++++++++++
 
-This is the main entrypoint script that will run the sunshine-setup script, start up X server, and sunshine. *This is your wrapper entrypoint script that the ssh client will run to start streaming with sunshine*.
+This is the main entrypoint script that will run the sunshine-setup script, start up X server, and sunshine.
+*This is your wrapper entrypoint script that the ssh client will run to start streaming with sunshine*.
 
 
 **Sunshine Startup Script**
 
-This guide will refer to this script as ``~/scripts/sunshine.sh``. The setup script will be referred as ``~/scripts/sunshine-setup.sh``
+This guide will refer to this script as ``~/scripts/sunshine.sh``.
+The setup script will be referred as ``~/scripts/sunshine-setup.sh``
 
 .. code-block:: bash
 
@@ -308,22 +322,22 @@ This guide will refer to this script as ``~/scripts/sunshine.sh``. The setup scr
     # Check existing X server
     ps -e | grep X >/dev/null
     [[ ${?} -ne 0 ]] && {
-	  echo "Starting X server"
-	  startx &>/dev/null &
-	  [[ ${?} -eq 0 ]] && {
-	    echo "X server started successfully"
-	  } || echo "X server failed to start"
+     echo "Starting X server"
+     startx &>/dev/null &
+     [[ ${?} -eq 0 ]] && {
+       echo "X server started successfully"
+     } || echo "X server failed to start"
     } || echo "X server already running"
 
     # Check if sunshine is already running
     ps -e | grep -e .*sunshine$ >/dev/null
     [[ ${?} -ne 0 ]] && {
-	  sudo ~/scripts/sunshine-setup.sh
-	  echo "Starting Sunshine!"
-	  sunshine > /dev/null &
-	  [[ ${?} -eq 0 ]] && {
-	    echo "Sunshine started successfully"
-	  } || echo "Sunshine failed to start"
+     sudo ~/scripts/sunshine-setup.sh
+     echo "Starting Sunshine!"
+     sunshine > /dev/null &
+     [[ ${?} -eq 0 ]] && {
+       echo "Sunshine started successfully"
+     } || echo "Sunshine failed to start"
     } || echo "Sunshine is already running"
 
     # Add any other Programs that you want to startup automatically
@@ -345,15 +359,17 @@ We will be setting up:
 SSH Key Authentication Setup
 +++++++++++++++++++++++++++++
 
-#. Setup your SSH keys with ``ssh-keygen`` and use ``ssh-copy-id`` to authorize remote login to your host. Run ``ssh <user>@<ip_address>`` to login to your host. SSH keys automate login so you don't need to input your password!
+#. Setup your SSH keys with ``ssh-keygen`` and use ``ssh-copy-id`` to authorize remote login to your host.
+   Run ``ssh <user>@<ip_address>`` to login to your host.
+   SSH keys automate login so you don't need to input your password!
 #. Optionally setup a ``~/.ssh/config`` file to simplify the ``ssh`` command
-   
+
    .. code-block::
 
-		Host <some_alias>
-		    Hostname <ip_address>
-		    User <username>
-		    IdentityFile ~/.ssh/<your_private_key>
+      Host <some_alias>
+          Hostname <ip_address>
+          User <username>
+          IdentityFile ~/.ssh/<your_private_key>
 
    Now you can use ``ssh <some_alias>``.  
    ``ssh <some_alias> <commands/script>`` will execute the command or script on the remote host.
@@ -374,7 +390,7 @@ With your monitor still plugged into your Sunshine host PC:
    You should see the sunshine and Xorg processing running:
 
    .. code-block:: console
-       
+
        $ nvidia-smi
        Tue Aug 29 18:38:46 2023
        +---------------------------------------------------------------------------------------+
@@ -388,7 +404,7 @@ With your monitor still plugged into your Sunshine host PC:
        | 30%   46C    P2              45W / 220W |    549MiB /  8192MiB |      2%      Default |
        |                                         |                      |                  N/A |
        +-----------------------------------------+----------------------+----------------------+
-       
+
        +---------------------------------------------------------------------------------------+
        | Processes:                                                                            |
        |  GPU   GI   CI        PID   Type   Process name                            GPU Memory |
@@ -397,9 +413,9 @@ With your monitor still plugged into your Sunshine host PC:
        |    0   N/A  N/A      1393      G   /usr/lib/Xorg                                86MiB |
        |    0   N/A  N/A      1440    C+G   sunshine                                    293MiB |
        +---------------------------------------------------------------------------------------+
- 
+
 #. Check ``/dev/uinput`` permissions
-   
+
    .. code-block:: bash
 
       ls -l /dev/uinput
@@ -416,51 +432,53 @@ With your monitor still plugged into your Sunshine host PC:
 SSH Client Script (Optional)
 ++++++++++++++++++++++++++++
 
-At this point you have a working setup! For convience I created this bash script to automate the startup of the X server and Sunshine on the host.
+At this point you have a working setup! For convience I created this bash script to automate the
+startup of the X server and Sunshine on the host.
 This can be run on Unix systems, or on Windows using the ``git-bash`` or any bash shell.
 
-For Android/iOS you can install Linux emulators, e.g. ``Userland`` for Android and ``ISH`` for iOS. The neat part is that you can execute one script to launch Sunshine from your phone or tablet!
+For Android/iOS you can install Linux emulators, e.g. ``Userland`` for Android and ``ISH`` for iOS.
+The neat part is that you can execute one script to launch Sunshine from your phone or tablet!
 
 .. code-block:: bash
 
-	#!/bin/bash
+   #!/bin/bash
 
-	ssh_args="<user>@192.168.X.X" # Or use alias set in ~/.ssh/config
+   ssh_args="<user>@192.168.X.X" # Or use alias set in ~/.ssh/config
 
-	check_ssh(){
-	  result=1
+   check_ssh(){
+     result=1
       # Note this checks infinitely, you could update this to have a max # of retries
-	  while [[ $result -ne 0 ]]
-	  do
-	    echo "checking host..."
-	    ssh $ssh_args "exit 0" 2>/dev/null
-	    result=$?
-	    [[ $result -ne 0 ]] && {
-	  	  echo "Failed to ssh to $ssh_args, with exit code $result"
-	    }
-	    sleep 3
-	  done
-	  echo "Host is ready for streaming!"
-	}
+     while [[ $result -ne 0 ]]
+     do
+       echo "checking host..."
+       ssh $ssh_args "exit 0" 2>/dev/null
+       result=$?
+       [[ $result -ne 0 ]] && {
+          echo "Failed to ssh to $ssh_args, with exit code $result"
+       }
+       sleep 3
+     done
+     echo "Host is ready for streaming!"
+   }
 
-	start_stream(){
-	  echo "Starting sunshine server on host..."
-	  echo "Start moonlight on your client of choice"
+   start_stream(){
+     echo "Starting sunshine server on host..."
+     echo "Start moonlight on your client of choice"
       # -f runs ssh in the background
-	  ssh -f $ssh_args "~/scripts/sunshine.sh &"
-	}
+     ssh -f $ssh_args "~/scripts/sunshine.sh &"
+   }
 
-	check_ssh
-	start_stream
-	exit_code=${?}
+   check_ssh
+   start_stream
+   exit_code=${?}
 
-	sleep 3
-	exit ${exit_code}
+   sleep 3
+   exit ${exit_code}
 
 Done
 ^^^^
 
-Congrats you can now stream your desktop headless! When trying this the first time, keep your monitors close by incase something isn't working right.
+Congrats you can now stream your desktop headless! When trying this the first time,
+keep your monitors close by incase something isn't working right.
 
 If you have any feedback and any suggestions, feel free to make a post on Discord!
-
