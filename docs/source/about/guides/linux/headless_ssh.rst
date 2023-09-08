@@ -429,7 +429,7 @@ With your monitor still plugged into your Sunshine host PC:
 SSH Client Script (Optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-At this point you have a working setup! For convience I created this bash script to automate the
+At this point you have a working setup! For convenience I created this bash script to automate the
 startup of the X server and Sunshine on the host.
 This can be run on Unix systems, or on Windows using the ``git-bash`` or any bash shell.
 
