@@ -187,6 +187,10 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
 .. important::
    This is only available for NVidia GPUs using Xorg.
 
+.. hint::
+   Use ``xrandr`` to see name of your active display output. Usually it starts with ``DP`` or ``HDMI``. For me, it is ``DP-0``.
+   Put this name for the ``ConnectedMonitor`` option under the ``Device`` section.
+
 .. code-block:: xorg.conf
 
    Section "ServerLayout"
@@ -255,7 +259,7 @@ we will need to update the sudo configuration to execute this without being prom
    So I asked `reddit
    <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`__.
    I discovered that SSH sessions are not the same as a physical login.
-   I suppose it's not possible for SSH to trigger a udev rule.
+   I suppose it's not possible for SSH to trigger a udev rule or create a physical login session.
 
 **Setup Script**
 
@@ -288,10 +292,18 @@ You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/
    Otherwise you will need to plug your machine back into a monitor and login as root to fix this.
    To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
 
+#. First make a backup of your ``/etc/sudoers.d/${USER}`` file.
 
-.. code-block:: text
+   .. code-block:: bash
 
-   <user> ALL=(ALL:ALL) ALL, NOPASSWD: /path/to/sunshine-setup.sh
+      sudo cp /etc/sudoers.d/${USER} /etc/sudoers.d/${USER}.backup
+
+#. ``cd`` to the parent dir of the ``sunshine-setup.sh`` script.
+#. Execute the following to update your sudoer config file.
+
+   .. code-block:: bash
+
+      echo "${USER} ALL=(ALL:ALL) ALL, NOPASSWD: $(pwd)/sunshine-setup.sh" | sudo tee /etc/sudoers.d/${USER}
 
 These changes allow the script to use sudo without being prompted with a password.
 
