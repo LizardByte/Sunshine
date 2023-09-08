@@ -15,10 +15,10 @@ namespace nvenc {
 
   struct nvenc_config {
     // Quality preset from 1 to 7, higher is slower
-    unsigned quality_preset = 1;
+    int quality_preset = 1;
 
     // Use optional preliminary pass for better motion vectors, bitrate distribution and stricter VBV(HRD), uses CUDA cores
-    nvenc_two_pass two_pass = nvenc_two_pass::disabled;
+    nvenc_two_pass two_pass = nvenc_two_pass::quarter_resolution;
 
     // Improves fades compression, uses CUDA cores
     bool weighted_prediction = false;
