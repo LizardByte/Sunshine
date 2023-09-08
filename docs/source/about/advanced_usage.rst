@@ -992,7 +992,7 @@ nvenc_preset
 **Description**
    NVENC encoder performance preset.
    Higher numbers improve compression (quality at given bitrate) at the cost of increased encoding latency.
-   Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by increasing bitrate. 
+   Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by increasing bitrate.
 
    .. Note:: This option only applies when using NVENC `encoder`_.
 
@@ -1027,7 +1027,7 @@ nvenc_twopass
 **Description**
    Enable two-pass mode in NVENC encoder.
    This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere to bitrate limits.
-   Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss. 
+   Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss.
 
    .. Note:: This option only applies when using NVENC `encoder`_.
 
@@ -1058,7 +1058,7 @@ nvenc_realtime_hags
 **Description**
    Use realtime gpu scheduling priority in NVENC when hardware accelerated gpu scheduling (HAGS) is enabled in Windows.
    Currently NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used and VRAM utilization is close to maximum.
-   Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture performance when the GPU is heavily loaded. 
+   Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
 
    .. Note:: This option only applies when using NVENC `encoder`_.
 
