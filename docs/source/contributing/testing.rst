@@ -22,7 +22,7 @@ Doxygen is used to generate the XML files required by Sphinx. Doxygen can be obt
 
 .. seealso::
    Sphinx is configured to use the graphviz extension. To obtain the dot executable from the Graphviz library,
-   see the `library’s downloads section <https://graphviz.org/download/>`_.
+   see the `library’s downloads section <https://graphviz.org/download/>`__.
 
 
 The config file for Sphinx is `docs/source/conf.py`. This is already included in the repo and should not be modified.
