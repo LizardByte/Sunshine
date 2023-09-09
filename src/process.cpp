@@ -117,7 +117,6 @@ namespace proc {
 
     _app_id = app_id;
     _app = *iter;
-  
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
 
