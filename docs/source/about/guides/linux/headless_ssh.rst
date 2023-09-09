@@ -274,7 +274,7 @@ Run the following to create a script named something like ``sunshine-setup.sh``:
    .. code-block:: console
 
       echo "chown $(id -un):$(id -gn) /dev/uinput" > sunshine-setup.sh &&\
-      chmod +x sunshine-setup.sh
+        chmod +x sunshine-setup.sh
 
 (**Optional**) To Ensure ethernet is being used for streaming,
 you can block WiFi with ``rfkill``.
@@ -282,7 +282,8 @@ you can block WiFi with ``rfkill``.
 Run this command to append the rfkill block command to the script:
    .. code-block:: console
 
-      echo "rfkill block $(rfkill list | grep "Wireless LAN" | sed 's/^\([[:digit:]]\).*/\1/')" >> sunshine-setup.sh
+      echo "rfkill block $(rfkill list | grep "Wireless LAN" \
+        | sed 's/^\([[:digit:]]\).*/\1/')" >> sunshine-setup.sh
 
 **Sudo Configuration**
 
@@ -311,11 +312,12 @@ You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/
 
    .. code-block:: bash
 
-      echo "${USER} ALL=(ALL:ALL) ALL, NOPASSWD: $(pwd)/sunshine-setup.sh" | sudo tee /etc/sudoers.d/${USER}
+      echo "${USER} ALL=(ALL:ALL) ALL, NOPASSWD: $(pwd)/sunshine-setup.sh" \
+        | sudo tee /etc/sudoers.d/${USER}
 
 These changes allow the script to use sudo without being prompted with a password.
 
-e.g. ``sudo /path/to/sunshine-setup.sh``
+e.g. ``sudo $(pwd)/sunshine-setup.sh``
 
 
 Stream Launcher Script
