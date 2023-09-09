@@ -191,6 +191,11 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
    Use ``xrandr`` to see name of your active display output. Usually it starts with ``DP`` or ``HDMI``. For me, it is ``DP-0``.
    Put this name for the ``ConnectedMonitor`` option under the ``Device`` section.
 
+   .. code-block:: console
+
+      xrandr | grep " connected" | awk '{ print $1 }'
+
+
 .. code-block:: xorg.conf
 
    Section "ServerLayout"
@@ -264,17 +269,20 @@ we will need to update the sudo configuration to execute this without being prom
 **Setup Script**
 
 This script will take care of any precondtions prior to starting up sunshine.
-Create a script named something like ``sunshine-setup.sh``:
 
-.. code-block:: bash
+Run the following to create a script named something like ``sunshine-setup.sh``:
+   .. code-block:: console
 
-   #!/bin/bash
-   chown $(id -un):$(id -gn) /dev/uinput
+      echo "chown $(id -un):$(id -gn) /dev/uinput" > sunshine-setup.sh &&\
+      chmod +x sunshine-setup.sh
 
-   # Optional
-   # blocks wifi, so ethernet is used
-   # use rfkill list to get the id of the Wiresless LAN
-   # rfkill block <wireless_lan_index>
+(**Optional**) To Ensure ethernet is being used for streaming,
+you can block WiFi with ``rfkill``.
+
+Run this command to append the rfkill block command to the script:
+   .. code-block:: console
+
+      echo "rfkill block $(rfkill list | grep "Wireless LAN" | sed 's/^\([[:digit:]]\).*/\1/')" >> sunshine-setup.sh
 
 **Sudo Configuration**
 
@@ -386,7 +394,7 @@ SSH Key Authentication Setup
 Checkpoint
 ^^^^^^^^^^
 
-Let's make sure your setup is working so far!
+As a sanity check, let's make sure your setup is working so far!
 
 **Test Steps**
 
@@ -435,7 +443,8 @@ With your monitor still plugged into your Sunshine host PC:
 
 #. Connect to Sunshine host from a moonlight client
 
-*Now unplug your monitors and repeat steps 1 - 5*
+*Now unplug your monitors, kill X and sunshine with ``pkill X``, and repeat steps 1 - 5, you should get the same result*.
+With this setup you don't need to modify the Xorg config regardless if monitors are plugged in or not.
 
 
 SSH Client Script (Optional)
