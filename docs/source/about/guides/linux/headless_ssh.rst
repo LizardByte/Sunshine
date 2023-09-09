@@ -484,10 +484,15 @@ The neat part is that you can execute one script to launch Sunshine from your ph
    sleep 3
    exit ${exit_code}
 
-Done
-----
+Next Steps
+----------
 
 Congrats you can now stream your desktop headless! When trying this the first time,
 keep your monitors close by incase something isn't working right.
 
 If you have any feedback and any suggestions, feel free to make a post on Discord!
+
+.. seealso::
+   Now that you have a virtual display, you may want to automate changing the resolution
+   and refresh rate prior to connecting to the app. See :ref:`Changing Resolution and
+   Refresh Rate <about/guides/app_examples:linux>` for more information.
