@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=@PROJECT_NAME@
+Exec=sunshine
+Version=1.0
+Comment=@PROJECT_DESCRIPTION@
+Icon=sunshine
+Categories=Utility;
+Terminal=true
+X-AppImage-Name=sunshine
+X-AppImage-Version=@PROJECT_VERSION@
+X-AppImage-Arch=x86_64

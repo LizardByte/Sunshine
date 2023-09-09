@@ -169,7 +169,7 @@ Changing Resolution and Refresh Rate (macOS)
 
 .. Note:: This example uses the `displayplacer` tool to change the resolution.
    This tool can be installed following instructions in their
-   `GitHub repository <https://github.com/jakehilborn/displayplacer>`_.
+   `GitHub repository <https://github.com/jakehilborn/displayplacer>`__.
 
 +----------------------+-----------------------------------------------------------------------------------------------+
 | **Field**            | **Value**                                                                                     |
@@ -186,7 +186,7 @@ Changing Resolution and Refresh Rate (Windows)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. Note:: This example uses the `QRes` tool to change the resolution and refresh rate.
-   This tool can be downloaded from their `SourceForge repository <https://sourceforge.net/projects/qres/>`_.
+   This tool can be downloaded from their `SourceForge repository <https://sourceforge.net/projects/qres/>`__.
 
 +----------------------+------------------------------------------------------------------------------------------------------------------+
 | **Field**            | **Value**                                                                                                        |

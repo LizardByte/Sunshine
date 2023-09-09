@@ -109,7 +109,6 @@ namespace platf::dxgi {
   public:
     dup_t dup;
     bool has_frame {};
-    bool use_dwmflush {};
     std::chrono::steady_clock::time_point last_protected_content_warning_time {};
 
     capture_e
@@ -127,10 +126,11 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    void
+    high_precision_sleep(std::chrono::nanoseconds duration);
+
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
-
-    std::chrono::nanoseconds delay;
 
     factory1_t factory;
     adapter_t adapter;
@@ -138,9 +138,15 @@ namespace platf::dxgi {
     device_t device;
     device_ctx_t device_ctx;
     duplication_t dup;
+    DXGI_RATIONAL display_refresh_rate;
+    int display_refresh_rate_rounded;
+
+    int client_frame_rate;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
+
+    util::safe_ptr_v2<std::remove_pointer_t<HANDLE>, BOOL, CloseHandle> timer;
 
     typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
       D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,
@@ -151,7 +157,44 @@ namespace platf::dxgi {
       D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME
     } D3DKMT_SCHEDULINGPRIORITYCLASS;
 
-    typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+    typedef UINT D3DKMT_HANDLE;
+
+    typedef struct _D3DKMT_OPENADAPTERFROMLUID {
+      LUID AdapterLuid;
+      D3DKMT_HANDLE hAdapter;
+    } D3DKMT_OPENADAPTERFROMLUID;
+
+    typedef struct _D3DKMT_WDDM_2_7_CAPS {
+      union {
+        struct
+        {
+          UINT HwSchSupported : 1;
+          UINT HwSchEnabled : 1;
+          UINT HwSchEnabledByDefault : 1;
+          UINT IndependentVidPnVSyncControl : 1;
+          UINT Reserved : 28;
+        };
+        UINT Value;
+      };
+    } D3DKMT_WDDM_2_7_CAPS;
+
+    typedef struct _D3DKMT_QUERYADAPTERINFO {
+      D3DKMT_HANDLE hAdapter;
+      UINT Type;
+      VOID *pPrivateDriverData;
+      UINT PrivateDriverDataSize;
+    } D3DKMT_QUERYADAPTERINFO;
+
+    const UINT KMTQAITYPE_WDDM_2_7_CAPS = 70;
+
+    typedef struct _D3DKMT_CLOSEADAPTER {
+      D3DKMT_HANDLE hAdapter;
+    } D3DKMT_CLOSEADAPTER;
+
+    typedef NTSTATUS(WINAPI *PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+    typedef NTSTATUS(WINAPI *PD3DKMTOpenAdapterFromLuid)(D3DKMT_OPENADAPTERFROMLUID *);
+    typedef NTSTATUS(WINAPI *PD3DKMTQueryAdapterInfo)(D3DKMT_QUERYADAPTERINFO *);
+    typedef NTSTATUS(WINAPI *PD3DKMTCloseAdapter)(D3DKMT_CLOSEADAPTER *);
 
     virtual bool
     is_hdr() override;
@@ -218,6 +261,9 @@ namespace platf::dxgi {
 
     int
     init(const ::video::config_t &config, const std::string &display_name);
+
+    bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) override;
 
     std::unique_ptr<avcodec_encode_device_t>
     make_avcodec_encode_device(pix_fmt_e pix_fmt) override;

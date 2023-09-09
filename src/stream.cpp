@@ -258,8 +258,8 @@ namespace stream {
   class control_server_t {
   public:
     int
-    bind(std::uint16_t port) {
-      _host = net::host_create(_addr, config::stream.channels, port);
+    bind(net::af_e address_family, std::uint16_t port) {
+      _host = net::host_create(address_family, _addr, config::stream.channels, port);
 
       return !(bool) _host;
     }
@@ -355,6 +355,8 @@ namespace stream {
     std::chrono::steady_clock::time_point pingTimeout;
 
     safe::shared_t<broadcast_ctx_t>::ptr_t broadcast_ref;
+
+    boost::asio::ip::address localAddress;
 
     struct {
       int lowseq;
@@ -466,6 +468,12 @@ namespace stream {
 
       session_p->control.peer = peer;
       session_port = port;
+
+      // Use the local address from the control connection as the source address
+      // for other communications to the client. This is necessary to ensure
+      // proper routing on multi-homed hosts.
+      auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
+      session_p->localAddress = boost::asio::ip::make_address(local_address);
 
       return session_p;
     }
@@ -1284,6 +1292,7 @@ namespace stream {
             (uintptr_t) sock.native_handle(),
             peer_address,
             session->video.peer.port(),
+            session->localAddress,
           };
 
           // Use a batched send if it's supported on this platform
@@ -1291,7 +1300,16 @@ namespace stream {
             // Batched send is not available, so send each packet individually
             BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
             for (auto x = 0; x < shards.size(); ++x) {
-              sock.send_to(asio::buffer(shards[x]), session->video.peer);
+              auto send_info = platf::send_info_t {
+                shards[x].data(),
+                shards[x].size(),
+                (uintptr_t) sock.native_handle(),
+                peer_address,
+                session->video.peer.port(),
+                session->localAddress,
+              };
+
+              platf::send(send_info);
             }
           }
 
@@ -1372,9 +1390,17 @@ namespace stream {
       auto &shards_p = session->audio.shards_p;
 
       std::copy_n(audio_packet->payload(), bytes, shards_p[sequenceNumber % RTPA_DATA_SHARDS]);
+      auto peer_address = session->audio.peer.address();
       try {
-        sock.send_to(asio::buffer((char *) audio_packet.get(), sizeof(audio_packet_raw_t) + bytes), session->audio.peer);
-
+        auto send_info = platf::send_info_t {
+          (const char *) audio_packet.get(),
+          sizeof(audio_packet_raw_t) + bytes,
+          (uintptr_t) sock.native_handle(),
+          peer_address,
+          session->audio.peer.port(),
+          session->localAddress,
+        };
+        platf::send(send_info);
         BOOST_LOG(verbose) << "Audio ["sv << sequenceNumber << "] ::  send..."sv;
 
         auto &fec_packet = session->audio.fec_packet;
@@ -1392,7 +1418,16 @@ namespace stream {
             fec_packet->rtp.sequenceNumber = util::endian::big<std::uint16_t>(sequenceNumber + x + 1);
             fec_packet->fecHeader.fecShardIndex = x;
             memcpy(fec_packet->payload(), shards_p[RTPA_DATA_SHARDS + x], bytes);
-            sock.send_to(asio::buffer((char *) fec_packet.get(), sizeof(audio_fec_packet_raw_t) + bytes), session->audio.peer);
+
+            auto send_info = platf::send_info_t {
+              (const char *) fec_packet.get(),
+              sizeof(audio_fec_packet_raw_t) + bytes,
+              (uintptr_t) sock.native_handle(),
+              peer_address,
+              session->audio.peer.port(),
+              session->localAddress,
+            };
+            platf::send(send_info);
             BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
           }
         }
@@ -1408,39 +1443,41 @@ namespace stream {
 
   int
   start_broadcast(broadcast_ctx_t &ctx) {
+    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
     auto control_port = map_port(CONTROL_PORT);
     auto video_port = map_port(VIDEO_STREAM_PORT);
     auto audio_port = map_port(AUDIO_STREAM_PORT);
 
-    if (ctx.control_server.bind(control_port)) {
+    if (ctx.control_server.bind(address_family, control_port)) {
       BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
 
       return -1;
     }
 
     boost::system::error_code ec;
-    ctx.video_sock.open(udp::v4(), ec);
+    ctx.video_sock.open(protocol, ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.video_sock.bind(udp::endpoint(udp::v4(), video_port), ec);
+    ctx.video_sock.bind(udp::endpoint(protocol, video_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.audio_sock.open(udp::v4(), ec);
+    ctx.audio_sock.open(protocol, ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't open socket for Audio server: "sv << ec.message();
 
       return -1;
     }
 
-    ctx.audio_sock.bind(udp::endpoint(udp::v4(), audio_port), ec);
+    ctx.audio_sock.bind(udp::endpoint(protocol, audio_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
 

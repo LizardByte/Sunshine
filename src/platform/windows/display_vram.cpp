@@ -25,6 +25,8 @@ extern "C" {
 
 #include <AMF/core/Factory.h>
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"
 namespace platf {
   using namespace std::literals;
@@ -433,7 +435,6 @@ namespace platf::dxgi {
         return;
       }
 
-      device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
       device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
       this->color_matrix = std::move(color_matrix);
     }
@@ -469,6 +470,7 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to create info scene buffer"sv;
         return -1;
       }
+      device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
 
       D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
         format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
@@ -605,6 +607,7 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to create color matrix buffer"sv;
         return -1;
       }
+      device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
 
       D3D11_INPUT_ELEMENT_DESC layout_desc {
         "SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
@@ -638,8 +641,6 @@ namespace platf::dxgi {
       }
 
       device_ctx->IASetInputLayout(input_layout.get());
-      device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
-      device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
 
       device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
       device_ctx->PSSetSamplers(0, 1, &sampler_linear);
@@ -873,12 +874,8 @@ namespace platf::dxgi {
     init_encoder(const ::video::config_t &client_config, const ::video::sunshine_colorspace_t &colorspace) override {
       if (!nvenc_d3d) return false;
 
-      nvenc::nvenc_config nvenc_config;
-      nvenc_config.quality_preset = config::video.nv.nv_preset ? (*config::video.nv.nv_preset - 11) : 1;
-      nvenc_config.h264_cavlc = (config::video.nv.nv_coder == NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC);
-
       auto nvenc_colorspace = nvenc::nvenc_colorspace_from_sunshine_colorspace(colorspace);
-      if (!nvenc_d3d->create_encoder(nvenc_config, client_config, nvenc_colorspace, buffer_format)) return false;
+      if (!nvenc_d3d->create_encoder(config::video.nv, client_config, nvenc_colorspace, buffer_format)) return false;
 
       base.apply_colorspace(colorspace);
       return base.init_output(nvenc_d3d->get_input_texture(), client_config.width, client_config.height) == 0;
@@ -955,7 +952,7 @@ namespace platf::dxgi {
     }
 
     const bool mouse_update_flag = frame_info.LastMouseUpdateTime.QuadPart != 0 || frame_info.PointerShapeBufferSize > 0;
-    const bool frame_update_flag = frame_info.AccumulatedFrames != 0 || frame_info.LastPresentTime.QuadPart != 0;
+    const bool frame_update_flag = frame_info.LastPresentTime.QuadPart != 0;
     const bool update_flag = mouse_update_flag || frame_update_flag;
 
     if (!update_flag) {
@@ -1326,60 +1323,6 @@ namespace platf::dxgi {
       return -1;
     }
 
-    DXGI_ADAPTER_DESC adapter_desc;
-    adapter->GetDesc(&adapter_desc);
-
-    // Perform AMF version checks if we're using an AMD GPU. This check is placed in display_vram_t
-    // to avoid hitting the display_ram_t path which uses software encoding and doesn't touch AMF.
-    if ((config.dynamicRange || config.videoFormat == 2) && adapter_desc.VendorId == 0x1002) {
-      HMODULE amfrt = LoadLibraryW(AMF_DLL_NAME);
-      if (amfrt) {
-        auto unload_amfrt = util::fail_guard([amfrt]() {
-          FreeLibrary(amfrt);
-        });
-
-        auto fnAMFQueryVersion = (AMFQueryVersion_Fn) GetProcAddress(amfrt, AMF_QUERY_VERSION_FUNCTION_NAME);
-        if (fnAMFQueryVersion) {
-          amf_uint64 version;
-          auto result = fnAMFQueryVersion(&version);
-          if (result == AMF_OK) {
-            if (config.videoFormat == 2 && version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
-              // AMF 1.4.30 adds ultra low latency mode for AV1. Don't use AV1 on earlier versions.
-              // This corresponds to driver version 23.5.2 (23.10.01.45) or newer.
-              BOOST_LOG(warning) << "AV1 encoding is disabled on AMF version "sv
-                                 << AMF_GET_MAJOR_VERSION(version) << '.'
-                                 << AMF_GET_MINOR_VERSION(version) << '.'
-                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
-                                 << AMF_GET_BUILD_VERSION(version);
-              BOOST_LOG(warning) << "If your AMD GPU supports AV1 encoding, update your graphics drivers!"sv;
-              return -1;
-            }
-            else if (config.dynamicRange && version < AMF_MAKE_FULL_VERSION(1, 4, 23, 0)) {
-              // Older versions of the AMD AMF runtime can crash when fed P010 surfaces.
-              // Fail if AMF version is below 1.4.23 where HEVC Main10 encoding was introduced.
-              // AMF 1.4.23 corresponds to driver version 21.12.1 (21.40.11.03) or newer.
-              BOOST_LOG(warning) << "HDR encoding is disabled on AMF version "sv
-                                 << AMF_GET_MAJOR_VERSION(version) << '.'
-                                 << AMF_GET_MINOR_VERSION(version) << '.'
-                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
-                                 << AMF_GET_BUILD_VERSION(version);
-              BOOST_LOG(warning) << "If your AMD GPU supports HEVC Main10 encoding, update your graphics drivers!"sv;
-              return -1;
-            }
-          }
-          else {
-            BOOST_LOG(warning) << "AMFQueryVersion() failed: "sv << result;
-          }
-        }
-        else {
-          BOOST_LOG(warning) << "AMF DLL missing export: "sv << AMF_QUERY_VERSION_FUNCTION_NAME;
-        }
-      }
-      else {
-        BOOST_LOG(warning) << "Detected AMD GPU but AMF failed to load"sv;
-      }
-    }
-
     D3D11_SAMPLER_DESC sampler_desc {};
     sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -1419,7 +1362,7 @@ namespace platf::dxgi {
         return -1;
       }
 
-      device_ctx->PSSetConstantBuffers(0, 1, &sdr_multiplier);
+      device_ctx->PSSetConstantBuffers(1, 1, &sdr_multiplier);
     }
     else {
       status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &scene_ps);
@@ -1579,6 +1522,91 @@ namespace platf::dxgi {
       DXGI_FORMAT_B8G8R8X8_UNORM,
       DXGI_FORMAT_R8G8B8A8_UNORM,
     };
+  }
+
+  /**
+   * @brief Checks that a given codec is supported by the display device.
+   * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
+   * @param config The codec configuration.
+   * @return true if supported, false otherwise.
+   */
+  bool
+  display_vram_t::is_codec_supported(std::string_view name, const ::video::config_t &config) {
+    DXGI_ADAPTER_DESC adapter_desc;
+    adapter->GetDesc(&adapter_desc);
+
+    if (adapter_desc.VendorId == 0x1002) {  // AMD
+      // If it's not an AMF encoder, it's not compatible with an AMD GPU
+      if (!boost::algorithm::ends_with(name, "_amf")) {
+        return false;
+      }
+
+      // Perform AMF version checks if we're using an AMD GPU. This check is placed in display_vram_t
+      // to avoid hitting the display_ram_t path which uses software encoding and doesn't touch AMF.
+      HMODULE amfrt = LoadLibraryW(AMF_DLL_NAME);
+      if (amfrt) {
+        auto unload_amfrt = util::fail_guard([amfrt]() {
+          FreeLibrary(amfrt);
+        });
+
+        auto fnAMFQueryVersion = (AMFQueryVersion_Fn) GetProcAddress(amfrt, AMF_QUERY_VERSION_FUNCTION_NAME);
+        if (fnAMFQueryVersion) {
+          amf_uint64 version;
+          auto result = fnAMFQueryVersion(&version);
+          if (result == AMF_OK) {
+            if (config.videoFormat == 2 && version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
+              // AMF 1.4.30 adds ultra low latency mode for AV1. Don't use AV1 on earlier versions.
+              // This corresponds to driver version 23.5.2 (23.10.01.45) or newer.
+              BOOST_LOG(warning) << "AV1 encoding is disabled on AMF version "sv
+                                 << AMF_GET_MAJOR_VERSION(version) << '.'
+                                 << AMF_GET_MINOR_VERSION(version) << '.'
+                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
+                                 << AMF_GET_BUILD_VERSION(version);
+              BOOST_LOG(warning) << "If your AMD GPU supports AV1 encoding, update your graphics drivers!"sv;
+              return false;
+            }
+            else if (config.dynamicRange && version < AMF_MAKE_FULL_VERSION(1, 4, 23, 0)) {
+              // Older versions of the AMD AMF runtime can crash when fed P010 surfaces.
+              // Fail if AMF version is below 1.4.23 where HEVC Main10 encoding was introduced.
+              // AMF 1.4.23 corresponds to driver version 21.12.1 (21.40.11.03) or newer.
+              BOOST_LOG(warning) << "HDR encoding is disabled on AMF version "sv
+                                 << AMF_GET_MAJOR_VERSION(version) << '.'
+                                 << AMF_GET_MINOR_VERSION(version) << '.'
+                                 << AMF_GET_SUBMINOR_VERSION(version) << '.'
+                                 << AMF_GET_BUILD_VERSION(version);
+              BOOST_LOG(warning) << "If your AMD GPU supports HEVC Main10 encoding, update your graphics drivers!"sv;
+              return false;
+            }
+          }
+          else {
+            BOOST_LOG(warning) << "AMFQueryVersion() failed: "sv << result;
+          }
+        }
+        else {
+          BOOST_LOG(warning) << "AMF DLL missing export: "sv << AMF_QUERY_VERSION_FUNCTION_NAME;
+        }
+      }
+      else {
+        BOOST_LOG(warning) << "Detected AMD GPU but AMF failed to load"sv;
+      }
+    }
+    else if (adapter_desc.VendorId == 0x8086) {  // Intel
+      // If it's not a QSV encoder, it's not compatible with an Intel GPU
+      if (!boost::algorithm::ends_with(name, "_qsv")) {
+        return false;
+      }
+    }
+    else if (adapter_desc.VendorId == 0x10de) {  // Nvidia
+      // If it's not an NVENC encoder, it's not compatible with an Nvidia GPU
+      if (!boost::algorithm::ends_with(name, "_nvenc")) {
+        return false;
+      }
+    }
+    else {
+      BOOST_LOG(warning) << "Unknown GPU vendor ID: " << util::hex(adapter_desc.VendorId).to_string_view();
+    }
+
+    return true;
   }
 
   std::unique_ptr<avcodec_encode_device_t>

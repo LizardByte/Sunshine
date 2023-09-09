@@ -480,6 +480,17 @@ namespace platf {
       return false;
     }
 
+    /**
+     * @brief Checks that a given codec is supported by the display device.
+     * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
+     * @param config The codec configuration.
+     * @return true if supported, false otherwise.
+     */
+    virtual bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) {
+      return true;
+    }
+
     virtual ~display_t() = default;
 
     // Offsets for when streaming a specific monitor. By default, they are 0.
@@ -575,9 +586,22 @@ namespace platf {
     std::uintptr_t native_socket;
     boost::asio::ip::address &target_address;
     uint16_t target_port;
+    boost::asio::ip::address &source_address;
   };
   bool
   send_batch(batched_send_info_t &send_info);
+
+  struct send_info_t {
+    const char *buffer;
+    size_t size;
+
+    std::uintptr_t native_socket;
+    boost::asio::ip::address &target_address;
+    uint16_t target_port;
+    boost::asio::ip::address &source_address;
+  };
+  bool
+  send(send_info_t &send_info);
 
   enum class qos_data_type_e : int {
     audio,
