@@ -14,11 +14,10 @@
     #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
     #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.ico"
   #else
-    #define TRAY_ICON WEB_DIR "images/logo-sunshine-45.png"
-    #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.png"
-    #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.png"
-    #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.png"
-
+    #define TRAY_ICON "sunshine"
+    #define TRAY_ICON_PLAYING "sunshine-playing"
+    #define TRAY_ICON_PAUSING "sunshine-pausing"
+    #define TRAY_ICON_LOCKED "sunshine-locked"
   #endif
 
   #if defined(__APPLE__) || defined(__MACH__)
