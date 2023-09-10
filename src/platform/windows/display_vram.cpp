@@ -102,17 +102,17 @@ namespace platf::dxgi {
     return blend;
   }
 
-  blob_t convert_UV_vs_hlsl;
-  blob_t convert_UV_ps_hlsl;
-  blob_t convert_UV_linear_ps_hlsl;
-  blob_t convert_UV_PQ_ps_hlsl;
-  blob_t scene_vs_hlsl;
+  blob_t convert_yuv420_packed_uv_type0_ps_hlsl;
+  blob_t convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+  blob_t convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
+  blob_t convert_yuv420_packed_uv_type0_vs_hlsl;
+  blob_t convert_yuv420_planar_y_ps_hlsl;
+  blob_t convert_yuv420_planar_y_ps_linear_hlsl;
+  blob_t convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
+  blob_t convert_yuv420_planar_y_vs_hlsl;
+  blob_t cursor_ps_hlsl;
+  blob_t cursor_ps_normalize_white_hlsl;
   blob_t cursor_vs_hlsl;
-  blob_t convert_Y_ps_hlsl;
-  blob_t convert_Y_linear_ps_hlsl;
-  blob_t convert_Y_PQ_ps_hlsl;
-  blob_t scene_ps_hlsl;
-  blob_t scene_NW_ps_hlsl;
 
   struct img_d3d_t: public platf::img_t {
     // These objects are owned by the display_t's ID3D11Device
@@ -464,14 +464,14 @@ namespace platf::dxgi {
       outY_view = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
       outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
-      float info_in[16 / sizeof(float)] { 1.0f / (float) out_width_f };  // aligned to 16-byte
-      info_scene = make_buffer(device.get(), info_in);
+      float subsample_offset_in[16 / sizeof(float)] { 1.0f / (float) out_width_f, 1.0f / (float) out_height_f };  // aligned to 16-byte
+      subsample_offset = make_buffer(device.get(), subsample_offset_in);
 
-      if (!info_scene) {
-        BOOST_LOG(error) << "Failed to create info scene buffer"sv;
+      if (!subsample_offset) {
+        BOOST_LOG(error) << "Failed to create subsample offset vertex constant buffer";
         return -1;
       }
-      device_ctx->VSSetConstantBuffers(0, 1, &info_scene);
+      device_ctx->VSSetConstantBuffers(0, 1, &subsample_offset);
 
       {
         int32_t rotation_modifier = display->display_rotation == DXGI_MODE_ROTATION_UNSPECIFIED ? 0 : display->display_rotation - 1;
@@ -553,13 +553,13 @@ namespace platf::dxgi {
       }
 
       format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
-      status = device->CreateVertexShader(scene_vs_hlsl->GetBufferPointer(), scene_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
+      status = device->CreateVertexShader(convert_yuv420_planar_y_vs_hlsl->GetBufferPointer(), convert_yuv420_planar_y_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
       if (status) {
         BOOST_LOG(error) << "Failed to create scene vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
-      status = device->CreateVertexShader(convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(), nullptr, &convert_UV_vs);
+      status = device->CreateVertexShader(convert_yuv420_packed_uv_type0_vs_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_vs_hlsl->GetBufferSize(), nullptr, &convert_UV_vs);
       if (status) {
         BOOST_LOG(error) << "Failed to create convertUV vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
@@ -567,13 +567,13 @@ namespace platf::dxgi {
 
       // If the display is in HDR and we're streaming HDR, we'll be converting scRGB to SMPTE 2084 PQ.
       if (format == DXGI_FORMAT_P010 && display->is_hdr()) {
-        status = device->CreatePixelShader(convert_Y_PQ_ps_hlsl->GetBufferPointer(), convert_Y_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
+        status = device->CreatePixelShader(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl->GetBufferPointer(), convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
         }
 
-        status = device->CreatePixelShader(convert_UV_PQ_ps_hlsl->GetBufferPointer(), convert_UV_PQ_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
+        status = device->CreatePixelShader(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
@@ -582,13 +582,13 @@ namespace platf::dxgi {
       else {
         // If the display is in Advanced Color mode, the desktop format will be scRGB FP16.
         // scRGB uses linear gamma, so we must use our linear to sRGB conversion shaders.
-        status = device->CreatePixelShader(convert_Y_linear_ps_hlsl->GetBufferPointer(), convert_Y_linear_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
+        status = device->CreatePixelShader(convert_yuv420_planar_y_ps_linear_hlsl->GetBufferPointer(), convert_yuv420_planar_y_ps_linear_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
         }
 
-        status = device->CreatePixelShader(convert_UV_linear_ps_hlsl->GetBufferPointer(), convert_UV_linear_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
+        status = device->CreatePixelShader(convert_yuv420_packed_uv_type0_ps_linear_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_ps_linear_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
         if (status) {
           BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
           return -1;
@@ -596,13 +596,13 @@ namespace platf::dxgi {
       }
 
       // These shaders consume standard 8-bit sRGB input
-      status = device->CreatePixelShader(convert_Y_ps_hlsl->GetBufferPointer(), convert_Y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
+      status = device->CreatePixelShader(convert_yuv420_planar_y_ps_hlsl->GetBufferPointer(), convert_yuv420_planar_y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
       if (status) {
         BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
-      status = device->CreatePixelShader(convert_UV_ps_hlsl->GetBufferPointer(), convert_UV_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
+      status = device->CreatePixelShader(convert_yuv420_packed_uv_type0_ps_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
       if (status) {
         BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
@@ -627,7 +627,7 @@ namespace platf::dxgi {
 
       status = device->CreateInputLayout(
         &layout_desc, 1,
-        convert_UV_vs_hlsl->GetBufferPointer(), convert_UV_vs_hlsl->GetBufferSize(),
+        convert_yuv420_chroma_vs_type0_hlsl->GetBufferPointer(), convert_yuv420_chroma_vs_type0_hlsl->GetBufferSize(),
         &input_layout);
 
       this->display = std::dynamic_pointer_cast<display_base_t>(display);
@@ -734,7 +734,7 @@ namespace platf::dxgi {
 
     ::video::color_t *color_p;
 
-    buf_t info_scene;
+    buf_t subsample_offset;
     buf_t color_matrix;
 
     input_layout_t input_layout;
@@ -1376,28 +1376,28 @@ namespace platf::dxgi {
 
     if (config.dynamicRange && is_hdr()) {
       // This shader will normalize scRGB white levels to a user-defined white level
-      status = device->CreatePixelShader(scene_NW_ps_hlsl->GetBufferPointer(), scene_NW_ps_hlsl->GetBufferSize(), nullptr, &cursor_ps);
+      status = device->CreatePixelShader(cursor_ps_normalize_white_hlsl->GetBufferPointer(), cursor_ps_normalize_white_hlsl->GetBufferSize(), nullptr, &cursor_ps);
       if (status) {
-        BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create cursor blending (normalized white) pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
       // Use a 300 nit target for the mouse cursor. We should really get
       // the user's SDR white level in nits, but there is no API that
       // provides that information to Win32 apps.
-      float sdr_multiplier_data[16 / sizeof(float)] { 300.0f / 80.f };  // aligned to 16-byte
-      auto sdr_multiplier = make_buffer(device.get(), sdr_multiplier_data);
-      if (!sdr_multiplier) {
-        BOOST_LOG(warning) << "Failed to create SDR multiplier"sv;
+      float white_multiplier_data[16 / sizeof(float)] { 300.0f / 80.f };  // aligned to 16-byte
+      auto white_multiplier = make_buffer(device.get(), white_multiplier_data);
+      if (!white_multiplier) {
+        BOOST_LOG(warning) << "Failed to create cursor blending (normalized white) white multiplier constant buffer";
         return -1;
       }
 
-      device_ctx->PSSetConstantBuffers(1, 1, &sdr_multiplier);
+      device_ctx->PSSetConstantBuffers(1, 1, &white_multiplier);
     }
     else {
-      status = device->CreatePixelShader(scene_ps_hlsl->GetBufferPointer(), scene_ps_hlsl->GetBufferSize(), nullptr, &cursor_ps);
+      status = device->CreatePixelShader(cursor_ps_hlsl->GetBufferPointer(), cursor_ps_hlsl->GetBufferSize(), nullptr, &cursor_ps);
       if (status) {
-        BOOST_LOG(error) << "Failed to create scene pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create cursor blending pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
     }
@@ -1670,61 +1670,28 @@ namespace platf::dxgi {
   int
   init() {
     BOOST_LOG(info) << "Compiling shaders..."sv;
-    scene_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/SceneVS.hlsl");
-    if (!scene_vs_hlsl) {
-      return -1;
-    }
 
-    cursor_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/CursorVS.hlsl");
-    if (!cursor_vs_hlsl) {
-      return -1;
-    }
+#define compile_vertex_shader_helper(x) \
+  if (!(x##_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/" #x ".hlsl"))) return -1;
+#define compile_pixel_shader_helper(x) \
+  if (!(x##_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/" #x ".hlsl"))) return -1;
 
-    convert_Y_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertYPS.hlsl");
-    if (!convert_Y_ps_hlsl) {
-      return -1;
-    }
+    compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps);
+    compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear);
+    compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer);
+    compile_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs);
+    compile_pixel_shader_helper(convert_yuv420_planar_y_ps);
+    compile_pixel_shader_helper(convert_yuv420_planar_y_ps_linear);
+    compile_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer);
+    compile_vertex_shader_helper(convert_yuv420_planar_y_vs);
+    compile_pixel_shader_helper(cursor_ps);
+    compile_pixel_shader_helper(cursor_ps_normalize_white);
+    compile_vertex_shader_helper(cursor_vs);
 
-    convert_Y_PQ_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertYPS_PQ.hlsl");
-    if (!convert_Y_PQ_ps_hlsl) {
-      return -1;
-    }
-
-    convert_Y_linear_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertYPS_Linear.hlsl");
-    if (!convert_Y_linear_ps_hlsl) {
-      return -1;
-    }
-
-    convert_UV_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS.hlsl");
-    if (!convert_UV_ps_hlsl) {
-      return -1;
-    }
-
-    convert_UV_PQ_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS_PQ.hlsl");
-    if (!convert_UV_PQ_ps_hlsl) {
-      return -1;
-    }
-
-    convert_UV_linear_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ConvertUVPS_Linear.hlsl");
-    if (!convert_UV_linear_ps_hlsl) {
-      return -1;
-    }
-
-    convert_UV_vs_hlsl = compile_vertex_shader(SUNSHINE_SHADERS_DIR "/ConvertUVVS.hlsl");
-    if (!convert_UV_vs_hlsl) {
-      return -1;
-    }
-
-    scene_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ScenePS.hlsl");
-    if (!scene_ps_hlsl) {
-      return -1;
-    }
-
-    scene_NW_ps_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/ScenePS_NW.hlsl");
-    if (!scene_NW_ps_hlsl) {
-      return -1;
-    }
     BOOST_LOG(info) << "Compiled shaders"sv;
+
+#undef compile_vertex_shader_helper
+#undef compile_pixel_shader_helper
 
     return 0;
   }
