@@ -345,7 +345,7 @@ namespace platf::dxgi {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
     auto wFile = converter.from_bytes(file);
-    auto status = D3DCompileFromFile(wFile.c_str(), nullptr, nullptr, entrypoint, shader_model, flags, 0, &compiled_p, &msg_p);
+    auto status = D3DCompileFromFile(wFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entrypoint, shader_model, flags, 0, &compiled_p, &msg_p);
 
     if (msg_p) {
       BOOST_LOG(warning) << std::string_view { (const char *) msg_p->GetBufferPointer(), msg_p->GetBufferSize() - 1 };
