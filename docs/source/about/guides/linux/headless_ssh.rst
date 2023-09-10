@@ -324,7 +324,7 @@ Stream Launcher Script
 ^^^^^^^^^^^^^^^^^^^^^^
 
 This is the main entrypoint script that will run the ``sunshine-setup.sh`` script, start up X server, and Sunshine.
-*The client will call this script that runs on the host*.
+The client will call this script that runs on the host via ssh.
 
 
 **Sunshine Startup Script**
@@ -445,7 +445,9 @@ With your monitor still plugged into your Sunshine host PC:
 
 #. Connect to Sunshine host from a moonlight client
 
-*Now unplug your monitors, kill X and sunshine with ``pkill X``, and repeat steps 1 - 5, you should get the same result*.
+Now kill X and sunshine by running ``pkill X`` on the host,
+unplug your monitors from your GPU, and repeat steps 1 - 5.
+You should get the same result.
 With this setup you don't need to modify the Xorg config regardless if monitors are plugged in or not.
 
 
