@@ -621,15 +621,6 @@ namespace platf::dxgi {
       }
       device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
 
-      D3D11_INPUT_ELEMENT_DESC layout_desc {
-        "SV_Position", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0
-      };
-
-      status = device->CreateInputLayout(
-        &layout_desc, 1,
-        convert_yuv420_chroma_vs_type0_hlsl->GetBufferPointer(), convert_yuv420_chroma_vs_type0_hlsl->GetBufferSize(),
-        &input_layout);
-
       this->display = std::dynamic_pointer_cast<display_base_t>(display);
       if (!this->display) {
         return -1;
@@ -655,8 +646,6 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to create point sampler state [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
-
-      device_ctx->IASetInputLayout(input_layout.get());
 
       device_ctx->OMSetBlendState(blend_disable.get(), nullptr, 0xFFFFFFFFu);
       device_ctx->PSSetSamplers(0, 1, &sampler_linear);
@@ -736,8 +725,6 @@ namespace platf::dxgi {
 
     buf_t subsample_offset;
     buf_t color_matrix;
-
-    input_layout_t input_layout;
 
     blend_t blend_disable;
     sampler_state_t sampler_linear;
