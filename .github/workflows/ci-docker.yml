@@ -325,14 +325,14 @@ jobs:
 
       - name: Log in to Docker Hub
         if: ${{ steps.prepare.outputs.push == 'true' }}  # PRs do not have access to secrets
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Log in to the Container registry
         if: ${{ steps.prepare.outputs.push == 'true' }}  # PRs do not have access to secrets
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ secrets.GH_BOT_NAME }}
