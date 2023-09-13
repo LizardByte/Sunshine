@@ -158,7 +158,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v7
+        uses: easimon/maximize-build-space@v8
         with:
           root-reserve-mb: 10240
           remove-dotnet: 'true'
@@ -277,7 +277,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v7
+        uses: easimon/maximize-build-space@v8
         with:
           root-reserve-mb: 20480
           remove-dotnet: 'true'
