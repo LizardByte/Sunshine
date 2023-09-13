@@ -4,7 +4,7 @@ struct PS_INPUT
     float2 tex : TEXCOORD;
 };
 
-cbuffer rotation_info : register(b1) {
+cbuffer rotation_info : register(b2) {
     int rotation;
 };
 
