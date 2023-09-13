@@ -81,23 +81,71 @@ namespace platf::dxgi {
   public:
     gpu_cursor_t():
         cursor_view { 0, 0, 0, 0, 0.0f, 1.0f } {};
-    void
-    set_pos(LONG rel_x, LONG rel_y, bool visible) {
-      cursor_view.TopLeftX = rel_x;
-      cursor_view.TopLeftY = rel_y;
 
+    void
+    set_pos(LONG topleft_x, LONG topleft_y, LONG display_width, LONG display_height, DXGI_MODE_ROTATION display_rotation, bool visible) {
+      this->topleft_x = topleft_x;
+      this->topleft_y = topleft_y;
+      this->display_width = display_width;
+      this->display_height = display_height;
+      this->display_rotation = display_rotation;
       this->visible = visible;
+      update_viewport();
     }
 
     void
-    set_texture(LONG width, LONG height, texture2d_t &&texture) {
-      cursor_view.Width = width;
-      cursor_view.Height = height;
-
+    set_texture(LONG texture_width, LONG texture_height, texture2d_t &&texture) {
       this->texture = std::move(texture);
+      this->texture_width = texture_width;
+      this->texture_height = texture_height;
+      update_viewport();
+    }
+
+    void
+    update_viewport() {
+      switch (display_rotation) {
+        case DXGI_MODE_ROTATION_UNSPECIFIED:
+        case DXGI_MODE_ROTATION_IDENTITY:
+          cursor_view.TopLeftX = topleft_x;
+          cursor_view.TopLeftY = topleft_y;
+          cursor_view.Width = texture_width;
+          cursor_view.Height = texture_height;
+          break;
+
+        case DXGI_MODE_ROTATION_ROTATE90:
+          cursor_view.TopLeftX = topleft_y;
+          cursor_view.TopLeftY = display_width - texture_width - topleft_x;
+          cursor_view.Width = texture_height;
+          cursor_view.Height = texture_width;
+          break;
+
+        case DXGI_MODE_ROTATION_ROTATE180:
+          cursor_view.TopLeftX = display_width - texture_width - topleft_x;
+          cursor_view.TopLeftY = display_height - texture_height - topleft_y;
+          cursor_view.Width = texture_width;
+          cursor_view.Height = texture_height;
+          break;
+
+        case DXGI_MODE_ROTATION_ROTATE270:
+          cursor_view.TopLeftX = display_height - texture_height - topleft_y;
+          cursor_view.TopLeftY = topleft_x;
+          cursor_view.Width = texture_height;
+          cursor_view.Height = texture_width;
+          break;
+      }
     }
 
     texture2d_t texture;
+    LONG texture_width;
+    LONG texture_height;
+
+    LONG topleft_x;
+    LONG topleft_y;
+
+    LONG display_width;
+    LONG display_height;
+    DXGI_MODE_ROTATION display_rotation;
+
     shader_res_t input_res;
 
     D3D11_VIEWPORT cursor_view;
@@ -140,6 +188,10 @@ namespace platf::dxgi {
     duplication_t dup;
     DXGI_RATIONAL display_refresh_rate;
     int display_refresh_rate_rounded;
+
+    DXGI_MODE_ROTATION display_rotation = DXGI_MODE_ROTATION_UNSPECIFIED;
+    int width_before_rotation;
+    int height_before_rotation;
 
     int client_frame_rate;
 
@@ -277,8 +329,8 @@ namespace platf::dxgi {
     blend_t blend_invert;
     blend_t blend_disable;
 
-    ps_t scene_ps;
-    vs_t scene_vs;
+    ps_t cursor_ps;
+    vs_t cursor_vs;
 
     gpu_cursor_t cursor_alpha;
     gpu_cursor_t cursor_xor;
