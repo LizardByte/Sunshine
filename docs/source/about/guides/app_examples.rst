@@ -137,7 +137,7 @@ Changing Resolution and Refresh Rate (Linux - X11)
    The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS and iOS devices, since they use non standard resolutions.
 
    You can update the ``Do`` command to this:
-      .. code-block:: console
+      .. code-block:: bash
 
          bash -c "${HOME}/scripts/set-custom-res.sh \"${SUNSHINE_CLIENT_WIDTH}\" \"${SUNSHINE_CLIENT_HEIGHT}\" \"${SUNSHINE_CLIENT_FPS}\""
 
