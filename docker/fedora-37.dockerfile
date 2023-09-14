@@ -31,7 +31,7 @@ dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
   boost-devel-1.78.* \
-  cmake-3.26.* \
+  cmake-3.27.* \
   gcc-12.2.* \
   gcc-c++-12.2.* \
   git \

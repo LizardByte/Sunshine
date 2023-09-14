@@ -94,10 +94,11 @@
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="gamepad" class="form-label">Gamepads</label>
         <select id="gamepad" class="form-select" v-model="config.gamepad">
+          <option value="auto">Automatic</option>
           <option value="ds4">DS4 (PS4)</option>
           <option value="x360">X360 (Xbox 360)</option>
         </select>
-        <div class="form-text">Choose which type of gamepad to Emulate on the host</div>
+        <div class="form-text">Choose which type of gamepad to emulate on the host</div>
       </div>
       <!--Ping Timeout-->
       <div class="mb-3">
@@ -565,7 +566,7 @@
         </div>
       </div>
       <!--Output Name -->
-      <div class="mb-3 config-page" v-if="platform === 'windows'">
+      <div class="mb-3" v-if="platform === 'windows'">
         <label for="output_name" class="form-label">Output Name</label>
         <input
           type="text"
@@ -581,19 +582,7 @@
           tools\dxgi-info.exe<br />
         </div>
       </div>
-      <!--DwmFlush-->
-      <div class="mb-3" v-if="platform === 'windows'">
-        <label for="dwmflush" class="form-label">DwmFlush</label>
-        <select id="dwmflush" class="form-select" v-model="config.dwmflush">
-          <option value="disabled">Disabled</option>
-          <option value="enabled">Enabled</option>
-        </select>
-        <div class="form-text">
-          Improves capture latency/smoothness during mouse movement.<br />
-          Disable if you encounter any VSync-related issues.
-        </div>
-      </div>
-      <div class="mb-3 config-page" v-if="platform === 'linux'">
+      <div class="mb-3" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
         <input
           type="text"
@@ -618,6 +607,19 @@
       </div>
     </div>
     <div v-if="currentTab === 'advanced'" class="config-page">
+      <!--Address family-->
+      <div class="mb-3">
+        <label for="address_family" class="form-label">Address Family</label>
+        <select
+          id="address_family"
+          class="form-select"
+          v-model="config.address_family"
+        >
+          <option value="ipv4">IPv4 only</option>
+          <option value="both">IPv4+IPv6</option>
+        </select>
+        <div class="form-text">Set the address family used by Sunshine</div>
+      </div>
       <!--Port family-->
       <div class="mb-3">
         <label for="port" class="form-label">Port</label>
@@ -673,7 +675,7 @@
         <label for="hevc_mode" class="form-label">HEVC Support</label>
         <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
           <option value="0">
-            Sunshine will specify support for HEVC based on encoder
+            Sunshine will advertise support for HEVC based on encoder capabilities (recommended)
           </option>
           <option value="1">
             Sunshine will not advertise support for HEVC
@@ -688,6 +690,28 @@
         <div class="form-text">
           Allows the client to request HEVC Main or HEVC Main10 video streams.<br />
           HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
+        </div>
+      </div>
+      <!--AV1 Support -->
+      <div class="mb-3">
+        <label for="av1_mode" class="form-label">AV1 Support</label>
+        <select id="av1_mode" class="form-select" v-model="config.av1_mode">
+          <option value="0">
+            Sunshine will advertise support for AV1 based on encoder capabilities (recommended)
+          </option>
+          <option value="1">
+            Sunshine will not advertise support for AV1
+          </option>
+          <option value="2">
+            Sunshine will advertise support for AV1 Main 8-bit profile
+          </option>
+          <option value="3">
+            Sunshine will advertise support for AV1 Main 8-bit and 10-bit (HDR) profiles
+          </option>
+        </select>
+        <div class="form-text">
+          Allows the client to request AV1 Main 8-bit or 10-bit video streams.<br />
+          AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
         </div>
       </div>
       <!--Capture-->
@@ -848,41 +872,73 @@
     <div v-if="currentTab === 'nv'" class="config-page">
       <!--NVENC SETTINGS-->
       <div class="mb-3">
-        <label for="nv_preset" class="form-label">NVENC Preset</label>
-        <select id="nv_preset" class="form-select" v-model="config.nv_preset">
-          <option value="p1">p1 -- fastest (lowest quality)</option>
-          <option value="p2">p2 -- faster (lower quality)</option>
-          <option value="p3">p3 -- fast (low quality)</option>
-          <option value="p4">p4 -- medium (default)</option>
-          <option value="p5">p5 -- slow (good quality)</option>
-          <option value="p6">p6 -- slower (better quality)</option>
-          <option value="p7">p7 -- slowest (best quality)</option>
+        <label for="nvenc_preset" class="form-label">Performance preset</label>
+        <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
+          <option value="1">P1 (fastest, default)</option>
+          <option value="2">P2</option>
+          <option value="3">P3</option>
+          <option value="4">P4</option>
+          <option value="5">P5</option>
+          <option value="6">P6</option>
+          <option value="7">P7 (slowest)</option>
         </select>
+        <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
+          <strong>increased encoding latency</strong>.<br>
+          Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by
+          increasing bitrate.
+        </div>
       </div>
       <div class="mb-3">
-        <label for="nv_tune" class="form-label">NVENC Tune</label>
-        <select id="nv_tune" class="form-select" v-model="config.nv_tune">
-          <option value="hq">hq -- high quality</option>
-          <option value="ll">ll -- low latency</option>
-          <option value="ull">ull -- ultra low latency (default)</option>
-          <option value="lossless">lossless -- lossless</option>
+        <label for="nvenc_twopass" class="form-label">Two-pass mode</label>
+        <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
+          <option value="disabled">Disabled (fastest, not recommended)</option>
+          <option value="quarter_res">Quarter resolution (faster, default)</option>
+          <option value="full_res">Full resolution (slower)</option>
         </select>
+        <div class="form-text">Adds preliminary encoding pass.<br>
+          This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere to
+          bitrate limits.<br>
+          Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss.
+        </div>
       </div>
-      <div class="mb-3">
-        <label for="nv_rc" class="form-label">NVENC Rate Control</label>
-        <select id="nv_rc" class="form-select" v-model="config.nv_rc">
-          <option value="constqp">constqp -- constant qp mode</option>
-          <option value="vbr">vbr -- variable bitrate</option>
-          <option value="cbr">cbr -- constant bitrate (default)</option>
-        </select>
-      </div>
-      <div class="mb-3">
-        <label for="nv_coder" class="form-label">NVENC Coder (H264)</label>
-        <select id="nv_coder" class="form-select" v-model="config.nv_coder">
-          <option value="auto">auto -- let ffmpeg decide (default)</option>
-          <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
-          <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
-        </select>
+      <div class="accordion">
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse"
+              data-bs-target="#panelsStayOpen-collapseOne">
+              Miscellaneous options
+            </button>
+          </h2>
+          <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
+            aria-labelledby="panelsStayOpen-headingOne">
+            <div class="accordion-body">
+              <div class="mb-3" v-if="platform === 'windows'">
+                <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated gpu scheduling</label>
+                <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
+                  <option value="disabled">Disabled</option>
+                  <option value="enabled">Enabled (default)</option>
+                </select>
+                <div class="form-text">Currently NVIDIA drivers may freeze in encoder when
+                  <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
+                  is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
+                  Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture
+                  performance when the GPU is heavily loaded.
+                </div>
+              </div>
+              <div>
+                <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
+                <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
+                  <option value="disabled">Disabled (default)</option>
+                  <option value="enabled">Enabled</option>
+                </select>
+                <div class="form-text">Simpler form of entropy coding.<br>
+                  CAVLC needs around 10% more bitrate for same quality.<br>
+                  Only relevant for really old decoding devices.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <!--Intel Encoder Settings-->
@@ -927,7 +983,7 @@
         <select id="amd_rc" class="form-select" v-model="config.amd_rc">
           <option value="cqp">cqp -- constant qp mode</option>
           <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
-          <option value="vbr_peak">vbr_peak -- peak contrained variable bitrate</option>
+          <option value="vbr_peak">vbr_peak -- peak constrained variable bitrate</option>
           <option value="cbr">cbr -- constant bitrate</option>
         </select>
       </div>
@@ -1016,6 +1072,7 @@
 <script>
   // create dictionary for defaultConfig
   const defaultConfig = {
+    "address_family": "ipv4",
     "always_send_scancodes": "enabled",
     "amd_coder": "auto",
     "amd_preanalysis": "disabled",
@@ -1029,16 +1086,17 @@
     "dwmflush": "enabled",
     "encoder": "",
     "fps": "[10,30,60,90,120]",
-    "gamepad": "x360",
+    "gamepad": "auto",
     "hevc_mode": 0,
+    "av1_mode": 0,
     "key_rightalt_to_key_win": "disabled",
     "keyboard": "enabled",
     "min_log_level": 2,
     "mouse": "enabled",
-    "nv_coder": "auto",
-    "nv_preset": "p4",
-    "nv_rc": "cbr",
-    "nv_tune": "ull",
+    "nvenc_h264_cavlc": "disabled",
+    "nvenc_preset": "1",
+    "nvenc_realtime_hags": "enabled",
+    "nvenc_twopass": "quarter_res",
     "origin_pin_allowed": "pc",
     "origin_web_ui_allowed": "lan",
     "qsv_coder": "auto",

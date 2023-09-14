@@ -8,7 +8,7 @@
 
 namespace platf {
 
-  class nv12_zero_device: public hwdevice_t {
+  class nv12_zero_device: public avcodec_encode_device_t {
     // display holds a pointer to an av_video object. Since the namespaces of AVFoundation
     // and FFMPEG collide, we need this opaque pointer and cannot use the definition
     void *display;
@@ -27,8 +27,6 @@ namespace platf {
     convert(img_t &img);
     int
     set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx);
-    void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
   };
 
 }  // namespace platf

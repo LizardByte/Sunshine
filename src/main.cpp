@@ -46,6 +46,11 @@ safe::mail_t mail::man;
 using namespace std::literals;
 namespace bl = boost::log;
 
+#ifdef _WIN32
+// Define global singleton used for NVIDIA control panel modifications
+nvprefs::nvprefs_interface nvprefs_instance;
+#endif
+
 thread_pool_util::ThreadPool task_pool;
 bl::sources::severity_logger<int> verbose(0);  // Dominating output
 bl::sources::severity_logger<int> debug(1);  // Follow what is happening
@@ -111,6 +116,22 @@ namespace version {
     return 0;
   }
 }  // namespace version
+
+#ifdef _WIN32
+namespace restore_nvprefs_undo {
+  int
+  entry(const char *name, int argc, char *argv[]) {
+    // Restore global NVIDIA control panel settings to the undo file
+    // left by improper termination of sunshine.exe, if it exists.
+    // This entry point is typically called by the uninstaller.
+    if (nvprefs_instance.load()) {
+      nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+      nvprefs_instance.unload();
+    }
+    return 0;
+  }
+}  // namespace restore_nvprefs_undo
+#endif
 
 namespace lifetime {
   static char **argv;
@@ -413,7 +434,10 @@ namespace gen_creds {
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   { "creds"sv, gen_creds::entry },
   { "help"sv, help::entry },
-  { "version"sv, version::entry }
+  { "version"sv, version::entry },
+#ifdef _WIN32
+  { "restore-nvprefs-undo"sv, restore_nvprefs_undo::entry },
+#endif
 };
 
 #ifdef _WIN32
@@ -449,6 +473,9 @@ main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
+  // Switch default C standard library locale to UTF-8 on Windows 10 1803+
+  setlocale(LC_ALL, ".UTF-8");
+
   // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
   SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
 
@@ -492,6 +519,9 @@ main(int argc, char *argv[]) {
   window_thread.detach();
 #endif
 
+  // Use UTF-8 conversion for the default C++ locale (used by boost::log)
+  std::locale::global(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
+
   mail::man = std::make_shared<safe::mail_raw_t>();
 
   if (config::parse(argc, argv)) {
@@ -504,6 +534,31 @@ main(int argc, char *argv[]) {
   else {
     av_log_set_level(AV_LOG_DEBUG);
   }
+  av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {
+    static int print_prefix = 1;
+    char buffer[1024];
+
+    av_log_format_line(ptr, level, fmt, vl, buffer, sizeof(buffer), &print_prefix);
+    if (level <= AV_LOG_FATAL) {
+      BOOST_LOG(fatal) << buffer;
+    }
+    else if (level <= AV_LOG_ERROR) {
+      BOOST_LOG(error) << buffer;
+    }
+    else if (level <= AV_LOG_WARNING) {
+      BOOST_LOG(warning) << buffer;
+    }
+    else if (level <= AV_LOG_INFO) {
+      BOOST_LOG(info) << buffer;
+    }
+    else if (level <= AV_LOG_VERBOSE) {
+      // AV_LOG_VERBOSE is less verbose than AV_LOG_DEBUG
+      BOOST_LOG(debug) << buffer;
+    }
+    else {
+      BOOST_LOG(verbose) << buffer;
+    }
+  });
 
   sink = boost::make_shared<text_sink>();
 
@@ -568,6 +623,21 @@ main(int argc, char *argv[]) {
 
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
+
+#ifdef WIN32
+  // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
+  if (nvprefs_instance.load()) {
+    // Restore global settings to the undo file left by improper termination of sunshine.exe
+    nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+    // Modify application settings for sunshine.exe
+    nvprefs_instance.modify_application_profile();
+    // Modify global settings, undo file is produced in the process to restore after improper termination
+    nvprefs_instance.modify_global_profile();
+    // Unload dynamic library to survive driver reinstallation
+    nvprefs_instance.unload();
+  }
+#endif
+
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
@@ -673,6 +743,14 @@ main(int argc, char *argv[]) {
   // stop system tray
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
   system_tray::end_tray();
+#endif
+
+#ifdef WIN32
+  // Restore global NVIDIA control panel settings
+  if (nvprefs_instance.owning_undo_file() && nvprefs_instance.load()) {
+    nvprefs_instance.restore_global_profile();
+    nvprefs_instance.unload();
+  }
 #endif
 
   return lifetime::desired_exit_code;

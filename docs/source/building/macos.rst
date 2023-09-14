@@ -5,7 +5,7 @@ Requirements
 ------------
 macOS Big Sur and Xcode 12.5+
 
-Use either `MacPorts <https://www.macports.org>`_ or `Homebrew <https://brew.sh>`_
+Use either `MacPorts <https://www.macports.org>`__ or `Homebrew <https://brew.sh>`__
 
 MacPorts
 """"""""

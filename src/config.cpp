@@ -24,6 +24,11 @@
   #include <shellapi.h>
 #endif
 
+#ifndef __APPLE__
+  // For NVENC legacy constants
+  #include <ffnvcodec/nvEncodeAPI.h>
+#endif
+
 namespace fs = std::filesystem;
 using namespace std::literals;
 
@@ -35,107 +40,34 @@ using namespace std::literals;
 namespace config {
 
   namespace nv {
-#ifdef __APPLE__
-  // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
-  #define NV_ENC_TUNING_INFO_HIGH_QUALITY 1
-  #define NV_ENC_TUNING_INFO_LOW_LATENCY 2
-  #define NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY 3
-  #define NV_ENC_TUNING_INFO_LOSSLESS 4
-  #define NV_ENC_PARAMS_RC_CONSTQP 0x0
-  #define NV_ENC_PARAMS_RC_VBR 0x1
-  #define NV_ENC_PARAMS_RC_CBR 0x2
-  #define NV_ENC_H264_ENTROPY_CODING_MODE_CABAC 1
-  #define NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC 2
-#else
-  #include <ffnvcodec/nvEncodeAPI.h>
-#endif
 
-    enum preset_e : int {
-      p1 = 12,  // PRESET_P1, // must be kept in sync with <libavcodec/nvenc.h>
-      p2,  // PRESET_P2,
-      p3,  // PRESET_P3,
-      p4,  // PRESET_P4,
-      p5,  // PRESET_P5,
-      p6,  // PRESET_P6,
-      p7  // PRESET_P7
-    };
-
-    enum tune_e : int {
-      hq = NV_ENC_TUNING_INFO_HIGH_QUALITY,
-      ll = NV_ENC_TUNING_INFO_LOW_LATENCY,
-      ull = NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY,
-      lossless = NV_ENC_TUNING_INFO_LOSSLESS
-    };
-
-    enum rc_e : int {
-      constqp = NV_ENC_PARAMS_RC_CONSTQP, /**< Constant QP mode */
-      vbr = NV_ENC_PARAMS_RC_VBR, /**< Variable bitrate mode */
-      cbr = NV_ENC_PARAMS_RC_CBR /**< Constant bitrate mode */
-    };
-
-    enum coder_e : int {
-      _auto = 0,
-      cabac = NV_ENC_H264_ENTROPY_CODING_MODE_CABAC,
-      cavlc = NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC,
-    };
-
-    std::optional<preset_e>
-    preset_from_view(const std::string_view &preset) {
-#define _CONVERT_(x) \
-  if (preset == #x##sv) return x
-      _CONVERT_(p1);
-      _CONVERT_(p2);
-      _CONVERT_(p3);
-      _CONVERT_(p4);
-      _CONVERT_(p5);
-      _CONVERT_(p6);
-      _CONVERT_(p7);
-#undef _CONVERT_
-      return std::nullopt;
+    nvenc::nvenc_two_pass
+    twopass_from_view(const std::string_view &preset) {
+      if (preset == "disabled") return nvenc::nvenc_two_pass::disabled;
+      if (preset == "quarter_res") return nvenc::nvenc_two_pass::quarter_resolution;
+      if (preset == "full_res") return nvenc::nvenc_two_pass::full_resolution;
+      BOOST_LOG(warning) << "config: unknown nvenc_twopass value: " << preset;
+      return nvenc::nvenc_two_pass::quarter_resolution;
     }
 
-    std::optional<tune_e>
-    tune_from_view(const std::string_view &tune) {
-#define _CONVERT_(x) \
-  if (tune == #x##sv) return x
-      _CONVERT_(hq);
-      _CONVERT_(ll);
-      _CONVERT_(ull);
-      _CONVERT_(lossless);
-#undef _CONVERT_
-      return std::nullopt;
-    }
-
-    std::optional<rc_e>
-    rc_from_view(const std::string_view &rc) {
-#define _CONVERT_(x) \
-  if (rc == #x##sv) return x
-      _CONVERT_(constqp);
-      _CONVERT_(vbr);
-      _CONVERT_(cbr);
-#undef _CONVERT_
-      return std::nullopt;
-    }
-
-    int
-    coder_from_view(const std::string_view &coder) {
-      if (coder == "auto"sv) return _auto;
-      if (coder == "cabac"sv || coder == "ac"sv) return cabac;
-      if (coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
-
-      return -1;
-    }
   }  // namespace nv
 
   namespace amd {
 #ifdef __APPLE__
   // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
+  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED 100
+  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY 30
+  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED 70
   #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED 10
   #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY 0
   #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED 5
   #define AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED 1
   #define AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY 2
   #define AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED 0
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP 0
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR 3
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
+  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 1
   #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP 0
   #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR 3
   #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
@@ -144,6 +76,10 @@ namespace config {
   #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR 1
   #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
   #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 3
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING 0
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY 1
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY 2
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM 3
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCONDING 0
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY 1
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY 2
@@ -156,9 +92,16 @@ namespace config {
   #define AMF_VIDEO_ENCODER_CABAC 1
   #define AMF_VIDEO_ENCODER_CALV 2
 #else
+  #include <AMF/components/VideoEncoderAV1.h>
   #include <AMF/components/VideoEncoderHEVC.h>
   #include <AMF/components/VideoEncoderVCE.h>
 #endif
+
+    enum class quality_av1_e : int {
+      speed = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED,
+      quality = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY,
+      balanced = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED
+    };
 
     enum class quality_hevc_e : int {
       speed = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED,
@@ -170,6 +113,13 @@ namespace config {
       speed = AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED,
       quality = AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY,
       balanced = AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED
+    };
+
+    enum class rc_av1_e : int {
+      cqp = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP,
+      vbr_latency = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
+      vbr_peak = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
+      cbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR
     };
 
     enum class rc_hevc_e : int {
@@ -184,6 +134,13 @@ namespace config {
       vbr_latency = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
       vbr_peak = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
       cbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR
+    };
+
+    enum class usage_av1_e : int {
+      transcoding = AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING,
+      webcam = AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM,
+      lowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY,
+      ultralowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY
     };
 
     enum class usage_hevc_e : int {
@@ -206,10 +163,11 @@ namespace config {
       cavlc = AMF_VIDEO_ENCODER_CALV
     };
 
+    template <class T>
     std::optional<int>
-    quality_from_view(const std::string_view &quality_type, int codec) {
+    quality_from_view(const std::string_view &quality_type) {
 #define _CONVERT_(x) \
-  if (quality_type == #x##sv) return codec == 0 ? (int) quality_hevc_e::x : (int) quality_h264_e::x
+  if (quality_type == #x##sv) return (int) T::x
       _CONVERT_(quality);
       _CONVERT_(speed);
       _CONVERT_(balanced);
@@ -217,10 +175,11 @@ namespace config {
       return std::nullopt;
     }
 
+    template <class T>
     std::optional<int>
-    rc_from_view(const std::string_view &rc, int codec) {
+    rc_from_view(const std::string_view &rc) {
 #define _CONVERT_(x) \
-  if (rc == #x##sv) return codec == 0 ? (int) rc_hevc_e::x : (int) rc_h264_e::x
+  if (rc == #x##sv) return (int) T::x
       _CONVERT_(cqp);
       _CONVERT_(vbr_latency);
       _CONVERT_(vbr_peak);
@@ -229,10 +188,11 @@ namespace config {
       return std::nullopt;
     }
 
+    template <class T>
     std::optional<int>
-    usage_from_view(const std::string_view &rc, int codec) {
+    usage_from_view(const std::string_view &rc) {
 #define _CONVERT_(x) \
-  if (rc == #x##sv) return codec == 0 ? (int) usage_hevc_e::x : (int) usage_h264_e::x
+  if (rc == #x##sv) return (int) T::x
       _CONVERT_(transcoding);
       _CONVERT_(webcam);
       _CONVERT_(lowlatency);
@@ -333,23 +293,41 @@ namespace config {
 
   }  // namespace vt
 
+  namespace sw {
+    int
+    svtav1_preset_from_view(const std::string_view &preset) {
+#define _CONVERT_(x, y) \
+  if (preset == #x##sv) return y
+      _CONVERT_(veryslow, 1);
+      _CONVERT_(slower, 2);
+      _CONVERT_(slow, 4);
+      _CONVERT_(medium, 5);
+      _CONVERT_(fast, 7);
+      _CONVERT_(faster, 9);
+      _CONVERT_(veryfast, 10);
+      _CONVERT_(superfast, 11);
+      _CONVERT_(ultrafast, 12);
+#undef _CONVERT_
+      return 11;  // Default to superfast
+    }
+  }  // namespace sw
+
   video_t video {
     28,  // qp
 
     0,  // hevc_mode
+    0,  // av1_mode
 
     1,  // min_threads
     {
       "superfast"s,  // preset
       "zerolatency"s,  // tune
+      11,  // superfast
     },  // software
 
-    {
-      nv::p4,  // preset
-      nv::ull,  // tune
-      nv::cbr,  // rc
-      nv::_auto  // coder
-    },  // nv
+    {},  // nv
+    true,  // nv_realtime_hags
+    {},  // nv_legacy
 
     {
       qsv::medium,  // preset
@@ -359,10 +337,13 @@ namespace config {
     {
       (int) amd::quality_h264_e::balanced,  // quality (h264)
       (int) amd::quality_hevc_e::balanced,  // quality (hevc)
+      (int) amd::quality_av1_e::balanced,  // quality (av1)
       (int) amd::rc_h264_e::vbr_latency,  // rate control (h264)
       (int) amd::rc_hevc_e::vbr_latency,  // rate control (hevc)
+      (int) amd::rc_av1_e::vbr_latency,  // rate control (av1)
       (int) amd::usage_h264_e::ultralowlatency,  // usage (h264)
       (int) amd::usage_hevc_e::ultralowlatency,  // usage (hevc)
+      (int) amd::usage_av1_e::ultralowlatency,  // usage (av1)
       0,  // preanalysis
       1,  // vbaq
       (int) amd::coder_e::_auto,  // coder
@@ -379,7 +360,6 @@ namespace config {
     {},  // encoder
     {},  // adapter_name
     {},  // output_name
-    true  // dwmflush
   };
 
   audio_t audio {
@@ -453,7 +433,8 @@ namespace config {
     {},  // Password Salt
     platf::appdata().string() + "/sunshine.conf",  // config file
     {},  // cmd args
-    47989,
+    47989,  // Base port number
+    "ipv4",  // Address family
     platf::appdata().string() + "/sunshine.log",  // log file
     {},  // prep commands
   };
@@ -579,6 +560,16 @@ namespace config {
     input = std::move(it->second);
 
     vars.erase(it);
+  }
+
+  template <typename T, typename F>
+  void
+  generic_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, T &input, F &&f) {
+    std::string tmp;
+    string_f(vars, name, tmp);
+    if (!tmp.empty()) {
+      input = f(tmp);
+    }
   }
 
   void
@@ -924,12 +915,25 @@ namespace config {
     int_f(vars, "qp", video.qp);
     int_f(vars, "min_threads", video.min_threads);
     int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
+    int_between_f(vars, "av1_mode", video.av1_mode, { 0, 3 });
     string_f(vars, "sw_preset", video.sw.sw_preset);
+    if (!video.sw.sw_preset.empty()) {
+      video.sw.svtav1_preset = sw::svtav1_preset_from_view(video.sw.sw_preset);
+    }
     string_f(vars, "sw_tune", video.sw.sw_tune);
-    int_f(vars, "nv_preset", video.nv.nv_preset, nv::preset_from_view);
-    int_f(vars, "nv_tune", video.nv.nv_tune, nv::tune_from_view);
-    int_f(vars, "nv_rc", video.nv.nv_rc, nv::rc_from_view);
-    int_f(vars, "nv_coder", video.nv.nv_coder, nv::coder_from_view);
+
+    int_between_f(vars, "nvenc_preset", video.nv.quality_preset, { 1, 7 });
+    generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
+    bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
+    bool_f(vars, "nvenc_realtime_hags", video.nv_realtime_hags);
+
+#ifndef __APPLE__
+    video.nv_legacy.preset = video.nv.quality_preset + 11;
+    video.nv_legacy.multipass = video.nv.two_pass == nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
+                                video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
+                                                                                                 NV_ENC_MULTI_PASS_DISABLED;
+    video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
+#endif
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
     int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
@@ -937,23 +941,26 @@ namespace config {
     std::string quality;
     string_f(vars, "amd_quality", quality);
     if (!quality.empty()) {
-      video.amd.amd_quality_h264 = amd::quality_from_view(quality, 1);
-      video.amd.amd_quality_hevc = amd::quality_from_view(quality, 0);
+      video.amd.amd_quality_h264 = amd::quality_from_view<amd::quality_h264_e>(quality);
+      video.amd.amd_quality_hevc = amd::quality_from_view<amd::quality_hevc_e>(quality);
+      video.amd.amd_quality_av1 = amd::quality_from_view<amd::quality_av1_e>(quality);
     }
 
     std::string rc;
     string_f(vars, "amd_rc", rc);
     int_f(vars, "amd_coder", video.amd.amd_coder, amd::coder_from_view);
     if (!rc.empty()) {
-      video.amd.amd_rc_h264 = amd::rc_from_view(rc, 1);
-      video.amd.amd_rc_hevc = amd::rc_from_view(rc, 0);
+      video.amd.amd_rc_h264 = amd::rc_from_view<amd::rc_h264_e>(rc);
+      video.amd.amd_rc_hevc = amd::rc_from_view<amd::rc_hevc_e>(rc);
+      video.amd.amd_rc_av1 = amd::rc_from_view<amd::rc_av1_e>(rc);
     }
 
     std::string usage;
     string_f(vars, "amd_usage", usage);
     if (!usage.empty()) {
-      video.amd.amd_usage_h264 = amd::usage_from_view(rc, 1);
-      video.amd.amd_usage_hevc = amd::usage_from_view(rc, 0);
+      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(rc);
+      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(rc);
+      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(rc);
     }
 
     bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
@@ -968,7 +975,6 @@ namespace config {
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
-    bool_f(vars, "dwmflush", video.dwmflush);
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -1045,6 +1051,8 @@ namespace config {
     int port = sunshine.port;
     int_f(vars, "port"s, port);
     sunshine.port = (std::uint16_t) port;
+
+    string_restricted_f(vars, "address_family", sunshine.address_family, { "ipv4"sv, "both"sv });
 
     bool upnp = false;
     bool_f(vars, "upnp"s, upnp);

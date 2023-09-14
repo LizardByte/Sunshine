@@ -70,10 +70,6 @@ namespace platf {
     return 0;
   }
 
-  void
-  nv12_zero_device::set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {
-  }
-
   int
   nv12_zero_device::init(void *display, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn) {
     pixel_format_fn(display, '420v');
@@ -82,7 +78,7 @@ namespace platf {
     this->resolution_fn = resolution_fn;
 
     // we never use this pointer but it's existence is checked/used
-    // by the platform independed code
+    // by the platform independent code
     data = this;
 
     return 0;

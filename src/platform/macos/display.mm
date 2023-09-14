@@ -94,15 +94,15 @@ namespace platf {
       return std::make_shared<av_img_t>();
     }
 
-    std::shared_ptr<hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) override {
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
       if (pix_fmt == pix_fmt_e::yuv420p) {
         av_capture.pixelFormat = kCVPixelFormatType_32BGRA;
 
-        return std::make_shared<hwdevice_t>();
+        return std::make_unique<avcodec_encode_device_t>();
       }
       else if (pix_fmt == pix_fmt_e::nv12) {
-        auto device = std::make_shared<nv12_zero_device>();
+        auto device = std::make_unique<nv12_zero_device>();
 
         device->init(static_cast<void *>(av_capture), setResolution, setPixelFormat);
 

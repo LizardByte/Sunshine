@@ -550,7 +550,7 @@ namespace platf {
             });
 
             if (pos == std::end(card_descriptors)) {
-              // This code path shouldn't happend, but it's there just in case.
+              // This code path shouldn't happen, but it's there just in case.
               // card_descriptors is part of the guesswork after all.
               BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
               return -1;
@@ -592,7 +592,7 @@ namespace platf {
               offset_y = viewport.offset_y;
             }
 
-            // This code path shouldn't happend, but it's there just in case.
+            // This code path shouldn't happen, but it's there just in case.
             // crtc_to_monitor is part of the guesswork after all.
             else {
               BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
@@ -768,13 +768,13 @@ namespace platf {
         return capture_e::ok;
       }
 
-      std::shared_ptr<hwdevice_t>
-      make_hwdevice(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t>
+      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_hwdevice(width, height, false);
+          return va::make_avcodec_encode_device(width, height, false);
         }
 
-        return std::make_shared<hwdevice_t>();
+        return std::make_unique<avcodec_encode_device_t>();
       }
 
       capture_e
@@ -843,10 +843,10 @@ namespace platf {
       display_vram_t(mem_type_e mem_type):
           display_t(mem_type) {}
 
-      std::shared_ptr<hwdevice_t>
-      make_hwdevice(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t>
+      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_hwdevice(width, height, dup(card.fd.el), img_offset_x, img_offset_y, true);
+          return va::make_avcodec_encode_device(width, height, dup(card.fd.el), img_offset_x, img_offset_y, true);
         }
 
         BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
@@ -1023,7 +1023,7 @@ namespace platf {
 
       // Try to convert names in the format:
       // {type}-{index}
-      // {index} is n'th occurence of {type}
+      // {index} is n'th occurrence of {type}
       auto index_begin = name.find_last_of('-');
 
       std::uint32_t index;
