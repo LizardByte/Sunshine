@@ -191,7 +191,7 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
    Use ``xrandr`` to see name of your active display output. Usually it starts with ``DP`` or ``HDMI``. For me, it is ``DP-0``.
    Put this name for the ``ConnectedMonitor`` option under the ``Device`` section.
 
-   .. code-block:: console
+   .. code-block:: bash
 
       xrandr | grep " connected" | awk '{ print $1 }'
 
