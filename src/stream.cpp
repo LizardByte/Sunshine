@@ -1734,7 +1734,7 @@ namespace stream {
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-        if(proc::proc.running()){
+        if (proc::proc.running()) {
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
         }
 #endif
