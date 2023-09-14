@@ -5,3 +5,4 @@ rstcheck[sphinx]==6.2.0
 rstfmt==0.0.14
 Sphinx==7.2.5
 sphinx-copybutton==0.5.2
+sphinx_inline_tabs==2023.4.21

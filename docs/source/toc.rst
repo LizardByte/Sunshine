@@ -7,7 +7,7 @@
    about/docker
    about/third_party_packages
    about/usage
-   about/app_examples
+   about/guides/guides
    about/advanced_usage
    about/changelog
 

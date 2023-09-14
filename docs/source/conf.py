@@ -51,6 +51,7 @@ extensions = [
     'sphinx.ext.graphviz',  # enable graphs for breathe
     'sphinx.ext.viewcode',  # add links to view source code
     'sphinx_copybutton',  # add a copy button to code blocks
+    'sphinx_inline_tabs',  # add tabs
 ]
 
 # Add any paths that contain templates here, relative to this directory.

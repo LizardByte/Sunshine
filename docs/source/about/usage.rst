@@ -22,12 +22,28 @@ Usage
       .. Attention:: The configuration file specified will be created if it doesn't exist.
 
    **Start Sunshine over SSH (Linux/X11)**
+      Assuming you are already logged into the host, you can use this command
+
       .. code-block:: bash
 
-         ssh -t <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
+         ssh <user>@<ip_address> 'export DISPLAY=:0; sunshine'
 
-      .. Note:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
+      If you are logged into the host with only a tty (teletypewriter), you can use ``startx`` to start the
+      X server prior to executing sunshine.
+      You nay need to add ``sleep`` between ``startx`` and ``sunshine`` to allow more time for the display to be ready.
+
+      .. code-block:: bash
+
+         ssh <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
+
+      .. tip:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
          variable.
+
+      .. seealso::
+
+         See :ref:`Remote SSH Headless Setup
+         <about/guides/linux/headless_ssh:Remote SSH Headless Setup>` on
+         how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)
 
 #. Configure Sunshine in the web ui
 
@@ -251,7 +267,7 @@ Application List
 
    - ``working-dir`` - The working directory to use. If not specified, Sunshine will use the application directory.
 
-- For more examples see :ref:`app examples <about/app_examples:app examples>`.
+- For more examples see :ref:`app examples <about/guides/app_examples:app examples>`.
 
 Considerations
 --------------
@@ -281,10 +297,17 @@ You must have an HDR-capable display or EDID emulator dongle connected to your h
 - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows 10 OS HDR support may not display in HDR.
 - Some GPUs can produce lower image quality or encoding performance when streaming in HDR compared to SDR.
 
-Tutorials
----------
-Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`__.
+.. seealso::
+   `Arch wiki on HDR Support for Linux <https://wiki.archlinux.org/title/HDR_monitor_support>`__ and
+   `Reddit Guide for HDR Support for AMD GPUs
+   <https://www.reddit.com/r/linux_gaming/comments/10m2gyx/guide_alpha_test_hdr_on_linux>`__
+
+Tutorials and Guides
+--------------------
+Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.
+
+Guides are available :doc:`here <./guides/guides>`.
 
 .. admonition:: Community!
 
-   Tutorials are community generated. Want to contribute? Reach out to us on our discord server.
+   Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.

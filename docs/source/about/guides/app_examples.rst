@@ -128,10 +128,52 @@ Changing Resolution and Refresh Rate (Linux - X11)
 +----------------------+---------------------------------------------------------------------------------------------------------------------------------------+
 | **Field**            | **Value**                                                                                                                             |
 +----------------------+---------------------------------------------------------------------------------------------------------------------------------------+
-| Command Preparations | Do: ``sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --range ${SUNSHINE_CLIENT_FPS}"``   |
+| Command Preparations | Do: ``sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate ${SUNSHINE_CLIENT_FPS}"``    |
 |                      +---------------------------------------------------------------------------------------------------------------------------------------+
 |                      | Undo: ``xrandr --output HDMI-1 --mode 3840x2160 --rate 120``                                                                          |
 +----------------------+---------------------------------------------------------------------------------------------------------------------------------------+
+
+.. hint::
+   The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS and iOS devices, since they use non standard resolutions.
+
+   You can update the ``Do`` command to this:
+      .. code-block:: bash
+
+         bash -c "${HOME}/scripts/set-custom-res.sh \"${SUNSHINE_CLIENT_WIDTH}\" \"${SUNSHINE_CLIENT_HEIGHT}\" \"${SUNSHINE_CLIENT_FPS}\""
+
+   The ``set-custom-res.sh`` will have this content:
+      .. code-block:: bash
+
+         #!/bin/bash
+
+         # Get params and set any defaults
+         width=${1:-1920}
+         height=${2:-1080}
+         refresh_rate=${3:-60}
+
+         # You may need to adjust the scaling differently so the UI/text isn't too small / big
+         scale=${4:-0.55}
+
+         # Get the name of the active display
+         display_output=$(xrandr | grep " connected" | awk '{ print $1 }')
+
+         # Get the modeline info from the 2nd row in the cvt output
+         modeline=$(cvt ${width} ${height} ${refresh_rate} | awk 'FNR == 2')
+         xrandr_mode_str=${modeline//Modeline \"*\" /}
+         mode_alias="${width}x${height}"
+
+         echo "xrandr setting new mode ${mode_alias} ${xrandr_mode_str}"
+         xrandr --newmode ${mode_alias} ${xrandr_mode_str}
+         xrandr --addmode ${display_output} ${mode_alias}
+
+         # Reset scaling
+         xrandr --output ${display_output} --scale 1
+
+         # Apply new xrandr mode
+         xrandr --output ${display_output} --primary --mode ${mode_alias} --pos 0x0 --rotate normal --scale ${scale}
+
+         # Optional reset your wallpaper to fit to new resolution
+         # xwallpaper --zoom /path/to/wallpaper.png
 
 Changing Resolution and Refresh Rate (Linux - Wayland)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

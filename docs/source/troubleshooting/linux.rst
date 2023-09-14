@@ -32,4 +32,4 @@ If screencasting fails with KMS, you may need to run the following to force unpr
 
 Gamescope compatibility
 -----------------------
-Some users have reported stuttering issues when streaming games running within Gamescope. 
+Some users have reported stuttering issues when streaming games running within Gamescope.
