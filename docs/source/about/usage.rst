@@ -90,7 +90,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             Restart=on-failure
             RestartSec=5s
             #Flatpak Only
-            #ExecStop=flatpak kill dev.lizardbyte.sunshine
+            #ExecStop=flatpak kill dev.lizardbyte.app.Sunshine
 
             [Install]
             WantedBy=graphical-session.target
@@ -105,7 +105,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             deb        /usr/bin/sunshine                                ✔
             rpm        /usr/bin/sunshine                                ✔
             AppImage   ~/sunshine.AppImage                              ✔
-            Flatpak    flatpak run dev.lizardbyte.sunshine              ✔
+            Flatpak    flatpak run dev.lizardbyte.app.Sunshine          ✔
             ========   ==============================================   ===============
 
    **Start once**
