@@ -408,10 +408,14 @@ With your monitor still plugged into your Sunshine host PC:
 
    You should see the sunshine and Xorg processing running:
 
+   .. code-block:: bash
+
+      nvidia-smi
+
+   *Output:*
+
    .. code-block:: console
 
-       $ nvidia-smi
-       Tue Aug 29 18:38:46 2023
        +---------------------------------------------------------------------------------------+
        | NVIDIA-SMI 535.104.05             Driver Version: 535.104.05   CUDA Version: 12.2     |
        |-----------------------------------------+----------------------+----------------------+
