@@ -276,7 +276,7 @@ we will need to update the sudo configuration to execute this without being prom
 This script will take care of any precondtions prior to starting up sunshine.
 
 Run the following to create a script named something like ``sunshine-setup.sh``:
-   .. code-block:: console
+   .. code-block:: bash
 
       echo "chown $(id -un):$(id -gn) /dev/uinput" > sunshine-setup.sh &&\
         chmod +x sunshine-setup.sh
