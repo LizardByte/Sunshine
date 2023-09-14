@@ -51,9 +51,9 @@ build() {
     npm install
     popd
 
-    export BRANCH=@GITHUB_BRANCH@
-    export BUILD_VERSION=@GITHUB_BUILD_VERSION@
-    export COMMIT=@GITHUB_COMMIT@
+    export BRANCH="@GITHUB_BRANCH@"
+    export BUILD_VERSION="@GITHUB_BUILD_VERSION@"
+    export COMMIT="@GITHUB_COMMIT@"
 
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"

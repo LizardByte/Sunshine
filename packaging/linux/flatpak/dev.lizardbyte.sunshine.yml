@@ -41,8 +41,8 @@ modules:
         url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0.orig.tar.xz
         sha256: 2467be4af625b5ae4b3c93fc7af196a09eba39c11a7338cd9e8b356fa44d2f45
       - type: archive
-        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0-17ubuntu1.debian.tar.xz
-        sha256: 22e623d98c84eb3fec57e19ea371157a5bc8225ba4c5907f7e5155072317a31d
+        url: http://archive.ubuntu.com/ubuntu/pool/main/b/boost1.74/boost1.74_1.74.0-18.1ubuntu3.debian.tar.xz
+        sha256: d5660bdce3ea4ac66194b0c4bc6dc3b9d43d41cc16af8bc6024980d965e40ae2
       - type: shell
         commands:
           - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
