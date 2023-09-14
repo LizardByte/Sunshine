@@ -461,9 +461,9 @@ unplug your monitors from your GPU, and repeat steps 1 - 5.
 You should get the same result.
 With this setup you don't need to modify the Xorg config regardless if monitors are plugged in or not.
 
-   .. code-block:: bash
+.. code-block:: bash
 
-      pkill X
+   pkill X
 
 
 SSH Client Script (Optional)
