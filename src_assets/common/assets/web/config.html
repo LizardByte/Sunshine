@@ -4,13 +4,8 @@
     <!--Header-->
     <ul class="nav nav-tabs">
       <li class="nav-item" v-for="tab in tabs" :key="tab.id">
-        <a
-          class="nav-link"
-          :class="{'active': tab.id === currentTab}"
-          href="#"
-          @click="currentTab = tab.id"
-          >{{tab.name}}</a
-        >
+        <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
+          @click="currentTab = tab.id">{{tab.name}}</a>
       </li>
     </ul>
     <!--General Tab-->
@@ -18,13 +13,8 @@
       <!--Sunshine Name-->
       <div class="mb-3">
         <label for="sunshine_name" class="form-label">Sunshine Name</label>
-        <input
-          type="text"
-          class="form-control"
-          id="sunshine_name"
-          placeholder="Sunshine"
-          v-model="config.sunshine_name"
-        />
+        <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
+          v-model="config.sunshine_name" />
         <div class="form-text">
           The name displayed by Moonlight. If not specified, the PC's hostname is used
         </div>
@@ -32,11 +22,7 @@
       <!--Log Level-->
       <div class="mb-3">
         <label for="min_log_level" class="form-label">Log Level</label>
-        <select
-          id="min_log_level"
-          class="form-select"
-          v-model="config.min_log_level"
-        >
+        <select id="min_log_level" class="form-select" v-model="config.min_log_level">
           <option value="0">Verbose</option>
           <option value="1">Debug</option>
           <option value="2">Info</option>
@@ -52,27 +38,15 @@
       <!--Log Path-->
       <div class="mb-3">
         <label for="log_path" class="form-label">Logfile Path</label>
-        <input
-          type="text"
-          class="form-control"
-          id="log_path"
-          placeholder="sunshine.log"
-          v-model="config.log_path"
-        />
+        <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
         <div class="form-text">
           The file where the current logs of Sunshine are stored.
         </div>
       </div>
       <!--Origin Web UI Allowed-->
       <div class="mb-3">
-        <label for="origin_web_ui_allowed" class="form-label"
-          >Origin Web UI Allowed</label
-        >
-        <select
-          id="origin_web_ui_allowed"
-          class="form-select"
-          v-model="config.origin_web_ui_allowed"
-        >
+        <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
+        <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
           <option value="pc">Only localhost may access Web UI</option>
           <option value="lan">Only those in LAN may access Web UI</option>
           <option value="wan">Anyone may access Web UI</option>
@@ -103,54 +77,27 @@
       <!--Ping Timeout-->
       <div class="mb-3">
         <label for="ping_timeout" class="form-label">Ping Timeout</label>
-        <input
-          type="text"
-          class="form-control"
-          id="ping_timeout"
-          placeholder="10000"
-          v-model="config.ping_timeout"
-        />
+        <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
         <div class="form-text">
           How long to wait in milliseconds for data from moonlight before shutting down the stream
         </div>
       </div>
       <!--Advertised FPS and Resolutions-->
       <div class="mb-3">
-        <label for="ping_timeout" class="form-label"
-          >Advertised Resolutions and FPS</label
-        >
+        <label for="ping_timeout" class="form-label">Advertised Resolutions and FPS</label>
         <div class="resolutions-container">
           <label>Resolutions</label>
           <div class="resolutions d-flex flex-wrap">
-            <div
-              class="p-2 ms-item m-2 d-flex justify-content-between"
-              v-for="(r,i) in resolutions"
-              :key="r"
-            >
+            <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
               <span class="px-2">{{r}}</span>
-              <span style="cursor: pointer" @click="resolutions.splice(i,1)"
-                >&times;</span
-              >
+              <span style="cursor: pointer" @click="resolutions.splice(i,1)">&times;</span>
             </div>
-            <form
-              @submit.prevent="resolutions.push(resIn);resIn = '';"
-              class="d-flex align-items-center"
-            >
-              <input
-                type="text"
-                v-model="resIn"
-                required
-                pattern="[0-9]+x[0-9]+"
-                style="
+            <form @submit.prevent="resolutions.push(resIn);resIn = '';" class="d-flex align-items-center">
+              <input type="text" v-model="resIn" required pattern="[0-9]+x[0-9]+" style="
                   border-top-right-radius: 0;
                   border-bottom-right-radius: 0;
-                "
-                class="form-control"
-              />
-              <button
-                style="border-top-left-radius: 0; border-bottom-left-radius: 0"
-                class="btn btn-success"
-              >
+                " class="form-control" />
+              <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
                 +
               </button>
             </form>
@@ -159,36 +106,17 @@
         <div class="fps-container">
           <label>FPS</label>
           <div class="fps d-flex flex-wrap">
-            <div
-              class="p-2 ms-item m-2 d-flex justify-content-between"
-              v-for="(f,i) in fps"
-              :key="f"
-            >
+            <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
               <span class="px-2">{{f}}</span>
-              <span style="cursor: pointer" @click="fps.splice(i,1)"
-                >&times;</span
-              >
+              <span style="cursor: pointer" @click="fps.splice(i,1)">&times;</span>
             </div>
-            <form
-              @submit.prevent="fps.push(fpsIn);fpsIn = '';"
-              class="d-flex align-items-center"
-            >
-              <input
-                type="text"
-                v-model="fpsIn"
-                required
-                pattern="[0-9]+"
-                style="
+            <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
+              <input type="text" v-model="fpsIn" required pattern="[0-9]+" style="
                   width: 6ch;
                   border-top-right-radius: 0;
                   border-bottom-right-radius: 0;
-                "
-                class="form-control"
-              />
-              <button
-                style="border-top-left-radius: 0; border-bottom-left-radius: 0"
-                class="btn btn-success"
-              >
+                " class="form-control" />
+              <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
                 +
               </button>
             </form>
@@ -203,14 +131,8 @@
       </div>
       <!-- Mapping Key AltRight to Key Windows -->
       <div class="mb-3">
-        <label for="mapkey" class="form-label"
-          >Map Right Alt key to Windows key</label
-        >
-        <select
-          id="mapkey"
-          class="form-select"
-          v-model="config.key_rightalt_to_key_win"
-        >
+        <label for="mapkey" class="form-label">Map Right Alt key to Windows key</label>
+        <select id="mapkey" class="form-select" v-model="config.key_rightalt_to_key_win">
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
@@ -223,7 +145,7 @@
       <div class="mb-3 d-flex flex-column">
         <label class="form-label">Command Preparations</label>
         <div class="form-text">
-          Configure a list of commands to be executed before or after running any application. 
+          Configure a list of commands to be executed before or after running any application.
           If any of the specified preparation commands fail, the application launch process will be aborted.
         </div>
         <table class="table" v-if="global_prep_cmd.length > 0">
@@ -247,17 +169,9 @@
               </td>
               <td v-if="platform === 'windows'">
                 <div class="form-check">
-                  <input
-                    type="checkbox"
-                    class="form-check-input"
-                    :id="'prep-cmd-admin-' + i"
-                    v-model="c.elevated"
-                    true-value="true"
-                    false-value="false"
-                  />
-                  <label :for="'prep-cmd-admin-' + i" class="form-check-label"
-                    >Elevated</label
-                  >
+                  <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
+                    true-value="true" false-value="false" />
+                  <label :for="'prep-cmd-admin-' + i" class="form-check-label">Elevated</label>
                 </div>
               </td>
               <td>
@@ -270,7 +184,7 @@
               </td>
             </tr>
           </tbody>
-        </table>              
+        </table>
         <button class="mt-2 btn btn-success" style="margin: 0 auto" @click="add_global_prep_cmd">
           &plus; Add
         </button>
@@ -281,25 +195,13 @@
       <!--Private Key-->
       <div class="mb-3">
         <label for="pkey" class="form-label">Private Key</label>
-        <input
-          type="text"
-          class="form-control"
-          id="pkey"
-          placeholder="/dir/pkey.pem"
-          v-model="config.pkey"
-        />
+        <input type="text" class="form-control" id="pkey" placeholder="/dir/pkey.pem" v-model="config.pkey" />
         <div class="form-text">The private key must be 2048 bits</div>
       </div>
       <!--Cert-->
       <div class="mb-3">
         <label for="cert" class="form-label">Cert</label>
-        <input
-          type="text"
-          class="form-control"
-          id="cert"
-          placeholder="/dir/cert.pem"
-          v-model="config.cert"
-        />
+        <input type="text" class="form-control" id="cert" placeholder="/dir/cert.pem" v-model="config.cert" />
         <div class="form-text">
           The certificate must be signed with a 2048 bit key
         </div>
@@ -308,13 +210,8 @@
       <!--State File-->
       <div class="mb-3">
         <label for="file_state" class="form-label">State File</label>
-        <input
-          type="text"
-          class="form-control"
-          id="file_state"
-          placeholder="sunshine_state.json"
-          v-model="config.file_state"
-        />
+        <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json"
+          v-model="config.file_state" />
         <div class="form-text">
           The file where current state of Sunshine is stored
         </div>
@@ -322,13 +219,7 @@
       <!--Apps File-->
       <div class="mb-3">
         <label for="file_apps" class="form-label">Apps File</label>
-        <input
-          type="text"
-          class="form-control"
-          id="file_apps"
-          placeholder="apps.json"
-          v-model="config.file_apps"
-        />
+        <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
         <div class="form-text">
           The file where current apps of Sunshine are stored
         </div>
@@ -337,31 +228,20 @@
     <div v-if="currentTab === 'input'" class="config-page">
       <!--Home/Guide Button Emulation Timeout-->
       <div class="mb-3">
-        <label for="back_button_timeout" class="form-label"
-          >Home/Guide Button Emulation Timeout</label
-        >
-        <input
-          type="text"
-          class="form-control"
-          id="back_button_timeout"
-          placeholder="-1"
-          v-model="config.back_button_timeout"
-        />
+        <label for="back_button_timeout" class="form-label">Home/Guide Button Emulation Timeout</label>
+        <input type="text" class="form-control" id="back_button_timeout" placeholder="-1"
+          v-model="config.back_button_timeout" />
         <div class="form-text">
-          If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.<br />
-          If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide button.<br />
+          If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is
+          emulated.<br />
+          If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide
+          button.<br />
         </div>
       </div>
       <!--Enable Mouse Input-->
       <div class="mb-3">
-        <label for="mouse" class="form-label"
-          >Enable Mouse Input</label
-        >
-        <select
-          id="mouse"
-          class="form-select"
-          v-model="config.mouse"
-        >
+        <label for="mouse" class="form-label">Enable Mouse Input</label>
+        <select id="mouse" class="form-select" v-model="config.mouse">
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
@@ -371,14 +251,8 @@
       </div>
       <!--Enable Keyboard Input-->
       <div class="mb-3">
-        <label for="keyboard" class="form-label"
-          >Enable Keyboard Input</label
-        >
-        <select
-          id="keyboard"
-          class="form-select"
-          v-model="config.keyboard"
-        >
+        <label for="keyboard" class="form-label">Enable Keyboard Input</label>
+        <select id="keyboard" class="form-select" v-model="config.keyboard">
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
@@ -388,14 +262,8 @@
       </div>
       <!--Enable Gamepad Input-->
       <div class="mb-3">
-        <label for="gamepad" class="form-label"
-          >Enable Gamepad Input</label
-        >
-        <select
-          id="gamepad"
-          class="form-select"
-          v-model="config.controller"
-        >
+        <label for="gamepad" class="form-label">Enable Gamepad Input</label>
+        <select id="gamepad" class="form-select" v-model="config.controller">
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
@@ -405,16 +273,9 @@
       </div>
       <!-- Key Repeat Delay-->
       <div class="mb-3" v-if="platform === 'windows'">
-        <label for="key_repeat_delay" class="form-label"
-          >Key Repeat Delay</label
-        >
-        <input
-          type="text"
-          class="form-control"
-          id="key_repeat_delay"
-          placeholder="500"
-          v-model="config.key_repeat_delay"
-        />
+        <label for="key_repeat_delay" class="form-label">Key Repeat Delay</label>
+        <input type="text" class="form-control" id="key_repeat_delay" placeholder="500"
+          v-model="config.key_repeat_delay" />
         <div class="form-text">
           Control how fast keys will repeat themselves<br />
           The initial delay in milliseconds before repeating keys
@@ -422,16 +283,9 @@
       </div>
       <!-- Key Repeat Frequency-->
       <div class="mb-3" v-if="platform === 'windows'">
-        <label for="key_repeat_frequency" class="form-label"
-          >Key Repeat Frequency</label
-        >
-        <input
-          type="text"
-          class="form-control"
-          id="key_repeat_frequency"
-          placeholder="24.9"
-          v-model="config.key_repeat_frequency"
-        />
+        <label for="key_repeat_frequency" class="form-label">Key Repeat Frequency</label>
+        <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9"
+          v-model="config.key_repeat_frequency" />
         <div class="form-text">
           How often keys repeat every second<br />
           This configurable option supports decimals
@@ -439,14 +293,8 @@
       </div>
       <!-- Always send scancodes -->
       <div class="mb-3" v-if="platform === 'windows'">
-        <label for="always_send_scancodes" class="form-label"
-          >Always Send Scancodes</label
-        >
-        <select
-          id="always_send_scancodes"
-          class="form-select"
-          v-model="config.always_send_scancodes"
-        >
+        <label for="always_send_scancodes" class="form-label">Always Send Scancodes</label>
+        <select id="always_send_scancodes" class="form-select" v-model="config.always_send_scancodes">
           <option value="disabled">Disabled</option>
           <option value="enabled">Enabled</option>
         </select>
@@ -464,29 +312,20 @@
       <!--Audio Sink-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="audio_sink" class="form-label">Audio Sink</label>
-        <input
-          type="text"
-          class="form-control"
-          id="audio_sink"
-          placeholder="Speakers (High Definition Audio Device)"
-          v-model="config.audio_sink"
-        />
+        <input type="text" class="form-control" id="audio_sink" placeholder="Speakers (High Definition Audio Device)"
+          v-model="config.audio_sink" />
         <div class="form-text">
           Manually specify a specific audio device to capture. If unset, the device is chosen automatically.<br />
           <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
-          If you have multiple audio devices with identical names, you can get the Device ID using the following command:<br />
+          If you have multiple audio devices with identical names, you can get the Device ID using the following
+          command:<br />
           <pre>tools\audio-info.exe</pre>
         </div>
       </div>
       <div class="mb-3" v-if="platform === 'linux'">
         <label for="audio_sink" class="form-label">Audio Sink</label>
-        <input
-          type="text"
-          class="form-control"
-          id="audio_sink"
-          placeholder="alsa_output.pci-0000_09_00.3.analog-stereo"
-          v-model="config.audio_sink"
-        />
+        <input type="text" class="form-control" id="audio_sink" placeholder="alsa_output.pci-0000_09_00.3.analog-stereo"
+          v-model="config.audio_sink" />
         <div class="form-text">
           The name of the audio sink used for Audio Loopback<br />
           If you do not specify this variable, pulseaudio will select the default monitor device.<br />
@@ -499,23 +338,14 @@
       </div>
       <div class="mb-3" v-if="platform === 'macos'">
         <label for="audio_sink" class="form-label">Audio Sink</label>
-        <input
-          type="text"
-          class="form-control"
-          id="audio_sink"
-          placeholder="BlackHole 2ch"
-          v-model="config.audio_sink"
-        />
+        <input type="text" class="form-control" id="audio_sink" placeholder="BlackHole 2ch"
+          v-model="config.audio_sink" />
         <div class="form-text">
           The name of the audio sink used for Audio Loopback<br />
           Sunshine can only access microphones on macOS due to system limitations.<br />
-          To stream system audio using <a
-            href="https://github.com/mattingalls/Soundflower"
-            target="_blank">
+          To stream system audio using <a href="https://github.com/mattingalls/Soundflower" target="_blank">
             Soundflower
-          </a> or <a
-            href="https://github.com/ExistentialAudio/BlackHole"
-            target="_blank">
+          </a> or <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">
             BlackHole
           </a>.
         </div>
@@ -523,13 +353,8 @@
       <!--Virtual Sink-->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="virtual_sink" class="form-label">Virtual Sink</label>
-        <input
-          type="text"
-          class="form-control"
-          id="virtual_sink"
-          placeholder="Steam Streaming Speakers"
-          v-model="config.virtual_sink"
-        />
+        <input type="text" class="form-control" id="virtual_sink" placeholder="Steam Streaming Speakers"
+          v-model="config.virtual_sink" />
         <div class="form-text">
           Manually specify a virtual audio device to use. If unset, the device is chosen automatically.<br />
           <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
@@ -550,13 +375,8 @@
       <!--Adapter Name -->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="adapter_name" class="form-label">Adapter Name</label>
-        <input
-          type="text"
-          class="form-control"
-          id="adapter_name"
-          placeholder="Radeon RX 580 Series"
-          v-model="config.adapter_name"
-        />
+        <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series"
+          v-model="config.adapter_name" />
         <div class="form-text" v-if="platform === 'windows'">
           Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br />
           <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br />
@@ -568,13 +388,8 @@
       <!--Output Name -->
       <div class="mb-3" v-if="platform === 'windows'">
         <label for="output_name" class="form-label">Output Name</label>
-        <input
-          type="text"
-          class="form-control"
-          id="output_name"
-          placeholder="\\.\DISPLAY1"
-          v-model="config.output_name"
-        />
+        <input type="text" class="form-control" id="output_name" placeholder="\\.\DISPLAY1"
+          v-model="config.output_name" />
         <div class="form-text">
           Manually specify a display to use for capture. If unset, the primary display is captured.<br />
           Note: If you specified a GPU above, this display must be connected to that GPU.<br />
@@ -584,13 +399,7 @@
       </div>
       <div class="mb-3" v-if="platform === 'linux'">
         <label for="output_name" class="form-label">Monitor number</label>
-        <input
-          type="text"
-          class="form-control"
-          id="output_name"
-          placeholder="0"
-          v-model="config.output_name"
-        />
+        <input type="text" class="form-control" id="output_name" placeholder="0" v-model="config.output_name" />
         <div class="form-text">
           During Sunshine startup, you should see the list of detected monitors, e.g.:<br />
           <br />
@@ -610,11 +419,7 @@
       <!--Address family-->
       <div class="mb-3">
         <label for="address_family" class="form-label">Address Family</label>
-        <select
-          id="address_family"
-          class="form-select"
-          v-model="config.address_family"
-        >
+        <select id="address_family" class="form-select" v-model="config.address_family">
           <option value="ipv4">IPv4 only</option>
           <option value="both">IPv4+IPv6</option>
         </select>
@@ -623,27 +428,14 @@
       <!--Port family-->
       <div class="mb-3">
         <label for="port" class="form-label">Port</label>
-        <input
-          type="number"
-          min="0"
-          max="65529"
-          class="form-control"
-          id="port"
-          placeholder="47989"
-          v-model="config.port"
-        />
+        <input type="number" min="0" max="65529" class="form-control" id="port" placeholder="47989"
+          v-model="config.port" />
         <div class="form-text">Set the family of ports used by Sunshine</div>
       </div>
       <!-- Quantization Parameter -->
       <div class="mb-3">
         <label for="qp" class="form-label">Quantization Parameter</label>
-        <input
-          type="number"
-          class="form-control"
-          id="qp"
-          placeholder="28"
-          v-model="config.qp"
-        />
+        <input type="number" class="form-control" id="qp" placeholder="28" v-model="config.qp" />
         <div class="form-text">
           Quantization Parameter<br />
           Some devices may not support Constant Bit Rate.<br />
@@ -653,17 +445,9 @@
       </div>
       <!-- Min Threads -->
       <div class="mb-3">
-        <label for="min_threads" class="form-label"
-          >Minimum Software Encoding Thread Count</label
-        >
-        <input
-          type="number"
-          min="1"
-          class="form-control"
-          id="min_threads"
-          placeholder="1"
-          v-model="config.min_threads"
-        />
+        <label for="min_threads" class="form-label">Minimum Software Encoding Thread Count</label>
+        <input type="number" min="1" class="form-control" id="min_threads" placeholder="1"
+          v-model="config.min_threads" />
         <div class="form-text">
           Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br />
           worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br />
@@ -725,7 +509,8 @@
           <option value="x11">X11</option>
         </select>
         <div class="form-text">
-          Force a specific capture method, otherwise Sunshine will use the first one that works. NvFBC requires patched nvidia drivers.
+          Force a specific capture method, otherwise Sunshine will use the first one that works. NvFBC requires patched
+          nvidia drivers.
         </div>
       </div>
       <!--Encoder-->
@@ -748,13 +533,7 @@
       <!--FEC Percentage-->
       <div class="mb-3">
         <label for="fec_percentage" class="form-label">FEC Percentage</label>
-        <input
-          type="text"
-          class="form-control"
-          id="fec_percentage"
-          placeholder="20"
-          v-model="config.fec_percentage"
-        />
+        <input type="text" class="form-control" id="fec_percentage" placeholder="20" v-model="config.fec_percentage" />
         <div class="form-text">
           Percentage of error correcting packets per data packet in each video frame.<br />
           Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br />
@@ -764,13 +543,7 @@
       <!--Channels-->
       <div class="mb-3">
         <label for="channels" class="form-label">Channels</label>
-        <input
-          type="text"
-          class="form-control"
-          id="channels"
-          placeholder="1"
-          v-model="config.channels"
-        />
+        <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
         <div class="form-text">
           When multicasting, it could be useful to have different configurations for each connected Client. For example:
           <ul>
@@ -787,30 +560,17 @@
       </div>
       <!--Credentials File-->
       <div class="mb-3">
-        <label for="credentials_file" class="form-label"
-          >Web Manager Credentials File</label
-        >
-        <input
-          type="text"
-          class="form-control"
-          id="credentials_file"
-          placeholder="sunshine_state.json"
-          v-model="config.credentials_file"
-        />
+        <label for="credentials_file" class="form-label">Web Manager Credentials File</label>
+        <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json"
+          v-model="config.credentials_file" />
         <div class="form-text">
           Store Username/Password separately from Sunshine's state file.
         </div>
       </div>
       <!--Origin PIN Allowed-->
       <div class="mb-3">
-        <label for="origin_pin_allowed" class="form-label"
-          >Origin PIN Allowed</label
-        >
-        <select
-          id="origin_pin_allowed"
-          class="form-select"
-          v-model="config.origin_pin_allowed"
-        >
+        <label for="origin_pin_allowed" class="form-label">Origin PIN Allowed</label>
+        <select id="origin_pin_allowed" class="form-select" v-model="config.origin_pin_allowed">
           <option value="pc">Only localhost may access /pin</option>
           <option value="lan">Only those in LAN may access /pin</option>
           <option value="wan">Anyone may access /pin</option>
@@ -822,13 +582,8 @@
       <!--External IP-->
       <div class="mb-3">
         <label for="external_ip" class="form-label">External IP</label>
-        <input
-          type="text"
-          class="form-control"
-          id="external_ip"
-          placeholder="123.456.789.12"
-          v-model="config.external_ip"
-        />
+        <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12"
+          v-model="config.external_ip" />
         <div class="form-text">
           If no external IP address is given, Sunshine will automatically detect external IP
         </div>
@@ -850,14 +605,16 @@
           <option value="veryslow">veryslow</option>
         </select>
         <div class="form-text">
-          Optimize the trade-off between encoding speed (encoded frames per second) and compression efficiency (quality per bit in the bitstream). Defaults to superfast.
+          Optimize the trade-off between encoding speed (encoded frames per second) and compression efficiency (quality
+          per bit in the bitstream). Defaults to superfast.
         </div>
       </div>
       <div class="mb-3">
         <label for="sw_tune" class="form-label">SW Tune</label>
         <select id="sw_tune" class="form-select" v-model="config.sw_tune">
           <option value="film">film -- use for high quality movie content; lowers deblocking</option>
-          <option value="animation">animation -- good for cartoons; uses higher deblocking and more reference frames</option>
+          <option value="animation">animation -- good for cartoons; uses higher deblocking and more reference frames
+          </option>
           <option value="grain">grain -- preserves the grain structure in old, grainy film material</option>
           <option value="stillimage">stillimage -- good for slideshow-like content</option>
           <option value="fastdecode">fastdecode -- allows faster decoding by disabling certain filters</option>
@@ -896,9 +653,11 @@
           <option value="full_res">Full resolution (slower)</option>
         </select>
         <div class="form-text">Adds preliminary encoding pass.<br>
-          This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere to
+          This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere
+          to
           bitrate limits.<br>
-          Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss.
+          Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet
+          loss.
         </div>
       </div>
       <div class="accordion">
@@ -913,7 +672,8 @@
             aria-labelledby="panelsStayOpen-headingOne">
             <div class="accordion-body">
               <div class="mb-3" v-if="platform === 'windows'">
-                <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated gpu scheduling</label>
+                <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated gpu
+                  scheduling</label>
                 <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
                   <option value="disabled">Disabled</option>
                   <option value="enabled">Enabled (default)</option>
@@ -921,7 +681,8 @@
                 <div class="form-text">Currently NVIDIA drivers may freeze in encoder when
                   <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
                   is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
-                  Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture
+                  Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced
+                  capture
                   performance when the GPU is heavily loaded.
                 </div>
               </div>
@@ -969,10 +730,7 @@
       <!--Presets-->
       <div class="mb-3">
         <label for="amd_quality" class="form-label">AMF Quality</label>
-        <select
-          id="amd_quality"
-          class="form-select"
-          v-model="config.amd_quality">
+        <select id="amd_quality" class="form-select" v-model="config.amd_quality">
           <option value="speed">speed -- prefer speed</option>
           <option value="balanced">balanced -- balanced (default)</option>
           <option value="quality">quality -- prefer quality</option>
@@ -1021,12 +779,7 @@
     </div>
     <!--VA-API Encoder Settings-->
     <div v-if="currentTab === 'va-api'" class="config-page">
-      <input
-        class="form-control"
-        id="adapter_name"
-        placeholder="/dev/dri/renderD128"
-        v-model="config.adapter_name"
-      />
+      <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
     </div>
     <!--VideoToolbox Encoder Settings-->
     <div v-if="currentTab === 'vt'" class="config-page">
@@ -1069,7 +822,8 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+  import { createApp } from 'vue'
   // create dictionary for defaultConfig
   const defaultConfig = {
     "address_family": "ipv4",
@@ -1111,8 +865,7 @@
     "global_prep_cmd": "[]",
   }
 
-  new Vue({
-    el: "#app",
+  const app = createApp({
     data() {
       return {
         platform: "",
@@ -1217,7 +970,7 @@
           let resolutions = [];
           res.split(",").forEach((r) => resolutions.push(r.trim()));
           this.resolutions = resolutions;
-          
+
           this.config.global_prep_cmd = this.config.global_prep_cmd || [];
           this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
         });
@@ -1303,13 +1056,15 @@
           undo: "",
         };
 
-        if(this.platform === 'windows'){
-          template = {...template, elevated: false};
+        if (this.platform === 'windows') {
+          template = { ...template, elevated: false };
         }
         this.global_prep_cmd.push(template);
       },
     },
   });
+
+  app.mount("#app");
 </script>
 
 <style>

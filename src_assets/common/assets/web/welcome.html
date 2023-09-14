@@ -1,6 +1,8 @@
 <main role="main" id="app" style="max-width: 600px; margin: 0 auto">
   <header>
-    <h1 class="mb-0">Welcome to Sunshine!</h1>
+    <h1 class="mb-0">
+      Welcome to Sunshine!
+    </h1>
     <p class="mb-0 align-self-start">
       Before Getting Started, we need you to make a new username and password for accessing the Web UI.
     </p>
@@ -12,43 +14,20 @@
   <form @submit.prevent="save">
     <div class="mb-2">
       <label for="usernameInput" class="form-label">Username:</label>
-      <input
-        type="text"
-        class="form-control"
-        id="usernameInput"
-        autocomplete="username"
-        v-model="passwordData.newUsername"
-      />
+      <input type="text" class="form-control" id="usernameInput" autocomplete="username"
+        v-model="passwordData.newUsername" />
     </div>
     <div class="mb-2">
       <label for="passwordInput" class="form-label">Password:</label>
-      <input
-        type="password"
-        class="form-control"
-        id="passwordInput"
-        autocomplete="new-password"
-        v-model="passwordData.newPassword"
-        required
-      />
+      <input type="password" class="form-control" id="passwordInput" autocomplete="new-password"
+        v-model="passwordData.newPassword" required />
     </div>
     <div class="mb-2">
-      <label for="confirmPasswordInput" class="form-label"
-        >Password (confirm):</label
-      >
-      <input
-        type="password"
-        class="form-control"
-        id="confirmPasswordInput"
-        autocomplete="new-password"
-        v-model="passwordData.confirmNewPassword"
-        required
-      />
+      <label for="confirmPasswordInput" class="form-label">Password (confirm):</label>
+      <input type="password" class="form-control" id="confirmPasswordInput" autocomplete="new-password"
+        v-model="passwordData.confirmNewPassword" required />
     </div>
-    <button
-      type="submit"
-      class="btn btn-primary w-100 mb-2"
-      v-bind:disabled="loading"
-    >
+    <button type="submit" class="btn btn-primary w-100 mb-2" v-bind:disabled="loading">
       Login
     </button>
     <div class="alert alert-danger" v-if="error"><b>Error: </b>{{error}}</div>
@@ -59,9 +38,9 @@
   </form>
 </main>
 
-<script>
-  new Vue({
-    el: "#app",
+<script type="module">
+  import { createApp } from "vue"
+  let app = createApp({
     data() {
       return {
         error: null,
@@ -101,4 +80,5 @@
       },
     },
   });
+  app.mount("#app");
 </script>

@@ -78,9 +78,9 @@
   </div>
 </div>
 
-<script>
-  new Vue({
-    el: "#app",
+<script  type="module">
+  import {createApp} from 'vue'
+  const app = createApp({
     data() {
       return {
         closeAppPressed: false,
@@ -156,6 +156,8 @@
       },
     },
   });
+
+  app.mount("#app");
 </script>
 
 <style>

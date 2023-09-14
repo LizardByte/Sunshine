@@ -295,14 +295,14 @@ namespace confighttp {
   getNodeModules(resp_https_t response, req_https_t request) {
     print_req(request);
     fs::path webDirPath(WEB_DIR);
-    fs::path nodeModulesPath(webDirPath / "node_modules");
+    fs::path nodeModulesPath(webDirPath / "assets");
 
     // .relative_path is needed to shed any leading slash that might exist in the request path
     auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
     // Don't do anything if file does not exist or is outside the node_modules directory
     if (!isChildPath(filePath, nodeModulesPath)) {
-      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
+      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets folder";
       response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
     }
     else if (!fs::exists(filePath)) {
@@ -757,7 +757,7 @@ namespace confighttp {
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/images/favicon.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-    server.resource["^/node_modules\\/.+$"]["GET"] = getNodeModules;
+    server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;
