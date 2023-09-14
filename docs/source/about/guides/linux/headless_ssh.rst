@@ -280,7 +280,7 @@ Run the following to create a script named something like ``sunshine-setup.sh``:
 you can block WiFi with ``rfkill``.
 
 Run this command to append the rfkill block command to the script:
-   .. code-block:: console
+   .. code-block:: bash
 
       echo "rfkill block $(rfkill list | grep "Wireless LAN" \
         | sed 's/^\([[:digit:]]\).*/\1/')" >> sunshine-setup.sh
