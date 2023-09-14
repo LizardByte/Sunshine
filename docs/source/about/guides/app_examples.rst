@@ -145,10 +145,12 @@ Changing Resolution and Refresh Rate (Linux - X11)
       .. code-block:: bash
 
          #!/bin/bash
+
          # Get params and set any defaults
          width=${1:-1920}
          height=${2:-1080}
          refresh_rate=${3:-60}
+
          # You may need to adjust the scaling differently so the UI/text isn't too small / big
          scale=${4:-0.55}
 
@@ -166,6 +168,7 @@ Changing Resolution and Refresh Rate (Linux - X11)
 
          # Reset scaling
          xrandr --output ${display_output} --scale 1
+
          # Apply new xrandr mode
          xrandr --output ${display_output} --primary --mode ${mode_alias} --pos 0x0 --rotate normal --scale ${scale}
 
