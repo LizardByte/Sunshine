@@ -1,7 +1,12 @@
 Remote SSH Headless Setup (Experimental)
 ========================================
 
-Author: *Eric Dong* | Difficulty: *Intermediate*
+.. csv-table:: Remote SSH Headless Setup
+   header-rows: 0
+   stub-columbs: 1
+
+   Author, *`Eric Dong <https://github.com/e-dong>`__*
+   Difficulty, *Intermediate*
 
 This is a guide to setup remote SSH into host to startup X server and sunshine without physical login and dummy plug.
 The virtual display is accelerated by the NVidia GPU using the TwinView configuration.
