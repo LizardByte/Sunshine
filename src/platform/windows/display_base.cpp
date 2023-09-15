@@ -461,6 +461,17 @@ namespace platf::dxgi {
             width = desc.DesktopCoordinates.right - offset_x;
             height = desc.DesktopCoordinates.bottom - offset_y;
 
+            display_rotation = desc.Rotation;
+            if (display_rotation == DXGI_MODE_ROTATION_ROTATE90 ||
+                display_rotation == DXGI_MODE_ROTATION_ROTATE270) {
+              width_before_rotation = height;
+              height_before_rotation = width;
+            }
+            else {
+              width_before_rotation = width;
+              height_before_rotation = height;
+            }
+
             // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
             // Ensure offset starts at 0x0
             offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);

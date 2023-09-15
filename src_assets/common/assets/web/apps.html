@@ -318,9 +318,9 @@
           <tr><td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td><td>The Audio Configuration requested by the client (2.0/5.1/7.1)</td></tr>
         </table>
         <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution Automation:</b> <pre>cmd /C &lt;qres path&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre></div>
-        <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution Automation:</b> <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --range 60"</pre></div>
+        <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution Automation:</b> <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate 60"</pre></div>
         <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for Resolution Automation:</b> <pre>sh -c "displayplacer "id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre></div>
-        <div class="form-text"><a href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/app_examples.html" target="_blank">See More</a></div>
+        <div class="form-text"><a href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html" target="_blank">See More</a></div>
       </div>
       <!--buttons-->
       <div class="d-flex">
