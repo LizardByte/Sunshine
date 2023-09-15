@@ -145,7 +145,7 @@ jobs:
           ref: ${{ github.base_ref || github.ref_name }}  # base ref for PR and branch name for push
           workflow: dispatcher.yml
           inputs: ${{ steps.inputs.outputs.primary_inputs }}
-          token: ${{ github.token }}
+          # token: ${{ github.token }}  # when specifying token, fork PRs will not have the right permission
 
     outputs:
       destination: ${{ steps.prepare.outputs.destination }}
@@ -216,9 +216,10 @@ jobs:
         continue-on-error: true  # ensure dispatch-qodana job is run
         uses: JetBrains/qodana-action@v2023.2.6
         with:
-          additional-cache-hash: ${{ github.ref }}-${{ matrix.language }}
+          additional-cache-key: ${{ github.ref }}-${{ matrix.language }}
           artifact-name: qodana-${{ matrix.language }}  # yamllint disable-line rule:line-length
           args: '--print-problems,${{ steps.baseline.outputs.baseline_args }}'
+          post-pr-comment: false
           pr-mode: false
           upload-result: true
           use-caches: true
@@ -228,6 +229,12 @@ jobs:
         run: |
           # check if qodana failed
           echo "qodana_status=${{ steps.qodana.outcome }}" >> $GITHUB_OUTPUT
+
+      - name: Upload sarif
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
+          category: qodana-${{ matrix.language }}
 
     outputs:
       qodana_status: ${{ steps.status.outputs.qodana_status }}
@@ -289,4 +296,4 @@ jobs:
           ref: ${{ github.base_ref || github.ref_name }}  # base ref for PR and branch name for push
           workflow: dispatcher.yml
           inputs: ${{ steps.inputs.outputs.primary_inputs }}
-          token: ${{ github.token }}
+          # token: ${{ github.token }}  # when specifying token, fork PRs will not have the right permission

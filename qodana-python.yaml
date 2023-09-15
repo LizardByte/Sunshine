@@ -1,6 +1,6 @@
 ---
 version: "1.0"
-linter: jetbrains/qodana-python:2023.1-eap
+linter: jetbrains/qodana-python:2023.2-eap
 
 bootstrap: |
   # setup python
