@@ -29,6 +29,7 @@
 #include "platform/common.h"
 #include "process.h"
 #include "rtsp.h"
+#include "system_tray.h"
 #include "utility.h"
 #include "uuid.h"
 #include "video.h"
@@ -507,7 +508,6 @@ namespace nvhttp {
         auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
-
         if (config::sunshine.flags[config::flag::PIN_STDIN]) {
           std::string pin;
 
@@ -517,6 +517,9 @@ namespace nvhttp {
           getservercert(ptr->second, tree, pin);
         }
         else {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+          system_tray::update_tray_require_pin();
+#endif
           ptr->second.async_insert_pin.response = std::move(response);
 
           fg.disable();

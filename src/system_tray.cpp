@@ -10,10 +10,19 @@
     #include <accctrl.h>
     #include <aclapi.h>
     #define TRAY_ICON WEB_DIR "images/favicon.ico"
+    #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.ico"
+    #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
+    #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.ico"
   #elif defined(__linux__) || defined(linux) || defined(__linux)
     #define TRAY_ICON "sunshine"
+    #define TRAY_ICON_PLAYING "sunshine-playing"
+    #define TRAY_ICON_PAUSING "sunshine-pausing"
+    #define TRAY_ICON_LOCKED "sunshine-locked"
   #elif defined(__APPLE__) || defined(__MACH__)
     #define TRAY_ICON WEB_DIR "images/logo-sunshine-16.png"
+    #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing-16.png"
+    #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing-16.png"
+    #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked-16.png"
     #include <dispatch/dispatch.h>
   #endif
 
@@ -266,6 +275,94 @@ namespace system_tray {
   end_tray() {
     tray_exit();
     return 0;
+  }
+
+  /**
+   * @brief Sets the tray icon in playing mode and spawns the appropriate notification
+   * @param app_name The started application name
+   */
+  void
+  update_tray_playing(std::string app_name) {
+    tray.notification_title = NULL;
+    tray.notification_text = NULL;
+    tray.notification_cb = NULL;
+    tray.notification_icon = NULL;
+    tray.icon = TRAY_ICON_PLAYING;
+    tray_update(&tray);
+    tray.icon = TRAY_ICON_PLAYING;
+    tray.notification_title = "Stream Started";
+    char msg[256];
+    sprintf(msg, "Streaming started for %s", app_name.c_str());
+    tray.notification_text = msg;
+    tray.tooltip = msg;
+    tray.notification_icon = TRAY_ICON_PLAYING;
+    tray_update(&tray);
+  }
+
+  /**
+   * @brief Sets the tray icon in pausing mode (stream stopped but app running) and spawns the appropriate notification
+   * @param app_name The paused application name
+   */
+  void
+  update_tray_pausing(std::string app_name) {
+    tray.notification_title = NULL;
+    tray.notification_text = NULL;
+    tray.notification_cb = NULL;
+    tray.notification_icon = NULL;
+    tray.icon = TRAY_ICON_PAUSING;
+    tray_update(&tray);
+    char msg[256];
+    sprintf(msg, "Streaming paused for %s", app_name.c_str());
+    tray.icon = TRAY_ICON_PAUSING;
+    tray.notification_title = "Stream Paused";
+    tray.notification_text = msg;
+    tray.tooltip = msg;
+    tray.notification_icon = TRAY_ICON_PAUSING;
+    tray_update(&tray);
+  }
+
+  /**
+   * @brief Sets the tray icon in stopped mode (app and stream stopped) and spawns the appropriate notification
+   * @param app_name The started application name
+   */
+  void
+  update_tray_stopped(std::string app_name) {
+    tray.notification_title = NULL;
+    tray.notification_text = NULL;
+    tray.notification_cb = NULL;
+    tray.notification_icon = NULL;
+    tray.icon = TRAY_ICON;
+    tray_update(&tray);
+    char msg[256];
+    sprintf(msg, "Application %s successfully stopped", app_name.c_str());
+    tray.icon = TRAY_ICON;
+    tray.notification_icon = TRAY_ICON;
+    tray.notification_title = "Application Stopped";
+    tray.notification_text = msg;
+    tray.tooltip = "Sunshine";
+    tray_update(&tray);
+  }
+
+  /**
+   * @brief Spawns a notification for PIN Pairing. Clicking it opens the PIN Web UI Page
+   */
+  void
+  update_tray_require_pin() {
+    tray.notification_title = NULL;
+    tray.notification_text = NULL;
+    tray.notification_cb = NULL;
+    tray.notification_icon = NULL;
+    tray.icon = TRAY_ICON;
+    tray_update(&tray);
+    tray.icon = TRAY_ICON;
+    tray.notification_title = "Incoming Pairing Request";
+    tray.notification_text = "Click here to complete the pairing process";
+    tray.notification_icon = TRAY_ICON_LOCKED;
+    tray.tooltip = "Sunshine";
+    tray.notification_cb = []() {
+      launch_ui_with_path("/pin");
+    };
+    tray_update(&tray);
   }
 
 }  // namespace system_tray

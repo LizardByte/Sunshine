@@ -69,7 +69,14 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)
-    install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg" DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+    install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-playing.svg"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-pausing.svg"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-locked.svg"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
 
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \

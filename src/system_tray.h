@@ -27,5 +27,13 @@ namespace system_tray {
   run_tray();
   int
   end_tray();
+  void
+  update_tray_playing(std::string app_name);
+  void
+  update_tray_pausing(std::string app_name);
+  void
+  update_tray_stopped(std::string app_name);
+  void
+  update_tray_require_pin();
 
 }  // namespace system_tray

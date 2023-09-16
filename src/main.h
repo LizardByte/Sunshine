@@ -48,6 +48,8 @@ std::uint16_t
 map_port(int port);
 void
 launch_ui();
+void
+launch_ui_with_path(std::string path);
 
 // namespaces
 namespace mail {
