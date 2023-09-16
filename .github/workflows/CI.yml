@@ -170,6 +170,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout Flathub Shared Modules
+        uses: actions/checkout@v4
+        with:
+          repository: flathub/shared-modules
+          path: build/shared-modules
+
       - name: Setup Dependencies Linux Flatpak
         run: |
           PLATFORM_VERSION=22.08
@@ -186,6 +192,7 @@ jobs:
             org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.vala/${{ matrix.arch }}/${PLATFORM_VERSION} \
             "
 
       - name: Cache Flatpak build
@@ -337,13 +344,14 @@ jobs:
             build-essential \
             gcc-10 \
             g++-10 \
-            libappindicator3-dev \
+            libayatana-appindicator3-dev \
             libavdevice-dev \
             libcap-dev \
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
             libmfx-dev \
+            libnotify-dev \
             libnuma-dev \
             libopus-dev \
             libpulse-dev \
