@@ -391,6 +391,20 @@ launch_ui() {
 }
 
 /**
+ * @brief Launch the Web UI at a specific endpoint.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * launch_ui_with_path("/pin");
+ * ```
+ */
+void
+launch_ui_with_path(std::string path) {
+  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS)) + path;
+  platf::open_url(url);
+}
+
+/**
  * @brief Flush the log.
  *
  * EXAMPLES:
