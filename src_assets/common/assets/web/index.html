@@ -1,6 +1,16 @@
 <div id="content" class="container">
   <h1 class="my-4">Hello, Sunshine!</h1>
   <p>Sunshine is a self-hosted game stream host for Moonlight.</p>
+  <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+    <div style="line-height: 32px;">
+      <i class="fas fa-circle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
+      <b>Attention!</b> Sunshine detected these errors during startup. These errors <b>MUST</b> be fixed before using
+      Sunshine.<br>
+    </div>
+    <ul>
+      <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
+    </ul>
+  </div>
   <!--Version-->
   <div class="card p-2 my-4">
     <div class="card-body" v-if="version">
@@ -21,7 +31,8 @@
         <div class="alert alert-warning">
           <div class="d-flex justify-content-between">
             <div class="my-2">A new <b>Nightly</b> Version is Available!</div>
-            <a class="btn btn-success m-1" href="https://github.com/LizardByte/Sunshine/releases/nightly-dev" target="_blank">Download</a>
+            <a class="btn btn-success m-1" href="https://github.com/LizardByte/Sunshine/releases/nightly-dev"
+              target="_blank">Download</a>
           </div>
           <pre><b>{{nightlyData.head_sha}}</b></pre>
           <pre>{{nightlyData.display_title}}</pre>
@@ -83,6 +94,7 @@
         githubVersion: null,
         nightlyData: null,
         loading: true,
+        logs: null,
       }
     },
     async created() {
@@ -92,7 +104,12 @@
         if (this.buildVersionIsNightly) {
           this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&event=push&exclude_pull_requests=true&per_page=1").then((r) => r.json())).workflow_runs[0];
         }
-      } catch(e){
+      } catch (e) {
+      }
+      try {
+        this.logs = (await fetch("/api/logs").then(r => r.text()))
+      } catch (e) {
+        console.error(e);
       }
       this.loading = false;
     },
@@ -125,15 +142,26 @@
         // return true if the commit hash is different, otherwise false
         return this.nightlyData.head_sha.indexOf(commit) !== 0;
       },
-	  buildVersionIsDirty() {
+      buildVersionIsDirty() {
         return this.version?.split(".").length === 5 &&
           this.version.indexOf("dirty") !== -1
       },
-	  buildVersionIsNightly() {
+      buildVersionIsNightly() {
         return this.version?.split(".").length === 4
       },
       buildVersionIsStable() {
         return this.version?.split(".").length === 3
+      },
+      /** Parse the text errors, calculating the text, the timestamp and the level */
+      fancyLogs() {
+        if (!this.logs) return [];
+        let regex = /(\[\d{4}:\d{2}:\d{2}:\d{2}:\d{2}:\d{2}\]):\s/g;
+        let rawLogLines = (this.logs.split(regex)).splice(1);
+        let logLines = []
+        for (let i = 0; i < rawLogLines.length; i += 2) {
+          logLines.push({ timestamp: rawLogLines[i], level: rawLogLines[i + 1].split(":")[0], value: rawLogLines[i + 1] });
+        }
+        return logLines;
       }
     }
   });
