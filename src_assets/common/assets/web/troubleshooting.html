@@ -1,86 +1,108 @@
-<div id="app" class="container">
-  <h1 class="my-4">Troubleshooting</h1>
-  <!--Force Close App-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Force Close</h2>
-      <br />
-      <p>
-        If Moonlight complains about an app currently running, force closing the
-        app should fix the issue.
-      </p>
-      <div class="alert alert-success" v-if="closeAppStatus === true">
-        Application Closed Successfully!
-      </div>
-      <div class="alert alert-danger" v-if="closeAppStatus === false">
-        Error while closing Application
-      </div>
-      <div>
-        <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
-          Force Close
-        </button>
-      </div>
-    </div>
-  </div>
-  <!--Restart Sunshine-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Restart Sunshine</h2>
-      <br />
-      <p>
-        If Sunshine isn't working properly, you can try restarting it.
-        This will terminate any running sessions.
-      </p>
-      <div class="alert alert-success" v-if="restartPressed === true">
-        Sunshine is restarting
-      </div>
-      <div>
-        <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
-          Restart Sunshine
-        </button>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sunshine</title>
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link href="@fortawesome/fontawesome-free/css/all.min.css" rel="stylesheet">
+  <link href="bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script type="module" src="bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+
+<body id="app">
+  <Sunshine-Header></Sunshine-Header>
+  <div class="container">
+    <h1 class="my-4">Troubleshooting</h1>
+    <!--Force Close App-->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2>Force Close</h2>
+        <br />
+        <p>
+          If Moonlight complains about an app currently running, force closing the
+          app should fix the issue.
+        </p>
+        <div class="alert alert-success" v-if="closeAppStatus === true">
+          Application Closed Successfully!
+        </div>
+        <div class="alert alert-danger" v-if="closeAppStatus === false">
+          Error while closing Application
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
+            Force Close
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-  <!--Unpair all Clients-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Unpair All Clients</h2>
-      <br />
-      <p>Remove all your paired devices</p>
-      <div class="alert alert-success" v-if="unpairAllStatus === true">
-        Unpair Successful!
-      </div>
-      <div class="alert alert-danger" v-if="unpairAllStatus === false">
-        Error while unpairing
-      </div>
-      <div>
-        <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
-          Unpair All
-        </button>
+    <!--Restart Sunshine-->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2>Restart Sunshine</h2>
+        <br />
+        <p>
+          If Sunshine isn't working properly, you can try restarting it.
+          This will terminate any running sessions.
+        </p>
+        <div class="alert alert-success" v-if="restartPressed === true">
+          Sunshine is restarting
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
+            Restart Sunshine
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-  <!--Logs-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Logs</h2>
-      <br />
-      <div class="d-flex justify-content-between align-items-baseline py-2">
-        <p>See the logs uploaded by Sunshine</p>
-        <input type="text" class="form-control" v-model="logFilter" placeholder="Find..." style="width: 300px">
+    <!--Unpair all Clients-->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2>Unpair All Clients</h2>
+        <br />
+        <p>Remove all your paired devices</p>
+        <div class="alert alert-success" v-if="unpairAllStatus === true">
+          Unpair Successful!
+        </div>
+        <div class="alert alert-danger" v-if="unpairAllStatus === false">
+          Error while unpairing
+        </div>
+        <div>
+          <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+            Unpair All
+          </button>
+        </div>
       </div>
-      <div>
-        <div class="troubleshooting-logs">
-          <button class="copy-icon"><i class="fas fa-copy " @click="copyLogs"></i></button>{{actualLogs}}
+    </div>
+    <!--Logs-->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2>Logs</h2>
+        <br />
+        <div class="d-flex justify-content-between align-items-baseline py-2">
+          <p>See the logs uploaded by Sunshine</p>
+          <input type="text" class="form-control" v-model="logFilter" placeholder="Find..." style="width: 300px">
+        </div>
+        <div>
+          <div class="troubleshooting-logs">
+            <button class="copy-icon"><i class="fas fa-copy " @click="copyLogs"></i></button>{{actualLogs}}
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
+</body>
 
-<script  type="module">
-  import {createApp} from 'vue'
+<script type="module">
+  import { createApp } from 'vue'
+  import SunshineHeader from './SunshineHeader.vue'
+
   const app = createApp({
+    components: {
+      SunshineHeader
+    },
     data() {
       return {
         closeAppPressed: false,
@@ -94,8 +116,8 @@
       };
     },
     computed: {
-      actualLogs(){
-        if(!this.logFilter)return this.logs;
+      actualLogs() {
+        if (!this.logFilter) return this.logs;
         let lines = this.logs.split("\n");
         lines = lines.filter(x => x.indexOf(this.logFilter) != -1);
         return lines.join("\n");
@@ -107,7 +129,7 @@
       }, 5000);
       this.refreshLogs();
     },
-    beforeDestroy(){
+    beforeDestroy() {
       clearInterval(this.logInterval);
     },
     methods: {
@@ -142,17 +164,17 @@
             }, 5000);
           });
       },
-      copyLogs(){
+      copyLogs() {
         navigator.clipboard.writeText(this.actualLogs);
       },
       restart() {
         this.restartPressed = true;
         setTimeout(() => {
-            this.restartPressed = false;
-          }, 5000);
+          this.restartPressed = false;
+        }, 5000);
         fetch("/api/restart", {
-            method: "POST",
-          });
+          method: "POST",
+        });
       },
     },
   });
@@ -177,16 +199,17 @@
     right: 8px;
     padding: 8px;
     cursor: pointer;
-    color: rgba(0,0,0,1);
+    color: rgba(0, 0, 0, 1);
     appearance: none;
     border: none;
     background: none;
   }
 
   .copy-icon:hover {
-    color: rgba(0,0,0,0.75);
+    color: rgba(0, 0, 0, 0.75);
   }
+
   .copy-icon:active {
-    color: rgba(0,0,0,1);
+    color: rgba(0, 0, 0, 1);
   }
 </style>
