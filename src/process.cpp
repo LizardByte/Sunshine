@@ -180,14 +180,19 @@ namespace proc {
       auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
-        return -1;
+        auto msg = ec == std::errc::no_such_process ? "no active user sessions available" : ec.message();
+        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << msg;
+        // We don't want any prep commands failing launch of the desktop.
+        // This is to prevent the issue where users reboot their PC and need to log in with Sunshine.
+        // no_such_process is returned when the impersonation fails, which is typically when there is no user session active.
+        if (!(_app.cmd.empty() && ec == std::errc::no_such_process)) {
+          return -1;
+        }
       }
 
       child.wait();
       auto ret = child.exit_code();
-
-      if (ret != 0) {
+      if (ret != 0 && ec != std::errc::no_such_process) {
         BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
         return -1;
       }
