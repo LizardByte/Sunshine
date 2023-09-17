@@ -1,7 +1,9 @@
 @echo off
 
-set SERVICE_NAME=sunshinesvc
+rem Stop and delete the legacy SunshineSvc service
+net stop sunshinesvc
+sc delete sunshinesvc
 
-net stop %SERVICE_NAME%
-
-sc delete %SERVICE_NAME%
+rem Stop and delete the new SunshineService service
+net stop SunshineService
+sc delete SunshineService

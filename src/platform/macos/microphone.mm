@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/microphone.mm
+ * @brief todo
+ */
 #include "src/platform/common.h"
 #include "src/platform/macos/av_audio.h"
 

@@ -1,7 +1,8 @@
-// Created by loki on 8-2-19.
-
-#ifndef T_MAN_UUID_H
-#define T_MAN_UUID_H
+/**
+ * @file src/uuid.h
+ * @brief todo
+ */
+#pragma once
 
 #include <random>
 
@@ -80,4 +81,3 @@ namespace uuid_util {
     }
   };
 }  // namespace uuid_util
-#endif  // T_MAN_UUID_H

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>LizardByte - Sunshine</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="description" content="Self-hosted game stream host for Moonlight." />
+        <meta name="author" content="" />
+
+        <!-- Open Graph/Twitter metadata -->
+        <meta property="og:site_name" content="LizardByte" />
+        <meta property="og:title" content="LizardByte | Sunshine" />
+        <meta property="og:type" content="website" />
+        <meta property="og:image" content="https://app.lizardbyte.dev/uno/github/openGraphImages/Sunshine_624x312.png" />
+        <meta property="og:url" content="https://app.lizardbyte.dev/Sunshine" />
+        <meta property="og:description" content="Self-hosted game stream host for Moonlight." />
+        <meta property="og:locale" content="en-US" />
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="og:twitter_site" content="@lizardbytedev" />
+        <meta property="og:twitter_site:id" content="@lizardbytedev" />
+        <meta property="og:twitter_creator" content="@lizardbytedev" />
+        <meta property="og:twitter_creator:id" content="@lizardbytedev" />
+        <meta property="twitter:image" content="https://app.lizardbyte.dev/uno/github/openGraphImages/Sunshine_624x312.png" />
+
+        <!-- Favicon-->
+        <link rel="icon" type="image/x-icon" href="https://app.lizardbyte.dev/assets/images/favicon.ico" />
+        <!-- FontAwesome-->
+        <link href="https://app.lizardbyte.dev/node_modules/@fortawesome/fontawesome-free/css/all.min.css" rel="stylesheet" />
+        <!-- Bootstrap theme-->
+        <link href="https://app.lizardbyte.dev/node_modules/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
+        <!-- Custom css-->
+        <link href="https://app.lizardbyte.dev/css/custom.css" rel="stylesheet" />
+
+        <script src="https://app.lizardbyte.dev/node_modules/jquery/dist/jquery.min.js"></script>
+        <script src="https://app.lizardbyte.dev/node_modules/@popperjs/core/dist/umd/popper.min.js"></script>
+
+        <!-- Crowdin widget -->
+        <script src="https://app.lizardbyte.dev/js/crowdin.js"></script>
+        <script src="https://app.lizardbyte.dev/js/crowdin_web_widget.js"></script>
+    </head>
+    <body class="d-flex flex-column h-100 bg-dark-gray">
+        <main class="flex-shrink-0 overflow-hidden">
+            <!-- Navigation-->
+            <nav id="nav-container"></nav>
+
+            <!-- Header-->
+            <header class="bg-dark py-0">
+                <section class="offset-anchor" id="Top">
+                    <div id="carousel1" class="carousel slide carousel-fade" data-bs-ride="carousel"
+                         style="height:50vh">
+                      <!--Indicators-->
+                      <div class="carousel-indicators">
+                        <button type="button" data-bs-target="#carousel1" data-bs-slide-to="0" class="active"
+                                aria-current="true" aria-label="Slide 1"></button>
+                        <button type="button" data-bs-target="#carousel1" data-bs-slide-to="1"
+                                aria-label="Slide 2"></button>
+                        <button type="button" data-bs-target="#carousel1" data-bs-slide-to="2"
+                                aria-label="Slide 3"></button>
+                      </div>
+                      <!--/.Indicators-->
+                      <!--Slides-->
+                      <div class="carousel-inner" role="listbox">
+
+                        <div class="carousel-item active">
+                          <div class="view">
+                            <img  src="assets/images/AdobeStock_305732536_1920x1280.jpg" alt="">
+                            <div class="mask rgba-black-light"></div>
+                          </div>
+<!--                              <div class="carousel-caption">-->
+<!--                                <h3 class="h3-responsive">1</h3>-->
+<!--                                <p>First text</p>-->
+<!--                              </div>-->
+                        </div>
+                        <div class="carousel-item">
+                          <!--Mask color-->
+                          <div class="view">
+                            <img  src="assets/images/AdobeStock_231616343_1920x1280.jpg" alt="">
+                            <div class="mask rgba-black-strong"></div>
+                          </div>
+<!--                              <div class="carousel-caption">-->
+<!--                                <h3 class="h3-responsive">2</h3>-->
+<!--                                <p>Secondary text</p>-->
+<!--                              </div>-->
+                        </div>
+                        <div class="carousel-item">
+                          <!--Mask color-->
+                          <div class="view">
+                            <img  src="assets/images/AdobeStock_303330124_1920x1280.jpg" alt="">
+                            <div class="mask rgba-black-slight"></div>
+                          </div>
+<!--                              <div class="carousel-caption">-->
+<!--                                <h3 class="h3-responsive">3</h3>-->
+<!--                                <p>Third text</p>-->
+<!--                              </div>-->
+                        </div>
+                      </div>
+                      <!--/.Slides-->
+                      <div>
+                          <h1 class="carousel-overlay-title display-5 fw-bolder text-white mb-2">Sunshine</h1>
+                          <p class="carousel-overlay-subtitle lead fw-bolder text-white-50 mb-4">
+                              A LizardByte project</p>
+                      </div>
+                      <!--Controls-->
+                      <button class="carousel-control-prev" type="button" data-bs-target="#carousel1"
+                              data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Previous</span>
+                      </button>
+                      <button class="carousel-control-next" type="button" data-bs-target="#carousel1"
+                              data-bs-slide="next">
+                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        <span class="visually-hidden">Next</span>
+                      </button>
+                      <!--/.Controls-->
+                    </div>
+                </section>
+            </header>
+
+            <!-- About section-->
+            <section class="offset-anchor py-5" id="About">
+                <div class="container px-auto">
+                    <p class="lead text-center text-white mx-auto mt-0 mb-5">
+                        Sunshine is a self-hosted game stream host for Moonlight. Offering low latency, cloud gaming
+                        server capabilities with support for AMD, Intel, and Nvidia GPUs for hardware encoding. Software
+                        encoding is also available. You can connect to Sunshine from any Moonlight client on a variety
+                        of devices. A web UI is provided to allow configuration, and client pairing, from your favorite
+                        web browser. Pair from the local server or any mobile device.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Features section-->
+            <section class="offset-anchor bg-dark py-5" id="Features">
+                <div class="container px-auto">
+                    <h2 class="text-center text-white fw-bolder my-5">Features</h2>
+                    <!-- Create a card for each feature -->
+                    <div class="row gx-5">
+                        <div class="col-md-6 col-lg-4 mb-5">
+                            <div class="card bg-dark-gray text-white rounded-0">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon text-white">
+                                            <i class="fa-fw fa-2x fas fa-server"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h5 class="fw-bolder mb-0">Self-hosted</h5>
+                                            <p class="mb-0">
+                                                Run Sunshine on your own hardware. No need to pay monthly fees to a
+                                                cloud gaming provider.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4 mb-5">
+                            <div class="card bg-dark-gray text-white rounded-0">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon text-white">
+                                            <img height="40" src="https://moonlight-stream.org/images/moonlight.svg">
+                                        </div>
+                                        <div class="ms-3">
+                                            <h5 class="fw-bolder mb-0">Moonlight Support</h5>
+                                            <p class="mb-0">
+                                                Connect to Sunshine from any Moonlight client. Moonlight is available
+                                                for Windows, macOS, Linux, Android, iOS, Xbox, and more.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4 mb-5">
+                            <div class="card bg-dark-gray text-white rounded-0">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon text-white">
+                                            <i class="fa-fw fa-2x fas fa-microchip"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h5 class="fw-bolder mb-0">Hardware Encoding</h5>
+                                            <p class="mb-0">
+                                                Sunshine supports AMD, Intel, and Nvidia GPUs for hardware encoding.
+                                                Software encoding is also available.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4 mb-5 mb-lg-0">
+                            <div class="card bg-dark-gray text-white rounded-0">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon text-white">
+                                            <i class="fa-fw fa-2x fas fa-globe"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h5 class="fw-bolder mb-0">Low Latency</h5>
+                                            <p class="mb-0">
+                                                Sunshine is designed to provide the lowest latency possible to achieve optimal gaming performance.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4 mb-5 mb-lg-0">
+                            <div class="card bg-dark-gray text-white rounded-0">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon text-white">
+                                            <i class="fa-fw fa-2x fas fa-gamepad"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h5 class="fw-bolder mb-0">Control</h5>
+                                            <p class="mb-0">
+                                                Sunshine emulates an Xbox 360 or DS4 controller. Use nearly any
+                                                controller on your Moonlight client!<br>
+                                                <small>
+                                                  <ul>
+                                                    <li>DS4 emulation is only available on Windows.</li>
+                                                    <li>Gamepad emulation is not currently supported on macOS.</li>
+                                                  </ul>
+                                                </small>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 col-lg-4 mb-5 mb-lg-0">
+                            <div class="card bg-dark-gray text-white rounded-0">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon text-white">
+                                            <i class="fa-fw fa-2x fas fa-gear"></i>
+                                        </div>
+                                        <div class="ms-3">
+                                            <h5 class="fw-bolder mb-0">Configurable</h5>
+                                            <p class="mb-0">
+                                                Sunshine offers many configuration options to customize your experience.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- More cards -->
+            <div class="container py-5 px-auto">
+                <div class="container col-md-10">
+                    <!-- Docs section -->
+                    <section class="offset-anchor py-4" id="Docs">
+                        <div class="card bg-dark text-white rounded-0">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center">
+                                    <i class="fa-fw fa-2x fas fa-book"></i>
+                                    <div class="ms-3">
+                                        <h2 class="fw-bolder mb-0">Documentation</h2>
+                                        <p class="mb-0">
+                                            Read the documentation to learn how to install, use, and configure Sunshine.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer p-3 ms-3">
+                                <a class="btn btn-outline-light me-3 mb-3" href="https://docs.lizardbyte.dev/projects/sunshine" target="_blank">
+                                    <i class="fa-fw fas fa-book"></i>
+                                    Read the Docs
+                                </a>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Download section -->
+                    <section class="offset-anchor py-4" id="Download">
+                        <div class="card bg-dark text-white rounded-0">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center">
+                                    <i class="fa-fw fa-2x fas fa-download"></i>
+                                    <div class="ms-3">
+                                        <h2 class="fw-bolder mb-0">Download</h2>
+                                        <p class="mb-0">
+                                            Download Sunshine for your platform.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer p-3 ms-3">
+                                <a class="btn btn-outline-light me-3 mb-3" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
+                                    <i class="fa-fw fab fa-github"></i>
+                                        Latest
+                                </a>
+                                <a class="btn btn-outline-light me-3 mb-3" href="https://github.com/LizardByte/Sunshine/releases/tag/nightly-dev" target="_blank">
+                                    <i class="fa-fw fas fa-infinity"></i>
+                                        Nightly
+                                </a>
+                                <a class="btn btn-outline-light me-3 mb-3" href="https://hub.docker.com/r/lizardbyte/sunshine" target="_blank">
+                                    <i class="fa-fw fab fa-docker"></i>
+                                        Docker
+                                </a>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- Donate section -->
+            <section class="offset-anchor bg-dark p-5" id="Donate">
+                <div class="container mb-5 shadow border-0 bg-dark-gray rounded-0 col-md-7">
+                    <div class="d-table-row g-0 text-white">
+                        <div class="d-table-cell px-3 align-middle text-center">
+                            <h1>
+                                <i class="fa-fw fas fa-coins"></i>
+                            </h1>
+                        </div>
+                        <div class="col-sm-auto border-white my-3 px-3 py-2 border-start">
+                            <div class="container">
+                                <h4 class="card-title mb-3 fw-bolder">Donate</h4>
+                            </div>
+                            <a
+                                class="text-decoration-none"
+                                href="https://github.com/sponsors/LizardByte"
+                                target="_blank">
+                                <img class="m-3"
+                                     alt="GitHub Sponsors"
+                                     src="https://img.shields.io/github/sponsors/lizardbyte?label=Github%20Sponsors&style=for-the-badge&color=green&logo=githubsponsors"
+                                >
+                            </a>
+                            <a
+                                class="text-decoration-none"
+                                href="https://mee6.xyz/m/804382334370578482"
+                                target="_blank">
+                                <img class="m-3"
+                                     alt="MEE6"
+                                     src="https://img.shields.io/static/v1?style=for-the-badge&label=MEE6&message=Donate&color=green&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAklEQVR4AewaftIAAAG6SURBVJXBPWgTARiA4fe7H/WKCGoo0qAcIhUJHCSnoIgZYiq4ugk6BEuEimRxk04SwcEhU0pMDY5xcnSK0N22XCexYHSxkpBCB69gc58ntHCcEerzCCmVIMyjVEFLCi4xgT5ID6HV8Zw1EoR9D4LQMQwav8Y6DwiTqW1KO4qoLXtOSMwkNr8ROmON3kfKHUD4N4kUX9Eblx8tdleb9T2D2Fi1AVLk0KQ4Vm0Qk0oQ5lX1IyD8HxUR31DVKiDsU43YHQ1I290eolFEgqhq1RAokbDx+iXd8nl2vm1y4OfgO2/nLrC+9JwkgZKl4JIwc/Um4WCLqeksB46dzJC7/5izxdskKbgWKZlcgUyuQJJh2fi1Z0xiCfQVZkkJhz/Y+fqZP+zjJzh10SNNoG8p9IBZUkafAjaf3OW0bTO6doviizekKfQsEWmp6kNASMhen6O89I6Z7QEfrpSJ+IuKSMtcb9a38gtPs4BPyvDMOb64l9AjR0kTod3xpl4ZxEyRGugKh6YrpkiNmElstVnf8xcWu5Yp05FSAITJ1DalLci9Zc8JiQkplSDMo1RBSwouMYE+SA+h1fGcNRJ+A8xgoQAar6IXAAAAAElFTkSuQmCC"
+                                >
+                            </a>
+                            <a
+                                class="text-decoration-none"
+                                href="https://www.patreon.com/LizardByte"
+                                target="_blank">
+                                <img class="m-3"
+                                     alt="Patreon"
+                                     src="https://img.shields.io/badge/dynamic/json?color=green&label=Patreon&style=for-the-badge&query=patron_count&url=https%3A%2F%2Fapp.lizardbyte.dev%2Funo%2Fpatreon%2FLizardByte.json&logo=patreon"
+                                >
+                            </a>
+                            <a
+                                class="text-decoration-none"
+                                href="https://www.paypal.com/paypalme/ReenigneArcher"
+                                target="_blank">
+                                <img class="m-3"
+                                     alt="PayPal"
+                                     src="https://img.shields.io/static/v1?style=for-the-badge&label=PayPal&message=Donate&color=green&logo=paypal"
+                                >
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Support -->
+            <section class="offset-anchor bg-dark p-5" id="Support">
+                <div class="col-md-7 mx-auto mb-5">
+                    <div class="container shadow border-0 bg-primary rounded-0">
+                        <div class="d-table-row g-0 text-white">
+                            <div class="d-table-cell px-4 align-middle text-center">
+                                <div class="fs-3 fw-bold text-white">Support Center</div>
+                                <div class="text-white">Find answers and ask questions.</div>
+                            </div>
+                            <div class="col-sm-auto border-white my-3 px-4 py-2 border-start">
+                                <p class="card-text">
+                                    <em>The one who knows all the answers has not been asked all the questions.</em>
+                                    – Confucius.
+                                </p>
+                                <div class="input-group mb-2">
+                                    <a href="support">
+                                        <button class="btn btn-outline-light rounded-0"
+                                                id="button-support"
+                                                type="button"
+                                        >Support</button>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+        <!-- Footer-->
+        <footer class="bg-dark py-4 mt-auto" id="footer-container"></footer>
+
+        <!-- Audio player bottom navbar -->
+        <nav id="player-navbar"></nav>
+
+        <!-- Bootstrap core JS-->
+        <script src="https://app.lizardbyte.dev/node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+        <!-- Get navbar -->
+        <script src="https://app.lizardbyte.dev/js/navbar.js"></script>
+        <!-- Get footer -->
+        <script src="https://app.lizardbyte.dev/js/footer.js"></script>
+        <!-- Discord WidgetBot -->
+        <script src="https://app.lizardbyte.dev/js/discord.js"></script>
+    </body>
+</html>

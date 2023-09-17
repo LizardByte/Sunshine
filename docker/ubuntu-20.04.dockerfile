@@ -30,41 +30,40 @@ RUN <<_DEPS
 set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
-  build-essential=12.8* \
-  gcc-10=10.3.0* \
-  g++-10=10.3.0* \
-  git=1:2.25.1* \
-  libappindicator3-dev=12.10.1* \
-  libavdevice-dev=7:4.2.* \
-  libboost-filesystem-dev=1.71.0* \
-  libboost-locale-dev=1.71.0* \
-  libboost-log-dev=1.71.0* \
-  libboost-program-options-dev=1.71.0* \
-  libboost-thread-dev=1.71.0* \
-  libcap-dev=1:2.32* \
-  libcurl4-openssl-dev=7.68.0* \
-  libdrm-dev=2.4.107* \
-  libevdev-dev=1.9.0* \
-  libnuma-dev=2.0.12* \
-  libopus-dev=1.3.1* \
-  libpulse-dev=1:13.99.1* \
-  libssl-dev=1.1.1f* \
-  libva-dev=2.7.0* \
-  libvdpau-dev=1.3* \
-  libwayland-dev=1.18.0* \
-  libx11-dev=2:1.6.9* \
-  libxcb-shm0-dev=1.14* \
-  libxcb-xfixes0-dev=1.14* \
-  libxcb1-dev=1.14* \
-  libxfixes-dev=1:5.0.3* \
-  libxrandr-dev=2:1.5.2* \
-  libxtst-dev=2:1.2.3* \
-  nodejs=10.19.0* \
-  npm=6.14.4* \
-  wget=1.20.3*
+  build-essential \
+  gcc-10=10.5.* \
+  g++-10=10.5.* \
+  git \
+  libappindicator3-dev \
+  libavdevice-dev \
+  libboost-filesystem-dev=1.71.* \
+  libboost-locale-dev=1.71.* \
+  libboost-log-dev=1.71.* \
+  libboost-program-options-dev=1.71.* \
+  libcap-dev \
+  libcurl4-openssl-dev \
+  libdrm-dev \
+  libevdev-dev \
+  libnuma-dev \
+  libopus-dev \
+  libpulse-dev \
+  libssl-dev \
+  libva-dev \
+  libvdpau-dev \
+  libwayland-dev \
+  libx11-dev \
+  libxcb-shm0-dev \
+  libxcb-xfixes0-dev \
+  libxcb1-dev \
+  libxfixes-dev \
+  libxrandr-dev \
+  libxtst-dev \
+  nodejs \
+  npm \
+  wget
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
-    libmfx-dev=20.1.0*
+    libmfx-dev
 fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
@@ -102,7 +101,7 @@ url="${cmake_prefix}${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${cmake_arch}.
 echo "cmake url: ${url}"
 wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cmake.sh
 sh ./cmake.sh --prefix=/usr/local --skip-license
-cmake --version
+rm ./cmake.sh
 _INSTALL_CMAKE
 
 # install cuda
@@ -198,7 +197,7 @@ RUN <<_SETUP_USER
 #!/bin/bash
 set -e
 groupadd -f -g "${PGID}" "${UNAME}"
-useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -G input -u "${PUID}" "${UNAME}"
+useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine
 ln -s ${HOME}/.config/sunshine /config
 chown -R ${UNAME} ${HOME}

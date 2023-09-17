@@ -1,7 +1,7 @@
-//
-// Created by loki on 1/12/20.
-//
-
+/**
+ * @file src/platform/windows/display_base.cpp
+ * @brief todo
+ */
 #include <cmath>
 #include <codecvt>
 #include <initguid.h>
@@ -17,6 +17,7 @@ typedef long NTSTATUS;
 #include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
+#include "src/stat_trackers.h"
 #include "src/video.h"
 
 namespace platf {
@@ -32,14 +33,18 @@ namespace platf::dxgi {
       return capture_status;
     }
 
-    if (use_dwmflush) {
-      DwmFlush();
-    }
-
     auto status = dup->AcquireNextFrame(timeout.count(), &frame_info, res_p);
 
     switch (status) {
       case S_OK:
+        // ProtectedContentMaskedOut seems to semi-randomly be TRUE or FALSE even when protected content
+        // is on screen the whole time, so we can't just print when it changes. Instead we'll keep track
+        // of the last time we printed the warning and print another if we haven't printed one recently.
+        if (frame_info.ProtectedContentMaskedOut && std::chrono::steady_clock::now() > last_protected_content_warning_time + 10s) {
+          BOOST_LOG(warning) << "Windows is currently blocking DRM-protected content from capture. You may see black regions where this content would be."sv;
+          last_protected_content_warning_time = std::chrono::steady_clock::now();
+        }
+
         has_frame = true;
         return capture_e::ok;
       case DXGI_ERROR_WAIT_TIMEOUT:
@@ -70,19 +75,20 @@ namespace platf::dxgi {
     }
 
     auto status = dup->ReleaseFrame();
+    has_frame = false;
     switch (status) {
       case S_OK:
-        has_frame = false;
         return capture_e::ok;
-      case DXGI_ERROR_WAIT_TIMEOUT:
-        return capture_e::timeout;
-      case WAIT_ABANDONED:
+
+      case DXGI_ERROR_INVALID_CALL:
+        BOOST_LOG(warning) << "Duplication frame already released";
+        return capture_e::ok;
+
       case DXGI_ERROR_ACCESS_LOST:
-      case DXGI_ERROR_ACCESS_DENIED:
-        has_frame = false;
         return capture_e::reinit;
+
       default:
-        BOOST_LOG(error) << "Couldn't release frame [0x"sv << util::hex(status).to_string_view();
+        BOOST_LOG(error) << "Error while releasing duplication frame [0x"sv << util::hex(status).to_string_view();
         return capture_e::error;
     }
   }
@@ -91,24 +97,64 @@ namespace platf::dxgi {
     release_frame();
   }
 
-  capture_e
-  display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
-    auto next_frame = std::chrono::steady_clock::now();
-
-    // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
-    HANDLE timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+  void
+  display_base_t::high_precision_sleep(std::chrono::nanoseconds duration) {
     if (!timer) {
-      timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
-      if (!timer) {
-        auto winerr = GetLastError();
-        BOOST_LOG(error) << "Failed to create timer: "sv << winerr;
-        return capture_e::error;
-      }
+      BOOST_LOG(error) << "Attempting high_precision_sleep() with uninitialized timer";
+      return;
+    }
+    if (duration < 0s) {
+      BOOST_LOG(error) << "Attempting high_precision_sleep() with negative duration";
+      return;
+    }
+    if (duration > 5s) {
+      BOOST_LOG(error) << "Attempting high_precision_sleep() with unexpectedly large duration (>5s)";
+      return;
     }
 
-    auto close_timer = util::fail_guard([timer]() {
-      CloseHandle(timer);
+    LARGE_INTEGER due_time;
+    due_time.QuadPart = duration.count() / -100;
+    SetWaitableTimer(timer.get(), &due_time, 0, nullptr, nullptr, false);
+    WaitForSingleObject(timer.get(), INFINITE);
+  }
+
+  capture_e
+  display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
+    auto adjust_client_frame_rate = [&]() -> DXGI_RATIONAL {
+      // Adjust capture frame interval when display refresh rate is not integral but very close to requested fps.
+      if (display_refresh_rate.Denominator > 1) {
+        DXGI_RATIONAL candidate = display_refresh_rate;
+        if (client_frame_rate % display_refresh_rate_rounded == 0) {
+          candidate.Numerator *= client_frame_rate / display_refresh_rate_rounded;
+        }
+        else if (display_refresh_rate_rounded % client_frame_rate == 0) {
+          candidate.Denominator *= display_refresh_rate_rounded / client_frame_rate;
+        }
+        double candidate_rate = (double) candidate.Numerator / candidate.Denominator;
+        // Can only decrease requested fps, otherwise client may start accumulating frames and suffer increased latency.
+        if (client_frame_rate > candidate_rate && candidate_rate / client_frame_rate > 0.99) {
+          BOOST_LOG(info) << "Adjusted capture rate to " << candidate_rate << "fps to better match display";
+          return candidate;
+        }
+      }
+
+      return { (uint32_t) client_frame_rate, 1 };
+    };
+
+    DXGI_RATIONAL client_frame_rate_adjusted = adjust_client_frame_rate();
+    std::optional<std::chrono::steady_clock::time_point> frame_pacing_group_start;
+    uint32_t frame_pacing_group_frames = 0;
+
+    // Keep the display awake during capture. If the display goes to sleep during
+    // capture, best case is that capture stops until it powers back on. However,
+    // worst case it will trigger us to reinit DD, waking the display back up in
+    // a neverending cycle of waking and sleeping the display of an idle machine.
+    SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED);
+    auto clear_display_required = util::fail_guard([]() {
+      SetThreadExecutionState(ES_CONTINUOUS);
     });
+
+    stat_trackers::min_max_avg_tracker<double> sleep_overshoot_tracker;
 
     while (true) {
       // This will return false if the HDR state changes or for any number of other
@@ -118,25 +164,65 @@ namespace platf::dxgi {
         return platf::capture_e::reinit;
       }
 
-      // If the wait time is between 1 us and 1 second, wait the specified time
-      // and offset the next frame time from the exact current frame time target.
-      auto wait_time_us = std::chrono::duration_cast<std::chrono::microseconds>(next_frame - std::chrono::steady_clock::now()).count();
-      if (wait_time_us > 0 && wait_time_us < 1000000) {
-        LARGE_INTEGER due_time { .QuadPart = -10LL * wait_time_us };
-        SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
-        WaitForSingleObject(timer, INFINITE);
-        next_frame += delay;
-      }
-      else {
-        // If the wait time is negative (meaning the frame is past due) or the
-        // computed wait time is beyond a second (meaning possible clock issues),
-        // just capture the frame now and resynchronize the frame interval with
-        // the current time.
-        next_frame = std::chrono::steady_clock::now() + delay;
+      platf::capture_e status = capture_e::ok;
+      std::shared_ptr<img_t> img_out;
+
+      // Try to continue frame pacing group, snapshot() is called with zero timeout after waiting for client frame interval
+      if (frame_pacing_group_start) {
+        const uint32_t seconds = (uint64_t) frame_pacing_group_frames * client_frame_rate_adjusted.Denominator / client_frame_rate_adjusted.Numerator;
+        const uint32_t remainder = (uint64_t) frame_pacing_group_frames * client_frame_rate_adjusted.Denominator % client_frame_rate_adjusted.Numerator;
+        const auto sleep_target = *frame_pacing_group_start +
+                                  std::chrono::nanoseconds(1s) * seconds +
+                                  std::chrono::nanoseconds(1s) * remainder / client_frame_rate_adjusted.Numerator;
+        const auto sleep_period = sleep_target - std::chrono::steady_clock::now();
+
+        if (sleep_period <= 0ns) {
+          // We missed next frame time, invalidating current frame pacing group
+          frame_pacing_group_start = std::nullopt;
+          frame_pacing_group_frames = 0;
+          status = capture_e::timeout;
+        }
+        else {
+          high_precision_sleep(sleep_period);
+
+          if (config::sunshine.min_log_level <= 1) {
+            // Print sleep overshoot stats to debug log every 20 seconds
+            auto print_info = [&](double min_overshoot, double max_overshoot, double avg_overshoot) {
+              auto f = stat_trackers::one_digit_after_decimal();
+              BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
+            };
+            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - sleep_target;
+            sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
+          }
+
+          status = snapshot(pull_free_image_cb, img_out, 0ms, *cursor);
+
+          if (status == capture_e::ok && img_out) {
+            frame_pacing_group_frames += 1;
+          }
+          else {
+            frame_pacing_group_start = std::nullopt;
+            frame_pacing_group_frames = 0;
+          }
+        }
       }
 
-      std::shared_ptr<img_t> img_out;
-      auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
+      // Start new frame pacing group if necessary, snapshot() is called with non-zero timeout
+      if (status == capture_e::timeout || (status == capture_e::ok && !frame_pacing_group_start)) {
+        status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
+
+        if (status == capture_e::ok && img_out) {
+          frame_pacing_group_start = img_out->frame_timestamp;
+
+          if (!frame_pacing_group_start) {
+            BOOST_LOG(warning) << "snapshot() provided image without timestamp";
+            frame_pacing_group_start = std::chrono::steady_clock::now();
+          }
+
+          frame_pacing_group_frames = 1;
+        }
+      }
+
       switch (status) {
         case platf::capture_e::reinit:
         case platf::capture_e::error:
@@ -155,6 +241,11 @@ namespace platf::dxgi {
         default:
           BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
           return status;
+      }
+
+      status = dup.release_frame();
+      if (status != platf::capture_e::ok) {
+        return status;
       }
     }
 
@@ -317,8 +408,6 @@ namespace platf::dxgi {
     // Ensure we can duplicate the current display
     syncThreadDesktop();
 
-    delay = std::chrono::nanoseconds { 1s } / config.framerate;
-
     // Get rectangle of full desktop for absolute mouse coordinates
     env_width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
@@ -342,45 +431,68 @@ namespace platf::dxgi {
     auto output_name = converter.from_bytes(display_name);
 
     adapter_t::pointer adapter_p;
-    for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
-      dxgi::adapter_t adapter_tmp { adapter_p };
+    for (int tries = 0; tries < 2; ++tries) {
+      for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+        dxgi::adapter_t adapter_tmp { adapter_p };
 
-      DXGI_ADAPTER_DESC1 adapter_desc;
-      adapter_tmp->GetDesc1(&adapter_desc);
+        DXGI_ADAPTER_DESC1 adapter_desc;
+        adapter_tmp->GetDesc1(&adapter_desc);
 
-      if (!adapter_name.empty() && adapter_desc.Description != adapter_name) {
-        continue;
-      }
-
-      dxgi::output_t::pointer output_p;
-      for (int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
-        dxgi::output_t output_tmp { output_p };
-
-        DXGI_OUTPUT_DESC desc;
-        output_tmp->GetDesc(&desc);
-
-        if (!output_name.empty() && desc.DeviceName != output_name) {
+        if (!adapter_name.empty() && adapter_desc.Description != adapter_name) {
           continue;
         }
 
-        if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
-          output = std::move(output_tmp);
+        dxgi::output_t::pointer output_p;
+        for (int y = 0; adapter_tmp->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
+          dxgi::output_t output_tmp { output_p };
 
-          offset_x = desc.DesktopCoordinates.left;
-          offset_y = desc.DesktopCoordinates.top;
-          width = desc.DesktopCoordinates.right - offset_x;
-          height = desc.DesktopCoordinates.bottom - offset_y;
+          DXGI_OUTPUT_DESC desc;
+          output_tmp->GetDesc(&desc);
 
-          // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
-          // Ensure offset starts at 0x0
-          offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
-          offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
+          if (!output_name.empty() && desc.DeviceName != output_name) {
+            continue;
+          }
+
+          if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
+            output = std::move(output_tmp);
+
+            offset_x = desc.DesktopCoordinates.left;
+            offset_y = desc.DesktopCoordinates.top;
+            width = desc.DesktopCoordinates.right - offset_x;
+            height = desc.DesktopCoordinates.bottom - offset_y;
+
+            display_rotation = desc.Rotation;
+            if (display_rotation == DXGI_MODE_ROTATION_ROTATE90 ||
+                display_rotation == DXGI_MODE_ROTATION_ROTATE270) {
+              width_before_rotation = height;
+              height_before_rotation = width;
+            }
+            else {
+              width_before_rotation = width;
+              height_before_rotation = height;
+            }
+
+            // left and bottom may be negative, yet absolute mouse coordinates start at 0x0
+            // Ensure offset starts at 0x0
+            offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
+            offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
+          }
+        }
+
+        if (output) {
+          adapter = std::move(adapter_tmp);
+          break;
         }
       }
 
       if (output) {
-        adapter = std::move(adapter_tmp);
         break;
+      }
+
+      // If we made it here without finding an output, try to power on the display and retry.
+      if (tries == 0) {
+        SetThreadExecutionState(ES_DISPLAY_REQUIRED);
+        Sleep(500);
       }
     }
 
@@ -441,21 +553,6 @@ namespace platf::dxgi {
       << "Offset             : "sv << offset_x << 'x' << offset_y << std::endl
       << "Virtual Desktop    : "sv << env_width << 'x' << env_height;
 
-    // Enable DwmFlush() only if the current refresh rate can match the client framerate.
-    auto refresh_rate = config.framerate;
-    DWM_TIMING_INFO timing_info;
-    timing_info.cbSize = sizeof(timing_info);
-
-    status = DwmGetCompositionTimingInfo(NULL, &timing_info);
-    if (FAILED(status)) {
-      BOOST_LOG(warning) << "Failed to detect active refresh rate.";
-    }
-    else {
-      refresh_rate = std::round((double) timing_info.rateRefresh.uiNumerator / (double) timing_info.rateRefresh.uiDenominator);
-    }
-
-    dup.use_dwmflush = config::video.dwmflush && !(config.framerate > refresh_rate) ? true : false;
-
     // Bump up thread priority
     {
       const DWORD flags = TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY;
@@ -478,13 +575,64 @@ namespace platf::dxgi {
 
       HMODULE gdi32 = GetModuleHandleA("GDI32");
       if (gdi32) {
-        PD3DKMTSetProcessSchedulingPriorityClass fn =
-          (PD3DKMTSetProcessSchedulingPriorityClass) GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
-        if (fn) {
-          status = fn(GetCurrentProcess(), D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME);
-          if (FAILED(status)) {
-            BOOST_LOG(warning) << "Failed to set realtime GPU priority. Please run application as administrator for optimal performance.";
+        auto check_hags = [&](const LUID &adapter) -> bool {
+          auto d3dkmt_open_adapter = (PD3DKMTOpenAdapterFromLuid) GetProcAddress(gdi32, "D3DKMTOpenAdapterFromLuid");
+          auto d3dkmt_query_adapter_info = (PD3DKMTQueryAdapterInfo) GetProcAddress(gdi32, "D3DKMTQueryAdapterInfo");
+          auto d3dkmt_close_adapter = (PD3DKMTCloseAdapter) GetProcAddress(gdi32, "D3DKMTCloseAdapter");
+          if (!d3dkmt_open_adapter || !d3dkmt_query_adapter_info || !d3dkmt_close_adapter) {
+            BOOST_LOG(error) << "Couldn't load d3dkmt functions from gdi32.dll to determine GPU HAGS status";
+            return false;
           }
+
+          D3DKMT_OPENADAPTERFROMLUID d3dkmt_adapter = { adapter };
+          if (FAILED(d3dkmt_open_adapter(&d3dkmt_adapter))) {
+            BOOST_LOG(error) << "D3DKMTOpenAdapterFromLuid() failed while trying to determine GPU HAGS status";
+            return false;
+          }
+
+          bool result;
+
+          D3DKMT_WDDM_2_7_CAPS d3dkmt_adapter_caps = {};
+          D3DKMT_QUERYADAPTERINFO d3dkmt_adapter_info = {};
+          d3dkmt_adapter_info.hAdapter = d3dkmt_adapter.hAdapter;
+          d3dkmt_adapter_info.Type = KMTQAITYPE_WDDM_2_7_CAPS;
+          d3dkmt_adapter_info.pPrivateDriverData = &d3dkmt_adapter_caps;
+          d3dkmt_adapter_info.PrivateDriverDataSize = sizeof(d3dkmt_adapter_caps);
+
+          if (SUCCEEDED(d3dkmt_query_adapter_info(&d3dkmt_adapter_info))) {
+            result = d3dkmt_adapter_caps.HwSchEnabled;
+          }
+          else {
+            BOOST_LOG(warning) << "D3DKMTQueryAdapterInfo() failed while trying to determine GPU HAGS status";
+            result = false;
+          }
+
+          D3DKMT_CLOSEADAPTER d3dkmt_close_adapter_wrap = { d3dkmt_adapter.hAdapter };
+          if (FAILED(d3dkmt_close_adapter(&d3dkmt_close_adapter_wrap))) {
+            BOOST_LOG(error) << "D3DKMTCloseAdapter() failed while trying to determine GPU HAGS status";
+          }
+
+          return result;
+        };
+
+        auto d3dkmt_set_process_priority = (PD3DKMTSetProcessSchedulingPriorityClass) GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
+        if (d3dkmt_set_process_priority) {
+          auto priority = D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME;
+          bool hags_enabled = check_hags(adapter_desc.AdapterLuid);
+          if (adapter_desc.VendorId == 0x10DE) {
+            // As of 2023.07, NVIDIA driver has unfixed bug(s) where "realtime" can cause unrecoverable encoding freeze or outright driver crash
+            // This issue happens more frequently with HAGS, in DX12 games or when VRAM is filled close to max capacity
+            // Track OBS to see if they find better workaround or NVIDIA fixes it on their end, they seem to be in communication
+            if (hags_enabled && !config::video.nv_realtime_hags) priority = D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH;
+          }
+          BOOST_LOG(info) << "Active GPU has HAGS " << (hags_enabled ? "enabled" : "disabled");
+          BOOST_LOG(info) << "Using " << (priority == D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH ? "high" : "realtime") << " GPU priority";
+          if (FAILED(d3dkmt_set_process_priority(GetCurrentProcess(), priority))) {
+            BOOST_LOG(warning) << "Failed to adjust GPU priority. Please run application as administrator for optimal performance.";
+          }
+        }
+        else {
+          BOOST_LOG(error) << "Couldn't load D3DKMTSetProcessSchedulingPriorityClass function from gdi32.dll to adjust GPU priority";
         }
       }
 
@@ -516,7 +664,7 @@ namespace platf::dxgi {
       }
     }
 
-    //FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
+    // FIXME: Duplicate output on RX580 in combination with DOOM (2016) --> BSOD
     {
       // IDXGIOutput5 is optional, but can provide improved performance and wide color support
       dxgi::output5_t output5 {};
@@ -577,6 +725,14 @@ namespace platf::dxgi {
     BOOST_LOG(info) << "Desktop resolution ["sv << dup_desc.ModeDesc.Width << 'x' << dup_desc.ModeDesc.Height << ']';
     BOOST_LOG(info) << "Desktop format ["sv << dxgi_format_to_string(dup_desc.ModeDesc.Format) << ']';
 
+    display_refresh_rate = dup_desc.ModeDesc.RefreshRate;
+    double display_refresh_rate_decimal = (double) display_refresh_rate.Numerator / display_refresh_rate.Denominator;
+    BOOST_LOG(info) << "Display refresh rate [" << display_refresh_rate_decimal << "Hz]";
+    display_refresh_rate_rounded = lround(display_refresh_rate_decimal);
+
+    client_frame_rate = config.framerate;
+    BOOST_LOG(info) << "Requested frame rate [" << client_frame_rate << "fps]";
+
     dxgi::output6_t output6 {};
     status = output->QueryInterface(IID_IDXGIOutput6, (void **) &output6);
     if (SUCCEEDED(status)) {
@@ -598,6 +754,17 @@ namespace platf::dxgi {
 
     // Capture format will be determined from the first call to AcquireNextFrame()
     capture_format = DXGI_FORMAT_UNKNOWN;
+
+    // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
+    timer.reset(CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS));
+    if (!timer) {
+      timer.reset(CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS));
+      if (!timer) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "Failed to create timer: "sv << winerr;
+        return -1;
+      }
+    }
 
     return 0;
   }

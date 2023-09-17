@@ -1,16 +1,16 @@
-//
-// Created by loki on 1/24/20.
-//
-
+/**
+ * @file tools/audio.cpp
+ * @brief todo
+ */
+#define INITGUID
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <roapi.h>
 
-#include <synchapi.h>
+#include <codecvt>
+#include <locale>
 
-#define INITGUID
-#include <propkeydef.h>
-#undef INITGUID
+#include <synchapi.h>
 
 #include <iostream>
 
@@ -21,12 +21,7 @@ DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
 
 using namespace std::literals;
-const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
-const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
-const IID IID_IAudioClient = __uuidof(IAudioClient);
-const IID IID_IAudioCaptureClient = __uuidof(IAudioCaptureClient);
 
-constexpr auto SAMPLE_RATE = 48000;
 int device_state_filter = DEVICE_STATE_ACTIVE;
 
 namespace audio {
@@ -53,6 +48,8 @@ namespace audio {
   using wstring_t = util::safe_ptr<WCHAR, co_task_free<WCHAR>>;
 
   using handle_t = util::safe_ptr_v2<void, BOOL, CloseHandle>;
+
+  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   class prop_var_t {
   public:
@@ -83,7 +80,21 @@ namespace audio {
     { "Stereo"sv,
       2,
       SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT },
-    { "Surround 5.1"sv,
+    { "Quadraphonic"sv,
+      4,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_BACK_LEFT |
+        SPEAKER_BACK_RIGHT },
+    { "Surround 5.1 (Side)"sv,
+      6,
+      SPEAKER_FRONT_LEFT |
+        SPEAKER_FRONT_RIGHT |
+        SPEAKER_FRONT_CENTER |
+        SPEAKER_LOW_FREQUENCY |
+        SPEAKER_SIDE_LEFT |
+        SPEAKER_SIDE_RIGHT },
+    { "Surround 5.1 (Back)"sv,
       6,
       SPEAKER_FRONT_LEFT |
         SPEAKER_FRONT_RIGHT |
@@ -137,28 +148,6 @@ namespace audio {
 
       return nullptr;
     }
-
-    wave_format->wBitsPerSample = 16;
-    wave_format->nSamplesPerSec = SAMPLE_RATE;
-    switch (wave_format->wFormatTag) {
-      case WAVE_FORMAT_PCM:
-        break;
-      case WAVE_FORMAT_IEEE_FLOAT:
-        break;
-      case WAVE_FORMAT_EXTENSIBLE: {
-        auto wave_ex = (PWAVEFORMATEXTENSIBLE) wave_format.get();
-        if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, wave_ex->SubFormat)) {
-          wave_ex->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-          wave_ex->Samples.wValidBitsPerSample = 16;
-          break;
-        }
-
-        std::cout << "Unsupported Sub Format for WAVE_FORMAT_EXTENSIBLE: [0x"sv << util::hex(wave_ex->SubFormat).to_string_view() << ']' << std::endl;
-      }
-      default:
-        std::cout << "Unsupported Wave Format: [0x"sv << util::hex(wave_format->wFormatTag).to_string_view() << ']' << std::endl;
-        return nullptr;
-    };
 
     set_wave_format(wave_format, format);
 
@@ -215,6 +204,17 @@ namespace audio {
         break;
     }
 
+    std::wstring current_format = L"Unknown"s;
+    for (const auto &format : formats) {
+      // This will fail for any format that's not the mix format for this device,
+      // so we can take the first match as the current format to display.
+      auto audio_client = make_audio_client(device, format);
+      if (audio_client) {
+        current_format = converter.from_bytes(format.name.data());
+        break;
+      }
+    }
+
     std::wcout
       << L"===== Device ====="sv << std::endl
       << L"Device ID          : "sv << wstring.get() << std::endl
@@ -222,18 +222,8 @@ namespace audio {
       << L"Adapter name       : "sv << no_null((LPWSTR) adapter_friendly_name.prop.pszVal) << std::endl
       << L"Device description : "sv << no_null((LPWSTR) device_desc.prop.pszVal) << std::endl
       << L"Device state       : "sv << device_state_string << std::endl
+      << L"Current format     : "sv << current_format << std::endl
       << std::endl;
-
-    if (device_state != DEVICE_STATE_ACTIVE) {
-      return;
-    }
-
-    for (const auto &format : formats) {
-      // Ensure WaveFromat is compatible
-      auto audio_client = make_audio_client(device, format);
-
-      std::cout << format.name << ": "sv << (!audio_client ? "unsupported"sv : "supported"sv) << std::endl;
-    }
   }
 }  // namespace audio
 

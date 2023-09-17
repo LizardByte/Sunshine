@@ -1,5 +1,7 @@
-// Created by loki on 12/14/19.
-
+/**
+ * @file src/process.cpp
+ * @brief Handles the startup and shutdown of the apps started by a streaming Session.
+ */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 #include "process.h"
@@ -22,6 +24,7 @@
 #include "crypto.h"
 #include "main.h"
 #include "platform/common.h"
+#include "system_tray.h"
 #include "utility.h"
 
 #ifdef _WIN32
@@ -37,6 +40,22 @@ namespace proc {
   namespace pt = boost::property_tree;
 
   proc_t proc;
+
+  class deinit_t: public platf::deinit_t {
+  public:
+    ~deinit_t() {
+      proc.terminate();
+    }
+  };
+
+  /**
+   * @brief Initializes proc functions
+   * @return Unique pointer to `deinit_t` to manage cleanup
+   */
+  std::unique_ptr<platf::deinit_t>
+  init() {
+    return std::make_unique<deinit_t>();
+  }
 
   void
   process_end(bp::child &proc, bp::group &proc_handle) {
@@ -83,7 +102,7 @@ namespace proc {
   }
 
   int
-  proc_t::execute(int app_id) {
+  proc_t::execute(int app_id, rtsp_stream::launch_session_t launch_session) {
     // Ensure starting from a clean slate
     terminate();
 
@@ -98,9 +117,31 @@ namespace proc {
 
     _app_id = app_id;
     _app = *iter;
-
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
+
+    // Add Stream-specific environment variables
+    _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
+    _env["SUNSHINE_APP_NAME"] = _app.name;
+    _env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session.width);
+    _env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session.height);
+    _env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session.fps);
+    _env["SUNSHINE_CLIENT_HDR"] = launch_session.enable_hdr ? "true" : "false";
+    _env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session.gcmap);
+    _env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session.host_audio ? "true" : "false";
+    _env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session.enable_sops ? "true" : "false";
+    int channelCount = launch_session.surround_info & (65535);
+    switch (channelCount) {
+      case 2:
+        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
+        break;
+      case 6:
+        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "5.1";
+        break;
+      case 8:
+        _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
+        break;
+    }
 
     if (!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
@@ -125,17 +166,22 @@ namespace proc {
     });
 
     for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
-      auto &cmd = _app_prep_it->do_cmd;
+      auto &cmd = *_app_prep_it;
+
+      // Skip empty commands
+      if (cmd.do_cmd.empty()) {
+        continue;
+      }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
+                                              find_working_directory(cmd.do_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
         auto msg = ec == std::errc::no_such_process ? "no active user sessions available" : ec.message();
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd << "]: System: "sv << msg;
+        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << msg;
         // We don't want any prep commands failing launch of the desktop.
         // This is to prevent the issue where users reboot their PC and need to log in with Sunshine.
         // no_such_process is returned when the impersonation fails, which is typically when there is no user session active.
@@ -147,7 +193,7 @@ namespace proc {
       child.wait();
       auto ret = child.exit_code();
       if (ret != 0 && ec != std::errc::no_such_process) {
-        BOOST_LOG(error) << '[' << cmd << "] failed with code ["sv << ret << ']';
+        BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
         return -1;
       }
     }
@@ -157,7 +203,7 @@ namespace proc {
                                               find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      auto child = platf::run_command(_app.elevated, true, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
       }
@@ -175,7 +221,7 @@ namespace proc {
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = platf::run_unprivileged(_app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+      _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
@@ -203,9 +249,8 @@ namespace proc {
 
   void
   proc_t::terminate() {
+    bool has_run = _app_id > 0;
     std::error_code ec;
-
-    // Ensure child process is terminated
     placebo = false;
     process_end(_process, _process_handle);
     _process = bp::child();
@@ -213,17 +258,17 @@ namespace proc {
     _app_id = -1;
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
-      auto &cmd = (_app_prep_it - 1)->undo_cmd;
+      auto &cmd = *(_app_prep_it - 1);
 
-      if (cmd.empty()) {
+      if (cmd.undo_cmd.empty()) {
         continue;
       }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
+                                              find_working_directory(cmd.undo_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd << ']';
-      auto child = platf::run_unprivileged(cmd, working_dir, _env, _pipe.get(), ec, nullptr);
+      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
       if (ec) {
         BOOST_LOG(warning) << "System: "sv << ec.message();
@@ -238,6 +283,13 @@ namespace proc {
     }
 
     _pipe.reset();
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+    // Only show the Stopped notification if we actually have an app to stop
+    // Since terminate() is always run when a new app has started
+    if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
+      system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
+    }
+#endif
   }
 
   const std::vector<ctx_t> &
@@ -263,8 +315,18 @@ namespace proc {
     return validate_app_image_path(app_image_path);
   }
 
+  std::string
+  proc_t::get_last_run_app_name() {
+    return _app.name;
+  }
+
   proc_t::~proc_t() {
-    terminate();
+    // It's not safe to call terminate() here because our proc_t is a static variable
+    // that may be destroyed after the Boost loggers have been destroyed. Instead,
+    // we return a deinit_t to main() to handle termination when we're exiting.
+    // Once we reach this point here, termination must have already happened.
+    assert(!placebo);
+    assert(!_process.running());
   }
 
   std::string_view::iterator
@@ -486,6 +548,7 @@ namespace proc {
         auto cmd = app_node.get_optional<std::string>("cmd"s);
         auto image_path = app_node.get_optional<std::string>("image-path"s);
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
+        auto elevated = app_node.get_optional<bool>("elevated"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -494,7 +557,10 @@ namespace proc {
             auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
             auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 
-            prep_cmds.emplace_back(std::move(do_cmd), std::move(undo_cmd));
+            prep_cmds.emplace_back(
+              std::move(do_cmd),
+              std::move(undo_cmd),
+              std::move(prep_cmd.elevated));
           }
         }
 
@@ -503,15 +569,14 @@ namespace proc {
 
           prep_cmds.reserve(prep_cmds.size() + prep_nodes.size());
           for (auto &[_, prep_node] : prep_nodes) {
-            auto do_cmd = parse_env_val(this_env, prep_node.get<std::string>("do"s));
+            auto do_cmd = prep_node.get_optional<std::string>("do"s);
             auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
+            auto elevated = prep_node.get_optional<bool>("elevated");
 
-            if (undo_cmd) {
-              prep_cmds.emplace_back(std::move(do_cmd), parse_env_val(this_env, *undo_cmd));
-            }
-            else {
-              prep_cmds.emplace_back(std::move(do_cmd));
-            }
+            prep_cmds.emplace_back(
+              parse_env_val(this_env, do_cmd.value_or("")),
+              parse_env_val(this_env, undo_cmd.value_or("")),
+              std::move(elevated.value_or(false)));
           }
         }
 
@@ -540,6 +605,8 @@ namespace proc {
         if (image_path) {
           ctx.image_path = parse_env_val(this_env, *image_path);
         }
+
+        ctx.elevated = elevated.value_or(false);
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {

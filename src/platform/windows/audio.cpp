@@ -1,7 +1,8 @@
-//
-// Created by loki on 1/12/20.
-//
-
+/**
+ * @file src/platform/windows/audio.cpp
+ * @brief todo
+ */
+#define INITGUID
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <roapi.h>
@@ -10,9 +11,9 @@
 
 #include <synchapi.h>
 
-#define INITGUID
-#include <propkeydef.h>
-#undef INITGUID
+#include <newdev.h>
+
+#include <avrt.h>
 
 #include "src/config.h"
 #include "src/main.h"
@@ -27,14 +28,19 @@ DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x2
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
 
-const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
-const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
-const IID IID_IAudioClient = __uuidof(IAudioClient);
-const IID IID_IAudioCaptureClient = __uuidof(IAudioCaptureClient);
+#if defined(__x86_64) || defined(_M_AMD64)
+  #define STEAM_DRIVER_SUBDIR L"x64"
+#elif defined(__i386) || defined(_M_IX86)
+  #define STEAM_DRIVER_SUBDIR L"x86"
+#else
+  #warning No known Steam audio driver for this architecture
+#endif
 
 using namespace std::literals;
 namespace platf::audio {
   constexpr auto SAMPLE_RATE = 48000;
+
+  constexpr auto STEAM_AUDIO_DRIVER_PATH = L"%CommonProgramFiles(x86)%\\Steam\\drivers\\Windows10\\" STEAM_DRIVER_SUBDIR L"\\SteamStreamingSpeakers.inf";
 
   template <class T>
   void
@@ -254,13 +260,85 @@ namespace platf::audio {
       &device);
 
     if (FAILED(status)) {
-      BOOST_LOG(error) << "Couldn't create audio Device [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Couldn't get default audio endpoint [0x"sv << util::hex(status).to_string_view() << ']';
 
       return nullptr;
     }
 
     return device;
   }
+
+  class audio_notification_t: public ::IMMNotificationClient {
+  public:
+    audio_notification_t() {}
+
+    // IUnknown implementation (unused by IMMDeviceEnumerator)
+    ULONG STDMETHODCALLTYPE
+    AddRef() {
+      return 1;
+    }
+
+    ULONG STDMETHODCALLTYPE
+    Release() {
+      return 1;
+    }
+
+    HRESULT STDMETHODCALLTYPE
+    QueryInterface(REFIID riid, VOID **ppvInterface) {
+      if (IID_IUnknown == riid) {
+        AddRef();
+        *ppvInterface = (IUnknown *) this;
+        return S_OK;
+      }
+      else if (__uuidof(IMMNotificationClient) == riid) {
+        AddRef();
+        *ppvInterface = (IMMNotificationClient *) this;
+        return S_OK;
+      }
+      else {
+        *ppvInterface = NULL;
+        return E_NOINTERFACE;
+      }
+    }
+
+    // IMMNotificationClient
+    HRESULT STDMETHODCALLTYPE
+    OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) {
+      if (flow == eRender) {
+        default_render_device_changed_flag.store(true);
+      }
+      return S_OK;
+    }
+
+    HRESULT STDMETHODCALLTYPE
+    OnDeviceAdded(LPCWSTR pwstrDeviceId) { return S_OK; }
+
+    HRESULT STDMETHODCALLTYPE
+    OnDeviceRemoved(LPCWSTR pwstrDeviceId) { return S_OK; }
+
+    HRESULT STDMETHODCALLTYPE
+    OnDeviceStateChanged(
+      LPCWSTR pwstrDeviceId,
+      DWORD dwNewState) { return S_OK; }
+
+    HRESULT STDMETHODCALLTYPE
+    OnPropertyValueChanged(
+      LPCWSTR pwstrDeviceId,
+      const PROPERTYKEY key) { return S_OK; }
+
+    /**
+     * @brief Checks if the default rendering device changed and resets the change flag
+     *
+     * @return true if the device changed since last call
+     */
+    bool
+    check_default_render_device_changed() {
+      return default_render_device_changed_flag.exchange(false);
+    }
+
+  private:
+    std::atomic_bool default_render_device_changed_flag;
+  };
 
   class mic_wasapi_t: public mic_t {
   public:
@@ -306,6 +384,13 @@ namespace platf::audio {
 
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't create Device Enumerator [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return -1;
+      }
+
+      status = device_enum->RegisterEndpointNotificationCallback(&endpt_notification);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Couldn't register endpoint notification [0x"sv << util::hex(status).to_string_view() << ']';
 
         return -1;
       }
@@ -366,6 +451,14 @@ namespace platf::audio {
         return -1;
       }
 
+      {
+        DWORD task_index = 0;
+        mmcss_task_handle = AvSetMmThreadCharacteristics("Pro Audio", &task_index);
+        if (!mmcss_task_handle) {
+          BOOST_LOG(error) << "Couldn't associate audio capture thread with Pro Audio MMCSS task [0x" << util::hex(GetLastError()).to_string_view() << ']';
+        }
+      }
+
       status = audio_client->Start();
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't start recording [0x"sv << util::hex(status).to_string_view() << ']';
@@ -377,8 +470,16 @@ namespace platf::audio {
     }
 
     ~mic_wasapi_t() override {
+      if (device_enum) {
+        device_enum->UnregisterEndpointNotificationCallback(&endpt_notification);
+      }
+
       if (audio_client) {
         audio_client->Stop();
+      }
+
+      if (mmcss_task_handle) {
+        AvRevertMmThreadCharacteristics(mmcss_task_handle);
       }
     }
 
@@ -397,6 +498,17 @@ namespace platf::audio {
       struct block_aligned_t {
         std::uint32_t audio_sample_size;
       } block_aligned;
+
+      // Check if the default audio device has changed
+      if (endpt_notification.check_default_render_device_changed()) {
+        // Invoke the audio_control_t's callback if it wants one
+        if (default_endpt_changed_cb) {
+          (*default_endpt_changed_cb)();
+        }
+
+        // Reinitialize to pick up the new default device
+        return capture_e::reinit;
+      }
 
       status = WaitForSingleObjectEx(audio_event.get(), default_latency_ms, FALSE);
       switch (status) {
@@ -431,8 +543,16 @@ namespace platf::audio {
             return capture_e::error;
         }
 
+        if (buffer_flags & AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY) {
+          BOOST_LOG(debug) << "Audio capture signaled buffer discontinuity";
+        }
+
         sample_aligned.uninitialized = std::end(sample_buf) - sample_buf_pos;
         auto n = std::min(sample_aligned.uninitialized, block_aligned.audio_sample_size * channels);
+
+        if (n < block_aligned.audio_sample_size * channels) {
+          BOOST_LOG(warning) << "Audio capture buffer overflow";
+        }
 
         if (buffer_flags & AUDCLNT_BUFFERFLAGS_SILENT) {
           std::fill_n(sample_buf_pos, n, 0);
@@ -465,11 +585,16 @@ namespace platf::audio {
     audio_client_t audio_client;
     audio_capture_t audio_capture;
 
+    audio_notification_t endpt_notification;
+    std::optional<std::function<void()>> default_endpt_changed_cb;
+
     REFERENCE_TIME default_latency_ms;
 
     util::buffer_t<std::int16_t> sample_buf;
     std::int16_t *sample_buf_pos;
     int channels;
+
+    HANDLE mmcss_task_handle = NULL;
   };
 
   class audio_control_t: public ::platf::audio_control_t {
@@ -479,20 +604,6 @@ namespace platf::audio {
       auto virtual_adapter_name = L"Steam Streaming Speakers"sv;
 
       sink_t sink;
-
-      audio::device_enum_t device_enum;
-      auto status = CoCreateInstance(
-        CLSID_MMDeviceEnumerator,
-        nullptr,
-        CLSCTX_ALL,
-        IID_IMMDeviceEnumerator,
-        (void **) &device_enum);
-
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
-
-        return std::nullopt;
-      }
 
       auto device = default_device(device_enum);
       if (!device) {
@@ -505,7 +616,7 @@ namespace platf::audio {
       sink.host = converter.to_bytes(wstring.get());
 
       collection_t collection;
-      status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
+      auto status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']';
 
@@ -515,7 +626,10 @@ namespace platf::audio {
       UINT count;
       collection->GetCount(&count);
 
-      std::string virtual_device_id = config::audio.virtual_sink;
+      // If the sink isn't a device name, we'll assume it's a device ID
+      auto virtual_device_id = find_device_id_by_name(config::audio.virtual_sink).value_or(converter.from_bytes(config::audio.virtual_sink));
+      auto virtual_device_found = false;
+
       for (auto x = 0; x < count; ++x) {
         audio::device_t device;
         collection->Item(x, &device);
@@ -526,6 +640,7 @@ namespace platf::audio {
 
         audio::wstring_t wstring;
         device->GetId(&wstring);
+        std::wstring device_id { wstring.get() };
 
         audio::prop_t prop;
         device->OpenPropertyStore(STGM_READ, &prop);
@@ -548,19 +663,57 @@ namespace platf::audio {
           << std::endl;
 
         if (virtual_device_id.empty() && adapter_name == virtual_adapter_name) {
-          virtual_device_id = converter.to_bytes(wstring.get());
+          virtual_device_id = std::move(device_id);
+          virtual_device_found = true;
+          break;
+        }
+        else if (virtual_device_id == device_id) {
+          virtual_device_found = true;
+          break;
         }
       }
 
-      if (!virtual_device_id.empty()) {
+      if (virtual_device_found) {
+        auto name_suffix = converter.to_bytes(virtual_device_id);
         sink.null = std::make_optional(sink_t::null_t {
-          "virtual-"s.append(formats[format_t::stereo - 1].name) + virtual_device_id,
-          "virtual-"s.append(formats[format_t::surr51 - 1].name) + virtual_device_id,
-          "virtual-"s.append(formats[format_t::surr71 - 1].name) + virtual_device_id,
+          "virtual-"s.append(formats[format_t::stereo - 1].name) + name_suffix,
+          "virtual-"s.append(formats[format_t::surr51 - 1].name) + name_suffix,
+          "virtual-"s.append(formats[format_t::surr71 - 1].name) + name_suffix,
         });
+      }
+      else if (!virtual_device_id.empty()) {
+        BOOST_LOG(warning) << "Unable to find the specified virtual sink: "sv << virtual_device_id;
       }
 
       return sink;
+    }
+
+    /**
+     * @brief Gets information encoded in the raw sink name
+     *
+     * @param sink The raw sink name
+     *
+     * @return A pair of type and the real sink name
+     */
+    std::pair<format_t::type_e, std::string_view>
+    get_sink_info(const std::string &sink) {
+      std::string_view sv { sink.c_str(), sink.size() };
+
+      // sink format:
+      // [virtual-(format name)]device_id
+      auto prefix = "virtual-"sv;
+      if (sv.find(prefix) == 0) {
+        sv = sv.substr(prefix.size(), sv.size() - prefix.size());
+
+        for (auto &format : formats) {
+          auto &name = format.name;
+          if (sv.find(name) == 0) {
+            return std::make_pair(format.type, sv.substr(name.size(), sv.size() - name.size()));
+          }
+        }
+      }
+
+      return std::make_pair(format_t::none, sv);
     }
 
     std::unique_ptr<mic_t>
@@ -571,42 +724,34 @@ namespace platf::audio {
         return nullptr;
       }
 
+      // If this is a virtual sink, set a callback that will change the sink back if it's changed
+      auto sink_info = get_sink_info(assigned_sink);
+      if (sink_info.first != format_t::none) {
+        mic->default_endpt_changed_cb = [this] {
+          BOOST_LOG(info) << "Resetting sink to ["sv << assigned_sink << "] after default changed";
+          set_sink(assigned_sink);
+        };
+      }
+
       return mic;
     }
 
     /**
-   * If the requested sink is a virtual sink, meaning no speakers attached to
-   * the host, then we can seamlessly set the format to stereo and surround sound.
-   * 
-   * Any virtual sink detected will be prefixed by:
-   *    virtual-(format name)
-   * If it doesn't contain that prefix, then the format will not be changed
-   */
+     * If the requested sink is a virtual sink, meaning no speakers attached to
+     * the host, then we can seamlessly set the format to stereo and surround sound.
+     *
+     * Any virtual sink detected will be prefixed by:
+     *    virtual-(format name)
+     * If it doesn't contain that prefix, then the format will not be changed
+     */
     std::optional<std::wstring>
     set_format(const std::string &sink) {
-      std::string_view sv { sink.c_str(), sink.size() };
+      auto sink_info = get_sink_info(sink);
 
-      format_t::type_e type = format_t::none;
-      // sink format:
-      // [virtual-(format name)]device_id
-      auto prefix = "virtual-"sv;
-      if (sv.find(prefix) == 0) {
-        sv = sv.substr(prefix.size(), sv.size() - prefix.size());
+      // If the sink isn't a device name, we'll assume it's a device ID
+      auto wstring_device_id = find_device_id_by_name(sink).value_or(converter.from_bytes(sink_info.second.data()));
 
-        for (auto &format : formats) {
-          auto &name = format.name;
-          if (sv.find(name) == 0) {
-            type = format.type;
-            sv = sv.substr(name.size(), sv.size() - name.size());
-
-            break;
-          }
-        }
-      }
-
-      auto wstring_device_id = converter.from_bytes(sv.data());
-
-      if (type == format_t::none) {
+      if (sink_info.first == format_t::none) {
         // wstring_device_id does not contain virtual-(format name)
         // It's a simple deviceId, just pass it back
         return std::make_optional(std::move(wstring_device_id));
@@ -620,14 +765,14 @@ namespace platf::audio {
         return std::nullopt;
       }
 
-      set_wave_format(wave_format, formats[(int) type - 1]);
+      set_wave_format(wave_format, formats[(int) sink_info.first - 1]);
 
       WAVEFORMATEXTENSIBLE p {};
       status = policy->SetDeviceFormat(wstring_device_id.c_str(), wave_format.get(), (WAVEFORMATEX *) &p);
 
       // Surround 5.1 might contain side-{left, right} instead of speaker in the back
       // Try again with different speaker mask.
-      if (status == 0x88890008 && type == format_t::surr51) {
+      if (status == 0x88890008 && sink_info.first == format_t::surr51) {
         set_wave_format(wave_format, surround_51_side_speakers);
         status = policy->SetDeviceFormat(wstring_device_id.c_str(), wave_format.get(), (WAVEFORMATEX *) &p);
       }
@@ -651,13 +796,219 @@ namespace platf::audio {
       for (int x = 0; x < (int) ERole_enum_count; ++x) {
         auto status = policy->SetDefaultEndpoint(wstring_device_id->c_str(), (ERole) x);
         if (status) {
-          BOOST_LOG(warning) << "Couldn't set ["sv << sink << "] to role ["sv << x << ']';
+          // Depending on the format of the string, we could get either of these errors
+          if (status == HRESULT_FROM_WIN32(ERROR_NOT_FOUND) || status == E_INVALIDARG) {
+            BOOST_LOG(warning) << "Audio sink not found: "sv << sink;
+          }
+          else {
+            BOOST_LOG(warning) << "Couldn't set ["sv << sink << "] to role ["sv << x << "]: 0x"sv << util::hex(status).to_string_view();
+          }
 
           ++failure;
         }
       }
 
+      // Remember the assigned sink name, so we have it for later if we need to set it
+      // back after another application changes it
+      if (!failure) {
+        assigned_sink = sink;
+      }
+
       return failure;
+    }
+
+    /**
+     * @brief Find the audio device ID given a user-specified name.
+     * @param name The name provided by the user.
+     * @return The matching device ID, or nothing if not found.
+     */
+    std::optional<std::wstring>
+    find_device_id_by_name(const std::string &name) {
+      if (name.empty()) {
+        return std::nullopt;
+      }
+
+      collection_t collection;
+      auto status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Couldn't enumerate: [0x"sv << util::hex(status).to_string_view() << ']';
+
+        return std::nullopt;
+      }
+
+      UINT count;
+      collection->GetCount(&count);
+
+      auto wstring_name = converter.from_bytes(name.data());
+
+      for (auto x = 0; x < count; ++x) {
+        audio::device_t device;
+        collection->Item(x, &device);
+
+        if (!validate_device(device)) {
+          continue;
+        }
+
+        audio::wstring_t wstring_id;
+        device->GetId(&wstring_id);
+
+        audio::prop_t prop;
+        device->OpenPropertyStore(STGM_READ, &prop);
+
+        prop_var_t adapter_friendly_name;
+        prop_var_t device_friendly_name;
+        prop_var_t device_desc;
+
+        prop->GetValue(PKEY_Device_FriendlyName, &device_friendly_name.prop);
+        prop->GetValue(PKEY_DeviceInterface_FriendlyName, &adapter_friendly_name.prop);
+        prop->GetValue(PKEY_Device_DeviceDesc, &device_desc.prop);
+
+        auto adapter_name = no_null((LPWSTR) adapter_friendly_name.prop.pszVal);
+        auto device_name = no_null((LPWSTR) device_friendly_name.prop.pszVal);
+        auto device_description = no_null((LPWSTR) device_desc.prop.pszVal);
+
+        // Match the user-specified name against any of the user-visible strings
+        if (std::wcscmp(wstring_name.c_str(), adapter_name) == 0 ||
+            std::wcscmp(wstring_name.c_str(), device_name) == 0 ||
+            std::wcscmp(wstring_name.c_str(), device_description) == 0) {
+          return std::make_optional(std::wstring { wstring_id.get() });
+        }
+      }
+
+      return std::nullopt;
+    }
+
+    /**
+     * @brief Resets the default audio device from Steam Streaming Speakers.
+     */
+    void
+    reset_default_device() {
+      auto steam_device_id = find_device_id_by_name("Steam Streaming Speakers"s);
+      if (!steam_device_id) {
+        return;
+      }
+
+      {
+        // Get the current default audio device (if present)
+        auto current_default_dev = default_device(device_enum);
+        if (!current_default_dev) {
+          return;
+        }
+
+        audio::wstring_t current_default_id;
+        current_default_dev->GetId(&current_default_id);
+
+        // If Steam Streaming Speakers are already not default, we're done.
+        if (*steam_device_id != current_default_id.get()) {
+          return;
+        }
+      }
+
+      // Disable the Steam Streaming Speakers temporarily to allow the OS to pick a new default.
+      auto hr = policy->SetEndpointVisibility(steam_device_id->c_str(), FALSE);
+      if (FAILED(hr)) {
+        BOOST_LOG(warning) << "Failed to disable Steam audio device: "sv << util::hex(hr).to_string_view();
+        return;
+      }
+
+      // Get the newly selected default audio device
+      auto new_default_dev = default_device(device_enum);
+
+      // Enable the Steam Streaming Speakers again
+      hr = policy->SetEndpointVisibility(steam_device_id->c_str(), TRUE);
+      if (FAILED(hr)) {
+        BOOST_LOG(warning) << "Failed to enable Steam audio device: "sv << util::hex(hr).to_string_view();
+        return;
+      }
+
+      // If there's now no audio device, the Steam Streaming Speakers were the only device available.
+      // There's no other device to set as the default, so just return.
+      if (!new_default_dev) {
+        return;
+      }
+
+      audio::wstring_t new_default_id;
+      new_default_dev->GetId(&new_default_id);
+
+      // Set the new default audio device
+      for (int x = 0; x < (int) ERole_enum_count; ++x) {
+        policy->SetDefaultEndpoint(new_default_id.get(), (ERole) x);
+      }
+
+      BOOST_LOG(info) << "Successfully reset default audio device"sv;
+    }
+
+    /**
+     * @brief Installs the Steam Streaming Speakers driver, if present.
+     * @return `true` if installation was successful.
+     */
+    bool
+    install_steam_audio_drivers() {
+#ifdef STEAM_DRIVER_SUBDIR
+      // MinGW's libnewdev.a is missing DiInstallDriverW() even though the headers have it,
+      // so we have to load it at runtime. It's Vista or later, so it will always be available.
+      auto newdev = LoadLibraryExW(L"newdev.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+      if (!newdev) {
+        BOOST_LOG(error) << "newdev.dll failed to load"sv;
+        return false;
+      }
+      auto fg = util::fail_guard([newdev]() {
+        FreeLibrary(newdev);
+      });
+
+      auto fn_DiInstallDriverW = (decltype(DiInstallDriverW) *) GetProcAddress(newdev, "DiInstallDriverW");
+      if (!fn_DiInstallDriverW) {
+        BOOST_LOG(error) << "DiInstallDriverW() is missing"sv;
+        return false;
+      }
+
+      // Get the current default audio device (if present)
+      auto old_default_dev = default_device(device_enum);
+
+      // Install the Steam Streaming Speakers driver
+      WCHAR driver_path[MAX_PATH] = {};
+      ExpandEnvironmentStringsW(STEAM_AUDIO_DRIVER_PATH, driver_path, ARRAYSIZE(driver_path));
+      if (fn_DiInstallDriverW(nullptr, driver_path, 0, nullptr)) {
+        BOOST_LOG(info) << "Successfully installed Steam Streaming Speakers"sv;
+
+        // Wait for 5 seconds to allow the audio subsystem to reconfigure things before
+        // modifying the default audio device or enumerating devices again.
+        Sleep(5000);
+
+        // If there was a previous default device, restore that original device as the
+        // default output device just in case installing the new one changed it.
+        if (old_default_dev) {
+          audio::wstring_t old_default_id;
+          old_default_dev->GetId(&old_default_id);
+
+          for (int x = 0; x < (int) ERole_enum_count; ++x) {
+            policy->SetDefaultEndpoint(old_default_id.get(), (ERole) x);
+          }
+        }
+
+        return true;
+      }
+      else {
+        auto err = GetLastError();
+        switch (err) {
+          case ERROR_ACCESS_DENIED:
+            BOOST_LOG(warning) << "Administrator privileges are required to install Steam Streaming Speakers"sv;
+            break;
+          case ERROR_FILE_NOT_FOUND:
+          case ERROR_PATH_NOT_FOUND:
+            BOOST_LOG(info) << "Steam audio drivers not found. This is expected if you don't have Steam installed."sv;
+            break;
+          default:
+            BOOST_LOG(warning) << "Failed to install Steam audio drivers: "sv << err;
+            break;
+        }
+
+        return false;
+      }
+#else
+      BOOST_LOG(warning) << "Unable to install Steam Streaming Speakers on unknown architecture"sv;
+      return false;
+#endif
     }
 
     int
@@ -675,12 +1026,26 @@ namespace platf::audio {
         return -1;
       }
 
+      status = CoCreateInstance(
+        CLSID_MMDeviceEnumerator,
+        nullptr,
+        CLSCTX_ALL,
+        IID_IMMDeviceEnumerator,
+        (void **) &device_enum);
+
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
       return 0;
     }
 
     ~audio_control_t() override {}
 
     policy_t policy;
+    audio::device_enum_t device_enum;
+    std::string assigned_sink;
   };
 }  // namespace platf::audio
 
@@ -700,6 +1065,13 @@ namespace platf {
       return nullptr;
     }
 
+    // Install Steam Streaming Speakers if needed. We do this during audio_control() to ensure
+    // the sink information returned includes the new Steam Streaming Speakers device.
+    if (config::audio.install_steam_drivers && !control->find_device_id_by_name("Steam Streaming Speakers"s)) {
+      // This is best effort. Don't fail if it doesn't work.
+      control->install_steam_audio_drivers();
+    }
+
     return control;
   }
 
@@ -708,6 +1080,17 @@ namespace platf {
     if (dxgi::init()) {
       return nullptr;
     }
-    return std::make_unique<platf::audio::co_init_t>();
+
+    // Initialize COM
+    auto co_init = std::make_unique<platf::audio::co_init_t>();
+
+    // If Steam Streaming Speakers are currently the default audio device,
+    // change the default to something else (if another device is available).
+    audio::audio_control_t audio_ctrl;
+    if (audio_ctrl.init() == 0) {
+      audio_ctrl.reset_default_device();
+    }
+
+    return co_init;
   }
 }  // namespace platf

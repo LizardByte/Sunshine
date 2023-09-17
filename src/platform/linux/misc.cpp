@@ -1,6 +1,12 @@
 /**
- * @file misc.cpp
+ * @file src/misc.cpp
+ * @brief todo
  */
+
+// Required for in6_pktinfo with glibc headers
+#ifndef _GNU_SOURCE
+  #define _GNU_SOURCE 1
+#endif
 
 // standard includes
 #include <fstream>
@@ -103,15 +109,14 @@ namespace platf {
 
   std::string
   from_sockaddr(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN];
+    char data[INET6_ADDRSTRLEN] = {};
 
     auto family = ip_addr->sa_family;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data,
         INET6_ADDRSTRLEN);
     }
-
-    if (family == AF_INET) {
+    else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data,
         INET_ADDRSTRLEN);
     }
@@ -121,17 +126,16 @@ namespace platf {
 
   std::pair<std::uint16_t, std::string>
   from_sockaddr_ex(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN];
+    char data[INET6_ADDRSTRLEN] = {};
 
     auto family = ip_addr->sa_family;
-    std::uint16_t port;
+    std::uint16_t port = 0;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data,
         INET6_ADDRSTRLEN);
       port = ((sockaddr_in6 *) ip_addr)->sin6_port;
     }
-
-    if (family == AF_INET) {
+    else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data,
         INET_ADDRSTRLEN);
       port = ((sockaddr_in *) ip_addr)->sin_port;
@@ -159,8 +163,7 @@ namespace platf {
   }
 
   bp::child
-  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-    BOOST_LOG(warning) << "run_unprivileged() is not yet implemented for this platform. The new process will run with Sunshine's permissions."sv;
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     if (!group) {
       if (!file) {
         return bp::child(cmd, env, bp::start_dir(working_dir), bp::std_out > bp::null, bp::std_err > bp::null, ec);
@@ -179,6 +182,28 @@ namespace platf {
     }
   }
 
+  /**
+   * @brief Open a url in the default web browser.
+   * @param url The url to open.
+   */
+  void
+  open_url(const std::string &url) {
+    // set working dir to user home directory
+    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
+    std::string cmd = R"(xdg-open ")" + url + R"(")";
+
+    boost::process::environment _env = boost::this_process::environment();
+    std::error_code ec;
+    auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
+    if (ec) {
+      BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
+    }
+    else {
+      BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
+      child.detach();
+    }
+  }
+
   void
   adjust_thread_priority(thread_priority_e priority) {
     // Unimplemented
@@ -194,61 +219,132 @@ namespace platf {
     // Nothing to do
   }
 
-  bool
-  restart_supported() {
-    // Restart not supported yet
-    return false;
+  void
+  restart_on_exit() {
+    char executable[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
+    if (len == -1) {
+      BOOST_LOG(fatal) << "readlink() failed: "sv << errno;
+      return;
+    }
+    executable[len] = '\0';
+
+    // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
+    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
+      close(fd);
+    }
+
+    // Re-exec ourselves with the same arguments
+    if (execv(executable, lifetime::get_argv()) < 0) {
+      BOOST_LOG(fatal) << "execv() failed: "sv << errno;
+      return;
+    }
   }
 
-  bool
+  void
   restart() {
-    // Restart not supported yet
-    return false;
+    // Gracefully clean up and restart ourselves instead of exiting
+    atexit(restart_on_exit);
+    lifetime::exit_sunshine(0, true);
+  }
+
+  struct sockaddr_in
+  to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
+    struct sockaddr_in saddr_v4 = {};
+
+    saddr_v4.sin_family = AF_INET;
+    saddr_v4.sin_port = htons(port);
+
+    auto addr_bytes = address.to_bytes();
+    memcpy(&saddr_v4.sin_addr, addr_bytes.data(), sizeof(saddr_v4.sin_addr));
+
+    return saddr_v4;
+  }
+
+  struct sockaddr_in6
+  to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
+    struct sockaddr_in6 saddr_v6 = {};
+
+    saddr_v6.sin6_family = AF_INET6;
+    saddr_v6.sin6_port = htons(port);
+    saddr_v6.sin6_scope_id = address.scope_id();
+
+    auto addr_bytes = address.to_bytes();
+    memcpy(&saddr_v6.sin6_addr, addr_bytes.data(), sizeof(saddr_v6.sin6_addr));
+
+    return saddr_v6;
   }
 
   bool
   send_batch(batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
+    struct msghdr msg = {};
 
     // Convert the target address into a sockaddr
-    struct sockaddr_in saddr_v4 = {};
-    struct sockaddr_in6 saddr_v6 = {};
-    struct sockaddr *addr;
-    socklen_t addr_len;
+    struct sockaddr_in taddr_v4 = {};
+    struct sockaddr_in6 taddr_v6 = {};
     if (send_info.target_address.is_v6()) {
-      auto address_v6 = send_info.target_address.to_v6();
+      taddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
 
-      saddr_v6.sin6_family = AF_INET6;
-      saddr_v6.sin6_port = htons(send_info.target_port);
-      saddr_v6.sin6_scope_id = address_v6.scope_id();
-
-      auto addr_bytes = address_v6.to_bytes();
-      memcpy(&saddr_v6.sin6_addr, addr_bytes.data(), sizeof(saddr_v6.sin6_addr));
-
-      addr = (struct sockaddr *) &saddr_v6;
-      addr_len = sizeof(saddr_v6);
+      msg.msg_name = (struct sockaddr *) &taddr_v6;
+      msg.msg_namelen = sizeof(taddr_v6);
     }
     else {
-      auto address_v4 = send_info.target_address.to_v4();
+      taddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
 
-      saddr_v4.sin_family = AF_INET;
-      saddr_v4.sin_port = htons(send_info.target_port);
+      msg.msg_name = (struct sockaddr *) &taddr_v4;
+      msg.msg_namelen = sizeof(taddr_v4);
+    }
 
-      auto addr_bytes = address_v4.to_bytes();
-      memcpy(&saddr_v4.sin_addr, addr_bytes.data(), sizeof(saddr_v4.sin_addr));
+    union {
+      char buf[CMSG_SPACE(sizeof(uint16_t)) +
+               std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+      struct cmsghdr alignment;
+    } cmbuf;
+    socklen_t cmbuflen = 0;
 
-      addr = (struct sockaddr *) &saddr_v4;
-      addr_len = sizeof(saddr_v4);
+    msg.msg_control = cmbuf.buf;
+    msg.msg_controllen = sizeof(cmbuf.buf);
+
+    // The PKTINFO option will always be first, then we will conditionally
+    // append the UDP_SEGMENT option next if applicable.
+    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
+    if (send_info.source_address.is_v6()) {
+      struct in6_pktinfo pktInfo;
+
+      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
+      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+    }
+    else {
+      struct in_pktinfo pktInfo;
+
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     }
 
 #ifdef UDP_SEGMENT
     {
-      struct msghdr msg = {};
       struct iovec iov = {};
-      union {
-        char buf[CMSG_SPACE(sizeof(uint16_t))];
-        struct cmsghdr alignment;
-      } cmbuf;
+
+      msg.msg_iov = &iov;
+      msg.msg_iovlen = 1;
 
       // UDP GSO on Linux currently only supports sending 64K or 64 segments at a time
       size_t seg_index = 0;
@@ -257,26 +353,19 @@ namespace platf {
         iov.iov_base = (void *) &send_info.buffer[seg_index * send_info.block_size];
         iov.iov_len = send_info.block_size * std::min(send_info.block_count - seg_index, seg_max);
 
-        msg.msg_name = addr;
-        msg.msg_namelen = addr_len;
-        msg.msg_iov = &iov;
-        msg.msg_iovlen = 1;
-
         // We should not use GSO if the data is <= one full block size
         if (iov.iov_len > send_info.block_size) {
-          msg.msg_control = cmbuf.buf;
-          msg.msg_controllen = CMSG_SPACE(sizeof(uint16_t));
+          msg.msg_controllen = cmbuflen + CMSG_SPACE(sizeof(uint16_t));
 
           // Enable GSO to perform segmentation of our buffer for us
-          auto cm = CMSG_FIRSTHDR(&msg);
+          auto cm = CMSG_NXTHDR(&msg, pktinfo_cm);
           cm->cmsg_level = SOL_UDP;
           cm->cmsg_type = UDP_SEGMENT;
           cm->cmsg_len = CMSG_LEN(sizeof(uint16_t));
           *((uint16_t *) CMSG_DATA(cm)) = send_info.block_size;
         }
         else {
-          msg.msg_control = nullptr;
-          msg.msg_controllen = 0;
+          msg.msg_controllen = cmbuflen;
         }
 
         // This will fail if GSO is not available, so we will fall back to non-GSO if
@@ -323,10 +412,12 @@ namespace platf {
         iovs[i].iov_len = send_info.block_size;
 
         msgs[i] = {};
-        msgs[i].msg_hdr.msg_name = addr;
-        msgs[i].msg_hdr.msg_namelen = addr_len;
+        msgs[i].msg_hdr.msg_name = msg.msg_name;
+        msgs[i].msg_hdr.msg_namelen = msg.msg_namelen;
         msgs[i].msg_hdr.msg_iov = &iovs[i];
         msgs[i].msg_hdr.msg_iovlen = 1;
+        msgs[i].msg_hdr.msg_control = cmbuf.buf;
+        msgs[i].msg_hdr.msg_controllen = cmbuflen;
       }
 
       // Call sendmmsg() until all messages are sent
@@ -359,6 +450,101 @@ namespace platf {
 
       return true;
     }
+  }
+
+  bool
+  send(send_info_t &send_info) {
+    auto sockfd = (int) send_info.native_socket;
+    struct msghdr msg = {};
+
+    // Convert the target address into a sockaddr
+    struct sockaddr_in taddr_v4 = {};
+    struct sockaddr_in6 taddr_v6 = {};
+    if (send_info.target_address.is_v6()) {
+      taddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
+
+      msg.msg_name = (struct sockaddr *) &taddr_v6;
+      msg.msg_namelen = sizeof(taddr_v6);
+    }
+    else {
+      taddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
+
+      msg.msg_name = (struct sockaddr *) &taddr_v4;
+      msg.msg_namelen = sizeof(taddr_v4);
+    }
+
+    union {
+      char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+      struct cmsghdr alignment;
+    } cmbuf;
+    socklen_t cmbuflen = 0;
+
+    msg.msg_control = cmbuf.buf;
+    msg.msg_controllen = sizeof(cmbuf.buf);
+
+    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
+    if (send_info.source_address.is_v6()) {
+      struct in6_pktinfo pktInfo;
+
+      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
+      pktInfo.ipi6_addr = saddr_v6.sin6_addr;
+      pktInfo.ipi6_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IPV6;
+      pktinfo_cm->cmsg_type = IPV6_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+    }
+    else {
+      struct in_pktinfo pktInfo;
+
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
+      pktInfo.ipi_ifindex = 0;
+
+      cmbuflen += CMSG_SPACE(sizeof(pktInfo));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_PKTINFO;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
+      memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+    }
+
+    struct iovec iov = {};
+    iov.iov_base = (void *) send_info.buffer;
+    iov.iov_len = send_info.size;
+
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+
+    msg.msg_controllen = cmbuflen;
+
+    auto bytes_sent = sendmsg(sockfd, &msg, 0);
+
+    // If there's no send buffer space, wait for some to be available
+    while (bytes_sent < 0 && errno == EAGAIN) {
+      struct pollfd pfd;
+
+      pfd.fd = sockfd;
+      pfd.events = POLLOUT;
+
+      if (poll(&pfd, 1, -1) != 1) {
+        BOOST_LOG(warning) << "poll() failed: "sv << errno;
+        break;
+      }
+
+      // Try to send again
+      bytes_sent = sendmsg(sockfd, &msg, 0);
+    }
+
+    if (bytes_sent < 0) {
+      BOOST_LOG(warning) << "sendmsg() failed: "sv << errno;
+      return false;
+    }
+
+    return true;
   }
 
   class qos_t: public deinit_t {

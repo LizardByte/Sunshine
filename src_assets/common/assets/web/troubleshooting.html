@@ -13,7 +13,7 @@
         Application Closed Successfully!
       </div>
       <div class="alert alert-danger" v-if="closeAppStatus === false">
-        Error while closing Appplication
+        Error while closing Application
       </div>
       <div>
         <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
@@ -23,7 +23,7 @@
     </div>
   </div>
   <!--Restart Sunshine-->
-  <div class="card p-2 my-4" v-if="restartSupported">
+  <div class="card p-2 my-4">
     <div class="card-body">
       <h2>Restart Sunshine</h2>
       <br />
@@ -31,11 +31,8 @@
         If Sunshine isn't working properly, you can try restarting it.
         This will terminate any running sessions.
       </p>
-      <div class="alert alert-success" v-if="restartStatus === true">
+      <div class="alert alert-success" v-if="restartPressed === true">
         Sunshine is restarting
-      </div>
-      <div class="alert alert-danger" v-if="restartStatus === false">
-        Error restarting Sunshine
       </div>
       <div>
         <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
@@ -90,9 +87,7 @@
         closeAppStatus: null,
         unpairAllPressed: false,
         unpairAllStatus: null,
-        restartSupported: false,
         restartPressed: false,
-        restartStatus: null,
         logs: 'Loading...',
         logFilter: null,
         logInterval: null,
@@ -111,11 +106,6 @@
         this.refreshLogs();
       }, 5000);
       this.refreshLogs();
-      fetch("/api/config")
-        .then((r) => r.json())
-        .then((r) => {
-          this.restartSupported = (r.restart_supported === "true");
-        });
     },
     beforeDestroy(){
       clearInterval(this.logInterval);
@@ -157,17 +147,11 @@
       },
       restart() {
         this.restartPressed = true;
+        setTimeout(() => {
+            this.restartPressed = false;
+          }, 5000);
         fetch("/api/restart", {
             method: "POST",
-          }).then((r) => {
-            this.restartPressed = false;
-            
-            // We won't get a response in the success case
-            this.restartStatus = r.status.toString() !== "false";
-            
-            setTimeout(() => {
-              this.restartStatus = null;
-            }, 5000);
           });
       },
     },

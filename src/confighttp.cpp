@@ -1,5 +1,9 @@
-// Created by TheElixZammuto on 2021-05-09.
-// TODO: Authentication, better handling of routes common to nvhttp, cleanup
+/**
+ * @file src/confighttp.cpp
+ * @brief todo
+ *
+ * @todo Authentication, better handling of routes common to nvhttp, cleanup
+ */
 
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -72,7 +76,7 @@ namespace confighttp {
 
   void
   send_unauthorized(resp_https_t response, req_https_t request) {
-    auto address = request->remote_endpoint().address().to_string();
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
     const SimpleWeb::CaseInsensitiveMultimap headers {
       { "WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")" }
@@ -82,7 +86,7 @@ namespace confighttp {
 
   void
   send_redirect(resp_https_t response, req_https_t request, const char *path) {
-    auto address = request->remote_endpoint().address().to_string();
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
     const SimpleWeb::CaseInsensitiveMultimap headers {
       { "Location", path }
@@ -92,7 +96,7 @@ namespace confighttp {
 
   bool
   authenticate(resp_https_t response, req_https_t request) {
-    auto address = request->remote_endpoint().address().to_string();
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     auto ip_type = net::from_address(address);
 
     if (ip_type > http::origin_web_ui_allowed) {
@@ -128,7 +132,7 @@ namespace confighttp {
     auto password = authData.substr(index + 1);
     auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
 
-    if (username != config::sunshine.username || hash != config::sunshine.password) {
+    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
       return false;
     }
 
@@ -544,7 +548,6 @@ namespace confighttp {
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
-    outputTree.put("restart_supported", platf::restart_supported());
 
     auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
 
@@ -595,30 +598,8 @@ namespace confighttp {
 
     print_req(request);
 
-    std::stringstream ss;
-    std::stringstream configStream;
-    ss << request->content.rdbuf();
-    pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
-    if (!platf::restart_supported()) {
-      outputTree.put("status", false);
-      outputTree.put("error", "Restart is not currently supported on this platform");
-      return;
-    }
-
-    if (!platf::restart()) {
-      outputTree.put("status", false);
-      outputTree.put("error", "Restart failed");
-      return;
-    }
-
-    outputTree.put("status", true);
+    // We may not return from this call
+    platf::restart();
   }
 
   void
@@ -654,7 +635,7 @@ namespace confighttp {
       }
       else {
         auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-        if (config::sunshine.username.empty() || (username == config::sunshine.username && hash == config::sunshine.password)) {
+        if (config::sunshine.username.empty() || (boost::iequals(username, config::sunshine.username) && hash == config::sunshine.password)) {
           if (newPassword.empty() || newPassword != confirmPassword) {
             outputTree.put("status", false);
             outputTree.put("error", "Password Mismatch");
@@ -750,6 +731,7 @@ namespace confighttp {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     auto port_https = map_port(PORT_HTTPS);
+    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
     https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
     server.default_resource["GET"] = not_found;
@@ -777,7 +759,7 @@ namespace confighttp {
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/node_modules\\/.+$"]["GET"] = getNodeModules;
     server.config.reuse_address = true;
-    server.config.address = "0.0.0.0"s;
+    server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;
 
     auto accept_and_run = [&](auto *server) {

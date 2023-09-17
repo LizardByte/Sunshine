@@ -1,4 +1,10 @@
+/**
+ * @file src/platform/windows/display_ram.cpp
+ * @brief todo
+ */
 #include "display.h"
+
+#include "misc.h"
 #include "src/main.h"
 
 namespace platf {
@@ -81,7 +87,7 @@ namespace platf::dxgi {
     auto colors_out = (std::uint8_t *) &cursor_pixel;
     auto colors_in = (std::uint8_t *) img_pixel_p;
 
-    //TODO: When use of IDXGIOutput5 is implemented, support different color formats
+    // TODO: When use of IDXGIOutput5 is implemented, support different color formats
     auto alpha = colors_out[3];
     if (alpha == 255) {
       *img_pixel_p = cursor_pixel;
@@ -95,7 +101,7 @@ namespace platf::dxgi {
 
   void
   apply_color_masked(int *img_pixel_p, int cursor_pixel) {
-    //TODO: When use of IDXGIOutput5 is implemented, support different color formats
+    // TODO: When use of IDXGIOutput5 is implemented, support different color formats
     auto alpha = ((std::uint8_t *) &cursor_pixel)[3];
     if (alpha == 0xFF) {
       *img_pixel_p ^= cursor_pixel;
@@ -192,6 +198,12 @@ namespace platf::dxgi {
       return capture_e::timeout;
     }
 
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+    if (auto qpc_displayed = std::max(frame_info.LastPresentTime.QuadPart, frame_info.LastMouseUpdateTime.QuadPart)) {
+      // Translate QueryPerformanceCounter() value to steady_clock time point
+      frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), qpc_displayed);
+    }
+
     if (frame_info.PointerShapeBufferSize > 0) {
       auto &img_data = cursor.img_data;
 
@@ -262,7 +274,7 @@ namespace platf::dxgi {
           return capture_e::reinit;
         }
 
-        //Copy from GPU to CPU
+        // Copy from GPU to CPU
         device_ctx->CopyResource(texture.get(), src.get());
       }
     }
@@ -305,6 +317,10 @@ namespace platf::dxgi {
 
     if (cursor_visible && cursor.visible) {
       blend_cursor(cursor, *img);
+    }
+
+    if (img) {
+      img->frame_timestamp = frame_timestamp;
     }
 
     return capture_e::ok;
@@ -373,4 +389,10 @@ namespace platf::dxgi {
 
     return 0;
   }
+
+  std::unique_ptr<avcodec_encode_device_t>
+  display_ram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+    return std::make_unique<avcodec_encode_device_t>();
+  }
+
 }  // namespace platf::dxgi

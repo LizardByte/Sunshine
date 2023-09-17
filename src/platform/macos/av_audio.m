@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/macos/av_audio.m
+ * @brief todo
+ */
 #import "av_audio.h"
 
 @implementation AVAudio
@@ -126,7 +130,7 @@
 
     CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(sampleBuffer, NULL, &audioBufferList, sizeof(audioBufferList), NULL, NULL, 0, &blockBuffer);
 
-    //NSAssert(audioBufferList.mNumberBuffers == 1, @"Expected interlveaved PCM format but buffer contained %u streams", audioBufferList.mNumberBuffers);
+    // NSAssert(audioBufferList.mNumberBuffers == 1, @"Expected interlveaved PCM format but buffer contained %u streams", audioBufferList.mNumberBuffers);
 
     // this is safe, because an interleaved PCM stream has exactly one buffer
     // and we don't want to do sanity checks in a performance critical exec path

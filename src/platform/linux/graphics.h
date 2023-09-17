@@ -1,5 +1,8 @@
-#ifndef SUNSHINE_PLATFORM_LINUX_OPENGL_H
-#define SUNSHINE_PLATFORM_LINUX_OPENGL_H
+/**
+ * @file src/platform/linux/graphics.h
+ * @brief todo
+ */
+#pragma once
 
 #include <optional>
 #include <string_view>
@@ -11,6 +14,7 @@
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "src/video_colorspace.h"
 
 #define SUNSHINE_STRINGIFY_HELPER(x) #x
 #define SUNSHINE_STRINGIFY(x) SUNSHINE_STRINGIFY_HELPER(x)
@@ -94,8 +98,8 @@ namespace gl {
     }
 
     /**
-   * Copies a part of the framebuffer to texture
-   */
+     * Copies a part of the framebuffer to texture
+     */
     void
     copy(int id, int texture, int offset_x, int offset_y, int width, int height);
   };
@@ -324,7 +328,7 @@ namespace egl {
     load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
 
     void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range);
+    apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 
     // The first texture is the monitor image.
     // The second texture is the cursor image
@@ -352,5 +356,3 @@ namespace egl {
   bool
   fail();
 }  // namespace egl
-
-#endif

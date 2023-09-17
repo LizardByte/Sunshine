@@ -1,5 +1,8 @@
-#ifndef SUNSHINE_CONFIG_H
-#define SUNSHINE_CONFIG_H
+/**
+ * @file src/config.h
+ * @brief todo
+ */
+#pragma once
 
 #include <bitset>
 #include <chrono>
@@ -8,25 +11,31 @@
 #include <unordered_map>
 #include <vector>
 
+#include "nvenc/nvenc_config.h"
+
 namespace config {
   struct video_t {
     // ffmpeg params
     int qp;  // higher == more compression and less quality
 
     int hevc_mode;
+    int av1_mode;
 
     int min_threads;  // Minimum number of threads/slices for CPU encoding
     struct {
       std::string sw_preset;
       std::string sw_tune;
+      std::optional<int> svtav1_preset;
     } sw;
 
+    nvenc::nvenc_config nv;
+    bool nv_realtime_hags;
+
     struct {
-      std::optional<int> nv_preset;
-      std::optional<int> nv_tune;
-      std::optional<int> nv_rc;
-      int nv_coder;
-    } nv;
+      int preset;
+      int multipass;
+      int h264_coder;
+    } nv_legacy;
 
     struct {
       std::optional<int> qsv_preset;
@@ -36,10 +45,13 @@ namespace config {
     struct {
       std::optional<int> amd_quality_h264;
       std::optional<int> amd_quality_hevc;
+      std::optional<int> amd_quality_av1;
       std::optional<int> amd_rc_h264;
       std::optional<int> amd_rc_hevc;
+      std::optional<int> amd_rc_av1;
       std::optional<int> amd_usage_h264;
       std::optional<int> amd_usage_hevc;
+      std::optional<int> amd_usage_av1;
       std::optional<int> amd_preanalysis;
       std::optional<int> amd_vbaq;
       int amd_coder;
@@ -56,12 +68,12 @@ namespace config {
     std::string encoder;
     std::string adapter_name;
     std::string output_name;
-    bool dwmflush;
   };
 
   struct audio_t {
     std::string sink;
     std::string virtual_sink;
+    bool install_steam_drivers;
   };
 
   struct stream_t {
@@ -105,6 +117,8 @@ namespace config {
     bool keyboard;
     bool mouse;
     bool controller;
+
+    bool always_send_scancodes;
   };
 
   namespace flag {
@@ -119,14 +133,14 @@ namespace config {
   }
 
   struct prep_cmd_t {
-    prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd):
-        do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)) {}
-    explicit prep_cmd_t(std::string &&do_cmd):
-        do_cmd(std::move(do_cmd)) {}
+    prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
+        do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)), elevated(std::move(elevated)) {}
+    explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
+        do_cmd(std::move(do_cmd)), elevated(std::move(elevated)) {}
     std::string do_cmd;
     std::string undo_cmd;
+    bool elevated;
   };
-
   struct sunshine_t {
     int min_log_level;
     std::bitset<flag::FLAG_SIZE> flags;
@@ -145,6 +159,8 @@ namespace config {
     } cmd;
 
     std::uint16_t port;
+    std::string address_family;
+
     std::string log_file;
 
     std::vector<prep_cmd_t> prep_cmds;
@@ -162,4 +178,3 @@ namespace config {
   std::unordered_map<std::string, std::string>
   parse_config(const std::string_view &file_content);
 }  // namespace config
-#endif

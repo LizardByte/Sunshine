@@ -1,9 +1,8 @@
-//
-// Created by loki on 4/23/20.
-//
-
-#ifndef SUNSHINE_DISPLAY_H
-#define SUNSHINE_DISPLAY_H
+/**
+ * @file src/platform/windows/display.h
+ * @brief todo
+ */
+#pragma once
 
 #include <d3d11.h>
 #include <d3d11_4.h>
@@ -14,6 +13,7 @@
 
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "src/video.h"
 
 namespace platf::dxgi {
   extern const char *format_str[];
@@ -81,23 +81,71 @@ namespace platf::dxgi {
   public:
     gpu_cursor_t():
         cursor_view { 0, 0, 0, 0, 0.0f, 1.0f } {};
-    void
-    set_pos(LONG rel_x, LONG rel_y, bool visible) {
-      cursor_view.TopLeftX = rel_x;
-      cursor_view.TopLeftY = rel_y;
 
+    void
+    set_pos(LONG topleft_x, LONG topleft_y, LONG display_width, LONG display_height, DXGI_MODE_ROTATION display_rotation, bool visible) {
+      this->topleft_x = topleft_x;
+      this->topleft_y = topleft_y;
+      this->display_width = display_width;
+      this->display_height = display_height;
+      this->display_rotation = display_rotation;
       this->visible = visible;
+      update_viewport();
     }
 
     void
-    set_texture(LONG width, LONG height, texture2d_t &&texture) {
-      cursor_view.Width = width;
-      cursor_view.Height = height;
-
+    set_texture(LONG texture_width, LONG texture_height, texture2d_t &&texture) {
       this->texture = std::move(texture);
+      this->texture_width = texture_width;
+      this->texture_height = texture_height;
+      update_viewport();
+    }
+
+    void
+    update_viewport() {
+      switch (display_rotation) {
+        case DXGI_MODE_ROTATION_UNSPECIFIED:
+        case DXGI_MODE_ROTATION_IDENTITY:
+          cursor_view.TopLeftX = topleft_x;
+          cursor_view.TopLeftY = topleft_y;
+          cursor_view.Width = texture_width;
+          cursor_view.Height = texture_height;
+          break;
+
+        case DXGI_MODE_ROTATION_ROTATE90:
+          cursor_view.TopLeftX = topleft_y;
+          cursor_view.TopLeftY = display_width - texture_width - topleft_x;
+          cursor_view.Width = texture_height;
+          cursor_view.Height = texture_width;
+          break;
+
+        case DXGI_MODE_ROTATION_ROTATE180:
+          cursor_view.TopLeftX = display_width - texture_width - topleft_x;
+          cursor_view.TopLeftY = display_height - texture_height - topleft_y;
+          cursor_view.Width = texture_width;
+          cursor_view.Height = texture_height;
+          break;
+
+        case DXGI_MODE_ROTATION_ROTATE270:
+          cursor_view.TopLeftX = display_height - texture_height - topleft_y;
+          cursor_view.TopLeftY = topleft_x;
+          cursor_view.Width = texture_height;
+          cursor_view.Height = texture_width;
+          break;
+      }
     }
 
     texture2d_t texture;
+    LONG texture_width;
+    LONG texture_height;
+
+    LONG topleft_x;
+    LONG topleft_y;
+
+    LONG display_width;
+    LONG display_height;
+    DXGI_MODE_ROTATION display_rotation;
+
     shader_res_t input_res;
 
     D3D11_VIEWPORT cursor_view;
@@ -109,7 +157,7 @@ namespace platf::dxgi {
   public:
     dup_t dup;
     bool has_frame {};
-    bool use_dwmflush {};
+    std::chrono::steady_clock::time_point last_protected_content_warning_time {};
 
     capture_e
     next_frame(DXGI_OUTDUPL_FRAME_INFO &frame_info, std::chrono::milliseconds timeout, resource_t::pointer *res_p);
@@ -126,10 +174,11 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    void
+    high_precision_sleep(std::chrono::nanoseconds duration);
+
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
-
-    std::chrono::nanoseconds delay;
 
     factory1_t factory;
     adapter_t adapter;
@@ -137,9 +186,19 @@ namespace platf::dxgi {
     device_t device;
     device_ctx_t device_ctx;
     duplication_t dup;
+    DXGI_RATIONAL display_refresh_rate;
+    int display_refresh_rate_rounded;
+
+    DXGI_MODE_ROTATION display_rotation = DXGI_MODE_ROTATION_UNSPECIFIED;
+    int width_before_rotation;
+    int height_before_rotation;
+
+    int client_frame_rate;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
+
+    util::safe_ptr_v2<std::remove_pointer_t<HANDLE>, BOOL, CloseHandle> timer;
 
     typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
       D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,
@@ -150,7 +209,44 @@ namespace platf::dxgi {
       D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME
     } D3DKMT_SCHEDULINGPRIORITYCLASS;
 
-    typedef NTSTATUS WINAPI (*PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+    typedef UINT D3DKMT_HANDLE;
+
+    typedef struct _D3DKMT_OPENADAPTERFROMLUID {
+      LUID AdapterLuid;
+      D3DKMT_HANDLE hAdapter;
+    } D3DKMT_OPENADAPTERFROMLUID;
+
+    typedef struct _D3DKMT_WDDM_2_7_CAPS {
+      union {
+        struct
+        {
+          UINT HwSchSupported : 1;
+          UINT HwSchEnabled : 1;
+          UINT HwSchEnabledByDefault : 1;
+          UINT IndependentVidPnVSyncControl : 1;
+          UINT Reserved : 28;
+        };
+        UINT Value;
+      };
+    } D3DKMT_WDDM_2_7_CAPS;
+
+    typedef struct _D3DKMT_QUERYADAPTERINFO {
+      D3DKMT_HANDLE hAdapter;
+      UINT Type;
+      VOID *pPrivateDriverData;
+      UINT PrivateDriverDataSize;
+    } D3DKMT_QUERYADAPTERINFO;
+
+    const UINT KMTQAITYPE_WDDM_2_7_CAPS = 70;
+
+    typedef struct _D3DKMT_CLOSEADAPTER {
+      D3DKMT_HANDLE hAdapter;
+    } D3DKMT_CLOSEADAPTER;
+
+    typedef NTSTATUS(WINAPI *PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+    typedef NTSTATUS(WINAPI *PD3DKMTOpenAdapterFromLuid)(D3DKMT_OPENADAPTERFROMLUID *);
+    typedef NTSTATUS(WINAPI *PD3DKMTQueryAdapterInfo)(D3DKMT_QUERYADAPTERINFO *);
+    typedef NTSTATUS(WINAPI *PD3DKMTCloseAdapter)(D3DKMT_CLOSEADAPTER *);
 
     virtual bool
     is_hdr() override;
@@ -193,6 +289,9 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
     cursor_t cursor;
     D3D11_MAPPED_SUBRESOURCE img_info;
     texture2d_t texture;
@@ -215,8 +314,14 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
-    std::shared_ptr<platf::hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) override;
+    bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) override;
+
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
+    std::unique_ptr<nvenc_encode_device_t>
+    make_nvenc_encode_device(pix_fmt_e pix_fmt) override;
 
     sampler_state_t sampler_linear;
 
@@ -224,8 +329,8 @@ namespace platf::dxgi {
     blend_t blend_invert;
     blend_t blend_disable;
 
-    ps_t scene_ps;
-    vs_t scene_vs;
+    ps_t cursor_ps;
+    vs_t cursor_vs;
 
     gpu_cursor_t cursor_alpha;
     gpu_cursor_t cursor_xor;
@@ -237,5 +342,3 @@ namespace platf::dxgi {
     std::atomic<uint32_t> next_image_id;
   };
 }  // namespace platf::dxgi
-
-#endif

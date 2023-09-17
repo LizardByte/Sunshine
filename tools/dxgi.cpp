@@ -1,7 +1,8 @@
-//
-// Created by loki on 1/23/20.
-//
-
+/**
+ * @file tools/dxgi.cpp
+ * @brief Displays information about connected displays and GPUs
+ */
+#define WINVER 0x0A00
 #include <d3dcommon.h>
 #include <dxgi.h>
 
@@ -26,6 +27,9 @@ namespace dxgi {
 int
 main(int argc, char *argv[]) {
   HRESULT status;
+
+  // Set ourselves as per-monitor DPI aware for accurate resolution values on High DPI systems
+  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
   dxgi::factory1_t::pointer factory_p {};
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &factory_p);

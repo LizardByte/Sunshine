@@ -1,14 +1,13 @@
 /**
-* @file system_tray.h
-*/
-// macros
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+ * @file src/system_tray.h
+ * @brief todo
+ */
+
+#pragma once
 
 // system_tray namespace
 namespace system_tray {
 
-  void
-  open_url(const std::string &url);
   void
   tray_open_ui_cb(struct tray_menu *item);
   void
@@ -28,6 +27,13 @@ namespace system_tray {
   run_tray();
   int
   end_tray();
+  void
+  update_tray_playing(std::string app_name);
+  void
+  update_tray_pausing(std::string app_name);
+  void
+  update_tray_stopped(std::string app_name);
+  void
+  update_tray_require_pin();
 
 }  // namespace system_tray
-#endif

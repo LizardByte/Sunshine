@@ -1,9 +1,8 @@
-//
-// Created by loki on 6/21/19.
-//
-
-#ifndef SUNSHINE_COMMON_H
-#define SUNSHINE_COMMON_H
+/**
+ * @file src/platform/common.h
+ * @brief todo
+ */
+#pragma once
 
 #include <bitset>
 #include <filesystem>
@@ -14,6 +13,7 @@
 #include "src/main.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
+#include "src/video_colorspace.h"
 
 extern "C" {
 #include <moonlight-common-c/src/Limelight.h>
@@ -46,37 +46,105 @@ namespace boost {
 namespace video {
   struct config_t;
 }  // namespace video
+namespace nvenc {
+  class nvenc_base;
+}
 
 namespace platf {
-  constexpr auto MAX_GAMEPADS = 32;
+  // Limited by bits in activeGamepadMask
+  constexpr auto MAX_GAMEPADS = 16;
 
-  constexpr std::uint16_t DPAD_UP = 0x0001;
-  constexpr std::uint16_t DPAD_DOWN = 0x0002;
-  constexpr std::uint16_t DPAD_LEFT = 0x0004;
-  constexpr std::uint16_t DPAD_RIGHT = 0x0008;
-  constexpr std::uint16_t START = 0x0010;
-  constexpr std::uint16_t BACK = 0x0020;
-  constexpr std::uint16_t LEFT_STICK = 0x0040;
-  constexpr std::uint16_t RIGHT_STICK = 0x0080;
-  constexpr std::uint16_t LEFT_BUTTON = 0x0100;
-  constexpr std::uint16_t RIGHT_BUTTON = 0x0200;
-  constexpr std::uint16_t HOME = 0x0400;
-  constexpr std::uint16_t A = 0x1000;
-  constexpr std::uint16_t B = 0x2000;
-  constexpr std::uint16_t X = 0x4000;
-  constexpr std::uint16_t Y = 0x8000;
+  constexpr std::uint32_t DPAD_UP = 0x0001;
+  constexpr std::uint32_t DPAD_DOWN = 0x0002;
+  constexpr std::uint32_t DPAD_LEFT = 0x0004;
+  constexpr std::uint32_t DPAD_RIGHT = 0x0008;
+  constexpr std::uint32_t START = 0x0010;
+  constexpr std::uint32_t BACK = 0x0020;
+  constexpr std::uint32_t LEFT_STICK = 0x0040;
+  constexpr std::uint32_t RIGHT_STICK = 0x0080;
+  constexpr std::uint32_t LEFT_BUTTON = 0x0100;
+  constexpr std::uint32_t RIGHT_BUTTON = 0x0200;
+  constexpr std::uint32_t HOME = 0x0400;
+  constexpr std::uint32_t A = 0x1000;
+  constexpr std::uint32_t B = 0x2000;
+  constexpr std::uint32_t X = 0x4000;
+  constexpr std::uint32_t Y = 0x8000;
+  constexpr std::uint32_t PADDLE1 = 0x010000;
+  constexpr std::uint32_t PADDLE2 = 0x020000;
+  constexpr std::uint32_t PADDLE3 = 0x040000;
+  constexpr std::uint32_t PADDLE4 = 0x080000;
+  constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;
+  constexpr std::uint32_t MISC_BUTTON = 0x200000;
 
-  struct rumble_t {
-    KITTY_DEFAULT_CONSTR(rumble_t)
-
-    rumble_t(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq):
-        id { id }, lowfreq { lowfreq }, highfreq { highfreq } {}
-
-    std::uint16_t id;
-    std::uint16_t lowfreq;
-    std::uint16_t highfreq;
+  enum class gamepad_feedback_e {
+    rumble,
+    rumble_triggers,
+    set_motion_event_state,
+    set_rgb_led,
   };
-  using rumble_queue_t = safe::mail_raw_t::queue_t<rumble_t>;
+
+  struct gamepad_feedback_msg_t {
+    static gamepad_feedback_msg_t
+    make_rumble(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::rumble;
+      msg.id = id;
+      msg.data.rumble = { lowfreq, highfreq };
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_rumble_triggers(std::uint16_t id, std::uint16_t left, std::uint16_t right) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::rumble_triggers;
+      msg.id = id;
+      msg.data.rumble_triggers = { left, right };
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_motion_event_state(std::uint16_t id, std::uint8_t motion_type, std::uint16_t report_rate) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_motion_event_state;
+      msg.id = id;
+      msg.data.motion_event_state.motion_type = motion_type;
+      msg.data.motion_event_state.report_rate = report_rate;
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t
+    make_rgb_led(std::uint16_t id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_rgb_led;
+      msg.id = id;
+      msg.data.rgb_led = { r, g, b };
+      return msg;
+    }
+
+    gamepad_feedback_e type;
+    std::uint16_t id;
+    union {
+      struct {
+        std::uint16_t lowfreq;
+        std::uint16_t highfreq;
+      } rumble;
+      struct {
+        std::uint16_t left_trigger;
+        std::uint16_t right_trigger;
+      } rumble_triggers;
+      struct {
+        std::uint16_t report_rate;
+        std::uint8_t motion_type;
+      } motion_event_state;
+      struct {
+        std::uint8_t r;
+        std::uint8_t g;
+        std::uint8_t b;
+      } rgb_led;
+    } data;
+  };
+
+  using feedback_queue_t = safe::mail_raw_t::queue_t<gamepad_feedback_msg_t>;
 
   namespace speaker {
     enum speaker_e {
@@ -154,14 +222,89 @@ namespace platf {
     int width, height;
   };
 
+  // These values must match Limelight-internal.h's SS_FF_* constants!
+  namespace platform_caps {
+    typedef uint32_t caps_t;
+
+    constexpr caps_t pen_touch = 0x01;  // Pen and touch events
+    constexpr caps_t controller_touch = 0x02;  // Controller touch events
+  };  // namespace platform_caps
+
   struct gamepad_state_t {
-    std::uint16_t buttonFlags;
+    std::uint32_t buttonFlags;
     std::uint8_t lt;
     std::uint8_t rt;
     std::int16_t lsX;
     std::int16_t lsY;
     std::int16_t rsX;
     std::int16_t rsY;
+  };
+
+  struct gamepad_id_t {
+    // The global index is used when looking up gamepads in the platform's
+    // gamepad array. It identifies gamepads uniquely among all clients.
+    int globalIndex;
+
+    // The client-relative index is the controller number as reported by the
+    // client. It must be used when communicating back to the client via
+    // the input feedback queue.
+    std::uint8_t clientRelativeIndex;
+  };
+
+  struct gamepad_arrival_t {
+    std::uint8_t type;
+    std::uint16_t capabilities;
+    std::uint32_t supportedButtons;
+  };
+
+  struct gamepad_touch_t {
+    gamepad_id_t id;
+    std::uint8_t eventType;
+    std::uint32_t pointerId;
+    float x;
+    float y;
+    float pressure;
+  };
+
+  struct gamepad_motion_t {
+    gamepad_id_t id;
+    std::uint8_t motionType;
+
+    // Accel: m/s^2
+    // Gyro: deg/s
+    float x;
+    float y;
+    float z;
+  };
+
+  struct gamepad_battery_t {
+    gamepad_id_t id;
+    std::uint8_t state;
+    std::uint8_t percentage;
+  };
+
+  struct touch_input_t {
+    std::uint8_t eventType;
+    std::uint16_t rotation;  // Degrees (0..360) or LI_ROT_UNKNOWN
+    std::uint32_t pointerId;
+    float x;
+    float y;
+    float pressureOrDistance;  // Distance for hover and pressure for contact
+    float contactAreaMajor;
+    float contactAreaMinor;
+  };
+
+  struct pen_input_t {
+    std::uint8_t eventType;
+    std::uint8_t toolType;
+    std::uint8_t penButtons;
+    std::uint8_t tilt;  // Degrees (0..90) or LI_TILT_UNKNOWN
+    std::uint16_t rotation;  // Degrees (0..360) or LI_ROT_UNKNOWN
+    float x;
+    float y;
+    float pressureOrDistance;  // Distance for hover and pressure for contact
+    float contactAreaMajor;
+    float contactAreaMinor;
   };
 
   class deinit_t {
@@ -186,6 +329,8 @@ namespace platf {
     std::int32_t pixel_pitch {};
     std::int32_t row_pitch {};
 
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+
     virtual ~img_t() = default;
   };
 
@@ -203,42 +348,57 @@ namespace platf {
     std::optional<null_t> null;
   };
 
-  struct hwdevice_t {
+  struct encode_device_t {
+    virtual ~encode_device_t() = default;
+
+    virtual int
+    convert(platf::img_t &img) = 0;
+
+    video::sunshine_colorspace_t colorspace;
+  };
+
+  struct avcodec_encode_device_t: encode_device_t {
     void *data {};
     AVFrame *frame {};
 
-    virtual int
-    convert(platf::img_t &img) {
+    int
+    convert(platf::img_t &img) override {
       return -1;
     }
 
+    virtual void
+    apply_colorspace() {
+    }
+
     /**
-   * implementations must take ownership of 'frame'
-   */
+     * implementations must take ownership of 'frame'
+     */
     virtual int
     set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
       return -1;
     };
 
-    virtual void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) {};
-
     /**
-   * Implementations may set parameters during initialization of the hwframes context
-   */
+     * Implementations may set parameters during initialization of the hwframes context
+     */
     virtual void
     init_hwframes(AVHWFramesContext *frames) {};
 
     /**
-   * Implementations may make modifications required before context derivation
-   */
+     * Implementations may make modifications required before context derivation
+     */
     virtual int
     prepare_to_derive_context(int hw_device_type) {
       return 0;
     };
+  };
 
-    virtual ~hwdevice_t() = default;
+  struct nvenc_encode_device_t: encode_device_t {
+    virtual bool
+    init_encoder(const video::config_t &client_config, const video::sunshine_colorspace_t &colorspace) = 0;
+
+    nvenc::nvenc_base *nvenc = nullptr;
   };
 
   enum class capture_e : int {
@@ -252,44 +412,44 @@ namespace platf {
   class display_t {
   public:
     /**
-   * When display has a new image ready or a timeout occurs, this callback will be called with the image.
-   * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
-   * 
-   * On Break Request -->
-   *    Returns false
-   * 
-   * On Success -->
-   *    Returns true
-   */
+     * When display has a new image ready or a timeout occurs, this callback will be called with the image.
+     * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
+     *
+     * On Break Request -->
+     *    Returns false
+     *
+     * On Success -->
+     *    Returns true
+     */
     using push_captured_image_cb_t = std::function<bool(std::shared_ptr<img_t> &&img, bool frame_captured)>;
 
     /**
-   * Use to get free image from the pool. Calls must be synchronized.
-   * Blocks until there is free image in the pool or capture is interrupted.
-   *
-   * Returns:
-   *     'true' on success, img_out contains free image
-   *     'false' when capture has been interrupted, img_out contains nullptr
-   */
+     * Use to get free image from the pool. Calls must be synchronized.
+     * Blocks until there is free image in the pool or capture is interrupted.
+     *
+     * Returns:
+     *     'true' on success, img_out contains free image
+     *     'false' when capture has been interrupted, img_out contains nullptr
+     */
     using pull_free_image_cb_t = std::function<bool(std::shared_ptr<img_t> &img_out)>;
 
     display_t() noexcept:
         offset_x { 0 }, offset_y { 0 } {}
 
     /**
-   * push_captured_image_cb --> The callback that is called with captured image,
-   *                            must be called from the same thread as capture()
-   * pull_free_image_cb --> Capture backends call this callback to get empty image
-   *                        from the pool. If backend uses multiple threads, calls to this
-   *                        callback must be synchronized. Calls to this callback and
-   *                        push_captured_image_cb must be synchronized as well.
-   * bool *cursor --> A pointer to the flag that indicates wether the cursor should be captured as well
-   * 
-   * Returns either:
-   *    capture_e::ok when stopping
-   *    capture_e::error on error
-   *    capture_e::reinit when need of reinitialization
-   */
+     * push_captured_image_cb --> The callback that is called with captured image,
+     *                            must be called from the same thread as capture()
+     * pull_free_image_cb --> Capture backends call this callback to get empty image
+     *                        from the pool. If backend uses multiple threads, calls to this
+     *                        callback must be synchronized. Calls to this callback and
+     *                        push_captured_image_cb must be synchronized as well.
+     * bool *cursor --> A pointer to the flag that indicates whether the cursor should be captured as well
+     *
+     * Returns either:
+     *    capture_e::ok when stopping
+     *    capture_e::error on error
+     *    capture_e::reinit when need of reinitialization
+     */
     virtual capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;
 
@@ -299,9 +459,14 @@ namespace platf {
     virtual int
     dummy_img(img_t *img) = 0;
 
-    virtual std::shared_ptr<hwdevice_t>
-    make_hwdevice(pix_fmt_e pix_fmt) {
-      return std::make_shared<hwdevice_t>();
+    virtual std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+      return nullptr;
+    }
+
+    virtual std::unique_ptr<nvenc_encode_device_t>
+    make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+      return nullptr;
     }
 
     virtual bool
@@ -313,6 +478,17 @@ namespace platf {
     get_hdr_metadata(SS_HDR_METADATA &metadata) {
       std::memset(&metadata, 0, sizeof(metadata));
       return false;
+    }
+
+    /**
+     * @brief Checks that a given codec is supported by the display device.
+     * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
+     * @param config The codec configuration.
+     * @return true if supported, false otherwise.
+     */
+    virtual bool
+    is_codec_supported(std::string_view name, const ::video::config_t &config) {
+      return true;
     }
 
     virtual ~display_t() = default;
@@ -366,14 +542,14 @@ namespace platf {
   audio_control();
 
   /**
- * display_name --> The name of the monitor that SHOULD be displayed
- *    If display_name is empty --> Use the first monitor that's compatible you can find
- *    If you require to use this parameter in a seperate thread --> make a copy of it.
- * 
- * config --> Stream configuration
- * 
- * Returns display_t based on hwdevice_type
- */
+   * display_name --> The name of the monitor that SHOULD be displayed
+   *    If display_name is empty --> Use the first monitor that's compatible you can find
+   *    If you require to use this parameter in a separate thread --> make a copy of it.
+   *
+   * config --> Stream configuration
+   *
+   * Returns display_t based on hwdevice_type
+   */
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
@@ -382,7 +558,7 @@ namespace platf {
   display_names(mem_type_e hwdevice_type);
 
   boost::process::child
-  run_unprivileged(const std::string &cmd, boost::filesystem::path &working_dir, boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
   enum class thread_priority_e : int {
     low,
@@ -399,9 +575,7 @@ namespace platf {
   void
   streaming_will_stop();
 
-  bool
-  restart_supported();
-  bool
+  void
   restart();
 
   struct batched_send_info_t {
@@ -412,9 +586,22 @@ namespace platf {
     std::uintptr_t native_socket;
     boost::asio::ip::address &target_address;
     uint16_t target_port;
+    boost::asio::ip::address &source_address;
   };
   bool
   send_batch(batched_send_info_t &send_info);
+
+  struct send_info_t {
+    const char *buffer;
+    size_t size;
+
+    std::uintptr_t native_socket;
+    boost::asio::ip::address &target_address;
+    uint16_t target_port;
+    boost::asio::ip::address &source_address;
+  };
+  bool
+  send(send_info_t &send_info);
 
   enum class qos_data_type_e : int {
     audio,
@@ -422,6 +609,13 @@ namespace platf {
   };
   std::unique_ptr<deinit_t>
   enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
+
+  /**
+   * @brief Open a url in the default web browser.
+   * @param url The url to open.
+   */
+  void
+  open_url(const std::string &url);
 
   input_t
   input();
@@ -442,10 +636,77 @@ namespace platf {
   void
   unicode(input_t &input, char *utf8, int size);
 
+  typedef deinit_t client_input_t;
+
+  /**
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input);
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
+
+  /**
+   * @brief Sends a gamepad touch event to the OS.
+   * @param input The global input context.
+   * @param touch The touch event.
+   */
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch);
+
+  /**
+   * @brief Sends a gamepad motion event to the OS.
+   * @param input The global input context.
+   * @param motion The motion event.
+   */
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion);
+
+  /**
+   * @brief Sends a gamepad battery event to the OS.
+   * @param input The global input context.
+   * @param battery The battery event.
+   */
+  void
+  gamepad_battery(input_t &input, const gamepad_battery_t &battery);
+
+  /**
+   * @brief Creates a new virtual gamepad.
+   * @param input The global input context.
+   * @param id The gamepad ID.
+   * @param metadata Controller metadata from client (empty if none provided).
+   * @param feedback_queue The queue for posting messages back to the client.
+   * @return 0 on success.
+   */
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue);
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
   void
   free_gamepad(input_t &input, int nr);
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities();
 
 #define SERVICE_NAME "Sunshine"
 #define SERVICE_TYPE "_nvstream._tcp"
@@ -461,5 +722,3 @@ namespace platf {
   std::vector<std::string_view> &
   supported_gamepads();
 }  // namespace platf
-
-#endif  //SUNSHINE_COMMON_H

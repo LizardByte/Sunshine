@@ -1,7 +1,8 @@
-// Created by loki on 6/5/19.
-
-#ifndef SUNSHINE_STREAM_H
-#define SUNSHINE_STREAM_H
+/**
+ * @file src/stream.h
+ * @brief todo
+ */
+#pragma once
 
 #include <boost/asio.hpp>
 
@@ -49,5 +50,3 @@ namespace stream {
     state(session_t &session);
   }  // namespace session
 }  // namespace stream
-
-#endif  // SUNSHINE_STREAM_H

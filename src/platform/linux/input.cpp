@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input.cpp
+ * @brief todo
+ */
 #include <fcntl.h>
 #include <linux/uinput.h>
 #include <poll.h>
@@ -129,7 +133,7 @@ namespace platf {
     }
   });
 
-  using mail_evdev_t = std::tuple<int, uinput_t::pointer, rumble_queue_t, pollfd_t>;
+  using mail_evdev_t = std::tuple<int, uinput_t::pointer, feedback_queue_t, pollfd_t>;
 
   struct keycode_t {
     std::uint32_t keycode;
@@ -143,9 +147,9 @@ namespace platf {
   constexpr auto UNKNOWN = 0;
 
   /**
- * @brief Initializes the keycode constants for translating
- *        moonlight keycodes to linux/X11 keycodes
- */
+   * @brief Initializes the keycode constants for translating
+   *        moonlight keycodes to linux/X11 keycodes.
+   */
   static constexpr std::array<keycode_t, 0xE3>
   init_keycodes() {
     std::array<keycode_t, 0xE3> keycodes {};
@@ -448,7 +452,7 @@ namespace platf {
   public:
     KITTY_DEFAULT_CONSTR_MOVE(effect_t)
 
-    effect_t(int gamepadnr, uinput_t::pointer dev, rumble_queue_t &&q):
+    effect_t(std::uint8_t gamepadnr, uinput_t::pointer dev, feedback_queue_t &&q):
         gamepadnr { gamepadnr }, dev { dev }, rumble_queue { std::move(q) }, gain { 0xFFFF }, id_to_data {} {}
 
     class data_t {
@@ -624,13 +628,13 @@ namespace platf {
       BOOST_LOG(debug) << "Removed rumble effect id ["sv << id << ']';
     }
 
-    // Used as ID for rumble notifications
-    int gamepadnr;
+    // Client-relative gamepad index for rumble notifications
+    std::uint8_t gamepadnr;
 
     // Used as ID for adding/removinf devices from evdev notifications
     uinput_t::pointer dev;
 
-    rumble_queue_t rumble_queue;
+    feedback_queue_t rumble_queue;
 
     int gain;
 
@@ -766,9 +770,16 @@ namespace platf {
       return 0;
     }
 
+    /**
+     * @brief Creates a new virtual gamepad.
+     * @param id The gamepad ID.
+     * @param metadata Controller metadata from client (empty if none provided).
+     * @param feedback_queue The queue for posting messages back to the client.
+     * @return 0 on success.
+     */
     int
-    alloc_gamepad(int nr, rumble_queue_t &&rumble_queue) {
-      TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
+    alloc_gamepad(const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t &&feedback_queue) {
+      TUPLE_2D_REF(input, gamepad_state, gamepads[id.globalIndex]);
 
       int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &input);
 
@@ -780,7 +791,7 @@ namespace platf {
       }
 
       std::stringstream ss;
-      ss << "sunshine_gamepad_"sv << nr;
+      ss << "sunshine_gamepad_"sv << id.globalIndex;
       auto gamepad_path = platf::appdata() / ss.str();
 
       if (std::filesystem::is_symlink(gamepad_path)) {
@@ -790,9 +801,9 @@ namespace platf {
       auto dev_node = libevdev_uinput_get_devnode(input.get());
 
       rumble_ctx->rumble_queue_queue.raise(
-        nr,
+        id.clientRelativeIndex,
         input.get(),
-        std::move(rumble_queue),
+        std::move(feedback_queue),
         pollfd_t {
           dup(libevdev_uinput_get_fd(input.get())),
           (std::int16_t) POLLIN,
@@ -873,7 +884,7 @@ namespace platf {
 
       // on error
       if (polls_recv[x].revents & (POLLHUP | POLLRDHUP | POLLERR)) {
-        BOOST_LOG(warning) << "Gamepad ["sv << x << "] file discriptor closed unexpectedly"sv;
+        BOOST_LOG(warning) << "Gamepad ["sv << x << "] file descriptor closed unexpectedly"sv;
 
         polls.erase(poll);
         effects.erase(effect_it);
@@ -1037,9 +1048,9 @@ namespace platf {
           TUPLE_2D(weak, strong, effect.rumble(now));
 
           if (old_weak != weak || old_strong != strong) {
-            BOOST_LOG(debug) << "Sending haptic feedback: lowfreq [0x"sv << util::hex(weak).to_string_view() << "]: highfreq [0x"sv << util::hex(strong).to_string_view() << ']';
+            BOOST_LOG(debug) << "Sending haptic feedback: lowfreq [0x"sv << util::hex(strong).to_string_view() << "]: highfreq [0x"sv << util::hex(weak).to_string_view() << ']';
 
-            effect.rumble_queue->raise(effect.gamepadnr, weak, strong);
+            effect.rumble_queue->raise(gamepad_feedback_msg_t::make_rumble(effect.gamepadnr, strong, weak));
           }
         }
       }
@@ -1047,16 +1058,16 @@ namespace platf {
   }
 
   /**
- * @brief XTest absolute mouse move.
- * @param input The input_t instance to use.
- * @param x Absolute x position.
- * @param y Absolute y position.
- *
- * EXAMPLES:
- * ```cpp
- * x_abs_mouse(input, 0, 0);
- * ```
- */
+   * @brief XTest absolute mouse move.
+   * @param input The input_t instance to use.
+   * @param x Absolute x position.
+   * @param y Absolute y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_abs_mouse(input, 0, 0);
+   * ```
+   */
   static void
   x_abs_mouse(input_t &input, float x, float y) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1070,17 +1081,17 @@ namespace platf {
   }
 
   /**
- * @brief Absolute mouse move.
- * @param input The input_t instance to use.
- * @param touch_port The touch_port instance to use.
- * @param x Absolute x position.
- * @param y Absolute y position.
- *
- * EXAMPLES:
- * ```cpp
- * abs_mouse(input, touch_port, 0, 0);
- * ```
- */
+   * @brief Absolute mouse move.
+   * @param input The input_t instance to use.
+   * @param touch_port The touch_port instance to use.
+   * @param x Absolute x position.
+   * @param y Absolute y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * abs_mouse(input, touch_port, 0, 0);
+   * ```
+   */
   void
   abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
     auto touchscreen = ((input_raw_t *) input.get())->touch_input.get();
@@ -1101,16 +1112,16 @@ namespace platf {
   }
 
   /**
- * @brief XTest relative mouse move.
- * @param input The input_t instance to use.
- * @param deltaX Relative x position.
- * @param deltaY Relative y position.
- *
- * EXAMPLES:
- * ```cpp
- * x_move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
- * ```
- */
+   * @brief XTest relative mouse move.
+   * @param input The input_t instance to use.
+   * @param deltaX Relative x position.
+   * @param deltaY Relative y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_move_mouse(input, 10, 10);  // Move mouse 10 pixels down and right
+   * ```
+   */
   static void
   x_move_mouse(input_t &input, int deltaX, int deltaY) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1124,16 +1135,16 @@ namespace platf {
   }
 
   /**
- * @brief Relative mouse move.
- * @param input The input_t instance to use.
- * @param deltaX Relative x position.
- * @param deltaY Relative y position.
- *
- * EXAMPLES:
- * ```cpp
- * move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
- * ```
- */
+   * @brief Relative mouse move.
+   * @param input The input_t instance to use.
+   * @param deltaX Relative x position.
+   * @param deltaY Relative y position.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
+   * ```
+   */
   void
   move_mouse(input_t &input, int deltaX, int deltaY) {
     auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
@@ -1154,16 +1165,16 @@ namespace platf {
   }
 
   /**
- * @brief XTest mouse button press/release.
- * @param input The input_t instance to use.
- * @param button Which mouse button to emulate.
- * @param release Whether the event was a press (false) or a release (true)
- *
- * EXAMPLES:
- * ```cpp
- * x_button_mouse(input, 1, false); // Press left mouse button
- * ```
- */
+   * @brief XTest mouse button press/release.
+   * @param input The input_t instance to use.
+   * @param button Which mouse button to emulate.
+   * @param release Whether the event was a press (false) or a release (true)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_button_mouse(input, 1, false); // Press left mouse button
+   * ```
+   */
   static void
   x_button_mouse(input_t &input, int button, bool release) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1197,16 +1208,16 @@ namespace platf {
   }
 
   /**
- * @brief Mouse button press/release.
- * @param input The input_t instance to use.
- * @param button Which mouse button to emulate.
- * @param release Whether the event was a press (false) or a release (true)
- *
- * EXAMPLES:
- * ```cpp
- * button_mouse(input, 1, false); // Press left mouse button
- * ```
- */
+   * @brief Mouse button press/release.
+   * @param input The input_t instance to use.
+   * @param button Which mouse button to emulate.
+   * @param release Whether the event was a press (false) or a release (true)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * button_mouse(input, 1, false);  // Press left mouse button
+   * ```
+   */
   void
   button_mouse(input_t &input, int button, bool release) {
     auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
@@ -1245,17 +1256,17 @@ namespace platf {
   }
 
   /**
- * @brief XTest mouse scroll.
- * @param input The input_t instance to use.
- * @param distance How far to scroll
- * @param button_pos Which mouse button to emulate for positive scroll.
- * @param button_neg Which mouse button to emulate for negative scroll.
- *
- * EXAMPLES:
- * ```cpp
- * x_scroll(input, 10, 4, 5);
- * ```
- */
+   * @brief XTest mouse scroll.
+   * @param input The input_t instance to use.
+   * @param distance How far to scroll.
+   * @param button_pos Which mouse button to emulate for positive scroll.
+   * @param button_neg Which mouse button to emulate for negative scroll.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_scroll(input, 10, 4, 5);
+   * ```
+   */
   static void
   x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1274,15 +1285,15 @@ namespace platf {
   }
 
   /**
- * @brief Vertical mouse scroll.
- * @param input The input_t instance to use.
- * @param high_res_distance How far to scroll
- *
- * EXAMPLES:
- * ```cpp
- * scroll(input, 1200);
- * ```
- */
+   * @brief Vertical mouse scroll.
+   * @param input The input_t instance to use.
+   * @param high_res_distance How far to scroll.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * scroll(input, 1200);
+   * ```
+   */
   void
   scroll(input_t &input, int high_res_distance) {
     int distance = high_res_distance / 120;
@@ -1299,15 +1310,15 @@ namespace platf {
   }
 
   /**
- * @brief Horizontal mouse scroll.
- * @param input The input_t instance to use.
- * @param high_res_distance How far to scroll
- *
- * EXAMPLES:
- * ```cpp
- * hscroll(input, 1200);
- * ```
- */
+   * @brief Horizontal mouse scroll.
+   * @param input The input_t instance to use.
+   * @param high_res_distance How far to scroll.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * hscroll(input, 1200);
+   * ```
+   */
   void
   hscroll(input_t &input, int high_res_distance) {
     int distance = high_res_distance / 120;
@@ -1333,17 +1344,17 @@ namespace platf {
   }
 
   /**
- * @brief XTest keyboard emulation.
- * @param input The input_t instance to use.
- * @param modcode The moonlight key code.
- * @param release Whether the event was a press (false) or a release (true)
- * @param flags SS_KBE_FLAG_* values
- *
- * EXAMPLES:
- * ```cpp
- * x_keyboard(input, 0x5A, false, 0); // Press Z
- * ```
- */
+   * @brief XTest keyboard emulation.
+   * @param input The input_t instance to use.
+   * @param modcode The moonlight key code.
+   * @param release Whether the event was a press (false) or a release (true).
+   * @param flags SS_KBE_FLAG_* values.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * x_keyboard(input, 0x5A, false, 0);  // Press Z
+   * ```
+   */
   static void
   x_keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
 #ifdef SUNSHINE_BUILD_X11
@@ -1368,17 +1379,17 @@ namespace platf {
   }
 
   /**
- * @brief Keyboard emulation.
- * @param input The input_t instance to use.
- * @param modcode The moonlight key code.
- * @param release Whether the event was a press (false) or a release (true)
- * @param flags SS_KBE_FLAG_* values
- *
- * EXAMPLES:
- * ```cpp
- * keyboard(input, 0x5A, false, 0); // Press Z
- * ```
- */
+   * @brief Keyboard emulation.
+   * @param input The input_t instance to use.
+   * @param modcode The moonlight key code.
+   * @param release Whether the event was a press (false) or a release (true).
+   * @param flags SS_KBE_FLAG_* values.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * keyboard(input, 0x5A, false, 0);  // Press Z
+   * ```
+   */
   void
   keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto keyboard = ((input_raw_t *) input.get())->keyboard_input.get();
@@ -1407,12 +1418,12 @@ namespace platf {
   }
 
   /**
- * Takes an UTF-32 encoded string and returns a hex string representation of the bytes (uppercase)
- *
- * ex: ['👱'] = "1F471" // see UTF encoding at https://www.compart.com/en/unicode/U+1F471
- *
- * adapted from: https://stackoverflow.com/a/7639754
- */
+   * Takes an UTF-32 encoded string and returns a hex string representation of the bytes (uppercase)
+   *
+   * ex: ['👱'] = "1F471" // see UTF encoding at https://www.compart.com/en/unicode/U+1F471
+   *
+   * adapted from: https://stackoverflow.com/a/7639754
+   */
   std::string
   to_hex(const std::basic_string<char32_t> &str) {
     std::stringstream ss;
@@ -1427,16 +1438,16 @@ namespace platf {
   }
 
   /**
- * Here we receive a single UTF-8 encoded char at a time,
- * the trick is to convert it to UTF-32 then send CTRL+SHIFT+U+<HEXCODE> in order to produce any
- * unicode character, see: https://en.wikipedia.org/wiki/Unicode_input
- *
- * ex:
- * - when receiving UTF-8 [0xF0 0x9F 0x91 0xB1] (which is '👱')
- * - we'll convert it to UTF-32 [0x1F471]
- * - then type: CTRL+SHIFT+U+1F471
- * see the conversion at: https://www.compart.com/en/unicode/U+1F471
- */
+   * Here we receive a single UTF-8 encoded char at a time,
+   * the trick is to convert it to UTF-32 then send CTRL+SHIFT+U+{HEXCODE} in order to produce any
+   * unicode character, see: https://en.wikipedia.org/wiki/Unicode_input
+   *
+   * ex:
+   * - when receiving UTF-8 [0xF0 0x9F 0x91 0xB1] (which is '👱')
+   * - we'll convert it to UTF-32 [0x1F471]
+   * - then type: CTRL+SHIFT+U+1F471
+   * see the conversion at: https://www.compart.com/en/unicode/U+1F471
+   */
   void
   unicode(input_t &input, char *utf8, int size) {
     auto kb = ((input_raw_t *) input.get())->keyboard_input.get();
@@ -1476,9 +1487,17 @@ namespace platf {
     keyboard_ev(kb, KEY_LEFTCTRL, 0);
   }
 
+  /**
+   * @brief Creates a new virtual gamepad.
+   * @param input The global input context.
+   * @param id The gamepad ID.
+   * @param metadata Controller metadata from client (empty if none provided).
+   * @param feedback_queue The queue for posting messages back to the client.
+   * @return 0 on success.
+   */
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
-    return ((input_raw_t *) input.get())->alloc_gamepad(nr, std::move(rumble_queue));
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+    return ((input_raw_t *) input.get())->alloc_gamepad(id, metadata, std::move(feedback_queue));
   }
 
   void
@@ -1549,13 +1568,76 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new keyboard and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_keyboard = keyboard();
- * ```
- */
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input) {
+    // Unused
+    return nullptr;
+  }
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
+   * @brief Sends a gamepad touch event to the OS.
+   * @param input The global input context.
+   * @param touch The touch event.
+   */
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+    // Unimplemented feature - platform_caps::controller_touch
+  }
+
+  /**
+   * @brief Sends a gamepad motion event to the OS.
+   * @param input The global input context.
+   * @param motion The motion event.
+   */
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+    // Unimplemented
+  }
+
+  /**
+   * @brief Sends a gamepad battery event to the OS.
+   * @param input The global input context.
+   * @param battery The battery event.
+   */
+  void
+  gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
+    // Unimplemented
+  }
+
+  /**
+   * @brief Initialize a new keyboard and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_keyboard = keyboard();
+   * ```
+   */
   evdev_t
   keyboard() {
     evdev_t dev { libevdev_new() };
@@ -1578,13 +1660,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new uinput virtual mouse and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_mouse = mouse();
- * ```
- */
+   * @brief Initialize a new `uinput` virtual mouse and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_mouse = mouse();
+   * ```
+   */
   evdev_t
   mouse() {
     evdev_t dev { libevdev_new() };
@@ -1629,13 +1711,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new uinput virtual touchscreen and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_touchscreen = touchscreen();
- * ```
- */
+   * @brief Initialize a new `uinput` virtual touchscreen and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_touchscreen = touchscreen();
+   * ```
+   */
   evdev_t
   touchscreen() {
     evdev_t dev { libevdev_new() };
@@ -1679,13 +1761,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize a new uinput virtual X360 gamepad and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_x360 = x360();
- * ```
- */
+   * @brief Initialize a new `uinput` virtual X360 gamepad and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_x360 = x360();
+   * ```
+   */
   evdev_t
   x360() {
     evdev_t dev { libevdev_new() };
@@ -1756,13 +1838,13 @@ namespace platf {
   }
 
   /**
- * @brief Initalize the input system and return it.
- *
- * EXAMPLES:
- * ```cpp
- * auto my_input = input();
- * ```
- */
+   * @brief Initialize the input system and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_input = input();
+   * ```
+   */
   input_t
   input() {
     input_t result { new input_raw_t() };
@@ -1813,5 +1895,14 @@ namespace platf {
     static std::vector<std::string_view> gamepads { "x360"sv };
 
     return gamepads;
+  }
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities() {
+    return 0;
   }
 }  // namespace platf

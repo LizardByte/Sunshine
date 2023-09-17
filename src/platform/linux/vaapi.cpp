@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/vaapi.cpp
+ * @brief todo
+ */
 #include <sstream>
 #include <string>
 
@@ -7,8 +11,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <va/va.h>
 #if !VA_CHECK_VERSION(1, 9, 0)
-/* vaSyncBuffer stub allows Sunshine built against libva <2.9.0
-   to link against ffmpeg on libva 2.9.0 or later */
+// vaSyncBuffer stub allows Sunshine built against libva <2.9.0 to link against ffmpeg on libva 2.9.0 or later
 VAStatus
 vaSyncBuffer(
   VADisplay dpy,
@@ -56,10 +59,7 @@ namespace va {
       // Needs to be closed manually
       int fd;
 
-      /*
-     *  Total size of this object (may include regions which are
-     *  not part of the surface).
-     */
+      // Total size of this object (may include regions which are not part of the surface)
       uint32_t size;
       // Format modifier applied to this object, not sure what that means
       uint64_t drm_format_modifier;
@@ -85,7 +85,9 @@ namespace va {
     } layers[4];
   };
 
-  /** Currently defined profiles */
+  /**
+   * @brief Defined profiles
+   */
   enum class profile_e {
     // Profile ID used for video processing.
     ProfileNone = -1,
@@ -135,9 +137,9 @@ namespace va {
     IDCT = 3,
     MoComp = 4,
     Deblocking = 5,
-    EncSlice = 6, /* slice level encode */
-    EncPicture = 7, /* pictuer encode, JPEG, etc */
-    /*
+    EncSlice = 6, /** slice level encode */
+    EncPicture = 7, /** picture encode, JPEG, etc */
+    /**
      * For an implementation that supports a low power/high performance variant
      * for slice level encode, it can choose to expose the
      * VAEntrypointEncSliceLP entrypoint. Certain encoding tools may not be
@@ -148,7 +150,7 @@ namespace va {
     EncSliceLP = 8,
     VideoProc = 10, /**< Video pre/post-processing. */
     /**
-     * \brief FEI
+     * @brief FEI
      *
      * The purpose of FEI (Flexible Encoding Infrastructure) is to allow applications to
      * have more controls and trade off quality for speed with their own IPs.
@@ -162,10 +164,10 @@ namespace va {
      * and VAEncFEIDistortionBufferType) for FEI entry function.
      * If separate PAK is set, two extra input buffers
      * (VAEncFEIMVBufferType, VAEncFEIMBModeBufferType) are needed for PAK input.
-     **/
+     */
     FEI = 11,
     /**
-     * \brief Stats
+     * @brief Stats
      *
      * A pre-processing function for getting some statistics and motion vectors is added,
      * and some extra controls for Encode pipeline are provided. The application can
@@ -179,19 +181,19 @@ namespace va {
      * (VAStatsStatisticsParameterBufferType) and one or two output buffers
      * (VAStatsStatisticsBufferType, VAStatsStatisticsBottomFieldBufferType (for interlace only)
      * and VAStatsMVBufferType) are needed for this entry point.
-     **/
+     */
     Stats = 12,
     /**
-     * \brief ProtectedTEEComm
+     * @brief ProtectedTEEComm
      *
      * A function for communicating with TEE (Trusted Execution Environment).
-     **/
+     */
     ProtectedTEEComm = 13,
     /**
-     * \brief ProtectedContent
+     * @brief ProtectedContent
      *
      * A function for protected content to decrypt encrypted content.
-     **/
+     */
     ProtectedContent = 14,
   };
 
@@ -288,9 +290,9 @@ namespace va {
   }
 
   int
-  vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf);
+  vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
 
-  class va_t: public platf::hwdevice_t {
+  class va_t: public platf::avcodec_encode_device_t {
   public:
     int
     init(int in_width, int in_height, file_t &&render_device) {
@@ -302,7 +304,7 @@ namespace va {
         return -1;
       }
 
-      this->data = (void *) vaapi_make_hwdevice_ctx;
+      this->data = (void *) vaapi_init_avcodec_hardware_input_buffer;
 
       gbm.reset(gbm::create_device(file.el));
       if (!gbm) {
@@ -396,8 +398,8 @@ namespace va {
     }
 
     void
-    set_colorspace(std::uint32_t colorspace, std::uint32_t color_range) override {
-      sws.set_colorspace(colorspace, color_range);
+    apply_colorspace() override {
+      sws.apply_colorspace(colorspace);
     }
 
     va::display_t::pointer va_display;
@@ -475,11 +477,11 @@ namespace va {
   };
 
   /**
- * This is a private structure of FFmpeg, I need this to manually create
- * a VAAPI hardware context
- * 
- * xdisplay will not be used internally by FFmpeg
- */
+   * This is a private structure of FFmpeg, I need this to manually create
+   * a VAAPI hardware context
+   *
+   * xdisplay will not be used internally by FFmpeg
+   */
   typedef struct VAAPIDevicePriv {
     union {
       void *xdisplay;
@@ -489,22 +491,22 @@ namespace va {
   } VAAPIDevicePriv;
 
   /**
- * VAAPI connection details.
- *
- * Allocated as AVHWDeviceContext.hwctx
- */
+   * VAAPI connection details.
+   *
+   * Allocated as AVHWDeviceContext.hwctx
+   */
   typedef struct AVVAAPIDeviceContext {
     /**
-   * The VADisplay handle, to be filled by the user.
-   */
+     * The VADisplay handle, to be filled by the user.
+     */
     va::VADisplay display;
     /**
-   * Driver quirks to apply - this is filled by av_hwdevice_ctx_init(),
-   * with reference to a table of known drivers, unless the
-   * AV_VAAPI_DRIVER_QUIRK_USER_SET bit is already present.  The user
-   * may need to refer to this field when performing any later
-   * operations using VAAPI with the same VADisplay.
-   */
+     * Driver quirks to apply - this is filled by av_hwdevice_ctx_init(),
+     * with reference to a table of known drivers, unless the
+     * AV_VAAPI_DRIVER_QUIRK_USER_SET bit is already present.  The user
+     * may need to refer to this field when performing any later
+     * operations using VAAPI with the same VADisplay.
+     */
     unsigned int driver_quirks;
   } AVVAAPIDeviceContext;
 
@@ -513,8 +515,18 @@ namespace va {
     BOOST_LOG(*(boost::log::sources::severity_logger<int> *) level) << msg;
   }
 
+  static void
+  vaapi_hwdevice_ctx_free(AVHWDeviceContext *ctx) {
+    auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
+    auto priv = (VAAPIDevicePriv *) ctx->user_opaque;
+
+    vaTerminate(hwctx->display);
+    close(priv->drm_fd);
+    av_freep(&priv);
+  }
+
   int
-  vaapi_make_hwdevice_ctx(platf::hwdevice_t *base, AVBufferRef **hw_device_buf) {
+  vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *base, AVBufferRef **hw_device_buf) {
     if (!va::initialize) {
       BOOST_LOG(warning) << "libva not loaded"sv;
       return -1;
@@ -530,7 +542,6 @@ namespace va {
 
     auto *priv = (VAAPIDevicePriv *) av_mallocz(sizeof(VAAPIDevicePriv));
     priv->drm_fd = fd;
-    priv->drm.fd = fd;
 
     auto fg = util::fail_guard([fd, priv]() {
       close(fd);
@@ -560,9 +571,13 @@ namespace va {
     BOOST_LOG(debug) << "vaapi vendor: "sv << va::queryVendorString(display.get());
 
     *hw_device_buf = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
-    auto ctx = (AVVAAPIDeviceContext *) ((AVHWDeviceContext *) (*hw_device_buf)->data)->hwctx;
-    ctx->display = display.release();
+    auto ctx = (AVHWDeviceContext *) (*hw_device_buf)->data;
+    auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
 
+    // Ownership of the VADisplay and DRM fd is now ours to manage via the free() function
+    hwctx->display = display.release();
+    ctx->user_opaque = priv;
+    ctx->free = vaapi_hwdevice_ctx_free;
     fg.disable();
 
     auto err = av_hwdevice_ctx_init(*hw_device_buf);
@@ -638,10 +653,10 @@ namespace va {
     return true;
   }
 
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
     if (vram) {
-      auto egl = std::make_shared<va::va_vram_t>();
+      auto egl = std::make_unique<va::va_vram_t>();
       if (egl->init(width, height, std::move(card), offset_x, offset_y)) {
         return nullptr;
       }
@@ -650,7 +665,7 @@ namespace va {
     }
 
     else {
-      auto egl = std::make_shared<va::va_ram_t>();
+      auto egl = std::make_unique<va::va_ram_t>();
       if (egl->init(width, height, std::move(card))) {
         return nullptr;
       }
@@ -659,8 +674,8 @@ namespace va {
     }
   }
 
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, int offset_x, int offset_y, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
     auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
     file_t file = open(render_device, O_RDWR);
@@ -671,11 +686,11 @@ namespace va {
       return nullptr;
     }
 
-    return make_hwdevice(width, height, std::move(file), offset_x, offset_y, vram);
+    return make_avcodec_encode_device(width, height, std::move(file), offset_x, offset_y, vram);
   }
 
-  std::shared_ptr<platf::hwdevice_t>
-  make_hwdevice(int width, int height, bool vram) {
-    return make_hwdevice(width, height, 0, 0, vram);
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_encode_device(int width, int height, bool vram) {
+    return make_avcodec_encode_device(width, height, 0, 0, vram);
   }
 }  // namespace va

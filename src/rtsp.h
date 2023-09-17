@@ -1,7 +1,8 @@
-// Created by loki on 2/2/20.
-
-#ifndef SUNSHINE_RTSP_H
-#define SUNSHINE_RTSP_H
+/**
+ * @file src/rtsp.h
+ * @brief todo
+ */
+#pragma once
 
 #include <atomic>
 
@@ -16,6 +17,15 @@ namespace rtsp_stream {
     crypto::aes_t iv;
 
     bool host_audio;
+    std::string unique_id;
+    int width;
+    int height;
+    int fps;
+    int gcmap;
+    int appid;
+    int surround_info;
+    bool enable_hdr;
+    bool enable_sops;
   };
 
   void
@@ -27,5 +37,3 @@ namespace rtsp_stream {
   rtpThread();
 
 }  // namespace rtsp_stream
-
-#endif  // SUNSHINE_RTSP_H

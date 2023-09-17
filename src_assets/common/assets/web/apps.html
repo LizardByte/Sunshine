@@ -15,9 +15,11 @@
         <tr v-for="(app,i) in apps" :key="i">
           <td>{{app.name}}</td>
           <td>
-            <button class="btn btn-primary" @click="editApp(i)">Edit</button>
+            <button class="btn btn-primary" @click="editApp(i)">
+              <i class="fas fa-edit"></i> Edit
+            </button>
             <button class="btn btn-danger" @click="showDeleteForm(i)">
-              Delete
+              <i class="fas fa-trash"></i> Delete
             </button>
           </td>
         </tr>
@@ -56,29 +58,51 @@
         </div>
       </div>
       <!--prep-cmd-->
-      <div class="mb-3 d-flex flex-column">
-        <div class="mb-3">
-          <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
-          <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
-            <option v-for="val in [false, true]" :value="val">{{ !val ? 'Enabled' : 'Disabled' }}</option>
-          </select>
-          <div class="form-text">
-            Enable/Disable the execution of Global Prep Commands for this application.
-          </div>
+      <div class="mb-3">
+        <label for="excludeGlobalPrep" class="form-label"
+          >Global Prep Commands</label
+        >
+        <select
+          id="excludeGlobalPrep"
+          class="form-select"
+          v-model="editForm['exclude-global-prep-cmd']"
+        >
+          <option v-for="val in [false, true]" :value="val">
+            {{ !val ? 'Enabled' : 'Disabled' }}
+          </option>
+        </select>
+        <div class="form-text">
+          Enable/Disable the execution of Global Prep Commands for this
+          application.
         </div>
+      </div>
+      <div class="mb-3">
         <label for="appName" class="form-label">Command Preparations</label>
         <div class="form-text">
-          A list of commands to be run before/after this application. <br />
-          If any of the prep-commands fail, starting the application is aborted
+          A list of commands to be run before/after this application.<br />
+          If any of the prep-commands fail, starting the application is aborted.
         </div>
-        <table v-if="editForm['prep-cmd'].length > 0">
+        <div
+          class="d-flex justify-content-start mb-3 mt-3"
+          v-if="editForm['prep-cmd'].length === 0"
+        >
+          <button class="btn btn-success" @click="addPrepCmd">
+            <i class="fas fa-plus mr-1"></i> Add Commands
+          </button>
+        </div>
+        <table class="table" v-if="editForm['prep-cmd'].length > 0">
           <thead>
-            <th class="precmd-head">Do</th>
-            <th class="precmd-head">Undo</th>
-            <th style="width: 48px"></th>
+            <tr>
+              <th scope="col"><i class="fas fa-play"></i> Do Command</th>
+              <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
+              <th scope="col" v-if="platform === 'windows'">
+                <i class="fas fa-shield-alt"></i> Run as Admin
+              </th>
+              <th scope="col"></th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="(c,i) in editForm['prep-cmd']">
+            <tr v-for="(c, i) in editForm['prep-cmd']">
               <td>
                 <input
                   type="text"
@@ -93,24 +117,35 @@
                   v-model="c.undo"
                 />
               </td>
+              <td v-if="platform === 'windows'">
+                <div class="form-check">
+                  <input
+                    type="checkbox"
+                    class="form-check-input"
+                    :id="'prep-cmd-admin-' + i"
+                    v-model="c.elevated"
+                    true-value="true"
+                    false-value="false"
+                  />
+                  <label :for="'prep-cmd-admin-' + i" class="form-check-label"
+                    >Elevated</label
+                  >
+                </div>
+              </td>
               <td>
                 <button
                   class="btn btn-danger"
-                  @click="editForm['prep-cmd'].splice(i,1)"
+                  @click="$delete(editForm['prep-cmd'], i)"
                 >
-                  &times;
+                  <i class="fas fa-trash"></i>
+                </button>
+                <button class="btn btn-success" @click="addPrepCmd">
+                  <i class="fas fa-plus"></i>
                 </button>
               </td>
             </tr>
           </tbody>
         </table>
-        <button
-          class="mt-2 btn btn-success"
-          style="margin: 0 auto"
-          @click="addPrepCmd"
-        >
-          &plus; Add
-        </button>
       </div>
       <!--detatched-->
       <div class="mb-3">
@@ -155,7 +190,7 @@
           v-model="editForm.cmd"
         />
         <div id="appCmdHelp" class="form-text">
-          The main application, if it is not specified, a processs is started
+          The main application, if it is not specified, a process is started
           that sleeps indefinitely
         </div>
       </div>
@@ -170,9 +205,28 @@
           v-model="editForm['working-dir']"
         />
         <div id="appWorkingDirHelp" class="form-text">
-          The working directory that should be passed to the process.
-          For example, some applications use the working directory to search for configuration files.
-          If not set, Sunshine will default to the parent directory of the command
+          The working directory that should be passed to the process. For
+          example, some applications use the working directory to search for
+          configuration files. If not set, Sunshine will default to the parent
+          directory of the command
+        </div>
+      </div>
+      <!-- elevation -->
+      <div class="mb-3 form-check" v-if="platform === 'windows'">
+        <label for="appElevation" class="form-check-label"
+          >Run as administrator</label
+        >
+        <input
+          type="checkbox"
+          class="form-check-input"
+          id="appElevation"
+          v-model="editForm.elevated"
+          true-value="true"
+          false-value="false"
+        />
+        <div class="form-text">
+          This can be necessary for some applications that require administrator
+          permissions to run properly.
         </div>
       </div>
       <!-- Image path -->
@@ -180,36 +234,60 @@
         <label for="appImagePath" class="form-label">Image</label>
         <div class="input-group dropup">
           <input
-              type="text"
-              class="form-control monospace"
-              id="appImagePath"
-              aria-describedby="appImagePathHelp"
-              v-model="editForm['image-path']"
+            type="text"
+            class="form-control monospace"
+            id="appImagePath"
+            aria-describedby="appImagePathHelp"
+            v-model="editForm['image-path']"
           />
-          <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle" data-bs-toggle="dropdown"
-                  data-bs-auto-close="outside" aria-expanded="false" v-dropdown-show="showCoverFinder"
-                  ref="coverFinderDropdown">
+          <button
+            class="btn btn-secondary dropdown-toggle"
+            type="button"
+            id="findCoverToggle"
+            data-bs-toggle="dropdown"
+            data-bs-auto-close="outside"
+            aria-expanded="false"
+            v-dropdown-show="showCoverFinder"
+            ref="coverFinderDropdown"
+          >
             Find Cover
           </button>
-          <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
-              aria-labelledby="findCoverToggle">
+          <div
+            class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
+            aria-labelledby="findCoverToggle"
+          >
             <div class="modal-header">
               <h4 class="modal-title">Covers Found</h4>
-              <button type="button" class="btn-close" aria-label="Close" @click="closeCoverFinder"></button>
+              <button
+                type="button"
+                class="btn-close"
+                aria-label="Close"
+                @click="closeCoverFinder"
+              ></button>
             </div>
-            <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
+            <div
+              class="modal-body cover-results px-3 pt-3"
+              :class="{ busy: coverFinderBusy }"
+            >
               <div class="row">
-                <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
+                <div
+                  v-if="coverSearching"
+                  class="col-12 col-sm-6 col-lg-4 mb-3"
+                >
                   <div class="cover-container">
                     <div class="spinner-border" role="status">
                       <span class="visually-hidden">Loading...</span>
                     </div>
                   </div>
                 </div>
-                <div v-for="(cover,i) in coverCandidates" :key="i" class="col-12 col-sm-6 col-lg-4 mb-3"
-                    @click="useCover(cover)">
+                <div
+                  v-for="(cover,i) in coverCandidates"
+                  :key="'i'"
+                  class="col-12 col-sm-6 col-lg-4 mb-3"
+                  @click="useCover(cover)"
+                >
                   <div class="cover-container result">
-                    <img class="rounded" :src="cover.url"/>
+                    <img class="rounded" :src="cover.url" />
                   </div>
                   <label class="d-block text-nowrap text-center text-truncate">
                     {{cover.name}}
@@ -220,9 +298,29 @@
           </div>
         </div>
         <div id="appImagePathHelp" class="form-text">
-          Application icon/picture/image path that will be sent to client. Image must be a PNG file.
-          If not set, Sunshine will send default box image.
+          Application icon/picture/image path that will be sent to client. Image
+          must be a PNG file. If not set, Sunshine will send default box image.
         </div>
+      </div>
+      <div class="env-hint">
+        <div class="form-text"><b>About Environment Variables: </b> All commands get these environment variables by default: </div>
+        <table>
+          <tr><td><b>Var Name</b></td><td><b></b></td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_APP_ID</td><td>App ID</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_APP_NAME</td><td>App Name</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_WIDTH</td><td>The Width requested by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HEIGHT</td><td>The Height requested by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_FPS</td><td>The FPS requested by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HDR</td><td>(true/false) if HDR is enabled by the client</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_GCMAP</td><td>(int) the requested gamepad mask, in a bitset/bitfield format</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HOST_AUDIO</td><td>(true/false) if the client has requested host audio</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td><td>(true/false) if the client has requested the option to optimize the game for optimal streaming</td></tr>
+          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td><td>The Audio Configuration requested by the client (2.0/5.1/7.1)</td></tr>
+        </table>
+        <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution Automation:</b> <pre>cmd /C &lt;qres path&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre></div>
+        <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution Automation:</b> <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate 60"</pre></div>
+        <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for Resolution Automation:</b> <pre>sh -c "displayplacer "id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre></div>
+        <div class="form-text"><a href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html" target="_blank">See More</a></div>
       </div>
       <!--buttons-->
       <div class="d-flex">
@@ -234,10 +332,11 @@
     </div>
   </div>
   <div class="mt-2" v-else>
-    <button class="btn btn-primary" @click="newApp">+ Add New</button>
+    <button class="btn btn-primary" @click="newApp">
+      <i class="fas fa-plus"></i> Add New
+    </button>
   </div>
 </div>
-
 <script>
   Vue.directive('dropdown-show', {
     bind: function (el, binding) {
@@ -255,7 +354,8 @@
         detachedCmd: "",
         coverSearching: false,
         coverFinderBusy: false,
-        coverCandidates: []
+        coverCandidates: [],
+        platform: "",
       };
     },
     created() {
@@ -265,6 +365,10 @@
           console.log(r);
           this.apps = r.apps;
         });
+      
+      fetch("/api/config")
+        .then(r => r.json())
+        .then(r => this.platform = r.platform);
     },
     methods: {
       newApp() {
@@ -274,6 +378,7 @@
           cmd: [],
           index: -1,
           "exclude-global-prep-cmd": false,
+          elevated: false,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -290,6 +395,9 @@
           this.$set(this.editForm, "detached", []);
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
           this.$set(this.editForm, "exclude-global-prep-cmd", false);
+        if(this.editForm["elevated"] === undefined && this.platform === 'windows'){
+          this.$set(this.editForm, "elevated", false);
+        }
         this.showEditForm = true;
       },
       showDeleteForm(id) {
@@ -303,10 +411,16 @@
         }
       },
       addPrepCmd() {
-        this.editForm["prep-cmd"].push({
+        let template = {
           do: "",
-          undo: "",
-        });
+          undo: ""
+        };
+
+        if(this.platform === 'windows'){
+          template = {...template, elevated: false};
+        }
+
+        this.editForm["prep-cmd"].push(template);
       },
       showCoverFinder($event) {
         this.coverCandidates = [];
@@ -454,6 +568,10 @@
     padding: 1em;
     border: 1px solid #dee2e6;
     border-top: none;
+  }
+
+  td {
+    padding: 0 0.5em;
   }
 
 </style>

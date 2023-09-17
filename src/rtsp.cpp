@@ -1,5 +1,7 @@
-// Created by loki on 2/2/20.
-
+/**
+ * @file src/rstp.cpp
+ * @brief todo
+ */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 extern "C" {
@@ -223,7 +225,7 @@ namespace rtsp_stream {
     }
 
     int
-    bind(std::uint16_t port, boost::system::error_code &ec) {
+    bind(net::af_e af, std::uint16_t port, boost::system::error_code &ec) {
       {
         auto lg = _session_slots.lock();
 
@@ -231,14 +233,14 @@ namespace rtsp_stream {
         _slot_count = config::stream.channels;
       }
 
-      acceptor.open(tcp::v4(), ec);
+      acceptor.open(af == net::IPV4 ? tcp::v4() : tcp::v6(), ec);
       if (ec) {
         return -1;
       }
 
       acceptor.set_option(boost::asio::socket_base::reuse_address { true });
 
-      acceptor.bind(tcp::endpoint(tcp::v4(), port), ec);
+      acceptor.bind(tcp::endpoint(af == net::IPV4 ? tcp::v4() : tcp::v6(), port), ec);
       if (ec) {
         return -1;
       }
@@ -490,8 +492,20 @@ namespace rtsp_stream {
     option.content = const_cast<char *>(seqn_str.c_str());
 
     std::stringstream ss;
+
+    // Tell the client about our supported features
+    ss << "a=x-ss-general.featureFlags: " << (uint32_t) platf::get_capabilities();
+
     if (video::active_hevc_mode != 1) {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
+    }
+
+    if (video::last_encoder_probe_supported_ref_frames_invalidation) {
+      ss << "x-nv-video[0].refPicInvalidation=1"sv << std::endl;
+    }
+
+    if (video::active_av1_mode != 1) {
+      ss << "a=rtpmap:98 AV1/90000"sv << std::endl;
     }
 
     for (int x = 0; x < audio::MAX_STREAM_CONFIG; ++x) {
@@ -501,10 +515,10 @@ namespace rtsp_stream {
       auto mapping_p = stream_config.mapping;
 
       /**
-     * GFE advertises incorrect mapping for normal quality configurations,
-     * as a result, Moonlight rotates all channels from index '3' to the right
-     * To work around this, rotate channels to the left from index '3'
-     */
+       * GFE advertises incorrect mapping for normal quality configurations,
+       * as a result, Moonlight rotates all channels from index '3' to the right
+       * To work around this, rotate channels to the left from index '3'
+       */
       if (x == audio::SURROUND51 || x == audio::SURROUND71) {
         std::copy_n(mapping_p, stream_config.channelCount, mapping);
         std::rotate(mapping + 3, mapping + 4, mapping + audio::MAX_STREAM_CONFIG);
@@ -691,8 +705,15 @@ namespace rtsp_stream {
       }
     }
 
-    if (config.monitor.videoFormat != 0 && video::active_hevc_mode == 1) {
+    if (config.monitor.videoFormat == 1 && video::active_hevc_mode == 1) {
       BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
+
+      respond(sock, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
+      return;
+    }
+
+    if (config.monitor.videoFormat == 2 && video::active_av1_mode == 1) {
+      BOOST_LOG(warning) << "AV1 is disabled, yet the client requested AV1"sv;
 
       respond(sock, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;
@@ -745,7 +766,7 @@ namespace rtsp_stream {
     server.map("PLAY"sv, &cmd_play);
 
     boost::system::error_code ec;
-    if (server.bind(map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
+    if (server.bind(net::af_from_enum_string(config::sunshine.address_family), map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
       BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << map_port(rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
       shutdown_event->raise(true);
 

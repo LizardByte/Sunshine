@@ -1,5 +1,6 @@
 /**
- * @file main.cpp
+ * @file src/main.cpp
+ * @brief Main entry point for Sunshine.
  */
 
 // standard includes
@@ -34,12 +35,21 @@
 extern "C" {
 #include <libavutil/log.h>
 #include <rs.h>
+
+#ifdef _WIN32
+  #include <iphlpapi.h>
+#endif
 }
 
 safe::mail_t mail::man;
 
 using namespace std::literals;
 namespace bl = boost::log;
+
+#ifdef _WIN32
+// Define global singleton used for NVIDIA control panel modifications
+nvprefs::nvprefs_interface nvprefs_instance;
+#endif
 
 thread_pool_util::ThreadPool task_pool;
 bl::sources::severity_logger<int> verbose(0);  // Dominating output
@@ -107,13 +117,30 @@ namespace version {
   }
 }  // namespace version
 
+#ifdef _WIN32
+namespace restore_nvprefs_undo {
+  int
+  entry(const char *name, int argc, char *argv[]) {
+    // Restore global NVIDIA control panel settings to the undo file
+    // left by improper termination of sunshine.exe, if it exists.
+    // This entry point is typically called by the uninstaller.
+    if (nvprefs_instance.load()) {
+      nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+      nvprefs_instance.unload();
+    }
+    return 0;
+  }
+}  // namespace restore_nvprefs_undo
+#endif
+
 namespace lifetime {
+  static char **argv;
   static std::atomic_int desired_exit_code;
 
   /**
-   * @brief Terminates Sunshine gracefully with the provided exit code
-   * @param exit_code The exit code to return from main()
-   * @param async Specifies whether our termination will be non-blocking
+   * @brief Terminates Sunshine gracefully with the provided exit code.
+   * @param exit_code The exit code to return from main().
+   * @param async Specifies whether our termination will be non-blocking.
    */
   void
   exit_sunshine(int exit_code, bool async) {
@@ -130,7 +157,252 @@ namespace lifetime {
       std::this_thread::sleep_for(1s);
     }
   }
+
+  /**
+   * @brief Gets the argv array passed to main().
+   */
+  char **
+  get_argv() {
+    return argv;
+  }
 }  // namespace lifetime
+
+#ifdef _WIN32
+namespace service_ctrl {
+  class service_controller {
+  public:
+    /**
+     * @brief Constructor for service_controller class.
+     * @param service_desired_access SERVICE_* desired access flags.
+     */
+    service_controller(DWORD service_desired_access) {
+      scm_handle = OpenSCManagerA(nullptr, nullptr, SC_MANAGER_CONNECT);
+      if (!scm_handle) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "OpenSCManager() failed: "sv << winerr;
+        return;
+      }
+
+      service_handle = OpenServiceA(scm_handle, "SunshineService", service_desired_access);
+      if (!service_handle) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "OpenService() failed: "sv << winerr;
+        return;
+      }
+    }
+
+    ~service_controller() {
+      if (service_handle) {
+        CloseServiceHandle(service_handle);
+      }
+
+      if (scm_handle) {
+        CloseServiceHandle(scm_handle);
+      }
+    }
+
+    /**
+     * @brief Asynchronously starts the Sunshine service.
+     */
+    bool
+    start_service() {
+      if (!service_handle) {
+        return false;
+      }
+
+      if (!StartServiceA(service_handle, 0, nullptr)) {
+        auto winerr = GetLastError();
+        if (winerr != ERROR_SERVICE_ALREADY_RUNNING) {
+          BOOST_LOG(error) << "StartService() failed: "sv << winerr;
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    /**
+     * @brief Query the service status.
+     * @param status The SERVICE_STATUS struct to populate.
+     */
+    bool
+    query_service_status(SERVICE_STATUS &status) {
+      if (!service_handle) {
+        return false;
+      }
+
+      if (!QueryServiceStatus(service_handle, &status)) {
+        auto winerr = GetLastError();
+        BOOST_LOG(error) << "QueryServiceStatus() failed: "sv << winerr;
+        return false;
+      }
+
+      return true;
+    }
+
+  private:
+    SC_HANDLE scm_handle = NULL;
+    SC_HANDLE service_handle = NULL;
+  };
+
+  /**
+   * @brief Check if the service is running.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * is_service_running();
+   * ```
+   */
+  bool
+  is_service_running() {
+    service_controller sc { SERVICE_QUERY_STATUS };
+
+    SERVICE_STATUS status;
+    if (!sc.query_service_status(status)) {
+      return false;
+    }
+
+    return status.dwCurrentState == SERVICE_RUNNING;
+  }
+
+  /**
+   * @brief Start the service and wait for startup to complete.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * start_service();
+   * ```
+   */
+  bool
+  start_service() {
+    service_controller sc { SERVICE_QUERY_STATUS | SERVICE_START };
+
+    std::cout << "Starting Sunshine..."sv;
+
+    // This operation is asynchronous, so we must wait for it to complete
+    if (!sc.start_service()) {
+      return false;
+    }
+
+    SERVICE_STATUS status;
+    do {
+      Sleep(1000);
+      std::cout << '.';
+    } while (sc.query_service_status(status) && status.dwCurrentState == SERVICE_START_PENDING);
+
+    if (status.dwCurrentState != SERVICE_RUNNING) {
+      BOOST_LOG(error) << SERVICE_NAME " failed to start: "sv << status.dwWin32ExitCode;
+      return false;
+    }
+
+    std::cout << std::endl;
+    return true;
+  }
+
+  /**
+   * @brief Wait for the UI to be ready after Sunshine startup.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * wait_for_ui_ready();
+   * ```
+   */
+  bool
+  wait_for_ui_ready() {
+    std::cout << "Waiting for Web UI to be ready...";
+
+    // Wait up to 30 seconds for the web UI to start
+    for (int i = 0; i < 30; i++) {
+      PMIB_TCPTABLE tcp_table = nullptr;
+      ULONG table_size = 0;
+      ULONG err;
+
+      auto fg = util::fail_guard([&tcp_table]() {
+        free(tcp_table);
+      });
+
+      do {
+        // Query all open TCP sockets to look for our web UI port
+        err = GetTcpTable(tcp_table, &table_size, false);
+        if (err == ERROR_INSUFFICIENT_BUFFER) {
+          free(tcp_table);
+          tcp_table = (PMIB_TCPTABLE) malloc(table_size);
+        }
+      } while (err == ERROR_INSUFFICIENT_BUFFER);
+
+      if (err != NO_ERROR) {
+        BOOST_LOG(error) << "Failed to query TCP table: "sv << err;
+        return false;
+      }
+
+      uint16_t port_nbo = htons(map_port(confighttp::PORT_HTTPS));
+      for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
+        auto &entry = tcp_table->table[i];
+
+        // Look for our port in the listening state
+        if (entry.dwLocalPort == port_nbo && entry.dwState == MIB_TCP_STATE_LISTEN) {
+          std::cout << std::endl;
+          return true;
+        }
+      }
+
+      Sleep(1000);
+      std::cout << '.';
+    }
+
+    std::cout << "timed out"sv << std::endl;
+    return false;
+  }
+}  // namespace service_ctrl
+
+/**
+ * @brief Checks if NVIDIA's GameStream software is running.
+ * @return `true` if GameStream is enabled.
+ */
+bool
+is_gamestream_enabled() {
+  DWORD enabled;
+  DWORD size = sizeof(enabled);
+  return RegGetValueW(
+           HKEY_LOCAL_MACHINE,
+           L"SOFTWARE\\NVIDIA Corporation\\NvStream",
+           L"EnableStreaming",
+           RRF_RT_REG_DWORD,
+           nullptr,
+           &enabled,
+           &size) == ERROR_SUCCESS &&
+         enabled != 0;
+}
+
+#endif
+
+/**
+ * @brief Launch the Web UI.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * launch_ui();
+ * ```
+ */
+void
+launch_ui() {
+  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS));
+  platf::open_url(url);
+}
+
+/**
+ * @brief Launch the Web UI at a specific endpoint.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * launch_ui_with_path("/pin");
+ * ```
+ */
+void
+launch_ui_with_path(std::string path) {
+  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS)) + path;
+  platf::open_url(url);
+}
 
 /**
  * @brief Flush the log.
@@ -176,7 +448,10 @@ namespace gen_creds {
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
   { "creds"sv, gen_creds::entry },
   { "help"sv, help::entry },
-  { "version"sv, version::entry }
+  { "version"sv, version::entry },
+#ifdef _WIN32
+  { "restore-nvprefs-undo"sv, restore_nvprefs_undo::entry },
+#endif
 };
 
 #ifdef _WIN32
@@ -207,9 +482,14 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
  */
 int
 main(int argc, char *argv[]) {
+  lifetime::argv = argv;
+
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
+  // Switch default C standard library locale to UTF-8 on Windows 10 1803+
+  setlocale(LC_ALL, ".UTF-8");
+
   // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
   SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
 
@@ -253,6 +533,9 @@ main(int argc, char *argv[]) {
   window_thread.detach();
 #endif
 
+  // Use UTF-8 conversion for the default C++ locale (used by boost::log)
+  std::locale::global(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
+
   mail::man = std::make_shared<safe::mail_raw_t>();
 
   if (config::parse(argc, argv)) {
@@ -265,6 +548,31 @@ main(int argc, char *argv[]) {
   else {
     av_log_set_level(AV_LOG_DEBUG);
   }
+  av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {
+    static int print_prefix = 1;
+    char buffer[1024];
+
+    av_log_format_line(ptr, level, fmt, vl, buffer, sizeof(buffer), &print_prefix);
+    if (level <= AV_LOG_FATAL) {
+      BOOST_LOG(fatal) << buffer;
+    }
+    else if (level <= AV_LOG_ERROR) {
+      BOOST_LOG(error) << buffer;
+    }
+    else if (level <= AV_LOG_WARNING) {
+      BOOST_LOG(warning) << buffer;
+    }
+    else if (level <= AV_LOG_INFO) {
+      BOOST_LOG(info) << buffer;
+    }
+    else if (level <= AV_LOG_VERBOSE) {
+      // AV_LOG_VERBOSE is less verbose than AV_LOG_DEBUG
+      BOOST_LOG(debug) << buffer;
+    }
+    else {
+      BOOST_LOG(verbose) << buffer;
+    }
+  });
 
   sink = boost::make_shared<text_sink>();
 
@@ -329,6 +637,21 @@ main(int argc, char *argv[]) {
 
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
+
+#ifdef WIN32
+  // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
+  if (nvprefs_instance.load()) {
+    // Restore global settings to the undo file left by improper termination of sunshine.exe
+    nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
+    // Modify application settings for sunshine.exe
+    nvprefs_instance.modify_application_profile();
+    // Modify global settings, undo file is produced in the process to restore after improper termination
+    nvprefs_instance.modify_global_profile();
+    // Unload dynamic library to survive driver reinstallation
+    nvprefs_instance.unload();
+  }
+#endif
+
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
@@ -375,6 +698,11 @@ main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
 
+  auto proc_deinit_guard = proc::init();
+  if (!proc_deinit_guard) {
+    BOOST_LOG(error) << "Proc failed to initialize"sv;
+  }
+
   reed_solomon_init();
   auto input_deinit_guard = input::init();
   if (video::probe_encoders()) {
@@ -382,7 +710,14 @@ main(int argc, char *argv[]) {
   }
 
   if (http::init()) {
-    BOOST_LOG(error) << "http failed to initialize"sv;
+    BOOST_LOG(fatal) << "HTTP interface failed to initialize"sv;
+
+#ifdef _WIN32
+    BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
+    std::this_thread::sleep_for(10s);
+#endif
+
+    return -1;
   }
 
   std::unique_ptr<platf::deinit_t> mDNS;
@@ -403,6 +738,14 @@ main(int argc, char *argv[]) {
   std::thread httpThread { nvhttp::start };
   std::thread configThread { confighttp::start };
 
+#ifdef _WIN32
+  // If we're using the default port and GameStream is enabled, warn the user
+  if (config::sunshine.port == 47989 && is_gamestream_enabled()) {
+    BOOST_LOG(fatal) << "GameStream is still enabled in GeForce Experience! This *will* cause streaming problems with Sunshine!"sv;
+    BOOST_LOG(fatal) << "Disable GameStream on the SHIELD tab in GeForce Experience or change the Port setting on the Advanced tab in the Sunshine Web UI."sv;
+  }
+#endif
+
   rtsp_stream::rtpThread();
 
   httpThread.join();
@@ -414,6 +757,14 @@ main(int argc, char *argv[]) {
   // stop system tray
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
   system_tray::end_tray();
+#endif
+
+#ifdef WIN32
+  // Restore global NVIDIA control panel settings
+  if (nvprefs_instance.owning_undo_file() && nvprefs_instance.load()) {
+    nvprefs_instance.restore_global_profile();
+    nvprefs_instance.unload();
+  }
 #endif
 
   return lifetime::desired_exit_code;

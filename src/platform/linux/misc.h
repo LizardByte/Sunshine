@@ -1,5 +1,8 @@
-#ifndef SUNSHINE_PLATFORM_MISC_H
-#define SUNSHINE_PLATFORM_MISC_H
+/**
+ * @file src/platform/linux/misc.h
+ * @brief todo
+ */
+#pragma once
 
 #include <unistd.h>
 #include <vector>
@@ -29,5 +32,3 @@ namespace dyn {
   handle(const std::vector<const char *> &libs);
 
 }  // namespace dyn
-
-#endif

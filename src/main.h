@@ -1,10 +1,10 @@
 /**
- * @file main.h
+ * @file src/main.h
+ * @brief Main header file for the Sunshine application.
  */
 
 // macros
-#ifndef SUNSHINE_MAIN_H
-#define SUNSHINE_MAIN_H
+#pragma once
 
 // standard includes
 #include <filesystem>
@@ -16,6 +16,12 @@
 // local includes
 #include "thread_pool.h"
 #include "thread_safe.h"
+
+#ifdef _WIN32
+  // Declare global singleton used for NVIDIA control panel modifications
+  #include "platform/windows/nvprefs/nvprefs_interface.h"
+extern nvprefs::nvprefs_interface nvprefs_instance;
+#endif
 
 extern thread_pool_util::ThreadPool task_pool;
 extern bool display_cursor;
@@ -33,20 +39,6 @@ main(int argc, char *argv[]);
 void
 log_flush();
 void
-open_url(const std::string &url);
-void
-tray_open_ui_cb(struct tray_menu *item);
-void
-tray_donate_github_cb(struct tray_menu *item);
-void
-tray_donate_mee6_cb(struct tray_menu *item);
-void
-tray_donate_patreon_cb(struct tray_menu *item);
-void
-tray_donate_paypal_cb(struct tray_menu *item);
-void
-tray_quit_cb(struct tray_menu *item);
-void
 print_help(const char *name);
 std::string
 read_file(const char *path);
@@ -54,6 +46,10 @@ int
 write_file(const char *path, const std::string_view &contents);
 std::uint16_t
 map_port(int port);
+void
+launch_ui();
+void
+launch_ui_with_path(std::string path);
 
 // namespaces
 namespace mail {
@@ -74,7 +70,8 @@ namespace mail {
   // Local mail
   MAIL(touch_port);
   MAIL(idr);
-  MAIL(rumble);
+  MAIL(invalidate_ref_frames);
+  MAIL(gamepad_feedback);
   MAIL(hdr);
 #undef MAIL
 
@@ -83,6 +80,19 @@ namespace mail {
 namespace lifetime {
   void
   exit_sunshine(int exit_code, bool async);
+  char **
+  get_argv();
 }  // namespace lifetime
 
-#endif  // SUNSHINE_MAIN_H
+#ifdef _WIN32
+namespace service_ctrl {
+  bool
+  is_service_running();
+
+  bool
+  start_service();
+
+  bool
+  wait_for_ui_ready();
+}  // namespace service_ctrl
+#endif

@@ -1,5 +1,85 @@
 # Changelog
 
+## [0.20.0] - 2023-05-28
+**Breaking**
+- (Windows) The Windows installer version of Sunshine is now always launched by the Sunshine Service. Manually launching Sunshine.exe from Program Files is no longer supported. This was necessary to address security issues caused by non-admin users having access to Sunshine's config data. If you have set up Task Scheduler or other mechanisms to launch Sunshine automatically, remove those from your system before updating.
+- (Windows) The Start Menu shortcut has been redesigned for use with the Sunshine Service. It now launches Sunshine in the background (if not already running) and opens the Web UI, avoiding the persistent Command Prompt window present in prior versions. The Start Menu shortcut is now the recommended method for opening the Web UI and launching Sunshine.
+- (Network/UPnP) If the Moonlight Internet Hosting Tool is installed alongside Sunshine, you must remove it or upgrade to v5.6 or later to prevent conflicts with Sunshine's UPnP support. As a reminder, the Moonlight Internet Hosting Tool is not required to stream over the Internet with Sunshine. Instead, simply enable UPnP in the Sunshine Web UI.
+- (Windows) If Steam is installed, the Steam Streaming Speakers driver will be automatically installed when starting a stream for the first time. This behavior can be disabled in the Audio/Video tab of the Web UI. This Steam driver enables support for surround sound and muting host audio without requiring any manual configuration.
+- (Input) The Back Button Timeout option has been renamed to Guide Button Emulation Timeout and has been disabled by default to ensure long presses on the Back button work by default. The previous behavior can be restored by setting the Guide Button Emulation Timeout to 2000.
+- (Windows) The service name of SunshineSvc has been changed to SunshineService to address a false positive in MalwareBytes. If you have any scripts or other logic on your system that is using the service name, you will need to update that for the new name.
+- (Windows) To support new installer features, install-service.bat no longer sets the service to auto-start by default. Users executing install-service.bat manually on the Sunshine portable build must also execute autostart-service.bat to start Sunshine on boot. However, installing the service manually like this is not recommended. Instead, use the Sunshine installer which handles service installation and configuration automatically.
+- (Linux/Fedora) Fedora 36 builds are removed due to upstream end of support
+
+**Added**
+- (Windows) Added an option to launch apps and prep/undo commands as administrator
+- (Installer/Windows) Added an option to choose whether Sunshine launches on boot. If not configured to launch on boot, use the Start Menu shortcut to start Sunshine when desired.
+- (Input/Windows) Added option to send VK codes instead of scancodes for compatibility with iOS/Android devices using non-English keyboard layouts
+- (UI) The Apply/Restart option is now available in the Web UI for all platforms
+- (Systray) Added a Restart option to the system tray context menu
+- (Video/Windows) Added host latency data to video frames. This requires future updates to Moonlight to display in the on-screen overlay.
+- (Audio) Added support for matching Audio Sink and Virtual Sink values on device names
+- (Client) Added friendly error messages for clients when streaming fails to start
+- (Video/Windows) Added warning log messages when Windows is hiding DRM-protected content from display capture
+- (Interop/Windows) Added warning log messages when GeForce Experience is currently using the same ports as Sunshine
+- (Linux/Fedora) Fedora 38 builds are now available
+
+**Changed**
+- (Video) Encoder selection now happens at each stream start for more reliable GPU detection
+- (Video/Windows) The host display now stays on while clients are actively streaming
+- (Audio) Streaming will no longer fail if audio capture is unavailable
+- (Audio/Windows) Sunshine will automatically switch back to the Virtual Sink if the default audio device is changed while streaming
+- (Audio) Changes to the host audio playback option will now take effect when resuming a session from Moonlight
+- (Audio/Windows) Sunshine will switch to a different default audio device if Steam Streaming Speakers are the default when Sunshine starts. This handles cases where Sunshine terminates unexpectedly without restoring the default audio device.
+- (Apps) The Connection Terminated dialog will no longer appear in Moonlight when the app on the host exits normally
+- (Systray/Windows) Quitting Sunshine via the system tray will now stop the Sunshine Service rather than leaving it running and allowing it to restart Sunshine
+- (UI) The 100.64.0.0/10 CGN IP address range is now treated as a LAN address range
+- (Video) Removed a workaround for some versions of Moonlight prior to mid-2022
+- (UI) The PIN field is now cleared after successfully pairing
+- (UI) User names are now treated as case-insensitive
+- (Linux) Changed udev rule to automatically grant access to virtual input devices
+- (UI) Several item descriptions were adjusted to reflect newer configuration recommendations
+- (UI) Placeholder text opacity has been reduced to improve contrast with non-placeholder text
+- (Video/Windows) Minor capture performance improvements
+
+**Fixed**
+- (Video) VRAM usage while streaming is significantly reduced, particularly with higher display resolutions and HDR
+- (Network/UPnP) UPnP support was rewritten to fix several major issues handling router restarts, IP address changes, and port forwarding expiration
+- (Input) Fixed modifier keys from the software keyboard on Android clients
+- (Audio) Fixed handling of default audio device changes while streaming
+- (Windows) Fixed streaming after Microsoft Remote Desktop or Fast User Switching has been used
+- (Input) Fixed some games not recognizing emulated Guide button presses
+- (Video/Windows) Fixed incorrect gamma when using an Advanced Color SDR display on the host
+- (Installer/Windows) The installer is no longer blurry on High DPI systems
+- (Systray/Windows) Fixed multiple system tray icons appearing if Sunshine exits unexpectedly
+- (Systray/Windows) Fixed the system tray icon not appearing in several situations
+- (Windows) Fixed hang on shutdown/restart if mDNS registration fails
+- (UI) Fixed missing response headers
+- (Stability) Fixed several possible crashes in cases where the client did not successfully connect
+- (Stability) Fixed several memory leaks
+- (Input/Windows) Back/Select input now correctly generates the Share button when emulating DS4 controllers
+- (Audio/Windows) Fixed various bugs in audio-info.exe that led to inaccurate output on some systems
+- (Video/Windows) Fixed incorrect resolution values from dxgi-info.exe on High DPI systems
+- (Video/Linux) Fixed poor quality encoding from H.264 on Intel encoders
+- (Config) Fixed a couple of typos in predefined resolutions
+
+**Dependencies**
+- Bump sphinx-copybutton from 0.5.1 to 0.5.2
+- Bump sphinx from 6.13 to 7.0.1
+- Bump third-party/nv-codec-headers from 2055784 to 2cd175b
+- Bump furo from 2023.3.27 to 2023.5.20
+
+**Misc**
+- (Build/Linux) Add X11 to PLATFORM_LIBARIES when found
+- (Build/macOS) Fix compilation with Clang 14
+- (Docs) Fix nvlax URL
+- (Docs) Add diagrams using graphviz
+- (Docs) Improvements to source code documentation
+- (Build) Unpin docker dependencies
+- (Build/Linux) Honor install prefix for tray icon
+- (Build/Windows) Unstripped binaries are now provided as a debuginfo package to support crash dump debugging
+- (Config) Config directories are now created recursively
+
 ## [0.19.1] - 2023-03-30
 **Fixed**
 - (Audio) Fixed no audio issue introduced in v0.19.0
@@ -409,3 +489,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.18.4]: https://github.com/LizardByte/Sunshine/releases/tag/v0.18.4
 [0.19.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.0
 [0.19.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.1
+[0.20.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.20.0
