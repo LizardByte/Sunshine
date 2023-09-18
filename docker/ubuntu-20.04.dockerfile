@@ -34,7 +34,7 @@ apt-get install -y --no-install-recommends \
   gcc-10=10.5.* \
   g++-10=10.5.* \
   git \
-  libappindicator3-dev \
+  libayatana-appindicator3-dev \
   libavdevice-dev \
   libboost-filesystem-dev=1.71.* \
   libboost-locale-dev=1.71.* \
@@ -44,6 +44,7 @@ apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libnotify-dev \
   libnuma-dev \
   libopus-dev \
   libpulse-dev \

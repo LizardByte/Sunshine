@@ -5,7 +5,7 @@ sudo apt-get install -y \
   build-essential \
   gcc-10 \
   g++-10 \
-  libappindicator3-dev \
+  libayatana-appindicator3-dev \
   libavdevice-dev \
   libboost-filesystem-dev \
   libboost-locale-dev \
@@ -16,6 +16,7 @@ sudo apt-get install -y \
   libdrm-dev \
   libevdev-dev \
   libmfx-dev \
+  libnotify-dev \
   libnuma-dev \
   libopus-dev \
   libpulse-dev \
