@@ -9,8 +9,31 @@ arch=('x86_64' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
 
-depends=('avahi' 'boost-libs' 'curl' 'libappindicator-gtk3' 'libevdev' 'libmfx' 'libpulse' 'libva' 'libvdpau' 'libx11' 'libxcb' 'libxfixes' 'libxrandr' 'libxtst' 'numactl' 'openssl' 'opus' 'udev')
-makedepends=('boost' 'cmake' 'git' 'make' 'nodejs' 'npm')
+depends=('avahi'
+         'boost-libs'
+         'curl'
+         'libayatana-appindicator'
+         'libevdev'
+         'libmfx'
+         'libnotify'
+         'libpulse'
+         'libva'
+         'libvdpau'
+         'libx11'
+         'libxcb'
+         'libxfixes'
+         'libxrandr'
+         'libxtst'
+         'numactl'
+         'openssl'
+         'opus'
+         'udev')
+makedepends=('boost'
+             'cmake'
+             'git'
+             'make'
+             'nodejs'
+             'npm')
 optdepends=('cuda: NvFBC capture support'
             'libcap'
             'libdrm')

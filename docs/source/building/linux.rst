@@ -16,6 +16,7 @@ Install Requirements
           build-essential \
           cmake \
           libavdevice-dev \
+          libayatana-appindicator3-dev \
           libboost-filesystem-dev \
           libboost-locale-dev \
           libboost-log-dev \
@@ -25,6 +26,7 @@ Install Requirements
           libdrm-dev \  # KMS
           libevdev-dev \
           libmfx-dev \  # x86_64 only
+          libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -63,6 +65,7 @@ Install Requirements
           libcurl-devel \
           libdrm-devel \
           libevdev-devel \
+          libnotify-devel \
           libva-devel \
           libvdpau-devel \
           libX11-devel \  # X11
@@ -94,7 +97,7 @@ Install Requirements
           build-essential \
           cmake \
           g++-10 \
-          libappindicator3-dev \
+          libayatana-appindicator3-dev \
           libavdevice-dev \
           libboost-filesystem-dev \
           libboost-locale-dev \
@@ -104,6 +107,7 @@ Install Requirements
           libdrm-dev \  # KMS
           libevdev-dev \
           libmfx-dev \  # x86_64 only
+          libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -152,6 +156,7 @@ Install Requirements
           libdrm-dev \  # KMS
           libevdev-dev \
           libmfx-dev \  # x86_64 only
+          libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
