@@ -3,6 +3,7 @@
 
 # submodules
 # moonlight common library
+set(ENET_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for enet")
 add_subdirectory(third-party/moonlight-common-c/enet)
 
 # web server
