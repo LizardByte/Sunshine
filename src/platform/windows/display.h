@@ -11,6 +11,8 @@
 #include <dxgi.h>
 #include <dxgi1_6.h>
 
+#include <comdef.h>
+
 #include "src/platform/common.h"
 #include "src/utility.h"
 #include "src/video.h"
@@ -27,6 +29,10 @@ namespace platf::dxgi {
   Release(T *dxgi) {
     dxgi->Release();
   }
+
+  _COM_SMARTPTR_TYPEDEF(ID3DBlob, IID_ID3DBlob);
+  _COM_SMARTPTR_TYPEDEF(ID3D11VertexShader, IID_ID3D11VertexShader);
+  _COM_SMARTPTR_TYPEDEF(ID3D11PixelShader, IID_ID3D11PixelShader);
 
   using factory1_t = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
   using dxgi_t = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
@@ -45,8 +51,6 @@ namespace platf::dxgi {
   using resource_t = util::safe_ptr<IDXGIResource, Release<IDXGIResource>>;
   using resource1_t = util::safe_ptr<IDXGIResource1, Release<IDXGIResource1>>;
   using multithread_t = util::safe_ptr<ID3D11Multithread, Release<ID3D11Multithread>>;
-  using vs_t = util::safe_ptr<ID3D11VertexShader, Release<ID3D11VertexShader>>;
-  using ps_t = util::safe_ptr<ID3D11PixelShader, Release<ID3D11PixelShader>>;
   using blend_t = util::safe_ptr<ID3D11BlendState, Release<ID3D11BlendState>>;
   using input_layout_t = util::safe_ptr<ID3D11InputLayout, Release<ID3D11InputLayout>>;
   using render_target_t = util::safe_ptr<ID3D11RenderTargetView, Release<ID3D11RenderTargetView>>;
@@ -54,7 +58,6 @@ namespace platf::dxgi {
   using buf_t = util::safe_ptr<ID3D11Buffer, Release<ID3D11Buffer>>;
   using raster_state_t = util::safe_ptr<ID3D11RasterizerState, Release<ID3D11RasterizerState>>;
   using sampler_state_t = util::safe_ptr<ID3D11SamplerState, Release<ID3D11SamplerState>>;
-  using blob_t = util::safe_ptr<ID3DBlob, Release<ID3DBlob>>;
   using depth_stencil_state_t = util::safe_ptr<ID3D11DepthStencilState, Release<ID3D11DepthStencilState>>;
   using depth_stencil_view_t = util::safe_ptr<ID3D11DepthStencilView, Release<ID3D11DepthStencilView>>;
   using keyed_mutex_t = util::safe_ptr<IDXGIKeyedMutex, Release<IDXGIKeyedMutex>>;
@@ -329,8 +332,8 @@ namespace platf::dxgi {
     blend_t blend_invert;
     blend_t blend_disable;
 
-    ps_t cursor_ps;
-    vs_t cursor_vs;
+    ID3D11VertexShaderPtr cursor_vs;
+    ID3D11PixelShaderPtr cursor_ps;
 
     gpu_cursor_t cursor_alpha;
     gpu_cursor_t cursor_xor;

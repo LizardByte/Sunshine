@@ -45,6 +45,7 @@ set(PLATFORM_TARGET_FILES
         src/platform/windows/display_base.cpp
         src/platform/windows/display_vram.cpp
         src/platform/windows/display_ram.cpp
+        src/platform/windows/dx_helpers.cpp
         src/platform/windows/audio.cpp
         third-party/ViGEmClient/src/ViGEmClient.cpp
         third-party/ViGEmClient/include/ViGEm/Client.h

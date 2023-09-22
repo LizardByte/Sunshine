@@ -15,6 +15,7 @@ extern "C" {
 }
 
 #include "display.h"
+#include "dx_helpers.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/main.h"
@@ -102,17 +103,16 @@ namespace platf::dxgi {
     return blend;
   }
 
-  blob_t convert_yuv420_packed_uv_type0_ps_hlsl;
-  blob_t convert_yuv420_packed_uv_type0_ps_linear_hlsl;
-  blob_t convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
-  blob_t convert_yuv420_packed_uv_type0_vs_hlsl;
-  blob_t convert_yuv420_planar_y_ps_hlsl;
-  blob_t convert_yuv420_planar_y_ps_linear_hlsl;
-  blob_t convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
-  blob_t convert_yuv420_planar_y_vs_hlsl;
-  blob_t cursor_ps_hlsl;
-  blob_t cursor_ps_normalize_white_hlsl;
-  blob_t cursor_vs_hlsl;
+  ID3DBlobPtr convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+  ID3DBlobPtr convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
+  ID3DBlobPtr convert_yuv420_packed_uv_type0_vs_hlsl;
+  ID3DBlobPtr convert_yuv420_planar_y_ps_linear_hlsl;
+  ID3DBlobPtr convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
+  ID3DBlobPtr convert_yuv420_planar_y_ps_srgb_hlsl;
+  ID3DBlobPtr convert_yuv420_planar_y_vs_hlsl;
+  ID3DBlobPtr cursor_ps_hlsl;
+  ID3DBlobPtr cursor_ps_normalize_white_hlsl;
+  ID3DBlobPtr cursor_vs_hlsl;
 
   struct img_d3d_t: public platf::img_t {
     // These objects are owned by the display_t's ID3D11Device
@@ -332,10 +332,10 @@ namespace platf::dxgi {
     return cursor_img;
   }
 
-  blob_t
+  ID3DBlobPtr
   compile_shader(LPCSTR file, LPCSTR entrypoint, LPCSTR shader_model) {
-    blob_t::pointer msg_p = nullptr;
-    blob_t::pointer compiled_p;
+    ID3DBlobPtr msg;
+    ID3DBlobPtr compiled;
 
     DWORD flags = D3DCOMPILE_ENABLE_STRICTNESS;
 
@@ -345,11 +345,10 @@ namespace platf::dxgi {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
     auto wFile = converter.from_bytes(file);
-    auto status = D3DCompileFromFile(wFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entrypoint, shader_model, flags, 0, &compiled_p, &msg_p);
+    auto status = D3DCompileFromFile(wFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entrypoint, shader_model, flags, 0, &compiled, &msg);
 
-    if (msg_p) {
-      BOOST_LOG(warning) << std::string_view { (const char *) msg_p->GetBufferPointer(), msg_p->GetBufferSize() - 1 };
-      msg_p->Release();
+    if (msg) {
+      BOOST_LOG(warning) << std::string_view { (const char *) msg->GetBufferPointer(), msg->GetBufferSize() - 1 };
     }
 
     if (status) {
@@ -357,15 +356,15 @@ namespace platf::dxgi {
       return nullptr;
     }
 
-    return blob_t { compiled_p };
+    return compiled;
   }
 
-  blob_t
+  ID3DBlobPtr
   compile_pixel_shader(LPCSTR file) {
     return compile_shader(file, "main_ps", "ps_5_0");
   }
 
-  blob_t
+  ID3DBlobPtr
   compile_vertex_shader(LPCSTR file) {
     return compile_shader(file, "main_vs", "vs_5_0");
   }
@@ -387,6 +386,10 @@ namespace platf::dxgi {
       auto &img = (img_d3d_t &) img_base;
       auto &img_ctx = img_ctx_map[img.id];
 
+      if (!initialize_shaders(img)) {
+        return -1;
+      }
+
       // Open the shared capture texture with our ID3D11Device
       if (initialize_image_context(img, img_ctx)) {
         return -1;
@@ -399,17 +402,18 @@ namespace platf::dxgi {
         return -1;
       }
 
-      device_ctx->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
-      device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
-      device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_fp16_ps.get() : convert_Y_ps.get(), nullptr, 0);
+      device_ctx->OMSetRenderTargets(1, &output_Y_rt, nullptr);
+      device_ctx->VSSetShader(convert_Y_vs, nullptr, 0);
+      device_ctx->PSSetShader(convert_Y_ps, nullptr, 0);
       device_ctx->RSSetViewports(1, &outY_view);
-      device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
+      device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res_for_Y);
       device_ctx->Draw(3, 0);
 
-      device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
-      device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
-      device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
+      device_ctx->OMSetRenderTargets(1, &output_UV_rt, nullptr);
+      device_ctx->VSSetShader(convert_UV_vs, nullptr, 0);
+      device_ctx->PSSetShader(convert_UV_ps, nullptr, 0);
       device_ctx->RSSetViewports(1, &outUV_view);
+      device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res_for_UV);
       device_ctx->Draw(3, 0);
 
       // Release encoder mutex to allow capture code to reuse this image
@@ -438,6 +442,8 @@ namespace platf::dxgi {
 
       device_ctx->PSSetConstantBuffers(0, 1, &color_matrix);
       this->color_matrix = std::move(color_matrix);
+
+      this->colorspace = colorspace;
     }
 
     int
@@ -484,30 +490,33 @@ namespace platf::dxgi {
         device_ctx->VSSetConstantBuffers(1, 1, &rotation);
       }
 
-      D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
+      D3D11_RENDER_TARGET_VIEW_DESC output_Y_rt_desc {
         format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
         D3D11_RTV_DIMENSION_TEXTURE2D
       };
 
-      auto status = device->CreateRenderTargetView(output_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
+      auto status = device->CreateRenderTargetView(output_texture.get(), &output_Y_rt_desc, &output_Y_rt);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create Y render target view [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
-      nv12_rt_desc.Format = (format == DXGI_FORMAT_P010) ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
+      D3D11_RENDER_TARGET_VIEW_DESC output_UV_rt_desc {
+        format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM,
+        D3D11_RTV_DIMENSION_TEXTURE2D
+      };
 
-      status = device->CreateRenderTargetView(output_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
+      status = device->CreateRenderTargetView(output_texture.get(), &output_UV_rt_desc, &output_UV_rt);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create UV render target view [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
       // Clear the RTVs to ensure the aspect ratio padding is black
       const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-      device_ctx->ClearRenderTargetView(nv12_Y_rt.get(), y_black);
+      device_ctx->ClearRenderTargetView(output_Y_rt.get(), y_black);
       const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
-      device_ctx->ClearRenderTargetView(nv12_UV_rt.get(), uv_black);
+      device_ctx->ClearRenderTargetView(output_UV_rt.get(), uv_black);
 
       return 0;
     }
@@ -553,60 +562,6 @@ namespace platf::dxgi {
       }
 
       format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
-      status = device->CreateVertexShader(convert_yuv420_planar_y_vs_hlsl->GetBufferPointer(), convert_yuv420_planar_y_vs_hlsl->GetBufferSize(), nullptr, &scene_vs);
-      if (status) {
-        BOOST_LOG(error) << "Failed to create scene vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-
-      status = device->CreateVertexShader(convert_yuv420_packed_uv_type0_vs_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_vs_hlsl->GetBufferSize(), nullptr, &convert_UV_vs);
-      if (status) {
-        BOOST_LOG(error) << "Failed to create convertUV vertex shader [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-
-      // If the display is in HDR and we're streaming HDR, we'll be converting scRGB to SMPTE 2084 PQ.
-      if (format == DXGI_FORMAT_P010 && display->is_hdr()) {
-        status = device->CreatePixelShader(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl->GetBufferPointer(), convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
-        if (status) {
-          BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
-
-        status = device->CreatePixelShader(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
-        if (status) {
-          BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
-      }
-      else {
-        // If the display is in Advanced Color mode, the desktop format will be scRGB FP16.
-        // scRGB uses linear gamma, so we must use our linear to sRGB conversion shaders.
-        status = device->CreatePixelShader(convert_yuv420_planar_y_ps_linear_hlsl->GetBufferPointer(), convert_yuv420_planar_y_ps_linear_hlsl->GetBufferSize(), nullptr, &convert_Y_fp16_ps);
-        if (status) {
-          BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
-
-        status = device->CreatePixelShader(convert_yuv420_packed_uv_type0_ps_linear_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_ps_linear_hlsl->GetBufferSize(), nullptr, &convert_UV_fp16_ps);
-        if (status) {
-          BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
-      }
-
-      // These shaders consume standard 8-bit sRGB input
-      status = device->CreatePixelShader(convert_yuv420_planar_y_ps_hlsl->GetBufferPointer(), convert_yuv420_planar_y_ps_hlsl->GetBufferSize(), nullptr, &convert_Y_ps);
-      if (status) {
-        BOOST_LOG(error) << "Failed to create convertY pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-
-      status = device->CreatePixelShader(convert_yuv420_packed_uv_type0_ps_hlsl->GetBufferPointer(), convert_yuv420_packed_uv_type0_ps_hlsl->GetBufferSize(), nullptr, &convert_UV_ps);
-      if (status) {
-        BOOST_LOG(error) << "Failed to create convertUV pixel shader [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
 
       auto default_color_vectors = ::video::color_vectors_from_colorspace(::video::colorspace_e::rec601, false);
       if (!default_color_vectors) {
@@ -660,7 +615,8 @@ namespace platf::dxgi {
       texture2d_t::const_pointer capture_texture_p;
 
       texture2d_t encoder_texture;
-      shader_res_t encoder_input_res;
+      shader_res_t encoder_input_res_for_Y;
+      shader_res_t encoder_input_res_for_UV;
       keyed_mutex_t encoder_mutex;
 
       std::weak_ptr<const platf::img_t> img_weak;
@@ -669,7 +625,8 @@ namespace platf::dxgi {
       reset() {
         capture_texture_p = nullptr;
         encoder_texture.reset();
-        encoder_input_res.reset();
+        encoder_input_res_for_Y.reset();
+        encoder_input_res_for_UV.reset();
         encoder_mutex.reset();
         img_weak.reset();
       }
@@ -707,10 +664,21 @@ namespace platf::dxgi {
         return -1;
       }
 
-      // Create the SRV for the encoder texture
-      status = device->CreateShaderResourceView(img_ctx.encoder_texture.get(), nullptr, &img_ctx.encoder_input_res);
+      // Create the SRV for the encoder texture that will be used in luma shader
+      auto luma_srv_format = (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? img.format : unorm_from_typeless_texture_format(img.format);
+      CD3D11_SHADER_RESOURCE_VIEW_DESC luma_srv_desc(D3D11_SRV_DIMENSION_TEXTURE2D, luma_srv_format);
+      status = device->CreateShaderResourceView(img_ctx.encoder_texture.get(), &luma_srv_desc, &img_ctx.encoder_input_res_for_Y);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create shader resource view for encoding [0x"sv << util::hex(status).to_string_view() << ']';
+        BOOST_LOG(error) << "Failed to create luma shader resource view for encoding [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+
+      // Create the SRV for the encoder texture that will be used in chroma shader
+      auto chroma_srv_format = (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? img.format : srgb_from_typeless_texture_format(img.format);
+      CD3D11_SHADER_RESOURCE_VIEW_DESC chroma_srv_desc(D3D11_SRV_DIMENSION_TEXTURE2D, chroma_srv_format);
+      status = device->CreateShaderResourceView(img_ctx.encoder_texture.get(), &chroma_srv_desc, &img_ctx.encoder_input_res_for_UV);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create chroma shader resource view for encoding [0x"sv << util::hex(status).to_string_view() << ']';
         return -1;
       }
 
@@ -721,7 +689,38 @@ namespace platf::dxgi {
       return 0;
     }
 
-    ::video::color_t *color_p;
+    bool
+    initialize_shaders(const img_d3d_t &img) {
+      ID3DBlobPtr new_convert_Y_vs_hlsl;
+      ID3DBlobPtr new_convert_Y_ps_hlsl;
+      ID3DBlobPtr new_convert_UV_vs_hlsl;
+      ID3DBlobPtr new_convert_UV_ps_hlsl;
+
+      new_convert_Y_vs_hlsl = convert_yuv420_planar_y_vs_hlsl;
+      new_convert_UV_vs_hlsl = convert_yuv420_packed_uv_type0_vs_hlsl;
+
+      if (::video::colorspace_is_hdr(colorspace)) {
+        new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
+        new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
+      }
+      else if (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) {
+        new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_linear_hlsl;
+        new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+      }
+      else {
+        new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_srgb_hlsl;
+        new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+      }
+
+      if (!update_vertex_shader_on_blob_mismatch(device.get(), convert_Y_vs, convert_Y_vs_hlsl, new_convert_Y_vs_hlsl)) return false;
+      if (!update_pixel_shader_on_blob_mismatch(device.get(), convert_Y_ps, convert_Y_ps_hlsl, new_convert_Y_ps_hlsl)) return false;
+      if (!update_vertex_shader_on_blob_mismatch(device.get(), convert_UV_vs, convert_UV_vs_hlsl, new_convert_UV_vs_hlsl)) return false;
+      if (!update_pixel_shader_on_blob_mismatch(device.get(), convert_UV_ps, convert_UV_ps_hlsl, new_convert_UV_ps_hlsl)) return false;
+
+      return true;
+    }
+
+    ::video::sunshine_colorspace_t colorspace;
 
     buf_t subsample_offset;
     buf_t color_matrix;
@@ -729,8 +728,8 @@ namespace platf::dxgi {
     blend_t blend_disable;
     sampler_state_t sampler_linear;
 
-    render_target_t nv12_Y_rt;
-    render_target_t nv12_UV_rt;
+    render_target_t output_Y_rt;
+    render_target_t output_UV_rt;
 
     // d3d_img_t::id -> encoder_img_ctx_t
     // These store the encoder textures for each img_t that passes through
@@ -740,12 +739,14 @@ namespace platf::dxgi {
 
     std::shared_ptr<display_base_t> display;
 
-    vs_t convert_UV_vs;
-    ps_t convert_UV_ps;
-    ps_t convert_UV_fp16_ps;
-    ps_t convert_Y_ps;
-    ps_t convert_Y_fp16_ps;
-    vs_t scene_vs;
+    ID3DBlobPtr convert_Y_vs_hlsl;
+    ID3D11VertexShaderPtr convert_Y_vs;
+    ID3DBlobPtr convert_Y_ps_hlsl;
+    ID3D11PixelShaderPtr convert_Y_ps;
+    ID3DBlobPtr convert_UV_vs_hlsl;
+    ID3D11VertexShaderPtr convert_UV_vs;
+    ID3DBlobPtr convert_UV_ps_hlsl;
+    ID3D11PixelShaderPtr convert_UV_ps;
 
     D3D11_VIEWPORT outY_view;
     D3D11_VIEWPORT outUV_view;
@@ -896,7 +897,7 @@ namespace platf::dxgi {
   };
 
   bool
-  set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info) {
+  set_cursor_texture(device_t::pointer device, gpu_cursor_t &cursor, util::buffer_t<std::uint8_t> &&cursor_img, DXGI_OUTDUPL_POINTER_SHAPE_INFO &shape_info, bool linear) {
     // This cursor image may not be used
     if (cursor_img.size() == 0) {
       cursor.input_res.reset();
@@ -918,7 +919,7 @@ namespace platf::dxgi {
     t.ArraySize = 1;
     t.SampleDesc.Count = 1;
     t.Usage = D3D11_USAGE_IMMUTABLE;
-    t.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    t.Format = linear ? DXGI_FORMAT_B8G8R8A8_UNORM_SRGB : DXGI_FORMAT_B8G8R8A8_UNORM;
     t.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
     texture2d_t texture;
@@ -984,8 +985,9 @@ namespace platf::dxgi {
       auto alpha_cursor_img = make_cursor_alpha_image(img_data, shape_info);
       auto xor_cursor_img = make_cursor_xor_image(img_data, shape_info);
 
-      if (!set_cursor_texture(device.get(), cursor_alpha, std::move(alpha_cursor_img), shape_info) ||
-          !set_cursor_texture(device.get(), cursor_xor, std::move(xor_cursor_img), shape_info)) {
+      bool linear = capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT;
+      if (!set_cursor_texture(device.get(), cursor_alpha, std::move(alpha_cursor_img), shape_info, linear) ||
+          !set_cursor_texture(device.get(), cursor_xor, std::move(xor_cursor_img), shape_info, linear)) {
         return capture_e::error;
       }
     }
@@ -1223,8 +1225,8 @@ namespace platf::dxgi {
     }
 
     auto blend_cursor = [&](img_d3d_t &d3d_img) {
-      device_ctx->VSSetShader(cursor_vs.get(), nullptr, 0);
-      device_ctx->PSSetShader(cursor_ps.get(), nullptr, 0);
+      device_ctx->VSSetShader(cursor_vs, nullptr, 0);
+      device_ctx->PSSetShader(cursor_ps, nullptr, 0);
       device_ctx->OMSetRenderTargets(1, &d3d_img.capture_rt, nullptr);
 
       if (cursor_alpha.texture.get()) {
@@ -1446,7 +1448,12 @@ namespace platf::dxgi {
     img->pixel_pitch = get_pixel_pitch();
     img->row_pitch = img->pixel_pitch * img->width;
     img->dummy = dummy;
-    img->format = (capture_format == DXGI_FORMAT_UNKNOWN) ? DXGI_FORMAT_B8G8R8A8_UNORM : capture_format;
+    // We use typeless formats for srgb gamma textures since they can later be bound as linear light shader resource views
+    // with gpu drivers doing the conversion. Within the same base type, _TYPELESS, _UNORM and _UNORM_SRGB textures can be
+    // used in ID3D11DeviceContext::CopyResource() interchangeably.
+    img->format = dummy                                            ? DXGI_FORMAT_B8G8R8A8_TYPELESS :
+                  capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT ? capture_format :
+                                                                     typeless_from_unorm_texture_format(capture_format);
 
     D3D11_TEXTURE2D_DESC t {};
     t.Width = img->width;
@@ -1478,7 +1485,9 @@ namespace platf::dxgi {
       return -1;
     }
 
-    status = device->CreateRenderTargetView(img->capture_texture.get(), nullptr, &img->capture_rt);
+    auto rtv_desc_format = (img->format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? img->format : unorm_from_typeless_texture_format(img->format);
+    CD3D11_RENDER_TARGET_VIEW_DESC rtv_desc(D3D11_RTV_DIMENSION_TEXTURE2D, rtv_desc_format);
+    status = device->CreateRenderTargetView(img->capture_texture.get(), &rtv_desc, &img->capture_rt);
     if (FAILED(status)) {
       BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
@@ -1520,8 +1529,8 @@ namespace platf::dxgi {
   display_vram_t::get_supported_capture_formats() {
     return {
       // scRGB FP16 is the ideal format for Wide Color Gamut and Advanced Color
-      // displays (both SDR and HDR). This format uses linear gamma, so we will
-      // use a linear->PQ shader for HDR and a linear->sRGB shader for SDR.
+      // displays (both SDR and HDR).
+      // Unlike _UNORM formats, this format uses linear light instead of sRGB gamma.
       DXGI_FORMAT_R16G16B16A16_FLOAT,
 
       // DXGI_FORMAT_R10G10B10A2_UNORM seems like it might give us frames already
@@ -1532,11 +1541,15 @@ namespace platf::dxgi {
       // might make sense to support capturing it without conversion to scRGB,
       // but we avoid it for now.
 
-      // We include the 8-bit modes too for when the display is in SDR mode,
-      // while the client stream is HDR-capable. These UNORM formats can
-      // use our normal pixel shaders that expect sRGB input.
+      // This is the format normally picked in SDR mode, both on desktop and in fullscreen
       DXGI_FORMAT_B8G8R8A8_UNORM,
+
+      // Fullscreen opengl/vulkan apps may use this format if gpu driver is not
+      // configured to present through dxgi
       DXGI_FORMAT_B8G8R8X8_UNORM,
+
+      // We haven't observed this format being picked, but include it anyway since
+      // it supports "display scan-out" and something may change in the future
       DXGI_FORMAT_R8G8B8A8_UNORM,
     };
   }
@@ -1663,13 +1676,12 @@ namespace platf::dxgi {
 #define compile_pixel_shader_helper(x) \
   if (!(x##_hlsl = compile_pixel_shader(SUNSHINE_SHADERS_DIR "/" #x ".hlsl"))) return -1;
 
-    compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps);
     compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear);
     compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer);
     compile_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs);
-    compile_pixel_shader_helper(convert_yuv420_planar_y_ps);
     compile_pixel_shader_helper(convert_yuv420_planar_y_ps_linear);
     compile_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer);
+    compile_pixel_shader_helper(convert_yuv420_planar_y_ps_srgb);
     compile_vertex_shader_helper(convert_yuv420_planar_y_vs);
     compile_pixel_shader_helper(cursor_ps);
     compile_pixel_shader_helper(cursor_ps_normalize_white);
