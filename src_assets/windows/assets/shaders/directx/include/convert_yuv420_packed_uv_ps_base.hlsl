@@ -13,11 +13,7 @@ cbuffer color_matrix_cbuffer : register(b0) {
 
 float2 main_ps(vertex_t input) : SV_Target
 {
-#if defined(LEFT_SUBSAMPLING)
-    float3 rgb_left = image.Sample(def_sampler, input.tex_right_left_center.xz).rgb;
-    float3 rgb_right = image.Sample(def_sampler, input.tex_right_left_center.yz).rgb;
-    float3 rgb = CONVERT_FUNCTION((rgb_left + rgb_right) * 0.5);
-#elif defined(TOPLEFT_SUBSAMPLING)
+#if defined(LEFT_SUBSAMPLING) || defined(TOPLEFT_SUBSAMPLING)
     float3 rgb_top_left = image.Sample(def_sampler, input.tex_right_left_top.xz).rgb;
     float3 rgb_top_right = image.Sample(def_sampler, input.tex_right_left_top.yz).rgb;
     float3 rgb_bottom_left = image.Sample(def_sampler, input.tex_right_left_bottom.xz).rgb;

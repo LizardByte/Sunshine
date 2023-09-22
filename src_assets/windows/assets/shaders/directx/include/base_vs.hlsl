@@ -1,8 +1,6 @@
 #include "include/base_vs_types.hlsl"
 
-#if defined(LEFT_SUBSAMPLING)
-vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float subsample_offset, int rotate_texture_steps)
-#elif defined (TOPLEFT_SUBSAMPLING)
+#if defined(LEFT_SUBSAMPLING) || defined(TOPLEFT_SUBSAMPLING)
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_offset, int rotate_texture_steps)
 #else
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_steps)
@@ -33,7 +31,8 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_
     }
 
 #if defined(LEFT_SUBSAMPLING)
-    output.tex_right_left_center = float3(tex_coord.x, tex_coord.x - subsample_offset, tex_coord.y);
+    output.tex_right_left_top = float3(tex_coord.x, tex_coord.x - subsample_offset.x, tex_coord.y - 0.83 * subsample_offset.y);
+    output.tex_right_left_bottom = float3(tex_coord.x, tex_coord.x - subsample_offset.x, tex_coord.y + 0.83 * subsample_offset.y);
 #elif defined (TOPLEFT_SUBSAMPLING)
     output.tex_right_left_top = float3(tex_coord.x, tex_coord.x - subsample_offset.x, tex_coord.y - subsample_offset.y);
     output.tex_right_left_bottom = float3(tex_coord.x, tex_coord.x - subsample_offset.x, tex_coord.y);
