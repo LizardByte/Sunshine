@@ -2,14 +2,25 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sunshine</title>
-  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
-  <link href="@fortawesome/fontawesome-free/css/all.min.css" rel="stylesheet">
-  <link href="bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <script type="module" src="bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+  <%- header %>
+  <%- headerMain %>
+  <style>
+    .config-page {
+      padding: 1em;
+      border: 1px solid #dee2e6;
+      border-top: none;
+    }
+  
+    .buttons {
+      padding: 1em 0;
+    }
+  
+    .ms-item {
+      background-color: #ccc;
+      font-size: 12px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 
 <body id="app">
@@ -191,7 +202,7 @@
                   </div>
                 </td>
                 <td>
-                  <button class="btn btn-danger" @click="$delete(global_prep_cmd, i)">
+                  <button class="btn btn-danger" @click="editForm['global_prep_cmd'].splice(i,1)">
                     <i class="fas fa-trash"></i>
                   </button>
                   <button class="btn btn-success" @click="add_global_prep_cmd">
@@ -1095,21 +1106,3 @@
 
   app.mount("#app");
 </script>
-
-<style>
-  .config-page {
-    padding: 1em;
-    border: 1px solid #dee2e6;
-    border-top: none;
-  }
-
-  .buttons {
-    padding: 1em 0;
-  }
-
-  .ms-item {
-    background-color: #ccc;
-    font-size: 12px;
-    font-weight: bold;
-  }
-</style>

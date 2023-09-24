@@ -2,14 +2,39 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sunshine</title>
-  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
-  <link href="@fortawesome/fontawesome-free/css/all.min.css" rel="stylesheet">
-  <link href="bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <script type="module" src="bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+  <%- header %>
+    <%- headerMain %>
+      <style>
+        .troubleshooting-logs {
+          white-space: pre;
+          font-family: monospace;
+          overflow: auto;
+          max-height: 500px;
+          min-height: 500px;
+          font-size: 16px;
+          position: relative;
+        }
+
+        .copy-icon {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          padding: 8px;
+          cursor: pointer;
+          color: rgba(0, 0, 0, 1);
+          appearance: none;
+          border: none;
+          background: none;
+        }
+
+        .copy-icon:hover {
+          color: rgba(0, 0, 0, 0.75);
+        }
+
+        .copy-icon:active {
+          color: rgba(0, 0, 0, 1);
+        }
+      </style>
 </head>
 
 <body id="app">
@@ -93,123 +118,93 @@
       </div>
     </div>
   </div>
-</body>
 
-<script type="module">
-  import { createApp } from 'vue'
-  import SunshineHeader from './SunshineHeader.vue'
+  <script type="module">
+    import { createApp } from 'vue'
+    import SunshineHeader from './SunshineHeader.vue'
 
-  const app = createApp({
-    components: {
-      SunshineHeader
-    },
-    data() {
-      return {
-        closeAppPressed: false,
-        closeAppStatus: null,
-        unpairAllPressed: false,
-        unpairAllStatus: null,
-        restartPressed: false,
-        logs: 'Loading...',
-        logFilter: null,
-        logInterval: null,
-      };
-    },
-    computed: {
-      actualLogs() {
-        if (!this.logFilter) return this.logs;
-        let lines = this.logs.split("\n");
-        lines = lines.filter(x => x.indexOf(this.logFilter) != -1);
-        return lines.join("\n");
-      }
-    },
-    created() {
-      this.logInterval = setInterval(() => {
-        this.refreshLogs();
-      }, 5000);
-      this.refreshLogs();
-    },
-    beforeDestroy() {
-      clearInterval(this.logInterval);
-    },
-    methods: {
-      refreshLogs() {
-        fetch("/api/logs",)
-          .then((r) => r.text())
-          .then((r) => {
-            this.logs = r;
-          });
+    const app = createApp({
+      components: {
+        SunshineHeader
       },
-      closeApp() {
-        this.closeAppPressed = true;
-        fetch("/api/apps/close", { method: "POST" })
-          .then((r) => r.json())
-          .then((r) => {
-            this.closeAppPressed = false;
-            this.closeAppStatus = r.status.toString() === "true";
-            setTimeout(() => {
-              this.closeAppStatus = null;
-            }, 5000);
-          });
+      data() {
+        return {
+          closeAppPressed: false,
+          closeAppStatus: null,
+          unpairAllPressed: false,
+          unpairAllStatus: null,
+          restartPressed: false,
+          logs: 'Loading...',
+          logFilter: null,
+          logInterval: null,
+        };
       },
-      unpairAll() {
-        this.unpairAllPressed = true;
-        fetch("/api/clients/unpair", { method: "POST" })
-          .then((r) => r.json())
-          .then((r) => {
-            this.unpairAllPressed = false;
-            this.unpairAllStatus = r.status.toString() === "true";
-            setTimeout(() => {
-              this.unpairAllStatus = null;
-            }, 5000);
-          });
+      computed: {
+        actualLogs() {
+          if (!this.logFilter) return this.logs;
+          let lines = this.logs.split("\n");
+          lines = lines.filter(x => x.indexOf(this.logFilter) != -1);
+          return lines.join("\n");
+        }
       },
-      copyLogs() {
-        navigator.clipboard.writeText(this.actualLogs);
-      },
-      restart() {
-        this.restartPressed = true;
-        setTimeout(() => {
-          this.restartPressed = false;
+      created() {
+        this.logInterval = setInterval(() => {
+          this.refreshLogs();
         }, 5000);
-        fetch("/api/restart", {
-          method: "POST",
-        });
+        this.refreshLogs();
       },
-    },
-  });
+      beforeDestroy() {
+        clearInterval(this.logInterval);
+      },
+      methods: {
+        refreshLogs() {
+          fetch("/api/logs",)
+            .then((r) => r.text())
+            .then((r) => {
+              this.logs = r;
+            });
+        },
+        closeApp() {
+          this.closeAppPressed = true;
+          fetch("/api/apps/close", { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => {
+              this.closeAppPressed = false;
+              this.closeAppStatus = r.status.toString() === "true";
+              setTimeout(() => {
+                this.closeAppStatus = null;
+              }, 5000);
+            });
+        },
+        unpairAll() {
+          this.unpairAllPressed = true;
+          fetch("/api/clients/unpair", { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => {
+              this.unpairAllPressed = false;
+              this.unpairAllStatus = r.status.toString() === "true";
+              setTimeout(() => {
+                this.unpairAllStatus = null;
+              }, 5000);
+            });
+        },
+        copyLogs() {
+          navigator.clipboard.writeText(this.actualLogs);
+        },
+        restart() {
+          this.restartPressed = true;
+          setTimeout(() => {
+            this.restartPressed = false;
+          }, 5000);
+          fetch("/api/restart", {
+            method: "POST",
+          });
+        },
+      },
+    });
 
-  app.mount("#app");
-</script>
+    app.mount("#app");
+  </script>
 
-<style>
-  .troubleshooting-logs {
-    white-space: pre;
-    font-family: monospace;
-    overflow: auto;
-    max-height: 500px;
-    min-height: 500px;
-    font-size: 16px;
-    position: relative;
-  }
 
-  .copy-icon {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    padding: 8px;
-    cursor: pointer;
-    color: rgba(0, 0, 0, 1);
-    appearance: none;
-    border: none;
-    background: none;
-  }
-
-  .copy-icon:hover {
-    color: rgba(0, 0, 0, 0.75);
-  }
-
-  .copy-icon:active {
-    color: rgba(0, 0, 0, 1);
-  }
-</style>
+</body>

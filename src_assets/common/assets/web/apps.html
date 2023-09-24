@@ -2,14 +2,67 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sunshine</title>
-  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
-  <link href="@fortawesome/fontawesome-free/css/all.min.css" rel="stylesheet">
-  <link href="bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <script type="module" src="bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+  <%- header %>
+    <%- headerMain %>
+      <style>
+        .precmd-head {
+          width: 200px;
+        }
+
+        .monospace {
+          font-family: monospace;
+        }
+
+        .cover-finder {}
+
+        .cover-finder .cover-results {
+          max-height: 400px;
+          overflow-x: hidden;
+          overflow-y: auto;
+        }
+
+        .cover-finder .cover-results.busy * {
+          cursor: wait !important;
+          pointer-events: none;
+        }
+
+        .cover-container {
+          padding-top: 133.33%;
+          position: relative;
+        }
+
+        .cover-container.result {
+          cursor: pointer;
+        }
+
+        .spinner-border {
+          position: absolute;
+          left: 0;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          margin: auto;
+        }
+
+        .cover-container img {
+          display: block;
+          position: absolute;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .config-page {
+          padding: 1em;
+          border: 1px solid #dee2e6;
+          border-top: none;
+        }
+
+        td {
+          padding: 0 0.5em;
+        }
+      </style>
 </head>
 
 <body id="app">
@@ -31,10 +84,10 @@
           <tr v-for="(app,i) in apps" :key="i">
             <td>{{app.name}}</td>
             <td>
-              <button class="btn btn-primary" @click="editApp(i)">
+              <button class="btn btn-primary mx-1" @click="editApp(i)">
                 <i class="fas fa-edit"></i> Edit
               </button>
-              <button class="btn btn-danger" @click="showDeleteForm(i)">
+              <button class="btn btn-danger mx-1" @click="showDeleteForm(i)">
                 <i class="fas fa-trash"></i> Delete
               </button>
             </td>
@@ -113,7 +166,7 @@
                   </div>
                 </td>
                 <td>
-                  <button class="btn btn-danger" @click="$delete(editForm['prep-cmd'], i)">
+                  <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
                     <i class="fas fa-trash"></i>
                   </button>
                   <button class="btn btn-success" @click="addPrepCmd">
@@ -128,15 +181,14 @@
         <div class="mb-3">
           <label for="appName" class="form-label">Detached Commands</label>
           <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
-            <pre>{{c}}</pre>
+            <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
             <button class="btn btn-danger mx-2" @click="editForm.detached.splice(i,1)">
               &times;
             </button>
           </div>
           <div class="d-flex justify-content-between">
-            <input type="text" class="form-control monospace" v-model="detachedCmd" />
-            <button class="btn btn-success mx-2" @click="editForm.detached.push(detachedCmd);detachedCmd = '';">
-              +
+            <button class="btn btn-success" @click="editForm.detached.push('');">
+              <i class="fas fa-plus mr-1"></i> Add Detatched Command
             </button>
           </div>
           <div class="form-text">
@@ -347,15 +399,15 @@
       },
       editApp(id) {
         this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
-        this.$set(this.editForm, "index", id);
+        this.editForm.index = id;
         if (this.editForm["prep-cmd"] === undefined)
-          this.$set(this.editForm, "prep-cmd", []);
+          this.editForm["prep-cmd"] = [];
         if (this.editForm["detached"] === undefined)
-          this.$set(this.editForm, "detached", []);
+          this.editForm["detatched"] = [];
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
-          this.$set(this.editForm, "exclude-global-prep-cmd", false);
+          this.editForm["exclude-global-prep-cmd"] = [];
         if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
-          this.$set(this.editForm, "elevated", false);
+          this.editForm["elevated"] = [];
         }
         this.showEditForm = true;
       },
@@ -456,7 +508,7 @@
         }).then(r => {
           if (!r.ok) throw new Error("Failed to download covers");
           return r.json();
-        }).then(body => this.$set(this.editForm, "image-path", body.path))
+        }).then(body => this.editForm["image-path"] = body.path)
           .then(() => this.closeCoverFinder())
           .finally(() => this.coverFinderBusy = false);
       },
@@ -473,7 +525,7 @@
   });
 
   app.directive('dropdown-show', {
-    bind: function (el, binding) {
+    mounted: function (el, binding) {
       el.addEventListener('show.bs.dropdown', binding.value);
     }
   });
@@ -481,63 +533,3 @@
   app.mount("#app")
 
 </script>
-
-<style>
-  .precmd-head {
-    width: 200px;
-  }
-
-  .monospace {
-    font-family: monospace;
-  }
-
-  .cover-finder {}
-
-  .cover-finder .cover-results {
-    max-height: 400px;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  .cover-finder .cover-results.busy * {
-    cursor: wait !important;
-    pointer-events: none;
-  }
-
-  .cover-container {
-    padding-top: 133.33%;
-    position: relative;
-  }
-
-  .cover-container.result {
-    cursor: pointer;
-  }
-
-  .spinner-border {
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    margin: auto;
-  }
-
-  .cover-container img {
-    display: block;
-    position: absolute;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .config-page {
-    padding: 1em;
-    border: 1px solid #dee2e6;
-    border-top: none;
-  }
-
-  td {
-    padding: 0 0.5em;
-  }
-</style>
