@@ -31,9 +31,9 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/autostart/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
         DESTINATION "scripts"
         COMPONENT firewall)
-install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vigembus/"
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/gamepad/"
         DESTINATION "scripts"
-        COMPONENT vigembus)
+        COMPONENT gamepad)
 
 # Sunshine assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
@@ -61,7 +61,7 @@ SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-vigembus.bat\\\"'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-gamepad.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\autostart-service.bat\\\"'
         NoController:
         ")
@@ -74,10 +74,10 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\sunshine.exe\\\" --restore-nvprefs-undo'
         MessageBox MB_YESNO|MB_ICONQUESTION \
-            'Do you want to remove ViGEmBus)?' \
-            /SD IDNO IDNO NoVigem
-            nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-vigembus.bat\\\"'; skipped if no
-        NoVigem:
+            'Do you want to remove Virtual Gamepad)?' \
+            /SD IDNO IDNO NoGamepad
+            nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-gamepad.bat\\\"'; skipped if no
+        NoGamepad:
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
             /SD IDNO IDNO NoDelete
@@ -149,7 +149,7 @@ set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "Add Firewall Exclusions")
 set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
 set(CPACK_COMPONENT_FIREWALL_GROUP "Scripts")
 
-# vigembus scripts
-set(CPACK_COMPONENT_VIGEMBUS_DISPLAY_NAME "Virtual Gamepad Support")
-set(CPACK_COMPONENT_VIGEMBUS_DESCRIPTION "Scripts to install and uninstall ViGEmBus for virtual gamepad support.")
-set(CPACK_COMPONENT_VIGEMBUS_GROUP "Scripts")
+# gamepad scripts
+set(CPACK_COMPONENT_GAMEPAD_DISPLAY_NAME "Virtual Gamepad")
+set(CPACK_COMPONENT_GAMEPAD_DESCRIPTION "Scripts to install and uninstall Virtual Gamepad.")
+set(CPACK_COMPONENT_GAMEPAD_GROUP "Scripts")
