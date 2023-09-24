@@ -14,7 +14,7 @@
     #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
     #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.ico"
   #elif defined(__linux__) || defined(linux) || defined(__linux)
-    #define TRAY_ICON "sunshine"
+    #define TRAY_ICON "sunshine-tray"
     #define TRAY_ICON_PLAYING "sunshine-playing"
     #define TRAY_ICON_PAUSING "sunshine-pausing"
     #define TRAY_ICON_LOCKED "sunshine-locked"
