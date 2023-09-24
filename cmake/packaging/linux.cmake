@@ -73,8 +73,9 @@ install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
 
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-tray.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
+    install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status"
+            RENAME "sunshine-tray.svg")
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-playing.svg"
             DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-pausing.svg"
