@@ -67,16 +67,21 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
 # This should automatically figure out dependencies, doesn't work with the current config
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
+# application icon
+install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/apps")
+
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)
     install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status"
+            RENAME "sunshine-tray.svg")
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-playing.svg"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-pausing.svg"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-locked.svg"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons")
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
 
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
