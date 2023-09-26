@@ -83,3 +83,6 @@ elseif(UNIX)
         include(${CMAKE_MODULE_PATH}/dependencies/linux.cmake)
     endif()
 endif()
+
+#WebUI build
+add_custom_target (web-ui ALL COMMAND npm ci && npm run build)
