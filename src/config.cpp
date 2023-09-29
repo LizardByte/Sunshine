@@ -16,6 +16,8 @@
 
 #include "config.h"
 #include "main.h"
+#include "nvhttp.h"
+#include "rtsp.h"
 #include "utility.h"
 
 #include "platform/common.h"
@@ -1049,7 +1051,7 @@ namespace config {
     bool_f(vars, "always_send_scancodes", input.always_send_scancodes);
 
     int port = sunshine.port;
-    int_f(vars, "port"s, port);
+    int_between_f(vars, "port"s, port, { 1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT });
     sunshine.port = (std::uint16_t) port;
 
     string_restricted_f(vars, "address_family", sunshine.address_family, { "ipv4"sv, "both"sv });

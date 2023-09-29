@@ -836,7 +836,15 @@ write_file(const char *path, const std::string_view &contents) {
  */
 std::uint16_t
 map_port(int port) {
-  // TODO: Ensure port is in the range of 21-65535
+  // calculate the port from the config port
+  auto mapped_port = (std::uint16_t)((int) config::sunshine.port + port);
+
+  // Ensure port is in the range of 1024-65535
+  if (mapped_port < 1024 || mapped_port > 65535) {
+    BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
+  }
+
   // TODO: Ensure port is not already in use by another application
-  return (std::uint16_t)((int) config::sunshine.port + port);
+
+  return mapped_port;
 }
