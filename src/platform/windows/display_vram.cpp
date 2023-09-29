@@ -110,6 +110,14 @@ namespace platf::dxgi {
   ID3DBlobPtr convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
   ID3DBlobPtr convert_yuv420_planar_y_ps_srgb_hlsl;
   ID3DBlobPtr convert_yuv420_planar_y_vs_hlsl;
+  ID3DBlobPtr convert_yuv444_packed_ps_linear_hlsl;
+  ID3DBlobPtr convert_yuv444_packed_ps_srgb_hlsl;
+  ID3DBlobPtr convert_yuv444_packed_vs_hlsl;
+  ID3DBlobPtr convert_yuv444_planar_gs_hlsl;
+  ID3DBlobPtr convert_yuv444_planar_ps_linear_hlsl;
+  ID3DBlobPtr convert_yuv444_planar_ps_perceptual_quantizer_hlsl;
+  ID3DBlobPtr convert_yuv444_planar_ps_srgb_hlsl;
+  ID3DBlobPtr convert_yuv444_planar_vs_hlsl;
   ID3DBlobPtr cursor_ps_hlsl;
   ID3DBlobPtr cursor_ps_normalize_white_hlsl;
   ID3DBlobPtr cursor_vs_hlsl;
@@ -402,19 +410,29 @@ namespace platf::dxgi {
         return -1;
       }
 
-      device_ctx->OMSetRenderTargets(1, &output_Y_rt, nullptr);
-      device_ctx->VSSetShader(convert_Y_vs, nullptr, 0);
-      device_ctx->PSSetShader(convert_Y_ps, nullptr, 0);
-      device_ctx->RSSetViewports(1, &outY_view);
-      device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res_for_Y);
-      device_ctx->Draw(3, 0);
+      if (output_YUV_rt) {
+        device_ctx->OMSetRenderTargets(1, &output_YUV_rt, nullptr);
+        device_ctx->VSSetShader(convert_YUV_vs, nullptr, 0);
+        device_ctx->PSSetShader(convert_YUV_ps, nullptr, 0);
+        device_ctx->RSSetViewports(output_YUV_views.size(), output_YUV_views.data());
+        device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res_for_Y);
+        device_ctx->Draw(format == DXGI_FORMAT_R16_UNORM ? 9 : 3, 0);
+      }
+      else {
+        device_ctx->OMSetRenderTargets(1, &output_Y_rt, nullptr);
+        device_ctx->VSSetShader(convert_Y_vs, nullptr, 0);
+        device_ctx->PSSetShader(convert_Y_ps, nullptr, 0);
+        device_ctx->RSSetViewports(1, &output_Y_view);
+        device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res_for_Y);
+        device_ctx->Draw(3, 0);
 
-      device_ctx->OMSetRenderTargets(1, &output_UV_rt, nullptr);
-      device_ctx->VSSetShader(convert_UV_vs, nullptr, 0);
-      device_ctx->PSSetShader(convert_UV_ps, nullptr, 0);
-      device_ctx->RSSetViewports(1, &outUV_view);
-      device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res_for_UV);
-      device_ctx->Draw(3, 0);
+        device_ctx->OMSetRenderTargets(1, &output_UV_rt, nullptr);
+        device_ctx->VSSetShader(convert_UV_vs, nullptr, 0);
+        device_ctx->PSSetShader(convert_UV_ps, nullptr, 0);
+        device_ctx->RSSetViewports(1, &output_UV_view);
+        device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res_for_UV);
+        device_ctx->Draw(3, 0);
+      }
 
       // Release encoder mutex to allow capture code to reuse this image
       img_ctx.encoder_mutex->ReleaseSync(0);
@@ -467,8 +485,8 @@ namespace platf::dxgi {
       auto offsetX = (out_width - out_width_f) / 2;
       auto offsetY = (out_height - out_height_f) / 2;
 
-      outY_view = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
-      outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
+      output_Y_view = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
+      output_UV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
       float subsample_offset_in[16 / sizeof(float)] { 1.0f / (float) out_width_f, 1.0f / (float) out_height_f };  // aligned to 16-byte
       subsample_offset = make_buffer(device.get(), subsample_offset_in);
@@ -490,33 +508,73 @@ namespace platf::dxgi {
         device_ctx->VSSetConstantBuffers(1, 1, &rotation);
       }
 
-      D3D11_RENDER_TARGET_VIEW_DESC output_Y_rt_desc {
-        format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
-        D3D11_RTV_DIMENSION_TEXTURE2D
-      };
+      output_Y_rt.reset();
+      output_UV_rt.reset();
+      output_YUV_rt.reset();
 
-      auto status = device->CreateRenderTargetView(output_texture.get(), &output_Y_rt_desc, &output_Y_rt);
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create Y render target view [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
+      if (format == DXGI_FORMAT_NV12 || format == DXGI_FORMAT_P010) {
+        D3D11_RENDER_TARGET_VIEW_DESC output_Y_rt_desc {
+          format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
+          D3D11_RTV_DIMENSION_TEXTURE2D
+        };
+
+        auto status = device->CreateRenderTargetView(output_texture.get(), &output_Y_rt_desc, &output_Y_rt);
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Failed to create Y render target view [0x" << util::hex(status).to_string_view() << ']';
+          return -1;
+        }
+
+        D3D11_RENDER_TARGET_VIEW_DESC output_UV_rt_desc {
+          format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM,
+          D3D11_RTV_DIMENSION_TEXTURE2D
+        };
+
+        status = device->CreateRenderTargetView(output_texture.get(), &output_UV_rt_desc, &output_UV_rt);
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Failed to create UV render target view [0x" << util::hex(status).to_string_view() << ']';
+          return -1;
+        }
+
+        // Clear the RTVs to ensure the aspect ratio padding is black
+        const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        device_ctx->ClearRenderTargetView(output_Y_rt.get(), y_black);
+        const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+        device_ctx->ClearRenderTargetView(output_UV_rt.get(), uv_black);
       }
+      else {
+        if (format == DXGI_FORMAT_R16_UNORM) {
+          auto view_y = output_Y_view;
+          auto view_u = output_Y_view;
+          auto view_v = output_Y_view;
 
-      D3D11_RENDER_TARGET_VIEW_DESC output_UV_rt_desc {
-        format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM,
-        D3D11_RTV_DIMENSION_TEXTURE2D
-      };
+          view_u.TopLeftY += height;
+          view_v.TopLeftY += height * 2;
+          output_YUV_views = { view_y, view_u, view_v };
+        }
+        else {
+          output_YUV_views = { output_Y_view };
+        }
 
-      status = device->CreateRenderTargetView(output_texture.get(), &output_UV_rt_desc, &output_UV_rt);
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create UV render target view [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
+        D3D11_RENDER_TARGET_VIEW_DESC output_YUV_rt_desc {
+          format == DXGI_FORMAT_R16_UNORM ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8G8B8A8_UNORM,
+          D3D11_RTV_DIMENSION_TEXTURE2D
+        };
+
+        auto status = device->CreateRenderTargetView(output_texture.get(), &output_YUV_rt_desc, &output_YUV_rt);
+        if (FAILED(status)) {
+          BOOST_LOG(error) << "Failed to create YUV render target view [0x" << util::hex(status).to_string_view() << ']';
+          return -1;
+        }
+
+        // Clear the RTVs to ensure the aspect ratio padding is black
+        if (format == DXGI_FORMAT_R16_UNORM) {
+          // TODO: use special clear shader
+        }
+        else {
+          const float yuv_black[] = { 0.0f, 0.0f, 0.5f, 0.5f };
+          device_ctx->ClearRenderTargetView(output_YUV_rt.get(), yuv_black);
+        }
       }
-
-      // Clear the RTVs to ensure the aspect ratio padding is black
-      const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-      device_ctx->ClearRenderTargetView(output_Y_rt.get(), y_black);
-      const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
-      device_ctx->ClearRenderTargetView(output_UV_rt.get(), uv_black);
 
       return 0;
     }
@@ -561,7 +619,16 @@ namespace platf::dxgi {
         BOOST_LOG(warning) << "Failed to increase encoding GPU thread priority. Please run application as administrator for optimal performance.";
       }
 
-      format = (pix_fmt == pix_fmt_e::nv12 ? DXGI_FORMAT_NV12 : DXGI_FORMAT_P010);
+      format = pix_fmt == pix_fmt_e::nv12         ? DXGI_FORMAT_NV12 :
+               pix_fmt == pix_fmt_e::p010         ? DXGI_FORMAT_P010 :
+               pix_fmt == pix_fmt_e::ayuv         ? DXGI_FORMAT_AYUV :
+               pix_fmt == pix_fmt_e::yuv10_planar ? DXGI_FORMAT_R16_UNORM :
+                                                    DXGI_FORMAT_UNKNOWN;
+
+      if (format == DXGI_FORMAT_UNKNOWN) {
+        BOOST_LOG(error) << "Capture/convert backend doesn't support encoder texture format";
+        return -1;
+      }
 
       auto default_color_vectors = ::video::color_vectors_from_colorspace(::video::colorspace_e::rec601, false);
       if (!default_color_vectors) {
@@ -664,7 +731,7 @@ namespace platf::dxgi {
         return -1;
       }
 
-      // Create the SRV for the encoder texture that will be used in luma shader
+      // Create the SRV for the encoder texture that will be used in yuv420 luma and yuv444 shaders
       auto luma_srv_format = (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? img.format : unorm_from_typeless_texture_format(img.format);
       CD3D11_SHADER_RESOURCE_VIEW_DESC luma_srv_desc(D3D11_SRV_DIMENSION_TEXTURE2D, luma_srv_format);
       status = device->CreateShaderResourceView(img_ctx.encoder_texture.get(), &luma_srv_desc, &img_ctx.encoder_input_res_for_Y);
@@ -673,7 +740,7 @@ namespace platf::dxgi {
         return -1;
       }
 
-      // Create the SRV for the encoder texture that will be used in chroma shader
+      // Create the SRV for the encoder texture that will be used in yuv420 chroma shader
       auto chroma_srv_format = (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? img.format : srgb_from_typeless_texture_format(img.format);
       CD3D11_SHADER_RESOURCE_VIEW_DESC chroma_srv_desc(D3D11_SRV_DIMENSION_TEXTURE2D, chroma_srv_format);
       status = device->CreateShaderResourceView(img_ctx.encoder_texture.get(), &chroma_srv_desc, &img_ctx.encoder_input_res_for_UV);
@@ -691,29 +758,67 @@ namespace platf::dxgi {
 
     bool
     initialize_shaders(const img_d3d_t &img) {
+      ID3DBlobPtr new_convert_YUV_vs_hlsl;
+      ID3DBlobPtr new_convert_YUV_ps_hlsl;
       ID3DBlobPtr new_convert_Y_vs_hlsl;
       ID3DBlobPtr new_convert_Y_ps_hlsl;
       ID3DBlobPtr new_convert_UV_vs_hlsl;
       ID3DBlobPtr new_convert_UV_ps_hlsl;
 
-      new_convert_Y_vs_hlsl = convert_yuv420_planar_y_vs_hlsl;
-      new_convert_UV_vs_hlsl = convert_yuv420_packed_uv_type0_vs_hlsl;
+      if (output_YUV_rt) {
+        if (format == DXGI_FORMAT_R16_UNORM) {
+          new_convert_YUV_vs_hlsl = convert_yuv444_planar_vs_hlsl;
+        }
+        else {
+          new_convert_YUV_vs_hlsl = convert_yuv444_packed_vs_hlsl;
+        }
 
-      if (::video::colorspace_is_hdr(colorspace)) {
-        new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
-        new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
-      }
-      else if (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) {
-        new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_linear_hlsl;
-        new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+        if (::video::colorspace_is_hdr(colorspace)) {
+          if (format == DXGI_FORMAT_R16_UNORM) {
+            new_convert_YUV_ps_hlsl = convert_yuv444_planar_ps_perceptual_quantizer_hlsl;
+          }
+        }
+        else if (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) {
+          if (format == DXGI_FORMAT_R16_UNORM) {
+            new_convert_YUV_ps_hlsl = convert_yuv444_planar_ps_linear_hlsl;
+          }
+          else {
+            new_convert_YUV_ps_hlsl = convert_yuv444_packed_ps_linear_hlsl;
+          }
+        }
+        else {
+          if (format == DXGI_FORMAT_R16_UNORM) {
+            new_convert_YUV_ps_hlsl = convert_yuv444_planar_ps_srgb_hlsl;
+          }
+          else {
+            new_convert_YUV_ps_hlsl = convert_yuv444_packed_ps_srgb_hlsl;
+          }
+        }
       }
       else {
-        new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_srgb_hlsl;
-        new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+        new_convert_Y_vs_hlsl = convert_yuv420_planar_y_vs_hlsl;
+        new_convert_UV_vs_hlsl = convert_yuv420_packed_uv_type0_vs_hlsl;
+
+        if (::video::colorspace_is_hdr(colorspace)) {
+          new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
+          new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
+        }
+        else if (img.format == DXGI_FORMAT_R16G16B16A16_FLOAT) {
+          new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_linear_hlsl;
+          new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+        }
+        else {
+          new_convert_Y_ps_hlsl = convert_yuv420_planar_y_ps_srgb_hlsl;
+          new_convert_UV_ps_hlsl = convert_yuv420_packed_uv_type0_ps_linear_hlsl;
+        }
       }
+
+      if (!update_vertex_shader_on_blob_mismatch(device.get(), convert_YUV_vs, convert_YUV_vs_hlsl, new_convert_YUV_vs_hlsl)) return false;
+      if (!update_pixel_shader_on_blob_mismatch(device.get(), convert_YUV_ps, convert_YUV_ps_hlsl, new_convert_YUV_ps_hlsl)) return false;
 
       if (!update_vertex_shader_on_blob_mismatch(device.get(), convert_Y_vs, convert_Y_vs_hlsl, new_convert_Y_vs_hlsl)) return false;
       if (!update_pixel_shader_on_blob_mismatch(device.get(), convert_Y_ps, convert_Y_ps_hlsl, new_convert_Y_ps_hlsl)) return false;
+
       if (!update_vertex_shader_on_blob_mismatch(device.get(), convert_UV_vs, convert_UV_vs_hlsl, new_convert_UV_vs_hlsl)) return false;
       if (!update_pixel_shader_on_blob_mismatch(device.get(), convert_UV_ps, convert_UV_ps_hlsl, new_convert_UV_ps_hlsl)) return false;
 
@@ -728,6 +833,7 @@ namespace platf::dxgi {
     blend_t blend_disable;
     sampler_state_t sampler_linear;
 
+    render_target_t output_YUV_rt;
     render_target_t output_Y_rt;
     render_target_t output_UV_rt;
 
@@ -739,6 +845,10 @@ namespace platf::dxgi {
 
     std::shared_ptr<display_base_t> display;
 
+    ID3DBlobPtr convert_YUV_vs_hlsl;
+    ID3D11VertexShaderPtr convert_YUV_vs;
+    ID3DBlobPtr convert_YUV_ps_hlsl;
+    ID3D11PixelShaderPtr convert_YUV_ps;
     ID3DBlobPtr convert_Y_vs_hlsl;
     ID3D11VertexShaderPtr convert_Y_vs;
     ID3DBlobPtr convert_Y_ps_hlsl;
@@ -748,8 +858,9 @@ namespace platf::dxgi {
     ID3DBlobPtr convert_UV_ps_hlsl;
     ID3D11PixelShaderPtr convert_UV_ps;
 
-    D3D11_VIEWPORT outY_view;
-    D3D11_VIEWPORT outUV_view;
+    std::vector<D3D11_VIEWPORT> output_YUV_views;
+    D3D11_VIEWPORT output_Y_view;
+    D3D11_VIEWPORT output_UV_view;
 
     DXGI_FORMAT format;
 
@@ -1683,6 +1794,13 @@ namespace platf::dxgi {
     compile_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer);
     compile_pixel_shader_helper(convert_yuv420_planar_y_ps_srgb);
     compile_vertex_shader_helper(convert_yuv420_planar_y_vs);
+    compile_pixel_shader_helper(convert_yuv444_packed_ps_linear);
+    compile_pixel_shader_helper(convert_yuv444_packed_ps_srgb);
+    compile_vertex_shader_helper(convert_yuv444_packed_vs);
+    compile_pixel_shader_helper(convert_yuv444_planar_ps_linear);
+    compile_pixel_shader_helper(convert_yuv444_planar_ps_perceptual_quantizer);
+    compile_pixel_shader_helper(convert_yuv444_planar_ps_srgb);
+    compile_vertex_shader_helper(convert_yuv444_planar_vs);
     compile_pixel_shader_helper(cursor_ps);
     compile_pixel_shader_helper(cursor_ps_normalize_white);
     compile_vertex_shader_helper(cursor_vs);

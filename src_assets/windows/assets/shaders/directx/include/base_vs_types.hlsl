@@ -7,4 +7,7 @@ struct vertex_t
 #else
     float2 tex_coord : TEXCOORD;
 #endif
+#ifdef MULTIVIEW
+    uint viewport : SV_ViewportArrayIndex;
+#endif
 };

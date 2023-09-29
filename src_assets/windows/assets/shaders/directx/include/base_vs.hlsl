@@ -9,6 +9,11 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_
     vertex_t output;
     float2 tex_coord;
 
+#ifdef MULTIVIEW
+    output.viewport = vertex_id / 3;
+    vertex_id = vertex_id % 3;
+#endif
+
     if (vertex_id == 0) {
         output.viewpoint_pos = float4(-1, -1, 0, 1);
         tex_coord = float2(0, 1);
