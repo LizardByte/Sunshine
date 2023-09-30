@@ -142,6 +142,8 @@ namespace video {
     /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
        HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
     int dynamicRange;
+
+    int chromaSubsampling;  // 0 - YUV 4:4:4, 1 - YUV 4:2:0
   };
 
   extern int active_hevc_mode;

@@ -277,6 +277,8 @@ namespace video {
     virtual ~encoder_platform_formats_t() = default;
     platf::mem_type_e dev_type;
     platf::pix_fmt_e pix_fmt_8bit, pix_fmt_10bit;
+    std::optional<platf::pix_fmt_e> pix_fmt_444_8bit;
+    std::optional<platf::pix_fmt_e> pix_fmt_444_10bit;
   };
 
   struct encoder_platform_formats_avcodec: encoder_platform_formats_t {
@@ -311,10 +313,14 @@ namespace video {
     encoder_platform_formats_nvenc(
       const platf::mem_type_e &dev_type,
       const platf::pix_fmt_e &pix_fmt_8bit,
-      const platf::pix_fmt_e &pix_fmt_10bit) {
+      const platf::pix_fmt_e &pix_fmt_10bit,
+      const platf::pix_fmt_e &pix_fmt_444_8bit,
+      const platf::pix_fmt_e &pix_fmt_444_10bit) {
       encoder_platform_formats_t::dev_type = dev_type;
       encoder_platform_formats_t::pix_fmt_8bit = pix_fmt_8bit;
       encoder_platform_formats_t::pix_fmt_10bit = pix_fmt_10bit;
+      encoder_platform_formats_t::pix_fmt_444_8bit = pix_fmt_444_8bit;
+      encoder_platform_formats_t::pix_fmt_444_10bit = pix_fmt_444_10bit;
     }
   };
 
@@ -570,7 +576,8 @@ namespace video {
     "nvenc"sv,
     std::make_unique<encoder_platform_formats_nvenc>(
       platf::mem_type_e::dxgi,
-      platf::pix_fmt_e::nv12, platf::pix_fmt_e::p010),
+      platf::pix_fmt_e::nv12, platf::pix_fmt_e::p010,
+      platf::pix_fmt_e::ayuv, platf::pix_fmt_e::yuv10_planar),
     {
       // Common options
       {},
@@ -1838,7 +1845,16 @@ namespace video {
     std::unique_ptr<platf::encode_device_t> result;
 
     auto colorspace = colorspace_from_client_config(config, disp.is_hdr());
-    auto pix_fmt = (colorspace.bit_depth == 10) ? encoder.platform_formats->pix_fmt_10bit : encoder.platform_formats->pix_fmt_8bit;
+    platf::pix_fmt_e pix_fmt;
+
+    if (config.chromaSubsampling) {
+      pix_fmt = (colorspace.bit_depth == 10) ? encoder.platform_formats->pix_fmt_10bit : encoder.platform_formats->pix_fmt_8bit;
+    }
+    else {
+      auto pix_fmt_optional = (colorspace.bit_depth == 10) ? encoder.platform_formats->pix_fmt_444_10bit : encoder.platform_formats->pix_fmt_444_8bit;
+      if (!pix_fmt_optional) return nullptr;
+      pix_fmt = *pix_fmt_optional;
+    }
 
     if (dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
       result = disp.make_avcodec_encode_device(pix_fmt);
@@ -2272,8 +2288,8 @@ namespace video {
     encoder.av1.capabilities.set();
 
     // First, test encoder viability
-    config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0 };
-    config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0 };
+    config_t config_max_ref_frames { 1920, 1080, 60, 1000, 1, 1, 1, 0, 0, 1 };
+    config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0, 1 };
 
     // If the encoder isn't supported at all (not even H.264), bail early
     reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, config_autoselect);
@@ -2381,7 +2397,7 @@ namespace video {
     }
 
     std::vector<std::pair<encoder_t::flag_e, config_t>> configs {
-      { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1 } },
+      { encoder_t::DYNAMIC_RANGE, { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1, 1 } },
     };
 
     for (auto &[flag, config] : configs) {

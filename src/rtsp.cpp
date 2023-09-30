@@ -652,6 +652,7 @@ namespace rtsp_stream {
     args.try_emplace("x-nv-video[0].encoderCscMode"sv, "0"sv);
     args.try_emplace("x-nv-vqos[0].bitStreamFormat"sv, "0"sv);
     args.try_emplace("x-nv-video[0].dynamicRangeMode"sv, "0"sv);
+    args.try_emplace("x-nv-video[0].chromaSubsampling"sv, "0"sv);
     args.try_emplace("x-nv-aqos.packetDuration"sv, "5"sv);
     args.try_emplace("x-nv-general.useReliableUdp"sv, "1"sv);
     args.try_emplace("x-nv-vqos[0].fec.minRequiredFecPackets"sv, "0"sv);
@@ -686,6 +687,7 @@ namespace rtsp_stream {
       config.monitor.encoderCscMode = util::from_view(args.at("x-nv-video[0].encoderCscMode"sv));
       config.monitor.videoFormat = util::from_view(args.at("x-nv-vqos[0].bitStreamFormat"sv));
       config.monitor.dynamicRange = util::from_view(args.at("x-nv-video[0].dynamicRangeMode"sv));
+      config.monitor.chromaSubsampling = util::from_view(args.at("x-nv-video[0].chromaSubsampling"sv));
     }
     catch (std::out_of_range &) {
       respond(sock, &option, 400, "BAD REQUEST", req->sequenceNumber, {});

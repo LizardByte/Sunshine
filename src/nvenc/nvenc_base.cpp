@@ -156,7 +156,7 @@ namespace nvenc {
     };
 
     auto buffer_is_yuv444 = [&]() {
-      return buffer_format == NV_ENC_BUFFER_FORMAT_YUV444 || buffer_format == NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
+      return buffer_format == NV_ENC_BUFFER_FORMAT_AYUV || buffer_format == NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
     };
 
     {
@@ -306,7 +306,9 @@ namespace nvenc {
         auto &format_config = enc_config.encodeCodecConfig.av1Config;
         format_config.repeatSeqHdr = 1;
         format_config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
-        format_config.chromaFormatIDC = 1;  // YUV444 not supported by NVENC yet
+        if (buffer_is_yuv444()) {
+          format_config.chromaFormatIDC = 3;
+        }
         format_config.enableBitstreamPadding = config.insert_filler_data;
         if (buffer_is_10bit()) {
           format_config.inputPixelBitDepthMinus8 = 2;

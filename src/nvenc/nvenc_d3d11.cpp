@@ -68,6 +68,7 @@ namespace nvenc {
       D3D11_TEXTURE2D_DESC desc = {};
       desc.Width = encoder_params.width;
       desc.Height = encoder_params.height;
+      if (encoder_params.buffer_format == NV_ENC_BUFFER_FORMAT_YUV444_10BIT) desc.Height *= 3;
       desc.MipLevels = 1;
       desc.ArraySize = 1;
       desc.Format = dxgi_format_from_nvenc_format(encoder_params.buffer_format);
