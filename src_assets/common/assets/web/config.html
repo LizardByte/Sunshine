@@ -72,6 +72,7 @@
           id="origin_web_ui_allowed"
           class="form-select"
           v-model="config.origin_web_ui_allowed"
+          @change="forceUpdate"
         >
           <option value="pc">Only localhost may access Web UI</option>
           <option value="lan">Only those in LAN may access Web UI</option>
@@ -79,6 +80,10 @@
         </select>
         <div class="form-text">
           The origin of the remote endpoint address that is not denied access to Web UI
+        </div>
+        <!-- add warning about exposing web ui to the internet -->
+        <div class="alert alert-danger" v-if="config.origin_web_ui_allowed === 'wan'">
+          <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Exposing the Web UI to the internet is a security risk! Proceed at your own risk!
         </div>
       </div>
       <!--UPnP-->
@@ -625,14 +630,79 @@
         <label for="port" class="form-label">Port</label>
         <input
           type="number"
-          min="0"
-          max="65529"
+          min="1029"
+          max="65514"
           class="form-control"
           id="port"
           placeholder="47989"
           v-model="config.port"
         />
         <div class="form-text">Set the family of ports used by Sunshine</div>
+        <!-- Add warning if any port is less than 1024 -->
+        <div class="alert alert-danger" v-if="(+effectivePort - 5) < 1024">
+          <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Sunshine cannot use ports below 1024!
+        </div>
+        <!-- Add warning if any port is above 65535 -->
+        <div class="alert alert-danger" v-if="(+effectivePort + 21) > 65535">
+          <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Ports above 65535 are not available!
+        </div>
+        <!-- Create a port table for the various ports needed by Sunshine -->
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Protocol</th>
+              <th scope="col">Port</th>
+              <th scope="col">Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <!-- HTTPS -->
+              <td>TCP</td>
+              <td>{{+effectivePort - 5}}</td>
+              <td></td>
+            </tr>
+            <tr>
+              <!-- HTTP -->
+              <td>TCP</td>
+              <td>{{+effectivePort}}</td>
+              <td>
+                <div class="alert alert-primary" role="alert" v-if="+effectivePort !== 47989">
+                  <i class="fa-solid fa-xl fa-circle-info"></i> Use this port to connect with Moonlight.
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <!-- Web UI -->
+              <td>TCP</td>
+              <td>{{+effectivePort + 1}}</td>
+              <td>Web UI</td>
+            </tr>
+            <tr>
+              <!-- RTSP -->
+              <td>TCP</td>
+              <td>{{+effectivePort + 21}}</td>
+              <td></td>
+            </tr>
+            <tr>
+              <!-- Video, Control, Audio -->
+              <td>UDP</td>
+              <td>{{+effectivePort + 9}} - {{+effectivePort + 11}}</td>
+              <td></td>
+            </tr>
+<!--            <tr>-->
+<!--              &lt;!&ndash; Mic &ndash;&gt;-->
+<!--              <td>UDP</td>-->
+<!--              <td>{{+effectivePort + 13}}</td>-->
+<!--              <td></td>-->
+<!--            </tr>-->
+          </tbody>
+        </table>
+        <!-- add warning about exposing web ui to the internet -->
+        <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
+          <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Exposing the Web UI to the internet is a security risk!
+          Proceed at your own risk!
+        </div>
       </div>
       <!-- Quantization Parameter -->
       <div class="mb-3">
@@ -1058,10 +1128,11 @@
     </div>
   </div>
   <div class="alert alert-success my-4" v-if="saved && !restarted">
-    <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
+    <i class="fa-solid fa-xl fa-circle-check"></i> Click 'Apply' to restart Sunshine and apply changes.
+    This will terminate any running sessions.
   </div>
-  <div class="alert alert-success my-4" v-if="restarted">
-    <b>Success!</b> Sunshine is restarting to apply changes.
+  <div class="alert alert-primary my-4" v-if="restarted">
+    <i class="fa-solid fa-xl fa-spinner fa-spin"></i> Sunshine is restarting to apply changes.
   </div>
   <div class="mb-3 buttons">
     <button class="btn btn-primary" @click="save">Save</button>
@@ -1223,6 +1294,9 @@
         });
     },
     methods: {
+      forceUpdate() {
+        this.$forceUpdate()
+      },
       serialize() {
         let nl = this.config === "windows" ? "\r\n" : "\n";
         this.config.resolutions =
@@ -1309,6 +1383,16 @@
         this.global_prep_cmd.push(template);
       },
     },
+    computed: {
+      effectivePort() {
+        // Convert config.port to a number.
+        const port = +this.config?.port
+
+        // Check if port is NaN or a falsy value (like 0, empty string, etc.).
+        // If so, default to config port. Otherwise, use the value of port.
+        return port ? port : 47989
+      },
+    }
   });
 </script>
 

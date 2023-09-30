@@ -552,6 +552,9 @@ port
 **Default**
    ``47989``
 
+**Range**
+   ``1029-65514``
+
 **Example**
    .. code-block:: text
 
