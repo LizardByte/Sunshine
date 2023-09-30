@@ -19,7 +19,7 @@ Homebrew
 Install Requirements
    .. code-block:: bash
 
-      brew install boost cmake node opus
+      brew install boost cmake node opus pkg-config
       # if there are issues with an SSL header that is not found:
       cd /usr/local/include
       ln -s ../opt/openssl/include/openssl .
