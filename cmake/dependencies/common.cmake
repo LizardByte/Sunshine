@@ -85,4 +85,4 @@ elseif(UNIX)
 endif()
 
 #WebUI build
-add_custom_target (web-ui ALL COMMAND npm ci && npm run build)
+add_custom_target (web-ui ALL COMMAND npm install && npm run build)
