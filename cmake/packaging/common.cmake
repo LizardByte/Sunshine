@@ -13,7 +13,7 @@ set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set(CPACK_STRIP_FILES YES)
 
 # install npm modules
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/node_modules"
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web"
         DESTINATION "${SUNSHINE_ASSETS_DIR}/web")
 
 # platform specific packaging

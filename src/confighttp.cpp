@@ -292,7 +292,7 @@ namespace confighttp {
     // .relative_path is needed to shed any leading slash that might exist in the request path
     auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
-    // Don't do anything if file does not exist or is outside the node_modules directory
+    // Don't do anything if file does not exist or is outside the assets directory
     if (!isChildPath(filePath, nodeModulesPath)) {
       BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets folder";
       response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
