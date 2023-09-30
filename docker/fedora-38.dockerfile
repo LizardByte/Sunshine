@@ -93,9 +93,6 @@ _DEPS
 WORKDIR /build/sunshine/
 COPY --link .. .
 
-# setup npm dependencies
-RUN npm install
-
 # setup build directory
 WORKDIR /build/sunshine/build
 
