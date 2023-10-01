@@ -11,7 +11,8 @@ if(SUNSHINE_PACKAGE_MACOS)  # todo
     set(INSTALL_RUNTIME_DIR "${MAC_PREFIX}/MacOS")
 
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
-            DESTINATION "${SUNSHINE_ASSETS_DIR}")
+            DESTINATION "${SUNSHINE_ASSETS_DIR}"
+            PATTERN "web" EXCLUDE)
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/"
             DESTINATION "${SUNSHINE_ASSETS_DIR}")
 

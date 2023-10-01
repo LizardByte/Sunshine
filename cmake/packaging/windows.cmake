@@ -39,7 +39,7 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vigembus/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}"
         COMPONENT assets
-        PATTERN "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web" EXCLUDE)
+        PATTERN "web" EXCLUDE)
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}"
         COMPONENT assets)

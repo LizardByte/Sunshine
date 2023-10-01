@@ -35,4 +35,4 @@ endforeach()
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 
 #WebUI build
-add_custom_target (web-ui ALL WORKING_DIRECTORY  ${CMAKE_CURRENT_SOURCE_DIR} COMMAND npm install && npm run build)
+add_custom_target (web-ui ALL WORKING_DIRECTORY  ${CMAKE_CURRENT_SOURCE_DIR} COMMAND npm install && npm run build -- ${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web ${SUNSHINE_ASSETS_DIR}/web)

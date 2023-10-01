@@ -4,7 +4,7 @@ import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import { ViteEjsPlugin } from "vite-plugin-ejs";
 import vue from '@vitejs/plugin-vue'
-
+import process from 'process'
 
 /**
  * Before actually building the pages with Vite, we do an intermediate build step using ejs
@@ -13,8 +13,20 @@ import vue from '@vitejs/plugin-vue'
  * by Vue itself (e.g. style/script loading, common meta head tags, Widgetbot)
  * The vite-plugin-ejs handles this automatically
  */
-let header = fs.readFileSync(resolve(__dirname, "src_assets/common/assets/web/template_header.html"))
-let headerMain = fs.readFileSync(resolve(__dirname, "src_assets/common/assets/web/template_header_main.html"))
+let assetsSrcPath = 'src_assets/common/assets/web';
+let header = fs.readFileSync(resolve(__dirname, assetsSrcPath, "template_header.html"))
+let headerMain = fs.readFileSync(resolve(__dirname, assetsSrcPath, "template_header_main.html"))
+let assetsDstPath = 'src_assets/common/assets/web';
+
+console.log(process.argv);
+if(process.argv[2]){
+   console.log("Using srcdir from Cmake: " + process.argv[2]);
+   assetsSrcPath = process.argv[2]
+}
+if(process.argv[3]){
+    console.log("Using destdir from Cmake: " + + process.argv[3]);
+    assetsDstPath = process.argv[3]
+ }
 // https://vitejs.dev/config/
 export default defineConfig({
     resolve: {
@@ -23,18 +35,18 @@ export default defineConfig({
         }
     },
     plugins: [vue(), ViteEjsPlugin({ header, headerMain })],
-    root: resolve(__dirname, "src_assets/common/assets/web"),
+    root: resolve(__dirname, assetsSrcPath),
     build: {
-        outDir: resolve(__dirname, "build/assets/web"), //TODO Handle SRC_PATH by CMAKE
+        outDir: resolve(__dirname, assetsDstPath),
         rollupOptions: {
             input: {
-                apps: resolve(__dirname, 'src_assets/common/assets/web/apps.html'),
-                config: resolve(__dirname, 'src_assets/common/assets/web/config.html'),
-                index: resolve(__dirname, 'src_assets/common/assets/web/index.html'),
-                password: resolve(__dirname, 'src_assets/common/assets/web/password.html'),
-                pin: resolve(__dirname, 'src_assets/common/assets/web/pin.html'),
-                troubleshooting: resolve(__dirname, 'src_assets/common/assets/web/troubleshooting.html'),
-                welcome: resolve(__dirname, 'src_assets/common/assets/web/welcome.html'),
+                apps: resolve(__dirname, assetsSrcPath , 'apps.html'),
+                config: resolve(__dirname, assetsSrcPath , 'config.html'),
+                index: resolve(__dirname, assetsSrcPath , 'index.html'),
+                password: resolve(__dirname, assetsSrcPath , 'password.html'),
+                pin: resolve(__dirname, assetsSrcPath , 'pin.html'),
+                troubleshooting: resolve(__dirname, assetsSrcPath , 'troubleshooting.html'),
+                welcome: resolve(__dirname, assetsSrcPath , 'welcome.html'),
             },
         },
     },
