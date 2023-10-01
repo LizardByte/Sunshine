@@ -435,7 +435,7 @@ namespace video {
       if (device && device->frame) {
         auto &frame = device->frame;
         frame->pict_type = AV_PICTURE_TYPE_I;
-        frame->key_frame = 1;
+        frame->flags |= AV_FRAME_FLAG_KEY;
       }
     }
 
@@ -444,7 +444,7 @@ namespace video {
       if (device && device->frame) {
         auto &frame = device->frame;
         frame->pict_type = AV_PICTURE_TYPE_NONE;
-        frame->key_frame = 0;
+        frame->flags &= ~AV_FRAME_FLAG_KEY;
       }
     }
 
@@ -1295,7 +1295,7 @@ namespace video {
         return ret;
       }
 
-      if (frame->key_frame && !(av_packet->flags & AV_PKT_FLAG_KEY)) {
+      if ((frame->flags & AV_FRAME_FLAG_KEY) && !(av_packet->flags & AV_PKT_FLAG_KEY)) {
         BOOST_LOG(error) << "Encoder did not produce IDR frame when requested!"sv;
       }
 
