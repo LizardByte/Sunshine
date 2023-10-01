@@ -14,14 +14,14 @@ import process from 'process'
  * The vite-plugin-ejs handles this automatically
  */
 let assetsSrcPath = 'src_assets/common/assets/web';
-let assetsDstPath = 'src_assets/common/assets/web';
-console.log(process.env)
+let assetsDstPath = 'build/assets/common/assets/web';
+
 if (process.env.SUNSHINE_SOURCE_ASSETS_DIR) {
-    console.log("Using srcdir from Cmake: " + process.env.SUNSHINE_SOURCE_ASSETS_DIR);
-    assetsSrcPath = process.env.SUNSHINE_SOURCE_ASSETS_DIR
+    console.log("Using srcdir from Cmake: " + resolve(process.env.SUNSHINE_SOURCE_ASSETS_DIR,"common/assets/web"));
+    assetsSrcPath = resolve(process.env.SUNSHINE_SOURCE_ASSETS_DIR,"common/assets/web")
 }
 if (process.env.SUNSHINE_ASSETS_DIR) {
-    console.log("Using destdir from Cmake: " + process.env.SUNSHINE_ASSETS_DIR);
+    console.log("Using destdir from Cmake: " + resolve(process.env.SUNSHINE_ASSETS_DIR,"assets/web"));
     assetsDstPath = process.env.SUNSHINE_ASSETS_DIR
 }
 
