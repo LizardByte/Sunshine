@@ -14,7 +14,7 @@ set(CPACK_STRIP_FILES YES)
 
 # install npm modules
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web"
-        DESTINATION "${SUNSHINE_ASSETS_DIR}/web")
+        DESTINATION "${SUNSHINE_ASSETS_DIR}")
 
 # platform specific packaging
 if(WIN32)
