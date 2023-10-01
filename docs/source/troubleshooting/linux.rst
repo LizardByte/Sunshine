@@ -32,7 +32,7 @@ If screencasting fails with KMS, you may need to run the following to force unpr
 
 NvFBC Capture fails
 -------------------
-Some users have had issues using nvfbc even though they have correctly patched nvidia drivers and cuda is installed. The problem occurs when nvcc is not in the PATH and cuda is not correctly compiled into Sunshine. This will not cause an error because not all users have nvidia cards. The solution is to ensure that nvcc is in your PATH before building sunshine. For example add the following to ~/.bashrc:
+Some users have had issues using nvfbc even though they have correctly patched nvidia drivers and cuda is installed. The problem occurs when nvcc is not set up correctly in the PATH/LD_LIBRARY_PATH environment variables so cuda is not correctly compiled into Sunshine. This does not prevent Sunshine from building because an error because not all users have nvidia cards. The solution is to ensure that the variables contain nvcc and cuda libraries. For example add the following to ~/.bashrc:
 
    .. code-block:: bash
 
