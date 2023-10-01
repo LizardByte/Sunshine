@@ -14,19 +14,20 @@ import process from 'process'
  * The vite-plugin-ejs handles this automatically
  */
 let assetsSrcPath = 'src_assets/common/assets/web';
-let header = fs.readFileSync(resolve(__dirname, assetsSrcPath, "template_header.html"))
-let headerMain = fs.readFileSync(resolve(__dirname, assetsSrcPath, "template_header_main.html"))
 let assetsDstPath = 'src_assets/common/assets/web';
-
-console.log(process.argv);
-if(process.argv[2]){
-   console.log("Using srcdir from Cmake: " + process.argv[2]);
-   assetsSrcPath = process.argv[2]
+console.log(process.env)
+if (process.env.SUNSHINE_SOURCE_ASSETS_DIR) {
+    console.log("Using srcdir from Cmake: " + process.env.SUNSHINE_SOURCE_ASSETS_DIR);
+    assetsSrcPath = process.env.SUNSHINE_SOURCE_ASSETS_DIR
 }
-if(process.argv[3]){
-    console.log("Using destdir from Cmake: " + + process.argv[3]);
-    assetsDstPath = process.argv[3]
- }
+if (process.env.SUNSHINE_ASSETS_DIR) {
+    console.log("Using destdir from Cmake: " + process.env.SUNSHINE_ASSETS_DIR);
+    assetsDstPath = process.env.SUNSHINE_ASSETS_DIR
+}
+
+let header = fs.readFileSync(resolve(assetsSrcPath, "template_header.html"))
+let headerMain = fs.readFileSync(resolve(assetsSrcPath, "template_header_main.html"))
+
 // https://vitejs.dev/config/
 export default defineConfig({
     resolve: {
@@ -35,18 +36,18 @@ export default defineConfig({
         }
     },
     plugins: [vue(), ViteEjsPlugin({ header, headerMain })],
-    root: resolve(__dirname, assetsSrcPath),
+    root: resolve(assetsSrcPath),
     build: {
-        outDir: resolve(__dirname, assetsDstPath),
+        outDir: resolve(assetsDstPath),
         rollupOptions: {
             input: {
-                apps: resolve(__dirname, assetsSrcPath , 'apps.html'),
-                config: resolve(__dirname, assetsSrcPath , 'config.html'),
-                index: resolve(__dirname, assetsSrcPath , 'index.html'),
-                password: resolve(__dirname, assetsSrcPath , 'password.html'),
-                pin: resolve(__dirname, assetsSrcPath , 'pin.html'),
-                troubleshooting: resolve(__dirname, assetsSrcPath , 'troubleshooting.html'),
-                welcome: resolve(__dirname, assetsSrcPath , 'welcome.html'),
+                apps: resolve(assetsSrcPath, 'apps.html'),
+                config: resolve(assetsSrcPath, 'config.html'),
+                index: resolve(assetsSrcPath, 'index.html'),
+                password: resolve(assetsSrcPath, 'password.html'),
+                pin: resolve(assetsSrcPath, 'pin.html'),
+                troubleshooting: resolve(assetsSrcPath, 'troubleshooting.html'),
+                welcome: resolve(assetsSrcPath, 'welcome.html'),
             },
         },
     },
