@@ -765,7 +765,7 @@ namespace video {
       {
         { "filler_data"s, false },
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
-        { "preanalysis"s, &config::video.amd.amd_preanalysis },
+        { "preencode"s, &config::video.amd.amd_preanalysis },
         { "quality"s, &config::video.amd.amd_quality_av1 },
         { "rc"s, &config::video.amd.amd_rc_av1 },
         { "usage"s, &config::video.amd.amd_usage_av1 },
@@ -782,7 +782,7 @@ namespace video {
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "gops_per_idr"s, 1 },
         { "header_insertion_mode"s, "idr"s },
-        { "preanalysis"s, &config::video.amd.amd_preanalysis },
+        { "preencode"s, &config::video.amd.amd_preanalysis },
         { "qmax"s, 51 },
         { "qmin"s, 0 },
         { "quality"s, &config::video.amd.amd_quality_hevc },
@@ -800,7 +800,7 @@ namespace video {
       {
         { "filler_data"s, false },
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
-        { "preanalysis"s, &config::video.amd.amd_preanalysis },
+        { "preencode"s, &config::video.amd.amd_preanalysis },
         { "qmax"s, 51 },
         { "qmin"s, 0 },
         { "quality"s, &config::video.amd.amd_quality_h264 },
