@@ -30,6 +30,15 @@ If screencasting fails with KMS, you may need to run the following to force unpr
 
       sudo setcap -r $(readlink -f $(which sunshine))
 
+NvFBC Capture fails
+-------------------
+Some users have had issues using nvfbc even though they have correctly patched nvidia drivers and cuda is installed. The problem occurs when nvcc is not in the PATH and cuda is not correctly compiled into Sunshine. This will not cause an error because not all users have nvidia cards. The solution is to ensure that nvcc is in your PATH before building sunshine. For example add the following to ~/.bashrc:
+
+   .. code-block:: bash
+
+      export PATH=/usr/local/cuda/bin:$PATH
+      export LD_LIBRARY_PATH=/usr/local/cuda/lib:$PATH
+
 Gamescope compatibility
 -----------------------
 Some users have reported stuttering issues when streaming games running within Gamescope.
