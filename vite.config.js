@@ -22,7 +22,7 @@ if (process.env.SUNSHINE_SOURCE_ASSETS_DIR) {
 }
 if (process.env.SUNSHINE_ASSETS_DIR) {
     console.log("Using destdir from Cmake: " + resolve(process.env.SUNSHINE_ASSETS_DIR,"assets/web"));
-    assetsDstPath = process.env.SUNSHINE_ASSETS_DIR
+    assetsDstPath = resolve(process.env.SUNSHINE_ASSETS_DIR,process.env.SUNSHINE_ASSETS_DIR)
 }
 
 let header = fs.readFileSync(resolve(assetsSrcPath, "template_header.html"))
