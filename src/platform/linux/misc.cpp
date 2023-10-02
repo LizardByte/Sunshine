@@ -301,7 +301,7 @@ namespace platf {
       char buf[CMSG_SPACE(sizeof(uint16_t)) +
                std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
       struct cmsghdr alignment;
-    } cmbuf;
+    } cmbuf = {};  // Must be zeroed for CMSG_NXTHDR()
     socklen_t cmbuflen = 0;
 
     msg.msg_control = cmbuf.buf;
