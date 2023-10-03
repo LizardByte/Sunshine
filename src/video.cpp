@@ -1601,6 +1601,11 @@ namespace video {
     frame->format = ctx->pix_fmt;
     frame->width = ctx->width;
     frame->height = ctx->height;
+    frame->color_range = ctx->color_range;
+    frame->color_primaries = ctx->color_primaries;
+    frame->color_trc = ctx->color_trc;
+    frame->colorspace = ctx->colorspace;
+    frame->chroma_location = ctx->chroma_sample_location;
 
     // Attach HDR metadata to the AVFrame
     if (colorspace_is_hdr(colorspace)) {
