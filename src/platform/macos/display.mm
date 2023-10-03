@@ -74,7 +74,7 @@ namespace platf {
         img_out->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
 
-        if (!push_captured_image_cb(std::move(img_out), false)) {
+        if (!push_captured_image_cb(std::move(img_out), true)) {
           // got interrupt signal
           // returning false here stops capture backend
           return false;
