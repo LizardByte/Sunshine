@@ -1880,6 +1880,12 @@ namespace video {
       return std::nullopt;
     }
 
+    // Load the initial image to prepare for encoding
+    if (session->convert(img)) {
+      BOOST_LOG(error) << "Could not convert initial image"sv;
+      return std::nullopt;
+    }
+
     encode_session.session = std::move(session);
 
     return encode_session;
