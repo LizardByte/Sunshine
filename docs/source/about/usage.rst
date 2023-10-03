@@ -179,7 +179,7 @@ Configure autostart service
 
 Windows
 ^^^^^^^
-For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`__
+For gamepad support, install `Nefarius Virtual Gamepad <https://github.com/nefarius/ViGEmBus/releases/latest>`__
 
 Sunshine firewall
    **Add rule**
