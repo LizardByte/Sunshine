@@ -20,18 +20,6 @@ namespace fs = std::filesystem;
 namespace platf {
   using namespace std::literals;
 
-  av_img_t::~av_img_t() {
-    if (pixel_buffer != NULL) {
-      CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
-    }
-
-    if (sample_buffer != nullptr) {
-      CFRelease(sample_buffer);
-    }
-
-    data = nullptr;
-  }
-
   struct av_display_t: public display_t {
     AVVideo *av_capture;
     CGDirectDisplayID display_id;
@@ -43,11 +31,6 @@ namespace platf {
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
-        CFRetain(sampleBuffer);
-
-        CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-
         std::shared_ptr<img_t> img_out;
         if (!pull_free_image_cb(img_out)) {
           // got interrupt signal
@@ -56,16 +39,11 @@ namespace platf {
         }
         auto av_img = std::static_pointer_cast<av_img_t>(img_out);
 
-        if (av_img->pixel_buffer != nullptr)
-          CVPixelBufferUnlockBaseAddress(av_img->pixel_buffer, 0);
+        CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
 
-        if (av_img->sample_buffer != nullptr)
-          CFRelease(av_img->sample_buffer);
-
-        av_img->sample_buffer = sampleBuffer;
-        av_img->pixel_buffer = pixelBuffer;
-        img_out->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
-
+        av_img->sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
+        av_img->pixel_buffer = std::make_shared<av_pixel_buf_t>(pixelBuffer);
+        img_out->data = av_img->pixel_buffer->lock();
 
         img_out->width = CVPixelBufferGetWidth(pixelBuffer);
         img_out->height = CVPixelBufferGetHeight(pixelBuffer);
@@ -117,23 +95,11 @@ namespace platf {
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
         auto av_img = (av_img_t *) img;
 
-        CFRetain(sampleBuffer);
-
         CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
 
-        // XXX: next_img->img should be moved to a smart pointer with
-        // the CFRelease as custom deallocator
-        if (av_img->pixel_buffer != nullptr)
-          CVPixelBufferUnlockBaseAddress(((av_img_t *) img)->pixel_buffer, 0);
-
-        if (av_img->sample_buffer != nullptr)
-          CFRelease(av_img->sample_buffer);
-
-        av_img->sample_buffer = sampleBuffer;
-        av_img->pixel_buffer = pixelBuffer;
-        img->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
-
+        av_img->sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
+        av_img->pixel_buffer = std::make_shared<av_pixel_buf_t>(pixelBuffer);
+        img->data = av_img->pixel_buffer->lock();
 
         img->width = CVPixelBufferGetWidth(pixelBuffer);
         img->height = CVPixelBufferGetHeight(pixelBuffer);

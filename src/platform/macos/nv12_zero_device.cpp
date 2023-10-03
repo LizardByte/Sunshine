@@ -3,7 +3,6 @@
  * @brief todo
  */
 #include "src/platform/macos/nv12_zero_device.h"
-#include "src/platform/macos/av_img_t.h"
 
 #include "src/video.h"
 
@@ -18,8 +17,6 @@ namespace platf {
     av_frame_free(&frame);
   }
 
-  util::safe_ptr<AVFrame, free_frame> av_frame;
-
   int
   nv12_zero_device::convert(platf::img_t &img) {
     av_frame_make_writable(av_frame.get());
@@ -33,6 +30,10 @@ namespace platf {
       av_frame->data[i] = (uint8_t *) CVPixelBufferGetBaseAddressOfPlane(av_img->pixel_buffer->buf, i);
     }
 
+    // We just set data pointers to point into our CVPixelBuffer above, so we have to hold
+    // a reference to these buffers to keep them around until the AVFrame is done using them.
+    backing_img.sample_buffer = av_img->sample_buffer;
+    backing_img.pixel_buffer = av_img->pixel_buffer;
 
     return 0;
   }
