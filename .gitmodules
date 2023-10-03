@@ -8,7 +8,7 @@
 	branch = master
 [submodule "third-party/ViGEmClient"]
 	path = third-party/ViGEmClient
-	url = https://github.com/ViGEm/ViGEmClient
+	url = https://github.com/nefarius/ViGEmClient
 	branch = master
 [submodule "third-party/miniupnp"]
 	path = third-party/miniupnp
