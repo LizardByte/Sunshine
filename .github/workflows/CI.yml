@@ -517,14 +517,21 @@ jobs:
           # fix openssl header not found
           ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
 
+      - name: Install npm packages
+        run: |
+          npm install
+
+      - name: Remove dynamic libraries
+        run: |
+          # find *.dylib in $(brew --prefix) and delete them except if they start with /usr/local/lib/libboost
+          find $(brew --prefix) -name "*.dylib" -delete
+
       - name: Build MacOS
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          npm install
-
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
