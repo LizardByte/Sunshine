@@ -66,11 +66,9 @@ namespace platf {
         av_img->pixel_buffer = pixelBuffer;
         img_out->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
 
-        size_t extraPixels[4];
-        CVPixelBufferGetExtendedPixels(pixelBuffer, &extraPixels[0], &extraPixels[1], &extraPixels[2], &extraPixels[3]);
 
-        img_out->width = CVPixelBufferGetWidth(pixelBuffer) + extraPixels[0] + extraPixels[1];
-        img_out->height = CVPixelBufferGetHeight(pixelBuffer) + extraPixels[2] + extraPixels[3];
+        img_out->width = CVPixelBufferGetWidth(pixelBuffer);
+        img_out->height = CVPixelBufferGetHeight(pixelBuffer);
         img_out->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
 
@@ -136,11 +134,9 @@ namespace platf {
         av_img->pixel_buffer = pixelBuffer;
         img->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
 
-        size_t extraPixels[4];
-        CVPixelBufferGetExtendedPixels(pixelBuffer, &extraPixels[0], &extraPixels[1], &extraPixels[2], &extraPixels[3]);
 
-        img->width = CVPixelBufferGetWidth(pixelBuffer) + extraPixels[0] + extraPixels[1];
-        img->height = CVPixelBufferGetHeight(pixelBuffer) + extraPixels[2] + extraPixels[3];
+        img->width = CVPixelBufferGetWidth(pixelBuffer);
+        img->height = CVPixelBufferGetHeight(pixelBuffer);
         img->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
         img->pixel_pitch = img->row_pitch / img->width;
 

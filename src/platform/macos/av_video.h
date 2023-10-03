@@ -20,11 +20,6 @@ struct CaptureSession {
 @property (nonatomic, assign) OSType pixelFormat;
 @property (nonatomic, assign) int frameWidth;
 @property (nonatomic, assign) int frameHeight;
-@property (nonatomic, assign) float scaling;
-@property (nonatomic, assign) int paddingLeft;
-@property (nonatomic, assign) int paddingRight;
-@property (nonatomic, assign) int paddingTop;
-@property (nonatomic, assign) int paddingBottom;
 
 typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
 
