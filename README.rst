@@ -96,10 +96,6 @@ Integrations
    :alt: Read the Docs
    :target: http://sunshinestream.readthedocs.io/
 
-.. image:: https://img.shields.io/badge/dynamic/json.svg?color=blue&label=localized&style=for-the-badge&query=%24.progress..data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-503956.json&logo=crowdin
-   :alt: CrowdIn
-   :target: https://crowdin.com/project/sunshinestream
-
 Support
 -------
 
