@@ -229,6 +229,25 @@
           permissions to run properly.
         </div>
       </div>
+      <!-- auto-detach -->
+      <div class="mb-3 form-check">
+        <label for="autoDetach" class="form-check-label"
+          >Continue streaming if the application exits quickly</label
+        >
+        <input
+          type="checkbox"
+          class="form-check-input"
+          id="autoDetach"
+          v-model="editForm['auto-detach']"
+          true-value="true"
+          false-value="false"
+        />
+        <div class="form-text">
+          This will attempt to automatically detect launcher-type apps that close
+          quickly after launching another program or instance of themselves. When
+          a launcher-type app is detected, it is treated as a detached app.
+        </div>
+      </div>
       <!-- Image path -->
       <div class="mb-3">
         <label for="appImagePath" class="form-label">Image</label>
@@ -379,6 +398,7 @@
           index: -1,
           "exclude-global-prep-cmd": false,
           elevated: false,
+          "auto-detach": true,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -397,6 +417,9 @@
           this.$set(this.editForm, "exclude-global-prep-cmd", false);
         if(this.editForm["elevated"] === undefined && this.platform === 'windows'){
           this.$set(this.editForm, "elevated", false);
+        }
+        if(this.editForm["auto-detach"] === undefined){
+          this.$set(this.editForm, "auto-detach", true);
         }
         this.showEditForm = true;
       },

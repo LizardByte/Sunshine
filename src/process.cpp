@@ -227,6 +227,8 @@ namespace proc {
       }
     }
 
+    _app_launch_time = std::chrono::steady_clock::now();
+
     fg.disable();
 
     return 0;
@@ -237,9 +239,17 @@ namespace proc {
     if (placebo || _process.running()) {
       return _app_id;
     }
+    else if (_app.auto_detach && _process.native_exit_code() == 0 &&
+             std::chrono::steady_clock::now() - _app_launch_time < 5s) {
+      BOOST_LOG(info) << "App exited gracefully within 5 seconds of launch. Treating the app as a detached command."sv;
+      BOOST_LOG(info) << "Adjust this behavior in the Applications tab or apps.json if this is not what you want."sv;
+      placebo = true;
+      return _app_id;
+    }
 
     // Perform cleanup actions now if needed
     if (_process) {
+      BOOST_LOG(info) << "App exited with code ["sv << _process.native_exit_code() << ']';
       terminate();
     }
 
@@ -548,6 +558,7 @@ namespace proc {
         auto image_path = app_node.get_optional<std::string>("image-path"s);
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
         auto elevated = app_node.get_optional<bool>("elevated"s);
+        auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -606,6 +617,7 @@ namespace proc {
         }
 
         ctx.elevated = elevated.value_or(false);
+        ctx.auto_detach = auto_detach.value_or(true);
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {
