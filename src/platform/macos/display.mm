@@ -77,10 +77,10 @@ namespace platf {
 
         return std::make_unique<avcodec_encode_device_t>();
       }
-      else if (pix_fmt == pix_fmt_e::nv12) {
+      else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init(static_cast<void *>(av_capture), setResolution, setPixelFormat);
+        device->init(static_cast<void *>(av_capture), pix_fmt, setResolution, setPixelFormat);
 
         return device;
       }
@@ -135,7 +135,7 @@ namespace platf {
 
   std::shared_ptr<display_t>
   display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system) {
+    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
       BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
       return nullptr;
     }

@@ -26,7 +26,7 @@ namespace platf {
     using pixel_format_fn_t = std::function<void(void *display, int pixelFormat)>;
 
     int
-    init(void *display, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn);
+    init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn);
 
     int
     convert(img_t &img);
@@ -35,7 +35,6 @@ namespace platf {
 
   private:
     util::safe_ptr<AVFrame, free_frame> av_frame;
-    av_img_t backing_img;
   };
 
 }  // namespace platf

@@ -187,6 +187,7 @@ namespace platf {
     vaapi,
     dxgi,
     cuda,
+    videotoolbox,
     unknown
   };
 
