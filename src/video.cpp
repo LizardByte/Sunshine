@@ -942,6 +942,7 @@ namespace video {
         { "allow_sw"s, &config::video.vt.vt_allow_sw },
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
+        { "prio_speed"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -954,6 +955,7 @@ namespace video {
         { "allow_sw"s, &config::video.vt.vt_allow_sw },
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
+        { "prio_speed"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -966,6 +968,7 @@ namespace video {
         { "allow_sw"s, &config::video.vt.vt_allow_sw },
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
+        { "prio_speed"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
