@@ -17,23 +17,19 @@ namespace platf {
     av_frame_free(&frame);
   }
 
+  void
+  free_buffer(void *opaque, uint8_t *data) {
+    CVPixelBufferRelease((CVPixelBufferRef) data);
+  }
+
   int
   nv12_zero_device::convert(platf::img_t &img) {
-    av_frame_make_writable(av_frame.get());
-
     av_img_t *av_img = (av_img_t *) &img;
 
-    // Set up the data fields in the AVFrame to point into the mapped CVPixelBuffer
-    int planes = CVPixelBufferGetPlaneCount(av_img->pixel_buffer->buf);
-    for (int i = 0; i < planes; i++) {
-      av_frame->linesize[i] = CVPixelBufferGetBytesPerRowOfPlane(av_img->pixel_buffer->buf, i);
-      av_frame->data[i] = (uint8_t *) CVPixelBufferGetBaseAddressOfPlane(av_img->pixel_buffer->buf, i);
-    }
+    av_buffer_unref(&av_frame->buf[0]);
 
-    // We just set data pointers to point into our CVPixelBuffer above, so we have to hold
-    // a reference to these buffers to keep them around until the AVFrame is done using them.
-    backing_img.sample_buffer = av_img->sample_buffer;
-    backing_img.pixel_buffer = av_img->pixel_buffer;
+    av_frame->buf[0] = av_buffer_create((uint8_t *) CFRetain(av_img->pixel_buffer->buf), 0, free_buffer, NULL, 0);
+    av_frame->data[3] = (uint8_t *) av_img->pixel_buffer->buf;
 
     return 0;
   }
@@ -50,8 +46,10 @@ namespace platf {
   }
 
   int
-  nv12_zero_device::init(void *display, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn) {
-    pixel_format_fn(display, '420v');
+  nv12_zero_device::init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn) {
+    pixel_format_fn(display, pix_fmt == pix_fmt_e::nv12 ?
+                               kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange :
+                               kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
 
     this->display = display;
     this->resolution_fn = resolution_fn;
