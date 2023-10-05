@@ -20,18 +20,6 @@ namespace fs = std::filesystem;
 namespace platf {
   using namespace std::literals;
 
-  av_img_t::~av_img_t() {
-    if (pixel_buffer != NULL) {
-      CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
-    }
-
-    if (sample_buffer != nullptr) {
-      CFRelease(sample_buffer);
-    }
-
-    data = nullptr;
-  }
-
   struct av_display_t: public display_t {
     AVVideo *av_capture;
     CGDirectDisplayID display_id;
@@ -43,11 +31,6 @@ namespace platf {
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
-        CFRetain(sampleBuffer);
-
-        CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
-
         std::shared_ptr<img_t> img_out;
         if (!pull_free_image_cb(img_out)) {
           // got interrupt signal
@@ -56,25 +39,18 @@ namespace platf {
         }
         auto av_img = std::static_pointer_cast<av_img_t>(img_out);
 
-        if (av_img->pixel_buffer != nullptr)
-          CVPixelBufferUnlockBaseAddress(av_img->pixel_buffer, 0);
+        CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
 
-        if (av_img->sample_buffer != nullptr)
-          CFRelease(av_img->sample_buffer);
+        av_img->sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
+        av_img->pixel_buffer = std::make_shared<av_pixel_buf_t>(pixelBuffer);
+        img_out->data = av_img->pixel_buffer->lock();
 
-        av_img->sample_buffer = sampleBuffer;
-        av_img->pixel_buffer = pixelBuffer;
-        img_out->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
-
-        size_t extraPixels[4];
-        CVPixelBufferGetExtendedPixels(pixelBuffer, &extraPixels[0], &extraPixels[1], &extraPixels[2], &extraPixels[3]);
-
-        img_out->width = CVPixelBufferGetWidth(pixelBuffer) + extraPixels[0] + extraPixels[1];
-        img_out->height = CVPixelBufferGetHeight(pixelBuffer) + extraPixels[2] + extraPixels[3];
+        img_out->width = CVPixelBufferGetWidth(pixelBuffer);
+        img_out->height = CVPixelBufferGetHeight(pixelBuffer);
         img_out->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
 
-        if (!push_captured_image_cb(std::move(img_out), false)) {
+        if (!push_captured_image_cb(std::move(img_out), true)) {
           // got interrupt signal
           // returning false here stops capture backend
           return false;
@@ -101,10 +77,10 @@ namespace platf {
 
         return std::make_unique<avcodec_encode_device_t>();
       }
-      else if (pix_fmt == pix_fmt_e::nv12) {
+      else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init(static_cast<void *>(av_capture), setResolution, setPixelFormat);
+        device->init(static_cast<void *>(av_capture), pix_fmt, setResolution, setPixelFormat);
 
         return device;
       }
@@ -119,28 +95,14 @@ namespace platf {
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
         auto av_img = (av_img_t *) img;
 
-        CFRetain(sampleBuffer);
-
         CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-        CVPixelBufferLockBaseAddress(pixelBuffer, kCVPixelBufferLock_ReadOnly);
 
-        // XXX: next_img->img should be moved to a smart pointer with
-        // the CFRelease as custom deallocator
-        if (av_img->pixel_buffer != nullptr)
-          CVPixelBufferUnlockBaseAddress(((av_img_t *) img)->pixel_buffer, 0);
+        av_img->sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
+        av_img->pixel_buffer = std::make_shared<av_pixel_buf_t>(pixelBuffer);
+        img->data = av_img->pixel_buffer->lock();
 
-        if (av_img->sample_buffer != nullptr)
-          CFRelease(av_img->sample_buffer);
-
-        av_img->sample_buffer = sampleBuffer;
-        av_img->pixel_buffer = pixelBuffer;
-        img->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
-
-        size_t extraPixels[4];
-        CVPixelBufferGetExtendedPixels(pixelBuffer, &extraPixels[0], &extraPixels[1], &extraPixels[2], &extraPixels[3]);
-
-        img->width = CVPixelBufferGetWidth(pixelBuffer) + extraPixels[0] + extraPixels[1];
-        img->height = CVPixelBufferGetHeight(pixelBuffer) + extraPixels[2] + extraPixels[3];
+        img->width = CVPixelBufferGetWidth(pixelBuffer);
+        img->height = CVPixelBufferGetHeight(pixelBuffer);
         img->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
         img->pixel_pitch = img->row_pitch / img->width;
 
@@ -173,7 +135,7 @@ namespace platf {
 
   std::shared_ptr<display_t>
   display(platf::mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system) {
+    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::videotoolbox) {
       BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
       return nullptr;
     }

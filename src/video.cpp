@@ -94,6 +94,8 @@ namespace video {
   vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   util::Either<avcodec_buffer_t, int>
   cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  util::Either<avcodec_buffer_t, int>
+  vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
 
   class avcodec_software_encode_device_t: public platf::avcodec_encode_device_t {
   public:
@@ -930,16 +932,17 @@ namespace video {
   static encoder_t videotoolbox {
     "videotoolbox"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
-      AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
+      AV_HWDEVICE_TYPE_VIDEOTOOLBOX, AV_HWDEVICE_TYPE_NONE,
       AV_PIX_FMT_VIDEOTOOLBOX,
-      AV_PIX_FMT_NV12, AV_PIX_FMT_NV12,
-      nullptr),
+      AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
+      vt_init_avcodec_hardware_input_buffer),
     {
       // Common options
       {
         { "allow_sw"s, &config::video.vt.vt_allow_sw },
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
+        { "prio_speed"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -952,6 +955,7 @@ namespace video {
         { "allow_sw"s, &config::video.vt.vt_allow_sw },
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
+        { "prio_speed"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -964,6 +968,7 @@ namespace video {
         { "allow_sw"s, &config::video.vt.vt_allow_sw },
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
+        { "prio_speed"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -1601,6 +1606,11 @@ namespace video {
     frame->format = ctx->pix_fmt;
     frame->width = ctx->width;
     frame->height = ctx->height;
+    frame->color_range = ctx->color_range;
+    frame->color_primaries = ctx->color_primaries;
+    frame->color_trc = ctx->color_trc;
+    frame->colorspace = ctx->colorspace;
+    frame->chroma_location = ctx->chroma_sample_location;
 
     // Attach HDR metadata to the AVFrame
     if (colorspace_is_hdr(colorspace)) {
@@ -1872,6 +1882,12 @@ namespace video {
 
     auto session = make_encode_session(disp, encoder, ctx.config, img.width, img.height, std::move(encode_device));
     if (!session) {
+      return std::nullopt;
+    }
+
+    // Load the initial image to prepare for encoding
+    if (session->convert(img)) {
+      BOOST_LOG(error) << "Could not convert initial image"sv;
       return std::nullopt;
     }
 
@@ -2623,6 +2639,20 @@ namespace video {
     return hw_device_buf;
   }
 
+  util::Either<avcodec_buffer_t, int>
+  vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
+    avcodec_buffer_t hw_device_buf;
+
+    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0);
+    if (status < 0) {
+      char string[AV_ERROR_MAX_STRING_SIZE];
+      BOOST_LOG(error) << "Failed to create a VideoToolbox device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+      return -1;
+    }
+
+    return hw_device_buf;
+  }
+
 #ifdef _WIN32
 }
 
@@ -2701,6 +2731,8 @@ namespace video {
         return platf::mem_type_e::cuda;
       case AV_HWDEVICE_TYPE_NONE:
         return platf::mem_type_e::system;
+      case AV_HWDEVICE_TYPE_VIDEOTOOLBOX:
+        return platf::mem_type_e::videotoolbox;
       default:
         return platf::mem_type_e::unknown;
     }
