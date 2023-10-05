@@ -2,6 +2,12 @@
 
 add_compile_definitions(SUNSHINE_PLATFORM="linux")
 
+# AppImage
+if(${SUNSHINE_BUILD_APPIMAGE})
+    # use relative assets path for AppImage
+    string(REPLACE "${CMAKE_INSTALL_PREFIX}" ".${CMAKE_INSTALL_PREFIX}" SUNSHINE_ASSETS_DIR_DEF ${SUNSHINE_ASSETS_DIR})
+endif()
+
 if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
     set(SUNSHINE_EXECUTABLE_PATH "sunshine")
 endif()
