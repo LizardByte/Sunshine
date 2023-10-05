@@ -452,14 +452,18 @@ jobs:
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
+          # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
+          sudo apt-get install libgtk-3-dev librsvg2-dev -y
+          wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          chmod +x linuxdeploy-plugin-gtk.sh
+          export DEPLOY_GTK_VERSION=3
+
           ./linuxdeploy-x86_64.AppImage \
             --appdir ./AppDir \
+            --plugin gtk \
             --executable ./sunshine \
             --icon-file "../$ICON_FILE" \
             --desktop-file "./$DESKTOP_FILE" \
-            --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
-            --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
-            --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
             --output appimage
 
           # move
