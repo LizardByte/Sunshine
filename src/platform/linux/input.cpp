@@ -852,6 +852,14 @@ namespace platf {
 #endif
   };
 
+  struct client_input_raw_t: public client_input_t {
+    client_input_raw_t(input_t &input) {
+      global = (input_raw_t *) input.get();
+    }
+
+    input_raw_t *global;
+  };
+
   inline void
   rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
     std::vector<pollfd> polls_recv;
@@ -1105,8 +1113,7 @@ namespace platf {
 
     libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, scaled_x);
     libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, scaled_y);
-    libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 1);
-    libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 0);
+    libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOUCH, 1);
 
     libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
   }
@@ -1585,8 +1592,45 @@ namespace platf {
    * @param touch The touch event.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
-    // Unimplemented feature - platform_caps::pen_touch
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch, input_t &input_dev) {
+
+    bool release = false;
+    int id = 2;
+
+
+    switch (touch.eventType)  {
+    case LI_TOUCH_EVENT_UP:
+          id = -1;
+        break;
+    case LI_TOUCH_EVENT_MOVE:
+          id = true;
+        break;
+    default:
+        id = touch.pointerId + 4;
+    }
+
+
+    //this hardcode is awful but should do to make stuff work for now
+    //TODO: get the viewport width
+    float x = touch.x * 1920;
+    float y = touch.y * 1080;
+    auto touchscreen = ((input_raw_t *) input_dev.get())->touch_input.get();
+    if (!touchscreen) {
+      return;
+    }
+
+    auto scaled_x = (int) std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
+    auto scaled_y = (int) std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
+
+
+    //this is supposed to make MT work but uinput is stupid and won't take distinct touch events as multitouch
+    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_SLOT, touch.pointerId + 1);
+    if (id != 0) {
+      libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_TRACKING_ID, release ? -1 : touch.pointerId + 2);
+    }
+    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_POSITION_X, scaled_x);
+    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_POSITION_Y, scaled_y);
+    libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
   }
 
   /**
@@ -1733,8 +1777,14 @@ namespace platf {
 
     libevdev_enable_event_type(dev.get(), EV_KEY);
     libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOUCH, nullptr);
-    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_PEN, nullptr);  // Needed to be enabled for BTN_TOOL_FINGER to work.
-    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_FINGER, nullptr);
+
+    input_absinfo mtslot {
+      0
+    };
+
+    input_absinfo trkid {
+      0
+    };
 
     input_absinfo absx {
       0,
@@ -1756,6 +1806,10 @@ namespace platf {
     libevdev_enable_event_type(dev.get(), EV_ABS);
     libevdev_enable_event_code(dev.get(), EV_ABS, ABS_X, &absx);
     libevdev_enable_event_code(dev.get(), EV_ABS, ABS_Y, &absy);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_SLOT, &mtslot);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_TRACKING_ID, &trkid);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_POSITION_X, &absx);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_POSITION_Y, &absy);
 
     return dev;
   }
@@ -1903,6 +1957,8 @@ namespace platf {
    */
   platform_caps::caps_t
   get_capabilities() {
-    return 0;
+    platform_caps::caps_t caps = 0;
+    caps |= platform_caps::pen_touch;
+    return caps;
   }
 }  // namespace platf

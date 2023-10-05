@@ -653,7 +653,7 @@ namespace platf {
    * @param touch The touch event.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch, input_t &input_dev);
 
   /**
    * @brief Sends a pen event to the OS.
