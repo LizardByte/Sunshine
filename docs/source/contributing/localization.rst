@@ -1,19 +1,9 @@
 Localization
 ============
 Sunshine and related LizardByte projects are being localized into various languages. The default language is
-`en` (English) and is highlighted green.
+`en` (English).
 
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=de&style=for-the-badge&query=%24.progress.0.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-.. image:: https://img.shields.io/badge/dynamic/json?color=green&label=en&style=for-the-badge&query=%24.progress.1.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=en-GB&style=for-the-badge&query=%24.progress.2.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=en-US&style=for-the-badge&query=%24.progress.3.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=es-ES&style=for-the-badge&query=%24.progress.4.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=fr&style=for-the-badge&query=%24.progress.5.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=it&style=for-the-badge&query=%24.progress.6.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-.. image:: https://img.shields.io/badge/dynamic/json?color=blue&label=ru&style=for-the-badge&query=%24.progress.7.data.translationProgress&url=https%3A%2F%2Fbadges.awesome-crowdin.com%2Fstats-15178612-606145.json
-
-Graph
-   .. image:: https://badges.awesome-crowdin.com/translation-15178612-606145.png
+ .. image:: https://badges.awesome-crowdin.com/translation-15178612-606145.png
 
 CrowdIn
 -------
