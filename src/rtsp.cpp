@@ -494,7 +494,7 @@ namespace rtsp_stream {
     std::stringstream ss;
 
     // Tell the client about our supported features
-    ss << "a=x-ss-general.featureFlags: " << (uint32_t) platf::get_capabilities();
+    ss << "a=x-ss-general.featureFlags: " << (uint32_t) platf::get_capabilities() << std::endl;
 
     if (video::active_hevc_mode != 1) {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
