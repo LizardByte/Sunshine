@@ -1230,23 +1230,21 @@ namespace platf {
     int buttons {};
 
     auto flags = gamepad_state.buttonFlags;
-    // clang-format off
-    if(flags & DPAD_UP)              buttons |= XUSB_GAMEPAD_DPAD_UP;
-    if(flags & DPAD_DOWN)            buttons |= XUSB_GAMEPAD_DPAD_DOWN;
-    if(flags & DPAD_LEFT)            buttons |= XUSB_GAMEPAD_DPAD_LEFT;
-    if(flags & DPAD_RIGHT)           buttons |= XUSB_GAMEPAD_DPAD_RIGHT;
-    if(flags & START)                buttons |= XUSB_GAMEPAD_START;
-    if(flags & BACK)                 buttons |= XUSB_GAMEPAD_BACK;
-    if(flags & LEFT_STICK)           buttons |= XUSB_GAMEPAD_LEFT_THUMB;
-    if(flags & RIGHT_STICK)          buttons |= XUSB_GAMEPAD_RIGHT_THUMB;
-    if(flags & LEFT_BUTTON)          buttons |= XUSB_GAMEPAD_LEFT_SHOULDER;
-    if(flags & RIGHT_BUTTON)         buttons |= XUSB_GAMEPAD_RIGHT_SHOULDER;
-    if(flags & (HOME | MISC_BUTTON)) buttons |= XUSB_GAMEPAD_GUIDE;
-    if(flags & A)                    buttons |= XUSB_GAMEPAD_A;
-    if(flags & B)                    buttons |= XUSB_GAMEPAD_B;
-    if(flags & X)                    buttons |= XUSB_GAMEPAD_X;
-    if(flags & Y)                    buttons |= XUSB_GAMEPAD_Y;
-    // clang-format on
+    if (flags & DPAD_UP) buttons |= XUSB_GAMEPAD_DPAD_UP;
+    if (flags & DPAD_DOWN) buttons |= XUSB_GAMEPAD_DPAD_DOWN;
+    if (flags & DPAD_LEFT) buttons |= XUSB_GAMEPAD_DPAD_LEFT;
+    if (flags & DPAD_RIGHT) buttons |= XUSB_GAMEPAD_DPAD_RIGHT;
+    if (flags & START) buttons |= XUSB_GAMEPAD_START;
+    if (flags & BACK) buttons |= XUSB_GAMEPAD_BACK;
+    if (flags & LEFT_STICK) buttons |= XUSB_GAMEPAD_LEFT_THUMB;
+    if (flags & RIGHT_STICK) buttons |= XUSB_GAMEPAD_RIGHT_THUMB;
+    if (flags & LEFT_BUTTON) buttons |= XUSB_GAMEPAD_LEFT_SHOULDER;
+    if (flags & RIGHT_BUTTON) buttons |= XUSB_GAMEPAD_RIGHT_SHOULDER;
+    if (flags & (HOME | MISC_BUTTON)) buttons |= XUSB_GAMEPAD_GUIDE;
+    if (flags & A) buttons |= XUSB_GAMEPAD_A;
+    if (flags & B) buttons |= XUSB_GAMEPAD_B;
+    if (flags & X) buttons |= XUSB_GAMEPAD_X;
+    if (flags & Y) buttons |= XUSB_GAMEPAD_Y;
 
     return (XUSB_BUTTON) buttons;
   }
@@ -1317,21 +1315,19 @@ namespace platf {
     int buttons {};
 
     auto flags = gamepad_state.buttonFlags;
-    // clang-format off
-    if(flags & LEFT_STICK)   buttons |= DS4_BUTTON_THUMB_LEFT;
-    if(flags & RIGHT_STICK)  buttons |= DS4_BUTTON_THUMB_RIGHT;
-    if(flags & LEFT_BUTTON)  buttons |= DS4_BUTTON_SHOULDER_LEFT;
-    if(flags & RIGHT_BUTTON) buttons |= DS4_BUTTON_SHOULDER_RIGHT;
-    if(flags & START)        buttons |= DS4_BUTTON_OPTIONS;
-    if(flags & BACK)         buttons |= DS4_BUTTON_SHARE;
-    if(flags & A)            buttons |= DS4_BUTTON_CROSS;
-    if(flags & B)            buttons |= DS4_BUTTON_CIRCLE;
-    if(flags & X)            buttons |= DS4_BUTTON_SQUARE;
-    if(flags & Y)            buttons |= DS4_BUTTON_TRIANGLE;
+    if (flags & LEFT_STICK) buttons |= DS4_BUTTON_THUMB_LEFT;
+    if (flags & RIGHT_STICK) buttons |= DS4_BUTTON_THUMB_RIGHT;
+    if (flags & LEFT_BUTTON) buttons |= DS4_BUTTON_SHOULDER_LEFT;
+    if (flags & RIGHT_BUTTON) buttons |= DS4_BUTTON_SHOULDER_RIGHT;
+    if (flags & START) buttons |= DS4_BUTTON_OPTIONS;
+    if (flags & BACK) buttons |= DS4_BUTTON_SHARE;
+    if (flags & A) buttons |= DS4_BUTTON_CROSS;
+    if (flags & B) buttons |= DS4_BUTTON_CIRCLE;
+    if (flags & X) buttons |= DS4_BUTTON_SQUARE;
+    if (flags & Y) buttons |= DS4_BUTTON_TRIANGLE;
 
-    if(gamepad_state.lt > 0) buttons |= DS4_BUTTON_TRIGGER_LEFT;
-    if(gamepad_state.rt > 0) buttons |= DS4_BUTTON_TRIGGER_RIGHT;
-    // clang-format on
+    if (gamepad_state.lt > 0) buttons |= DS4_BUTTON_TRIGGER_LEFT;
+    if (gamepad_state.rt > 0) buttons |= DS4_BUTTON_TRIGGER_RIGHT;
 
     return (DS4_BUTTONS) buttons;
   }
