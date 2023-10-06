@@ -1231,21 +1231,21 @@ namespace platf {
 
     auto flags = gamepad_state.buttonFlags;
     // clang-format off
-    if(flags & DPAD_UP)      buttons |= XUSB_GAMEPAD_DPAD_UP;
-    if(flags & DPAD_DOWN)    buttons |= XUSB_GAMEPAD_DPAD_DOWN;
-    if(flags & DPAD_LEFT)    buttons |= XUSB_GAMEPAD_DPAD_LEFT;
-    if(flags & DPAD_RIGHT)   buttons |= XUSB_GAMEPAD_DPAD_RIGHT;
-    if(flags & START)        buttons |= XUSB_GAMEPAD_START;
-    if(flags & BACK)         buttons |= XUSB_GAMEPAD_BACK;
-    if(flags & LEFT_STICK)   buttons |= XUSB_GAMEPAD_LEFT_THUMB;
-    if(flags & RIGHT_STICK)  buttons |= XUSB_GAMEPAD_RIGHT_THUMB;
-    if(flags & LEFT_BUTTON)  buttons |= XUSB_GAMEPAD_LEFT_SHOULDER;
-    if(flags & RIGHT_BUTTON) buttons |= XUSB_GAMEPAD_RIGHT_SHOULDER;
-    if(flags & HOME)         buttons |= XUSB_GAMEPAD_GUIDE;
-    if(flags & A)            buttons |= XUSB_GAMEPAD_A;
-    if(flags & B)            buttons |= XUSB_GAMEPAD_B;
-    if(flags & X)            buttons |= XUSB_GAMEPAD_X;
-    if(flags & Y)            buttons |= XUSB_GAMEPAD_Y;
+    if(flags & DPAD_UP)              buttons |= XUSB_GAMEPAD_DPAD_UP;
+    if(flags & DPAD_DOWN)            buttons |= XUSB_GAMEPAD_DPAD_DOWN;
+    if(flags & DPAD_LEFT)            buttons |= XUSB_GAMEPAD_DPAD_LEFT;
+    if(flags & DPAD_RIGHT)           buttons |= XUSB_GAMEPAD_DPAD_RIGHT;
+    if(flags & START)                buttons |= XUSB_GAMEPAD_START;
+    if(flags & BACK)                 buttons |= XUSB_GAMEPAD_BACK;
+    if(flags & LEFT_STICK)           buttons |= XUSB_GAMEPAD_LEFT_THUMB;
+    if(flags & RIGHT_STICK)          buttons |= XUSB_GAMEPAD_RIGHT_THUMB;
+    if(flags & LEFT_BUTTON)          buttons |= XUSB_GAMEPAD_LEFT_SHOULDER;
+    if(flags & RIGHT_BUTTON)         buttons |= XUSB_GAMEPAD_RIGHT_SHOULDER;
+    if(flags & (HOME | MISC_BUTTON)) buttons |= XUSB_GAMEPAD_GUIDE;
+    if(flags & A)                    buttons |= XUSB_GAMEPAD_A;
+    if(flags & B)                    buttons |= XUSB_GAMEPAD_B;
+    if(flags & X)                    buttons |= XUSB_GAMEPAD_X;
+    if(flags & Y)                    buttons |= XUSB_GAMEPAD_Y;
     // clang-format on
 
     return (XUSB_BUTTON) buttons;
