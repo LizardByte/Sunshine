@@ -1593,9 +1593,16 @@ namespace platf {
     case LI_TOUCH_EVENT_UP:
           id = -1;
         break;
-    case LI_TOUCH_EVENT_MOVE:
-          id = true;
+    case LI_TOUCH_EVENT_CANCEL:
+          id = -1;
         break;
+    case LI_TOUCH_EVENT_CANCEL_ALL :
+        for (int i, i < 10, i++) {
+          libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_SLOT, i);
+          libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_TRACKING_ID, -1);
+        }
+        libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
+        return;
     default:
         id = touch.pointerId + 4;
     }
