@@ -1615,10 +1615,8 @@ namespace platf {
 
 
     //This reports touch events as a type B uinput touchscreen/tablet
-    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_SLOT, touch.pointerId + 1);
-    if (id != 0) {
-      libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_TRACKING_ID, release ? -1 : touch.pointerId + 2);
-    }
+    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_SLOT, touch.pointerId);
+    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_TRACKING_ID, id);
     libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_POSITION_X, scaled_x);
     libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_POSITION_Y, scaled_y);
     libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
