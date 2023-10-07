@@ -17,16 +17,7 @@ Install dependencies:
       pacman -S base-devel cmake diffutils gcc git make mingw-w64-x86_64-binutils \
       mingw-w64-x86_64-boost mingw-w64-x86_64-cmake mingw-w64-x86_64-curl \
       mingw-w64-x86_64-libmfx mingw-w64-x86_64-openssl mingw-w64-x86_64-opus \
-      mingw-w64-x86_64-toolchain
-
-npm dependencies
-----------------
-Install nodejs and npm. Downloads available `here <https://nodejs.org/en/download/>`__.
-
-Install npm dependencies.
-   .. code-block:: bash
-
-      npm install
+      mingw-w64-x86_64-toolchain mingw-w64-x86_64-nodejs
 
 Build
 -----
