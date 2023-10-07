@@ -99,6 +99,16 @@ jobs:
       matrix: ${{ fromJson(needs.languages.outputs.matrix) }}
 
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v8
+        with:
+          root-reserve-mb: 20480
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'false'
+          remove-docker-images: 'true'
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
