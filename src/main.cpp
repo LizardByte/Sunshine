@@ -489,48 +489,6 @@ main(int argc, char *argv[]) {
 #ifdef _WIN32
   // Switch default C standard library locale to UTF-8 on Windows 10 1803+
   setlocale(LC_ALL, ".UTF-8");
-
-  // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
-  SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
-
-  // We must create a hidden window to receive shutdown notifications since we load gdi32.dll
-  std::thread window_thread([]() {
-    WNDCLASSA wnd_class {};
-    wnd_class.lpszClassName = "SunshineSessionMonitorClass";
-    wnd_class.lpfnWndProc = SessionMonitorWindowProc;
-    if (!RegisterClassA(&wnd_class)) {
-      std::cout << "Failed to register session monitor window class"sv << std::endl;
-      return;
-    }
-
-    auto wnd = CreateWindowExA(
-      0,
-      wnd_class.lpszClassName,
-      "Sunshine Session Monitor Window",
-      0,
-      CW_USEDEFAULT,
-      CW_USEDEFAULT,
-      CW_USEDEFAULT,
-      CW_USEDEFAULT,
-      nullptr,
-      nullptr,
-      nullptr,
-      nullptr);
-    if (!wnd) {
-      std::cout << "Failed to create session monitor window"sv << std::endl;
-      return;
-    }
-
-    ShowWindow(wnd, SW_HIDE);
-
-    // Run the message loop for our window
-    MSG msg {};
-    while (GetMessage(&msg, nullptr, 0, 0) > 0) {
-      TranslateMessage(&msg);
-      DispatchMessage(&msg);
-    }
-  });
-  window_thread.detach();
 #endif
 
   // Use UTF-8 conversion for the default C++ locale (used by boost::log)
@@ -650,6 +608,48 @@ main(int argc, char *argv[]) {
     // Unload dynamic library to survive driver reinstallation
     nvprefs_instance.unload();
   }
+
+  // Wait as long as possible to terminate Sunshine.exe during logoff/shutdown
+  SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
+
+  // We must create a hidden window to receive shutdown notifications since we load gdi32.dll
+  std::thread window_thread([]() {
+    WNDCLASSA wnd_class {};
+    wnd_class.lpszClassName = "SunshineSessionMonitorClass";
+    wnd_class.lpfnWndProc = SessionMonitorWindowProc;
+    if (!RegisterClassA(&wnd_class)) {
+      BOOST_LOG(error) << "Failed to register session monitor window class"sv << std::endl;
+      return;
+    }
+
+    auto wnd = CreateWindowExA(
+      0,
+      wnd_class.lpszClassName,
+      "Sunshine Session Monitor Window",
+      0,
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      CW_USEDEFAULT,
+      nullptr,
+      nullptr,
+      nullptr,
+      nullptr);
+    if (!wnd) {
+      BOOST_LOG(error) << "Failed to create session monitor window"sv << std::endl;
+      return;
+    }
+
+    ShowWindow(wnd, SW_HIDE);
+
+    // Run the message loop for our window
+    MSG msg {};
+    while (GetMessage(&msg, nullptr, 0, 0) > 0) {
+      TranslateMessage(&msg);
+      DispatchMessage(&msg);
+    }
+  });
+  window_thread.detach();
 #endif
 
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
