@@ -1597,7 +1597,7 @@ namespace platf {
           id = -1;
         break;
     case LI_TOUCH_EVENT_CANCEL_ALL :
-        for (int i, i < 10, i++) {
+        for (int i; i < 10; i++) {
           libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_SLOT, i);
           libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_TRACKING_ID, -1);
         }
