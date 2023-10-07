@@ -1779,10 +1779,20 @@ namespace platf {
     libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOUCH, nullptr);
 
     input_absinfo mtslot {
+      0,
+      0,
+      9,
+      0,
+      0,
       0
     };
 
     input_absinfo trkid {
+      0,
+      0,
+      65536,
+      0,
+      0,
       0
     };
 
