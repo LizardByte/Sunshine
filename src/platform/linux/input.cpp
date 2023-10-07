@@ -1613,10 +1613,8 @@ namespace platf {
     }
 
 
-    //this hardcode is awful but should do to make stuff work for now
-    //TODO: get the viewport width
-    float x = touch.x * 1920;
-    float y = touch.y * 1080;
+    float x = touch.x * touch_port.width;
+    float y = touch.y * touch_port.height;
 
     auto scaled_x = (int) std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
     auto scaled_y = (int) std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
