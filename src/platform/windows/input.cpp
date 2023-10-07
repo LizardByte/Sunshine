@@ -879,9 +879,10 @@ namespace platf {
    * @param input The client-specific input context.
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param touch The touch event.
+   * @param input_dev The global input context.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch,  input_t &input_ctx) {
     auto raw = (client_input_raw_t *) input;
 
     // Bail if we're not running on an OS that supports virtual touch input
