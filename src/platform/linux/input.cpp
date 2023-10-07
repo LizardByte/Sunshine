@@ -852,14 +852,6 @@ namespace platf {
 #endif
   };
 
-  struct client_input_raw_t: public client_input_t {
-    client_input_raw_t(input_t &input) {
-      global = (input_raw_t *) input.get();
-    }
-
-    input_raw_t *global;
-  };
-
   inline void
   rumbleIterate(std::vector<effect_t> &effects, std::vector<pollfd_t> &polls, std::chrono::milliseconds to) {
     std::vector<pollfd> polls_recv;
@@ -1594,8 +1586,7 @@ namespace platf {
   void
   touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch, input_t &input_dev) {
 
-    bool release = false;
-    int id = 2;
+    int id;
 
 
     switch (touch.eventType)  {
@@ -1623,7 +1614,7 @@ namespace platf {
     auto scaled_y = (int) std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
 
 
-    //this is supposed to make MT work but uinput is stupid and won't take distinct touch events as multitouch
+    //This reports touch events as a type B uinput touchscreen/tablet
     libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_SLOT, touch.pointerId + 1);
     if (id != 0) {
       libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_MT_TRACKING_ID, release ? -1 : touch.pointerId + 2);
