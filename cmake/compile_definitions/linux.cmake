@@ -2,6 +2,12 @@
 
 add_compile_definitions(SUNSHINE_PLATFORM="linux")
 
+# AppImage
+if(${SUNSHINE_BUILD_APPIMAGE})
+    # use relative assets path for AppImage
+    string(REPLACE "${CMAKE_INSTALL_PREFIX}" ".${CMAKE_INSTALL_PREFIX}" SUNSHINE_ASSETS_DIR_DEF ${SUNSHINE_ASSETS_DIR})
+endif()
+
 if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
     set(SUNSHINE_EXECUTABLE_PATH "sunshine")
 endif()
@@ -156,18 +162,34 @@ endif()
 # tray icon
 if(${SUNSHINE_ENABLE_TRAY})
     pkg_check_modules(APPINDICATOR appindicator3-0.1)
-    if(NOT APPINDICATOR_FOUND)
-        message(WARNING "Missing appindicator, disabling tray icon")
-        set(SUNSHINE_TRAY 0)
+    if(APPINDICATOR_FOUND)
+        list(APPEND SUNSHINE_DEFINITIONS TRAY_LEGACY_APPINDICATOR=1)
     else()
-        include_directories(SYSTEM ${APPINDICATOR_INCLUDE_DIRS})
-        link_directories(${APPINDICATOR_LIBRARY_DIRS})
+        pkg_check_modules(APPINDICATOR ayatana-appindicator3-0.1)
+        if(APPINDICATOR_FOUND)
+            list(APPEND SUNSHINE_DEFINITIONS TRAY_AYATANA_APPINDICATOR=1)
+        endif ()
+    endif()
+    pkg_check_modules(LIBNOTIFY libnotify)
+    if(NOT APPINDICATOR_FOUND OR NOT LIBNOTIFY_FOUND)
+        set(SUNSHINE_TRAY 0)
+        message(WARNING "Missing appindicator or libnotify, disabling tray icon")
+        message(STATUS "APPINDICATOR_FOUND: ${APPINDICATOR_FOUND}")
+        message(STATUS "LIBNOTIFY_FOUND: ${LIBNOTIFY_FOUND}")
+    else()
+        include_directories(SYSTEM ${APPINDICATOR_INCLUDE_DIRS} ${LIBNOTIFY_INCLUDE_DIRS})
+        link_directories(${APPINDICATOR_LIBRARY_DIRS} ${LIBNOTIFY_LIBRARY_DIRS})
 
         list(APPEND PLATFORM_TARGET_FILES third-party/tray/tray_linux.c)
-        list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES})
+        list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES} ${LIBNOTIFY_LIBRARIES})
     endif()
 else()
     set(SUNSHINE_TRAY 0)
+    message(STATUS "Tray icon disabled")
+endif()
+
+if (${SUNSHINE_TRAY} EQUAL 0 AND SUNSHINE_REQUIRE_TRAY)
+    message(FATAL_ERROR "Tray icon is required")
 endif()
 
 list(APPEND PLATFORM_TARGET_FILES

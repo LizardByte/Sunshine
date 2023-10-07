@@ -52,6 +52,7 @@ namespace proc {
     std::string image_path;
     std::string id;
     bool elevated;
+    bool auto_detach;
   };
 
   class proc_t {
@@ -82,7 +83,8 @@ namespace proc {
     get_apps();
     std::string
     get_app_image(int app_id);
-
+    std::string
+    get_last_run_app_name();
     void
     terminate();
 
@@ -92,6 +94,7 @@ namespace proc {
     boost::process::environment _env;
     std::vector<ctx_t> _apps;
     ctx_t _app;
+    std::chrono::steady_clock::time_point _app_launch_time;
 
     // If no command associated with _app_id, yet it's still running
     bool placebo {};

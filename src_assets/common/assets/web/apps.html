@@ -65,7 +65,7 @@
 
         .env-table td {
           padding: 0.25em;
-          border-bottom: rgba(0,0,0,0.25) 1px solid;
+          border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
           vertical-align: top;
         }
       </style>
@@ -233,7 +233,17 @@
             permissions to run properly.
           </div>
         </div>
-        <!-- Image path -->
+        <!-- auto-detach -->
+        <div class="mb-3 form-check">
+          <label for="autoDetach" class="form-check-label">Continue streaming if the application exits quickly</label>
+          <input type="checkbox" class="form-check-input" id="autoDetach" v-model="editForm['auto-detach']"
+            true-value="true" false-value="false" />
+          <div class="form-text">
+            This will attempt to automatically detect launcher-type apps that close
+            quickly after launching another program or instance of themselves. When
+            a launcher-type app is detected, it is treated as a detached app.
+          </div>
+        </div>
         <div class="mb-3">
           <label for="appImagePath" class="form-label">Image</label>
           <div class="input-group dropup">
@@ -280,7 +290,8 @@
         <div class="env-hint alert alert-info">
           <div class="form-text">
             <h4>About Environment Variables</h4>
-            All commands get these environment variables by default: </div>
+            All commands get these environment variables by default:
+          </div>
           <table class="env-table">
             <tr>
               <td><b>Var Name</b></td>
@@ -320,20 +331,24 @@
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td>
-              <td>(true/false) if the client has requested the option to optimize the game for optimal streaming</td>
+              <td>(true/false) if the client has requested the option to optimize the game for optimal
+                streaming</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td>
               <td>The Audio Configuration requested by the client (2.0/5.1/7.1)</td>
             </tr>
           </table>
-          <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution Automation:</b>
+          <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution
+              Automation:</b>
             <pre>cmd /C &lt;qres path&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre>
           </div>
-          <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution Automation:</b>
+          <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution
+              Automation:</b>
             <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate 60"</pre>
           </div>
-          <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for Resolution
+          <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for
+              Resolution
               Automation:</b>
             <pre>sh -c "displayplacer "id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre>
           </div>
@@ -397,6 +412,7 @@
           index: -1,
           "exclude-global-prep-cmd": false,
           elevated: false,
+          "auto-detach": true,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -415,6 +431,9 @@
           this.editForm["exclude-global-prep-cmd"] = [];
         if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
           this.editForm["elevated"] = [];
+        }
+        if (this.editForm["auto-detach"] === undefined) {
+          this.$set(this.editForm, "auto-detach", true);
         }
         this.showEditForm = true;
       },

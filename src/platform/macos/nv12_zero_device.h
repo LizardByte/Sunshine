@@ -5,8 +5,13 @@
 #pragma once
 
 #include "src/platform/common.h"
+#include "src/platform/macos/av_img_t.h"
+
+struct AVFrame;
 
 namespace platf {
+  void
+  free_frame(AVFrame *frame);
 
   class nv12_zero_device: public avcodec_encode_device_t {
     // display holds a pointer to an av_video object. Since the namespaces of AVFoundation
@@ -21,12 +26,15 @@ namespace platf {
     using pixel_format_fn_t = std::function<void(void *display, int pixelFormat)>;
 
     int
-    init(void *display, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn);
+    init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, pixel_format_fn_t pixel_format_fn);
 
     int
     convert(img_t &img);
     int
     set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx);
+
+  private:
+    util::safe_ptr<AVFrame, free_frame> av_frame;
   };
 
 }  // namespace platf

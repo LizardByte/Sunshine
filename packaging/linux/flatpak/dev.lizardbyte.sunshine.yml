@@ -5,6 +5,7 @@ runtime-version: "22.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node18
+  - org.freedesktop.Sdk.Extension.vala
 command: sunshine
 separate-locales: false
 finish-args:
@@ -26,6 +27,10 @@ cleanup:
   - /lib/*.la
   - /lib/*.a
   - /share/man
+
+build-options:
+  append-path: /usr/lib/sdk/vala/bin
+  prepend-ld-library-path: /usr/lib/sdk/vala/lib
 
 modules:
   - name: boost
@@ -88,6 +93,79 @@ modules:
           - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
           - autoreconf -ivf
 
+  # yamllint disable-line rule:line-length
+  # https://github.com/flathub/org.localsend.localsend_app/blob/7465669c22a2a4fc35e707e1e4e7e882772adc0e/org.localsend.localsend_app.yml#L27-L106
+  # https://github.com/flathub/app.vup.Vup/blob/8c5073c7c5b8f24805013abc85a0860ca2439396/app.vup.Vup.yaml#L30-L78
+  - name: libayatana-appindicator
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DENABLE_BINDINGS_MONO=NO
+      - -DENABLE_BINDINGS_VALA=NO
+    modules:
+      - shared-modules/intltool/intltool-0.51.json
+      - name: libdbusmenu-gtk3  # Dependency of libayatana-appindicator
+        buildsystem: autotools
+        build-options:
+          cflags: -Wno-error
+          env:
+            HAVE_VALGRIND_FALSE: '#'
+            HAVE_VALGRIND_TRUE: ''
+        config-opts:
+          - --with-gtk=3
+          - --disable-dumper
+          - --disable-static
+          - --disable-tests
+          - --disable-gtk-doc
+          - --enable-introspection=no
+          - --disable-vala
+        sources:
+          - type: archive
+            url: https://launchpad.net/libdbusmenu/16.04/16.04.0/+download/libdbusmenu-16.04.0.tar.gz
+            sha256: b9cc4a2acd74509435892823607d966d424bd9ad5d0b00938f27240a1bfa878a
+        cleanup:
+          - /include
+          - /libexec
+          - /lib/pkgconfig
+          - /lib/*.la
+          - /share/doc
+          - /share/libdbusmenu
+          - /share/gtk-doc
+          - /share/gir-1.0
+      - name: ayatana-ido
+        buildsystem: cmake-ninja
+        sources:
+          - type: git
+            url: https://github.com/AyatanaIndicators/ayatana-ido.git
+            tag: 0.10.1
+            commit: 13402a2cc4616b4b5f4244413599e635fcfc1401
+            x-checker-data:
+              type: anitya
+              project-id: 18445
+              tag-template: $version
+              stable-only: true
+      - name: libayatana-indicator
+        buildsystem: cmake-ninja
+        sources:
+          - type: git
+            url: https://github.com/AyatanaIndicators/libayatana-indicator.git
+            tag: 0.9.3
+            commit: a62e8ca13040554a8fc2536ce7e6aa888c5729d9
+            x-checker-data:
+              type: anitya
+              project-id: 18447
+              tag-template: $version
+              stable-only: true
+    sources:
+      - type: git
+        url: https://github.com/AyatanaIndicators/libayatana-appindicator.git
+        tag: 0.5.92
+        commit: d214fe3e7a6b1ba8faea68d70586310b34dc643c
+        x-checker-data:
+          type: anitya
+          project-id: 18446
+          tag-template: $version
+          stable-only: true
+
   - name: libevdev
     disabled: false
     buildsystem: meson
@@ -106,6 +184,30 @@ modules:
       - type: shell
         commands:
           - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+
+  - name: libnotify
+    buildsystem: meson
+    config-opts:
+      - -Dtests=false
+      - -Dintrospection=disabled
+      - -Dman=false
+      - -Dgtk_doc=false
+      - -Ddocbook_docs=disabled
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/libnotify/0.8/libnotify-0.8.2.tar.xz
+        sha256: c5f4ed3d1f86e5b118c76415aacb861873ed3e6f0c6b3181b828cf584fc5c616
+        x-checker-data:
+          type: gnome
+          name: libnotify
+          stable-only: true
+      - type: archive
+        url: https://download.gnome.org/sources/gnome-common/3.18/gnome-common-3.18.0.tar.xz
+        sha256: 22569e370ae755e04527b76328befc4c73b62bfd4a572499fde116b8318af8cf
+        x-checker-data:
+          type: gnome
+          name: gnome-common
+          stable-only: true
 
   - name: intel-mediasdk
     disabled: false

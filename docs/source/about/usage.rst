@@ -179,7 +179,7 @@ Configure autostart service
 
 Windows
 ^^^^^^^
-For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`__
+For gamepad support, install `Nefarius Virtual Gamepad <https://github.com/nefarius/ViGEmBus/releases/latest>`__
 
 Sunshine firewall
    **Add rule**
@@ -254,6 +254,7 @@ Application List
    - ``image-path`` - The full path to the cover art image to use.
    - ``name`` - The name of the application/game
    - ``output`` - The file where the output of the command is stored
+   - ``auto-detach`` - Specifies whether the app should be treated as detached if it exits quickly
    - ``prep-cmd`` - A list of commands to be run before/after the application
 
      - If any of the prep-commands fail, starting the application is aborted

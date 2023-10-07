@@ -1532,7 +1532,7 @@ namespace platf {
       if (RIGHT_STICK & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_THUMBR, bf_new & RIGHT_STICK ? 1 : 0);
       if (LEFT_BUTTON & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_TL, bf_new & LEFT_BUTTON ? 1 : 0);
       if (RIGHT_BUTTON & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_TR, bf_new & RIGHT_BUTTON ? 1 : 0);
-      if (HOME & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_MODE, bf_new & HOME ? 1 : 0);
+      if ((HOME | MISC_BUTTON) & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_MODE, bf_new & (HOME | MISC_BUTTON) ? 1 : 0);
       if (A & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_SOUTH, bf_new & A ? 1 : 0);
       if (B & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_EAST, bf_new & B ? 1 : 0);
       if (X & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_NORTH, bf_new & X ? 1 : 0);

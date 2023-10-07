@@ -24,6 +24,7 @@
 #include "crypto.h"
 #include "main.h"
 #include "platform/common.h"
+#include "system_tray.h"
 #include "utility.h"
 
 #ifdef _WIN32
@@ -116,7 +117,6 @@ namespace proc {
 
     _app_id = app_id;
     _app = *iter;
-
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
 
@@ -181,13 +181,17 @@ namespace proc {
 
       if (ec) {
         BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
-        return -1;
+        // We don't want any prep commands failing launch of the desktop.
+        // This is to prevent the issue where users reboot their PC and need to log in with Sunshine.
+        // permission_denied is typically returned when the user impersonation fails, which can happen when user is not signed in yet.
+        if (!(_app.cmd.empty() && ec == std::errc::permission_denied)) {
+          return -1;
+        }
       }
 
       child.wait();
       auto ret = child.exit_code();
-
-      if (ret != 0) {
+      if (ret != 0 && ec != std::errc::permission_denied) {
         BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
         return -1;
       }
@@ -223,6 +227,8 @@ namespace proc {
       }
     }
 
+    _app_launch_time = std::chrono::steady_clock::now();
+
     fg.disable();
 
     return 0;
@@ -233,9 +239,17 @@ namespace proc {
     if (placebo || _process.running()) {
       return _app_id;
     }
+    else if (_app.auto_detach && _process.native_exit_code() == 0 &&
+             std::chrono::steady_clock::now() - _app_launch_time < 5s) {
+      BOOST_LOG(info) << "App exited gracefully within 5 seconds of launch. Treating the app as a detached command."sv;
+      BOOST_LOG(info) << "Adjust this behavior in the Applications tab or apps.json if this is not what you want."sv;
+      placebo = true;
+      return _app_id;
+    }
 
     // Perform cleanup actions now if needed
     if (_process) {
+      BOOST_LOG(info) << "App exited with code ["sv << _process.native_exit_code() << ']';
       terminate();
     }
 
@@ -244,9 +258,8 @@ namespace proc {
 
   void
   proc_t::terminate() {
+    bool has_run = _app_id > 0;
     std::error_code ec;
-
-    // Ensure child process is terminated
     placebo = false;
     process_end(_process, _process_handle);
     _process = bp::child();
@@ -279,6 +292,13 @@ namespace proc {
     }
 
     _pipe.reset();
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+    // Only show the Stopped notification if we actually have an app to stop
+    // Since terminate() is always run when a new app has started
+    if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
+      system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
+    }
+#endif
   }
 
   const std::vector<ctx_t> &
@@ -302,6 +322,11 @@ namespace proc {
     auto app_image_path = iter == _apps.end() ? std::string() : iter->image_path;
 
     return validate_app_image_path(app_image_path);
+  }
+
+  std::string
+  proc_t::get_last_run_app_name() {
+    return _app.name;
   }
 
   proc_t::~proc_t() {
@@ -533,6 +558,7 @@ namespace proc {
         auto image_path = app_node.get_optional<std::string>("image-path"s);
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
         auto elevated = app_node.get_optional<bool>("elevated"s);
+        auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -591,6 +617,7 @@ namespace proc {
         }
 
         ctx.elevated = elevated.value_or(false);
+        ctx.auto_detach = auto_detach.value_or(true);
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {

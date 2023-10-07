@@ -40,6 +40,7 @@ dnf -y install \
   libcurl-devel \
   libdrm-devel \
   libevdev-devel \
+  libnotify-devel \
   libva-devel \
   libvdpau-devel \
   libX11-devel \

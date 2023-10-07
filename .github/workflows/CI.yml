@@ -170,6 +170,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout Flathub Shared Modules
+        uses: actions/checkout@v4
+        with:
+          repository: flathub/shared-modules
+          path: build/shared-modules
+
       - name: Setup Dependencies Linux Flatpak
         run: |
           PLATFORM_VERSION=22.08
@@ -186,6 +192,7 @@ jobs:
             org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.vala/${{ matrix.arch }}/${PLATFORM_VERSION} \
             "
 
       - name: Cache Flatpak build
@@ -337,13 +344,14 @@ jobs:
             build-essential \
             gcc-10 \
             g++-10 \
-            libappindicator3-dev \
+            libayatana-appindicator3-dev \
             libavdevice-dev \
             libcap-dev \
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
             libmfx-dev \
+            libnotify-dev \
             libnuma-dev \
             libopus-dev \
             libpulse-dev \
@@ -442,14 +450,18 @@ jobs:
           wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
+          # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
+          sudo apt-get install libgtk-3-dev librsvg2-dev -y
+          wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          chmod +x linuxdeploy-plugin-gtk.sh
+          export DEPLOY_GTK_VERSION=3
+
           ./linuxdeploy-x86_64.AppImage \
             --appdir ./AppDir \
+            --plugin gtk \
             --executable ./sunshine \
             --icon-file "../$ICON_FILE" \
             --desktop-file "./$DESKTOP_FILE" \
-            --library /usr/lib/x86_64-linux-gnu/libpango-1.0.so.0 \
-            --library /usr/lib/x86_64-linux-gnu/libpangocairo-1.0.so.0 \
-            --library /usr/lib/x86_64-linux-gnu/libpangoft2-1.0.so.0 \
             --output appimage
 
           # move
@@ -703,7 +715,7 @@ jobs:
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
-            mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-onevpl
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
