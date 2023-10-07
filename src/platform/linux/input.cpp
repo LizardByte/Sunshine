@@ -1588,6 +1588,11 @@ namespace platf {
 
     int id;
 
+    auto touchscreen = ((input_raw_t *) input_dev.get())->touch_input.get();
+    if (!touchscreen) {
+      return;
+    }
+
 
     switch (touch.eventType)  {
     case LI_TOUCH_EVENT_UP:
@@ -1612,10 +1617,6 @@ namespace platf {
     //TODO: get the viewport width
     float x = touch.x * 1920;
     float y = touch.y * 1080;
-    auto touchscreen = ((input_raw_t *) input_dev.get())->touch_input.get();
-    if (!touchscreen) {
-      return;
-    }
 
     auto scaled_x = (int) std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
     auto scaled_y = (int) std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
