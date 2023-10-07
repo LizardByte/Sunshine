@@ -1610,7 +1610,7 @@ namespace platf {
         libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
         return;
     default:
-        id = touch.pointerId + 4;
+        id = touch.pointerId;
     }
 
 
