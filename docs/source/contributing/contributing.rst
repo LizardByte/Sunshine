@@ -18,4 +18,8 @@ The JS framework used by the more interactive pages is `Vue <https://vuejs.org/>
 
 Building
 ^^^^^^^^^^^^^
-Sunshine already builds the UI as part of its build process, but you can make faster changes by starting vite manually: ``npm run dev``
+Sunshine already builds the UI as part of its build process, but you can make faster changes by starting vite manually.
+
+.. code-block:: bash
+
+   npm run dev
