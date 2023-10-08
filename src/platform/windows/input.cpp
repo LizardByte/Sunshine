@@ -9,6 +9,7 @@
 
 #include <ViGEm/Client.h>
 
+#include "keylayout.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/main.h"
@@ -399,8 +400,6 @@ namespace platf {
     }
 
     vigem_t *vigem;
-    HKL keyboard_layout;
-    HKL active_layout;
 
     decltype(CreateSyntheticPointerDevice) *fnCreateSyntheticPointerDevice;
     decltype(InjectSyntheticPointerInput) *fnInjectSyntheticPointerInput;
@@ -416,21 +415,6 @@ namespace platf {
     if (raw.vigem->init()) {
       delete raw.vigem;
       raw.vigem = nullptr;
-    }
-
-    // Moonlight currently sends keys normalized to the US English layout.
-    // We need to use that layout when converting to scancodes.
-    raw.keyboard_layout = LoadKeyboardLayoutA("00000409", 0);
-    if (!raw.keyboard_layout || LOWORD(raw.keyboard_layout) != 0x409) {
-      BOOST_LOG(warning) << "Unable to load US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
-      raw.keyboard_layout = NULL;
-    }
-
-    // Activate layout for current process only
-    raw.active_layout = ActivateKeyboardLayout(raw.keyboard_layout, KLF_SETFORPROCESS);
-    if (!raw.active_layout) {
-      BOOST_LOG(warning) << "Unable to activate US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
-      raw.keyboard_layout = NULL;
     }
 
     // Get pointers to virtual touch/pen input functions (Win10 1809+)
@@ -575,8 +559,6 @@ namespace platf {
 
   void
   keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
-    auto raw = (input_raw_t *) input.get();
-
     INPUT i {};
     i.type = INPUT_KEYBOARD;
     auto &ki = i.ki;
@@ -584,9 +566,9 @@ namespace platf {
     // If the client did not normalize this VK code to a US English layout, we can't accurately convert it to a scancode.
     bool send_scancode = !(flags & SS_KBE_FLAG_NON_NORMALIZED) || config::input.always_send_scancodes;
 
-    if (send_scancode && modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE && raw->keyboard_layout != NULL) {
-      // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
-      ki.wScan = MapVirtualKeyEx(modcode, MAPVK_VK_TO_VSC, raw->keyboard_layout);
+    if (send_scancode) {
+      // Mask off the extended key byte
+      ki.wScan = VK_TO_SCANCODE_MAP[modcode & 0xFF];
     }
 
     // If we can map this to a scancode, send it as a scancode for maximum game compatibility.
