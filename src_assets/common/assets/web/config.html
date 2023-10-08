@@ -3,24 +3,24 @@
 
 <head>
   <%- header %>
-  <%- headerMain %>
-  <style>
-    .config-page {
-      padding: 1em;
-      border: 1px solid #dee2e6;
-      border-top: none;
-    }
-  
-    .buttons {
-      padding: 1em 0;
-    }
-  
-    .ms-item {
-      background-color: #ccc;
-      font-size: 12px;
-      font-weight: bold;
-    }
-  </style>
+    <%- headerMain %>
+      <style>
+        .config-page {
+          padding: 1em;
+          border: 1px solid #dee2e6;
+          border-top: none;
+        }
+
+        .buttons {
+          padding: 1em 0;
+        }
+
+        .ms-item {
+          background-color: #ccc;
+          font-size: 12px;
+          font-weight: bold;
+        }
+      </style>
 </head>
 
 <body id="app">
@@ -443,115 +443,99 @@
           </div>
         </div>
       </div>
-    </div>
-    <div v-if="currentTab === 'advanced'" class="config-page">
-      <!--Address family-->
-      <div class="mb-3">
-        <label for="address_family" class="form-label">Address Family</label>
-        <select
-          id="address_family"
-          class="form-select"
-          v-model="config.address_family"
-        >
-          <option value="ipv4">IPv4 only</option>
-          <option value="both">IPv4+IPv6</option>
-        </select>
-        <div class="form-text">Set the address family used by Sunshine</div>
-      </div>
-      <!--Port family-->
-      <div class="mb-3">
-        <label for="port" class="form-label">Port</label>
-        <input
-          type="number"
-          min="1029"
-          max="65514"
-          class="form-control"
-          id="port"
-          placeholder="47989"
-          v-model="config.port"
-        />
-        <div class="form-text">Set the family of ports used by Sunshine</div>
-        <!-- Add warning if any port is less than 1024 -->
-        <div class="alert alert-danger" v-if="(+effectivePort - 5) < 1024">
-          <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Sunshine cannot use ports below 1024!
+      <div v-if="currentTab === 'advanced'" class="config-page">
+        <!--Address family-->
+        <div class="mb-3">
+          <label for="address_family" class="form-label">Address Family</label>
+          <select id="address_family" class="form-select" v-model="config.address_family">
+            <option value="ipv4">IPv4 only</option>
+            <option value="both">IPv4+IPv6</option>
+          </select>
+          <div class="form-text">Set the address family used by Sunshine</div>
         </div>
-        <!-- Add warning if any port is above 65535 -->
-        <div class="alert alert-danger" v-if="(+effectivePort + 21) > 65535">
-          <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Ports above 65535 are not available!
+        <!--Port family-->
+        <div class="mb-3">
+          <label for="port" class="form-label">Port</label>
+          <input type="number" min="1029" max="65514" class="form-control" id="port" placeholder="47989"
+            v-model="config.port" />
+          <div class="form-text">Set the family of ports used by Sunshine</div>
+          <!-- Add warning if any port is less than 1024 -->
+          <div class="alert alert-danger" v-if="(+effectivePort - 5) < 1024">
+            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Sunshine cannot use ports below 1024!
+          </div>
+          <!-- Add warning if any port is above 65535 -->
+          <div class="alert alert-danger" v-if="(+effectivePort + 21) > 65535">
+            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Ports above 65535 are not available!
+          </div>
+          <!-- Create a port table for the various ports needed by Sunshine -->
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Protocol</th>
+                <th scope="col">Port</th>
+                <th scope="col">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <!-- HTTPS -->
+                <td>TCP</td>
+                <td>{{+effectivePort - 5}}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <!-- HTTP -->
+                <td>TCP</td>
+                <td>{{+effectivePort}}</td>
+                <td>
+                  <div class="alert alert-primary" role="alert" v-if="+effectivePort !== 47989">
+                    <i class="fa-solid fa-xl fa-circle-info"></i> Use this port to connect with Moonlight.
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <!-- Web UI -->
+                <td>TCP</td>
+                <td>{{+effectivePort + 1}}</td>
+                <td>Web UI</td>
+              </tr>
+              <tr>
+                <!-- RTSP -->
+                <td>TCP</td>
+                <td>{{+effectivePort + 21}}</td>
+                <td></td>
+              </tr>
+              <tr>
+                <!-- Video, Control, Audio -->
+                <td>UDP</td>
+                <td>{{+effectivePort + 9}} - {{+effectivePort + 11}}</td>
+                <td></td>
+              </tr>
+              <!--            <tr>-->
+              <!--              &lt;!&ndash; Mic &ndash;&gt;-->
+              <!--              <td>UDP</td>-->
+              <!--              <td>{{+effectivePort + 13}}</td>-->
+              <!--              <td></td>-->
+              <!--            </tr>-->
+            </tbody>
+          </table>
+          <!-- add warning about exposing web ui to the internet -->
+          <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
+            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Exposing the Web UI to the internet is a security
+            risk!
+            Proceed at your own risk!
+          </div>
         </div>
-        <!-- Create a port table for the various ports needed by Sunshine -->
-        <table class="table">
-          <thead>
-            <tr>
-              <th scope="col">Protocol</th>
-              <th scope="col">Port</th>
-              <th scope="col">Note</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <!-- HTTPS -->
-              <td>TCP</td>
-              <td>{{+effectivePort - 5}}</td>
-              <td></td>
-            </tr>
-            <tr>
-              <!-- HTTP -->
-              <td>TCP</td>
-              <td>{{+effectivePort}}</td>
-              <td>
-                <div class="alert alert-primary" role="alert" v-if="+effectivePort !== 47989">
-                  <i class="fa-solid fa-xl fa-circle-info"></i> Use this port to connect with Moonlight.
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <!-- Web UI -->
-              <td>TCP</td>
-              <td>{{+effectivePort + 1}}</td>
-              <td>Web UI</td>
-            </tr>
-            <tr>
-              <!-- RTSP -->
-              <td>TCP</td>
-              <td>{{+effectivePort + 21}}</td>
-              <td></td>
-            </tr>
-            <tr>
-              <!-- Video, Control, Audio -->
-              <td>UDP</td>
-              <td>{{+effectivePort + 9}} - {{+effectivePort + 11}}</td>
-              <td></td>
-            </tr>
-<!--            <tr>-->
-<!--              &lt;!&ndash; Mic &ndash;&gt;-->
-<!--              <td>UDP</td>-->
-<!--              <td>{{+effectivePort + 13}}</td>-->
-<!--              <td></td>-->
-<!--            </tr>-->
-          </tbody>
-        </table>
-        <!-- add warning about exposing web ui to the internet -->
-        <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
-          <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Exposing the Web UI to the internet is a security risk!
-          Proceed at your own risk!
-        </div>
-      </div>
-      <!-- Quantization Parameter -->
-      <div class="mb-3">
-        <label for="qp" class="form-label">Quantization Parameter</label>
-        <input
-          type="number"
-          class="form-control"
-          id="qp"
-          placeholder="28"
-          v-model="config.qp"
-        />
-        <div class="form-text">
-          Quantization Parameter<br />
-          Some devices may not support Constant Bit Rate.<br />
-          For those devices, QP is used instead.<br />
-          Higher value means more compression, but less quality<br />
+        <!-- Quantization Parameter -->
+        <div class="mb-3">
+          <label for="qp" class="form-label">Quantization Parameter</label>
+          <input type="number" class="form-control" id="qp" placeholder="28" v-model="config.qp" />
+          <div class="form-text">
+            Quantization Parameter<br />
+            Some devices may not support Constant Bit Rate.<br />
+            For those devices, QP is used instead.<br />
+            Higher value means more compression, but less quality<br />
+          </div>
         </div>
       </div>
       <!--Software Settings-->
