@@ -1619,8 +1619,14 @@ namespace platf {
         }
         libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
         return;
+    case LI_TOUCH_EVENT_DOWN:
+          id = touch.pointerId;
+        break;
+    case LI_TOUCH_EVENT_MOVE:
+          id = touch.pointerId;
+        break;
     default:
-        id = touch.pointerId;
+        return;
     }
 
 
