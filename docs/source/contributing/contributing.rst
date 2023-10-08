@@ -10,11 +10,11 @@ The Web UI uses `Vite <https://vitejs.dev/>`__ as its build system, to handle th
 
 The HTML pages used by the Web UI are found in ``src_assets/common/assets/web``.
 
-`EJS <https://www.npmjs.com/package/vite-plugin-ejs>`__ is used as a templating system for the pages (check ``template_header.html`` and ``template_header_main.html``)
+`EJS <https://www.npmjs.com/package/vite-plugin-ejs>`__ is used as a templating system for the pages (check ``template_header.html`` and ``template_header_main.html``).
 
-The Style System is provided by `Bootstrap <https://getbootstrap.com/>`__
+The Style System is provided by `Bootstrap <https://getbootstrap.com/>`__.
 
-The JS framework used by the more interactive pages is `Vue <https://vuejs.org/>`__
+The JS framework used by the more interactive pages is `Vue <https://vuejs.org/>`__.
 
 Building
 ^^^^^^^^^^^^^
