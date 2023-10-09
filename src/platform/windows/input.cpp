@@ -582,6 +582,8 @@ namespace platf {
 
     // https://docs.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#keystroke-message-flags
     switch (modcode) {
+      case VK_LWIN:
+      case VK_RWIN:
       case VK_RMENU:
       case VK_RCONTROL:
       case VK_INSERT:
