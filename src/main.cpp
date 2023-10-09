@@ -458,6 +458,12 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
 LRESULT CALLBACK
 SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   switch (uMsg) {
+    case WM_CLOSE:
+      DestroyWindow(hwnd);
+      return 0;
+    case WM_DESTROY:
+      PostQuitMessage(0);
+      return 0;
     case WM_ENDSESSION: {
       // Terminate ourselves with a blocking exit call
       std::cout << "Received WM_ENDSESSION"sv << std::endl;
@@ -613,11 +619,19 @@ main(int argc, char *argv[]) {
   SetProcessShutdownParameters(0x100, SHUTDOWN_NORETRY);
 
   // We must create a hidden window to receive shutdown notifications since we load gdi32.dll
-  std::thread window_thread([]() {
+  std::promise<HWND> session_monitor_hwnd_promise;
+  auto session_monitor_hwnd_future = session_monitor_hwnd_promise.get_future();
+  std::promise<void> session_monitor_join_thread_promise;
+  auto session_monitor_join_thread_future = session_monitor_join_thread_promise.get_future();
+
+  std::thread session_monitor_thread([&]() {
+    session_monitor_join_thread_promise.set_value_at_thread_exit();
+
     WNDCLASSA wnd_class {};
     wnd_class.lpszClassName = "SunshineSessionMonitorClass";
     wnd_class.lpfnWndProc = SessionMonitorWindowProc;
     if (!RegisterClassA(&wnd_class)) {
+      session_monitor_hwnd_promise.set_value(NULL);
       BOOST_LOG(error) << "Failed to register session monitor window class"sv << std::endl;
       return;
     }
@@ -635,6 +649,9 @@ main(int argc, char *argv[]) {
       nullptr,
       nullptr,
       nullptr);
+
+    session_monitor_hwnd_promise.set_value(wnd);
+
     if (!wnd) {
       BOOST_LOG(error) << "Failed to create session monitor window"sv << std::endl;
       return;
@@ -649,7 +666,28 @@ main(int argc, char *argv[]) {
       DispatchMessage(&msg);
     }
   });
-  window_thread.detach();
+
+  auto session_monitor_join_thread_guard = util::fail_guard([&]() {
+    if (session_monitor_hwnd_future.wait_for(1s) == std::future_status::ready) {
+      if (HWND session_monitor_hwnd = session_monitor_hwnd_future.get()) {
+        PostMessage(session_monitor_hwnd, WM_CLOSE, 0, 0);
+      }
+
+      if (session_monitor_join_thread_future.wait_for(1s) == std::future_status::ready) {
+        session_monitor_thread.join();
+        return;
+      }
+      else {
+        BOOST_LOG(warning) << "session_monitor_join_thread_future reached timeout";
+      }
+    }
+    else {
+      BOOST_LOG(warning) << "session_monitor_hwnd_future reached timeout";
+    }
+
+    session_monitor_thread.detach();
+  });
+
 #endif
 
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
