@@ -612,33 +612,6 @@ cert
 
       cert = /dir/cert.pem
 
-origin_pin_allowed
-^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The origin of the remote endpoint address that is not denied for HTTP method /pin.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =====     ===========
-   Value     Description
-   =====     ===========
-   pc        Only localhost may access /pin
-   lan       Only LAN devices may access /pin
-   wan       Anyone may access /pin
-   =====     ===========
-
-**Default**
-   ``pc``
-
-**Example**
-   .. code-block:: text
-
-      origin_pin_allowed = pc
-
 origin_web_ui_allowed
 ^^^^^^^^^^^^^^^^^^^^^
 

@@ -871,24 +871,6 @@
           Store Username/Password separately from Sunshine's state file.
         </div>
       </div>
-      <!--Origin PIN Allowed-->
-      <div class="mb-3">
-        <label for="origin_pin_allowed" class="form-label"
-          >Origin PIN Allowed</label
-        >
-        <select
-          id="origin_pin_allowed"
-          class="form-select"
-          v-model="config.origin_pin_allowed"
-        >
-          <option value="pc">Only localhost may access /pin</option>
-          <option value="lan">Only those in LAN may access /pin</option>
-          <option value="wan">Anyone may access /pin</option>
-        </select>
-        <div class="form-text">
-          The origin of the remote endpoint address that is not denied for HTTP method /pin
-        </div>
-      </div>
       <!--External IP-->
       <div class="mb-3">
         <label for="external_ip" class="form-label">External IP</label>
@@ -1168,7 +1150,6 @@
     "nvenc_preset": "1",
     "nvenc_realtime_hags": "enabled",
     "nvenc_twopass": "quarter_res",
-    "origin_pin_allowed": "pc",
     "origin_web_ui_allowed": "lan",
     "qsv_coder": "auto",
     "qsv_preset": "medium",

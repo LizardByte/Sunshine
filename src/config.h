@@ -90,7 +90,6 @@ namespace config {
   struct nvhttp_t {
     // Could be any of the following values:
     // pc|lan|wan
-    std::string origin_pin_allowed;
     std::string origin_web_ui_allowed;
 
     std::string pkey;  // must be 2048 bits
