@@ -75,6 +75,9 @@ namespace platf {
 
     uint8_t client_relative_index;
 
+    thread_pool_util::ThreadPool::task_id_t repeat_task {};
+    std::chrono::steady_clock::time_point last_report_ts;
+
     gamepad_feedback_msg_t last_rumble;
     gamepad_feedback_msg_t last_rgb_led;
   };
@@ -218,6 +221,7 @@ namespace platf {
       assert(!gamepad.gp);
 
       gamepad.client_relative_index = id.clientRelativeIndex;
+      gamepad.last_report_ts = std::chrono::steady_clock::now();
 
       if (gp_type == Xbox360Wired) {
         gamepad.gp.reset(vigem_target_x360_alloc());
@@ -271,6 +275,11 @@ namespace platf {
     void
     free_target(int nr) {
       auto &gamepad = gamepads[nr];
+
+      if (gamepad.repeat_task) {
+        task_pool.cancel(gamepad.repeat_task);
+        gamepad.repeat_task = 0;
+      }
 
       if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
         auto status = vigem_target_remove(client.get(), gamepad.gp.get());
@@ -1363,6 +1372,42 @@ namespace platf {
   }
 
   /**
+   * @brief Sends DS4 input with updated timestamps and repeats to keep timestamp updated.
+   * @details Some applications require updated timestamps values to register DS4 input.
+   * @param vigem The global ViGEm context object.
+   * @param nr The global gamepad index.
+   */
+  void
+  ds4_update_ts_and_send(vigem_t *vigem, int nr) {
+    auto &gamepad = vigem->gamepads[nr];
+
+    // Cancel any pending updates. We will requeue one here when we're finished.
+    if (gamepad.repeat_task) {
+      task_pool.cancel(gamepad.repeat_task);
+      gamepad.repeat_task = 0;
+    }
+
+    if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
+      auto now = std::chrono::steady_clock::now();
+      auto delta_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - gamepad.last_report_ts);
+
+      // Timestamp is reported in 5.333us units
+      gamepad.report.ds4.Report.wTimestamp += (uint16_t) (delta_ns.count() / 5333);
+
+      // Send the report to the virtual device
+      auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
+      if (!VIGEM_SUCCESS(status)) {
+        BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+        return;
+      }
+
+      // Repeat at least every 100ms to keep the 16-bit timestamp field from overflowing
+      gamepad.last_report_ts = now;
+      gamepad.repeat_task = task_pool.pushDelayed(ds4_update_ts_and_send, 100ms, vigem, nr).task_id;
+    }
+  }
+
+  /**
    * @brief Updates virtual gamepad with the provided gamepad state.
    * @param input The input context.
    * @param nr The gamepad index to update.
@@ -1387,14 +1432,13 @@ namespace platf {
     if (vigem_target_get_type(gamepad.gp.get()) == Xbox360Wired) {
       x360_update_state(gamepad, gamepad_state);
       status = vigem_target_x360_update(vigem->client.get(), gamepad.gp.get(), gamepad.report.x360);
+      if (!VIGEM_SUCCESS(status)) {
+        BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+      }
     }
     else {
       ds4_update_state(gamepad, gamepad_state);
-      status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    }
-
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+      ds4_update_ts_and_send(vigem, nr);
     }
   }
 
@@ -1509,10 +1553,7 @@ namespace platf {
       }
     }
 
-    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad touch input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-    }
+    ds4_update_ts_and_send(vigem, touch.id.globalIndex);
   }
 
   /**
@@ -1540,11 +1581,7 @@ namespace platf {
     }
 
     ds4_update_motion(gamepad, motion.motionType, motion.x, motion.y, motion.z);
-
-    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad motion input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-    }
+    ds4_update_ts_and_send(vigem, motion.id.globalIndex);
   }
 
   /**
@@ -1619,10 +1656,7 @@ namespace platf {
       }
     }
 
-    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad battery input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-    }
+    ds4_update_ts_and_send(vigem, battery.id.globalIndex);
   }
 
   void
