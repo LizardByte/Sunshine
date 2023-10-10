@@ -127,8 +127,8 @@ endif()
 if(WAYLAND_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_WAYLAND)
 
-    GEN_WAYLAND(xdg-output-unstable-v1)
-    GEN_WAYLAND(wlr-export-dmabuf-unstable-v1)
+    GEN_WAYLAND("wayland-protocols" "unstable/xdg-output" xdg-output-unstable-v1)
+    GEN_WAYLAND("wlr-protocols" "unstable" wlr-export-dmabuf-unstable-v1)
 
     include_directories(
             SYSTEM
