@@ -16,6 +16,7 @@ build:
     - libboost-locale-dev  # required for rstcheck in cpp code block
   jobs:
     post_build:
+      - find ./third-party -iname "*.rst" -type f -delete  # find and delete rst files in third-party
       - rstcheck -r .  # lint rst files
       # - rstfmt --check --diff -w 120 .  # check rst formatting
 
