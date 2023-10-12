@@ -31,12 +31,12 @@ jobs:
           exempt-pr-labels: 'dependencies,l10n'
           stale-issue-label: 'stale'
           stale-issue-message: >
-            :wave: @{issue-author}, It seems this issue hasn't had any activity in the past 90 days.
+            It seems this issue hasn't had any activity in the past 90 days.
             If it's still something you'd like addressed, please let us know by leaving a comment.
             Otherwise, to help keep our backlog tidy, we'll be closing this issue in 10 days. Thanks!
           stale-pr-label: 'stale'
           stale-pr-message: >
-            :wave: @{issue-author}, It looks like this PR has been idle for 90 days.
+            It looks like this PR has been idle for 90 days.
             If it's still something you're working on or would like to pursue,
             please leave a comment or update your branch.
             Otherwise, we'll be closing this PR in 10 days to reduce our backlog. Thanks!
