@@ -103,7 +103,7 @@ jobs:
         uses: easimon/maximize-build-space@v8
         with:
           root-reserve-mb: 20480
-          remove-dotnet: 'true'
+          remove-dotnet: ${{ (matrix.language == 'csharp' && 'false') || 'true' }}
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'false'
