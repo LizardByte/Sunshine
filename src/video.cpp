@@ -696,7 +696,6 @@ namespace video {
       // Common options
       {
         { "preset"s, &config::video.qsv.qsv_preset },
-        { "scenario"s, "remotegaming"s },
         { "forced_idr"s, 1 },
         { "async_depth"s, 1 },
         { "low_delay_brc"s, 1 },
@@ -713,7 +712,6 @@ namespace video {
       // Common options
       {
         { "preset"s, &config::video.qsv.qsv_preset },
-        { "scenario"s, "remotegaming"s },
         { "forced_idr"s, 1 },
         { "async_depth"s, 1 },
         { "low_delay_brc"s, 1 },
@@ -737,7 +735,6 @@ namespace video {
       {
         { "preset"s, &config::video.qsv.qsv_preset },
         { "cavlc"s, &config::video.qsv.qsv_cavlc },
-        { "scenario"s, "remotegaming"s },
         { "forced_idr"s, 1 },
         { "async_depth"s, 1 },
         { "low_delay_brc"s, 1 },
