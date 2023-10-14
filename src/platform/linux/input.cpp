@@ -1566,6 +1566,15 @@ namespace platf {
     libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
   }
 
+  struct client_input_raw_t: public client_input_t {
+    client_input_raw_t(input_t &input) {
+      global = (input_raw_t *) input.get();
+    }
+
+    input_raw_t *global;
+  };
+
+
   /**
    * @brief Allocates a context to store per-client input data.
    * @param input The global input context.
@@ -1574,7 +1583,7 @@ namespace platf {
   std::unique_ptr<client_input_t>
   allocate_client_input_context(input_t &input) {
     // Unused
-    return nullptr;
+    return std::make_unique<client_input_raw_t>(input);
   }
 
   /**
@@ -1585,14 +1594,15 @@ namespace platf {
    * @param input_ctx The global input context.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch, input_t &input_ctx) {
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
 
     int id;
 
-    auto touchscreen = ((input_raw_t *) input_dev.get())->touch_input.get();
-    if (!touchscreen) {
-      return;
-    }
+    auto raw = (client_input_raw_t *) input;
+
+    auto global = raw->global;
+
+    auto touchscreen = global->touch_input.get();
 
 
     switch (touch.eventType)  {

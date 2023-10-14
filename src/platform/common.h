@@ -655,7 +655,7 @@ namespace platf {
    * @param input_ctx The global input context.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch, input_t &input_ctx);
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
 
   /**
    * @brief Sends a pen event to the OS.

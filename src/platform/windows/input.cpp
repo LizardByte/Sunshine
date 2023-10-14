@@ -882,7 +882,7 @@ namespace platf {
    * @param input_dev The global input context.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch,  input_t &input_ctx) {
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
     auto raw = (client_input_raw_t *) input;
 
     // Bail if we're not running on an OS that supports virtual touch input

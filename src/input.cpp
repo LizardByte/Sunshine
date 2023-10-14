@@ -910,7 +910,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::touch(input->client_context.get(), abs_port, touch, platf_input);
+    platf::touch(input->client_context.get(), abs_port, touch);
   }
 
   /**
