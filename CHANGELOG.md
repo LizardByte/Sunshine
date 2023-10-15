@@ -2,14 +2,13 @@
 
 ## [0.21.0] - 2023-10-15
 **Added**
-- (Input) Implement extended controller button support (paddles, touchpad, misc button)
-- (Input) Implement client controller metadata support
+- (Input) Add support for automatically selecting the emulated controller type based on the physical controller connected to the client
 - (Input/Windows) Add support for Applications (context menu) key
-- (Input/Windows) Implement touch, motion, and battery for DS4 input
+- (Input/Windows) Implement touchpad, motion sensors, battery state, and LED control for the emulated DualShock 4 controller
 - (Input) Advertise support for new input features to clients
 - (Linux/Debian) Added Debian Bookworm package
 - (Prep-Commands) Expose connection environment variables
-- (Input) Implement pen and touch support for Windows
+- (Input/Windows) Implement pen and touch support
 - (Capture/Windows) Add standalone NVENC encoder
 - (Capture) Implement AV1 encoding
 - (Network) Implement IPv6 support
@@ -29,12 +28,12 @@
 - (Graphics/NVIDIA) Modify and restore NVIDIA control panel settings before and after stream, respectively
 - (Graphics/NVIDIA) New config page for NVENC
 - (Graphics/Windows) Refactor DX shaders
-- (Input/Windows) Use our own keycode mapping
+- (Input/Windows) Use our own keycode mapping to avoid installing the US English keyboard layout
 
 **Fixed**
 - (UI) Fix update notifications
 - (Dependencies/Linux) Replace libboost chrono and thread with standard chrono and thread
-- (Input) Fix max gamepad count to match protocol limitation
+- (Input) Increase maximum gamepad limit to 16
 - (Network) Allow use of multiple ENet channels
 - (Network) Consider link-local addresses on LAN
 - (Input) Fixed issue where button may sometimes stick on Windows
@@ -42,7 +41,7 @@
 - (Input) Fix handling of gamepad feedback with multiple clients connected
 - (Input) Fix clamping mouse position to aspect ratio adjusted viewport
 - (Graphics/AMD) Fix crash during startup on some older AMD GPUs
-- (Logging) Use UTF-8 conversion for log output and C standard library functions
+- (Logging) Fix crash when non-ASCII characters are logged
 - (Prep-Commands) Fix resource exhaustion bug which could occur when many prep commands were used
 - (Subprocesses) Fix race condition when inserting new processes
 - (Logging) Log error if encoder doesn't produce IDR frame on demand
@@ -62,6 +61,7 @@
 - (Capture/macOS) Fix video capture backend
 - (Misc/Windows) Don't start the session monitor window when launched in command mode
 - (Linux/AppImage) Use the linuxdeploy GTK plugin to correctly deploy GTK3 dependencies
+- (Input/Windows) Fix reWASD not recognizing emulated DualShock 4 input
 
 **Dependencies**
 - Bump bootstrap from 5.2.3 to 5.3.2
