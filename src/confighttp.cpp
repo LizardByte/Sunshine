@@ -267,7 +267,7 @@ namespace confighttp {
     // todo - use mime_types map
     print_req(request);
 
-    std::ifstream in(WEB_DIR "images/favicon.ico", std::ios::binary);
+    std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/x-icon");
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
@@ -755,7 +755,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpairAll;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
-    server.resource["^/images/favicon.ico$"]["GET"] = getFaviconImage;
+    server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/node_modules\\/.+$"]["GET"] = getNodeModules;
     server.config.reuse_address = true;
