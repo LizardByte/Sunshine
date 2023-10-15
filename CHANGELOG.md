@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.21.0] - 2023-09-13
+## [0.21.0] - 2023-10-15
 **Added**
 - (Input) Implement extended controller button support (paddles, touchpad, misc button)
 - (Input) Implement client controller metadata support
@@ -14,14 +14,22 @@
 - (Capture) Implement AV1 encoding
 - (Network) Implement IPv6 support
 - (Capture/Windows) Add option to disable realtime hags
+- (Graphics/NVIDIA) Add an option to decrease GPU scheduling priority to workaround HAGS video hang
+- (Capture/Linux) Add FFmpeg powerpc64le architecture for self compiling Sunshine
+- (Capture/Windows) Add support for capturing rotated displays
+- (System Tray) Implement streaming event notifications
+- (UI) Add port configuration table
+- (Applications) Added option to automatically treat launcher type apps as detached commands
+- (Input/Gamepad) Allow the Misc button to work as Guide on emulated Xbox 360 controllers
 
 **Changed**
 - (Input) Reduce latency by implementing input batching
 - (Logging) Move input packet debug prints off the control stream thread
-- (Input) Refactor gamepad emulation code to sue DS4 extended report format
-- (Graphics/NVIDIA) Decrease GPU scheduling priority
+- (Input) Refactor gamepad emulation code to use DS4 extended report format
 - (Graphics/NVIDIA) Modify and restore NVIDIA control panel settings before and after stream, respectively
 - (Graphics/NVIDIA) New config page for NVENC
+- (Graphics/Windows) Refactor DX shaders
+- (Input/Windows) Use our own keycode mapping
 
 **Fixed**
 - (UI) Fix update notifications
@@ -33,7 +41,7 @@
 - (Input) Fix "ControllerNumber not allocated" warning when a gamepad is removed
 - (Input) Fix handling of gamepad feedback with multiple clients connected
 - (Input) Fix clamping mouse position to aspect ratio adjusted viewport
-- (Graphics/AMD) Disable HDR encoding for AMF versions below 1.4.23
+- (Graphics/AMD) Fix crash during startup on some older AMD GPUs
 - (Logging) Use UTF-8 conversion for log output and C standard library functions
 - (Prep-Commands) Fix resource exhaustion bug which could occur when many prep commands were used
 - (Subprocesses) Fix race condition when inserting new processes
@@ -48,17 +56,25 @@
 - (Capture/Windows) Improvements to capture sleeps for better frame stability
 - (Capture/Windows) Adjust capture rate to better match with display
 - (Linux/ArchLinux) Fix package version in PKGBUILD and precompiled package 
+- (UI) Highlight fatal log messages in web ui
+- (Commands) Allow stream if prep command fails
+- (Capture/Linux) Fix KMS grab VRAM capture with libva 2.20
+- (Capture/macOS) Fix video capture backend
+- (Misc/Windows) Don't start the session monitor window when launched in command mode
+- (Linux/AppImage) Use the linuxdeploy GTK plugin to correctly deploy GTK3 dependencies
 
 **Dependencies**
-- Bump bootstrap from 5.2.3 to 5.3.0
-- Bump third-party/moonlight-common-c from c9426a6 to 0f17b4d
+- Bump bootstrap from 5.2.3 to 5.3.2
+- Bump third-party/moonlight-common-c from c9426a6 to 7a6d12f
 - Bump gcc-10 in Ubuntu 20.04 docker image
-- Bump furo from 2023.5.20 to 2023.8.19
-- Bump sphinx from 7.0.1 to 7.2.5
+- Bump furo from 2023.5.20 to 2023.9.10
+- Bump sphinx from 7.0.1 to 7.2.6
 - Bump cmake from 3.26 to 3.27 in Fedora docker images
 - Move third-party/nv-codec-headers from sdk/11.1 branch to sdk/12.0 branch
 - Automatic bump ffmpeg
 - Bump actions/checkout from 3 to 4
+- Bump boost from 1.80 to 1.81 in Macport manifest
+- Bump @fortawesome/fontawesome-free from 6.4.0 to 6.4.2
 
 **Misc**
 - (Docs) Force badges to use svg
@@ -83,6 +99,7 @@
 - (CI/Docs) Lint rst files
 - (Docs) Update localization information (after consolidating Crowdin projects)
 - (Cmake) Split CMakelists into modules
+- (Docs) Add Linux Headless/SSH Guide
 
 ## [0.20.0] - 2023-05-28
 **Breaking**
