@@ -1,5 +1,106 @@
 # Changelog
 
+## [0.21.0] - 2023-10-15
+**Added**
+- (Input) Add support for automatically selecting the emulated controller type based on the physical controller connected to the client
+- (Input/Windows) Add support for Applications (context menu) key
+- (Input/Windows) Implement touchpad, motion sensors, battery state, and LED control for the emulated DualShock 4 controller
+- (Input) Advertise support for new input features to clients
+- (Linux/Debian) Added Debian Bookworm package
+- (Prep-Commands) Expose connection environment variables
+- (Input/Windows) Implement pen and touch support
+- (Capture/Windows) Add standalone NVENC encoder
+- (Capture) Implement AV1 encoding
+- (Network) Implement IPv6 support
+- (Capture/Windows) Add option to disable realtime hags
+- (Graphics/NVIDIA) Add an option to decrease GPU scheduling priority to workaround HAGS video hang
+- (Capture/Linux) Add FFmpeg powerpc64le architecture for self compiling Sunshine
+- (Capture/Windows) Add support for capturing rotated displays
+- (System Tray) Implement streaming event notifications
+- (UI) Add port configuration table
+- (Applications) Added option to automatically treat launcher type apps as detached commands
+- (Input/Gamepad) Allow the Misc button to work as Guide on emulated Xbox 360 controllers
+
+**Changed**
+- (Input) Reduce latency by implementing input batching
+- (Logging) Move input packet debug prints off the control stream thread
+- (Input) Refactor gamepad emulation code to use DS4 extended report format
+- (Graphics/NVIDIA) Modify and restore NVIDIA control panel settings before and after stream, respectively
+- (Graphics/NVIDIA) New config page for NVENC
+- (Graphics/Windows) Refactor DX shaders
+- (Input/Windows) Use our own keycode mapping to avoid installing the US English keyboard layout
+
+**Fixed**
+- (UI) Fix update notifications
+- (Dependencies/Linux) Replace libboost chrono and thread with standard chrono and thread
+- (Input) Increase maximum gamepad limit to 16
+- (Network) Allow use of multiple ENet channels
+- (Network) Consider link-local addresses on LAN
+- (Input) Fixed issue where button may sometimes stick on Windows
+- (Input) Fix "ControllerNumber not allocated" warning when a gamepad is removed
+- (Input) Fix handling of gamepad feedback with multiple clients connected
+- (Input) Fix clamping mouse position to aspect ratio adjusted viewport
+- (Graphics/AMD) Fix crash during startup on some older AMD GPUs
+- (Logging) Fix crash when non-ASCII characters are logged
+- (Prep-Commands) Fix resource exhaustion bug which could occur when many prep commands were used
+- (Subprocesses) Fix race condition when inserting new processes
+- (Logging) Log error if encoder doesn't produce IDR frame on demand
+- (Audio) Improve audio capture logic and logging
+- (Logging) Fix AMF logging to match configured log level
+- (Logging) Log FFmpeg to log file instead of stdout
+- (Capture) Reject codecs that are not supported by display device
+- (Capture) Add fallbacks for unsupported codec settings
+- (Capture) Avoid probing HEVC or AV1 codecs in some cases
+- (Caputre) Remove DwmFlush()
+- (Capture/Windows) Improvements to capture sleeps for better frame stability
+- (Capture/Windows) Adjust capture rate to better match with display
+- (Linux/ArchLinux) Fix package version in PKGBUILD and precompiled package 
+- (UI) Highlight fatal log messages in web ui
+- (Commands) Allow stream if prep command fails
+- (Capture/Linux) Fix KMS grab VRAM capture with libva 2.20
+- (Capture/macOS) Fix video capture backend
+- (Misc/Windows) Don't start the session monitor window when launched in command mode
+- (Linux/AppImage) Use the linuxdeploy GTK plugin to correctly deploy GTK3 dependencies
+- (Input/Windows) Fix reWASD not recognizing emulated DualShock 4 input
+
+**Dependencies**
+- Bump bootstrap from 5.2.3 to 5.3.2
+- Bump third-party/moonlight-common-c from c9426a6 to 7a6d12f
+- Bump gcc-10 in Ubuntu 20.04 docker image
+- Bump furo from 2023.5.20 to 2023.9.10
+- Bump sphinx from 7.0.1 to 7.2.6
+- Bump cmake from 3.26 to 3.27 in Fedora docker images
+- Move third-party/nv-codec-headers from sdk/11.1 branch to sdk/12.0 branch
+- Automatic bump ffmpeg
+- Bump actions/checkout from 3 to 4
+- Bump boost from 1.80 to 1.81 in Macport manifest
+- Bump @fortawesome/fontawesome-free from 6.4.0 to 6.4.2
+
+**Misc**
+- (Docs) Force badges to use svg
+- (Docs) Add Linux SSH example
+- (Docs) Add information about mesa for Linux
+- (CI) Free additional space on Docker, Flatpak, and AppImage builds due to internal changes on GitHub runners
+- (Docs/Logging/UI) Corrected various typos
+- (Docs) Add blurb about Gamescope compatibility
+- (Installer/Windows) Use system proxy to download ViGEmBus
+- (CI) Ignore third-party directory for clang-format
+- (Docs/Linux) Add Plasma-Compatible resolution example
+- (Docs) Add Sunshine website available at https://app.lizardbyte.dev/Sunshine
+- (Build/Windows) Fix audio code build with new MinGW headers
+- (Build/Windows) Fix QoS code build with new MinGW headers
+- (CI/Windows) Prevent winget action from creating an update when running in a fork
+- (CI/Windows) Change winget job to ubuntu-latest runner
+- (CI) Add CodeQL analysis
+- (CI/Docker) Fix ArchLinux image caching issue
+- (Windows) Manifest improvements
+- (CI/macOS) Simplify macport build
+- (Docs) Remove deprecated options from readthedocs config
+- (CI/Docs) Lint rst files
+- (Docs) Update localization information (after consolidating Crowdin projects)
+- (Cmake) Split CMakelists into modules
+- (Docs) Add Linux Headless/SSH Guide
+
 ## [0.20.0] - 2023-05-28
 **Breaking**
 - (Windows) The Windows installer version of Sunshine is now always launched by the Sunshine Service. Manually launching Sunshine.exe from Program Files is no longer supported. This was necessary to address security issues caused by non-admin users having access to Sunshine's config data. If you have set up Task Scheduler or other mechanisms to launch Sunshine automatically, remove those from your system before updating.
@@ -490,3 +591,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.19.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.0
 [0.19.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.1
 [0.20.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.20.0
+[0.21.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.21.0
