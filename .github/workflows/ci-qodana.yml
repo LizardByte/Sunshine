@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Prepare
         id: prepare
@@ -165,7 +165,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -214,7 +214,7 @@ jobs:
       - name: Qodana
         id: qodana
         continue-on-error: true  # ensure dispatch-qodana job is run
-        uses: JetBrains/qodana-action@v2022.3.4
+        uses: JetBrains/qodana-action@v2023.2.6
         with:
           additional-cache-hash: ${{ github.ref }}-${{ matrix.language }}
           artifact-name: qodana-${{ matrix.language }}  # yamllint disable-line rule:line-length

@@ -15,6 +15,7 @@
 
 #include "config.h"
 #include "platform/common.h"
+#include "rtsp.h"
 #include "utility.h"
 
 namespace proc {
@@ -51,6 +52,7 @@ namespace proc {
     std::string image_path;
     std::string id;
     bool elevated;
+    bool auto_detach;
   };
 
   class proc_t {
@@ -65,7 +67,7 @@ namespace proc {
         _apps(std::move(apps)) {}
 
     int
-    execute(int app_id);
+    execute(int app_id, rtsp_stream::launch_session_t launch_session);
 
     /**
      * @return _app_id if a process is running, otherwise returns 0
@@ -81,7 +83,8 @@ namespace proc {
     get_apps();
     std::string
     get_app_image(int app_id);
-
+    std::string
+    get_last_run_app_name();
     void
     terminate();
 
@@ -91,6 +94,7 @@ namespace proc {
     boost::process::environment _env;
     std::vector<ctx_t> _apps;
     ctx_t _app;
+    std::chrono::steady_clock::time_point _app_launch_time;
 
     // If no command associated with _app_id, yet it's still running
     bool placebo {};

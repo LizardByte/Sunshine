@@ -133,7 +133,7 @@ namespace platf {
     }
   });
 
-  using mail_evdev_t = std::tuple<int, uinput_t::pointer, rumble_queue_t, pollfd_t>;
+  using mail_evdev_t = std::tuple<int, uinput_t::pointer, feedback_queue_t, pollfd_t>;
 
   struct keycode_t {
     std::uint32_t keycode;
@@ -452,7 +452,7 @@ namespace platf {
   public:
     KITTY_DEFAULT_CONSTR_MOVE(effect_t)
 
-    effect_t(int gamepadnr, uinput_t::pointer dev, rumble_queue_t &&q):
+    effect_t(std::uint8_t gamepadnr, uinput_t::pointer dev, feedback_queue_t &&q):
         gamepadnr { gamepadnr }, dev { dev }, rumble_queue { std::move(q) }, gain { 0xFFFF }, id_to_data {} {}
 
     class data_t {
@@ -628,13 +628,13 @@ namespace platf {
       BOOST_LOG(debug) << "Removed rumble effect id ["sv << id << ']';
     }
 
-    // Used as ID for rumble notifications
-    int gamepadnr;
+    // Client-relative gamepad index for rumble notifications
+    std::uint8_t gamepadnr;
 
     // Used as ID for adding/removinf devices from evdev notifications
     uinput_t::pointer dev;
 
-    rumble_queue_t rumble_queue;
+    feedback_queue_t rumble_queue;
 
     int gain;
 
@@ -770,9 +770,16 @@ namespace platf {
       return 0;
     }
 
+    /**
+     * @brief Creates a new virtual gamepad.
+     * @param id The gamepad ID.
+     * @param metadata Controller metadata from client (empty if none provided).
+     * @param feedback_queue The queue for posting messages back to the client.
+     * @return 0 on success.
+     */
     int
-    alloc_gamepad(int nr, rumble_queue_t &&rumble_queue) {
-      TUPLE_2D_REF(input, gamepad_state, gamepads[nr]);
+    alloc_gamepad(const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t &&feedback_queue) {
+      TUPLE_2D_REF(input, gamepad_state, gamepads[id.globalIndex]);
 
       int err = libevdev_uinput_create_from_device(gamepad_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &input);
 
@@ -784,7 +791,7 @@ namespace platf {
       }
 
       std::stringstream ss;
-      ss << "sunshine_gamepad_"sv << nr;
+      ss << "sunshine_gamepad_"sv << id.globalIndex;
       auto gamepad_path = platf::appdata() / ss.str();
 
       if (std::filesystem::is_symlink(gamepad_path)) {
@@ -794,9 +801,9 @@ namespace platf {
       auto dev_node = libevdev_uinput_get_devnode(input.get());
 
       rumble_ctx->rumble_queue_queue.raise(
-        nr,
+        id.clientRelativeIndex,
         input.get(),
-        std::move(rumble_queue),
+        std::move(feedback_queue),
         pollfd_t {
           dup(libevdev_uinput_get_fd(input.get())),
           (std::int16_t) POLLIN,
@@ -877,7 +884,7 @@ namespace platf {
 
       // on error
       if (polls_recv[x].revents & (POLLHUP | POLLRDHUP | POLLERR)) {
-        BOOST_LOG(warning) << "Gamepad ["sv << x << "] file discriptor closed unexpectedly"sv;
+        BOOST_LOG(warning) << "Gamepad ["sv << x << "] file descriptor closed unexpectedly"sv;
 
         polls.erase(poll);
         effects.erase(effect_it);
@@ -1041,9 +1048,9 @@ namespace platf {
           TUPLE_2D(weak, strong, effect.rumble(now));
 
           if (old_weak != weak || old_strong != strong) {
-            BOOST_LOG(debug) << "Sending haptic feedback: lowfreq [0x"sv << util::hex(weak).to_string_view() << "]: highfreq [0x"sv << util::hex(strong).to_string_view() << ']';
+            BOOST_LOG(debug) << "Sending haptic feedback: lowfreq [0x"sv << util::hex(strong).to_string_view() << "]: highfreq [0x"sv << util::hex(weak).to_string_view() << ']';
 
-            effect.rumble_queue->raise(effect.gamepadnr, weak, strong);
+            effect.rumble_queue->raise(gamepad_feedback_msg_t::make_rumble(effect.gamepadnr, strong, weak));
           }
         }
       }
@@ -1480,9 +1487,17 @@ namespace platf {
     keyboard_ev(kb, KEY_LEFTCTRL, 0);
   }
 
+  /**
+   * @brief Creates a new virtual gamepad.
+   * @param input The global input context.
+   * @param id The gamepad ID.
+   * @param metadata Controller metadata from client (empty if none provided).
+   * @param feedback_queue The queue for posting messages back to the client.
+   * @return 0 on success.
+   */
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
-    return ((input_raw_t *) input.get())->alloc_gamepad(nr, std::move(rumble_queue));
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+    return ((input_raw_t *) input.get())->alloc_gamepad(id, metadata, std::move(feedback_queue));
   }
 
   void
@@ -1517,7 +1532,7 @@ namespace platf {
       if (RIGHT_STICK & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_THUMBR, bf_new & RIGHT_STICK ? 1 : 0);
       if (LEFT_BUTTON & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_TL, bf_new & LEFT_BUTTON ? 1 : 0);
       if (RIGHT_BUTTON & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_TR, bf_new & RIGHT_BUTTON ? 1 : 0);
-      if (HOME & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_MODE, bf_new & HOME ? 1 : 0);
+      if ((HOME | MISC_BUTTON) & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_MODE, bf_new & (HOME | MISC_BUTTON) ? 1 : 0);
       if (A & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_SOUTH, bf_new & A ? 1 : 0);
       if (B & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_EAST, bf_new & B ? 1 : 0);
       if (X & bf) libevdev_uinput_write_event(uinput.get(), EV_KEY, BTN_NORTH, bf_new & X ? 1 : 0);
@@ -1550,6 +1565,69 @@ namespace platf {
 
     gamepad_state_old = gamepad_state;
     libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
+  }
+
+  /**
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input) {
+    // Unused
+    return nullptr;
+  }
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
+   * @brief Sends a gamepad touch event to the OS.
+   * @param input The global input context.
+   * @param touch The touch event.
+   */
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+    // Unimplemented feature - platform_caps::controller_touch
+  }
+
+  /**
+   * @brief Sends a gamepad motion event to the OS.
+   * @param input The global input context.
+   * @param motion The motion event.
+   */
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+    // Unimplemented
+  }
+
+  /**
+   * @brief Sends a gamepad battery event to the OS.
+   * @param input The global input context.
+   * @param battery The battery event.
+   */
+  void
+  gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
+    // Unimplemented
   }
 
   /**
@@ -1817,5 +1895,14 @@ namespace platf {
     static std::vector<std::string_view> gamepads { "x360"sv };
 
     return gamepads;
+  }
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities() {
+    return 0;
   }
 }  // namespace platf

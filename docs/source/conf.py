@@ -51,6 +51,7 @@ extensions = [
     'sphinx.ext.graphviz',  # enable graphs for breathe
     'sphinx.ext.viewcode',  # add links to view source code
     'sphinx_copybutton',  # add a copy button to code blocks
+    'sphinx_inline_tabs',  # add tabs
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -68,7 +69,7 @@ source_suffix = ['.rst', '.md']
 # -- Options for HTML output -------------------------------------------------
 
 # images
-html_favicon = os.path.join(root_dir, 'src_assets', 'common', 'assets', 'web', 'images', 'favicon.ico')
+html_favicon = os.path.join(root_dir, 'src_assets', 'common', 'assets', 'web', 'images', 'sunshine.ico')
 html_logo = os.path.join(root_dir, 'sunshine.png')
 
 # Add any paths that contain custom static files (such as style sheets) here,

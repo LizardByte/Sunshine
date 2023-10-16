@@ -2,6 +2,7 @@
  * @file tools/audio.cpp
  * @brief todo
  */
+#define INITGUID
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <roapi.h>
@@ -10,10 +11,6 @@
 #include <locale>
 
 #include <synchapi.h>
-
-#define INITGUID
-#include <propkeydef.h>
-#undef INITGUID
 
 #include <iostream>
 
@@ -24,10 +21,6 @@ DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
 
 using namespace std::literals;
-const CLSID CLSID_MMDeviceEnumerator = __uuidof(MMDeviceEnumerator);
-const IID IID_IMMDeviceEnumerator = __uuidof(IMMDeviceEnumerator);
-const IID IID_IAudioClient = __uuidof(IAudioClient);
-const IID IID_IAudioCaptureClient = __uuidof(IAudioCaptureClient);
 
 int device_state_filter = DEVICE_STATE_ACTIVE;
 

@@ -242,6 +242,23 @@ namespace platf {
           return -1;
         }
 
+        // Open the render node for this card to share with libva.
+        // If it fails, we'll just share the primary node instead.
+        char *rendernode_path = drmGetRenderDeviceNameFromFd(fd.el);
+        if (rendernode_path) {
+          BOOST_LOG(debug) << "Opening render node: "sv << rendernode_path;
+          render_fd.el = open(rendernode_path, O_RDWR);
+          if (render_fd.el < 0) {
+            BOOST_LOG(warning) << "Couldn't open render node: "sv << rendernode_path << ": "sv << strerror(errno);
+            render_fd.el = dup(fd.el);
+          }
+          free(rendernode_path);
+        }
+        else {
+          BOOST_LOG(warning) << "No render device name for: "sv << path;
+          render_fd.el = dup(fd.el);
+        }
+
         if (drmSetClientCap(fd.el, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
           BOOST_LOG(error) << "Couldn't expose some/all drm planes for card: "sv << path;
           return -1;
@@ -423,6 +440,7 @@ namespace platf {
       }
 
       file_t fd;
+      file_t render_fd;
       plane_res_t plane_res;
     };
 
@@ -550,7 +568,7 @@ namespace platf {
             });
 
             if (pos == std::end(card_descriptors)) {
-              // This code path shouldn't happend, but it's there just in case.
+              // This code path shouldn't happen, but it's there just in case.
               // card_descriptors is part of the guesswork after all.
               BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
               return -1;
@@ -592,7 +610,7 @@ namespace platf {
               offset_y = viewport.offset_y;
             }
 
-            // This code path shouldn't happend, but it's there just in case.
+            // This code path shouldn't happen, but it's there just in case.
             // crtc_to_monitor is part of the guesswork after all.
             else {
               BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
@@ -768,13 +786,13 @@ namespace platf {
         return capture_e::ok;
       }
 
-      std::shared_ptr<hwdevice_t>
-      make_hwdevice(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t>
+      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_hwdevice(width, height, false);
+          return va::make_avcodec_encode_device(width, height, false);
         }
 
-        return std::make_shared<hwdevice_t>();
+        return std::make_unique<avcodec_encode_device_t>();
       }
 
       capture_e
@@ -843,10 +861,10 @@ namespace platf {
       display_vram_t(mem_type_e mem_type):
           display_t(mem_type) {}
 
-      std::shared_ptr<hwdevice_t>
-      make_hwdevice(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t>
+      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
         if (mem_type == mem_type_e::vaapi) {
-          return va::make_hwdevice(width, height, dup(card.fd.el), img_offset_x, img_offset_y, true);
+          return va::make_avcodec_encode_device(width, height, dup(card.render_fd.el), img_offset_x, img_offset_y, true);
         }
 
         BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
@@ -966,7 +984,7 @@ namespace platf {
           return -1;
         }
 
-        if (!va::validate(card.fd.el)) {
+        if (!va::validate(card.render_fd.el)) {
           BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
           return -1;
         }
@@ -1023,7 +1041,7 @@ namespace platf {
 
       // Try to convert names in the format:
       // {type}-{index}
-      // {index} is n'th occurence of {type}
+      // {index} is n'th occurrence of {type}
       auto index_begin = name.find_last_of('-');
 
       std::uint32_t index;

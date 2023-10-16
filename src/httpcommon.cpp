@@ -41,13 +41,11 @@ namespace http {
   user_creds_exist(const std::string &file);
 
   std::string unique_id;
-  net::net_e origin_pin_allowed;
   net::net_e origin_web_ui_allowed;
 
   int
   init() {
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
-    origin_pin_allowed = net::from_enum_string(config::nvhttp.origin_pin_allowed);
     origin_web_ui_allowed = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
 
     if (clean_slate) {

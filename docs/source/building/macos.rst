@@ -5,7 +5,7 @@ Requirements
 ------------
 macOS Big Sur and Xcode 12.5+
 
-Use either `MacPorts <https://www.macports.org>`_ or `Homebrew <https://brew.sh>`_
+Use either `MacPorts <https://www.macports.org>`__ or `Homebrew <https://brew.sh>`__
 
 MacPorts
 """"""""
@@ -19,7 +19,7 @@ Homebrew
 Install Requirements
    .. code-block:: bash
 
-      brew install boost cmake node opus
+      brew install boost cmake node opus pkg-config
       # if there are issues with an SSL header that is not found:
       cd /usr/local/include
       ln -s ../opt/openssl/include/openssl .

@@ -8,7 +8,7 @@
 	branch = master
 [submodule "third-party/ViGEmClient"]
 	path = third-party/ViGEmClient
-	url = https://github.com/ViGEm/ViGEmClient
+	url = https://github.com/nefarius/ViGEmClient
 	branch = master
 [submodule "third-party/miniupnp"]
 	path = third-party/miniupnp
@@ -17,7 +17,7 @@
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers
-	branch = sdk/11.1
+	branch = sdk/12.0
 [submodule "third-party/TPCircularBuffer"]
 	path = third-party/TPCircularBuffer
 	url = https://github.com/michaeltyson/TPCircularBuffer
@@ -48,5 +48,21 @@
 	branch = master
 [submodule "third-party/tray"]
 	path = third-party/tray
-	url = https://github.com/dmikushin/tray
+	url = https://github.com/LizardByte/tray
+	branch = master
+[submodule "third-party/nvapi-open-source-sdk"]
+	path = third-party/nvapi-open-source-sdk
+	url = https://github.com/LizardByte/nvapi-open-source-sdk
+	branch = sdk
+[submodule "third-party/ffmpeg-linux-powerpc64le"]
+	path = third-party/ffmpeg-linux-powerpc64le
+	url = https://github.com/LizardByte/build-deps
+	branch = ffmpeg-linux-powerpc64le
+[submodule "third-party/wayland-protocols"]
+	path = third-party/wayland-protocols
+	url = https://gitlab.freedesktop.org/wayland/wayland-protocols
+	branch = main
+[submodule "third-party/wlr-protocols"]
+	path = third-party/wlr-protocols
+	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols
 	branch = master

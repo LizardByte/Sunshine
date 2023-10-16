@@ -31,20 +31,20 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
-  gcc-10=10.3.* \
-  g++-10=10.3.* \
+  gcc-10=10.5.* \
+  g++-10=10.5.* \
   git \
-  libappindicator3-dev \
+  libayatana-appindicator3-dev \
   libavdevice-dev \
   libboost-filesystem-dev=1.71.* \
   libboost-locale-dev=1.71.* \
   libboost-log-dev=1.71.* \
   libboost-program-options-dev=1.71.* \
-  libboost-thread-dev=1.71.* \
   libcap-dev \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libnotify-dev \
   libnuma-dev \
   libopus-dev \
   libpulse-dev \
@@ -102,7 +102,7 @@ url="${cmake_prefix}${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${cmake_arch}.
 echo "cmake url: ${url}"
 wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cmake.sh
 sh ./cmake.sh --prefix=/usr/local --skip-license
-cmake --version
+rm ./cmake.sh
 _INSTALL_CMAKE
 
 # install cuda

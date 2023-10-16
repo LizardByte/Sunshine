@@ -4,9 +4,10 @@ Linux
 Requirements
 ------------
 
-Debian Bullseye
-^^^^^^^^^^^^^^^
-End of Life: TBD
+Debian Bullseye/Bookworm
+^^^^^^^^^^^^^^^^^^^^^^^^
+End of Life (Bullseye): July, 2024
+End of Life (Bookworm): TBD
 
 Install Requirements
    .. code-block:: bash
@@ -15,16 +16,17 @@ Install Requirements
           build-essential \
           cmake \
           libavdevice-dev \
+          libayatana-appindicator3-dev \
           libboost-filesystem-dev \
           libboost-locale-dev \
           libboost-log-dev \
           libboost-program-options-dev \
-          libboost-thread-dev \
           libcap-dev \  # KMS
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
           libmfx-dev \  # x86_64 only
+          libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -44,9 +46,8 @@ Install Requirements
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit  # Cuda, NvFBC
 
-Fedora 36, 37
+Fedora 37, 38
 ^^^^^^^^^^^^^
-End of Life: TBD
 
 Install Requirements
    .. code-block:: bash
@@ -64,6 +65,7 @@ Install Requirements
           libcurl-devel \
           libdrm-devel \
           libevdev-devel \
+          libnotify-devel \
           libva-devel \
           libvdpau-devel \
           libX11-devel \  # X11
@@ -95,17 +97,17 @@ Install Requirements
           build-essential \
           cmake \
           g++-10 \
-          libappindicator3-dev \
+          libayatana-appindicator3-dev \
           libavdevice-dev \
           libboost-filesystem-dev \
           libboost-locale-dev \
           libboost-log-dev \
-          libboost-thread-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
           libmfx-dev \  # x86_64 only
+          libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -149,12 +151,12 @@ Install Requirements
           libboost-filesystem-dev \
           libboost-locale-dev \
           libboost-log-dev \
-          libboost-thread-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
           libmfx-dev \  # x86_64 only
+          libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
@@ -177,14 +179,14 @@ CUDA
 If the version of CUDA available from your distro is not adequate, manually install CUDA.
 
 .. Tip:: The version of CUDA you use will determine compatibility with various GPU generations.
-   See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`_ for more info.
+   See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`__ for more info.
 
    Select the appropriate run file based on your desired CUDA version and architecture according to
-   `CUDA Toolkit Archive <https://developer.nvidia.com/cuda-toolkit-archive>`_.
+   `CUDA Toolkit Archive <https://developer.nvidia.com/cuda-toolkit-archive>`__.
 
 .. code-block:: bash
 
-   wget https://developer.download.nvidia.com/compute/cuda/11.4.2/local_installers/cuda_11.4.2_470.57.02_linux.run \
+   wget https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run \
      --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
    chmod a+x ./cuda.run
    ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm

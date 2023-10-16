@@ -34,15 +34,16 @@ apt-get install -y --no-install-recommends \
   cmake=3.18.* \
   git \
   libavdevice-dev \
+  libayatana-appindicator3-dev \
   libboost-filesystem-dev=1.74.* \
   libboost-locale-dev=1.74.* \
   libboost-log-dev=1.74.* \
   libboost-program-options-dev=1.74.* \
-  libboost-thread-dev=1.74.* \
   libcap-dev \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libnotify-dev \
   libnuma-dev \
   libopus-dev \
   libpulse-dev \

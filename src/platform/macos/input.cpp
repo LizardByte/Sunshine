@@ -288,8 +288,16 @@ const KeyCodeMap kKeyCodesMap[] = {
     BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
   }
 
+  /**
+   * @brief Creates a new virtual gamepad.
+   * @param input The input context.
+   * @param id The gamepad ID.
+   * @param metadata Controller metadata from client (empty if none provided).
+   * @param feedback_queue The queue for posting messages back to the client.
+   * @return 0 on success.
+   */
   int
-  alloc_gamepad(input_t &input, int nr, rumble_queue_t rumble_queue) {
+  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
     return -1;
   }
@@ -440,6 +448,69 @@ const KeyCodeMap kKeyCodesMap[] = {
     // Unimplemented
   }
 
+  /**
+   * @brief Allocates a context to store per-client input data.
+   * @param input The global input context.
+   * @return A unique pointer to a per-client input data context.
+   */
+  std::unique_ptr<client_input_t>
+  allocate_client_input_context(input_t &input) {
+    // Unused
+    return nullptr;
+  }
+
+  /**
+   * @brief Sends a touch event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param touch The touch event.
+   */
+  void
+  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
+   * @brief Sends a pen event to the OS.
+   * @param input The client-specific input context.
+   * @param touch_port The current viewport for translating to screen coordinates.
+   * @param pen The pen event.
+   */
+  void
+  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+    // Unimplemented feature - platform_caps::pen_touch
+  }
+
+  /**
+   * @brief Sends a gamepad touch event to the OS.
+   * @param input The global input context.
+   * @param touch The touch event.
+   */
+  void
+  gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+    // Unimplemented feature - platform_caps::controller_touch
+  }
+
+  /**
+   * @brief Sends a gamepad motion event to the OS.
+   * @param input The global input context.
+   * @param motion The motion event.
+   */
+  void
+  gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+    // Unimplemented
+  }
+
+  /**
+   * @brief Sends a gamepad battery event to the OS.
+   * @param input The global input context.
+   * @param battery The battery event.
+   */
+  void
+  gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
+    // Unimplemented
+  }
+
   input_t
   input() {
     input_t result { new macos_input_t() };
@@ -470,7 +541,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     macos_input->last_mouse_event[2][0] = 0;
     macos_input->last_mouse_event[2][1] = 0;
 
-    BOOST_LOG(debug) << "Display "sv << macos_input->display << ", pixel dimention: " << CGDisplayPixelsWide(macos_input->display) << "x"sv << CGDisplayPixelsHigh(macos_input->display);
+    BOOST_LOG(debug) << "Display "sv << macos_input->display << ", pixel dimension: " << CGDisplayPixelsWide(macos_input->display) << "x"sv << CGDisplayPixelsHigh(macos_input->display);
 
     return result;
   }
@@ -491,5 +562,14 @@ const KeyCodeMap kKeyCodesMap[] = {
     static std::vector<std::string_view> gamepads { ""sv };
 
     return gamepads;
+  }
+
+  /**
+   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @return Capability flags.
+   */
+  platform_caps::caps_t
+  get_capabilities() {
+    return 0;
   }
 }  // namespace platf

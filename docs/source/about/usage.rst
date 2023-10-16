@@ -21,9 +21,33 @@ Usage
 
       .. Attention:: The configuration file specified will be created if it doesn't exist.
 
+   **Start Sunshine over SSH (Linux/X11)**
+      Assuming you are already logged into the host, you can use this command
+
+      .. code-block:: bash
+
+         ssh <user>@<ip_address> 'export DISPLAY=:0; sunshine'
+
+      If you are logged into the host with only a tty (teletypewriter), you can use ``startx`` to start the
+      X server prior to executing sunshine.
+      You nay need to add ``sleep`` between ``startx`` and ``sunshine`` to allow more time for the display to be ready.
+
+      .. code-block:: bash
+
+         ssh <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
+
+      .. tip:: You could also utilize the ``~/.bash_profile`` or ``~/.bashrc`` files to setup the ``DISPLAY``
+         variable.
+
+      .. seealso::
+
+         See :ref:`Remote SSH Headless Setup
+         <about/guides/linux/headless_ssh:Remote SSH Headless Setup>` on
+         how to setup a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)
+
 #. Configure Sunshine in the web ui
 
-   The web ui is available on `https://localhost:47990 <https://localhost:47990>`_ by default. You may replace
+   The web ui is available on `https://localhost:47990 <https://localhost:47990>`__ by default. You may replace
    `localhost` with your internal ip address.
 
    .. Attention:: Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
@@ -78,7 +102,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 
    - filename: ``~/.config/systemd/user/sunshine.service``
    - contents:
-         .. code-block::
+         .. code-block:: cfg
 
             [Unit]
             Description=Sunshine self-hosted game stream host for Moonlight.
@@ -140,8 +164,8 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
 macOS
 ^^^^^
 Sunshine can only access microphones on macOS due to system limitations. To stream system audio use
-`Soundflower <https://github.com/mattingalls/Soundflower>`_ or
-`BlackHole <https://github.com/ExistentialAudio/BlackHole>`_.
+`Soundflower <https://github.com/mattingalls/Soundflower>`__ or
+`BlackHole <https://github.com/ExistentialAudio/BlackHole>`__.
 
 .. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
@@ -155,7 +179,7 @@ Configure autostart service
 
 Windows
 ^^^^^^^
-For gamepad support, install `ViGEmBus <https://github.com/ViGEm/ViGEmBus/releases/latest>`_
+For gamepad support, install `Nefarius Virtual Gamepad <https://github.com/nefarius/ViGEmBus/releases/latest>`__
 
 Sunshine firewall
    **Add rule**
@@ -230,6 +254,7 @@ Application List
    - ``image-path`` - The full path to the cover art image to use.
    - ``name`` - The name of the application/game
    - ``output`` - The file where the output of the command is stored
+   - ``auto-detach`` - Specifies whether the app should be treated as detached if it exits quickly
    - ``prep-cmd`` - A list of commands to be run before/after the application
 
      - If any of the prep-commands fail, starting the application is aborted
@@ -243,10 +268,13 @@ Application List
 
    - ``working-dir`` - The working directory to use. If not specified, Sunshine will use the application directory.
 
-- For more examples see :ref:`app examples <about/app_examples:app examples>`.
+- For more examples see :ref:`app examples <about/guides/app_examples:app examples>`.
 
 Considerations
 --------------
+- On Windows, Sunshine uses the Desktop Duplication API which only supports capturing from the GPU used for display.
+  If you want to capture and encode on the eGPU, connect a display or HDMI dummy display dongle to it and run the games
+  on that display.
 - When an application is started, if there is an application already running, it will be terminated.
 - When the application has been shutdown, the stream shuts down as well.
 
@@ -270,10 +298,17 @@ You must have an HDR-capable display or EDID emulator dongle connected to your h
 - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows 10 OS HDR support may not display in HDR.
 - Some GPUs can produce lower image quality or encoding performance when streaming in HDR compared to SDR.
 
-Tutorials
----------
+.. seealso::
+   `Arch wiki on HDR Support for Linux <https://wiki.archlinux.org/title/HDR_monitor_support>`__ and
+   `Reddit Guide for HDR Support for AMD GPUs
+   <https://www.reddit.com/r/linux_gaming/comments/10m2gyx/guide_alpha_test_hdr_on_linux>`__
+
+Tutorials and Guides
+--------------------
 Tutorial videos are available `here <https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0>`_.
+
+Guides are available :doc:`here <./guides/guides>`.
 
 .. admonition:: Community!
 
-   Tutorials are community generated. Want to contribute? Reach out to us on our discord server.
+   Tutorials and Guides are community generated. Want to contribute? Reach out to us on our discord server.
