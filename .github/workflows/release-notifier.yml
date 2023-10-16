@@ -15,7 +15,7 @@ on:
 jobs:
   discord:
     if: >-
-      (github.repository, 'LizardByte/') and
+      startsWith(github.repository, 'LizardByte/') and
       not(github.event.release.prerelease) and
       not(github.event.release.draft)
     runs-on: ubuntu-latest
@@ -34,7 +34,7 @@ jobs:
 
   facebook_group:
     if: >-
-      (github.repository, 'LizardByte/') and
+      startsWith(github.repository, 'LizardByte/') and
       not(github.event.release.prerelease) and
       not(github.event.release.draft)
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
 
   facebook_page:
     if: >-
-      (github.repository, 'LizardByte/') and
+      startsWith(github.repository, 'LizardByte/') and
       not(github.event.release.prerelease) and
       not(github.event.release.draft)
     runs-on: ubuntu-latest
@@ -68,7 +68,7 @@ jobs:
 
   reddit:
     if: >-
-      (github.repository, 'LizardByte/') and
+      startsWith(github.repository, 'LizardByte/') and
       not(github.event.release.prerelease) and
       not(github.event.release.draft)
     runs-on: ubuntu-latest
@@ -88,7 +88,7 @@ jobs:
 
   twitter:
     if: >-
-      (github.repository, 'LizardByte/') and
+      startsWith(github.repository, 'LizardByte/') and
       not(github.event.release.prerelease) and
       not(github.event.release.draft)
     runs-on: ubuntu-latest
