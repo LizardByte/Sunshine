@@ -210,24 +210,40 @@ Portfile
 
    .. code-block:: bash
 
-      sudo nano /opt/local/etc/macports/sources.conf
+      echo "file:///Users/$USER/ports" | sudo tee -a /opt/local/etc/macports/sources.conf
 
-   Add this line, replacing your username, below the line that starts with ``rsync``.
-      ``file:///Users/<username>/ports``
-
-   ``Ctrl+x``, then ``Y`` to exit and save changes.
-
-#. Download the ``Portfile`` to ``~/Downloads`` and run the following code.
+#. Create the folders for our local source.
 
    .. code-block:: bash
 
       mkdir -p ~/ports/multimedia/sunshine
-      mv ~/Downloads/Portfile ~/ports/multimedia/sunshine/
+
+#. Download the Portfile using ``curl``.
+
+   .. code-block:: bash
+
+      curl -L -o ~/ports/multimedia/sunshine/Portfile https://github.com/LizardByte/Sunshine/releases/latest/download/Portfile
+
+#. Navigate to the ports directory and update the port index.
+
+   .. code-block:: bash
+
       cd ~/ports
-      portindex
+      sudo portindex
+
+#. Finally, install Sunshine.
+
+   .. code-block:: bash
+
       sudo port install sunshine
 
-#. The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
+#. Launch Sunshine by running the following command in the Terminal.
+
+   .. code-block:: bash
+
+      sunshine
+
+.. Note:: The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
 
 Uninstall:
    .. code-block:: bash
