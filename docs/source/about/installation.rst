@@ -237,12 +237,6 @@ Portfile
 
       sudo port install sunshine
 
-#. Launch Sunshine by running the following command in the Terminal.
-
-   .. code-block:: bash
-
-      sunshine
-
 .. Note:: The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.
 
 Uninstall:
