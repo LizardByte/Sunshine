@@ -216,8 +216,9 @@ The ``set-custom-res.sh`` will have this content:
       # Get params and set any defaults
       width=${1:-1920}
       height=${2:-1080}
-      hdmi=${3:-HDMI-1}
-      nvidia-settings -a CurrentMetaMode="${hdmi}: nvidia-auto-select { ViewPortIn=${width}x${height}, ViewPortOut=${width}x${height}+0+0 }"
+      output=${3:-HDMI-1}
+      nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=${width}x${height}, ViewPortOut=${width}x${height}+0+0 }"
+
 Flatpak
 ^^^^^^^
 
