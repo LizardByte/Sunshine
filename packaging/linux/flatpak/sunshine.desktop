@@ -5,8 +5,8 @@ Exec=flatpak run dev.lizardbyte.sunshine
 Version=1.0
 Comment=@PROJECT_DESCRIPTION@
 Icon=sunshine
-Keywords=nvidia;gamestream;stream;moonlight;remote play;
-Categories=Qt;Game;
+Keywords=gamestream;stream;moonlight;remote play;
+Categories=AudioVideo;Network;RemoteAccess;
 Actions=RunInTerminal;KMS;
 
 [Desktop Action RunInTerminal]
