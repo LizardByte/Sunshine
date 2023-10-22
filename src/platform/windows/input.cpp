@@ -1335,8 +1335,8 @@ namespace platf {
     if (gamepad_state.buttonFlags & (TOUCHPAD_BUTTON | MISC_BUTTON)) buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
     
     // Manual DS4 emulation: check if BACK button should also trigger DS4 touchpad click
-    if ((config::input.gamepad == "ps4"sv || config::input.gamepad == "ds4"sv) 
-      && config::input.ds4_back_as_touchpad
+    if (config::input.gamepad == "ds4"sv 
+      && config::input.ds4_back_as_touchpad_click
       && (gamepad_state.buttonFlags & BACK)) buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
 
     return (DS4_SPECIAL_BUTTONS) buttons;
