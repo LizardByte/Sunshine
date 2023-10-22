@@ -79,7 +79,8 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
 
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
-                    libappindicator3-1")
+                    libayatana-appindicator3-1, \
+                    libnotify4")
     set(CPACK_RPM_PACKAGE_REQUIRES "\
                     ${CPACK_RPM_PACKAGE_REQUIRES}, \
                     libappindicator-gtk3 >= 12.10.0")
