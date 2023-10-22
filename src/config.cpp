@@ -418,6 +418,7 @@ namespace config {
       platf::supported_gamepads().front().data(),
       platf::supported_gamepads().front().size(),
     },  // Default gamepad
+    true,  // back as touchpad click enabled (manual DS4 only)
 
     true,  // keyboard enabled
     true,  // mouse enabled
@@ -1041,6 +1042,7 @@ namespace config {
     }
 
     string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
+    bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);
