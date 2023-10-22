@@ -9,6 +9,7 @@
 
 #include <ViGEm/Client.h>
 
+#include "keylayout.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/main.h"
@@ -73,6 +74,9 @@ namespace platf {
     uint8_t available_pointers;
 
     uint8_t client_relative_index;
+
+    thread_pool_util::ThreadPool::task_id_t repeat_task {};
+    std::chrono::steady_clock::time_point last_report_ts;
 
     gamepad_feedback_msg_t last_rumble;
     gamepad_feedback_msg_t last_rgb_led;
@@ -217,6 +221,7 @@ namespace platf {
       assert(!gamepad.gp);
 
       gamepad.client_relative_index = id.clientRelativeIndex;
+      gamepad.last_report_ts = std::chrono::steady_clock::now();
 
       if (gp_type == Xbox360Wired) {
         gamepad.gp.reset(vigem_target_x360_alloc());
@@ -270,6 +275,11 @@ namespace platf {
     void
     free_target(int nr) {
       auto &gamepad = gamepads[nr];
+
+      if (gamepad.repeat_task) {
+        task_pool.cancel(gamepad.repeat_task);
+        gamepad.repeat_task = 0;
+      }
 
       if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
         auto status = vigem_target_remove(client.get(), gamepad.gp.get());
@@ -399,8 +409,6 @@ namespace platf {
     }
 
     vigem_t *vigem;
-    HKL keyboard_layout;
-    HKL active_layout;
 
     decltype(CreateSyntheticPointerDevice) *fnCreateSyntheticPointerDevice;
     decltype(InjectSyntheticPointerInput) *fnInjectSyntheticPointerInput;
@@ -416,21 +424,6 @@ namespace platf {
     if (raw.vigem->init()) {
       delete raw.vigem;
       raw.vigem = nullptr;
-    }
-
-    // Moonlight currently sends keys normalized to the US English layout.
-    // We need to use that layout when converting to scancodes.
-    raw.keyboard_layout = LoadKeyboardLayoutA("00000409", 0);
-    if (!raw.keyboard_layout || LOWORD(raw.keyboard_layout) != 0x409) {
-      BOOST_LOG(warning) << "Unable to load US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
-      raw.keyboard_layout = NULL;
-    }
-
-    // Activate layout for current process only
-    raw.active_layout = ActivateKeyboardLayout(raw.keyboard_layout, KLF_SETFORPROCESS);
-    if (!raw.active_layout) {
-      BOOST_LOG(warning) << "Unable to activate US English keyboard layout for scancode translation. Keyboard input may not work in games."sv;
-      raw.keyboard_layout = NULL;
     }
 
     // Get pointers to virtual touch/pen input functions (Win10 1809+)
@@ -575,8 +568,6 @@ namespace platf {
 
   void
   keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
-    auto raw = (input_raw_t *) input.get();
-
     INPUT i {};
     i.type = INPUT_KEYBOARD;
     auto &ki = i.ki;
@@ -584,9 +575,9 @@ namespace platf {
     // If the client did not normalize this VK code to a US English layout, we can't accurately convert it to a scancode.
     bool send_scancode = !(flags & SS_KBE_FLAG_NON_NORMALIZED) || config::input.always_send_scancodes;
 
-    if (send_scancode && modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE && raw->keyboard_layout != NULL) {
-      // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
-      ki.wScan = MapVirtualKeyEx(modcode, MAPVK_VK_TO_VSC, raw->keyboard_layout);
+    if (send_scancode) {
+      // Mask off the extended key byte
+      ki.wScan = VK_TO_SCANCODE_MAP[modcode & 0xFF];
     }
 
     // If we can map this to a scancode, send it as a scancode for maximum game compatibility.
@@ -600,6 +591,8 @@ namespace platf {
 
     // https://docs.microsoft.com/en-us/windows/win32/inputdev/about-keyboard-input#keystroke-message-flags
     switch (modcode) {
+      case VK_LWIN:
+      case VK_RWIN:
       case VK_RMENU:
       case VK_RCONTROL:
       case VK_INSERT:
@@ -1379,6 +1372,42 @@ namespace platf {
   }
 
   /**
+   * @brief Sends DS4 input with updated timestamps and repeats to keep timestamp updated.
+   * @details Some applications require updated timestamps values to register DS4 input.
+   * @param vigem The global ViGEm context object.
+   * @param nr The global gamepad index.
+   */
+  void
+  ds4_update_ts_and_send(vigem_t *vigem, int nr) {
+    auto &gamepad = vigem->gamepads[nr];
+
+    // Cancel any pending updates. We will requeue one here when we're finished.
+    if (gamepad.repeat_task) {
+      task_pool.cancel(gamepad.repeat_task);
+      gamepad.repeat_task = 0;
+    }
+
+    if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
+      auto now = std::chrono::steady_clock::now();
+      auto delta_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - gamepad.last_report_ts);
+
+      // Timestamp is reported in 5.333us units
+      gamepad.report.ds4.Report.wTimestamp += (uint16_t) (delta_ns.count() / 5333);
+
+      // Send the report to the virtual device
+      auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
+      if (!VIGEM_SUCCESS(status)) {
+        BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+        return;
+      }
+
+      // Repeat at least every 100ms to keep the 16-bit timestamp field from overflowing
+      gamepad.last_report_ts = now;
+      gamepad.repeat_task = task_pool.pushDelayed(ds4_update_ts_and_send, 100ms, vigem, nr).task_id;
+    }
+  }
+
+  /**
    * @brief Updates virtual gamepad with the provided gamepad state.
    * @param input The input context.
    * @param nr The gamepad index to update.
@@ -1403,14 +1432,13 @@ namespace platf {
     if (vigem_target_get_type(gamepad.gp.get()) == Xbox360Wired) {
       x360_update_state(gamepad, gamepad_state);
       status = vigem_target_x360_update(vigem->client.get(), gamepad.gp.get(), gamepad.report.x360);
+      if (!VIGEM_SUCCESS(status)) {
+        BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+      }
     }
     else {
       ds4_update_state(gamepad, gamepad_state);
-      status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    }
-
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
+      ds4_update_ts_and_send(vigem, nr);
     }
   }
 
@@ -1525,10 +1553,7 @@ namespace platf {
       }
     }
 
-    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad touch input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-    }
+    ds4_update_ts_and_send(vigem, touch.id.globalIndex);
   }
 
   /**
@@ -1556,11 +1581,7 @@ namespace platf {
     }
 
     ds4_update_motion(gamepad, motion.motionType, motion.x, motion.y, motion.z);
-
-    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad motion input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-    }
+    ds4_update_ts_and_send(vigem, motion.id.globalIndex);
   }
 
   /**
@@ -1635,10 +1656,7 @@ namespace platf {
       }
     }
 
-    auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-    if (!VIGEM_SUCCESS(status)) {
-      BOOST_LOG(warning) << "Couldn't send gamepad battery input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
-    }
+    ds4_update_ts_and_send(vigem, battery.id.globalIndex);
   }
 
   void

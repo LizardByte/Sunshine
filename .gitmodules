@@ -58,3 +58,11 @@
 	path = third-party/ffmpeg-linux-powerpc64le
 	url = https://github.com/LizardByte/build-deps
 	branch = ffmpeg-linux-powerpc64le
+[submodule "third-party/wayland-protocols"]
+	path = third-party/wayland-protocols
+	url = https://gitlab.freedesktop.org/wayland/wayland-protocols
+	branch = main
+[submodule "third-party/wlr-protocols"]
+	path = third-party/wlr-protocols
+	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols
+	branch = master

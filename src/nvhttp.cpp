@@ -589,32 +589,6 @@ namespace nvhttp {
 
   template <class T>
   void
-  pin(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-    print_req<T>(request);
-
-    response->close_connection_after_response = true;
-
-    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    auto ip_type = net::from_address(address);
-    if (ip_type > http::origin_pin_allowed) {
-      BOOST_LOG(info) << "/pin: ["sv << address << "] -- denied"sv;
-
-      response->write(SimpleWeb::StatusCode::client_error_forbidden);
-
-      return;
-    }
-
-    bool pinResponse = pin(request->path_match[1]);
-    if (pinResponse) {
-      response->write(SimpleWeb::StatusCode::success_ok);
-    }
-    else {
-      response->write(SimpleWeb::StatusCode::client_error_im_a_teapot);
-    }
-  }
-
-  template <class T>
-  void
   serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
     print_req<T>(request);
 
@@ -1040,7 +1014,6 @@ namespace nvhttp {
     https_server.resource["^/applist$"]["GET"] = applist;
     https_server.resource["^/appasset$"]["GET"] = appasset;
     https_server.resource["^/launch$"]["GET"] = [&host_audio](auto resp, auto req) { launch(host_audio, resp, req); };
-    https_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTPS>;
     https_server.resource["^/resume$"]["GET"] = [&host_audio](auto resp, auto req) { resume(host_audio, resp, req); };
     https_server.resource["^/cancel$"]["GET"] = cancel;
 
@@ -1051,7 +1024,6 @@ namespace nvhttp {
     http_server.default_resource["GET"] = not_found<SimpleWeb::HTTP>;
     http_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTP>;
     http_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) { pair<SimpleWeb::HTTP>(add_cert, resp, req); };
-    http_server.resource["^/pin/([0-9]+)$"]["GET"] = pin<SimpleWeb::HTTP>;
 
     http_server.config.reuse_address = true;
     http_server.config.address = net::af_to_any_address_string(address_family);

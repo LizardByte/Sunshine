@@ -197,6 +197,28 @@ Changing Resolution and Refresh Rate (Linux - KDE Plasma - Wayland and X11)
 |                      | Undo: ``kscreen-doctor output.HDMI-A-1.mode.3840x2160@120``                                                                      |
 +----------------------+----------------------------------------------------------------------------------------------------------------------------------+
 
+Changing Resolution (Linux - NVIDIA)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
++----------------------+------------------------------------------------------------------------------------------------------+
+| **Field**            | **Value**                                                                                            |
++----------------------+------------------------------------------------------------------------------------------------------+
+| Command Preparations | Do: ``sh -c "${HOME}/scripts/set-custom-res.sh ${SUNSHINE_CLIENT_WIDTH} ${SUNSHINE_CLIENT_HEIGHT}"`` |
+|                      +------------------------------------------------------------------------------------------------------+
+|                      | Undo: ``sh -c "${HOME}/scripts/set-custom-res.sh 3840 2160"``                                        |
++----------------------+------------------------------------------------------------------------------------------------------+
+
+The ``set-custom-res.sh`` will have this content:
+   .. code-block:: bash
+
+      #!/bin/bash
+
+      # Get params and set any defaults
+      width=${1:-1920}
+      height=${2:-1080}
+      output=${3:-HDMI-1}
+      nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=${width}x${height}, ViewPortOut=${width}x${height}+0+0 }"
+
 Flatpak
 ^^^^^^^
 

@@ -14,11 +14,14 @@ on:
 
 jobs:
   discord:
-    if: startsWith(github.repository, 'LizardByte/')
+    if: >-
+      startsWith(github.repository, 'LizardByte/') and
+      not(github.event.release.prerelease) and
+      not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
       - name: discord
-        uses: sarisia/actions-status-discord@v1  # https://github.com/sarisia/actions-status-discord
+        uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
           nodetail: true
@@ -30,11 +33,14 @@ jobs:
           color: 0xFF4500
 
   facebook_group:
-    if: startsWith(github.repository, 'LizardByte/')
+    if: >-
+      startsWith(github.repository, 'LizardByte/') and
+      not(github.event.release.prerelease) and
+      not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
       - name: facebook-post-action
-        uses: ReenigneArcher/facebook-post-action@v1  # https://github.com/ReenigneArcher/facebook-post-action
+        uses: ReenigneArcher/facebook-post-action@v1
         with:
           page_id: ${{ secrets.FACEBOOK_GROUP_ID }}
           access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
@@ -44,11 +50,14 @@ jobs:
           url: ${{ github.event.release.html_url }}
 
   facebook_page:
-    if: startsWith(github.repository, 'LizardByte/')
+    if: >-
+      startsWith(github.repository, 'LizardByte/') and
+      not(github.event.release.prerelease) and
+      not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
       - name: facebook-post-action
-        uses: ReenigneArcher/facebook-post-action@v1  # https://github.com/ReenigneArcher/facebook-post-action
+        uses: ReenigneArcher/facebook-post-action@v1
         with:
           page_id: ${{ secrets.FACEBOOK_PAGE_ID }}
           access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
@@ -58,11 +67,14 @@ jobs:
           url: ${{ github.event.release.html_url }}
 
   reddit:
-    if: startsWith(github.repository, 'LizardByte/')
+    if: >-
+      startsWith(github.repository, 'LizardByte/') and
+      not(github.event.release.prerelease) and
+      not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
       - name: reddit
-        uses: bluwy/release-for-reddit-action@v2  # https://github.com/bluwy/release-for-reddit-action
+        uses: bluwy/release-for-reddit-action@v2
         with:
           username: ${{ secrets.REDDIT_USERNAME }}
           password: ${{ secrets.REDDIT_PASSWORD }}
@@ -75,14 +87,17 @@ jobs:
           comment: ${{ github.event.release.body }}
 
   twitter:
-    if: startsWith(github.repository, 'LizardByte/')
+    if: >-
+      startsWith(github.repository, 'LizardByte/') and
+      not(github.event.release.prerelease) and
+      not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
       - name: twitter
-        uses: ethomson/send-tweet-action@v1  # https://github.com/ethomson/send-tweet-action
+        uses: nearform-actions/github-action-notify-twitter@v1
         with:
-          consumer-key: ${{ secrets.TWITTER_API_KEY }}
-          consumer-secret: ${{ secrets.TWITTER_API_SECRET }}
-          access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
-          access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
-          status: ${{ github.event.release.html_url }}
+          message: ${{ github.event.release.html_url }}
+          twitter-app-key: ${{ secrets.TWITTER_API_KEY }}
+          twitter-app-secret: ${{ secrets.TWITTER_API_SECRET }}
+          twitter-access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
+          twitter-access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
