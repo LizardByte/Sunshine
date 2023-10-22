@@ -2,8 +2,7 @@
 <html lang="en">
 
 <head>
-  <%- header %>
-    <%- headerMain %>
+      <%- header %>
       <style>
         .config-page {
           padding: 1em;
@@ -24,7 +23,7 @@
 </head>
 
 <body id="app">
-  <Sunshine-Header></Sunshine-Header>
+  <Navbar></Navbar>
   <div class="container">
     <h1 class="my-4">Configuration</h1>
     <div class="form" v-if="config">
@@ -777,7 +776,7 @@
 </body>
 <script type="module">
   import { createApp } from 'vue'
-  import SunshineHeader from './SunshineHeader.vue'
+  import Navbar from './Navbar.vue'
 
   // create dictionary for defaultConfig
   const defaultConfig = {
@@ -822,7 +821,7 @@
 
   const app = createApp({
     components: {
-      SunshineHeader
+      Navbar
     },
     data() {
       return {

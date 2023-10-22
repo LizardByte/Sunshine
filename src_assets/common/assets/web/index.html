@@ -3,11 +3,10 @@
 
 <head>
   <%- header %>
-    <%- headerMain %>
 </head>
 
 <body id="app">
-  <Sunshine-Header></Sunshine-Header>
+  <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4">Hello, Sunshine!</h1>
     <p>Sunshine is a self-hosted game stream host for Moonlight.</p>
@@ -67,12 +66,12 @@
 
 <script type="module">
   import { createApp } from 'vue'
-  import SunshineHeader from './SunshineHeader.vue'
+  import Navbar from './Navbar.vue'
   import ResourceCard from './ResourceCard.vue'
   console.log("Hello, Sunshine!")
   let app = createApp({
     components: {
-      SunshineHeader,
+      Navbar,
       ResourceCard
     },
     data() {

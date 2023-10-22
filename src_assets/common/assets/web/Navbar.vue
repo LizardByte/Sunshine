@@ -35,22 +35,35 @@
 </template>
 
 <script>
-    export default {
-        created(){
-            console.log("Header mounted!")
-        },
-        mounted(){
-            let el = document.querySelector("a[href='"+document.location.pathname+"']");
-            if(el)el.classList.add("active")
+export default {
+    created() {
+        console.log("Header mounted!")
+    },
+    mounted() {
+        let el = document.querySelector("a[href='" + document.location.pathname + "']");
+        if (el) el.classList.add("active")
+        let widgetbot = document.createElement('script')
+        widgetbot.setAttribute('src', 'https://cdn.jsdelivr.net/npm/@widgetbot/crate@3')
+        widgetbot.async = true;
+        widgetbot.onload = () => {
+            console.log("Widgetbot script created, starting up")
+            new Crate({
+                server: '804382334370578482',
+                channel: '804383092822900797',
+                defer: false,
+            })
         }
+        document.head.appendChild(widgetbot)
     }
+}
 </script>
 
 <style>
-  .nav-link.active {
+.nav-link.active {
     font-weight: 500;
-  }
-  .form-control::placeholder {
+}
+
+.form-control::placeholder {
     opacity: 0.5;
-  }
+}
 </style>

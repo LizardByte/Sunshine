@@ -26,7 +26,6 @@ if (process.env.SUNSHINE_ASSETS_DIR) {
 }
 
 let header = fs.readFileSync(resolve(assetsSrcPath, "template_header.html"))
-let headerMain = fs.readFileSync(resolve(assetsSrcPath, "template_header_main.html"))
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -35,7 +34,7 @@ export default defineConfig({
             vue: 'vue/dist/vue.esm-bundler.js'
         }
     },
-    plugins: [vue(), ViteEjsPlugin({ header, headerMain })],
+    plugins: [vue(), ViteEjsPlugin({ header })],
     root: resolve(assetsSrcPath),
     build: {
         outDir: resolve(assetsDstPath),

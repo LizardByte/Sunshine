@@ -2,8 +2,7 @@
 <html lang="en">
 
 <head>
-  <%- header %>
-    <%- headerMain %>
+      <%- header %>
       <style>
         .precmd-head {
           width: 200px;
@@ -72,7 +71,7 @@
 </head>
 
 <body id="app">
-  <Sunshine-Header></Sunshine-Header>
+  <Navbar></Navbar>
   <div class="container">
     <div class="my-4">
       <h1>Applications</h1>
@@ -374,10 +373,10 @@
 </body>
 <script type="module">
   import { createApp } from 'vue';
-  import SunshineHeader from './SunshineHeader.vue'
+  import Navbar from './Navbar.vue'
   const app = createApp({
     components: {
-      SunshineHeader
+      Navbar
     },
     data() {
       return {

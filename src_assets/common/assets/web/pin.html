@@ -3,11 +3,10 @@
 
 <head>
   <%- header %>
-  <%- headerMain %>
 </head>
 
 <body id="app">
-  <Sunshine-Header></Sunshine-Header>
+  <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4">PIN Pairing</h1>
     <form action="" class="form d-flex flex-column align-items-center" id="form">
@@ -26,11 +25,11 @@
 </body>
 
 <script type="module">
-  import SunshineHeader from './SunshineHeader.vue'
+  import Navbar from './Navbar.vue'
   import {createApp} from 'vue'
   let app = createApp({
     components: {
-      SunshineHeader
+      Navbar
     }
   });
   app.mount("#app");
