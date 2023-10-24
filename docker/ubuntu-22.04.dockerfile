@@ -58,8 +58,6 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
-  nodejs \
-  npm \
   wget
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
@@ -90,6 +88,15 @@ chmod a+x ./cuda.run
 ./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
 rm ./cuda.run
 _INSTALL_CUDA
+
+#Install Node
+RUN <<_INSTALL_NODE
+#!/bin/bash
+set -e
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+nvm install lts
+nvm use lts
+_INSTALL_NODE
 
 # copy repository
 WORKDIR /build/sunshine/
