@@ -32,6 +32,7 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
   cmake=3.22.* \
+  curl \
   git \
   libayatana-appindicator3-dev \
   libavdevice-dev \
@@ -71,7 +72,7 @@ _DEPS
 RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
-wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 echo $HOME/.nvm/nvm.sh
 ls $HOME/.nvm/nvm.sh
 source $HOME/.nvm/nvm.sh
