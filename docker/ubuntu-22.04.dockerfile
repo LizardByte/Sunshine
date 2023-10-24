@@ -32,6 +32,7 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
   cmake=3.22.* \
+  ca-certificates \
   curl \
   git \
   libayatana-appindicator3-dev \
