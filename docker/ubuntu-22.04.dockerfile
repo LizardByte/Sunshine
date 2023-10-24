@@ -67,6 +67,15 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
 
+#Install Node
+RUN <<_INSTALL_NODE
+#!/bin/bash
+set -e
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+nvm install lts
+nvm use lts
+_INSTALL_NODE
+
 # install cuda
 WORKDIR /build/cuda
 # versions: https://developer.nvidia.com/cuda-toolkit-archive
@@ -88,15 +97,6 @@ chmod a+x ./cuda.run
 ./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
 rm ./cuda.run
 _INSTALL_CUDA
-
-#Install Node
-RUN <<_INSTALL_NODE
-#!/bin/bash
-set -e
-wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-nvm install lts
-nvm use lts
-_INSTALL_NODE
 
 # copy repository
 WORKDIR /build/sunshine/
