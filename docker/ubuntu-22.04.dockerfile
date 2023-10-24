@@ -77,8 +77,8 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 echo $HOME/.nvm/nvm.sh
 ls $HOME/.nvm/nvm.sh
 source $HOME/.nvm/nvm.sh
-nvm install lts
-nvm use lts
+nvm install 20.9.0
+nvm use 20.9.0
 _INSTALL_NODE
 
 # install cuda
