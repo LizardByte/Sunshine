@@ -74,8 +74,6 @@ RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-echo $HOME/.nvm/nvm.sh
-ls $HOME/.nvm/nvm.sh
 source $HOME/.nvm/nvm.sh
 nvm install 20.9.0
 nvm use 20.9.0
@@ -114,6 +112,10 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
+#Set Node version
+source $HOME/.nvm/nvm.sh
+nvm use 20.9.0
+#Actually build
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
