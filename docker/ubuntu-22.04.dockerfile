@@ -72,8 +72,9 @@ RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
 wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-echo $NVM_DIR
-source $NVM_DIR/nvm.sh
+echo $HOME/.nvm/nvm.sh
+ls $HOME/.nvm/nvm.sh
+source $HOME/.nvm/nvm.sh
 nvm install lts
 nvm use lts
 _INSTALL_NODE
