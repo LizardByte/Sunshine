@@ -9,8 +9,10 @@ elseif (UNIX)
     elseif(${SUNSHINE_BUILD_FLATPAK})
         configure_file(packaging/linux/flatpak/sunshine.desktop sunshine.desktop @ONLY)
         configure_file(packaging/linux/flatpak/sunshine_kms.desktop sunshine_kms.desktop @ONLY)
+        configure_file(packaging/linux/sunshine_terminal.desktop sunshine_terminal.desktop @ONLY)
     else()
         configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
+        configure_file(packaging/linux/sunshine_terminal.desktop sunshine_terminal.desktop @ONLY)
     endif()
 
     # configure metadata file
