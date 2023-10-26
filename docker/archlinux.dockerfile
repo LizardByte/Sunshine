@@ -54,6 +54,7 @@ _DEPS
 USER builder
 
 #Install Node
+# hadolint ignore=SC1091
 RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
@@ -71,6 +72,7 @@ COPY --link .. .
 WORKDIR /build/sunshine/build
 
 # configure PKGBUILD file
+# hadolint ignore=SC1091
 RUN <<_MAKE
 #!/bin/bash
 set -e

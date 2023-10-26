@@ -69,6 +69,7 @@ rm -rf /var/lib/apt/lists/*
 _DEPS
 
 #Install Node
+# hadolint ignore=SC1091
 RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
@@ -108,6 +109,7 @@ COPY --link .. .
 WORKDIR /build/sunshine/build
 
 # cmake and cpack
+# hadolint ignore=SC1091
 RUN <<_MAKE
 #!/bin/bash
 set -e
