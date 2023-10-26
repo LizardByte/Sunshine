@@ -31,6 +31,7 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
+  ca-certificates \
   gcc-10=10.5.* \
   g++-10=10.5.* \
   git \
@@ -59,8 +60,6 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
-  nodejs \
-  npm \
   wget
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
@@ -74,7 +73,7 @@ _DEPS
 RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 source $HOME/.nvm/nvm.sh
 nvm install 20.9.0
 nvm use 20.9.0

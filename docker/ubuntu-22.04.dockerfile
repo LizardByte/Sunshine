@@ -33,7 +33,6 @@ apt-get install -y --no-install-recommends \
   build-essential \
   cmake=3.22.* \
   ca-certificates \
-  curl \
   git \
   libayatana-appindicator3-dev \
   libavdevice-dev \
@@ -73,7 +72,7 @@ _DEPS
 RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 source $HOME/.nvm/nvm.sh
 nvm install 20.9.0
 nvm use 20.9.0

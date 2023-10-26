@@ -52,7 +52,6 @@ dnf -y install \
   libXrandr-devel \
   libXtst-devel \
   mesa-libGL-devel \
-  nodejs-npm \
   numactl-devel \
   openssl-devel \
   opus-devel \
@@ -71,7 +70,7 @@ _DEPS
 RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
 source $HOME/.nvm/nvm.sh
 nvm install 20.9.0
 nvm use 20.9.0
