@@ -70,6 +70,16 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
 
+#Install Node
+RUN <<_INSTALL_NODE
+#!/bin/bash
+set -e
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+source $HOME/.nvm/nvm.sh
+nvm install 20.9.0
+nvm use 20.9.0
+_INSTALL_NODE
+
 # Update gcc alias
 # https://stackoverflow.com/a/70653945/11214013
 RUN <<_GCC_ALIAS
@@ -138,6 +148,9 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
+#Set Node version
+source $HOME/.nvm/nvm.sh
+nvm use 20.9.0
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \

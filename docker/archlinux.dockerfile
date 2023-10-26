@@ -48,8 +48,19 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   namcap
 _DEPS
 
+
 # Setup builder user
 USER builder
+
+#Install Node
+RUN <<_INSTALL_NODE
+#!/bin/bash
+set -e
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+source $HOME/.nvm/nvm.sh
+nvm install 20.9.0
+nvm use 20.9.0
+_INSTALL_NODE
 
 # copy repository
 WORKDIR /build/sunshine/
@@ -67,6 +78,9 @@ if [[ "${BUILD_VERSION}" == '' ]]; then
 else
   sub_version=""
 fi
+#Set Node version
+source $HOME/.nvm/nvm.sh
+nvm use 20.9.0
 cmake \
   -DSUNSHINE_CONFIGURE_PKGBUILD=ON \
   -DSUNSHINE_SUB_VERSION="${sub_version}" \
