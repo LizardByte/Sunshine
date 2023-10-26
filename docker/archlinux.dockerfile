@@ -45,7 +45,8 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   git \
   libcap \
   libdrm \
-  namcap
+  namcap \
+  wget
 _DEPS
 
 
