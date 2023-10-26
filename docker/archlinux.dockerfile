@@ -58,7 +58,7 @@ RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
 wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-source $HOME/.nvm/nvm.sh
+source "$HOME/.nvm/nvm.sh"
 nvm install 20.9.0
 nvm use 20.9.0
 _INSTALL_NODE
@@ -74,13 +74,15 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
+chown -R builder .
+chmod -R 755 .
 if [[ "${BUILD_VERSION}" == '' ]]; then
   sub_version=".r${COMMIT}"
 else
   sub_version=""
 fi
 #Set Node version
-source $HOME/.nvm/nvm.sh
+source "$HOME/.nvm/nvm.sh"
 nvm use 20.9.0
 cmake \
   -DSUNSHINE_CONFIGURE_PKGBUILD=ON \

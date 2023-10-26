@@ -71,7 +71,7 @@ RUN <<_INSTALL_NODE
 #!/bin/bash
 set -e
 wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-source $HOME/.nvm/nvm.sh
+source "$HOME/.nvm/nvm.sh"
 nvm install 20.9.0
 nvm use 20.9.0
 _INSTALL_NODE
@@ -113,7 +113,7 @@ RUN <<_MAKE
 #!/bin/bash
 set -e
 #Set Node version
-source $HOME/.nvm/nvm.sh
+source "$HOME/.nvm/nvm.sh"
 nvm use 20.9.0
 cmake \
   -DCMAKE_BUILD_TYPE=Release \
