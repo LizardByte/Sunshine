@@ -156,7 +156,7 @@ namespace platf::audio {
     wave_format.Format.wBitsPerSample = 16;
     wave_format.Format.nBlockAlign = wave_format.Format.nChannels * wave_format.Format.wBitsPerSample / 8;
     wave_format.Format.nAvgBytesPerSec = wave_format.Format.nSamplesPerSec * wave_format.Format.nBlockAlign;
-    wave_format.Format.cbSize = sizeof(wave_format);
+    wave_format.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
 
     wave_format.Samples.wValidBitsPerSample = 16;
     wave_format.dwChannelMask = format.channel_mask;
