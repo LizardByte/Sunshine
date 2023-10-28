@@ -20,6 +20,9 @@ namespace nvenc {
     // Use optional preliminary pass for better motion vectors, bitrate distribution and stricter VBV(HRD), uses CUDA cores
     nvenc_two_pass two_pass = nvenc_two_pass::quarter_resolution;
 
+    // Percentage increase of VBV/HRD from the default single frame, allows low-latency variable bitrate
+    int vbv_percentage_increase = 0;
+
     // Improves fades compression, uses CUDA cores
     bool weighted_prediction = false;
 
@@ -40,6 +43,10 @@ namespace nvenc {
 
     // Use CAVLC entropy coding in H.264 instead of CABAC, not relevant and here for historical reasons
     bool h264_cavlc = false;
+
+    // Override "ref frames in dpb" value for H.264 and HEVC when client doesn't request one explicitly
+    // Valid values are from 0 to 15, where 0 disables the override
+    int h264_hevc_default_ref_frames_in_dpb = 0;
 
     // Add filler data to encoded frames to stay at target bitrate, mainly for testing
     bool insert_filler_data = false;

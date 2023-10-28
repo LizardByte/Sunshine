@@ -222,6 +222,9 @@ namespace nvenc {
 
     if (get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) {
       enc_config.rcParams.vbvBufferSize = client_config.bitrate * 1000 / client_config.framerate;
+      if (config.vbv_percentage_increase > 0) {
+        enc_config.rcParams.vbvBufferSize += enc_config.rcParams.vbvBufferSize * config.vbv_percentage_increase / 100;
+      }
     }
 
     auto set_h264_hevc_common_format_config = [&](auto &format_config) {
@@ -284,7 +287,8 @@ namespace nvenc {
         else {
           format_config.entropyCodingMode = NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
         }
-        set_ref_frames(format_config.maxNumRefFrames, format_config.numRefL0, 5);
+        auto ref_frames_in_dpb = config.h264_hevc_default_ref_frames_in_dpb > 0 ? config.h264_hevc_default_ref_frames_in_dpb : 5;
+        set_ref_frames(format_config.maxNumRefFrames, format_config.numRefL0, ref_frames_in_dpb);
         set_minqp_if_enabled(config.min_qp_h264);
         fill_h264_hevc_vui(format_config.h264VUIParameters);
         break;
@@ -297,7 +301,8 @@ namespace nvenc {
         if (buffer_is_10bit()) {
           format_config.pixelBitDepthMinus8 = 2;
         }
-        set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, 5);
+        auto ref_frames_in_dpb = config.h264_hevc_default_ref_frames_in_dpb > 0 ? config.h264_hevc_default_ref_frames_in_dpb : 5;
+        set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, ref_frames_in_dpb);
         set_minqp_if_enabled(config.min_qp_hevc);
         fill_h264_hevc_vui(format_config.hevcVUIParameters);
         break;
@@ -369,9 +374,10 @@ namespace nvenc {
       if (init_params.enableEncodeAsync) extra += " async";
       if (buffer_is_10bit()) extra += " 10-bit";
       if (enc_config.rcParams.multiPass != NV_ENC_MULTI_PASS_DISABLED) extra += " two-pass";
+      if (config.vbv_percentage_increase > 0 && get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) extra += " vbv+" + std::to_string(config.vbv_percentage_increase);
       if (encoder_params.rfi) extra += " rfi";
       if (init_params.enableWeightedPrediction) extra += " weighted-prediction";
-      if (enc_config.rcParams.enableAQ) extra += " adaptive-quantization";
+      if (enc_config.rcParams.enableAQ) extra += " spatial-aq";
       if (enc_config.rcParams.enableMinQP) extra += " qpmin=" + std::to_string(enc_config.rcParams.minQP.qpInterP);
       if (config.insert_filler_data) extra += " filler-data";
       BOOST_LOG(info) << "NvEnc: created encoder " << quality_preset_string_from_guid(init_params.presetGUID) << extra;
