@@ -49,15 +49,6 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   wget
 _DEPS
 
-
-# Setup builder user
-RUN <<_SETUP_WORKDIR
-#!/bin/bash
-set -e
-mkdir -p /build/sunshine
-chmod -R 777 /build/sunshine/
-_SETUP_WORKDIR
-
 USER builder
 
 #Install Node
@@ -73,7 +64,7 @@ _INSTALL_NODE
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY --link .. .
+COPY --link --chown=builder:builder .. .
 
 # setup build directory
 WORKDIR /build/sunshine/build
