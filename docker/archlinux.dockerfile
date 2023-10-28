@@ -54,7 +54,7 @@ _DEPS
 RUN <<_SETUP_WORKDIR
 #!/bin/bash
 set -e
-mkdir /build/sunshine
+mkdir -p /build/sunshine
 chmod -R 777 /build/sunshine/
 _SETUP_WORKDIR
 
