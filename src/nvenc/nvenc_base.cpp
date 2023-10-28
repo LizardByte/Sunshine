@@ -222,6 +222,9 @@ namespace nvenc {
 
     if (get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) {
       enc_config.rcParams.vbvBufferSize = client_config.bitrate * 1000 / client_config.framerate;
+      if (config.vbv_percentage_increase > 0) {
+        enc_config.rcParams.vbvBufferSize += enc_config.rcParams.vbvBufferSize * config.vbv_percentage_increase / 100;
+      }
     }
 
     auto set_h264_hevc_common_format_config = [&](auto &format_config) {
@@ -369,9 +372,10 @@ namespace nvenc {
       if (init_params.enableEncodeAsync) extra += " async";
       if (buffer_is_10bit()) extra += " 10-bit";
       if (enc_config.rcParams.multiPass != NV_ENC_MULTI_PASS_DISABLED) extra += " two-pass";
+      if (config.vbv_percentage_increase > 0 && get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) extra += " vbv+" + std::to_string(config.vbv_percentage_increase);
       if (encoder_params.rfi) extra += " rfi";
       if (init_params.enableWeightedPrediction) extra += " weighted-prediction";
-      if (enc_config.rcParams.enableAQ) extra += " adaptive-quantization";
+      if (enc_config.rcParams.enableAQ) extra += " spatial-aq";
       if (enc_config.rcParams.enableMinQP) extra += " qpmin=" + std::to_string(enc_config.rcParams.minQP.qpInterP);
       if (config.insert_filler_data) extra += " filler-data";
       BOOST_LOG(info) << "NvEnc: created encoder " << quality_preset_string_from_guid(init_params.presetGUID) << extra;
