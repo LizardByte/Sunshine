@@ -37,7 +37,8 @@ namespace nvprefs {
 
   struct safe_handle: public util::safe_ptr_v2<void, BOOL, CloseHandle> {
     using util::safe_ptr_v2<void, BOOL, CloseHandle>::safe_ptr_v2;
-    explicit operator bool() const {
+    explicit
+    operator bool() const {
       auto handle = get();
       return handle != NULL && handle != INVALID_HANDLE_VALUE;
     }
@@ -66,5 +67,13 @@ namespace nvprefs {
 
   void
   error_message(const std::string &message);
+
+  struct nvprefs_options {
+    bool opengl_vulkan_on_dxgi = true;
+    bool sunshine_high_power_mode = true;
+  };
+
+  nvprefs_options
+  get_nvprefs_options();
 
 }  // namespace nvprefs
