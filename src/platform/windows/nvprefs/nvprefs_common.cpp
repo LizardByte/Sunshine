@@ -2,6 +2,9 @@
 #include "nvprefs_common.h"
 #include "src/main.h"  // sunshine boost::log severity levels
 
+// read user override preferences from global sunshine config
+#include "src/config.h"
+
 namespace nvprefs {
 
   void
@@ -22,6 +25,14 @@ namespace nvprefs {
   void
   error_message(const std::string &message) {
     BOOST_LOG(error) << "nvprefs: " << message;
+  }
+
+  nvprefs_options
+  get_nvprefs_options() {
+    nvprefs_options options;
+    options.opengl_vulkan_on_dxgi = config::video.nv_opengl_vulkan_on_dxgi;
+    options.sunshine_high_power_mode = config::video.nv_sunshine_high_power_mode;
+    return options;
   }
 
 }  // namespace nvprefs

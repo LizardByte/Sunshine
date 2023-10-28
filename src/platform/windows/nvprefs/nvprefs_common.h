@@ -45,4 +45,12 @@ namespace nvprefs {
   void
   error_message(const std::string &message);
 
+  struct nvprefs_options {
+    bool opengl_vulkan_on_dxgi = true;
+    bool sunshine_high_power_mode = true;
+  };
+
+  nvprefs_options
+  get_nvprefs_options();
+
 }  // namespace nvprefs
