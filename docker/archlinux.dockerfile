@@ -51,6 +51,13 @@ _DEPS
 
 
 # Setup builder user
+RUN <<_SETUP_WORKDIR
+#!/bin/bash
+set -e
+mkdir /build/sunshine
+chmod -R 777 /build/sunshine/
+_SETUP_WORKDIR
+
 USER builder
 
 #Install Node
