@@ -49,16 +49,6 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   wget
 _DEPS
 
-RUN <<_SETUP_BUILD_DIR
-#!/bin/bash
-set -e
-addgroup builder
-adduser -S -G builder builder
-mkdir -p /build/sunshine
-chown -R builder:builder /build/sunshine
-chmod -R 777 /build/sunshine
-_SETUP_BUILD_DIR
-
 USER builder
 
 #Install Node
