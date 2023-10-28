@@ -49,16 +49,6 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   wget
 _DEPS
 
-RUN <<_SETUP_BUILD_DIR
-#!/bin/bash
-set -e
-addgroup builder
-adduser -S -G builder builder
-mkdir -p /build/sunshine
-chown -R builder:builder /build/sunshine
-chmod -R 777 /build/sunshine
-_SETUP_BUILD_DIR
-
 USER builder
 
 #Install Node
@@ -74,7 +64,7 @@ _INSTALL_NODE
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY --link --chown=builder:builder .. .
+COPY --link .. .
 
 # setup build directory
 WORKDIR /build/sunshine/build
@@ -84,8 +74,8 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
-chown -R builder .
-chmod -R 755 .
+chown -R builder /build/sunshine
+chmod -R 777 /build/sunshine
 if [[ "${BUILD_VERSION}" == '' ]]; then
   sub_version=".r${COMMIT}"
 else
