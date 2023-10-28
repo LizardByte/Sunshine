@@ -158,6 +158,11 @@ namespace nvprefs {
     undo_data.reset();
     NvAPI_Status status;
 
+    if (!get_nvprefs_options().opengl_vulkan_on_dxgi) {
+      // User requested to leave OpenGL/Vulkan DXGI swapchain setting alone
+      return true;
+    }
+
     NvDRSProfileHandle profile_handle = 0;
     status = NvAPI_DRS_GetBaseProfile(session_handle, &profile_handle);
     if (status != NVAPI_OK) {
@@ -260,9 +265,26 @@ namespace nvprefs {
     setting.version = NVDRS_SETTING_VER1;
     status = NvAPI_DRS_GetSetting(session_handle, profile_handle, PREFERRED_PSTATE_ID, &setting);
 
-    if (status != NVAPI_OK ||
-        setting.settingLocation != NVDRS_CURRENT_PROFILE_LOCATION ||
-        setting.u32CurrentValue != PREFERRED_PSTATE_PREFER_MAX) {
+    if (!get_nvprefs_options().sunshine_high_power_mode) {
+      if (status == NVAPI_OK &&
+          setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION) {
+        // User requested to not use high power mode for sunshine.exe,
+        // remove the setting from application profile if it's been set previously
+
+        status = NvAPI_DRS_DeleteProfileSetting(session_handle, profile_handle, PREFERRED_PSTATE_ID);
+        if (status != NVAPI_OK && status != NVAPI_SETTING_NOT_FOUND) {
+          nvapi_error_message(status);
+          error_message("NvAPI_DRS_DeleteProfileSetting() PREFERRED_PSTATE failed");
+          return false;
+        }
+        modified = true;
+
+        info_message(std::wstring(L"Removed PREFERRED_PSTATE for ") + sunshine_application_path);
+      }
+    }
+    else if (status != NVAPI_OK ||
+             setting.settingLocation != NVDRS_CURRENT_PROFILE_LOCATION ||
+             setting.u32CurrentValue != PREFERRED_PSTATE_PREFER_MAX) {
       // Set power setting if needed
       setting = {};
       setting.version = NVDRS_SETTING_VER1;
