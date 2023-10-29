@@ -631,6 +631,7 @@ namespace video {
         { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
         { "rc"s, NV_ENC_PARAMS_RC_CBR },
         { "multipass"s, &config::video.nv_legacy.multipass },
+        { "aq"s, &config::video.nv_legacy.aq },
       },
       // SDR-specific options
       {},
@@ -649,6 +650,7 @@ namespace video {
         { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
         { "rc"s, NV_ENC_PARAMS_RC_CBR },
         { "multipass"s, &config::video.nv_legacy.multipass },
+        { "aq"s, &config::video.nv_legacy.aq },
       },
       // SDR-specific options
       {
@@ -671,6 +673,7 @@ namespace video {
         { "rc"s, NV_ENC_PARAMS_RC_CBR },
         { "coder"s, &config::video.nv_legacy.h264_coder },
         { "multipass"s, &config::video.nv_legacy.multipass },
+        { "aq"s, &config::video.nv_legacy.aq },
       },
       // SDR-specific options
       {
@@ -1578,6 +1581,12 @@ namespace video {
         }
         else {
           ctx->rc_buffer_size = bitrate / config.framerate;
+
+#ifndef __APPLE__
+          if (encoder.name == "nvenc" && config::video.nv_legacy.vbv_percentage_increase > 0) {
+            ctx->rc_buffer_size += ctx->rc_buffer_size * config::video.nv_legacy.vbv_percentage_increase / 100;
+          }
+#endif
         }
       }
     }

@@ -37,6 +37,8 @@ namespace config {
       int preset;
       int multipass;
       int h264_coder;
+      int aq;
+      int vbv_percentage_increase;
     } nv_legacy;
 
     struct {
