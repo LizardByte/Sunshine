@@ -889,6 +889,35 @@
           </div>
         </div>
 
+        <!-- Spatial AQ -->
+        <div class="mb-3">
+          <label for="nvenc_spatial_aq" class="form-label">Spatial AQ</label>
+          <select id="nvenc_spatial_aq" class="form-select" v-model="config.nvenc_spatial_aq">
+            <option value="disabled">Disabled (faster, default)</option>
+            <option value="enabled">Enabled (slower)</option>
+          </select>
+          <div class="form-text">
+            Assign higher QP values to flat regions of the video.<br>
+            Recommended to enable when streaming at lower bitrates.
+          </div>
+        </div>
+
+        <!-- Single-frame VBV/HRD percentage increase -->
+        <div class="mb-3">
+          <label for="nvenc_vbv_increase" class="form-label">Single-frame VBV/HRD percentage increase</label>
+          <input type="number" min="0" max="400" class="form-control" id="nvenc_vbv_increase" placeholder="0"
+            v-model="config.nvenc_vbv_increase" />
+          <div class="form-text">
+            By default sunshine uses single-frame
+            <a href="https://en.wikipedia.org/wiki/Video_buffering_verifier">VBV/HRD</a>,
+            which means any encoded video frame size is not expected to exceed requested bitrate divided by requested frame
+            rate.<br>
+            Relaxing this restriction can be beneficial and act as low-latency variable bitrate,
+            but may also lead to packet loss if the network doesn't have buffer headroom to handle bitrate spikes.<br>
+            Maximum accepted value is 400, which corresponds to 5x increased encoded video frame upper size limit.
+          </div>
+        </div>
+
         <!-- Miscellaneous options -->
         <div class="accordion">
           <div class="accordion-item">
@@ -915,6 +944,36 @@
                     is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
                     Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced
                     capture performance when the GPU is heavily loaded.
+                  </div>
+                </div>
+
+                <!-- Prefer lower encoding latency over increased power consumption -->
+                <div class="mb-3" v-if="platform === 'windows'">
+                  <label for="nvenc_latency_over_power" class="form-label">Prefer lower encoding latency over increased power
+                    consumption</label>
+                  <select id="nvenc_latency_over_power" class="form-select" v-model="config.nvenc_latency_over_power">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled (default)</option>
+                  </select>
+                  <div class="form-text">
+                    Adaptive P-State algorithm which NVIDIA drivers employ doesn't work well with low latency streaming, so
+                    sunshine requests high power mode explicitly.<br>
+                    Disabling it is not recommended since this can lead to
+                    <strong>significantly increased encoding latency</strong>.
+                  </div>
+                </div>
+                
+                <!-- Present OpenGL/Vulkan on top of DXGI -->
+                <div class="mb-3" v-if="platform === 'windows'">
+                  <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">Present OpenGL/Vulkan on top of DXGI</label>
+                  <select id="nvenc_opengl_vulkan_on_dxgi" class="form-select" v-model="config.nvenc_opengl_vulkan_on_dxgi">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled (default)</option>
+                  </select>
+                  <div class="form-text">
+                    Sunshine can't capture fullscreen OpenGL and Vulkan programs at full frame rate unless they present on top
+                    of DXGI.<br>
+                    This is system-wide setting that is reverted on sunshine program exit.
                   </div>
                 </div>
 
@@ -1220,7 +1279,11 @@
             options: {
               "nvenc_preset": 1,
               "nvenc_twopass": "quarter_res",
+              "nvenc_spatial_aq": "disabled",
+              "nvenc_vbv_increase": 0,
               "nvenc_realtime_hags": "enabled",
+              "nvenc_latency_over_power": "enabled",
+              "nvenc_opengl_vulkan_on_dxgi": "enabled",
               "nvenc_h264_cavlc": "disabled",
             },
           },
