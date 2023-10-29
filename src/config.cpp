@@ -953,6 +953,8 @@ namespace config {
                                 video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
                                                                                                  NV_ENC_MULTI_PASS_DISABLED;
     video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
+    video.nv_legacy.aq = video.nv.adaptive_quantization;
+    video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
 #endif
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
