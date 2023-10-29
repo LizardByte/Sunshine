@@ -1182,6 +1182,59 @@ keybindings
 
       nvenc_twopass = quarter_res
 
+`nvenc_spatial_aq <https://localhost:47990/config/#nvenc_spatial_aq>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Assign higher QP values to flat regions of the video.
+   Recommended to enable when streaming at lower bitrates.
+
+   .. Note:: This option only applies when using NVENC `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   disabled   Don't enable Spatial AQ (faster)
+   enabled    Enable Spatial AQ (slower)
+   ========== ===========
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_spatial_aq = disabled
+
+`nvenc_vbv_increase <https://localhost:47990/config/#nvenc_vbv_increase>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Single-frame VBV/HRD percentage increase.
+   By default sunshine uses single-frame VBV/HRD, which means any encoded video frame size is not expected to exceed requested bitrate divided by requested frame rate.
+   Relaxing this restriction can be beneficial and act as low-latency variable bitrate, but may also lead to packet loss if the network doesn't have buffer headroom to handle bitrate spikes.
+   Maximum accepted value is 400, which corresponds to 5x increased encoded video frame upper size limit.
+
+   .. Note:: This option only applies when using NVENC `encoder`_.
+
+   .. Warning:: Can lead to network packet loss.
+
+**Default**
+   ``0``
+
+**Range**
+   ``0-400``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_vbv_increase = 0
+
 `nvenc_realtime_hags <https://localhost:47990/config/#nvenc_realtime_hags>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1213,6 +1266,69 @@ keybindings
    .. code-block:: text
 
       nvenc_realtime_hags = enabled
+
+`nvenc_latency_over_power <https://localhost:47990/config/#nvenc_latency_over_power>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Adaptive P-State algorithm which NVIDIA drivers employ doesn't work well with low latency streaming, so sunshine requests high power mode explicitly.
+
+   .. Note:: This option only applies when using NVENC `encoder`_.
+
+   .. Warning:: Disabling it is not recommended since this can lead to significantly increased encoding latency.
+
+   .. Caution:: Applies to Windows only.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   disabled   Sunshine doesn't change GPU power preferences (not recommended)
+   enabled    Sunshine requests high power mode explicitly
+   ========== ===========
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_latency_over_power = enabled
+
+`nvenc_opengl_vulkan_on_dxgi <https://localhost:47990/config/#nvenc_opengl_vulkan_on_dxgi>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Sunshine can't capture fullscreen OpenGL and Vulkan programs at full frame rate unless they present on top of DXGI.
+   This is system-wide setting that is reverted on sunshine program exit.
+
+   .. Note:: This option only applies when using NVENC `encoder`_.
+
+   .. Caution:: Applies to Windows only.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   disabled   Sunshine leaves global Vulkan/OpenGL present method unchanged
+   enabled    Sunshine changes global Vulkan/OpenGL present method to "Prefer layered on DXGI Swapchain"
+   ========== ===========
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_opengl_vulkan_on_dxgi = enabled
 
 `nvenc_h264_cavlc <https://localhost:47990/config/#nvenc_h264_cavlc>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
