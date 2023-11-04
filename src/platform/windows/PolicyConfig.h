@@ -3,6 +3,7 @@
  * @brief Undocumented COM-interface IPolicyConfig.
  * @details Use for setting default audio render endpoint.
  * @author EreTIk
+ * @see https://kitere.github.io/
  */
 
 #pragma once
