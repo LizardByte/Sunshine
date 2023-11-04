@@ -3,7 +3,6 @@
  * @brief Undocumented COM-interface IPolicyConfig.
  * @details Use for setting default audio render endpoint.
  * @author EreTIk
- * @see http://eretik.omegahg.com/
  */
 
 #pragma once
