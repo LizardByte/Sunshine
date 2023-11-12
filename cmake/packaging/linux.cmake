@@ -88,7 +88,12 @@ endif()
 
 # desktop file
 # todo - validate desktop files with `desktop-file-validate`
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop" DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
+if(NOT ${SUNSHINE_BUILD_APPIMAGE})
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_terminal.desktop"
+            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
+endif()
 if(${SUNSHINE_BUILD_FLATPAK})
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_kms.desktop"
             DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")

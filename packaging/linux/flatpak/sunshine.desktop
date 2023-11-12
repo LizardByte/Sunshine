@@ -5,5 +5,16 @@ Exec=flatpak run dev.lizardbyte.sunshine
 Version=1.0
 Comment=@PROJECT_DESCRIPTION@
 Icon=sunshine
-Categories=Utility;
-Terminal=true
+Keywords=gamestream;stream;moonlight;remote play;
+Categories=AudioVideo;Network;RemoteAccess;
+Actions=RunInTerminal;KMS;
+
+[Desktop Action RunInTerminal]
+Name=Run in Terminal
+Icon=application-x-executable
+Exec=gio launch @CMAKE_INSTALL_PREFIX@/share/applications/sunshine_terminal.desktop
+
+[Desktop Action KMS]
+Name=Run in Terminal (KMS)
+Icon=application-x-executable
+Exec=gio launch @CMAKE_INSTALL_PREFIX@/share/applications/sunshine_kms.desktop

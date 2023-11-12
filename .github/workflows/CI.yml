@@ -325,7 +325,7 @@ jobs:
             # install newer tar from focal... appimagelint fails on 18.04 without this
             echo "original tar version"
             tar --version
-            wget -O tar.deb http://security.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.30+dfsg-7ubuntu0.20.04.2_amd64.deb
+            wget -O tar.deb http://security.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.30+dfsg-7ubuntu0.20.04.3_amd64.deb
             sudo apt-get -y install -f ./tar.deb
             echo "new tar version"
             tar --version
