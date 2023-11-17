@@ -2,7 +2,7 @@
 
 #if defined(LEFT_SUBSAMPLING)
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float subsample_offset, int rotate_texture_steps)
-#elif defined (TOPLEFT_SUBSAMPLING)
+#elif defined(TOPLEFT_SUBSAMPLING)
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_offset, int rotate_texture_steps)
 #else
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_steps)
@@ -29,7 +29,7 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_
         float2x2 rotation_matrix = { cos(rotation_radians), -sin(rotation_radians),
                                      sin(rotation_radians), cos(rotation_radians) };
         float2 rotation_center = { 0.5, 0.5 };
-        tex_coord = round(tex_coord + mul(rotation_matrix, tex_coord - rotation_center));
+        tex_coord = round(rotation_center + mul(rotation_matrix, tex_coord - rotation_center));
     }
 
 #if defined(LEFT_SUBSAMPLING)
