@@ -2,7 +2,7 @@
 
 #if defined(LEFT_SUBSAMPLING)
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float subsample_offset, int rotate_texture_steps)
-#elif defined (TOPLEFT_SUBSAMPLING)
+#elif defined(TOPLEFT_SUBSAMPLING)
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_offset, int rotate_texture_steps)
 #else
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_steps)
