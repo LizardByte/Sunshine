@@ -29,8 +29,9 @@ using namespace std::literals;
 #define SV(quote) __SV(quote)
 
 extern "C" {
-#ifndef __MINGW32__
 constexpr auto DNS_REQUEST_PENDING = 9506L;
+
+#ifndef __MINGW32__
 constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
 constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
 #endif
@@ -129,14 +130,14 @@ namespace platf::publish {
 
     if (enable) {
       status = _DnsServiceRegister(&req, nullptr);
-      if (status != DNS_REQUEST_PENDING) {
+      if (status != MY_DNS_REQUEST_PENDING) {
         print_status("DnsServiceRegister()"sv, status);
         return -1;
       }
     }
     else {
       status = _DnsServiceDeRegister(&req, nullptr);
-      if (status != DNS_REQUEST_PENDING) {
+      if (status != MY_DNS_REQUEST_PENDING) {
         print_status("DnsServiceDeRegister()"sv, status);
         return -1;
       }

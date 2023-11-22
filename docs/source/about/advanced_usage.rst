@@ -413,6 +413,41 @@ resolutions
         3840x1600,
       ]
 
+max_bitrate
+^^^^^^^^^^^
+
+**Description**
+   The maximum bitrate (in Kbps) that Sunshine will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.
+
+**Default**
+   ``0``
+
+**Example**
+   .. code-block:: text
+
+      max_bitrate = 5000
+
+dwmflush
+^^^^^^^^
+
+**Description**
+   Invoke DwmFlush() to sync screen capture to the Windows presentation interval.
+
+   .. Caution:: Applies to Windows only. Alleviates visual stuttering during mouse movement.
+      If enabled, this feature will automatically deactivate if the client framerate exceeds
+      the host monitor's current refresh rate.
+
+   .. Note:: If you disable this option, you may see video stuttering during mouse movement in certain scenarios.
+      It is recommended to leave enabled when possible.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      dwmflush = enabled
+
 Audio
 -----
 
