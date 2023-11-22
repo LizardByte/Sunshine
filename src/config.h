@@ -113,6 +113,7 @@ namespace config {
     std::chrono::duration<double> key_repeat_period;
 
     std::string gamepad;
+    bool ds4_back_as_touchpad_click;
 
     bool keyboard;
     bool mouse;
