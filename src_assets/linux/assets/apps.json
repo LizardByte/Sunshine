@@ -20,7 +20,7 @@
     {
       "name": "Steam Big Picture",
       "detached": [
-        "setsid steam steam://open/bigpicture"
+        "setsid steam steam://open/gamepadui"
       ],
       "image-path": "steam.png"
     }

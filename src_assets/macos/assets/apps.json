@@ -10,7 +10,7 @@
     {
       "name": "Steam Big Picture",
       "detached": [
-        "open steam://open/bigpicture"
+        "open steam://open/gamepadui"
       ],
       "image-path": "steam.png"
     }
