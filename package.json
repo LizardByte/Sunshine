@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@fortawesome/fontawesome-free": "6.4.2",
+    "@fortawesome/fontawesome-free": "6.5.0",
     "bootstrap": "5.3.2",
     "vue": "2.6.12"
   }
