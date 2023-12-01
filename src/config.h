@@ -92,8 +92,8 @@ namespace config {
     // pc|lan|wan
     std::string origin_web_ui_allowed;
 
-    std::string pkey;  // must be 2048 bits
-    std::string cert;  // must be signed with a key of 2048 bits
+    std::string pkey;
+    std::string cert;
 
     std::string sunshine_name;
 

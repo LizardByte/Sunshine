@@ -380,11 +380,15 @@ namespace nvhttp {
     auto &client = sess.client;
 
     auto pairingsecret = util::from_hex_vec(get_arg(args, "clientpairingsecret"), true);
+    if (pairingsecret.size() <= 16) {
+      tree.put("root.paired", 0);
+      tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Clientpairingsecret too short");
+      return;
+    }
 
     std::string_view secret { pairingsecret.data(), 16 };
-    std::string_view sign { pairingsecret.data() + secret.size(), crypto::digest_size };
-
-    assert((secret.size() + sign.size()) == pairingsecret.size());
+    std::string_view sign { pairingsecret.data() + secret.size(), pairingsecret.size() - secret.size() };
 
     auto x509 = crypto::x509(client.cert);
     auto x509_sign = crypto::signature(x509);
