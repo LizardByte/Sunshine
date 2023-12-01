@@ -605,7 +605,9 @@ pkey
 ^^^^
 
 **Description**
-   The private key. This must be 2048 bits.
+   The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.
+
+   .. Warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
 
 **Default**
    ``credentials/cakey.pem``
@@ -619,7 +621,9 @@ cert
 ^^^^
 
 **Description**
-   The certificate. Must be signed with a 2048 bit key.
+   The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.
+
+   .. Warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
 
 **Default**
    ``credentials/cacert.pem``

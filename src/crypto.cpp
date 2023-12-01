@@ -409,11 +409,12 @@ namespace crypto {
       return {};
     }
 
-    std::size_t slen = digest_size;
+    std::size_t slen;
+    if (EVP_DigestSignFinal(ctx.get(), nullptr, &slen) != 1) {
+      return {};
+    }
 
-    std::vector<uint8_t> digest;
-    digest.resize(slen);
-
+    std::vector<uint8_t> digest(slen);
     if (EVP_DigestSignFinal(ctx.get(), digest.data(), &slen) != 1) {
       return {};
     }
