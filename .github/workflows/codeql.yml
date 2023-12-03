@@ -28,7 +28,7 @@ jobs:
       continue: ${{ steps.continue.outputs.result }}
     steps:
       - name: Get repo languages
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: lang
         with:
           script: |
@@ -70,7 +70,7 @@ jobs:
             return matrix
 
       - name: Continue
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: continue
         with:
           script: |

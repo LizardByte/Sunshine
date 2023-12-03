@@ -20,6 +20,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Label Actions
-        uses: dessant/label-actions@v3
+        uses: dessant/label-actions@v4
         with:
           github-token: ${{ secrets.GH_BOT_TOKEN }}

@@ -17,7 +17,6 @@ namespace crypto {
     std::string x509;
     std::string pkey;
   };
-  constexpr std::size_t digest_size = 256;
 
   void
   md_ctx_destroy(EVP_MD_CTX *);
