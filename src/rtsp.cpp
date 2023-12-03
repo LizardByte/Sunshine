@@ -334,6 +334,7 @@ namespace rtsp_stream {
       if (raised_timeout < std::chrono::steady_clock::now()) {
         auto discarded = launch_event.pop(0s);
         if (discarded) {
+          BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
           ++_slot_count;
         }
       }
