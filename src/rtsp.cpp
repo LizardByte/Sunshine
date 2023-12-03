@@ -315,7 +315,7 @@ namespace rtsp_stream {
       if (raised_timeout > now && launch_event.peek()) {
         return;
       }
-      raised_timeout = now + 10s;
+      raised_timeout = now + config::stream.ping_timeout;
 
       --_slot_count;
       launch_event.raise(launch_session);
