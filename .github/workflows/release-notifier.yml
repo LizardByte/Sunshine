@@ -15,8 +15,8 @@ on:
 jobs:
   discord:
     if: >-
-      startsWith(github.repository, 'LizardByte/') and
-      not(github.event.release.prerelease) and
+      startsWith(github.repository, 'LizardByte/') &&
+      not(github.event.release.prerelease) &&
       not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
@@ -34,8 +34,8 @@ jobs:
 
   facebook_group:
     if: >-
-      startsWith(github.repository, 'LizardByte/') and
-      not(github.event.release.prerelease) and
+      startsWith(github.repository, 'LizardByte/') &&
+      not(github.event.release.prerelease) &&
       not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
@@ -51,8 +51,8 @@ jobs:
 
   facebook_page:
     if: >-
-      startsWith(github.repository, 'LizardByte/') and
-      not(github.event.release.prerelease) and
+      startsWith(github.repository, 'LizardByte/') &&
+      not(github.event.release.prerelease) &&
       not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
@@ -68,8 +68,8 @@ jobs:
 
   reddit:
     if: >-
-      startsWith(github.repository, 'LizardByte/') and
-      not(github.event.release.prerelease) and
+      startsWith(github.repository, 'LizardByte/') &&
+      not(github.event.release.prerelease) &&
       not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
@@ -88,8 +88,8 @@ jobs:
 
   twitter:
     if: >-
-      startsWith(github.repository, 'LizardByte/') and
-      not(github.event.release.prerelease) and
+      startsWith(github.repository, 'LizardByte/') &&
+      not(github.event.release.prerelease) &&
       not(github.event.release.draft)
     runs-on: ubuntu-latest
     steps:
