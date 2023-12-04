@@ -119,6 +119,21 @@ namespace platf::publish {
     instance.wPort = map_port(nvhttp::PORT_HTTP);
     instance.pszHostName = host.data();
 
+    // Setting these values ensures Windows mDNS answers comply with RFC 1035.
+    // If these are unset, Windows will send a TXT record that has zero strings,
+    // which is illegal. Setting them to a single empty value causes Windows to
+    // send a single empty string for the TXT record, which is the correct thing
+    // to do when advertising a service without any TXT strings.
+    //
+    // Most clients aren't strictly checking TXT record compliance with RFC 1035,
+    // but Apple's mDNS resolver does and rejects the entire answer if an invalid
+    // TXT record is present.
+    PWCHAR keys[] = { nullptr };
+    PWCHAR values[] = { nullptr };
+    instance.dwPropertyCount = 1;
+    instance.keys = keys;
+    instance.values = values;
+
     DNS_SERVICE_REGISTER_REQUEST req {};
     req.Version = DNS_QUERY_REQUEST_VERSION1;
     req.pQueryContext = alarm.get();
