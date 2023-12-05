@@ -307,6 +307,19 @@ namespace rtsp_stream {
       _map_cmd_cb.emplace(type, std::move(cb));
     }
 
+    /**
+     * @brief Launch a new streaming session.
+     * @note If the client does not begin streaming within the ping_timeout,
+     *       the session will be discarded.
+     * @param launch_session Streaming session information.
+     *
+     * EXAMPLES:
+     * ```cpp
+     * launch_session_t launch_session;
+     * rtsp_server_t server {};
+     * server.session_raise(launch_session);
+     * ```
+     */
     void
     session_raise(rtsp_stream::launch_session_t launch_session) {
       auto now = std::chrono::steady_clock::now();
@@ -328,6 +341,15 @@ namespace rtsp_stream {
 
     safe::event_t<rtsp_stream::launch_session_t> launch_event;
 
+    /**
+     * @brief Clear launch sessions.
+     * @param all If true, clear all sessions. Otherwise, only clear timed out and stopped sessions.
+     *
+     * EXAMPLES:
+     * ```cpp
+     * clear(false);
+     * ```
+     */
     void
     clear(bool all = true) {
       // if a launch event timed out --> Remove it.
