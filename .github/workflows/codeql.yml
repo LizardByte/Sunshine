@@ -100,7 +100,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v8
+        uses: easimon/maximize-build-space@v9
         with:
           root-reserve-mb: 20480
           remove-dotnet: ${{ (matrix.language == 'csharp' && 'false') || 'true' }}
