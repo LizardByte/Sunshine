@@ -307,6 +307,19 @@ namespace rtsp_stream {
       _map_cmd_cb.emplace(type, std::move(cb));
     }
 
+    /**
+     * @brief Launch a new streaming session.
+     * @note If the client does not begin streaming within the ping_timeout,
+     *       the session will be discarded.
+     * @param launch_session Streaming session information.
+     *
+     * EXAMPLES:
+     * ```cpp
+     * launch_session_t launch_session;
+     * rtsp_server_t server {};
+     * server.session_raise(launch_session);
+     * ```
+     */
     void
     session_raise(rtsp_stream::launch_session_t launch_session) {
       auto now = std::chrono::steady_clock::now();
@@ -315,7 +328,7 @@ namespace rtsp_stream {
       if (raised_timeout > now && launch_event.peek()) {
         return;
       }
-      raised_timeout = now + 10s;
+      raised_timeout = now + config::stream.ping_timeout;
 
       --_slot_count;
       launch_event.raise(launch_session);
@@ -328,12 +341,22 @@ namespace rtsp_stream {
 
     safe::event_t<rtsp_stream::launch_session_t> launch_event;
 
+    /**
+     * @brief Clear launch sessions.
+     * @param all If true, clear all sessions. Otherwise, only clear timed out and stopped sessions.
+     *
+     * EXAMPLES:
+     * ```cpp
+     * clear(false);
+     * ```
+     */
     void
     clear(bool all = true) {
       // if a launch event timed out --> Remove it.
       if (raised_timeout < std::chrono::steady_clock::now()) {
         auto discarded = launch_event.pop(0s);
         if (discarded) {
+          BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
           ++_slot_count;
         }
       }
