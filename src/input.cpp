@@ -471,14 +471,14 @@ namespace input {
     auto scalarX = touch_port.width / size.first;
     auto scalarY = touch_port.height / size.second;
 
-    float x = std::clamp(val.first, 0.0f, size.first) * scalarX;
-    float y = std::clamp(val.second, 0.0f, size.second) * scalarY;
+    float x = std::min(std::max(val.first, 0.0f), size.first) * scalarX;
+    float y = std::min(std::max(val.second, 0.0f), size.second) * scalarY;
 
     auto offsetX = touch_port.client_offsetX;
     auto offsetY = touch_port.client_offsetY;
 
-    x = std::clamp(x, offsetX, (size.first * scalarX) - offsetX);
-    y = std::clamp(y, offsetY, (size.second * scalarY) - offsetY);
+    x = std::min(std::max(x, offsetX), (size.first * scalarX) - offsetX);
+    y = std::min(std::max(y, offsetY), (size.second * scalarY) - offsetY);
 
     return { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
   }
