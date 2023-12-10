@@ -52,6 +52,7 @@ dnf -y install \
   libXrandr-devel \
   libXtst-devel \
   mesa-libGL-devel \
+  nodejs \
   numactl-devel \
   openssl-devel \
   opus-devel \
@@ -65,17 +66,6 @@ fi
 dnf clean all
 rm -rf /var/cache/yum
 _DEPS
-
-#Install Node
-# hadolint ignore=SC1091
-RUN <<_INSTALL_NODE
-#!/bin/bash
-set -e
-wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-source "$HOME/.nvm/nvm.sh"
-nvm install 20.9.0
-nvm use 20.9.0
-_INSTALL_NODE
 
 # todo - enable cuda once it's supported for gcc 13 and fedora 38
 ## install cuda
@@ -114,9 +104,6 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
-#Set Node version
-source "$HOME/.nvm/nvm.sh"
-nvm use 20.9.0
 cmake \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
