@@ -5,7 +5,7 @@ Read our contribution guide in our organization level
 `docs <https://lizardbyte.readthedocs.io/en/latest/developers/contributing.html>`__.
 
 Web UI
-------------
+------
 The Web UI uses `Vite <https://vitejs.dev/>`__ as its build system, to handle the integration of the NPM libraries.
 
 The HTML pages used by the Web UI are found in ``src_assets/common/assets/web``.
