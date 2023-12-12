@@ -12,6 +12,12 @@ set(CPACK_PACKAGE_ICON ${PROJECT_SOURCE_DIR}/sunshine.png)
 set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}")
 set(CPACK_STRIP_FILES YES)
 
+#install common assets
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
+        DESTINATION "${SUNSHINE_ASSETS_DIR}"
+        COMPONENT assets
+        PATTERN "web" EXCLUDE)
+
 # install built vite assets
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web"
         DESTINATION "${SUNSHINE_ASSETS_DIR}")
