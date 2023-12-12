@@ -41,8 +41,8 @@ CUDA is used for NVFBC capture.
    sunshine_{arch}.flatpak                      12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
    sunshine-debian-bookworm-{arch}.deb          12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
    sunshine-debian-bullseye-{arch}.deb          11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
-   sunshine-fedora-37-{arch}.rpm                12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
    sunshine-fedora-38-{arch}.rpm                unavailable      unavailable       none
+   sunshine-fedora-39-{arch}.rpm                unavailable      unavailable       none
    sunshine-ubuntu-20.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
    sunshine-ubuntu-22.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
    ===========================================  ==============   ==============    ================================
