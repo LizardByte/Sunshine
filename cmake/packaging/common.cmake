@@ -15,7 +15,6 @@ set(CPACK_STRIP_FILES YES)
 #install common assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}"
-        COMPONENT assets
         PATTERN "web" EXCLUDE)
 
 # install built vite assets
