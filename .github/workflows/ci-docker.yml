@@ -395,7 +395,7 @@ jobs:
 
       - name: Upload Artifacts
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Docker${{ matrix.tag }}
           path: artifacts/
