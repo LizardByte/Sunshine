@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload Artifacts
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: clang-format-fixes
           path: ${{ steps.find_files.outputs.found_files }}
