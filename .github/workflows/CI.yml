@@ -251,7 +251,7 @@ jobs:
             ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug'
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sunshine-linux-flatpak-${{ matrix.arch }}
           path: artifacts/
@@ -483,7 +483,7 @@ jobs:
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sunshine-linux-${{ matrix.type }}-${{ matrix.dist }}
           path: artifacts/
@@ -551,7 +551,7 @@ jobs:
           # mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-bundle.dmg
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sunshine-macos
           path: artifacts/
@@ -676,7 +676,7 @@ jobs:
           echo "::endgroup::"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sunshine-macports
           path: artifacts/
@@ -771,7 +771,7 @@ jobs:
             a "../artifacts/sunshine-debuginfo-win32.zip" "*.exe"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sunshine-windows
           path: artifacts/
