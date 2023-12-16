@@ -43,16 +43,8 @@ export default {
         let el = document.querySelector("a[href='" + document.location.pathname + "']");
         if (el) el.classList.add("active")
         let widgetbot = document.createElement('script')
-        widgetbot.setAttribute('src', 'https://cdn.jsdelivr.net/npm/@widgetbot/crate@3')
+        widgetbot.setAttribute('src', 'https://app.lizardbyte.dev/js/discord.js')
         widgetbot.async = true;
-        widgetbot.onload = () => {
-            console.log("Widgetbot script created, starting up")
-            new Crate({
-                server: '804382334370578482',
-                channel: '804383092822900797',
-                defer: false,
-            })
-        }
         document.head.appendChild(widgetbot)
     }
 }
