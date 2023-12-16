@@ -182,7 +182,7 @@
             </tbody>
           </table>
         </div>
-        <!--detatched-->
+        <!--detached-->
         <div class="mb-3">
           <label for="appName" class="form-label">Detached Commands</label>
           <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
@@ -193,7 +193,7 @@
           </div>
           <div class="d-flex justify-content-between">
             <button class="btn btn-success" @click="editForm.detached.push('');">
-              <i class="fas fa-plus mr-1"></i> Add Detatched Command
+              <i class="fas fa-plus mr-1"></i> Add Detached Command
             </button>
           </div>
           <div class="form-text">
@@ -249,15 +249,14 @@
             <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
               v-model="editForm['image-path']" />
             <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle"
-              data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
-              v-dropdown-show="showCoverFinder" ref="coverFinderDropdown">
+              aria-expanded="false" @click="showCoverFinder" ref="coverFinderDropdown">
               Find Cover
             </button>
             <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
               aria-labelledby="findCoverToggle">
-              <div class="modal-header">
+              <div class="modal-header px-2">
                 <h4 class="modal-title">Covers Found</h4>
-                <button type="button" class="btn-close" aria-label="Close" @click="closeCoverFinder"></button>
+                <button type="button" class="btn-close mr-2" aria-label="Close" @click="closeCoverFinder"></button>
               </div>
               <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
                 <div class="row">
@@ -374,6 +373,7 @@
 <script type="module">
   import { createApp } from 'vue';
   import Navbar from './Navbar.vue'
+  import {Dropdown} from 'bootstrap'
   const app = createApp({
     components: {
       Navbar
@@ -425,14 +425,14 @@
         if (this.editForm["prep-cmd"] === undefined)
           this.editForm["prep-cmd"] = [];
         if (this.editForm["detached"] === undefined)
-          this.editForm["detatched"] = [];
+          this.editForm["detached"] = [];
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
           this.editForm["exclude-global-prep-cmd"] = [];
         if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
           this.editForm["elevated"] = [];
         }
         if (this.editForm["auto-detach"] === undefined) {
-          this.$set(this.editForm, "auto-detach", true);
+          this.editForm["auto-detach"] = true;
         }
         this.showEditForm = true;
       },
@@ -461,7 +461,19 @@
       showCoverFinder($event) {
         this.coverCandidates = [];
         this.coverSearching = true;
-
+        const ref = this.$refs.coverFinderDropdown;
+        if (!ref) {
+          console.error("Ref not found!");
+          return;
+        }
+        this.coverFinderDropdown = Dropdown.getInstance(ref);
+        if (!this.coverFinderDropdown) {
+          this.coverFinderDropdown = new Dropdown(ref);
+          if (!this.coverFinderDropdown) {
+            return;
+          }
+        }
+        this.coverFinderDropdown.show();
         function getSearchBucket(name) {
           let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
           if (!bucket) {
@@ -516,7 +528,7 @@
         if (!ref) {
           return;
         }
-        const dropdown = this.coverFinderDropdown = bootstrap.Dropdown.getInstance(ref);
+        const dropdown = this.coverFinderDropdown = Dropdown.getInstance(ref);
         if (!dropdown) {
           return;
         }

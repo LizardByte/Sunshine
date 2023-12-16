@@ -2,24 +2,24 @@
 <html lang="en">
 
 <head>
-      <%- header %>
-      <style>
-        .config-page {
-          padding: 1em;
-          border: 1px solid #dee2e6;
-          border-top: none;
-        }
+  <%- header %>
+    <style>
+      .config-page {
+        padding: 1em;
+        border: 1px solid #dee2e6;
+        border-top: none;
+      }
 
-        .buttons {
-          padding: 1em 0;
-        }
+      .buttons {
+        padding: 1em 0;
+      }
 
-        .ms-item {
-          background-color: #ccc;
-          font-size: 12px;
-          font-weight: bold;
-        }
-      </style>
+      .ms-item {
+        background-color: #ccc;
+        font-size: 12px;
+        font-weight: bold;
+      }
+    </style>
 </head>
 
 <body id="app">
@@ -81,61 +81,48 @@
             The origin of the remote endpoint address that is not denied access to Web UI
           </div>
         </div>
-      </div>
-      <!--UPnP-->
-      <div class="mb-3">
-        <label for="upnp" class="form-label">UPnP</label>
-        <select id="upnp" class="form-select" v-model="config.upnp">
-          <option value="disabled">Disabled</option>
-          <option value="enabled">Enabled</option>
-        </select>
-        <div class="form-text">Automatically configure port forwarding</div>
-      </div>
-      <!--Gamepads-->
-      <div class="mb-3" v-if="platform === 'windows'">
-        <label for="gamepad" class="form-label">Gamepads</label>
-        <select id="gamepad" class="form-select" v-model="config.gamepad">
-          <option value="auto">Automatic</option>
-          <option value="ds4">DS4 (PS4)</option>
-          <option value="x360">X360 (Xbox 360)</option>
-        </select>
-        <div class="form-text">Choose which type of gamepad to emulate on the host</div>
-      </div>
-      <div class="accordion" v-if="config.gamepad === 'ds4'">
-        <div class="accordion-item">
-          <h2 class="accordion-header">
-            <button class="accordion-button" type="button" data-bs-toggle="collapse"
-              data-bs-target="#panelsStayOpen-collapseOne">
-              Manual DS4 options
-            </button>
-          </h2>
-          <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-            aria-labelledby="panelsStayOpen-headingOne">
-            <div class="accordion-body">
-              <div>
-                <label for="ds4_back_as_touchpad_click" class="form-label">Map Back/Select to Touchpad Click</label>
-                <select id="ds4_back_as_touchpad_click" class="form-select" v-model="config.ds4_back_as_touchpad_click">
-                  <option value="disabled">Disabled</option>
-                  <option value="enabled">Enabled (default)</option>
-                </select>
-                <div class="form-text">When forcing DS4 emulation, map Back/Select to Touchpad Click</div>
+        <!--UPnP-->
+        <div class="mb-3">
+          <label for="upnp" class="form-label">UPnP</label>
+          <select id="upnp" class="form-select" v-model="config.upnp">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">Automatically configure port forwarding</div>
+        </div>
+        <!--Gamepads-->
+        <div class="mb-3" v-if="platform === 'windows'">
+          <label for="gamepad" class="form-label">Gamepads</label>
+          <select id="gamepad" class="form-select" v-model="config.gamepad">
+            <option value="auto">Automatic</option>
+            <option value="ds4">DS4 (PS4)</option>
+            <option value="x360">X360 (Xbox 360)</option>
+          </select>
+          <div class="form-text">Choose which type of gamepad to emulate on the host</div>
+        </div>
+        <div class="accordion" v-if="config.gamepad === 'ds4'">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                data-bs-target="#panelsStayOpen-collapseOne">
+                Manual DS4 options
+              </button>
+            </h2>
+            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
+              aria-labelledby="panelsStayOpen-headingOne">
+              <div class="accordion-body">
+                <div>
+                  <label for="ds4_back_as_touchpad_click" class="form-label">Map Back/Select to Touchpad Click</label>
+                  <select id="ds4_back_as_touchpad_click" class="form-select"
+                    v-model="config.ds4_back_as_touchpad_click">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled (default)</option>
+                  </select>
+                  <div class="form-text">When forcing DS4 emulation, map Back/Select to Touchpad Click</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <!--Ping Timeout-->
-      <div class="mb-3">
-        <label for="ping_timeout" class="form-label">Ping Timeout</label>
-        <input
-          type="text"
-          class="form-control"
-          id="ping_timeout"
-          placeholder="10000"
-          v-model="config.ping_timeout"
-        />
-        <div class="form-text">
-          How long to wait in milliseconds for data from moonlight before shutting down the stream
         </div>
         <!--Ping Timeout-->
         <div class="mb-3">
@@ -259,14 +246,16 @@
         <div class="mb-3">
           <label for="pkey" class="form-label">Private Key</label>
           <input type="text" class="form-control" id="pkey" placeholder="/dir/pkey.pem" v-model="config.pkey" />
-          <div class="form-text">The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.</div>
+          <div class="form-text">The private key used for the web UI and Moonlight client pairing. For best
+            compatibility, this should be an RSA-2048 private key.</div>
         </div>
         <!--Certificate-->
         <div class="mb-3">
           <label for="cert" class="form-label">Certificate</label>
           <input type="text" class="form-control" id="cert" placeholder="/dir/cert.pem" v-model="config.cert" />
           <div class="form-text">
-            The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.
+            The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have
+            an RSA-2048 public key.
           </div>
         </div>
 
@@ -628,7 +617,8 @@
           </select>
           <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
             <strong>increased encoding latency</strong>.<br>
-            Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished
+            Recommended to change only when limited by network or decoder, otherwise similar effect can be
+            accomplished
             by
             increasing bitrate.
           </div>
@@ -661,7 +651,8 @@
               aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
                 <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated gpu
+                  <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated
+                    gpu
                     scheduling</label>
                   <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
                     <option value="disabled">Disabled</option>
