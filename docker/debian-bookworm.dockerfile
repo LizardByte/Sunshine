@@ -31,7 +31,6 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
-  ca-certificates \
   cmake=3.25.* \
   git \
   libavdevice-dev \

@@ -45,8 +45,7 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   git \
   libcap \
   libdrm \
-  namcap \
-  wget
+  namcap
 _DEPS
 
 # Setup builder user
@@ -54,13 +53,12 @@ USER builder
 
 # copy repository
 WORKDIR /build/sunshine/
-COPY --link --chown=builder --chmod=777 .. .
+COPY --link .. .
 
 # setup build directory
 WORKDIR /build/sunshine/build
 
 # configure PKGBUILD file
-# hadolint ignore=SC1091
 RUN <<_MAKE
 #!/bin/bash
 set -e
