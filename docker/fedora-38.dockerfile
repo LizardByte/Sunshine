@@ -100,7 +100,6 @@ WORKDIR /build/sunshine/build
 # cmake and cpack
 # todo - add cmake argument back in for cuda support "-DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \"
 # todo - re-enable "DSUNSHINE_ENABLE_CUDA"
-# hadolint ignore=SC1091
 RUN <<_MAKE
 #!/bin/bash
 set -e
