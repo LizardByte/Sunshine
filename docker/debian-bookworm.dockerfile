@@ -99,7 +99,6 @@ COPY --link .. .
 WORKDIR /build/sunshine/build
 
 # cmake and cpack
-# hadolint ignore=SC1091
 RUN <<_MAKE
 #!/bin/bash
 set -e
