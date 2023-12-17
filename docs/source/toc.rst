@@ -53,4 +53,4 @@
    :maxdepth: 2
    :caption: source
 
-   source/src
+   source_code/source_code
