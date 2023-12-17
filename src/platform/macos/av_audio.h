@@ -10,10 +10,12 @@
 
 #define kBufferLength 2048
 
+#ifndef DOXYGEN // Doxygen throws an error
 @interface AVAudio: NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
 @public
   TPCircularBuffer audioSampleBuffer;
 }
+#endif
 
 @property (nonatomic, assign) AVCaptureSession *audioCaptureSession;
 @property (nonatomic, assign) AVCaptureConnection *audioConnection;
