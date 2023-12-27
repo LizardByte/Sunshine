@@ -1,5 +1,5 @@
-src
-===
+Source Code
+===========
 We are in process of improving the source code documentation. Code should be documented using Doxygen syntax.
 Some examples exist in `main.h` and `main.cpp`. In order for documentation within the code to appear in the
 rendered docs, the definition of the object must be in a header file, although the documentation itself can (and
@@ -52,35 +52,40 @@ Example Documentation Blocks
      // do stuff
    }
 
-Code
-----
+Source
+------
 
 .. toctree::
-   :maxdepth: 2
    :caption: src
+   :maxdepth: 1
+   :glob:
 
-   src/main
-   src/audio
-   src/cbs
-   src/config
-   src/confighttp
-   src/crypto
-   src/httpcommon
-   src/input
-   src/move_by_copy
-   src/network
-   src/nvhttp
-   src/process
-   src/round_robin
-   src/rtsp
-   src/stream
-   src/sync
-   src/system_tray
-   src/task_pool
-   src/thread_pool
-   src/thread_safe
-   src/upnp
-   src/utility
-   src/uuid
-   src/video
-   src/platform
+   src/*
+
+.. toctree::
+   :caption: src/platform
+   :maxdepth: 1
+   :glob:
+
+   src/platform/*
+
+.. toctree::
+   :caption: src/platform/linux
+   :maxdepth: 1
+   :glob:
+
+   src/platform/linux/*
+
+.. toctree::
+   :caption: src/platform/macos
+   :maxdepth: 1
+   :glob:
+
+   src/platform/macos/*
+
+.. toctree::
+   :caption: src/platform/windows
+   :maxdepth: 1
+   :glob:
+
+   src/platform/windows/*
