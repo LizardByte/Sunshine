@@ -840,7 +840,6 @@ namespace config {
     // If the list is not cleared, then the specified parameters do not affect the behavior of the sunshine server. 
     // That is, if you set only 30 fps in the configuration file, it will not work because by default, during initialization the list includes 10, 30, 60, 90 and 120 fps.
     input.clear();
-    
     for (auto &el : list) {
       std::string_view val = el;
 
