@@ -192,13 +192,6 @@ If the version of CUDA available from your distro is not adequate, manually inst
    ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
    rm ./cuda.run
 
-npm dependencies
-----------------
-Install npm dependencies.
-   .. code-block:: bash
-
-      npm install
-
 Build
 -----
 .. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.

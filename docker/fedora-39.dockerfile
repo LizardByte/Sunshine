@@ -52,7 +52,7 @@ dnf -y install \
   libXrandr-devel \
   libXtst-devel \
   mesa-libGL-devel \
-  nodejs-npm \
+  nodejs \
   numactl-devel \
   openssl-devel \
   opus-devel \
@@ -93,9 +93,6 @@ _DEPS
 # copy repository
 WORKDIR /build/sunshine/
 COPY --link .. .
-
-# setup npm dependencies
-RUN npm install
 
 # setup build directory
 WORKDIR /build/sunshine/build
