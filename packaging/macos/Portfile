@@ -55,10 +55,6 @@ platform darwin {
     }
 }
 
-pre-build {
-    system -W ${worksrcpath} "npm install"
-}
-
 notes-append "Run @PROJECT_NAME@ by executing 'sunshine <path to user config>', e.g. 'sunshine ~/sunshine.conf' "
 notes-append "The config file will be created if it doesn't exist."
 notes-append "It is recommended to set a location for the apps file in the config."

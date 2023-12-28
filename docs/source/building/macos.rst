@@ -24,13 +24,6 @@ Install Requirements
       cd /usr/local/include
       ln -s ../opt/openssl/include/openssl .
 
-npm dependencies
-----------------
-Install npm dependencies.
-   .. code-block:: bash
-
-      npm install
-
 Build
 -----
 .. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.

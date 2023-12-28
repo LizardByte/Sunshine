@@ -312,9 +312,6 @@ modules:
       env:
         npm_config_nodedir: /usr/lib/sdk/node18
         NPM_CONFIG_LOGLEVEL: info
-    build-commands:
-      # Install npm dependencies
-      - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app

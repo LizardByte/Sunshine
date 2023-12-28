@@ -398,8 +398,6 @@ jobs:
           mkdir -p build
           mkdir -p artifacts
 
-          npm install
-
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
@@ -527,8 +525,6 @@ jobs:
           BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          npm install
-
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
@@ -719,18 +715,15 @@ jobs:
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
-            mingw-w64-x86_64-onevpl
+            mingw-w64-x86_64-nodejs
             mingw-w64-x86_64-nsis
+            mingw-w64-x86_64-onevpl
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-opus
             mingw-w64-x86_64-toolchain
             nasm
             wget
             yasm
-
-      - name: Install npm packages
-        run: |
-          npm install
 
       - name: Build Windows
         shell: msys2 {0}
