@@ -563,16 +563,25 @@ namespace rtsp_stream {
 
   void
   cmd_setup(rtsp_server_t *server, tcp::socket &sock, msg_t &&req) {
-    OPTION_ITEM options[3] {};
+    OPTION_ITEM options[4] {};
 
     auto &seqn = options[0];
     auto &session_option = options[1];
     auto &port_option = options[2];
+    auto &payload_option = options[3];
 
     seqn.option = const_cast<char *>("CSeq");
 
     auto seqn_str = std::to_string(req->sequenceNumber);
     seqn.content = const_cast<char *>(seqn_str.c_str());
+
+    if (!server->launch_event.peek()) {
+      // /launch has not been used
+
+      respond(sock, &seqn, 503, "Service Unavailable", req->sequenceNumber, {});
+      return;
+    }
+    auto launch_session { server->launch_event.view() };
 
     std::string_view target { req->message.request.target };
     auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
@@ -607,6 +616,19 @@ namespace rtsp_stream {
 
     port_option.option = const_cast<char *>("Transport");
     port_option.content = port_value.data();
+
+    // Send identifiers that will be echoed in the other connections
+    auto connect_data = std::to_string(launch_session->control_connect_data);
+    if (type == "control"sv) {
+      payload_option.option = const_cast<char *>("X-SS-Connect-Data");
+      payload_option.content = connect_data.data();
+    }
+    else {
+      payload_option.option = const_cast<char *>("X-SS-Ping-Payload");
+      payload_option.content = launch_session->av_ping_payload.data();
+    }
+
+    port_option.next = &payload_option;
 
     respond(sock, &seqn, 200, "OK", req->sequenceNumber, {});
   }
@@ -679,6 +701,7 @@ namespace rtsp_stream {
     args.try_emplace("x-nv-general.useReliableUdp"sv, "1"sv);
     args.try_emplace("x-nv-vqos[0].fec.minRequiredFecPackets"sv, "0"sv);
     args.try_emplace("x-nv-general.featureFlags"sv, "135"sv);
+    args.try_emplace("x-ml-general.featureFlags"sv, "0"sv);
     args.try_emplace("x-nv-vqos[0].qosTrafficType"sv, "5"sv);
     args.try_emplace("x-nv-aqos.qosTrafficType"sv, "4"sv);
 
@@ -696,7 +719,8 @@ namespace rtsp_stream {
       config.controlProtocolType = util::from_view(args.at("x-nv-general.useReliableUdp"sv));
       config.packetsize = util::from_view(args.at("x-nv-video[0].packetSize"sv));
       config.minRequiredFecPackets = util::from_view(args.at("x-nv-vqos[0].fec.minRequiredFecPackets"sv));
-      config.featureFlags = util::from_view(args.at("x-nv-general.featureFlags"sv));
+      config.nvFeatureFlags = util::from_view(args.at("x-nv-general.featureFlags"sv));
+      config.mlFeatureFlags = util::from_view(args.at("x-ml-general.featureFlags"sv));
       config.audioQosType = util::from_view(args.at("x-nv-aqos.qosTrafficType"sv));
       config.videoQosType = util::from_view(args.at("x-nv-vqos[0].qosTrafficType"sv));
 
@@ -742,7 +766,7 @@ namespace rtsp_stream {
       return;
     }
 
-    auto session = stream::session::alloc(config, launch_session->gcm_key, launch_session->iv);
+    auto session = stream::session::alloc(config, launch_session->gcm_key, launch_session->iv, launch_session->av_ping_payload, launch_session->control_connect_data);
 
     auto slot = server->accept(session);
     if (!slot) {

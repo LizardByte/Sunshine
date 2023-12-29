@@ -290,6 +290,12 @@ namespace nvhttp {
     launch_session.gcmap = util::from_view(get_arg(args, "gcmap", "0"));
     launch_session.enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
 
+    // Generate the unique identifiers for this connection that we will send later during RTSP handshake
+    unsigned char raw_payload[8];
+    RAND_bytes(raw_payload, sizeof(raw_payload));
+    launch_session.av_ping_payload = util::hex_vec(raw_payload);
+    RAND_bytes((unsigned char *) &launch_session.control_connect_data, sizeof(launch_session.control_connect_data));
+
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
 
