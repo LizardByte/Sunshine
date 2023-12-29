@@ -22,7 +22,8 @@ namespace stream {
 
     int packetsize;
     int minRequiredFecPackets;
-    int featureFlags;
+    int nvFeatureFlags;
+    int mlFeatureFlags;
     int controlProtocolType;
     int audioQosType;
     int videoQosType;
@@ -39,7 +40,7 @@ namespace stream {
     };
 
     std::shared_ptr<session_t>
-    alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv);
+    alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv, std::string_view av_ping_payload, uint32_t control_connect_data);
     int
     start(session_t &session, const std::string &addr_string);
     void
