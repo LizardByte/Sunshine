@@ -16,6 +16,9 @@ namespace rtsp_stream {
     crypto::aes_t gcm_key;
     crypto::aes_t iv;
 
+    std::string av_ping_payload;
+    uint32_t control_connect_data;
+
     bool host_audio;
     std::string unique_id;
     int width;
