@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 rem Check if a compatible version of ViGEmBus is already installed (1.17 or later)
 set Version=
-for /f "usebackq delims=" %%a in (`"wmic product where name='ViGEm Bus Driver' get Version /format:Textvaluelist"`) do (
+for /f "usebackq delims=" %%a in (`wmic product where "name='ViGEm Bus Driver' or name='Nefarius Virtual Gamepad Emulation Bus Driver'" get Version /format:Textvaluelist`) do (
     for /f "delims=" %%# in ("%%a") do set "%%#"
 )
 
