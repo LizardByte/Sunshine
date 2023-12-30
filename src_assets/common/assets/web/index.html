@@ -13,8 +13,8 @@
     <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
       <div style="line-height: 32px;">
         <i class="fas fa-circle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
-        <b>Attention!</b> Sunshine detected these errors during startup. These errors <b>MUST</b> be fixed before using
-        Sunshine.<br>
+        <b>Attention!</b> Sunshine detected these errors during startup. We <b>STRONGLY RECOMMEND</b> fixing them
+        before streaming.<br>
       </div>
       <ul>
         <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
