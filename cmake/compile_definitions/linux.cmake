@@ -129,8 +129,15 @@ endif()
 if(WAYLAND_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_WAYLAND)
 
-    GEN_WAYLAND("wayland-protocols" "unstable/xdg-output" xdg-output-unstable-v1)
-    GEN_WAYLAND("wlr-protocols" "unstable" wlr-export-dmabuf-unstable-v1)
+    if(NOT SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS)
+        set(WAYLAND_PROTOCOLS_DIR "${CMAKE_SOURCE_DIR}/third-party/wayland-protocols")
+    else()
+        pkg_get_variable(WAYLAND_PROTOCOLS_DIR wayland-protocols pkgdatadir)
+        pkg_check_modules(WAYLAND_PROTOCOLS wayland-protocols REQUIRED)
+    endif()
+
+    GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "unstable/xdg-output" xdg-output-unstable-v1)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/wlr-protocols" "unstable" wlr-export-dmabuf-unstable-v1)
 
     include_directories(
             SYSTEM
