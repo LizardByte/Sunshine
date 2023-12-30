@@ -1,6 +1,13 @@
 @echo off
 setlocal enabledelayedexpansion
 
+rem Check if a compatible version of ViGEmBus is already installed (1.17 or later)
+set Version=
+for /f "usebackq delims=" %%a in (`"wmic product where name='ViGEm Bus Driver' get Version /format:Textvaluelist"`) do (
+    for /f "delims=" %%# in ("%%a") do set "%%#"
+)
+if /i %Version:~2,4% geq 17 exit /b 0
+
 rem Get temp directory
 set temp_dir=%temp%/Sunshine
 
