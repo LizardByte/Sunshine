@@ -22,26 +22,6 @@
 	path = third-party/TPCircularBuffer
 	url = https://github.com/michaeltyson/TPCircularBuffer
 	branch = master
-[submodule "third-party/ffmpeg-windows-x86_64"]
-	path = third-party/ffmpeg-windows-x86_64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-windows-x86_64
-[submodule "third-party/ffmpeg-macos-x86_64"]
-	path = third-party/ffmpeg-macos-x86_64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-macos-x86_64
-[submodule "third-party/ffmpeg-linux-x86_64"]
-	path = third-party/ffmpeg-linux-x86_64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-linux-x86_64
-[submodule "third-party/ffmpeg-linux-aarch64"]
-	path = third-party/ffmpeg-linux-aarch64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-linux-aarch64
-[submodule "third-party/ffmpeg-macos-aarch64"]
-	path = third-party/ffmpeg-macos-aarch64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-macos-aarch64
 [submodule "third-party/nanors"]
 	path = third-party/nanors
 	url = https://github.com/sleepybishop/nanors.git
@@ -54,10 +34,6 @@
 	path = third-party/nvapi-open-source-sdk
 	url = https://github.com/LizardByte/nvapi-open-source-sdk
 	branch = sdk
-[submodule "third-party/ffmpeg-linux-powerpc64le"]
-	path = third-party/ffmpeg-linux-powerpc64le
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-linux-powerpc64le
 [submodule "third-party/wayland-protocols"]
 	path = third-party/wayland-protocols
 	url = https://gitlab.freedesktop.org/wayland/wayland-protocols
@@ -66,3 +42,7 @@
 	path = third-party/wlr-protocols
 	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols
 	branch = master
+[submodule "third-party/build-deps"]
+	path = third-party/build-deps
+	url = https://github.com/LizardByte/build-deps.git
+	branch = dist

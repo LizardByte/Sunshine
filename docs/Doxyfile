@@ -2355,7 +2355,7 @@ SEARCH_INCLUDES        = YES
 # RECURSIVE has no effect here.
 # This tag requires that the tag SEARCH_INCLUDES is set to YES.
 
-INCLUDE_PATH           = ../third-party/ffmpeg-linux-x86_64/include/
+INCLUDE_PATH           = ../third-party/build-deps/ffmpeg/linux-x86_64/include/
 
 # You can use the INCLUDE_FILE_PATTERNS tag to specify one or more wildcard
 # patterns (like *.h and *.hpp) to filter out the header-files in the
