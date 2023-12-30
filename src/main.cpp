@@ -517,10 +517,9 @@ main(int argc, char *argv[]) {
     char buffer[1024];
 
     av_log_format_line(ptr, level, fmt, vl, buffer, sizeof(buffer), &print_prefix);
-    if (level <= AV_LOG_FATAL) {
-      BOOST_LOG(fatal) << buffer;
-    }
-    else if (level <= AV_LOG_ERROR) {
+    if (level <= AV_LOG_ERROR) {
+      // We print AV_LOG_FATAL at the error level. FFmpeg prints things as fatal that
+      // are expected in some cases, such as lack of codec support or similar things.
       BOOST_LOG(error) << buffer;
     }
     else if (level <= AV_LOG_WARNING) {
