@@ -200,6 +200,8 @@ namespace platf {
       if (!VIGEM_SUCCESS(status)) {
         BOOST_LOG(warning) << "Couldn't setup connection to ViGEm for gamepad support ["sv << util::hex(status).to_string_view() << ']';
 
+        // Log a special fatal message for this case to show the error in the web UI
+        BOOST_LOG(fatal) << "ViGEmBus is not installed or running. You must install ViGEmBus for gamepad support!"sv;
         return -1;
       }
 
