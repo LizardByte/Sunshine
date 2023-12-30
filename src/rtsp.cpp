@@ -704,9 +704,11 @@ namespace rtsp_stream {
     args.try_emplace("x-ml-general.featureFlags"sv, "0"sv);
     args.try_emplace("x-nv-vqos[0].qosTrafficType"sv, "5"sv);
     args.try_emplace("x-nv-aqos.qosTrafficType"sv, "4"sv);
+    args.try_emplace("x-ml-video.configuredBitrateKbps"sv, "0"sv);
 
     stream::config_t config;
 
+    std::int64_t configuredBitrateKbps;
     config.audio.flags[audio::config_t::HOST_AUDIO] = launch_session->host_audio;
     try {
       config.audio.channels = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
@@ -733,6 +735,8 @@ namespace rtsp_stream {
       config.monitor.encoderCscMode = util::from_view(args.at("x-nv-video[0].encoderCscMode"sv));
       config.monitor.videoFormat = util::from_view(args.at("x-nv-vqos[0].bitStreamFormat"sv));
       config.monitor.dynamicRange = util::from_view(args.at("x-nv-video[0].dynamicRangeMode"sv));
+
+      configuredBitrateKbps = util::from_view(args.at("x-ml-video.configuredBitrateKbps"sv));
     }
     catch (std::out_of_range &) {
       respond(sock, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
@@ -750,6 +754,32 @@ namespace rtsp_stream {
           config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
         }
       }
+    }
+
+    // If the client sent a configured bitrate, we will choose the actual bitrate ourselves
+    // by using FEC percentage and audio quality settings. If the calculated bitrate ends up
+    // too low, we'll allow it to exceed the limits rather than reducing the encoding bitrate
+    // down to nearly nothing.
+    if (configuredBitrateKbps) {
+      BOOST_LOG(debug) << "Client configured bitrate is "sv << configuredBitrateKbps << " Kbps"sv;
+
+      // If the FEC percentage isn't too high, adjust the configured bitrate to ensure video
+      // traffic doesn't exceed the user's selected bitrate when the FEC shards are included.
+      if (config::stream.fec_percentage <= 80) {
+        configuredBitrateKbps /= 100.f / (100 - config::stream.fec_percentage);
+      }
+
+      // Adjust the bitrate to account for audio traffic bandwidth usage (capped at 20% reduction).
+      // The bitrate per channel is 256 Kbps for high quality mode and 96 Kbps for normal quality.
+      auto audioBitrateAdjustment = (config.audio.flags[audio::config_t::HIGH_QUALITY] ? 256 : 96) * config.audio.channels;
+      configuredBitrateKbps -= std::min((std::int64_t) audioBitrateAdjustment, configuredBitrateKbps / 5);
+
+      // Reduce it by another 500Kbps to account for A/V packet overhead and control data
+      // traffic (capped at 10% reduction).
+      configuredBitrateKbps -= std::min((std::int64_t) 500, configuredBitrateKbps / 10);
+
+      BOOST_LOG(debug) << "Final adjusted video encoding bitrate is "sv << configuredBitrateKbps << " Kbps"sv;
+      config.monitor.bitrate = configuredBitrateKbps;
     }
 
     if (config.monitor.videoFormat == 1 && video::active_hevc_mode == 1) {
