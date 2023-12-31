@@ -40,11 +40,13 @@
   #include "main.h"
   #include "platform/common.h"
   #include "process.h"
+  #include "version.h"
 
 using namespace std::literals;
 
 // system_tray namespace
 namespace system_tray {
+  static char tooltipText[] = PROJECT_NAME;
 
   /**
    * @brief Callback for opening the UI from the system tray.
@@ -126,9 +128,7 @@ namespace system_tray {
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
-  #if defined(_WIN32)
-    .tooltip = const_cast<char *>("Sunshine"),  // cast the string literal to a non-const char* pointer
-  #endif
+    .tooltip = tooltipText,
     .menu =
       (struct tray_menu[]) {
         // todo - use boost/locale to translate menu strings
@@ -340,7 +340,7 @@ namespace system_tray {
     tray.notification_icon = TRAY_ICON;
     tray.notification_title = "Application Stopped";
     tray.notification_text = msg;
-    tray.tooltip = "Sunshine";
+    tray.tooltip = tooltipText;
     tray_update(&tray);
   }
 
@@ -359,7 +359,7 @@ namespace system_tray {
     tray.notification_title = "Incoming Pairing Request";
     tray.notification_text = "Click here to complete the pairing process";
     tray.notification_icon = TRAY_ICON_LOCKED;
-    tray.tooltip = "Sunshine";
+    tray.tooltip = tooltipText;
     tray.notification_cb = []() {
       launch_ui_with_path("/pin");
     };
