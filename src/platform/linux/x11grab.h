@@ -51,9 +51,6 @@ namespace platf::x11 {
   xdisplay_t
   make_display();
 #else
-  // It's never something different from nullptr
-  util::safe_ptr<_XDisplay, std::default_delete<_XDisplay>>;
-
   class cursor_t {
   public:
     static std::optional<cursor_t>
@@ -65,7 +62,7 @@ namespace platf::x11 {
     blend(img_t &, int, int) {}
   };
 
-  xdisplay_t
+  void *
   make_display() { return nullptr; }
 #endif
 }  // namespace platf::x11
