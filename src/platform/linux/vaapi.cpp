@@ -520,7 +520,7 @@ namespace va {
     auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
     auto priv = (VAAPIDevicePriv *) ctx->user_opaque;
 
-    vaTerminate(hwctx->display);
+    terminate(hwctx->display);
     close(priv->drm_fd);
     av_freep(&priv);
   }
