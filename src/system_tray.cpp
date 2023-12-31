@@ -46,8 +46,6 @@ using namespace std::literals;
 
 // system_tray namespace
 namespace system_tray {
-  static char tooltipText[] = PROJECT_NAME;
-
   /**
    * @brief Callback for opening the UI from the system tray.
    * @param item The tray menu item.
@@ -128,7 +126,7 @@ namespace system_tray {
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
-    .tooltip = tooltipText,
+    .tooltip = PROJECT_NAME,
     .menu =
       (struct tray_menu[]) {
         // todo - use boost/locale to translate menu strings
@@ -340,7 +338,7 @@ namespace system_tray {
     tray.notification_icon = TRAY_ICON;
     tray.notification_title = "Application Stopped";
     tray.notification_text = msg;
-    tray.tooltip = tooltipText;
+    tray.tooltip = PROJECT_NAME;
     tray_update(&tray);
   }
 
@@ -359,7 +357,7 @@ namespace system_tray {
     tray.notification_title = "Incoming Pairing Request";
     tray.notification_text = "Click here to complete the pairing process";
     tray.notification_icon = TRAY_ICON_LOCKED;
-    tray.tooltip = tooltipText;
+    tray.tooltip = PROJECT_NAME;
     tray.notification_cb = []() {
       launch_ui_with_path("/pin");
     };
