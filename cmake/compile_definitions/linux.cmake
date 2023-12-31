@@ -91,6 +91,7 @@ endif()
 if(CUDA_FOUND)
     include_directories(SYSTEM third-party/nvfbc)
     list(APPEND PLATFORM_TARGET_FILES
+            src/platform/linux/cuda.h
             src/platform/linux/cuda.cu
             src/platform/linux/cuda.cpp
             third-party/nvfbc/NvFBC.h)
@@ -110,7 +111,8 @@ if(LIBDRM_FOUND AND LIBCAP_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_DRM)
     include_directories(SYSTEM ${LIBDRM_INCLUDE_DIRS} ${LIBCAP_INCLUDE_DIRS})
     list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES} ${LIBCAP_LIBRARIES})
-    list(APPEND PLATFORM_TARGET_FILES src/platform/linux/kmsgrab.cpp)
+    list(APPEND PLATFORM_TARGET_FILES
+            src/platform/linux/kmsgrab.cpp)
     list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
 elseif(NOT LIBDRM_FOUND)
     message(WARNING "Missing libdrm")
@@ -139,6 +141,7 @@ if(WAYLAND_FOUND)
     list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES})
     list(APPEND PLATFORM_TARGET_FILES
             src/platform/linux/wlgrab.cpp
+            src/platform/linux/wayland.h
             src/platform/linux/wayland.cpp)
 endif()
 
@@ -152,7 +155,9 @@ if(X11_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_X11)
     include_directories(SYSTEM ${X11_INCLUDE_DIR})
     list(APPEND PLATFORM_LIBRARIES ${X11_LIBRARIES})
-    list(APPEND PLATFORM_TARGET_FILES src/platform/linux/x11grab.cpp)
+    list(APPEND PLATFORM_TARGET_FILES
+            src/platform/linux/x11grab.h
+            src/platform/linux/x11grab.cpp)
 endif()
 
 if(NOT ${CUDA_FOUND} AND NOT ${WAYLAND_FOUND} AND NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}))
@@ -196,15 +201,12 @@ list(APPEND PLATFORM_TARGET_FILES
         src/platform/linux/publish.cpp
         src/platform/linux/vaapi.h
         src/platform/linux/vaapi.cpp
-        src/platform/linux/cuda.h
         src/platform/linux/graphics.h
         src/platform/linux/graphics.cpp
         src/platform/linux/misc.h
         src/platform/linux/misc.cpp
         src/platform/linux/audio.cpp
         src/platform/linux/input.cpp
-        src/platform/linux/x11grab.h
-        src/platform/linux/wayland.h
         third-party/glad/src/egl.c
         third-party/glad/src/gl.c
         third-party/glad/include/EGL/eglplatform.h
