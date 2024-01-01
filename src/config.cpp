@@ -427,6 +427,7 @@ namespace config {
     true,  // mouse enabled
     true,  // controller enabled
     true,  // always send scancodes
+    true,  // high resolution scrolling
   };
 
   sunshine_t sunshine {
@@ -1059,6 +1060,7 @@ namespace config {
 
     bool_f(vars, "always_send_scancodes", input.always_send_scancodes);
 
+    bool_f(vars, "high_resolution_scrolling", input.high_resolution_scrolling);
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, { 1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT });
     sunshine.port = (std::uint16_t) port;

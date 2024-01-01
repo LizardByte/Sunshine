@@ -121,6 +121,8 @@ namespace config {
     bool controller;
 
     bool always_send_scancodes;
+
+    bool high_resolution_scrolling;
   };
 
   namespace flag {

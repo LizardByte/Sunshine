@@ -25,6 +25,11 @@ extern "C" {
 
 #include <boost/endian/buffers.hpp>
 
+// Win32 WHEEL_DELTA constant
+#ifndef WHEEL_DELTA
+  #define WHEEL_DELTA 120
+#endif
+
 using namespace std::literals;
 namespace input {
 
@@ -160,7 +165,9 @@ namespace input {
         touch_port_event { std::move(touch_port_event) },
         feedback_queue { std::move(feedback_queue) },
         mouse_left_button_timeout {},
-        touch_port { { 0, 0, 0, 0 }, 0, 0, 1.0f } {}
+        touch_port { { 0, 0, 0, 0 }, 0, 0, 1.0f },
+        accumulated_vscroll_delta {},
+        accumulated_hscroll_delta {} {}
 
     // Keep track of alt+ctrl+shift key combo
     int shortcutFlags;
@@ -177,6 +184,9 @@ namespace input {
     thread_pool_util::ThreadPool::task_id_t mouse_left_button_timeout;
 
     input::touch_port_t touch_port;
+
+    int32_t accumulated_vscroll_delta;
+    int32_t accumulated_hscroll_delta;
   };
 
   /**
@@ -790,22 +800,54 @@ namespace input {
     update_shortcutFlags(&input->shortcutFlags, map_keycode(keyCode), release);
   }
 
+  /**
+   * @brief Called to pass a vertical scroll message the platform backend.
+   * @param input The input context pointer.
+   * @param packet The scroll packet.
+   */
   void
-  passthrough(PNV_SCROLL_PACKET packet) {
+  passthrough(std::shared_ptr<input_t> &input, PNV_SCROLL_PACKET packet) {
     if (!config::input.mouse) {
       return;
     }
 
-    platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
+    if (config::input.high_resolution_scrolling) {
+      platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
+    }
+    else {
+      input->accumulated_vscroll_delta += util::endian::big(packet->scrollAmt1);
+      auto full_ticks = input->accumulated_vscroll_delta / WHEEL_DELTA;
+      if (full_ticks) {
+        // Send any full ticks that have accumulated and store the rest
+        platf::scroll(platf_input, full_ticks * WHEEL_DELTA);
+        input->accumulated_vscroll_delta -= full_ticks * WHEEL_DELTA;
+      }
+    }
   }
 
+  /**
+   * @brief Called to pass a horizontal scroll message the platform backend.
+   * @param input The input context pointer.
+   * @param packet The scroll packet.
+   */
   void
-  passthrough(PSS_HSCROLL_PACKET packet) {
+  passthrough(std::shared_ptr<input_t> &input, PSS_HSCROLL_PACKET packet) {
     if (!config::input.mouse) {
       return;
     }
 
-    platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
+    if (config::input.high_resolution_scrolling) {
+      platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
+    }
+    else {
+      input->accumulated_hscroll_delta += util::endian::big(packet->scrollAmount);
+      auto full_ticks = input->accumulated_hscroll_delta / WHEEL_DELTA;
+      if (full_ticks) {
+        // Send any full ticks that have accumulated and store the rest
+        platf::hscroll(platf_input, full_ticks * WHEEL_DELTA);
+        input->accumulated_hscroll_delta -= full_ticks * WHEEL_DELTA;
+      }
+    }
   }
 
   void
@@ -1540,10 +1582,10 @@ namespace input {
         passthrough(input, (PNV_MOUSE_BUTTON_PACKET) payload);
         break;
       case SCROLL_MAGIC_GEN5:
-        passthrough((PNV_SCROLL_PACKET) payload);
+        passthrough(input, (PNV_SCROLL_PACKET) payload);
         break;
       case SS_HSCROLL_MAGIC:
-        passthrough((PSS_HSCROLL_PACKET) payload);
+        passthrough(input, (PSS_HSCROLL_PACKET) payload);
         break;
       case KEY_DOWN_EVENT_MAGIC:
       case KEY_UP_EVENT_MAGIC:
