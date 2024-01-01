@@ -192,17 +192,16 @@ namespace platf {
   public:
     int
     init() {
-      VIGEM_ERROR status;
-
-      client.reset(vigem_alloc());
-
-      status = vigem_connect(client.get());
+      // Probe ViGEm during startup to see if we can successfully attach gamepads. This will allow us to
+      // immediately display the error message in the web UI even before the user tries to stream.
+      client_t client { vigem_alloc() };
+      VIGEM_ERROR status = vigem_connect(client.get());
       if (!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(warning) << "Couldn't setup connection to ViGEm for gamepad support ["sv << util::hex(status).to_string_view() << ']';
-
         // Log a special fatal message for this case to show the error in the web UI
         BOOST_LOG(fatal) << "ViGEmBus is not installed or running. You must install ViGEmBus for gamepad support!"sv;
-        return -1;
+      }
+      else {
+        vigem_disconnect(client.get());
       }
 
       gamepads.resize(MAX_GAMEPADS);
@@ -224,6 +223,19 @@ namespace platf {
 
       gamepad.client_relative_index = id.clientRelativeIndex;
       gamepad.last_report_ts = std::chrono::steady_clock::now();
+
+      // Establish a connect to the ViGEm driver if we don't have one yet
+      if (!client) {
+        BOOST_LOG(debug) << "Connecting to ViGEmBus driver"sv;
+        client.reset(vigem_alloc());
+
+        auto status = vigem_connect(client.get());
+        if (!VIGEM_SUCCESS(status)) {
+          BOOST_LOG(warning) << "Couldn't setup connection to ViGEm for gamepad support ["sv << util::hex(status).to_string_view() << ']';
+          client.reset();
+          return -1;
+        }
+      }
 
       if (gp_type == Xbox360Wired) {
         gamepad.gp.reset(vigem_target_x360_alloc());
@@ -291,6 +303,20 @@ namespace platf {
       }
 
       gamepad.gp.reset();
+
+      // Disconnect from ViGEm if we just removed the last gamepad
+      bool disconnect = true;
+      for (auto &gamepad : gamepads) {
+        if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
+          disconnect = false;
+          break;
+        }
+      }
+      if (disconnect) {
+        BOOST_LOG(debug) << "Disconnecting from ViGEmBus driver"sv;
+        vigem_disconnect(client.get());
+        client.reset();
+      }
     }
 
     /**
