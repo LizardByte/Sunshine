@@ -392,6 +392,18 @@
             In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
           </div>
         </div>
+        <!-- High resolution scrolling support -->
+        <div class="mb-3">
+          <label for="high_resolution_scrolling" class="form-label">High Resolution Scrolling Support</label>
+          <select id="high_resolution_scrolling" class="form-select" v-model="config.high_resolution_scrolling">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">
+            When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.<br />
+            This can be useful to disable for older applications that scroll too fast with high resolution scroll events.
+          </div>
+        </div>
       </div>
       <!--Files Tab-->
       <div v-if="currentTab === 'av'" class="config-page">
@@ -851,6 +863,7 @@
     "amd_vbaq": "enabled",
     "capture": "",
     "controller": "enabled",
+    "high_resolution_scrolling": "enabled",
     "install_steam_audio_drivers": "enabled",
     "ds4_back_as_touchpad_click": "enabled",
     "dwmflush": "enabled",
