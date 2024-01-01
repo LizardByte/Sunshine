@@ -52,6 +52,7 @@ dnf -y install \
   libXrandr-devel \
   libXtst-devel \
   mesa-libGL-devel \
+  miniupnpc-devel \
   nodejs \
   numactl-devel \
   openssl-devel \

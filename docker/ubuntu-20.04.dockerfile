@@ -45,6 +45,7 @@ apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libminiupnpc-dev \
   libnotify-dev \
   libnuma-dev \
   libopus-dev \

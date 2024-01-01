@@ -15,6 +15,7 @@ sudo apt-get install -y \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libminiupnpc-dev \
   libmfx-dev \
   libnotify-dev \
   libnuma-dev \

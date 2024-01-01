@@ -25,6 +25,7 @@ Install Requirements
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
+          libminiupnpc-dev \
           libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
@@ -77,6 +78,7 @@ Install Requirements
           libXrandr-devel \  # X11
           libXtst-devel \  # X11
           mesa-libGL-devel \
+          miniupnpc-devel \
           npm \
           numactl-devel \
           openssl-devel \
@@ -106,6 +108,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
+          libminiupnpc-dev \
           libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
@@ -155,6 +158,7 @@ Install Requirements
           libcap-dev \  # KMS
           libdrm-dev \  # KMS
           libevdev-dev \
+          libminiupnpc-dev \
           libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \

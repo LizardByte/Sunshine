@@ -350,6 +350,7 @@ jobs:
             libcurl4-openssl-dev \
             libdrm-dev \
             libevdev-dev \
+            libminiupnpc-dev \
             libmfx-dev \
             libnotify-dev \
             libnuma-dev \
@@ -425,7 +426,9 @@ jobs:
           fi
 
       - name: Set AppImage Version
-        if: ${{ matrix.type == 'AppImage' && ( needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version ) }}  # yamllint disable-line rule:line-length
+        if: |
+          matrix.type == 'AppImage' &&
+          (needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version)
         run: |
           version=${{ needs.check_changelog.outputs.next_version_bare }}
           echo "VERSION=${version}" >> $GITHUB_ENV
@@ -516,7 +519,7 @@ jobs:
       - name: Setup Dependencies MacOS
         run: |
           # install dependencies using homebrew
-          brew install cmake curl node openssl opus pkg-config
+          brew install cmake curl miniupnpc node openssl opus pkg-config
 
           # fix openssl header not found
           # ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
@@ -529,6 +532,10 @@ jobs:
           # fix opus header not found
           ln -sf $(find /usr/local/Cellar -type d -name "opus" -path "*/opus/*/include" | head -n 1) \
             /usr/local/include/opus
+
+          # fix miniupnpc header not found
+          ln -sf $(find /usr/local/Cellar -type d -name "miniupnpc" -path "*/miniupnpc/*/include" | head -n 1) \
+            /usr/local/include/miniupnpc
 
       - name: Install Boost
         # installing boost from homebrew takes 30 minutes in a GitHub runner
@@ -757,6 +764,7 @@ jobs:
             mingw-w64-x86_64-boost
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
+            mingw-w64-x86_64-miniupnpc
             mingw-w64-x86_64-nodejs
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-onevpl
