@@ -5,17 +5,17 @@ macro(GEN_WAYLAND wayland_directory subdirectory filename)
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated-src)
 
     message("wayland-scanner private-code \
-${CMAKE_SOURCE_DIR}/third-party/${wayland_directory}/${subdirectory}/${filename}.xml \
+${wayland_directory}/${subdirectory}/${filename}.xml \
 ${CMAKE_BINARY_DIR}/generated-src/${filename}.c")
     message("wayland-scanner client-header \
-${CMAKE_SOURCE_DIR}/third-party/${wayland_directory}/${subdirectory}/${filename}.xml \
+${wayland_directory}/${subdirectory}/${filename}.xml \
 ${CMAKE_BINARY_DIR}/generated-src/${filename}.h")
     execute_process(
             COMMAND wayland-scanner private-code
-            ${CMAKE_SOURCE_DIR}/third-party/${wayland_directory}/${subdirectory}/${filename}.xml
+            ${wayland_directory}/${subdirectory}/${filename}.xml
             ${CMAKE_BINARY_DIR}/generated-src/${filename}.c
             COMMAND wayland-scanner client-header
-            ${CMAKE_SOURCE_DIR}/third-party/${wayland_directory}/${subdirectory}/${filename}.xml
+            ${wayland_directory}/${subdirectory}/${filename}.xml
             ${CMAKE_BINARY_DIR}/generated-src/${filename}.h
 
             RESULT_VARIABLE EXIT_INT
