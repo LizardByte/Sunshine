@@ -10,10 +10,6 @@
 	path = third-party/ViGEmClient
 	url = https://github.com/nefarius/ViGEmClient
 	branch = master
-[submodule "third-party/miniupnp"]
-	path = third-party/miniupnp
-	url = https://github.com/miniupnp/miniupnp
-	branch = master
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers
