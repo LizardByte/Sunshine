@@ -242,7 +242,6 @@ list(APPEND PLATFORM_LIBRARIES
         Boost::dynamic_linking
         dl
         evdev
-        numa
         pulse
         pulse-simple)
 
