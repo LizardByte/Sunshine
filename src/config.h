@@ -113,6 +113,8 @@ namespace config {
 
     std::string gamepad;
     bool ds4_back_as_touchpad_click;
+    bool motion_as_ds4;
+    bool touchpad_as_ds4;
 
     bool keyboard;
     bool mouse;

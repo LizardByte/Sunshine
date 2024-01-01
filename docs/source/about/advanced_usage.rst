@@ -170,6 +170,42 @@ ds4_back_as_touchpad_click
 
       ds4_back_as_touchpad_click = enabled
 
+motion_as_ds4
+^^^^^^^^^^^^^
+
+**Description**
+   .. Hint:: Only applies when gamepad is set to auto.
+
+   If a client reports that a connected gamepad has motion sensor support, emulate it on the host as a DS4 controller.
+
+   When disabled, motion sensors will not be taken into account during gamepad type selection.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      motion_as_ds4 = enabled
+
+touchpad_as_ds4
+^^^^^^^^^^^^^^^
+
+**Description**
+   .. Hint:: Only applies when gamepad is set to auto.
+
+   If a client reports that a connected gamepad has a touchpad, emulate it on the host as a DS4 controller.
+
+   When disabled, touchpad presence will not be taken into account during gamepad type selection.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      touchpad_as_ds4 = enabled
+
 back_button_timeout
 ^^^^^^^^^^^^^^^^^^^
 

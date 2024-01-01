@@ -1188,17 +1188,37 @@ namespace platf {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
       selectedGamepadType = Xbox360Wired;
     }
-    else if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
+    else if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
       selectedGamepadType = DualShock4Wired;
     }
-    else if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
+    else if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
       selectedGamepadType = DualShock4Wired;
     }
     else {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (default)"sv;
       selectedGamepadType = Xbox360Wired;
+    }
+
+    if (selectedGamepadType == Xbox360Wired) {
+      if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has motion sensors, but they are not usable when emulating an Xbox 360 controller"sv;
+      }
+      if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has a touchpad, but it is not usable when emulating an Xbox 360 controller"sv;
+      }
+      if (metadata.capabilities & LI_CCAP_RGB_LED) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has an RGB LED, but it is not usable when emulating an Xbox 360 controller"sv;
+      }
+    }
+    else if (selectedGamepadType == DualShock4Wired) {
+      if (!(metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have motion sensors active"sv;
+      }
+      if (!(metadata.capabilities & LI_CCAP_TOUCHPAD)) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have a touchpad"sv;
+      }
     }
 
     return raw->vigem->alloc_gamepad_internal(id, feedback_queue, selectedGamepadType);
