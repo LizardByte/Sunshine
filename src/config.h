@@ -102,6 +102,7 @@ namespace config {
     std::string external_ip;
     std::vector<std::string> resolutions;
     std::vector<int> fps;
+    int max_bitrate;
   };
 
   struct input_t {

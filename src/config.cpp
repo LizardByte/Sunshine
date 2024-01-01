@@ -403,6 +403,7 @@ namespace config {
     },  // supported resolutions
 
     { 10, 30, 60, 90, 120 },  // supported fps
+    0, // max bitrate
   };
 
   input_t input {
@@ -997,6 +998,7 @@ namespace config {
     list_string_f(vars, "resolutions"s, nvhttp.resolutions);
     list_int_f(vars, "fps"s, nvhttp.fps);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
+    int_f(vars, "max_bitrate", nvhttp.max_bitrate);
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);
