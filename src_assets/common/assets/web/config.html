@@ -863,7 +863,9 @@
   import { createApp } from 'vue'
   import Navbar from './Navbar.vue'
 
-  // create dictionary for defaultConfig
+  // Create dictionary for defaultConfig
+  //
+  // Note: Please keep this in alphabetical order!
   const defaultConfig = {
     "address_family": "ipv4",
     "always_send_scancodes": "enabled",
@@ -873,17 +875,18 @@
     "amd_rc": "vbr_latency",
     "amd_usage": "ultralowlatency",
     "amd_vbaq": "enabled",
+    "av1_mode": 0,
     "capture": "",
     "controller": "enabled",
-    "high_resolution_scrolling": "enabled",
-    "install_steam_audio_drivers": "enabled",
     "ds4_back_as_touchpad_click": "enabled",
     "dwmflush": "enabled",
     "encoder": "",
     "fps": "[10,30,60,90,120]",
     "gamepad": "auto",
+    "global_prep_cmd": "[]",
     "hevc_mode": 0,
-    "av1_mode": 0,
+    "high_resolution_scrolling": "enabled",
+    "install_steam_audio_drivers": "enabled",
     "key_rightalt_to_key_win": "disabled",
     "keyboard": "enabled",
     "min_log_level": 2,
@@ -905,7 +908,6 @@
     "vt_coder": "auto",
     "vt_realtime": "enabled",
     "vt_software": "auto",
-    "global_prep_cmd": "[]",
   }
 
   const app = createApp({
