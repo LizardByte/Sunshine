@@ -404,6 +404,18 @@
             This can be useful to disable for older applications that scroll too fast with high resolution scroll events.
           </div>
         </div>
+        <!-- Native pen/touch support -->
+        <div class="mb-3" v-if="platform === 'windows'">
+          <label for="native_pen_touch" class="form-label">Native Pen/Touch Support</label>
+          <select id="native_pen_touch" class="form-select" v-model="config.native_pen_touch">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">
+            When enabled, Sunshine will pass through native pen/touch events from Moonlight clients.<br />
+            This can be useful to disable for older applications without native pen/touch support.
+          </div>
+        </div>
       </div>
       <!--Files Tab-->
       <div v-if="currentTab === 'av'" class="config-page">
@@ -877,6 +889,7 @@
     "min_log_level": 2,
     "motion_as_ds4": "enabled",
     "mouse": "enabled",
+    "native_pen_touch": "enabled",
     "nvenc_h264_cavlc": "disabled",
     "nvenc_preset": "1",
     "nvenc_realtime_hags": "enabled",
