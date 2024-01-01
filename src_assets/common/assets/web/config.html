@@ -90,40 +90,6 @@
           </select>
           <div class="form-text">Automatically configure port forwarding</div>
         </div>
-        <!--Gamepads-->
-        <div class="mb-3" v-if="platform === 'windows'">
-          <label for="gamepad" class="form-label">Gamepads</label>
-          <select id="gamepad" class="form-select" v-model="config.gamepad">
-            <option value="auto">Automatic</option>
-            <option value="ds4">DS4 (PS4)</option>
-            <option value="x360">X360 (Xbox 360)</option>
-          </select>
-          <div class="form-text">Choose which type of gamepad to emulate on the host</div>
-        </div>
-        <div class="accordion" v-if="config.gamepad === 'ds4'">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#panelsStayOpen-collapseOne">
-                Manual DS4 options
-              </button>
-            </h2>
-            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-              aria-labelledby="panelsStayOpen-headingOne">
-              <div class="accordion-body">
-                <div>
-                  <label for="ds4_back_as_touchpad_click" class="form-label">Map Back/Select to Touchpad Click</label>
-                  <select id="ds4_back_as_touchpad_click" class="form-select"
-                    v-model="config.ds4_back_as_touchpad_click">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
-                  </select>
-                  <div class="form-text">When forcing DS4 emulation, map Back/Select to Touchpad Click</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
         <!--Ping Timeout-->
         <div class="mb-3">
           <label for="ping_timeout" class="form-label">Ping Timeout</label>
@@ -266,6 +232,73 @@
         </div>
       </div>
       <div v-if="currentTab === 'input'" class="config-page">
+        <!--Emulated Gamepad Type-->
+        <div class="mb-3" v-if="platform === 'windows'">
+          <label for="gamepad" class="form-label">Emulated Gamepad Type</label>
+          <select id="gamepad" class="form-select" v-model="config.gamepad">
+            <option value="auto">Automatic</option>
+            <option value="ds4">DS4 (PS4)</option>
+            <option value="x360">X360 (Xbox 360)</option>
+          </select>
+          <div class="form-text">Choose which type of gamepad to emulate on the host</div>
+        </div>
+        <div class="accordion" v-if="config.gamepad === 'ds4'">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                data-bs-target="#panelsStayOpen-collapseOne">
+                Manual DS4 options
+              </button>
+            </h2>
+            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
+              aria-labelledby="panelsStayOpen-headingOne">
+              <div class="accordion-body">
+                <div>
+                  <label for="ds4_back_as_touchpad_click" class="form-label">Map Back/Select to Touchpad Click</label>
+                  <select id="ds4_back_as_touchpad_click" class="form-select"
+                    v-model="config.ds4_back_as_touchpad_click">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled (default)</option>
+                  </select>
+                  <div class="form-text">When forcing DS4 emulation, map Back/Select to Touchpad Click</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="accordion" v-if="config.gamepad === 'auto'">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                data-bs-target="#panelsStayOpen-collapseOne">
+                Automatic selection options
+              </button>
+            </h2>
+            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
+              aria-labelledby="panelsStayOpen-headingOne">
+              <div class="accordion-body">
+                <div>
+                  <label for="motion_as_ds4" class="form-label">Emulate a DS4 gamepad if the client gamepad reports motion sensors are present</label>
+                  <select id="motion_as_ds4" class="form-select"
+                    v-model="config.motion_as_ds4">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled (default)</option>
+                  </select>
+                  <div class="form-text">If disabled, motion sensors will not be taken into account during gamepad type selection.</div>
+                </div>
+                <div>
+                  <label for="touchpad_as_ds4" class="form-label">Emulate a DS4 gamepad if the client gamepad reports a touchpad is present</label>
+                  <select id="touchpad_as_ds4" class="form-select"
+                    v-model="config.touchpad_as_ds4">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled (default)</option>
+                  </select>
+                  <div class="form-text">If disabled, touchpad presence will not be taken into account during gamepad type selection.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <!--Home/Guide Button Emulation Timeout-->
         <div class="mb-3">
           <label for="back_button_timeout" class="form-label">Home/Guide Button Emulation Timeout</label>
@@ -829,6 +862,7 @@
     "key_rightalt_to_key_win": "disabled",
     "keyboard": "enabled",
     "min_log_level": 2,
+    "motion_as_ds4": "enabled",
     "mouse": "enabled",
     "nvenc_h264_cavlc": "disabled",
     "nvenc_preset": "1",
@@ -840,6 +874,7 @@
     "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3840x2160,3840x1600]",
     "sw_preset": "superfast",
     "sw_tune": "zerolatency",
+    "touchpad_as_ds4": "enabled",
     "upnp": "disabled",
     "vt_coder": "auto",
     "vt_realtime": "enabled",
