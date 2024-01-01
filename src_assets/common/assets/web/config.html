@@ -179,18 +179,6 @@
             This setting does <b>not</b> change how the screen stream is sent to Moonlight
           </div>
         </div>
-        <!-- Mapping Key AltRight to Key Windows -->
-        <div class="mb-3">
-          <label for="mapkey" class="form-label">Map Right Alt key to Windows key</label>
-          <select id="mapkey" class="form-select" v-model="config.key_rightalt_to_key_win">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
-          </select>
-          <div class="form-text">
-            It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
-            In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
-          </div>
-        </div>
         <!-- Global Prep Commands -->
         <div class="mb-3 d-flex flex-column">
           <label class="form-label">Command Preparations</label>
@@ -357,6 +345,18 @@
             that aren't using a US English keyboard layout.<br />
             Enable if keyboard input is not working at all in certain applications.<br />
             Disable if keys on the client are generating the wrong input on the host.
+          </div>
+        </div>
+        <!-- Mapping Key AltRight to Key Windows -->
+        <div class="mb-3">
+          <label for="mapkey" class="form-label">Map Right Alt key to Windows key</label>
+          <select id="mapkey" class="form-select" v-model="config.key_rightalt_to_key_win">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">
+            It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
+            In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
           </div>
         </div>
       </div>
