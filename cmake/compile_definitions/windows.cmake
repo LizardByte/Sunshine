@@ -11,6 +11,9 @@ add_definitions(-DCURL_STATICLIB)
 include_directories(SYSTEM ${CURL_STATIC_INCLUDE_DIRS})
 link_directories(${CURL_STATIC_LIBRARY_DIRS})
 
+# miniupnpc
+add_definitions(-DMINIUPNP_STATICLIB)
+
 # extra tools/binaries for audio/display devices
 add_subdirectory(tools)  # todo - this is temporary, only tools for Windows are needed, for now
 
@@ -70,6 +73,7 @@ list(PREPEND PLATFORM_LIBRARIES
         userenv
         synchronization.lib
         avrt
+        iphlpapi
         ${CURL_STATIC_LIBRARIES})
 
 if(SUNSHINE_ENABLE_TRAY)

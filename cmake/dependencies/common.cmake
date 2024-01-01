@@ -16,26 +16,8 @@ find_package(Threads REQUIRED)
 pkg_check_modules(CURL REQUIRED libcurl)
 
 # miniupnp
-if(SUNSHINE_SYSTEM_MINIUPNP)
-    pkg_check_modules(MINIUPNP miniupnpc REQUIRED)
-
-    # Use includedir pkg-config variable rather than MINIUPNP_INCLUDE_DIRS
-    # defined above. The latter may be blank, as pkg-config sometimes omits -I
-    # flags for directories that are searched by default (e.g. /usr/include),
-    # but we need a value to append /miniupnpc to. Normally source files would
-    # prefix their #include directives with miniupnpc/, but this does not align
-    # with the directory structure of the git submodule used below.
-    pkg_get_variable(MINIUPNP_INCLUDE_DIR miniupnpc includedir)
-    include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIR}/miniupnpc)
-else()
-    set(UPNPC_BUILD_SHARED OFF CACHE BOOL "No shared libraries")
-    set(UPNPC_BUILD_TESTS OFF CACHE BOOL "Don't build tests for miniupnpc")
-    set(UPNPC_BUILD_SAMPLE OFF CACHE BOOL "Don't build samples for miniupnpc")
-    set(UPNPC_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for miniupnpc")
-    set(MINIUPNP_LIBRARIES libminiupnpc-static)
-    add_subdirectory(third-party/miniupnp/miniupnpc)
-    include_directories(SYSTEM third-party/miniupnp/miniupnpc/include)
-endif()
+pkg_check_modules(MINIUPNP miniupnpc REQUIRED)
+include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
 
 # ffmpeg pre-compiled binaries
 if(WIN32)
