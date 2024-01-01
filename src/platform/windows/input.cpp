@@ -1720,7 +1720,9 @@ namespace platf {
 
     // We support pen and touch input on Win10 1809+
     if (GetProcAddress(GetModuleHandleA("user32.dll"), "CreateSyntheticPointerDevice") != nullptr) {
-      caps |= platform_caps::pen_touch;
+      if (config::input.native_pen_touch) {
+        caps |= platform_caps::pen_touch;
+      }
     }
     else {
       BOOST_LOG(warning) << "Touch input requires Windows 10 1809 or later"sv;

@@ -123,6 +123,7 @@ namespace config {
     bool always_send_scancodes;
 
     bool high_resolution_scrolling;
+    bool native_pen_touch;
   };
 
   namespace flag {

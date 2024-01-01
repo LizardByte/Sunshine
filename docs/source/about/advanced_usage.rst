@@ -289,6 +289,24 @@ high_resolution_scrolling
 
       high_resolution_scrolling = enabled
 
+native_pen_touch
+^^^^^^^^^^^^^^^^
+
+**Description**
+   When enabled, Sunshine will pass through native pen/touch events from Moonlight clients. 
+
+   This can be useful to disable for older applications without native pen/touch support.
+
+   .. Caution:: Applies to Windows only.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      native_pen_touch = enabled
+
 keybindings
 ^^^^^^^^^^^
 
