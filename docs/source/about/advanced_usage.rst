@@ -273,6 +273,22 @@ always_send_scancodes
 
       always_send_scancodes = enabled
 
+high_resolution_scrolling
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.
+
+   This can be useful to disable for older applications that scroll too fast with high resolution scroll events.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      high_resolution_scrolling = enabled
+
 keybindings
 ^^^^^^^^^^^
 
