@@ -118,7 +118,7 @@ else()
 endif()
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
-        libminiupnpc-static
+        ${MINIUPNP_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         enet
         opus
