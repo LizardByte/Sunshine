@@ -11,7 +11,9 @@ struct CaptureSession {
   NSCondition *captureStopped;
 };
 
+#ifndef DOXYGEN // Doxygen throws an error
 @interface AVVideo: NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+#endif
 
 #define kMaxDisplays 32
 

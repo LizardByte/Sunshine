@@ -55,37 +55,42 @@ Example Documentation Blocks
 Source
 ------
 
-.. toctree::
-   :caption: src
-   :maxdepth: 1
-   :glob:
+.. doxygenindex::
+   :allow-dot-graphs:
 
-   src/*
-
-.. toctree::
-   :caption: src/platform
-   :maxdepth: 1
-   :glob:
-
-   src/platform/*
-
-.. toctree::
-   :caption: src/platform/linux
-   :maxdepth: 1
-   :glob:
-
-   src/platform/linux/*
-
-.. toctree::
-   :caption: src/platform/macos
-   :maxdepth: 1
-   :glob:
-
-   src/platform/macos/*
-
-.. toctree::
-   :caption: src/platform/windows
-   :maxdepth: 1
-   :glob:
-
-   src/platform/windows/*
+.. Ideally, we would use `doxygenfile` with `:allow-dot-graphs:`, but sphinx complains about duplicated namespaces...
+..
+.. .. toctree::
+..    :caption: src
+..    :maxdepth: 1
+..    :glob:
+..
+..    src/*
+..
+.... toctree::
+..    :caption: src/platform
+..    :maxdepth: 1
+..    :glob:
+..
+..    src/platform/*
+..
+.. .. toctree::
+..    :caption: src/platform/linux
+..    :maxdepth: 1
+..    :glob:
+..
+..    src/platform/linux/*
+..
+.. .. toctree::
+..    :caption: src/platform/macos
+..    :maxdepth: 1
+..    :glob:
+..
+..    src/platform/macos/*
+..
+.. .. toctree::
+..    :caption: src/platform/windows
+..    :maxdepth: 1
+..    :glob:
+..
+..    src/platform/windows/*
