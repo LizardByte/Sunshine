@@ -11,6 +11,7 @@
 
 // local includes
 #include "confighttp.h"
+#include "display_device/session.h"
 #include "entry_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -133,6 +134,14 @@ main(int argc, char *argv[]) {
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
 
+  // Adding this guard here first as it also performs recovery after crash,
+  // otherwise people could theoretically end up without display output.
+  // It also should be run be destroyed before forced shutdown.
+  auto display_device_deinit_guard = display_device::session_t::init();
+  if (!display_device_deinit_guard) {
+    BOOST_LOG(error) << "Display device session failed to initialize"sv;
+  }
+
 #ifdef WIN32
   // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
   if (nvprefs_instance.load()) {
@@ -230,7 +239,7 @@ main(int argc, char *argv[]) {
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-  on_signal(SIGINT, [&force_shutdown, shutdown_event]() {
+  on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
 
     auto task = []() {
@@ -241,9 +250,10 @@ main(int argc, char *argv[]) {
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
     shutdown_event->raise(true);
+    display_device_deinit_guard.reset();
   });
 
-  on_signal(SIGTERM, [&force_shutdown, shutdown_event]() {
+  on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Terminate handler called"sv;
 
     auto task = []() {
@@ -254,6 +264,7 @@ main(int argc, char *argv[]) {
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
     shutdown_event->raise(true);
+    display_device_deinit_guard.reset();
   });
 
   proc::refresh(config::stream.file_apps);

@@ -48,6 +48,15 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/windows/display_vram.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/display_ram.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/audio.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/device_hdr_states.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/device_modes.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/device_topology.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/general_functions.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/settings_topology.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/settings_topology.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/settings.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/windows_utils.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/display_device/windows_utils.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/Client.h"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/Common.h"
@@ -74,7 +83,6 @@ list(PREPEND PLATFORM_LIBRARIES
         avrt
         iphlpapi
         shlwapi
-        PkgConfig::NLOHMANN_JSON
         ${CURL_STATIC_LIBRARIES})
 
 if(SUNSHINE_ENABLE_TRAY)
