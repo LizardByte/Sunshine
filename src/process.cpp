@@ -258,13 +258,11 @@ namespace proc {
 
   void
   proc_t::terminate() {
-    bool has_run = _app_id > 0;
     std::error_code ec;
     placebo = false;
     process_end(_process, _process_handle);
     _process = bp::child();
     _process_handle = bp::group();
-    _app_id = -1;
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);
@@ -293,12 +291,16 @@ namespace proc {
 
     _pipe.reset();
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+    bool has_run = _app_id > 0;
+
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
     if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
       system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
     }
 #endif
+
+    _app_id = -1;
   }
 
   const std::vector<ctx_t> &
