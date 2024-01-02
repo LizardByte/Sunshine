@@ -8,6 +8,13 @@ If you forgot your credentials to the web UI, try this.
 
       sunshine --creds {new-username} {new-password}
 
+.. note::
+    If you installed Sunshine via flatpak, try this instead.
+       .. code-block:: bash
+
+          flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --creds {new-username} {new-password}
+
+
 Web UI Access
 -------------
 Can't access the web UI?
