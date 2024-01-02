@@ -28,7 +28,4 @@ namespace va {
   // Ensure the render device pointed to by fd is capable of encoding h264 with the hevc_mode configured
   bool
   validate(int fd);
-
-  int
-  init();
 }  // namespace va
