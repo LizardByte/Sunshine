@@ -18,6 +18,7 @@ extern "C" {
 }
 
 #include "config.h"
+#include "display_device/session.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
@@ -1835,11 +1836,20 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+        bool restore_display_state { true };
         if (proc::proc.running()) {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
-        }
 #endif
+
+          // TODO: make this configurable per app
+          restore_display_state = false;
+        }
+
+        if (restore_display_state) {
+          display_device::session_t::get().restore_state();
+        }
+
         platf::streaming_will_stop();
       }
 

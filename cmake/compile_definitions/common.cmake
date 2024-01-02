@@ -56,6 +56,15 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/RtspParser.c"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Video.h"
         "${CMAKE_SOURCE_DIR}/third-party/tray/tray.h"
+        "${CMAKE_SOURCE_DIR}/src/display_device/display_device.h"
+        "${CMAKE_SOURCE_DIR}/src/display_device/parsed_config.cpp"
+        "${CMAKE_SOURCE_DIR}/src/display_device/parsed_config.h"
+        "${CMAKE_SOURCE_DIR}/src/display_device/session.cpp"
+        "${CMAKE_SOURCE_DIR}/src/display_device/session.h"
+        "${CMAKE_SOURCE_DIR}/src/display_device/settings.cpp"
+        "${CMAKE_SOURCE_DIR}/src/display_device/settings.h"
+        "${CMAKE_SOURCE_DIR}/src/display_device/to_string.cpp"
+        "${CMAKE_SOURCE_DIR}/src/display_device/to_string.h"
         "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
         "${CMAKE_SOURCE_DIR}/src/upnp.h"
         "${CMAKE_SOURCE_DIR}/src/cbs.cpp"
@@ -152,4 +161,5 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${Boost_LIBRARIES}
         ${OPENSSL_LIBRARIES}
         ${CURL_LIBRARIES}
+        ${JSON_LIBRARIES}
         ${PLATFORM_LIBRARIES})

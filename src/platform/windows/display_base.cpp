@@ -15,6 +15,7 @@ typedef long NTSTATUS;
 #include "display.h"
 #include "misc.h"
 #include "src/config.h"
+#include "src/display_device/display_device.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/stat_trackers.h"
@@ -1083,7 +1084,8 @@ namespace platf {
     BOOST_LOG(debug) << "Detecting monitors..."sv;
 
     // We must set the GPU preference before calling any DXGI APIs!
-    if (!dxgi::probe_for_gpu_preference(config::video.output_name)) {
+    const auto output_display_name { display_device::get_display_name(config::video.output_name) };
+    if (!dxgi::probe_for_gpu_preference(output_display_name)) {
       BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
     }
 
