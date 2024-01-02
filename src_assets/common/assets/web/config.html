@@ -51,6 +51,7 @@
         :platform="platform"
         :resolutions="resolutions"
         :fps="fps"
+        :display_mode_remapping="display_mode_remapping"
       >
       </audio-video>
 
@@ -132,6 +133,7 @@
         resolutions: [],
         currentTab: "general",
         global_prep_cmd: [],
+        display_mode_remapping: [],
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
           {
             id: "general",
@@ -174,6 +176,13 @@
               "install_steam_audio_drivers": "enabled",
               "adapter_name": "",
               "output_name": "",
+              "display_device_prep": "no_operation",
+              "resolution_change": "automatic",
+              "manual_resolution": "",
+              "refresh_rate_change": "automatic",
+              "manual_refresh_rate": "",
+              "hdr_prep": "automatic",
+              "display_mode_remapping": "[]",
               "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,2560x1440,3440x1440,1920x1200,3840x2160,3840x1600]",
               "fps": "[10,30,60,90,120]",
               "min_fps_factor": 1,
@@ -332,6 +341,9 @@
 
           this.config.global_prep_cmd = this.config.global_prep_cmd || [];
           this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
+
+          this.config.display_mode_remapping = this.config.display_mode_remapping || [];
+          this.display_mode_remapping = JSON.parse(this.config.display_mode_remapping);
         });
     },
     methods: {
@@ -350,6 +362,7 @@
         // remove quotes from values in fps
         this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
         this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
+        this.config.display_mode_remapping = JSON.stringify(this.display_mode_remapping);
       },
       save() {
         this.saved = false;
@@ -364,7 +377,7 @@
           Object.keys(tab.options).forEach(optionKey => {
             let delete_value = false
 
-            if (["resolutions", "fps", "global_prep_cmd"].includes(optionKey)) {
+            if (["resolutions", "fps", "global_prep_cmd", "display_mode_remapping"].includes(optionKey)) {
               let config_value, default_value
 
               if (optionKey === "resolutions") {
