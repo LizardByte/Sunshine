@@ -605,6 +605,22 @@ namespace egl {
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
+    GLenum attachments[] {
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    };
+
+    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+
+      const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+      const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
     gl_drain_errors;
 
     return nv12;
