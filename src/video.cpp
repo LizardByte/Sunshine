@@ -884,7 +884,7 @@ namespace video {
     std::make_unique<encoder_platform_formats_avcodec>(
       AV_HWDEVICE_TYPE_VAAPI, AV_HWDEVICE_TYPE_NONE,
       AV_PIX_FMT_VAAPI,
-      AV_PIX_FMT_NV12, AV_PIX_FMT_YUV420P10,
+      AV_PIX_FMT_NV12, AV_PIX_FMT_P010,
       vaapi_init_avcodec_hardware_input_buffer),
     {
       // Common options
