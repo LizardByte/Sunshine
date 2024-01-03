@@ -57,17 +57,22 @@ namespace proc {
     return std::make_unique<deinit_t>();
   }
 
+  /**
+   * @brief Terminates all child processes in a process group.
+   * @param proc The child process itself.
+   * @param group The group of all children in the process tree.
+   */
   void
-  process_end(bp::child &proc, bp::group &proc_handle) {
-    if (!proc.running()) {
-      return;
+  terminate_process_group(bp::child &proc, bp::group &group) {
+    if (group.valid()) {
+      BOOST_LOG(debug) << "Terminating child processes"sv;
+      group.terminate();
     }
 
-    BOOST_LOG(debug) << "Force termination Child-Process"sv;
-    proc_handle.terminate();
-
-    // avoid zombie process
-    proc.wait();
+    if (proc.valid()) {
+      // avoid zombie process
+      proc.wait();
+    }
   }
 
   boost::filesystem::path
@@ -220,7 +225,7 @@ namespace proc {
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+      _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_group);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
@@ -260,9 +265,9 @@ namespace proc {
   proc_t::terminate() {
     std::error_code ec;
     placebo = false;
-    process_end(_process, _process_handle);
+    terminate_process_group(_process, _process_group);
     _process = bp::child();
-    _process_handle = bp::group();
+    _process_group = bp::group();
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);
