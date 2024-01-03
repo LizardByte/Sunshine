@@ -100,7 +100,7 @@ namespace proc {
     bool placebo {};
 
     boost::process::child _process;
-    boost::process::group _process_handle;
+    boost::process::group _process_group;
 
     file_t _pipe;
     std::vector<cmd_t>::const_iterator _app_prep_it;
