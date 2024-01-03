@@ -206,6 +206,10 @@ namespace wl {
     void
     roundtrip();
 
+    // Wait up to the timeout to read and dispatch new events
+    bool
+    dispatch(std::chrono::milliseconds timeout);
+
     // Get the registry associated with the display
     // No need to manually free the registry
     wl_registry *
