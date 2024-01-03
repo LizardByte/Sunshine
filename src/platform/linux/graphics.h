@@ -268,6 +268,9 @@ namespace egl {
     display_t::pointer egl_display,
     const surface_descriptor_t &xrgb);
 
+  rgb_t
+  create_blank(platf::img_t &img);
+
   std::optional<nv12_t>
   import_target(
     display_t::pointer egl_display,
