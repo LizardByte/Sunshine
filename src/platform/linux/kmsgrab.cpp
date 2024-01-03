@@ -522,7 +522,7 @@ namespace platf {
 
           kms::card_t card;
           if (card.init(entry.path().c_str())) {
-            return {};
+            continue;
           }
 
           auto end = std::end(card);
@@ -560,6 +560,12 @@ namespace platf {
               }
             }
 
+            auto crtc = card.crtc(plane->crtc_id);
+            if (!crtc) {
+              BOOST_LOG(error) << "Couldn't get CRTC info: "sv << strerror(errno);
+              continue;
+            }
+
             BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
 
             // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
@@ -576,13 +582,12 @@ namespace platf {
 
             // TODO: surf_sd = fb->to_sd();
 
-            auto crct = card.crtc(plane->crtc_id);
-            kms::print(plane.get(), fb.get(), crct.get());
+            kms::print(plane.get(), fb.get(), crtc.get());
 
             img_width = fb->width;
             img_height = fb->height;
-            img_offset_x = crct->x;
-            img_offset_y = crct->y;
+            img_offset_x = crtc->x;
+            img_offset_y = crtc->y;
 
             this->env_width = ::platf::kms::env_width;
             this->env_height = ::platf::kms::env_height;
@@ -614,10 +619,10 @@ namespace platf {
             // crtc_to_monitor is part of the guesswork after all.
             else {
               BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
-              width = crct->width;
-              height = crct->height;
-              offset_x = crct->x;
-              offset_y = crct->y;
+              width = crtc->width;
+              height = crtc->height;
+              offset_x = crtc->x;
+              offset_y = crtc->y;
             }
 
             this->card = std::move(card);
@@ -1112,7 +1117,7 @@ namespace platf {
 
       kms::card_t card;
       if (card.init(entry.path().c_str())) {
-        return {};
+        continue;
       }
 
       auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
@@ -1138,8 +1143,8 @@ namespace platf {
         // This appears to return the offset of the monitor
         auto crtc = card.crtc(plane->crtc_id);
         if (!crtc) {
-          BOOST_LOG(error) << "Couldn't get crtc info: "sv << strerror(errno);
-          return {};
+          BOOST_LOG(error) << "Couldn't get CRTC info: "sv << strerror(errno);
+          continue;
         }
 
         auto it = crtc_to_monitor.find(plane->crtc_id);
