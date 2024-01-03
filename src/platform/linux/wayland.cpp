@@ -67,7 +67,14 @@ namespace wl {
   }
 
   inline monitor_t::monitor_t(wl_output *output):
-      output { output }, listener {
+      output { output },
+      wl_listener {
+        &CLASS_CALL(monitor_t, wl_geometry),
+        &CLASS_CALL(monitor_t, wl_mode),
+        &CLASS_CALL(monitor_t, wl_done),
+        &CLASS_CALL(monitor_t, wl_scale),
+      },
+      xdg_listener {
         &CLASS_CALL(monitor_t, xdg_position),
         &CLASS_CALL(monitor_t, xdg_size),
         &CLASS_CALL(monitor_t, xdg_done),
@@ -99,6 +106,12 @@ namespace wl {
 
   void
   monitor_t::xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height) {
+    BOOST_LOG(info) << "Logical size: "sv << width << 'x' << height;
+  }
+
+  void
+  monitor_t::wl_mode(wl_output *wl_output, std::uint32_t flags,
+    std::int32_t width, std::int32_t height, std::int32_t refresh) {
     viewport.width = width;
     viewport.height = height;
 
@@ -106,14 +119,10 @@ namespace wl {
   }
 
   void
-  monitor_t::xdg_done(zxdg_output_v1 *) {
-    BOOST_LOG(info) << "All info about monitor ["sv << name << "] has been send"sv;
-  }
-
-  void
   monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
     auto xdg_output = zxdg_output_manager_v1_get_xdg_output(output_manager, output);
-    zxdg_output_v1_add_listener(xdg_output, &listener, this);
+    zxdg_output_v1_add_listener(xdg_output, &xdg_listener, this);
+    wl_output_add_listener(output, &wl_listener, this);
   }
 
   interface_t::interface_t() noexcept
@@ -137,7 +146,7 @@ namespace wl {
       BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
       monitors.emplace_back(
         std::make_unique<monitor_t>(
-          (wl_output *) wl_registry_bind(registry, id, &wl_output_interface, version)));
+          (wl_output *) wl_registry_bind(registry, id, &wl_output_interface, 2)));
     }
     else if (!std::strcmp(interface, zxdg_output_manager_v1_interface.name)) {
       BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
