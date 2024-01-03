@@ -560,21 +560,25 @@ namespace egl {
 
   std::optional<nv12_t>
   import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &r8, const surface_descriptor_t &gr88) {
-    EGLAttrib img_attr_planes[2][13] {
-      { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_R8,
+    EGLAttrib img_attr_planes[2][17] {
+      { EGL_LINUX_DRM_FOURCC_EXT, r8.fourcc,
         EGL_WIDTH, r8.width,
         EGL_HEIGHT, r8.height,
         EGL_DMA_BUF_PLANE0_FD_EXT, r8.fds[0],
         EGL_DMA_BUF_PLANE0_OFFSET_EXT, r8.offsets[0],
         EGL_DMA_BUF_PLANE0_PITCH_EXT, r8.pitches[0],
+        EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, (EGLAttrib) (r8.modifier & 0xFFFFFFFF),
+        EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, (EGLAttrib) (r8.modifier >> 32),
         EGL_NONE },
 
-      { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_GR88,
+      { EGL_LINUX_DRM_FOURCC_EXT, gr88.fourcc,
         EGL_WIDTH, gr88.width,
         EGL_HEIGHT, gr88.height,
-        EGL_DMA_BUF_PLANE0_FD_EXT, r8.fds[0],
+        EGL_DMA_BUF_PLANE0_FD_EXT, gr88.fds[0],
         EGL_DMA_BUF_PLANE0_OFFSET_EXT, gr88.offsets[0],
         EGL_DMA_BUF_PLANE0_PITCH_EXT, gr88.pitches[0],
+        EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, (EGLAttrib) (gr88.modifier & 0xFFFFFFFF),
+        EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, (EGLAttrib) (gr88.modifier >> 32),
         EGL_NONE },
     };
 
