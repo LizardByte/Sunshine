@@ -847,6 +847,9 @@ namespace platf {
     evdev_t mouse_dev;
     evdev_t keyboard_dev;
 
+    int accumulated_vscroll_delta = 0;
+    int accumulated_hscroll_delta = 0;
+
 #ifdef SUNSHINE_BUILD_X11
     Display *display;
 #endif
@@ -1296,17 +1299,24 @@ namespace platf {
    */
   void
   scroll(input_t &input, int high_res_distance) {
-    int distance = high_res_distance / 120;
+    auto raw = ((input_raw_t *) input.get());
 
-    auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
-    if (!mouse) {
-      x_scroll(input, distance, 4, 5);
-      return;
+    raw->accumulated_vscroll_delta += high_res_distance;
+    int full_ticks = raw->accumulated_vscroll_delta / 120;
+
+    auto mouse = raw->mouse_input.get();
+    if (mouse) {
+      if (full_ticks) {
+        libevdev_uinput_write_event(mouse, EV_REL, REL_WHEEL, full_ticks);
+      }
+      libevdev_uinput_write_event(mouse, EV_REL, REL_WHEEL_HI_RES, high_res_distance);
+      libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+    }
+    else if (full_ticks) {
+      x_scroll(input, full_ticks, 4, 5);
     }
 
-    libevdev_uinput_write_event(mouse, EV_REL, REL_WHEEL, distance);
-    libevdev_uinput_write_event(mouse, EV_REL, REL_WHEEL_HI_RES, high_res_distance);
-    libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+    raw->accumulated_vscroll_delta -= full_ticks * 120;
   }
 
   /**
@@ -1321,17 +1331,24 @@ namespace platf {
    */
   void
   hscroll(input_t &input, int high_res_distance) {
-    int distance = high_res_distance / 120;
+    auto raw = ((input_raw_t *) input.get());
 
-    auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
-    if (!mouse) {
-      x_scroll(input, distance, 6, 7);
-      return;
+    raw->accumulated_hscroll_delta += high_res_distance;
+    int full_ticks = raw->accumulated_hscroll_delta / 120;
+
+    auto mouse = raw->mouse_input.get();
+    if (mouse) {
+      if (full_ticks) {
+        libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL, full_ticks);
+      }
+      libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL_HI_RES, high_res_distance);
+      libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+    }
+    else if (full_ticks) {
+      x_scroll(input, full_ticks, 6, 7);
     }
 
-    libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL, distance);
-    libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL_HI_RES, high_res_distance);
-    libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+    raw->accumulated_hscroll_delta -= full_ticks * 120;
   }
 
   static keycode_t
