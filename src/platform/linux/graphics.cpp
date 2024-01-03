@@ -558,6 +558,36 @@ namespace egl {
     return rgb;
   }
 
+  /**
+   * @brief Creates a black RGB texture of the specified image size.
+   * @param img The image to use for texture sizing.
+   * @return The new RGB texture.
+   */
+  rgb_t
+  create_blank(platf::img_t &img) {
+    rgb_t rgb {
+      EGL_NO_DISPLAY,
+      EGL_NO_IMAGE,
+      gl::tex_t::make(1)
+    };
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, img.width, img.height);
+    gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+
+    auto framebuf = gl::frame_buf_t::make(1);
+    framebuf.bind(&rgb->tex[0], &rgb->tex[0] + 1);
+
+    GLenum attachment = GL_COLOR_ATTACHMENT0;
+    gl::ctx.DrawBuffers(1, &attachment);
+    const GLuint rgb_black[] = { 0, 0, 0, 0 };
+    gl::ctx.ClearBufferuiv(GL_COLOR, 0, rgb_black);
+
+    gl_drain_errors;
+
+    return rgb;
+  }
+
   std::optional<nv12_t>
   import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &r8, const surface_descriptor_t &gr88) {
     EGLAttrib img_attr_planes[2][17] {

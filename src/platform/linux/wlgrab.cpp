@@ -313,6 +313,8 @@ namespace wl {
     alloc_img() override {
       auto img = std::make_shared<egl::img_descriptor_t>();
 
+      img->width = width;
+      img->height = height;
       img->sequence = 0;
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
@@ -334,16 +336,8 @@ namespace wl {
 
     int
     dummy_img(platf::img_t *img) override {
-      // TODO: stop cheating and give black image
-      if (!img) {
-        return -1;
-      };
-      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
-        img_out = img->shared_from_this();
-        return true;
-      };
-      std::shared_ptr<platf::img_t> img_out;
-      return snapshot(pull_dummy_img_callback, img_out, 1000ms, false) != platf::capture_e::ok;
+      // Empty images are recognized as dummies by the zero sequence number
+      return 0;
     }
 
     std::uint64_t sequence {};

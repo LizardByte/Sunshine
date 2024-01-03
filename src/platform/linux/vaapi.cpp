@@ -436,7 +436,11 @@ namespace va {
     convert(platf::img_t &img) override {
       auto &descriptor = (egl::img_descriptor_t &) img;
 
-      if (descriptor.sequence > sequence) {
+      if (descriptor.sequence == 0) {
+        // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
+        rgb = egl::create_blank(img);
+      }
+      else if (descriptor.sequence > sequence) {
         sequence = descriptor.sequence;
 
         rgb = egl::rgb_t {};
