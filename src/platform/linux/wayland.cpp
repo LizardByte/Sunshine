@@ -2,6 +2,7 @@
  * @file src/platform/linux/wayland.cpp
  * @brief todo
  */
+#include <poll.h>
 #include <wayland-client.h>
 #include <wayland-util.h>
 
@@ -59,6 +60,38 @@ namespace wl {
   void
   display_t::roundtrip() {
     wl_display_roundtrip(display_internal.get());
+  }
+
+  /**
+   * @brief Waits up to the specified timeout to dispatch new events on the wl_display.
+   * @param timeout The timeout in milliseconds.
+   * @return true if new events were dispatched or false if the timeout expired.
+   */
+  bool
+  display_t::dispatch(std::chrono::milliseconds timeout) {
+    // Check if any events are queued already. If not, flush
+    // outgoing events, and prepare to wait for readability.
+    if (wl_display_prepare_read(display_internal.get()) == 0) {
+      wl_display_flush(display_internal.get());
+
+      // Wait for an event to come in
+      struct pollfd pfd = {};
+      pfd.fd = wl_display_get_fd(display_internal.get());
+      pfd.events = POLLIN;
+      if (poll(&pfd, 1, timeout.count()) == 1 && (pfd.revents & POLLIN)) {
+        // Read the new event(s)
+        wl_display_read_events(display_internal.get());
+      }
+      else {
+        // We timed out, so unlock the queue now
+        wl_display_cancel_read(display_internal.get());
+        return false;
+      }
+    }
+
+    // Dispatch any existing or new pending events
+    wl_display_dispatch_pending(display_internal.get());
+    return true;
   }
 
   wl_registry *

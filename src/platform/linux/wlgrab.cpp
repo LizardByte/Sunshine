@@ -87,11 +87,11 @@ namespace wl {
     snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
+      // Dispatch events until we get a new frame or the timeout expires
       dmabuf.listen(interface.dmabuf_manager, output, cursor);
       do {
-        display.roundtrip();
-
-        if (to < std::chrono::steady_clock::now()) {
+        auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
+        if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
           return platf::capture_e::timeout;
         }
       } while (dmabuf.status == dmabuf_t::WAITING);
