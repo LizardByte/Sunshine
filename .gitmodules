@@ -8,7 +8,7 @@
 	branch = master
 [submodule "third-party/ViGEmClient"]
 	path = third-party/ViGEmClient
-	url = https://github.com/nefarius/ViGEmClient
+	url = https://github.com/LizardByte/Virtual-Gamepad-Emulation-Client.git
 	branch = master
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
