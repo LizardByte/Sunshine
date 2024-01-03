@@ -4,9 +4,24 @@ General
 Forgotten Credentials
 ---------------------
 If you forgot your credentials to the web UI, try this.
-   .. code-block:: bash
+   .. tab:: General
 
-      sunshine --creds {new-username} {new-password}
+      .. code-block:: bash
+
+         sunshine --creds {new-username} {new-password}
+
+   .. tab:: AppImage
+
+      .. code-block:: bash
+
+         ./sunshine.AppImage --creds {new-username} {new-password}
+
+   .. tab:: Flatpak
+
+      .. code-block:: bash
+
+         flatpak run --command=sunshine dev.lizardbyte.Sunshine --creds {new-username} {new-password}
+
 
 Web UI Access
 -------------
