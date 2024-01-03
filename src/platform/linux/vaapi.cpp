@@ -37,7 +37,7 @@ extern "C" struct AVBufferRef;
 namespace va {
   constexpr auto SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2 = 0x40000000;
   constexpr auto EXPORT_SURFACE_WRITE_ONLY = 0x0002;
-  constexpr auto EXPORT_SURFACE_COMPOSED_LAYERS = 0x0008;
+  constexpr auto EXPORT_SURFACE_SEPARATE_LAYERS = 0x0004;
 
   using VADisplay = void *;
   using VAStatus = int;
@@ -350,7 +350,7 @@ namespace va {
         this->va_display,
         surface,
         va::SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2,
-        va::EXPORT_SURFACE_WRITE_ONLY | va::EXPORT_SURFACE_COMPOSED_LAYERS,
+        va::EXPORT_SURFACE_WRITE_ONLY | va::EXPORT_SURFACE_SEPARATE_LAYERS,
         &prime);
       if (status) {
         BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int) surface << "]: "sv << va::errorStr(status);
@@ -370,17 +370,17 @@ namespace va {
         { (int) prime.width,
           (int) prime.height,
           { prime.objects[prime.layers[0].object_index[0]].fd, -1, -1, -1 },
-          0,
-          0,
+          prime.layers[0].drm_format,
+          prime.objects[prime.layers[0].object_index[0]].drm_format_modifier,
           { prime.layers[0].pitch[0] },
           { prime.layers[0].offset[0] } },
         { (int) prime.width / 2,
           (int) prime.height / 2,
-          { prime.objects[prime.layers[0].object_index[1]].fd, -1, -1, -1 },
-          0,
-          0,
-          { prime.layers[0].pitch[1] },
-          { prime.layers[0].offset[1] } });
+          { prime.objects[prime.layers[1].object_index[0]].fd, -1, -1, -1 },
+          prime.layers[1].drm_format,
+          prime.objects[prime.layers[1].object_index[0]].drm_format_modifier,
+          { prime.layers[1].pitch[0] },
+          { prime.layers[1].offset[0] } });
 
       if (!nv12_opt) {
         return -1;
