@@ -129,11 +129,7 @@ endif()
 if(LIBVA_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_VAAPI)
     include_directories(SYSTEM ${LIBVA_INCLUDE_DIR})
-    list(APPEND PLATFORM_LIBRARIES ${LIBVA_LIBRARIES})
-    if(${SUNSHINE_ENABLE_DRM})
-        list(APPEND PLATFORM_LIBRARIES
-                ${LIBVA_DRM_LIBRARIES})
-    endif()
+    list(APPEND PLATFORM_LIBRARIES ${LIBVA_LIBRARIES} ${LIBVA_DRM_LIBRARIES})
     list(APPEND PLATFORM_TARGET_FILES
             src/platform/linux/vaapi.h
             src/platform/linux/vaapi.cpp)
