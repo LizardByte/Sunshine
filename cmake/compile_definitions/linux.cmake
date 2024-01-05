@@ -120,6 +120,21 @@ elseif(NOT LIBDRM_FOUND)
     message(WARNING "Missing libcap")
 endif()
 
+# vaapi
+if(${SUNSHINE_ENABLE_VAAPI})
+    find_package(Libva)
+else()
+    set(LIBVA_FOUND OFF)
+endif()
+if(LIBVA_FOUND)
+    add_compile_definitions(SUNSHINE_BUILD_VAAPI)
+    include_directories(SYSTEM ${LIBVA_INCLUDE_DIR})
+    list(APPEND PLATFORM_LIBRARIES ${LIBVA_LIBRARIES} ${LIBVA_DRM_LIBRARIES})
+    list(APPEND PLATFORM_TARGET_FILES
+            src/platform/linux/vaapi.h
+            src/platform/linux/vaapi.cpp)
+endif()
+
 # wayland
 if(${SUNSHINE_ENABLE_WAYLAND})
     find_package(Wayland)
@@ -167,8 +182,12 @@ if(X11_FOUND)
             src/platform/linux/x11grab.cpp)
 endif()
 
-if(NOT ${CUDA_FOUND} AND NOT ${WAYLAND_FOUND} AND NOT ${X11_FOUND} AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND}))
-    message(FATAL_ERROR "Couldn't find either x11, wayland, cuda or (libdrm and libcap)")
+if(NOT ${CUDA_FOUND}
+        AND NOT ${WAYLAND_FOUND}
+        AND NOT ${X11_FOUND}
+        AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND})
+        AND NOT ${LIBVA_FOUND})
+    message(FATAL_ERROR "Couldn't find either cuda, wayland, x11, (libdrm and libcap), or libva")
 endif()
 
 # tray icon
@@ -206,8 +225,6 @@ endif()
 
 list(APPEND PLATFORM_TARGET_FILES
         src/platform/linux/publish.cpp
-        src/platform/linux/vaapi.h
-        src/platform/linux/vaapi.cpp
         src/platform/linux/graphics.h
         src/platform/linux/graphics.cpp
         src/platform/linux/misc.h

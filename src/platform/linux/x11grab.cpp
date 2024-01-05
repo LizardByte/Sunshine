@@ -555,9 +555,11 @@ namespace platf {
 
     std::unique_ptr<avcodec_encode_device_t>
     make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == mem_type_e::vaapi) {
         return va::make_avcodec_encode_device(width, height, false);
       }
+#endif
 
 #ifdef SUNSHINE_BUILD_CUDA
       if (mem_type == mem_type_e::cuda) {

@@ -26,6 +26,8 @@ elseif(UNIX)  # Linux
             "Enable cuda specific code." ON)
     option(SUNSHINE_ENABLE_DRM
             "Enable KMS grab if available." ON)
+    option(SUNSHINE_ENABLE_VAAPI
+            "Enable building vaapi specific code." ON)
     option(SUNSHINE_ENABLE_WAYLAND
             "Enable building wayland specific code." ON)
     option(SUNSHINE_ENABLE_X11

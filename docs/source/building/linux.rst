@@ -32,7 +32,7 @@ Install Requirements
           libopus-dev \
           libpulse-dev \
           libssl-dev \
-          libva-dev \
+          libva-dev \  # VA-API
           libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
@@ -67,7 +67,7 @@ Install Requirements
           libdrm-devel \
           libevdev-devel \
           libnotify-devel \
-          libva-devel \
+          libva-devel \  # VA-API
           libvdpau-devel \
           libX11-devel \  # X11
           libxcb-devel \  # X11
@@ -115,7 +115,7 @@ Install Requirements
           libopus-dev \
           libpulse-dev \
           libssl-dev \
-          libva-dev \
+          libva-dev \  # VA-API
           libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
@@ -165,6 +165,7 @@ Install Requirements
           libopus-dev \
           libpulse-dev \
           libssl-dev \
+          libva-dev \  # VA-API
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
           libxcb-shm0-dev \  # X11
