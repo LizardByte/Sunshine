@@ -793,9 +793,11 @@ namespace platf {
 
       std::unique_ptr<avcodec_encode_device_t>
       make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
           return va::make_avcodec_encode_device(width, height, false);
         }
+#endif
 
         return std::make_unique<avcodec_encode_device_t>();
       }
@@ -862,9 +864,11 @@ namespace platf {
 
       std::unique_ptr<avcodec_encode_device_t>
       make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
           return va::make_avcodec_encode_device(width, height, dup(card.render_fd.el), img_offset_x, img_offset_y, true);
         }
+#endif
 
         BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
         return nullptr;
@@ -977,7 +981,11 @@ namespace platf {
           return -1;
         }
 
+#ifdef SUNSHINE_BUILD_VAAPI
         if (!va::validate(card.render_fd.el)) {
+#else
+        if (true) {
+#endif
           BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
           return -1;
         }

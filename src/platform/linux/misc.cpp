@@ -724,7 +724,6 @@ namespace platf {
   init() {
     // These are allowed to fail.
     gbm::init();
-    va::init();
 
     window_system = window_system_e::NONE;
 #ifdef SUNSHINE_BUILD_WAYLAND
