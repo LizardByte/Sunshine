@@ -758,11 +758,6 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_DRM
     if (config::video.capture.empty() || config::video.capture == "kms") {
       if (verify_kms()) {
-        if (window_system == window_system_e::WAYLAND) {
-          // On Wayland, using KMS, the cursor is unreliable.
-          // Hide it by default
-          display_cursor = false;
-        }
         sources[source::KMS] = true;
       }
     }

@@ -858,7 +858,7 @@ namespace egl {
       if (serial != img.serial) {
         serial = img.serial;
 
-        gl::ctx.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.width, img.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+        gl::ctx.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.src_w, img.src_h, 0, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
       }
 
       gl::ctx.Enable(GL_BLEND);
