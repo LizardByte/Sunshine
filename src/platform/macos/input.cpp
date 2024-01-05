@@ -384,15 +384,32 @@ const KeyCodeMap kKeyCodesMap[] = {
     post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, 0);
   }
 
+  /**
+   * @brief Returns the time difference between the current time and the given start time.
+   * @param start The start time.
+   * @return The time difference, in nanoseconds.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto start = mach_absolute_time();
+   * // do something
+   * uint64_t elapsed = time_diff(start);
+   * ```
+   */
   uint64_t
   time_diff(uint64_t start) {
-    uint64_t elapsed;
-    Nanoseconds elapsedNano;
+    uint64_t elapsed, elapsedNano;
+    mach_timebase_info_data_t info;
 
     elapsed = mach_absolute_time() - start;
-    elapsedNano = AbsoluteToNanoseconds(*(AbsoluteTime *) &elapsed);
 
-    return *(uint64_t *) &elapsedNano;
+    // get the timebase info
+    mach_timebase_info(&info);
+
+    // convert to nanoseconds
+    elapsedNano = elapsed * info.numer / info.denom;
+
+    return elapsedNano;
   }
 
   void
