@@ -14,11 +14,6 @@
 #define fourcc_code(a, b, c, d) ((std::uint32_t)(a) | ((std::uint32_t)(b) << 8) | \
                                  ((std::uint32_t)(c) << 16) | ((std::uint32_t)(d) << 24))
 #define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) &0x00ffffffffffffffULL))
-#define DRM_FORMAT_R8 fourcc_code('R', '8', ' ', ' ') /* [7:0] R */
-#define DRM_FORMAT_GR88 fourcc_code('G', 'R', '8', '8') /* [15:0] G:R 8:8 little endian */
-#define DRM_FORMAT_ARGB8888 fourcc_code('A', 'R', '2', '4') /* [31:0] A:R:G:B 8:8:8:8 little endian */
-#define DRM_FORMAT_XRGB8888 fourcc_code('X', 'R', '2', '4') /* [31:0] x:R:G:B 8:8:8:8 little endian */
-#define DRM_FORMAT_XBGR8888 fourcc_code('X', 'B', '2', '4') /* [31:0] x:B:G:R 8:8:8:8 little endian */
 #define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
 
 #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/opengl"
@@ -500,45 +495,56 @@ namespace egl {
     return {};
   }
 
-  std::optional<rgb_t>
-  import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
-    EGLAttrib attribs[47];
-    int atti = 0;
-    attribs[atti++] = EGL_WIDTH;
-    attribs[atti++] = xrgb.width;
-    attribs[atti++] = EGL_HEIGHT;
-    attribs[atti++] = xrgb.height;
-    attribs[atti++] = EGL_LINUX_DRM_FOURCC_EXT;
-    attribs[atti++] = xrgb.fourcc;
+  /**
+   * @brief Returns EGL attributes for eglCreateImage() to import the provided surface.
+   * @param surface The surface descriptor.
+   * @return Vector of EGL attributes.
+   */
+  std::vector<EGLAttrib>
+  surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
+    std::vector<EGLAttrib> attribs;
+
+    attribs.emplace_back(EGL_WIDTH);
+    attribs.emplace_back(surface.width);
+    attribs.emplace_back(EGL_HEIGHT);
+    attribs.emplace_back(surface.height);
+    attribs.emplace_back(EGL_LINUX_DRM_FOURCC_EXT);
+    attribs.emplace_back(surface.fourcc);
 
     for (auto x = 0; x < 4; ++x) {
-      auto fd = xrgb.fds[x];
-
+      auto fd = surface.fds[x];
       if (fd < 0) {
         continue;
       }
 
       auto plane_attr = get_plane(x);
 
-      attribs[atti++] = plane_attr.fd;
-      attribs[atti++] = fd;
-      attribs[atti++] = plane_attr.offset;
-      attribs[atti++] = xrgb.offsets[x];
-      attribs[atti++] = plane_attr.pitch;
-      attribs[atti++] = xrgb.pitches[x];
+      attribs.emplace_back(plane_attr.fd);
+      attribs.emplace_back(fd);
+      attribs.emplace_back(plane_attr.offset);
+      attribs.emplace_back(surface.offsets[x]);
+      attribs.emplace_back(plane_attr.pitch);
+      attribs.emplace_back(surface.pitches[x]);
 
-      if (xrgb.modifier != DRM_FORMAT_MOD_INVALID) {
-        attribs[atti++] = plane_attr.lo;
-        attribs[atti++] = xrgb.modifier & 0xFFFFFFFF;
-        attribs[atti++] = plane_attr.hi;
-        attribs[atti++] = xrgb.modifier >> 32;
+      if (surface.modifier != DRM_FORMAT_MOD_INVALID) {
+        attribs.emplace_back(plane_attr.lo);
+        attribs.emplace_back(surface.modifier & 0xFFFFFFFF);
+        attribs.emplace_back(plane_attr.hi);
+        attribs.emplace_back(surface.modifier >> 32);
       }
     }
-    attribs[atti++] = EGL_NONE;
+
+    attribs.emplace_back(EGL_NONE);
+    return attribs;
+  }
+
+  std::optional<rgb_t>
+  import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
+    auto attribs = surface_descriptor_to_egl_attribs(xrgb);
 
     rgb_t rgb {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.data()),
       gl::tex_t::make(1)
     };
 
@@ -589,40 +595,21 @@ namespace egl {
   }
 
   std::optional<nv12_t>
-  import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &r8, const surface_descriptor_t &gr88) {
-    EGLAttrib img_attr_planes[2][17] {
-      { EGL_LINUX_DRM_FOURCC_EXT, r8.fourcc,
-        EGL_WIDTH, r8.width,
-        EGL_HEIGHT, r8.height,
-        EGL_DMA_BUF_PLANE0_FD_EXT, r8.fds[0],
-        EGL_DMA_BUF_PLANE0_OFFSET_EXT, r8.offsets[0],
-        EGL_DMA_BUF_PLANE0_PITCH_EXT, r8.pitches[0],
-        EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, (EGLAttrib) (r8.modifier & 0xFFFFFFFF),
-        EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, (EGLAttrib) (r8.modifier >> 32),
-        EGL_NONE },
-
-      { EGL_LINUX_DRM_FOURCC_EXT, gr88.fourcc,
-        EGL_WIDTH, gr88.width,
-        EGL_HEIGHT, gr88.height,
-        EGL_DMA_BUF_PLANE0_FD_EXT, gr88.fds[0],
-        EGL_DMA_BUF_PLANE0_OFFSET_EXT, gr88.offsets[0],
-        EGL_DMA_BUF_PLANE0_PITCH_EXT, gr88.pitches[0],
-        EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT, (EGLAttrib) (gr88.modifier & 0xFFFFFFFF),
-        EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT, (EGLAttrib) (gr88.modifier >> 32),
-        EGL_NONE },
-    };
+  import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
+    auto y_attribs = surface_descriptor_to_egl_attribs(y);
+    auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
 
     nv12_t nv12 {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[0]),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[1]),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, uv_attribs.data()),
       gl::tex_t::make(2),
       gl::frame_buf_t::make(2),
       std::move(fds)
     };
 
     if (!nv12->r8 || !nv12->bg88) {
-      BOOST_LOG(error) << "Couldn't create KHR Image"sv;
+      BOOST_LOG(error) << "Couldn't import YUV target: "sv << util::hex(eglGetError()).to_string_view();
 
       return std::nullopt;
     }
