@@ -234,7 +234,7 @@ namespace platf {
       unsigned long serial;
 
       // Private properties used for tracking cursor changes
-      std::uint32_t prop_src_x, prop_src_y, prop_src_w, prop_src_h;
+      std::uint64_t prop_src_x, prop_src_y, prop_src_w, prop_src_h;
       std::uint32_t fb_id;
     };
 
@@ -716,10 +716,10 @@ namespace platf {
         std::optional<std::uint32_t> prop_crtc_w;
         std::optional<std::uint32_t> prop_crtc_h;
 
-        std::optional<std::uint32_t> prop_src_x;
-        std::optional<std::uint32_t> prop_src_y;
-        std::optional<std::uint32_t> prop_src_w;
-        std::optional<std::uint32_t> prop_src_h;
+        std::optional<std::uint64_t> prop_src_x;
+        std::optional<std::uint64_t> prop_src_y;
+        std::optional<std::uint64_t> prop_src_w;
+        std::optional<std::uint64_t> prop_src_h;
 
         auto props = card.plane_props(cursor_plane_id);
         for (auto &[prop, val] : props) {
