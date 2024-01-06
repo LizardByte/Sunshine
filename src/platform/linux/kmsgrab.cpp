@@ -20,11 +20,9 @@
 #include "src/utility.h"
 #include "src/video.h"
 
-// Cursor rendering support through x11
 #include "graphics.h"
 #include "vaapi.h"
 #include "wayland.h"
-#include "x11grab.h"
 
 using namespace std::literals;
 namespace fs = std::filesystem;
