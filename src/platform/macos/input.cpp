@@ -3,16 +3,18 @@
  * @brief todo
  */
 #import <Carbon/Carbon.h>
+#include <chrono>
 #include <mach/mach.h>
-#include <mach/mach_time.h>
 
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
 
-// Delay for a double click
-// FIXME: we probably want to make this configurable
-#define MULTICLICK_DELAY_NS 500000000
+/**
+ * @brief Delay for a double click, in milliseconds.
+ * @todo Make this configurable.
+ */
+constexpr std::chrono::milliseconds MULTICLICK_DELAY_MS(500);
 
 namespace platf {
   using namespace std::literals;
@@ -30,7 +32,7 @@ namespace platf {
     // mouse related stuff
     CGEventRef mouse_event;  // mouse event source
     bool mouse_down[3];  // mouse button status
-    uint64_t last_mouse_event[3][2];  // timestamp of last mouse events
+    std::chrono::steady_clock::steady_clock::time_point last_mouse_event[3][2];  // timestamp of last mouse events
   };
 
   // A struct to hold a Windows keycode to Mac virtual keycode mapping.
@@ -384,34 +386,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, 0);
   }
 
-  /**
-   * @brief Returns the time difference between the current time and the given start time.
-   * @param start The start time.
-   * @return The time difference, in nanoseconds.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * auto start = mach_absolute_time();
-   * // do something
-   * uint64_t elapsed = time_diff(start);
-   * ```
-   */
-  uint64_t
-  time_diff(uint64_t start) {
-    uint64_t elapsed, elapsedNano;
-    mach_timebase_info_data_t info;
-
-    elapsed = mach_absolute_time() - start;
-
-    // get the timebase info
-    mach_timebase_info(&info);
-
-    // convert to nanoseconds
-    elapsedNano = elapsed * info.numer / info.denom;
-
-    return elapsedNano;
-  }
-
   void
   button_mouse(input_t &input, int button, bool release) {
     CGMouseButton mac_button;
@@ -439,15 +413,16 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     mouse->mouse_down[mac_button] = !release;
 
-    // if the last mouse down was less than MULTICLICK_DELAY_NS, we send a double click event
-    if (time_diff(mouse->last_mouse_event[mac_button][release]) < MULTICLICK_DELAY_NS) {
+    // if the last mouse down was less than MULTICLICK_DELAY_MS, we send a double click event
+    auto now = std::chrono::steady_clock::now();
+    if (now < mouse->last_mouse_event[mac_button][release] + MULTICLICK_DELAY_MS) {
       post_mouse(input, mac_button, event, get_mouse_loc(input), 2);
     }
     else {
       post_mouse(input, mac_button, event, get_mouse_loc(input), 1);
     }
 
-    mouse->last_mouse_event[mac_button][release] = mach_absolute_time();
+    mouse->last_mouse_event[mac_button][release] = now;
   }
 
   void
@@ -551,12 +526,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     macos_input->mouse_down[0] = false;
     macos_input->mouse_down[1] = false;
     macos_input->mouse_down[2] = false;
-    macos_input->last_mouse_event[0][0] = 0;
-    macos_input->last_mouse_event[0][1] = 0;
-    macos_input->last_mouse_event[1][0] = 0;
-    macos_input->last_mouse_event[1][1] = 0;
-    macos_input->last_mouse_event[2][0] = 0;
-    macos_input->last_mouse_event[2][1] = 0;
 
     BOOST_LOG(debug) << "Display "sv << macos_input->display << ", pixel dimension: " << CGDisplayPixelsWide(macos_input->display) << "x"sv << CGDisplayPixelsHigh(macos_input->display);
 
