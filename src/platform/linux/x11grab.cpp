@@ -883,8 +883,8 @@ namespace platf {
       }
 
       img.data = img.buffer.data();
-      img.width = xcursor->width;
-      img.height = xcursor->height;
+      img.width = img.src_w = xcursor->width;
+      img.height = img.src_h = xcursor->height;
       img.x = xcursor->x - xcursor->xhot;
       img.y = xcursor->y - xcursor->yhot;
       img.pixel_pitch = 4;

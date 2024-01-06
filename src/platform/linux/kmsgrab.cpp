@@ -5,7 +5,9 @@
 #include <drm_fourcc.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/dma-buf.h>
 #include <sys/capability.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
@@ -18,11 +20,9 @@
 #include "src/utility.h"
 #include "src/video.h"
 
-// Cursor rendering support through x11
 #include "graphics.h"
 #include "vaapi.h"
 #include "wayland.h"
-#include "x11grab.h"
 
 using namespace std::literals;
 namespace fs = std::filesystem;
@@ -194,20 +194,16 @@ namespace platf {
 
         for (; plane_p != end; ++plane_p) {
           plane_t plane = drmModeGetPlane(fd, *plane_p);
-
           if (!plane) {
             BOOST_LOG(error) << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
             continue;
           }
 
-          // If this plane is unused
-          if (plane->fb_id) {
-            this->plane = util::make_shared<plane_t>(plane.release());
+          this->plane = util::make_shared<plane_t>(plane.release());
 
-            // One last increment
-            ++plane_p;
-            break;
-          }
+          // One last increment
+          ++plane_p;
+          break;
         }
       }
 
@@ -226,6 +222,20 @@ namespace platf {
       std::uint32_t *end;
 
       util::shared_t<plane_t> plane;
+    };
+
+    struct cursor_t {
+      // Public properties used during blending
+      bool visible = false;
+      std::int32_t x, y;
+      std::uint32_t dst_w, dst_h;
+      std::uint32_t src_w, src_h;
+      std::vector<std::uint8_t> pixels;
+      unsigned long serial;
+
+      // Private properties used for tracking cursor changes
+      std::uint64_t prop_src_x, prop_src_y, prop_src_w, prop_src_h;
+      std::uint32_t fb_id;
     };
 
     class card_t {
@@ -337,6 +347,17 @@ namespace platf {
 
         BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
         return DRM_MODE_ROTATE_0;
+      }
+
+      int
+      get_crtc_index_by_id(std::uint32_t crtc_id) {
+        auto resources = res();
+        for (int i = 0; i < resources->count_crtcs; i++) {
+          if (resources->crtcs[i] == crtc_id) {
+            return i;
+          }
+        }
+        return -1;
       }
 
       connector_interal_t
@@ -527,6 +548,11 @@ namespace platf {
 
           auto end = std::end(card);
           for (auto plane = std::begin(card); plane != end; ++plane) {
+            // Skip unused planes
+            if (!plane->fb_id) {
+              continue;
+            }
+
             if (card.is_cursor(plane->plane_id)) {
               continue;
             }
@@ -628,6 +654,8 @@ namespace platf {
             this->card = std::move(card);
 
             plane_id = plane->plane_id;
+            crtc_id = plane->crtc_id;
+            crtc_index = this->card.get_crtc_index_by_id(plane->crtc_id);
 
             goto break_loop;
           }
@@ -641,9 +669,214 @@ namespace platf {
           return -1;
         }
 
-        cursor_opt = x11::cursor_t::make();
+        // Look for the cursor plane for this CRTC
+        cursor_plane_id = -1;
+        auto end = std::end(card);
+        for (auto plane = std::begin(card); plane != end; ++plane) {
+          if (!card.is_cursor(plane->plane_id)) {
+            continue;
+          }
+
+          // NB: We do not skip unused planes here because cursor planes
+          // will look unused if the cursor is currently hidden.
+
+          if (!(plane->possible_crtcs & (1 << crtc_index))) {
+            // Skip cursor planes for other CRTCs
+            continue;
+          }
+          else if (plane->possible_crtcs != (1 << crtc_index)) {
+            // We assume a 1:1 mapping between cursor planes and CRTCs, which seems to
+            // match the behavior of drivers in the real world. If it's violated, we'll
+            // proceed anyway but print a warning in the log.
+            BOOST_LOG(warning) << "Cursor plane spans multiple CRTCs!"sv;
+          }
+
+          BOOST_LOG(info) << "Found cursor plane ["sv << plane->plane_id << ']';
+          cursor_plane_id = plane->plane_id;
+          break;
+        }
+
+        if (cursor_plane_id < 0) {
+          BOOST_LOG(warning) << "No KMS cursor plane found. Cursor may not be displayed while streaming!"sv;
+        }
 
         return 0;
+      }
+
+      void
+      update_cursor() {
+        if (cursor_plane_id < 0) {
+          return;
+        }
+
+        plane_t plane = drmModeGetPlane(card.fd.el, cursor_plane_id);
+
+        std::optional<std::int32_t> prop_crtc_x;
+        std::optional<std::int32_t> prop_crtc_y;
+        std::optional<std::uint32_t> prop_crtc_w;
+        std::optional<std::uint32_t> prop_crtc_h;
+
+        std::optional<std::uint64_t> prop_src_x;
+        std::optional<std::uint64_t> prop_src_y;
+        std::optional<std::uint64_t> prop_src_w;
+        std::optional<std::uint64_t> prop_src_h;
+
+        auto props = card.plane_props(cursor_plane_id);
+        for (auto &[prop, val] : props) {
+          if (prop->name == "CRTC_X"sv) {
+            prop_crtc_x = val;
+          }
+          else if (prop->name == "CRTC_Y"sv) {
+            prop_crtc_y = val;
+          }
+          else if (prop->name == "CRTC_W"sv) {
+            prop_crtc_w = val;
+          }
+          else if (prop->name == "CRTC_H"sv) {
+            prop_crtc_h = val;
+          }
+          else if (prop->name == "SRC_X"sv) {
+            prop_src_x = val;
+          }
+          else if (prop->name == "SRC_Y"sv) {
+            prop_src_y = val;
+          }
+          else if (prop->name == "SRC_W"sv) {
+            prop_src_w = val;
+          }
+          else if (prop->name == "SRC_H"sv) {
+            prop_src_h = val;
+          }
+        }
+
+        if (!prop_crtc_w || !prop_crtc_h || !prop_crtc_x || !prop_crtc_y) {
+          BOOST_LOG(error) << "Cursor plane is missing required plane CRTC properties!"sv;
+          cursor_plane_id = -1;
+          captured_cursor.visible = false;
+          return;
+        }
+        if (!prop_src_x || !prop_src_y || !prop_src_w || !prop_src_h) {
+          BOOST_LOG(error) << "Cursor plane is missing required plane SRC properties!"sv;
+          cursor_plane_id = -1;
+          captured_cursor.visible = false;
+          return;
+        }
+
+        // Update the cursor position and size unconditionally
+        captured_cursor.x = *prop_crtc_x;
+        captured_cursor.y = *prop_crtc_y;
+        captured_cursor.dst_w = *prop_crtc_w;
+        captured_cursor.dst_h = *prop_crtc_h;
+
+        // We're technically cheating a bit here by assuming that we can detect
+        // changes to the cursor plane via property adjustments. If this isn't
+        // true, we'll really have to mmap() the dmabuf and draw that every time.
+        bool cursor_dirty = false;
+
+        if (!plane->fb_id) {
+          captured_cursor.visible = false;
+          captured_cursor.fb_id = 0;
+        }
+        else if (plane->fb_id != captured_cursor.fb_id) {
+          BOOST_LOG(debug) << "Refreshing cursor image after FB changed"sv;
+          cursor_dirty = true;
+        }
+        else if (*prop_src_x != captured_cursor.prop_src_x ||
+                 *prop_src_y != captured_cursor.prop_src_y ||
+                 *prop_src_w != captured_cursor.prop_src_w ||
+                 *prop_src_h != captured_cursor.prop_src_h) {
+          BOOST_LOG(debug) << "Refreshing cursor image after source dimensions changed"sv;
+          cursor_dirty = true;
+        }
+
+        // If the cursor is dirty, map it so we can download the new image
+        if (cursor_dirty) {
+          auto fb = card.fb(plane.get());
+          if (!fb || !fb->handles[0]) {
+            // This means the cursor is not currently visible
+            captured_cursor.visible = false;
+            return;
+          }
+
+          // All known cursor planes in the wild are ARGB8888
+          if (fb->pixel_format != DRM_FORMAT_ARGB8888) {
+            BOOST_LOG(error) << "Unsupported non-ARGB8888 cursor format: "sv << fb->pixel_format;
+            captured_cursor.visible = false;
+            cursor_plane_id = -1;
+            return;
+          }
+
+          // All known cursor planes in the wild require linear buffers
+          if (fb->modifier != DRM_FORMAT_MOD_LINEAR && fb->modifier != DRM_FORMAT_MOD_INVALID) {
+            BOOST_LOG(error) << "Unsupported non-linear cursor modifier: "sv << fb->modifier;
+            captured_cursor.visible = false;
+            cursor_plane_id = -1;
+            return;
+          }
+
+          // The SRC_* properties are in Q16.16 fixed point, so convert to integers
+          auto src_x = *prop_src_x >> 16;
+          auto src_y = *prop_src_y >> 16;
+          auto src_w = *prop_src_w >> 16;
+          auto src_h = *prop_src_h >> 16;
+
+          // Check for a legal source rectangle
+          if (src_x + src_w > fb->width || src_y + src_h > fb->height) {
+            BOOST_LOG(error) << "Illegal source size: ["sv << src_x + src_w << ',' << src_y + src_h << "] > ["sv << fb->width << ',' << fb->height << ']';
+            captured_cursor.visible = false;
+            return;
+          }
+
+          file_t plane_fd = card.handleFD(fb->handles[0]);
+          if (plane_fd.el < 0) {
+            captured_cursor.visible = false;
+            return;
+          }
+
+          // We will map the entire region, but only copy what the source rectangle specifies
+          size_t mapped_size = ((size_t) fb->pitches[0]) * fb->height;
+          void *mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, plane_fd.el, fb->offsets[0]);
+          if (mapped_data == MAP_FAILED) {
+            BOOST_LOG(error) << "Failed to mmap cursor FB: "sv << strerror(errno);
+            captured_cursor.visible = false;
+            return;
+          }
+
+          captured_cursor.pixels.resize(src_w * src_h * 4);
+
+          // Prepare to read the dmabuf from the CPU
+          struct dma_buf_sync sync;
+          sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ;
+          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+
+          // If the image is tightly packed, copy it in one shot
+          if (fb->pitches[0] == src_w * 4 && src_x == 0) {
+            memcpy(captured_cursor.pixels.data(), &((std::uint8_t *) mapped_data)[src_y * fb->pitches[0]], src_h * fb->pitches[0]);
+          }
+          else {
+            // Copy row by row to deal with mismatched pitch or an X offset
+            auto pixel_dst = captured_cursor.pixels.data();
+            for (int y = 0; y < src_h; y++) {
+              memcpy(&pixel_dst[y * (src_w * 4)], &((std::uint8_t *) mapped_data)[(y + src_y) * fb->pitches[0] + (src_x * 4)], src_w * 4);
+            }
+          }
+
+          // End the CPU read and unmap the dmabuf
+          sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
+          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+
+          munmap(mapped_data, mapped_size);
+
+          captured_cursor.visible = true;
+          captured_cursor.src_w = src_w;
+          captured_cursor.src_h = src_h;
+          captured_cursor.prop_src_x = *prop_src_x;
+          captured_cursor.prop_src_y = *prop_src_y;
+          captured_cursor.prop_src_w = *prop_src_w;
+          captured_cursor.prop_src_h = *prop_src_h;
+          captured_cursor.fb_id = plane->fb_id;
+          ++captured_cursor.serial;
+        }
       }
 
       inline capture_e
@@ -695,6 +928,8 @@ namespace platf {
           return capture_e::reinit;
         }
 
+        update_cursor();
+
         return capture_e::ok;
       }
 
@@ -706,10 +941,13 @@ namespace platf {
       int img_offset_x, img_offset_y;
 
       int plane_id;
+      int crtc_id;
+      int crtc_index;
+
+      int cursor_plane_id;
+      cursor_t captured_cursor {};
 
       card_t card;
-
-      std::optional<x11::cursor_t> cursor_opt;
     };
 
     class display_ram_t: public display_t {
@@ -802,6 +1040,51 @@ namespace platf {
         return std::make_unique<avcodec_encode_device_t>();
       }
 
+      void
+      blend_cursor(img_t &img) {
+        // TODO: Cursor scaling is not supported in this codepath.
+        // We always draw the cursor at the source size.
+        auto pixels = (int *) img.data;
+
+        int32_t screen_height = img.height;
+        int32_t screen_width = img.width;
+
+        // This is the position in the target that we will start drawing the cursor
+        auto cursor_x = std::max<int32_t>(0, captured_cursor.x - img_offset_x);
+        auto cursor_y = std::max<int32_t>(0, captured_cursor.y - img_offset_y);
+
+        // If the cursor is partially off screen, the coordinates may be negative
+        // which means we will draw the top-right visible portion of the cursor only.
+        auto cursor_delta_x = cursor_x - std::max<int32_t>(-captured_cursor.src_w, captured_cursor.x - img_offset_x);
+        auto cursor_delta_y = cursor_y - std::max<int32_t>(-captured_cursor.src_h, captured_cursor.y - img_offset_y);
+
+        auto delta_height = std::min<uint32_t>(captured_cursor.src_h, std::max<int32_t>(0, screen_height - cursor_y)) - cursor_delta_y;
+        auto delta_width = std::min<uint32_t>(captured_cursor.src_w, std::max<int32_t>(0, screen_width - cursor_x)) - cursor_delta_x;
+        for (auto y = 0; y < delta_height; ++y) {
+          // Offset into the cursor image to skip drawing the parts of the cursor image that are off screen
+          auto cursor_begin = (uint32_t *) &captured_cursor.pixels[((y + cursor_delta_y) * captured_cursor.src_w + cursor_delta_x) * 4];
+          auto cursor_end = (uint32_t *) &captured_cursor.pixels[((y + cursor_delta_y) * captured_cursor.src_w + delta_width + cursor_delta_x) * 4];
+
+          auto pixels_begin = &pixels[(y + cursor_y) * (img.row_pitch / img.pixel_pitch) + cursor_x];
+
+          std::for_each(cursor_begin, cursor_end, [&](uint32_t cursor_pixel) {
+            auto colors_in = (uint8_t *) pixels_begin;
+
+            auto alpha = (*(uint *) &cursor_pixel) >> 24u;
+            if (alpha == 255) {
+              *pixels_begin = cursor_pixel;
+            }
+            else {
+              auto colors_out = (uint8_t *) &cursor_pixel;
+              colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255 / 2) / 255;
+              colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255 / 2) / 255;
+              colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255 / 2) / 255;
+            }
+            ++pixels_begin;
+          });
+        }
+      }
+
       capture_e
       snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
         file_t fb_fd[4];
@@ -828,8 +1111,8 @@ namespace platf {
         gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
         gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
 
-        if (cursor_opt && cursor) {
-          cursor_opt->blend(*img_out, img_offset_x, img_offset_y);
+        if (cursor && captured_cursor.visible) {
+          blend_cursor(*img_out);
         }
 
         return capture_e::ok;
@@ -955,19 +1238,26 @@ namespace platf {
 
         img->sequence = ++sequence;
 
-        if (!cursor || !cursor_opt) {
-          img->data = nullptr;
-
-          for (auto x = 0; x < 4; ++x) {
-            fb_fd[x].release();
+        if (cursor && captured_cursor.visible) {
+          // Copy new cursor pixel data if it's been updated
+          if (img->serial != captured_cursor.serial) {
+            img->buffer = captured_cursor.pixels;
+            img->serial = captured_cursor.serial;
           }
-          return capture_e::ok;
+
+          img->x = captured_cursor.x;
+          img->y = captured_cursor.y;
+          img->src_w = captured_cursor.src_w;
+          img->src_h = captured_cursor.src_h;
+          img->width = captured_cursor.dst_w;
+          img->height = captured_cursor.dst_h;
+          img->pixel_pitch = 4;
+          img->row_pitch = img->pixel_pitch * img->width;
+          img->data = img->buffer.data();
         }
-
-        cursor_opt->capture(*img);
-
-        img->x -= offset_x;
-        img->y -= offset_y;
+        else {
+          img->data = nullptr;
+        }
 
         for (auto x = 0; x < 4; ++x) {
           fb_fd[x].release();
@@ -1118,6 +1408,15 @@ namespace platf {
 
       auto end = std::end(card);
       for (auto plane = std::begin(card); plane != end; ++plane) {
+        // Skip unused planes
+        if (!plane->fb_id) {
+          continue;
+        }
+
+        if (card.is_cursor(plane->plane_id)) {
+          continue;
+        }
+
         auto fb = card.fb(plane.get());
         if (!fb) {
           BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
@@ -1128,10 +1427,6 @@ namespace platf {
           BOOST_LOG(error)
             << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Possibly not permitted: do [sudo setcap cap_sys_admin+p sunshine]"sv;
           break;
-        }
-
-        if (card.is_cursor(plane->plane_id)) {
-          continue;
         }
 
         // This appears to return the offset of the monitor
