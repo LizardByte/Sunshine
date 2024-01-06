@@ -162,24 +162,34 @@ namespace va {
         fds[x] = prime.objects[x].fd;
       }
 
-      auto nv12_opt = egl::import_target(
-        display.get(),
-        std::move(fds),
-        { (int) prime.width,
-          (int) prime.height,
-          { prime.objects[prime.layers[0].object_index[0]].fd, -1, -1, -1 },
-          prime.layers[0].drm_format,
-          prime.objects[prime.layers[0].object_index[0]].drm_format_modifier,
-          { prime.layers[0].pitch[0] },
-          { prime.layers[0].offset[0] } },
-        { (int) prime.width / 2,
-          (int) prime.height / 2,
-          { prime.objects[prime.layers[1].object_index[0]].fd, -1, -1, -1 },
-          prime.layers[1].drm_format,
-          prime.objects[prime.layers[1].object_index[0]].drm_format_modifier,
-          { prime.layers[1].pitch[0] },
-          { prime.layers[1].offset[0] } });
+      if (prime.num_layers != 2) {
+        BOOST_LOG(error) << "Invalid layer count for VA surface: expected 2, got "sv << prime.num_layers;
+        return -1;
+      }
 
+      egl::surface_descriptor_t sds[2] = {};
+      for (int plane = 0; plane < 2; ++plane) {
+        auto &sd = sds[plane];
+        auto &layer = prime.layers[plane];
+
+        sd.fourcc = layer.drm_format;
+
+        // UV plane is subsampled
+        sd.width = prime.width / (plane == 0 ? 1 : 2);
+        sd.height = prime.height / (plane == 0 ? 1 : 2);
+
+        // The modifier must be the same for all planes
+        sd.modifier = prime.objects[layer.object_index[0]].drm_format_modifier;
+
+        std::fill_n(sd.fds, 4, -1);
+        for (int x = 0; x < layer.num_planes; ++x) {
+          sd.fds[x] = prime.objects[layer.object_index[x]].fd;
+          sd.pitches[x] = layer.pitch[x];
+          sd.offsets[x] = layer.offset[x];
+        }
+      }
+
+      auto nv12_opt = egl::import_target(display.get(), std::move(fds), sds[0], sds[1]);
       if (!nv12_opt) {
         return -1;
       }
