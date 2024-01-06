@@ -15,7 +15,7 @@
             </div>
         </div>
     </div>
-    <!--Legal-->
+    <!-- Legal -->
     <div class="card p-2 mt-4">
         <div class="card-body">
             <h2>Legal</h2>

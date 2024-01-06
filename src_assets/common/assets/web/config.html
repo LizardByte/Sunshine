@@ -27,7 +27,7 @@
   <div class="container">
     <h1 class="my-4">Configuration</h1>
     <div class="form" v-if="config">
-      <!--Header-->
+      <!-- Header -->
       <ul class="nav nav-tabs">
         <li class="nav-item" v-for="tab in tabs" :key="tab.id">
           <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
@@ -35,9 +35,9 @@
         </li>
       </ul>
 
-      <!--General Tab-->
+      <!-- General Tab -->
       <div v-if="currentTab === 'general'" class="config-page">
-        <!--Sunshine Name-->
+        <!-- Sunshine Name -->
         <div class="mb-3">
           <label for="sunshine_name" class="form-label">Sunshine Name</label>
           <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
@@ -47,7 +47,7 @@
           </div>
         </div>
 
-        <!--Log Level-->
+        <!-- Log Level -->
         <div class="mb-3">
           <label for="min_log_level" class="form-label">Log Level</label>
           <select id="min_log_level" class="form-select" v-model="config.min_log_level">
@@ -114,9 +114,9 @@
         </div>
       </div>
 
-      <!--Files Tab-->
+      <!-- Files Tab -->
       <div v-if="currentTab === 'files'" class="config-page">
-        <!--Apps File-->
+        <!-- Apps File -->
         <div class="mb-3">
           <label for="file_apps" class="form-label">Apps File</label>
           <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
@@ -134,7 +134,7 @@
           </div>
         </div>
 
-        <!--Log Path-->
+        <!-- Log Path -->
         <div class="mb-3">
           <label for="log_path" class="form-label">Logfile Path</label>
           <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
@@ -143,7 +143,7 @@
           </div>
         </div>
 
-        <!--Private Key-->
+        <!-- Private Key -->
         <div class="mb-3">
           <label for="pkey" class="form-label">Private Key</label>
           <input type="text" class="form-control" id="pkey" placeholder="/dir/pkey.pem" v-model="config.pkey" />
@@ -151,7 +151,7 @@
             compatibility, this should be an RSA-2048 private key.</div>
         </div>
 
-        <!--Certificate-->
+        <!-- Certificate -->
         <div class="mb-3">
           <label for="cert" class="form-label">Certificate</label>
           <input type="text" class="form-control" id="cert" placeholder="/dir/cert.pem" v-model="config.cert" />
@@ -161,7 +161,7 @@
           </div>
         </div>
 
-        <!--State File-->
+        <!-- State File -->
         <div class="mb-3">
           <label for="file_state" class="form-label">State File</label>
           <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json"
@@ -173,9 +173,9 @@
 
       </div>
 
-      <!--Input Tab-->
+      <!-- Input Tab -->
       <div v-if="currentTab === 'input'" class="config-page">
-        <!--Emulated Gamepad Type-->
+        <!-- Emulated Gamepad Type -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="gamepad" class="form-label">Emulated Gamepad Type</label>
           <select id="gamepad" class="form-select" v-model="config.gamepad">
@@ -243,7 +243,7 @@
           </div>
         </div>
 
-        <!--Home/Guide Button Emulation Timeout-->
+        <!-- Home/Guide Button Emulation Timeout -->
         <div class="mb-3">
           <label for="back_button_timeout" class="form-label">Home/Guide Button Emulation Timeout</label>
           <input type="text" class="form-control" id="back_button_timeout" placeholder="-1"
@@ -257,7 +257,7 @@
           </div>
         </div>
 
-        <!--Enable Mouse Input-->
+        <!-- Enable Mouse Input -->
         <div class="mb-3">
           <label for="mouse" class="form-label">Enable Mouse Input</label>
           <select id="mouse" class="form-select" v-model="config.mouse">
@@ -269,7 +269,7 @@
           </div>
         </div>
 
-        <!--Enable Keyboard Input-->
+        <!-- Enable Keyboard Input -->
         <div class="mb-3">
           <label for="keyboard" class="form-label">Enable Keyboard Input</label>
           <select id="keyboard" class="form-select" v-model="config.keyboard">
@@ -281,7 +281,7 @@
           </div>
         </div>
 
-        <!--Enable Gamepad Input-->
+        <!-- Enable Gamepad Input -->
         <div class="mb-3">
           <label for="gamepad" class="form-label">Enable Gamepad Input</label>
           <select id="gamepad" class="form-select" v-model="config.controller">
@@ -372,9 +372,9 @@
 
       </div>
 
-      <!--Audio/Video Tab-->
+      <!-- Audio/Video Tab -->
       <div v-if="currentTab === 'av'" class="config-page">
-        <!--Advertised FPS and Resolutions-->
+        <!-- Advertised FPS and Resolutions -->
         <div class="mb-3">
           <label for="ping_timeout" class="form-label">Advertised Resolutions and FPS</label>
           <div class="resolutions-container">
@@ -422,7 +422,7 @@
           </div>
         </div>
 
-        <!--Audio Sink-->
+        <!-- Audio Sink -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="audio_sink" class="form-label">Audio Sink</label>
           <input type="text" class="form-control" id="audio_sink" placeholder="Speakers (High Definition Audio Device)"
@@ -464,7 +464,7 @@
           </div>
         </div>
 
-        <!--Virtual Sink-->
+        <!-- Virtual Sink -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="virtual_sink" class="form-label">Virtual Sink</label>
           <input type="text" class="form-control" id="virtual_sink" placeholder="Steam Streaming Speakers"
@@ -475,7 +475,7 @@
           </div>
         </div>
 
-        <!--Install Steam Audio Drivers-->
+        <!-- Install Steam Audio Drivers -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="install_steam_audio_drivers" class="form-label">Install Steam Audio Drivers</label>
           <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
@@ -488,7 +488,7 @@
           </div>
         </div>
 
-        <!--Adapter Name -->
+        <!-- Adapter Name -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="adapter_name" class="form-label">Adapter Name</label>
           <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series"
@@ -518,7 +518,7 @@
           </div>
         </div>
 
-        <!--Output Name -->
+        <!-- Output Name -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="output_name" class="form-label">Output Name</label>
           <input type="text" class="form-control" id="output_name" placeholder="\\.\DISPLAY1"
@@ -550,9 +550,9 @@
 
       </div>
 
-      <!--Network Tab-->
+      <!-- Network Tab -->
       <div v-if="currentTab === 'network'" class="config-page">
-        <!--Ping Timeout-->
+        <!-- Ping Timeout -->
         <div class="mb-3">
           <label for="ping_timeout" class="form-label">Ping Timeout</label>
           <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
@@ -561,7 +561,7 @@
           </div>
         </div>
 
-        <!--Address family-->
+        <!-- Address family -->
         <div class="mb-3">
           <label for="address_family" class="form-label">Address Family</label>
           <select id="address_family" class="form-select" v-model="config.address_family">
@@ -571,7 +571,7 @@
           <div class="form-text">Set the address family used by Sunshine</div>
         </div>
 
-        <!--Port family-->
+        <!-- Port family -->
         <div class="mb-3">
           <label for="port" class="form-label">Port</label>
           <input type="number" min="1029" max="65514" class="form-control" id="port" placeholder="47989"
@@ -645,7 +645,7 @@
           </div>
         </div>
 
-        <!--Origin Web UI Allowed-->
+        <!-- Origin Web UI Allowed -->
         <div class="mb-3">
           <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
           <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
@@ -658,7 +658,7 @@
           </div>
         </div>
 
-        <!--UPnP-->
+        <!-- UPnP -->
         <div class="mb-3">
           <label for="upnp" class="form-label">UPnP</label>
           <select id="upnp" class="form-select" v-model="config.upnp">
@@ -811,9 +811,9 @@
 
       </div>
 
-      <!--NVIDIA NVENC Encoder Tab-->
+      <!-- NVIDIA NVENC Encoder Tab -->
       <div v-if="currentTab === 'nv'" class="config-page">
-        <!--Performance preset-->
+        <!-- Performance preset -->
         <div class="mb-3">
           <label for="nvenc_preset" class="form-label">Performance preset</label>
           <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
@@ -834,7 +834,7 @@
           </div>
         </div>
 
-        <!--Two-pass mode-->
+        <!-- Two-pass mode -->
         <div class="mb-3">
           <label for="nvenc_twopass" class="form-label">Two-pass mode</label>
           <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
@@ -852,7 +852,7 @@
           </div>
         </div>
 
-        <!--Miscellaneous options-->
+        <!-- Miscellaneous options -->
         <div class="accordion">
           <div class="accordion-item">
             <h2 class="accordion-header">
@@ -864,7 +864,7 @@
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
               aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
-                <!--NVENC Realtime HAGS priority-->
+                <!-- NVENC Realtime HAGS priority -->
                 <div class="mb-3" v-if="platform === 'windows'">
                   <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated
                     gpu
@@ -882,7 +882,7 @@
                   </div>
                 </div>
 
-                <!--NVENC H264 CAVLC-->
+                <!-- NVENC H264 CAVLC -->
                 <div>
                   <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
                   <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
@@ -900,9 +900,9 @@
         </div>
       </div>
 
-      <!--Intel QuickSync Encoder Tab-->
+      <!-- Intel QuickSync Encoder Tab -->
       <div v-if="currentTab === 'qsv'" class="config-page">
-        <!--QuickSync Preset-->
+        <!-- QuickSync Preset -->
         <div class="mb-3">
           <label for="qsv_preset" class="form-label">QuickSync Preset</label>
           <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
@@ -916,7 +916,7 @@
           </select>
         </div>
 
-        <!--QuickSync Coder (H264)-->
+        <!-- QuickSync Coder (H264) -->
         <div class="mb-3">
           <label for="qsv_coder" class="form-label">QuickSync Coder (H264)</label>
           <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
@@ -928,9 +928,9 @@
 
       </div>
 
-      <!--AMD AMF Encoder Tab-->
+      <!-- AMD AMF Encoder Tab -->
       <div v-if="currentTab === 'amd'" class="config-page">
-        <!--AMF Quality-->
+        <!-- AMF Quality -->
         <div class="mb-3">
           <label for="amd_quality" class="form-label">AMF Quality</label>
           <select id="amd_quality" class="form-select" v-model="config.amd_quality">
@@ -940,7 +940,7 @@
           </select>
         </div>
 
-        <!--AMF Rate Control-->
+        <!-- AMF Rate Control -->
         <div class="mb-3">
           <label for="amd_rc" class="form-label">AMF Rate Control</label>
           <select id="amd_rc" class="form-select" v-model="config.amd_rc">
@@ -951,7 +951,7 @@
           </select>
         </div>
 
-        <!--AMF Usage-->
+        <!-- AMF Usage -->
         <div class="mb-3">
           <label for="amd_usage" class="form-label">AMF Usage</label>
           <select id="amd_usage" class="form-select" v-model="config.amd_usage">
@@ -962,7 +962,7 @@
           </select>
         </div>
 
-        <!--AMF Preanalysis-->
+        <!-- AMF Preanalysis -->
         <div class="mb-3">
           <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
           <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
@@ -971,7 +971,7 @@
           </select>
         </div>
 
-        <!--AMF VBAQ-->
+        <!-- AMF VBAQ -->
         <div class="mb-3">
           <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
           <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
@@ -980,7 +980,7 @@
           </select>
         </div>
 
-        <!--AMF Coder (H264)-->
+        <!-- AMF Coder (H264) -->
         <div class="mb-3">
           <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
           <select id="amd_coder" class="form-select" v-model="config.amd_coder">
@@ -991,9 +991,9 @@
         </div>
       </div>
 
-      <!--VideoToolbox Encoder Tab-->
+      <!-- VideoToolbox Encoder Tab -->
       <div v-if="currentTab === 'vt'" class="config-page">
-        <!--Presets-->
+        <!-- Presets -->
         <div class="mb-3">
           <label for="vt_coder" class="form-label">VideoToolbox Coder</label>
           <select id="vt_coder" class="form-select" v-model="config.vt_coder">
@@ -1020,7 +1020,7 @@
         </div>
       </div>
 
-      <!--Software Encoder Tab-->
+      <!-- Software Encoder Tab -->
       <div v-if="currentTab === 'sw'" class="config-page">
         <div class="mb-3">
           <label for="sw_preset" class="form-label">SW Presets</label>
