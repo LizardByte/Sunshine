@@ -5,6 +5,7 @@
 #include <drm_fourcc.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/dma-buf.h>
 #include <sys/capability.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -818,7 +819,8 @@ namespace platf {
           }
 
           // We will map the entire region, but only copy what the source rectangle specifies
-          void *mapped_data = mmap(nullptr, fb->pitches[0] * fb->height, PROT_READ, MAP_SHARED, plane_fd.el, fb->offsets[0]);
+          size_t mapped_size = ((size_t) fb->pitches[0]) * fb->height;
+          void *mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, plane_fd.el, fb->offsets[0]);
           if (mapped_data == MAP_FAILED) {
             BOOST_LOG(error) << "Failed to mmap cursor FB: "sv << strerror(errno);
             captured_cursor.visible = false;
@@ -826,6 +828,11 @@ namespace platf {
           }
 
           captured_cursor.pixels.resize(src_w * src_h * 4);
+
+          // Prepare to read the dmabuf from the CPU
+          struct dma_buf_sync sync;
+          sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ;
+          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
 
           // If the image is tightly packed, copy it in one shot
           if (fb->pitches[0] == src_w * 4 && src_x == 0) {
@@ -839,7 +846,11 @@ namespace platf {
             }
           }
 
-          munmap(mapped_data, fb->pitches[0] * fb->height);
+          // End the CPU read and unmap the dmabuf
+          sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
+          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+
+          munmap(mapped_data, mapped_size);
 
           captured_cursor.visible = true;
           captured_cursor.src_w = src_w;
