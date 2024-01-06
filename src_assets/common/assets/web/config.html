@@ -458,13 +458,12 @@
           <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
           <div class="form-text">
             Manually specify a GPU to use for capture.<br>
+            <pre>ls /dev/dri/renderD*  # to find all devices capable of VAAPI</pre>
             <pre>
-              ls /dev/dri/renderD*  # to find all devices capable of VAAPI<br>
-              <br>
-              # replace ``renderD129`` with the device from above to lists the name and capabilities of the device<br>
-              vainfo --display drm --device /dev/dri/renderD129 | \<br>
-                grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"<br>
-            </pre><br>
+              vainfo --display drm --device /dev/dri/renderD129 | \
+                grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"
+            </pre>
+            Replace ``renderD129`` with the device from above to lists the name and capabilities of the device.<br>
             To be supported by Sunshine, it needs to have at the very minimum:
             <i>VAProfileH264High   : VAEntrypointEncSlice</i>
           </div>
