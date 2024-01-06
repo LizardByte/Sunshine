@@ -251,9 +251,9 @@
           <div class="form-text">
             If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press
             is
-            emulated.<br />
+            emulated.<br>
             If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide
-            button.<br />
+            button.<br>
           </div>
         </div>
 
@@ -299,7 +299,7 @@
           <input type="text" class="form-control" id="key_repeat_delay" placeholder="500"
             v-model="config.key_repeat_delay" />
           <div class="form-text">
-            Control how fast keys will repeat themselves<br />
+            Control how fast keys will repeat themselves<br>
             The initial delay in milliseconds before repeating keys
           </div>
         </div>
@@ -310,7 +310,7 @@
           <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9"
             v-model="config.key_repeat_frequency" />
           <div class="form-text">
-            How often keys repeat every second<br />
+            How often keys repeat every second<br>
             This configurable option supports decimals
           </div>
         </div>
@@ -325,8 +325,8 @@
           <div class="form-text">
             Sending scancodes enhances compatibility with games and apps
             but may result in incorrect keyboard input from certain clients
-            that aren't using a US English keyboard layout.<br />
-            Enable if keyboard input is not working at all in certain applications.<br />
+            that aren't using a US English keyboard layout.<br>
+            Enable if keyboard input is not working at all in certain applications.<br>
             Disable if keys on the client are generating the wrong input on the host.
           </div>
         </div>
@@ -339,7 +339,7 @@
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
+            It may be possible that you cannot send the Windows Key from Moonlight directly.<br>
             In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
           </div>
         </div>
@@ -352,7 +352,7 @@
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.<br />
+            When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.<br>
             This can be useful to disable for older applications that scroll too fast with high resolution scroll events.
           </div>
         </div>
@@ -365,7 +365,7 @@
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            When enabled, Sunshine will pass through native pen/touch events from Moonlight clients.<br />
+            When enabled, Sunshine will pass through native pen/touch events from Moonlight clients.<br>
             This can be useful to disable for older applications without native pen/touch support.
           </div>
         </div>
@@ -415,7 +415,7 @@
             </div>
           </div>
           <div class="form-text">
-            The display modes advertised by Sunshine<br />
+            The display modes advertised by Sunshine<br>
             Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
             resolutions and fps are supported.<br>
             This setting does <b>not</b> change how the screen stream is sent to Moonlight
@@ -428,10 +428,10 @@
           <input type="text" class="form-control" id="audio_sink" placeholder="Speakers (High Definition Audio Device)"
             v-model="config.audio_sink" />
           <div class="form-text">
-            Manually specify a specific audio device to capture. If unset, the device is chosen automatically.<br />
-            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
+            Manually specify a specific audio device to capture. If unset, the device is chosen automatically.<br>
+            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br>
             If you have multiple audio devices with identical names, you can get the Device ID using the following
-            command:<br />
+            command:<br>
             <pre>tools\audio-info.exe</pre>
           </div>
         </div>
@@ -440,13 +440,13 @@
           <input type="text" class="form-control" id="audio_sink"
             placeholder="alsa_output.pci-0000_09_00.3.analog-stereo" v-model="config.audio_sink" />
           <div class="form-text">
-            The name of the audio sink used for Audio Loopback<br />
-            If you do not specify this variable, pulseaudio will select the default monitor device.<br />
-            <br />
-            You can find the name of the audio sink using either command:<br />
+            The name of the audio sink used for Audio Loopback<br>
+            If you do not specify this variable, pulseaudio will select the default monitor device.<br>
+            <br>
+            You can find the name of the audio sink using either command:<br>
             <pre>pacmd list-sinks | grep "name:"</pre>
             <pre>pactl info | grep Source</pre>
-            <br />
+            <br>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'macos'">
@@ -454,8 +454,8 @@
           <input type="text" class="form-control" id="audio_sink" placeholder="BlackHole 2ch"
             v-model="config.audio_sink" />
           <div class="form-text">
-            The name of the audio sink used for Audio Loopback<br />
-            Sunshine can only access microphones on macOS due to system limitations.<br />
+            The name of the audio sink used for Audio Loopback<br>
+            Sunshine can only access microphones on macOS due to system limitations.<br>
             To stream system audio using <a href="https://github.com/mattingalls/Soundflower" target="_blank">
               Soundflower
             </a> or <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">
@@ -470,8 +470,8 @@
           <input type="text" class="form-control" id="virtual_sink" placeholder="Steam Streaming Speakers"
             v-model="config.virtual_sink" />
           <div class="form-text">
-            Manually specify a virtual audio device to use. If unset, the device is chosen automatically.<br />
-            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
+            Manually specify a virtual audio device to use. If unset, the device is chosen automatically.<br>
+            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br>
           </div>
         </div>
 
@@ -494,10 +494,10 @@
           <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series"
             v-model="config.adapter_name" />
           <div class="form-text">
-            Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br />
-            <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br />
-            Note: This GPU must have a display connected and powered on.<br />
-            The appropriate values can be found using the following command:<br />
+            Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br>
+            <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br>
+            Note: This GPU must have a display connected and powered on.<br>
+            The appropriate values can be found using the following command:<br>
             <pre>tools\dxgi-info.exe</pre>
           </div>
         </div>
@@ -524,18 +524,18 @@
           <input type="text" class="form-control" id="output_name" placeholder="\\.\DISPLAY1"
             v-model="config.output_name" />
           <div class="form-text">
-            Manually specify a display to use for capture. If unset, the primary display is captured.<br />
-            Note: If you specified a GPU above, this display must be connected to that GPU.<br />
-            The appropriate values can be found using the following command:<br />
-            tools\dxgi-info.exe<br />
+            Manually specify a display to use for capture. If unset, the primary display is captured.<br>
+            Note: If you specified a GPU above, this display must be connected to that GPU.<br>
+            The appropriate values can be found using the following command:<br>
+            tools\dxgi-info.exe<br>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'linux'">
           <label for="output_name" class="form-label">Monitor number</label>
           <input type="text" class="form-control" id="output_name" placeholder="0" v-model="config.output_name" />
           <div class="form-text">
-            During Sunshine startup, you should see the list of detected monitors, e.g.:<br />
-            <br />
+            During Sunshine startup, you should see the list of detected monitors, e.g.:<br>
+            <br>
             <pre style="white-space: pre-line;">
             Info: Detecting connected monitors
             Info: Detected monitor 0: DVI-D-0, connected: false
@@ -691,7 +691,7 @@
               <li>Clients connected through WAN and LAN have different bitrate constraints.</li>
               <li>Decoders may require different settings for color</li>
             </ul>
-            Unlike simply broadcasting to multiple Client, this will generate distinct video streams.<br />
+            Unlike simply broadcasting to multiple Client, this will generate distinct video streams.<br>
             Note, CPU usage increases for each distinct video stream generated
           </div>
         </div>
@@ -701,8 +701,8 @@
           <label for="fec_percentage" class="form-label">FEC Percentage</label>
           <input type="text" class="form-control" id="fec_percentage" placeholder="20" v-model="config.fec_percentage" />
           <div class="form-text">
-            Percentage of error correcting packets per data packet in each video frame.<br />
-            Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br />
+            Percentage of error correcting packets per data packet in each video frame.<br>
+            Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br>
             The default value of 20 is what GeForce Experience uses.
           </div>
         </div>
@@ -712,10 +712,10 @@
           <label for="qp" class="form-label">Quantization Parameter</label>
           <input type="number" class="form-control" id="qp" placeholder="28" v-model="config.qp" />
           <div class="form-text">
-            Quantization Parameter<br />
-            Some devices may not support Constant Bit Rate.<br />
-            For those devices, QP is used instead.<br />
-            Higher value means more compression, but less quality<br />
+            Quantization Parameter<br>
+            Some devices may not support Constant Bit Rate.<br>
+            For those devices, QP is used instead.<br>
+            Higher value means more compression, but less quality<br>
           </div>
         </div>
 
@@ -724,8 +724,8 @@
           <label for="min_threads" class="form-label">Minimum Software Encoding Thread Count</label>
           <input type="number" class="form-control" id="min_threads" placeholder="1" min="1" v-model="config.min_threads" />
           <div class="form-text">
-            Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br />
-            worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br />
+            Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br>
+            worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br>
             value that can reliably encode at your desired streaming settings on your hardware.
           </div>
         </div>
@@ -748,7 +748,7 @@
             </option>
           </select>
           <div class="form-text">
-            Allows the client to request HEVC Main or HEVC Main10 video streams.<br />
+            Allows the client to request HEVC Main or HEVC Main10 video streams.<br>
             HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
           </div>
         </div>
@@ -771,7 +771,7 @@
             </option>
           </select>
           <div class="form-text">
-            Allows the client to request AV1 Main 8-bit or 10-bit video streams.<br />
+            Allows the client to request AV1 Main 8-bit or 10-bit video streams.<br>
             AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
           </div>
         </div>
@@ -804,7 +804,7 @@
             <option value="software">Software</option>
           </select>
           <div class="form-text">
-            Force a specific encoder, otherwise Sunshine will use the first encoder that is available<br />
+            Force a specific encoder, otherwise Sunshine will use the first encoder that is available<br>
             Note: If you specify a hardware encoder on Windows, it must match the GPU where the display is connected.
           </div>
         </div>
