@@ -34,6 +34,7 @@
             @click="currentTab = tab.id">{{tab.name}}</a>
         </li>
       </ul>
+
       <!--General Tab-->
       <div v-if="currentTab === 'general'" class="config-page">
         <!--Sunshine Name-->
@@ -45,6 +46,7 @@
             The name displayed by Moonlight. If not specified, the PC's hostname is used
           </div>
         </div>
+
         <!--Log Level-->
         <div class="mb-3">
           <label for="min_log_level" class="form-label">Log Level</label>
@@ -61,90 +63,7 @@
             The minimum log level printed to standard out
           </div>
         </div>
-        <!--Log Path-->
-        <div class="mb-3">
-          <label for="log_path" class="form-label">Logfile Path</label>
-          <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
-          <div class="form-text">
-            The file where the current logs of Sunshine are stored.
-          </div>
-        </div>
-        <!--Origin Web UI Allowed-->
-        <div class="mb-3">
-          <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
-          <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
-            <option value="pc">Only localhost may access Web UI</option>
-            <option value="lan">Only those in LAN may access Web UI</option>
-            <option value="wan">Anyone may access Web UI</option>
-          </select>
-          <div class="form-text">
-            The origin of the remote endpoint address that is not denied access to Web UI
-          </div>
-        </div>
-        <!--UPnP-->
-        <div class="mb-3">
-          <label for="upnp" class="form-label">UPnP</label>
-          <select id="upnp" class="form-select" v-model="config.upnp">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
-          </select>
-          <div class="form-text">Automatically configure port forwarding</div>
-        </div>
-        <!--Ping Timeout-->
-        <div class="mb-3">
-          <label for="ping_timeout" class="form-label">Ping Timeout</label>
-          <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
-          <div class="form-text">
-            How long to wait in milliseconds for data from moonlight before shutting down the stream
-          </div>
-        </div>
-        <!--Advertised FPS and Resolutions-->
-        <div class="mb-3">
-          <label for="ping_timeout" class="form-label">Advertised Resolutions and FPS</label>
-          <div class="resolutions-container">
-            <label>Resolutions</label>
-            <div class="resolutions d-flex flex-wrap">
-              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
-                <span class="px-2">{{r}}</span>
-                <span style="cursor: pointer" @click="resolutions.splice(i,1)">&times;</span>
-              </div>
-              <form @submit.prevent="resolutions.push(resIn);resIn = '';" class="d-flex align-items-center">
-                <input type="text" v-model="resIn" required pattern="[0-9]+x[0-9]+" style="
-                  border-top-right-radius: 0;
-                  border-bottom-right-radius: 0;
-                " class="form-control" />
-                <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
-                  +
-                </button>
-              </form>
-            </div>
-          </div>
-          <div class="fps-container">
-            <label>FPS</label>
-            <div class="fps d-flex flex-wrap">
-              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
-                <span class="px-2">{{f}}</span>
-                <span style="cursor: pointer" @click="fps.splice(i,1)">&times;</span>
-              </div>
-              <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
-                <input type="text" v-model="fpsIn" required pattern="[0-9]+" style="
-                  width: 6ch;
-                  border-top-right-radius: 0;
-                  border-bottom-right-radius: 0;
-                " class="form-control" />
-                <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
-                  +
-                </button>
-              </form>
-            </div>
-          </div>
-          <div class="form-text">
-            The display modes advertised by Sunshine<br />
-            Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
-            resolutions and fps are supported.<br>
-            This setting does <b>not</b> change how the screen stream is sent to Moonlight
-          </div>
-        </div>
+
         <!-- Global Prep Commands -->
         <div class="mb-3 d-flex flex-column">
           <label class="form-label">Command Preparations</label>
@@ -194,8 +113,27 @@
           </button>
         </div>
       </div>
+
       <!--Files Tab-->
       <div v-if="currentTab === 'files'" class="config-page">
+        <!--Apps File-->
+        <div class="mb-3">
+          <label for="file_apps" class="form-label">Apps File</label>
+          <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
+          <div class="form-text">
+            The file where current apps of Sunshine are stored
+          </div>
+        </div>
+
+        <!--Log Path-->
+        <div class="mb-3">
+          <label for="log_path" class="form-label">Logfile Path</label>
+          <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
+          <div class="form-text">
+            The file where the current logs of Sunshine are stored.
+          </div>
+        </div>
+
         <!--Private Key-->
         <div class="mb-3">
           <label for="pkey" class="form-label">Private Key</label>
@@ -203,6 +141,7 @@
           <div class="form-text">The private key used for the web UI and Moonlight client pairing. For best
             compatibility, this should be an RSA-2048 private key.</div>
         </div>
+
         <!--Certificate-->
         <div class="mb-3">
           <label for="cert" class="form-label">Certificate</label>
@@ -222,15 +161,10 @@
             The file where current state of Sunshine is stored
           </div>
         </div>
-        <!--Apps File-->
-        <div class="mb-3">
-          <label for="file_apps" class="form-label">Apps File</label>
-          <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
-          <div class="form-text">
-            The file where current apps of Sunshine are stored
-          </div>
-        </div>
+
       </div>
+
+      <!--Input Tab-->
       <div v-if="currentTab === 'input'" class="config-page">
         <!--Emulated Gamepad Type-->
         <div class="mb-3" v-if="platform === 'windows'">
@@ -299,6 +233,7 @@
             </div>
           </div>
         </div>
+
         <!--Home/Guide Button Emulation Timeout-->
         <div class="mb-3">
           <label for="back_button_timeout" class="form-label">Home/Guide Button Emulation Timeout</label>
@@ -312,6 +247,7 @@
             button.<br />
           </div>
         </div>
+
         <!--Enable Mouse Input-->
         <div class="mb-3">
           <label for="mouse" class="form-label">Enable Mouse Input</label>
@@ -323,6 +259,7 @@
             Allows guests to control the host system with the mouse
           </div>
         </div>
+
         <!--Enable Keyboard Input-->
         <div class="mb-3">
           <label for="keyboard" class="form-label">Enable Keyboard Input</label>
@@ -334,6 +271,7 @@
             Allows guests to control the host system with the keyboard
           </div>
         </div>
+
         <!--Enable Gamepad Input-->
         <div class="mb-3">
           <label for="gamepad" class="form-label">Enable Gamepad Input</label>
@@ -345,6 +283,7 @@
             Allows guests to control the host system with a gamepad / controller
           </div>
         </div>
+
         <!-- Key Repeat Delay-->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="key_repeat_delay" class="form-label">Key Repeat Delay</label>
@@ -355,6 +294,7 @@
             The initial delay in milliseconds before repeating keys
           </div>
         </div>
+
         <!-- Key Repeat Frequency-->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="key_repeat_frequency" class="form-label">Key Repeat Frequency</label>
@@ -365,6 +305,7 @@
             This configurable option supports decimals
           </div>
         </div>
+
         <!-- Always send scancodes -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="always_send_scancodes" class="form-label">Always Send Scancodes</label>
@@ -380,6 +321,7 @@
             Disable if keys on the client are generating the wrong input on the host.
           </div>
         </div>
+
         <!-- Mapping Key AltRight to Key Windows -->
         <div class="mb-3">
           <label for="mapkey" class="form-label">Map Right Alt key to Windows key</label>
@@ -392,6 +334,7 @@
             In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
           </div>
         </div>
+
         <!-- High resolution scrolling support -->
         <div class="mb-3">
           <label for="high_resolution_scrolling" class="form-label">High Resolution Scrolling Support</label>
@@ -404,6 +347,7 @@
             This can be useful to disable for older applications that scroll too fast with high resolution scroll events.
           </div>
         </div>
+
         <!-- Native pen/touch support -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="native_pen_touch" class="form-label">Native Pen/Touch Support</label>
@@ -416,9 +360,59 @@
             This can be useful to disable for older applications without native pen/touch support.
           </div>
         </div>
+
       </div>
-      <!--Files Tab-->
+
+      <!--Audio/Video Tab-->
       <div v-if="currentTab === 'av'" class="config-page">
+        <!--Advertised FPS and Resolutions-->
+        <div class="mb-3">
+          <label for="ping_timeout" class="form-label">Advertised Resolutions and FPS</label>
+          <div class="resolutions-container">
+            <label>Resolutions</label>
+            <div class="resolutions d-flex flex-wrap">
+              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
+                <span class="px-2">{{r}}</span>
+                <span style="cursor: pointer" @click="resolutions.splice(i,1)">&times;</span>
+              </div>
+              <form @submit.prevent="resolutions.push(resIn);resIn = '';" class="d-flex align-items-center">
+                <input type="text" v-model="resIn" required pattern="[0-9]+x[0-9]+" style="
+                  border-top-right-radius: 0;
+                  border-bottom-right-radius: 0;
+                " class="form-control" />
+                <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
+                  +
+                </button>
+              </form>
+            </div>
+          </div>
+          <div class="fps-container">
+            <label>FPS</label>
+            <div class="fps d-flex flex-wrap">
+              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
+                <span class="px-2">{{f}}</span>
+                <span style="cursor: pointer" @click="fps.splice(i,1)">&times;</span>
+              </div>
+              <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
+                <input type="text" v-model="fpsIn" required pattern="[0-9]+" style="
+                  width: 6ch;
+                  border-top-right-radius: 0;
+                  border-bottom-right-radius: 0;
+                " class="form-control" />
+                <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
+                  +
+                </button>
+              </form>
+            </div>
+          </div>
+          <div class="form-text">
+            The display modes advertised by Sunshine<br />
+            Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
+            resolutions and fps are supported.<br>
+            This setting does <b>not</b> change how the screen stream is sent to Moonlight
+          </div>
+        </div>
+
         <!--Audio Sink-->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="audio_sink" class="form-label">Audio Sink</label>
@@ -460,6 +454,7 @@
             </a>.
           </div>
         </div>
+
         <!--Virtual Sink-->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="virtual_sink" class="form-label">Virtual Sink</label>
@@ -470,6 +465,7 @@
             <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
           </div>
         </div>
+
         <!--Install Steam Audio Drivers-->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="install_steam_audio_drivers" class="form-label">Install Steam Audio Drivers</label>
@@ -482,12 +478,13 @@
             5.1/7.1 surround sound and muting host audio.
           </div>
         </div>
+
         <!--Adapter Name -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="adapter_name" class="form-label">Adapter Name</label>
           <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series"
             v-model="config.adapter_name" />
-          <div class="form-text" v-if="platform === 'windows'">
+          <div class="form-text">
             Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br />
             <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br />
             Note: This GPU must have a display connected and powered on.<br />
@@ -495,6 +492,23 @@
             <pre>tools\dxgi-info.exe</pre>
           </div>
         </div>
+        <div class="mb-3" v-if="platform === 'linux'">
+          <label for="adapter_name" class="form-label">Adapter Name</label>
+          <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
+          <div class="form-text">
+            Manually specify a GPU to use for capture.<br>
+            <pre>
+              ls /dev/dri/renderD*  # to find all devices capable of VAAPI<br>
+              <br>
+              # replace ``renderD129`` with the device from above to lists the name and capabilities of the device<br>
+              vainfo --display drm --device /dev/dri/renderD129 | \<br>
+                grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"<br>
+            </pre><br>
+            To be supported by Sunshine, it needs to have at the very minimum:
+            <i>VAProfileH264High   : VAEntrypointEncSlice</i>
+          </div>
+        </div>
+
         <!--Output Name -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="output_name" class="form-label">Output Name</label>
@@ -524,8 +538,20 @@
             You need to use the value before the colon in the output, e.g. <b>1</b>.
           </div>
         </div>
+
       </div>
-      <div v-if="currentTab === 'advanced'" class="config-page">
+
+      <!--Network Tab-->
+      <div v-if="currentTab === 'network'" class="config-page">
+        <!--Ping Timeout-->
+        <div class="mb-3">
+          <label for="ping_timeout" class="form-label">Ping Timeout</label>
+          <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
+          <div class="form-text">
+            How long to wait in milliseconds for data from moonlight before shutting down the stream
+          </div>
+        </div>
+
         <!--Address family-->
         <div class="mb-3">
           <label for="address_family" class="form-label">Address Family</label>
@@ -535,6 +561,7 @@
           </select>
           <div class="form-text">Set the address family used by Sunshine</div>
         </div>
+
         <!--Port family-->
         <div class="mb-3">
           <label for="port" class="form-label">Port</label>
@@ -608,6 +635,33 @@
             Proceed at your own risk!
           </div>
         </div>
+
+        <!--Origin Web UI Allowed-->
+        <div class="mb-3">
+          <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
+          <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
+            <option value="pc">Only localhost may access Web UI</option>
+            <option value="lan">Only those in LAN may access Web UI</option>
+            <option value="wan">Anyone may access Web UI</option>
+          </select>
+          <div class="form-text">
+            The origin of the remote endpoint address that is not denied access to Web UI
+          </div>
+        </div>
+
+        <!--UPnP-->
+        <div class="mb-3">
+          <label for="upnp" class="form-label">UPnP</label>
+          <select id="upnp" class="form-select" v-model="config.upnp">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">Automatically configure port forwarding</div>
+        </div>
+
+      </div>
+
+      <div v-if="currentTab === 'advanced'" class="config-page">
         <!-- Quantization Parameter -->
         <div class="mb-3">
           <label for="qp" class="form-label">Quantization Parameter</label>
@@ -620,7 +674,217 @@
           </div>
         </div>
       </div>
-      <!--Software Settings-->
+
+      <!--NVIDIA NVENC Encoder Tab-->
+      <div v-if="currentTab === 'nv'" class="config-page">
+        <!--Performance preset-->
+        <div class="mb-3">
+          <label for="nvenc_preset" class="form-label">Performance preset</label>
+          <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
+            <option value="1">P1 (fastest, default)</option>
+            <option value="2">P2</option>
+            <option value="3">P3</option>
+            <option value="4">P4</option>
+            <option value="5">P5</option>
+            <option value="6">P6</option>
+            <option value="7">P7 (slowest)</option>
+          </select>
+          <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
+            <strong>increased encoding latency</strong>.<br>
+            Recommended to change only when limited by network or decoder, otherwise similar effect can be
+            accomplished
+            by
+            increasing bitrate.
+          </div>
+        </div>
+
+        <!--Two-pass mode-->
+        <div class="mb-3">
+          <label for="nvenc_twopass" class="form-label">Two-pass mode</label>
+          <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
+            <option value="disabled">Disabled (fastest, not recommended)</option>
+            <option value="quarter_res">Quarter resolution (faster, default)</option>
+            <option value="full_res">Full resolution (slower)</option>
+          </select>
+          <div class="form-text">Adds preliminary encoding pass.<br>
+            This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly
+            adhere
+            to
+            bitrate limits.<br>
+            Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet
+            loss.
+          </div>
+        </div>
+
+        <!--Miscellaneous options-->
+        <div class="accordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                data-bs-target="#panelsStayOpen-collapseOne">
+                Miscellaneous options
+              </button>
+            </h2>
+            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
+              aria-labelledby="panelsStayOpen-headingOne">
+              <div class="accordion-body">
+                <!--NVENC Realtime HAGS priority-->
+                <div class="mb-3" v-if="platform === 'windows'">
+                  <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated
+                    gpu
+                    scheduling</label>
+                  <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
+                    <option value="disabled">Disabled</option>
+                    <option value="enabled">Enabled (default)</option>
+                  </select>
+                  <div class="form-text">Currently NVIDIA drivers may freeze in encoder when
+                    <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
+                    is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
+                    Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced
+                    capture
+                    performance when the GPU is heavily loaded.
+                  </div>
+                </div>
+
+                <!--NVENC H264 CAVLC-->
+                <div>
+                  <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
+                  <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
+                    <option value="disabled">Disabled (default)</option>
+                    <option value="enabled">Enabled</option>
+                  </select>
+                  <div class="form-text">Simpler form of entropy coding.<br>
+                    CAVLC needs around 10% more bitrate for same quality.<br>
+                    Only relevant for really old decoding devices.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!--Intel QuickSync Encoder Tab-->
+      <div v-if="currentTab === 'qsv'" class="config-page">
+        <!--QuickSync Preset-->
+        <div class="mb-3">
+          <label for="qsv_preset" class="form-label">QuickSync Preset</label>
+          <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
+            <option value="veryfast">fastest (lowest quality)</option>
+            <option value="faster">faster (lower quality)</option>
+            <option value="fast">fast (low quality)</option>
+            <option value="medium">medium (default)</option>
+            <option value="slow">slow (good quality)</option>
+            <option value="slower">slower (better quality)</option>
+            <option value="slowest">slowest (best quality)</option>
+          </select>
+        </div>
+
+        <!--QuickSync Coder (H264)-->
+        <div class="mb-3">
+          <label for="qsv_coder" class="form-label">QuickSync Coder (H264)</label>
+          <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
+            <option value="auto">auto -- let ffmpeg decide (default)</option>
+            <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
+            <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
+          </select>
+        </div>
+
+      </div>
+
+      <!--AMD AMF Encoder Tab-->
+      <div v-if="currentTab === 'amd'" class="config-page">
+        <!--AMF Quality-->
+        <div class="mb-3">
+          <label for="amd_quality" class="form-label">AMF Quality</label>
+          <select id="amd_quality" class="form-select" v-model="config.amd_quality">
+            <option value="speed">speed -- prefer speed</option>
+            <option value="balanced">balanced -- balanced (default)</option>
+            <option value="quality">quality -- prefer quality</option>
+          </select>
+        </div>
+
+        <!--AMF Rate Control-->
+        <div class="mb-3">
+          <label for="amd_rc" class="form-label">AMF Rate Control</label>
+          <select id="amd_rc" class="form-select" v-model="config.amd_rc">
+            <option value="cqp">cqp -- constant qp mode</option>
+            <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
+            <option value="vbr_peak">vbr_peak -- peak constrained variable bitrate</option>
+            <option value="cbr">cbr -- constant bitrate</option>
+          </select>
+        </div>
+
+        <!--AMF Usage-->
+        <div class="mb-3">
+          <label for="amd_usage" class="form-label">AMF Usage</label>
+          <select id="amd_usage" class="form-select" v-model="config.amd_usage">
+            <option value="transcoding">transcoding -- transcoding (slowest)</option>
+            <option value="webcam">webcam -- webcam (slow)</option>
+            <option value="lowlatency">lowlatency - low latency (fast)</option>
+            <option value="ultralowlatency">ultralowlatency - ultra low latency (fastest)</option>
+          </select>
+        </div>
+
+        <!--AMF Preanalysis-->
+        <div class="mb-3">
+          <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
+          <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
+            <option value="enabled">enabled</option>
+            <option value="disabled">disabled (default)</option>
+          </select>
+        </div>
+
+        <!--AMF VBAQ-->
+        <div class="mb-3">
+          <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
+          <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
+            <option value="enabled">enabled (default)</option>
+            <option value="disabled">disabled</option>
+          </select>
+        </div>
+
+        <!--AMF Coder (H264)-->
+        <div class="mb-3">
+          <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
+          <select id="amd_coder" class="form-select" v-model="config.amd_coder">
+            <option value="auto">auto -- let ffmpeg decide (default)</option>
+            <option value="cabac">cabac -- context adaptive variable-length coding - higher quality</option>
+            <option value="cavlc">cavlc -- context adaptive binary arithmetic coding - faster decode</option>
+          </select>
+        </div>
+      </div>
+
+      <!--VideoToolbox Encoder Tab-->
+      <div v-if="currentTab === 'vt'" class="config-page">
+        <!--Presets-->
+        <div class="mb-3">
+          <label for="vt_coder" class="form-label">VideoToolbox Coder</label>
+          <select id="vt_coder" class="form-select" v-model="config.vt_coder">
+            <option value="auto">auto</option>
+            <option value="cabac">cabac</option>
+            <option value="cavlc">cavlc</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="vt_software" class="form-label">VideoToolbox Software Encoding</label>
+          <select id="vt_software" class="form-select" v-model="config.vt_software">
+            <option value="auto">auto</option>
+            <option value="disabled">disabled</option>
+            <option value="allowed">allowed</option>
+            <option value="forced">forced</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label for="vt_realtime" class="form-label">VideoToolbox Realtime Encoding</label>
+          <select id="vt_realtime" class="form-select" v-model="config.vt_realtime">
+            <option value="enabled">enabled</option>
+            <option value="disabled">disabled</option>
+          </select>
+        </div>
+      </div>
+
+      <!--Software Encoder Tab-->
       <div v-if="currentTab === 'sw'" class="config-page">
         <div class="mb-3">
           <label for="sw_preset" class="form-label">SW Presets</label>
@@ -658,195 +922,10 @@
           </div>
         </div>
       </div>
-      <!--Nvidia Encoder Settings-->
-      <div v-if="currentTab === 'nv'" class="config-page">
-        <!--NVENC SETTINGS-->
-        <div class="mb-3">
-          <label for="nvenc_preset" class="form-label">Performance preset</label>
-          <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
-            <option value="1">P1 (fastest, default)</option>
-            <option value="2">P2</option>
-            <option value="3">P3</option>
-            <option value="4">P4</option>
-            <option value="5">P5</option>
-            <option value="6">P6</option>
-            <option value="7">P7 (slowest)</option>
-          </select>
-          <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
-            <strong>increased encoding latency</strong>.<br>
-            Recommended to change only when limited by network or decoder, otherwise similar effect can be
-            accomplished
-            by
-            increasing bitrate.
-          </div>
-        </div>
-        <div class="mb-3">
-          <label for="nvenc_twopass" class="form-label">Two-pass mode</label>
-          <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
-            <option value="disabled">Disabled (fastest, not recommended)</option>
-            <option value="quarter_res">Quarter resolution (faster, default)</option>
-            <option value="full_res">Full resolution (slower)</option>
-          </select>
-          <div class="form-text">Adds preliminary encoding pass.<br>
-            This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly
-            adhere
-            to
-            bitrate limits.<br>
-            Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet
-            loss.
-          </div>
-        </div>
-        <div class="accordion">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#panelsStayOpen-collapseOne">
-                Miscellaneous options
-              </button>
-            </h2>
-            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-              aria-labelledby="panelsStayOpen-headingOne">
-              <div class="accordion-body">
-                <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated
-                    gpu
-                    scheduling</label>
-                  <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
-                  </select>
-                  <div class="form-text">Currently NVIDIA drivers may freeze in encoder when
-                    <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
-                    is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
-                    Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced
-                    capture
-                    performance when the GPU is heavily loaded.
-                  </div>
-                </div>
-                <div>
-                  <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
-                  <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
-                    <option value="disabled">Disabled (default)</option>
-                    <option value="enabled">Enabled</option>
-                  </select>
-                  <div class="form-text">Simpler form of entropy coding.<br>
-                    CAVLC needs around 10% more bitrate for same quality.<br>
-                    Only relevant for really old decoding devices.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!--Intel Encoder Settings-->
-      <div v-if="currentTab === 'qsv'" class="config-page">
-        <div class="mb-3">
-          <label for="qsv_preset" class="form-label">QuickSync Preset</label>
-          <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
-            <option value="veryfast">fastest (lowest quality)</option>
-            <option value="faster">faster (lower quality)</option>
-            <option value="fast">fast (low quality)</option>
-            <option value="medium">medium (default)</option>
-            <option value="slow">slow (good quality)</option>
-            <option value="slower">slower (better quality)</option>
-            <option value="slowest">slowest (best quality)</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="qsv_coder" class="form-label">QuickSync Coder (H264)</label>
-          <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
-            <option value="auto">auto -- let ffmpeg decide (default)</option>
-            <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
-            <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
-          </select>
-        </div>
-      </div>
-      <!--AMD Encoder Settings-->
-      <div v-if="currentTab === 'amd'" class="config-page">
-        <!--Presets-->
-        <div class="mb-3">
-          <label for="amd_quality" class="form-label">AMF Quality</label>
-          <select id="amd_quality" class="form-select" v-model="config.amd_quality">
-            <option value="speed">speed -- prefer speed</option>
-            <option value="balanced">balanced -- balanced (default)</option>
-            <option value="quality">quality -- prefer quality</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="amd_rc" class="form-label">AMF Rate Control</label>
-          <select id="amd_rc" class="form-select" v-model="config.amd_rc">
-            <option value="cqp">cqp -- constant qp mode</option>
-            <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
-            <option value="vbr_peak">vbr_peak -- peak constrained variable bitrate</option>
-            <option value="cbr">cbr -- constant bitrate</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="amd_usage" class="form-label">AMF Usage</label>
-          <select id="amd_usage" class="form-select" v-model="config.amd_usage">
-            <option value="transcoding">transcoding -- transcoding (slowest)</option>
-            <option value="webcam">webcam -- webcam (slow)</option>
-            <option value="lowlatency">lowlatency - low latency (fast)</option>
-            <option value="ultralowlatency">ultralowlatency - ultra low latency (fastest)</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
-          <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
-            <option value="enabled">enabled</option>
-            <option value="disabled">disabled (default)</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
-          <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
-            <option value="enabled">enabled (default)</option>
-            <option value="disabled">disabled</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
-          <select id="amd_coder" class="form-select" v-model="config.amd_coder">
-            <option value="auto">auto -- let ffmpeg decide (default)</option>
-            <option value="cabac">cabac -- context adaptive variable-length coding - higher quality</option>
-            <option value="cavlc">cavlc -- context adaptive binary arithmetic coding - faster decode</option>
-          </select>
-        </div>
-      </div>
-      <!--VA-API Encoder Settings-->
-      <div v-if="currentTab === 'va-api'" class="config-page">
-        <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
-      </div>
-      <!--VideoToolbox Encoder Settings-->
-      <div v-if="currentTab === 'vt'" class="config-page">
-        <!--Presets-->
-        <div class="mb-3">
-          <label for="vt_coder" class="form-label">VideoToolbox Coder</label>
-          <select id="vt_coder" class="form-select" v-model="config.vt_coder">
-            <option value="auto">auto</option>
-            <option value="cabac">cabac</option>
-            <option value="cavlc">cavlc</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="vt_software" class="form-label">VideoToolbox Software Encoding</label>
-          <select id="vt_software" class="form-select" v-model="config.vt_software">
-            <option value="auto">auto</option>
-            <option value="disabled">disabled</option>
-            <option value="allowed">allowed</option>
-            <option value="forced">forced</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="vt_realtime" class="form-label">VideoToolbox Realtime Encoding</label>
-          <select id="vt_realtime" class="form-select" v-model="config.vt_realtime">
-            <option value="enabled">enabled</option>
-            <option value="disabled">disabled</option>
-          </select>
-        </div>
-      </div>
+
     </div>
+
+    <!-- Save and Apply buttons -->
     <div class="alert alert-success my-4" v-if="saved && !restarted">
       <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
     </div>
@@ -857,6 +936,7 @@
       <button class="btn btn-primary" @click="save">Save</button>
       <button class="btn btn-success" @click="apply" v-if="saved && !restarted">Apply</button>
     </div>
+
   </div>
 </body>
 <script type="module">
@@ -944,6 +1024,10 @@
             name: "Audio/Video",
           },
           {
+            id: "network",
+            name: "Network",
+          },
+          {
             id: "advanced",
             name: "Advanced",
           },
@@ -958,10 +1042,6 @@
           {
             id: "amd",
             name: "AMD AMF Encoder",
-          },
-          {
-            id: "va-api",
-            name: "VA-API Encoder",
           },
           {
             id: "vt",
@@ -984,7 +1064,7 @@
           var app = document.getElementById("app");
           if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "va-api" && el.id !== "vt";
+              return el.id !== "vt";
             });
           }
           if (this.platform === "linux") {
@@ -994,7 +1074,7 @@
           }
           if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "va-api";
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv";
             });
           }
 
