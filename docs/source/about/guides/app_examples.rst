@@ -3,7 +3,7 @@ App Examples
 Since not all applications behave the same, we decided to create some examples to help you get started adding games
 and applications to Sunshine.
 
-.. Attention:: Throughout these examples, any fields not shown are left blank. You can enhance your experience by
+.. attention:: Throughout these examples, any fields not shown are left blank. You can enhance your experience by
    adding an image or a log file (via the ``Output`` field).
 
 Common Examples
@@ -23,7 +23,7 @@ Desktop
 Steam Big Picture
 ^^^^^^^^^^^^^^^^^
 
-.. Note:: Steam is launched as a detached command because Steam starts with a process that self updates itself and the original
+.. note:: Steam is launched as a detached command because Steam starts with a process that self updates itself and the original
    process is killed. Since the original process ends it will not work as a regular command.
 
 +----------------------+------------------------------------------+----------------------------------+-----------------------------------+
@@ -39,7 +39,7 @@ Steam Big Picture
 Epic Game Store game
 ^^^^^^^^^^^^^^^^^^^^
 
-.. Note:: Using URI method will be the most consistent between various games, but does not allow a game to be launched
+.. note:: Using URI method will be the most consistent between various games, but does not allow a game to be launched
    using the "Command" and therefore the stream will not end when the game ends.
 
 URI (Epic)
@@ -81,7 +81,7 @@ Binary (Epic w/o working directory)
 Steam game
 ^^^^^^^^^^
 
-.. Note:: Using URI method will be the most consistent between various games, but does not allow a game to be launched
+.. note:: Using URI method will be the most consistent between various games, but does not allow a game to be launched
    using the "Command" and therefore the stream will not end when the game ends.
 
 URI (Steam)
@@ -222,7 +222,7 @@ The ``set-custom-res.sh`` will have this content:
 Flatpak
 ^^^^^^^
 
-.. Attention:: Because Flatpak packages run in a sandboxed environment and do not normally have access to the host,
+.. attention:: Because Flatpak packages run in a sandboxed environment and do not normally have access to the host,
    the Flatpak of Sunshine requires commands to be prefixed with ``flatpak-spawn --host``.
 
 macOS
@@ -231,7 +231,7 @@ macOS
 Changing Resolution and Refresh Rate (macOS)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. Note:: This example uses the `displayplacer` tool to change the resolution.
+.. note:: This example uses the `displayplacer` tool to change the resolution.
    This tool can be installed following instructions in their
    `GitHub repository <https://github.com/jakehilborn/displayplacer>`__.
 
@@ -249,7 +249,7 @@ Windows
 Changing Resolution and Refresh Rate (Windows)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. Note:: This example uses the `QRes` tool to change the resolution and refresh rate.
+.. note:: This example uses the `QRes` tool to change the resolution and refresh rate.
    This tool can be downloaded from their `SourceForge repository <https://sourceforge.net/projects/qres/>`__.
 
 +----------------------+------------------------------------------------------------------------------------------------------------------+
@@ -267,7 +267,7 @@ If you've installed Sunshine as a service (default), you can now specify if a co
 Simply enable the elevated option in the WEB UI, or add it to the JSON configuration.
 This is an option for both prep-cmd and regular commands and will launch the process with the current user without a UAC prompt.
 
-.. Note:: It's important to write the values "true" and "false" as string values, not as the typical true/false values in most JSON.
+.. note:: It's important to write the values "true" and "false" as string values, not as the typical true/false values in most JSON.
 
 **Example**
    .. code-block:: json

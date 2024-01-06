@@ -2,7 +2,7 @@ Installation
 ============
 The recommended method for running Sunshine is to use the `binaries`_ bundled with the `latest release`_.
 
-.. Attention:: Additional setup is required after installation. See
+.. attention:: Additional setup is required after installation. See
    :ref:`Setup <about/usage:setup>`.
 
 Binaries
@@ -10,7 +10,7 @@ Binaries
 Binaries of Sunshine are created for each release. They are available for Linux, macOS, and Windows.
 Binaries can be found in the `latest release`_.
 
-.. Tip:: Some third party packages also exist. See
+.. tip:: Some third party packages also exist. See
    :ref:`Third Party Packages <about/third_party_packages:third party packages>`.
 
 Docker
@@ -27,7 +27,7 @@ Follow the instructions for your preferred package type below.
 
 CUDA is used for NVFBC capture.
 
-.. Tip:: See `CUDA GPUS <https://developer.nvidia.com/cuda-gpus>`__ to cross reference Compute Capability to your GPU.
+.. tip:: See `CUDA GPUS <https://developer.nvidia.com/cuda-gpus>`__ to cross reference Compute Capability to your GPU.
 
 .. table::
    :widths: auto
@@ -116,10 +116,10 @@ Debian Package
 
       sudo apt install -f ./sunshine-{ubuntu-version}.deb
 
-.. Note:: The ``{ubuntu-version}`` is the version of ubuntu we built the package on. If you are not using Ubuntu and
+.. note:: The ``{ubuntu-version}`` is the version of ubuntu we built the package on. If you are not using Ubuntu and
    have an issue with one package, you can try another.
 
-.. Tip:: You can double click the deb file to see details about the package and begin installation.
+.. tip:: You can double click the deb file to see details about the package and begin installation.
 
 Uninstall:
    .. code-block:: bash
@@ -131,7 +131,7 @@ Flatpak Package
 #. Install `Flatpak <https://flatpak.org/setup/>`__ as required.
 #. Download ``sunshine_{arch}.flatpak`` and run the following code.
 
-   .. Note:: Be sure to replace ``{arch}`` with the architecture for your operating system.
+   .. note:: Be sure to replace ``{arch}`` with the architecture for your operating system.
 
    System level (recommended)
       .. code-block:: bash
@@ -180,7 +180,7 @@ RPM Package
 
       sudo dnf install ./sunshine.rpm
 
-.. Tip:: You can double click the rpm file to see details about the package and begin installation.
+.. tip:: You can double click the rpm file to see details about the package and begin installation.
 
 Uninstall:
    .. code-block:: bash
@@ -193,7 +193,7 @@ Sunshine on macOS is experimental. Gamepads do not work. Other features may not 
 
 dmg
 ^^^
-.. Warning:: The `dmg` does not include runtime dependencies.
+.. warning:: The `dmg` does not include runtime dependencies.
 
 #. Download the ``sunshine.dmg`` file and install it.
 
@@ -241,7 +241,7 @@ Installer
 ^^^^^^^^^
 #. Download and install ``sunshine-windows-installer.exe``
 
-.. Attention:: You should carefully select or unselect the options you want to install. Do not blindly install or enable
+.. attention:: You should carefully select or unselect the options you want to install. Do not blindly install or enable
    features.
 
 To uninstall, find Sunshine in the list `here <ms-settings:installed-apps>`__ and select "Uninstall" from the overflow

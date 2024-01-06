@@ -4,7 +4,7 @@ Usage
 #. If you did not install the service, then start sunshine with the following command, unless a start command is listed
    in the specified package :ref:`installation <about/installation:installation>` instructions.
 
-   .. Note:: A service is a process that runs in the background. Running multiple instances of Sunshine is not
+   .. note:: A service is a process that runs in the background. Running multiple instances of Sunshine is not
       advised.
 
    **Basic usage**
@@ -17,9 +17,9 @@ Usage
 
          sunshine <directory of conf file>/sunshine.conf
 
-      .. Note:: You do not need to specify a config file. If no config file is entered the default location will be used.
+      .. note:: You do not need to specify a config file. If no config file is entered the default location will be used.
 
-      .. Attention:: The configuration file specified will be created if it doesn't exist.
+      .. attention:: The configuration file specified will be created if it doesn't exist.
 
    **Start Sunshine over SSH (Linux/X11)**
       Assuming you are already logged into the host, you can use this command
@@ -50,15 +50,15 @@ Usage
    The web ui is available on `https://localhost:47990 <https://localhost:47990>`__ by default. You may replace
    `localhost` with your internal ip address.
 
-   .. Attention:: Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
+   .. attention:: Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
       being self signed.
 
-   .. Caution:: If running for the first time, make sure to note the username and password that you created.
+   .. caution:: If running for the first time, make sure to note the username and password that you created.
 
    **Add games and applications.**
          This can be configured in the web ui.
 
-         .. Note:: Additionally, apps can be configured manually. `src_assets/<os>/config/apps.json` is an example of a
+         .. note:: Additionally, apps can be configured manually. `src_assets/<os>/config/apps.json` is an example of a
             list of applications that are started just before running a stream. This is the directory within the GitHub
             repo.
 
@@ -74,7 +74,7 @@ Network
 -------
 The Sunshine user interface will be available on port 47990 by default.
 
-.. Warning:: Exposing ports to the internet can be dangerous. Do this at your own risk.
+.. warning:: Exposing ports to the internet can be dangerous. Do this at your own risk.
 
 Arguments
 ---------
@@ -143,7 +143,7 @@ Sunshine needs access to `uinput` to create mouse and gamepad events.
             systemctl --user enable sunshine
 
 #. Additional Setup for KMS
-      .. Note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
+      .. note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
          allow Sunshine to use KMS.
 
       **Enable**
@@ -167,9 +167,9 @@ Sunshine can only access microphones on macOS due to system limitations. To stre
 `Soundflower <https://github.com/mattingalls/Soundflower>`__ or
 `BlackHole <https://github.com/ExistentialAudio/BlackHole>`__.
 
-.. Note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
+.. note:: Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
 
-.. Caution:: Gamepads are not currently supported.
+.. caution:: Gamepads are not currently supported.
 
 Configure autostart service
    **MacPorts**

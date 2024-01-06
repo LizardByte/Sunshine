@@ -1,7 +1,7 @@
 Third Party Packages
 ====================
 
-.. Danger:: These packages are not maintained by LizardByte. Use at your own risk.
+.. danger:: These packages are not maintained by LizardByte. Use at your own risk.
 
 AUR
 ---
@@ -39,7 +39,7 @@ Solus
 Legacy GitHub Repo
 ------------------
 
-.. Attention:: This repo is not maintained. Thank you to Loki for bringing this amazing project to life!
+.. attention:: This repo is not maintained. Thank you to Loki for bringing this amazing project to life!
 
 .. image:: https://img.shields.io/static/v1.svg?label=repo&message=loki-47-6F-64/sunshine&color=blue&style=for-the-badge&logo=github
    :alt: GitHub Maintainer
