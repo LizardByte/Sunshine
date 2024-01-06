@@ -351,18 +351,6 @@ namespace platf {
         return DRM_MODE_ROTATE_0;
       }
 
-      std::optional<std::uint64_t>
-      get_plane_property_value(std::uint32_t plane_id, std::string_view property_name) {
-        auto props = plane_props(plane_id);
-        for (auto &[prop, val] : props) {
-          if (prop->name == property_name) {
-            return val;
-          }
-        }
-
-        return std::nullopt;
-      }
-
       int
       get_crtc_index_by_id(std::uint32_t crtc_id) {
         auto resources = res();
@@ -725,21 +713,50 @@ namespace platf {
 
         plane_t plane = drmModeGetPlane(card.fd.el, cursor_plane_id);
 
-        auto prop_crtc_w = card.get_plane_property_value(cursor_plane_id, "CRTC_W"sv);
-        auto prop_crtc_h = card.get_plane_property_value(cursor_plane_id, "CRTC_H"sv);
-        auto prop_crtc_x = card.get_plane_property_value(cursor_plane_id, "CRTC_X"sv);
-        auto prop_crtc_y = card.get_plane_property_value(cursor_plane_id, "CRTC_Y"sv);
+        std::optional<std::int32_t> prop_crtc_x;
+        std::optional<std::int32_t> prop_crtc_y;
+        std::optional<std::uint32_t> prop_crtc_w;
+        std::optional<std::uint32_t> prop_crtc_h;
+
+        std::optional<std::uint32_t> prop_src_x;
+        std::optional<std::uint32_t> prop_src_y;
+        std::optional<std::uint32_t> prop_src_w;
+        std::optional<std::uint32_t> prop_src_h;
+
+        auto props = card.plane_props(cursor_plane_id);
+        for (auto &[prop, val] : props) {
+          if (prop->name == "CRTC_X"sv) {
+            prop_crtc_x = val;
+          }
+          else if (prop->name == "CRTC_Y"sv) {
+            prop_crtc_y = val;
+          }
+          else if (prop->name == "CRTC_W"sv) {
+            prop_crtc_w = val;
+          }
+          else if (prop->name == "CRTC_H"sv) {
+            prop_crtc_h = val;
+          }
+          else if (prop->name == "SRC_X"sv) {
+            prop_src_x = val;
+          }
+          else if (prop->name == "SRC_Y"sv) {
+            prop_src_y = val;
+          }
+          else if (prop->name == "SRC_W"sv) {
+            prop_src_w = val;
+          }
+          else if (prop->name == "SRC_H"sv) {
+            prop_src_h = val;
+          }
+        }
+
         if (!prop_crtc_w || !prop_crtc_h || !prop_crtc_x || !prop_crtc_y) {
           BOOST_LOG(error) << "Cursor plane is missing required plane CRTC properties!"sv;
           cursor_plane_id = -1;
           captured_cursor.visible = false;
           return;
         }
-
-        auto prop_src_x = card.get_plane_property_value(cursor_plane_id, "SRC_X"sv);
-        auto prop_src_y = card.get_plane_property_value(cursor_plane_id, "SRC_Y"sv);
-        auto prop_src_w = card.get_plane_property_value(cursor_plane_id, "SRC_W"sv);
-        auto prop_src_h = card.get_plane_property_value(cursor_plane_id, "SRC_H"sv);
         if (!prop_src_x || !prop_src_y || !prop_src_w || !prop_src_h) {
           BOOST_LOG(error) << "Cursor plane is missing required plane SRC properties!"sv;
           cursor_plane_id = -1;
@@ -748,8 +765,8 @@ namespace platf {
         }
 
         // Update the cursor position and size unconditionally
-        captured_cursor.x = (std::int32_t) *prop_crtc_x;
-        captured_cursor.y = (std::int32_t) *prop_crtc_y;
+        captured_cursor.x = *prop_crtc_x;
+        captured_cursor.y = *prop_crtc_y;
         captured_cursor.dst_w = *prop_crtc_w;
         captured_cursor.dst_h = *prop_crtc_h;
 
