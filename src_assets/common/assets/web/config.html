@@ -125,6 +125,15 @@
           </div>
         </div>
 
+        <!-- Credentials File -->
+        <div class="mb-3">
+          <label for="credentials_file" class="form-label">Web Manager Credentials File</label>
+          <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json" v-model="config.credentials_file" />
+          <div class="form-text">
+            Store Username/Password separately from Sunshine's state file.
+          </div>
+        </div>
+
         <!--Log Path-->
         <div class="mb-3">
           <label for="log_path" class="form-label">Logfile Path</label>
@@ -659,9 +668,45 @@
           <div class="form-text">Automatically configure port forwarding</div>
         </div>
 
+        <!-- External IP -->
+        <div class="mb-3">
+          <label for="external_ip" class="form-label">External IP</label>
+          <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12" v-model="config.external_ip" />
+          <div class="form-text">
+            If no external IP address is given, Sunshine will automatically detect external IP
+          </div>
+        </div>
+
       </div>
 
+      <!-- Advanced Tab -->
       <div v-if="currentTab === 'advanced'" class="config-page">
+        <!-- Channels -->
+        <div class="mb-3">
+          <label for="channels" class="form-label">Channels</label>
+          <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
+          <div class="form-text">
+            When multicasting, it could be useful to have different configurations for each connected Client. For example:
+            <ul>
+              <li>Clients connected through WAN and LAN have different bitrate constraints.</li>
+              <li>Decoders may require different settings for color</li>
+            </ul>
+            Unlike simply broadcasting to multiple Client, this will generate distinct video streams.<br />
+            Note, CPU usage increases for each distinct video stream generated
+          </div>
+        </div>
+
+        <!-- FEC Percentage -->
+        <div class="mb-3">
+          <label for="fec_percentage" class="form-label">FEC Percentage</label>
+          <input type="text" class="form-control" id="fec_percentage" placeholder="20" v-model="config.fec_percentage" />
+          <div class="form-text">
+            Percentage of error correcting packets per data packet in each video frame.<br />
+            Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br />
+            The default value of 20 is what GeForce Experience uses.
+          </div>
+        </div>
+
         <!-- Quantization Parameter -->
         <div class="mb-3">
           <label for="qp" class="form-label">Quantization Parameter</label>
@@ -673,6 +718,97 @@
             Higher value means more compression, but less quality<br />
           </div>
         </div>
+
+        <!-- Min Threads -->
+        <div class="mb-3">
+          <label for="min_threads" class="form-label">Minimum Software Encoding Thread Count</label>
+          <input type="number" class="form-control" id="min_threads" placeholder="1" min="1" v-model="config.min_threads" />
+          <div class="form-text">
+            Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br />
+            worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br />
+            value that can reliably encode at your desired streaming settings on your hardware.
+          </div>
+        </div>
+
+        <!-- HEVC Support -->
+        <div class="mb-3">
+          <label for="hevc_mode" class="form-label">HEVC Support</label>
+          <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
+            <option value="0">
+              Sunshine will advertise support for HEVC based on encoder capabilities (recommended)
+            </option>
+            <option value="1">
+              Sunshine will not advertise support for HEVC
+            </option>
+            <option value="2">
+              Sunshine will advertise support for HEVC Main profile
+            </option>
+            <option value="3">
+              Sunshine will advertise support for HEVC Main and Main10 (HDR) profiles
+            </option>
+          </select>
+          <div class="form-text">
+            Allows the client to request HEVC Main or HEVC Main10 video streams.<br />
+            HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
+          </div>
+        </div>
+
+        <!-- AV1 Support -->
+        <div class="mb-3">
+          <label for="av1_mode" class="form-label">AV1 Support</label>
+          <select id="av1_mode" class="form-select" v-model="config.av1_mode">
+            <option value="0">
+              Sunshine will advertise support for AV1 based on encoder capabilities (recommended)
+            </option>
+            <option value="1">
+              Sunshine will not advertise support for AV1
+            </option>
+            <option value="2">
+              Sunshine will advertise support for AV1 Main 8-bit profile
+            </option>
+            <option value="3">
+              Sunshine will advertise support for AV1 Main 8-bit and 10-bit (HDR) profiles
+            </option>
+          </select>
+          <div class="form-text">
+            Allows the client to request AV1 Main 8-bit or 10-bit video streams.<br />
+            AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
+          </div>
+        </div>
+
+        <!-- Capture -->
+        <div class="mb-3" v-if="platform === 'linux'">
+          <label for="capture" class="form-label">Force a Specific Capture Method</label>
+          <select id="capture" class="form-select" v-model="config.capture">
+            <option value="">Autodetect</option>
+            <option value="nvfbc">NvFBC</option>
+            <option value="wlr">wlroots</option>
+            <option value="kms">KMS</option>
+            <option value="x11">X11</option>
+          </select>
+          <div class="form-text">
+            Force a specific capture method, otherwise Sunshine will use the first one that works. NvFBC requires patched nvidia drivers.
+          </div>
+        </div>
+
+        <!-- Encoder -->
+        <div class="mb-3">
+          <label for="encoder" class="form-label">Force a Specific Encoder</label>
+          <select id="encoder" class="form-select" v-model="config.encoder">
+            <option value="">Autodetect</option>
+            <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
+            <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
+            <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
+            <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
+            <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
+            <option value="software">Software</option>
+          </select>
+          <div class="form-text">
+            Force a specific encoder, otherwise Sunshine will use the first encoder that is available<br />
+            Note: If you specify a hardware encoder on Windows, it must match the GPU where the display is connected.
+          </div>
+        </div>
+
       </div>
 
       <!--NVIDIA NVENC Encoder Tab-->
