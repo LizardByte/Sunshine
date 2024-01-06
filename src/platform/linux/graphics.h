@@ -275,7 +275,7 @@ namespace egl {
   import_target(
     display_t::pointer egl_display,
     std::array<file_t, nv12_img_t::num_fds> &&fds,
-    const surface_descriptor_t &r8, const surface_descriptor_t &gr88);
+    const surface_descriptor_t &y, const surface_descriptor_t &uv);
 
   class cursor_t: public platf::img_t {
   public:
