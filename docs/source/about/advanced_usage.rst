@@ -933,7 +933,7 @@ capture
               or `nvlax <https://github.com/illnyang/nvlax/>`__.
    wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
    kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability.
-              See :ref:`Linux Setup <about/usage:linux>`.
+              See :ref:`Linux Setup <about/setup:install>`.
    x11        Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
    =========  ===========
 
