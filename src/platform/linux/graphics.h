@@ -280,6 +280,7 @@ namespace egl {
   class cursor_t: public platf::img_t {
   public:
     int x, y;
+    int src_w, src_h;
 
     unsigned long serial;
 
