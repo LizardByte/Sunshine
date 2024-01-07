@@ -43,7 +43,7 @@
     <!-- Force Close App -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2>Force Close</h2>
+        <h2 id="close_apps">Force Close</h2>
         <br>
         <p>
           If Moonlight complains about an app currently running, force closing the
@@ -65,7 +65,7 @@
     <!-- Restart Sunshine -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2>Restart Sunshine</h2>
+        <h2 id="restart">Restart Sunshine</h2>
         <br>
         <p>
           If Sunshine isn't working properly, you can try restarting it.
@@ -84,7 +84,7 @@
     <!-- Unpair all Clients -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2>Unpair All Clients</h2>
+        <h2 id="unpair">Unpair All Clients</h2>
         <br>
         <p>Remove all your paired devices</p>
         <div class="alert alert-success" v-if="unpairAllStatus === true">
@@ -103,7 +103,7 @@
     <!-- Logs -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2>Logs</h2>
+        <h2 id="logs">Logs</h2>
         <br>
         <div class="d-flex justify-content-between align-items-baseline py-2">
           <p>See the logs uploaded by Sunshine</p>
