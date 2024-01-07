@@ -61,17 +61,46 @@ namespace proc {
    * @brief Terminates all child processes in a process group.
    * @param proc The child process itself.
    * @param group The group of all children in the process tree.
+   * @param exit_timeout The timeout to wait for the process group to gracefully exit.
    */
   void
-  terminate_process_group(bp::child &proc, bp::group &group) {
-    if (group.valid()) {
-      BOOST_LOG(debug) << "Terminating child processes"sv;
+  terminate_process_group(bp::child &proc, bp::group &group, std::chrono::seconds exit_timeout) {
+    if (group.valid() && platf::process_group_running((std::uintptr_t) group.native_handle())) {
+      if (exit_timeout.count() > 0) {
+        // Request processes in the group to exit gracefully
+        if (platf::request_process_group_exit((std::uintptr_t) group.native_handle())) {
+          // If the request was successful, wait for a little while for them to exit.
+          BOOST_LOG(info) << "Successfully requested the app to exit. Waiting up to "sv << exit_timeout.count() << " seconds for it to close."sv;
+
+          // group::wait_for() and similar functions are broken and deprecated, so we use a simple polling loop
+          while (platf::process_group_running((std::uintptr_t) group.native_handle()) && (--exit_timeout).count() >= 0) {
+            std::this_thread::sleep_for(1s);
+          }
+
+          if (exit_timeout.count() < 0) {
+            BOOST_LOG(warning) << "App did not fully exit within the timeout. Terminating the app's remaining processes."sv;
+          }
+          else {
+            BOOST_LOG(info) << "All app processes have successfully exited."sv;
+          }
+        }
+        else {
+          BOOST_LOG(info) << "App did not respond to a graceful termination request. Forcefully terminating the app's processes."sv;
+        }
+      }
+      else {
+        BOOST_LOG(info) << "No graceful exit timeout was specified for this app. Forcefully terminating the app's processes."sv;
+      }
+
+      // We always call terminate() even if we waited successfully for all processes above.
+      // This ensures the process group state is consistent with the OS in boost.
       group.terminate();
+      group.detach();
     }
 
     if (proc.valid()) {
       // avoid zombie process
-      proc.wait();
+      proc.detach();
     }
   }
 
@@ -241,7 +270,15 @@ namespace proc {
 
   int
   proc_t::running() {
-    if (placebo || _process.running()) {
+    if (placebo) {
+      return _app_id;
+    }
+    else if (_app.wait_all && _process_group && platf::process_group_running((std::uintptr_t) _process_group.native_handle())) {
+      // The app is still running if any process in the group is still running
+      return _app_id;
+    }
+    else if (_process.running()) {
+      // The app is still running only if the initial process launched is still running
       return _app_id;
     }
     else if (_app.auto_detach && _process.native_exit_code() == 0 &&
@@ -265,7 +302,7 @@ namespace proc {
   proc_t::terminate() {
     std::error_code ec;
     placebo = false;
-    terminate_process_group(_process, _process_group);
+    terminate_process_group(_process, _process_group, _app.exit_timeout);
     _process = bp::child();
     _process_group = bp::group();
 
@@ -566,6 +603,8 @@ namespace proc {
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
         auto elevated = app_node.get_optional<bool>("elevated"s);
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
+        auto wait_all = app_node.get_optional<bool>("wait-all"s);
+        auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -625,6 +664,8 @@ namespace proc {
 
         ctx.elevated = elevated.value_or(false);
         ctx.auto_detach = auto_detach.value_or(true);
+        ctx.wait_all = wait_all.value_or(true);
+        ctx.exit_timeout = std::chrono::seconds { exit_timeout.value_or(5) };
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {

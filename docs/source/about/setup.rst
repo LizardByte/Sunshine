@@ -550,6 +550,8 @@ Application List
    - ``name`` - The name of the application/game
    - ``output`` - The file where the output of the command is stored
    - ``auto-detach`` - Specifies whether the app should be treated as detached if it exits quickly
+   - ``wait-all`` - Specifies whether to wait for all processes to terminate rather than just the initial process
+   - ``exit-timeout`` - Specifies how long to wait in seconds for the process to gracefully exit (default: 5 seconds)
    - ``prep-cmd`` - A list of commands to be run before/after the application
 
      - If any of the prep-commands fail, starting the application is aborted
