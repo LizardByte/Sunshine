@@ -662,19 +662,19 @@ namespace egl {
   }
 
   std::optional<sws_t>
-  sws_t::make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex) {
+  sws_t::make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
     sws_t sws;
 
     sws.serial = std::numeric_limits<std::uint64_t>::max();
 
     // Ensure aspect ratio is maintained
-    auto scalar = std::fminf(out_width / (float) in_width, out_heigth / (float) in_height);
+    auto scalar = std::fminf(out_width / (float) in_width, out_height / (float) in_height);
     auto out_width_f = in_width * scalar;
     auto out_height_f = in_height * scalar;
 
     // result is always positive
     auto offsetX_f = (out_width - out_width_f) / 2;
-    auto offsetY_f = (out_heigth - out_height_f) / 2;
+    auto offsetY_f = (out_height - out_height_f) / 2;
 
     sws.out_width = out_width_f;
     sws.out_height = out_height_f;
@@ -806,12 +806,12 @@ namespace egl {
   }
 
   std::optional<sws_t>
-  sws_t::make(int in_width, int in_height, int out_width, int out_heigth) {
+  sws_t::make(int in_width, int in_height, int out_width, int out_height, GLint gl_tex_internal_fmt) {
     auto tex = gl::tex_t::make(2);
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, in_width, in_height);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, gl_tex_internal_fmt, in_width, in_height);
 
-    return make(in_width, in_height, out_width, out_heigth, std::move(tex));
+    return make(in_width, in_height, out_width, out_height, std::move(tex));
   }
 
   void

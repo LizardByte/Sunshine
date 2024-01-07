@@ -130,12 +130,12 @@ namespace va {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
       this->hwframe.reset(frame);
       this->frame = frame;
 
       if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
+        if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
           BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
           return -1;
         }
@@ -143,6 +143,7 @@ namespace va {
 
       va::DRMPRIMESurfaceDescriptor prime;
       va::VASurfaceID surface = (std::uintptr_t) frame->data[3];
+      auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
       auto status = vaExportSurfaceHandle(
         this->va_display,
@@ -194,7 +195,25 @@ namespace va {
         return -1;
       }
 
-      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height);
+      // Decide the bit depth format of the backing texture based the target frame format
+      GLint gl_format;
+      switch (hw_frames_ctx->sw_format) {
+        case AV_PIX_FMT_YUV420P:
+        case AV_PIX_FMT_NV12:
+          gl_format = GL_RGBA8;
+          break;
+
+        case AV_PIX_FMT_YUV420P10:
+        case AV_PIX_FMT_P010:
+          gl_format = GL_RGB10_A2;
+          break;
+
+        default:
+          BOOST_LOG(error) << "Unsupported pixel format for VA frame: "sv << hw_frames_ctx->sw_format;
+          return -1;
+      }
+
+      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, gl_format);
       if (!sws_opt) {
         return -1;
       }
