@@ -1,4 +1,4 @@
 utility
 =======
 
-.. Todo:: Add utility.h
+.. todo:: Add utility.h

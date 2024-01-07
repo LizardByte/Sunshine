@@ -1,4 +1,4 @@
 misc
 ====
 
-.. Todo:: Add misc.h
+.. todo:: Add misc.h

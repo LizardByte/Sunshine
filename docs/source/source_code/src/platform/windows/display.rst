@@ -1,4 +1,4 @@
 display
 =======
 
-.. Todo:: Add display.h
+.. todo:: Add display.h
