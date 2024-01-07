@@ -1,4 +1,4 @@
 graphics
 ========
 
-.. Todo:: Add graphics.h
+.. todo:: Add graphics.h

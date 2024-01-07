@@ -183,7 +183,7 @@ CUDA
 ----
 If the version of CUDA available from your distro is not adequate, manually install CUDA.
 
-.. Tip:: The version of CUDA you use will determine compatibility with various GPU generations.
+.. tip:: The version of CUDA you use will determine compatibility with various GPU generations.
    See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`__ for more info.
 
    Select the appropriate run file based on your desired CUDA version and architecture according to
@@ -199,7 +199,7 @@ If the version of CUDA available from your distro is not adequate, manually inst
 
 Build
 -----
-.. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
+.. attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
 .. code-block:: bash
 

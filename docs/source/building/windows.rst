@@ -34,7 +34,7 @@ Install dependencies:
 
 Build
 -----
-.. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
+.. attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
 .. code-block:: bash
 

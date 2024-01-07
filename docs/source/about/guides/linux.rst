@@ -5,5 +5,6 @@ Collection of Sunshine Linux host guides.
 
 .. toctree::
    :maxdepth: 1
+   :glob:
 
-   headless_ssh
+   linux/*

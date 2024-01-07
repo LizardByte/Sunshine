@@ -1,6 +1,6 @@
 Legal
 =====
-.. Attention:: This documentation is for informational purposes only and is not intended as legal advice. If you have
+.. attention:: This documentation is for informational purposes only and is not intended as legal advice. If you have
    any legal questions or concerns about using Sunshine, we recommend consulting with a lawyer.
 
 Sunshine is licensed under the GPL-3.0 license, which allows for free use and modification of the software.

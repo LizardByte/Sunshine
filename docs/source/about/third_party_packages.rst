@@ -1,7 +1,7 @@
 Third Party Packages
 ====================
 
-.. Danger:: These packages are not maintained by LizardByte. Use at your own risk.
+.. danger:: These packages are not maintained by LizardByte. Use at your own risk.
 
 AUR
 ---
@@ -35,18 +35,3 @@ Solus
 .. image:: https://img.shields.io/badge/dynamic/xml.svg?color=orange&label=Solus&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27solus%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=solus
    :alt: Solus Version
    :target: https://dev.getsol.us/source/sunshine
-
-Legacy GitHub Repo
-------------------
-
-.. Attention:: This repo is not maintained. Thank you to Loki for bringing this amazing project to life!
-
-.. image:: https://img.shields.io/static/v1.svg?label=repo&message=loki-47-6F-64/sunshine&color=blue&style=for-the-badge&logo=github
-   :alt: GitHub Maintainer
-   :target: https://github.com/loki-47-6F-64/sunshine/releases
-
-.. image:: https://img.shields.io/github/last-commit/loki-47-6F-64/sunshine.svg?style=for-the-badge&logo=github
-   :alt: GitHub last commit
-
-.. image:: https://img.shields.io/github/release-date/loki-47-6F-64/sunshine.svg?style=for-the-badge&logo=github
-   :alt: GitHub Release Date

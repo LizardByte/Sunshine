@@ -1,4 +1,4 @@
 PolicyConfig
 ============
 
-.. Todo:: Add PolicyConfig.h
+.. todo:: Add PolicyConfig.h

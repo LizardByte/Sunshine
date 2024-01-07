@@ -43,7 +43,7 @@ location by modifying the configuration file.
 
 To manually configure sunshine you may edit the `conf` file in a text editor. Use the examples as reference.
 
-.. Hint:: Some settings are not available within the web ui.
+.. hint:: Some settings are not available within the web ui.
 
 General
 -------
@@ -130,7 +130,7 @@ gamepad
 **Description**
    The type of gamepad to emulate on the host.
 
-   .. Caution:: Applies to Windows only.
+   .. caution:: Applies to Windows only.
 
 **Choices**
 
@@ -157,7 +157,7 @@ ds4_back_as_touchpad_click
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   .. Hint:: Only applies when gamepad is set to ds4 manually. Unused in other gamepad modes. 
+   .. hint:: Only applies when gamepad is set to ds4 manually. Unused in other gamepad modes.
 
    Allow Select/Back inputs to also trigger DS4 touchpad click. Useful for clients looking to emulate touchpad click
    on Xinput devices.
@@ -174,7 +174,7 @@ motion_as_ds4
 ^^^^^^^^^^^^^
 
 **Description**
-   .. Hint:: Only applies when gamepad is set to auto.
+   .. hint:: Only applies when gamepad is set to auto.
 
    If a client reports that a connected gamepad has motion sensor support, emulate it on the host as a DS4 controller.
 
@@ -192,7 +192,7 @@ touchpad_as_ds4
 ^^^^^^^^^^^^^^^
 
 **Description**
-   .. Hint:: Only applies when gamepad is set to auto.
+   .. hint:: Only applies when gamepad is set to auto.
 
    If a client reports that a connected gamepad has a touchpad, emulate it on the host as a DS4 controller.
 
@@ -212,7 +212,7 @@ back_button_timeout
 **Description**
    If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.
 
-   .. Tip:: If back_button_timeout < 0, then the Home/Guide button will not be emulated.
+   .. tip:: If back_button_timeout < 0, then the Home/Guide button will not be emulated.
 
 **Default**
    ``-1``
@@ -242,7 +242,7 @@ key_repeat_frequency
 **Description**
    How often keys repeat every second.
 
-   .. Tip:: This configurable option supports decimals.
+   .. tip:: This configurable option supports decimals.
 
 **Default**
    ``24.9``
@@ -263,7 +263,7 @@ always_send_scancodes
 
    Disable if keys on the client are generating the wrong input on the host.
 
-   .. Caution:: Applies to Windows only.
+   .. caution:: Applies to Windows only.
 
 **Default**
    ``enabled``
@@ -297,7 +297,7 @@ native_pen_touch
 
    This can be useful to disable for older applications without native pen/touch support.
 
-   .. Caution:: Applies to Windows only.
+   .. caution:: Applies to Windows only.
 
 **Default**
    ``enabled``
@@ -313,9 +313,9 @@ keybindings
 **Description**
    Sometimes it may be useful to map keybindings. Wayland won't allow clients to capture the Win Key for example.
 
-   .. Tip:: See `virtual key codes <https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes>`__
+   .. tip:: See `virtual key codes <https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes>`__
 
-   .. Hint:: keybindings needs to have a multiple of two elements.
+   .. hint:: keybindings needs to have a multiple of two elements.
 
 **Default**
    .. code-block:: text
@@ -358,7 +358,7 @@ adapter_name
 **Description**
    Select the video card you want to stream.
 
-   .. Tip:: To find the name of the appropriate values follow these instructions.
+   .. tip:: To find the name of the appropriate values follow these instructions.
 
       **Linux + VA-API**
          Unlike with `amdvce` and `nvenc`, it doesn't matter if video encoding is done on a different GPU.
@@ -374,12 +374,16 @@ adapter_name
          To be supported by Sunshine, it needs to have at the very minimum:
          ``VAProfileH264High   : VAEntrypointEncSlice``
 
-      .. Todo:: macOS
+      .. todo:: macOS
 
       **Windows**
          .. code-block:: batch
 
             tools\dxgi-info.exe
+
+         .. note:: For hybrid graphics systems, DXGI reports the outputs are connected to whichever graphics adapter
+            that the application is configured to use, so it's not a reliable indicator of how the display is
+            physically connected.
 
 **Default**
    Sunshine will select the default video card.
@@ -390,7 +394,7 @@ adapter_name
 
          adapter_name = /dev/dri/renderD128
 
-   .. Todo:: macOS
+   .. todo:: macOS
 
    **Windows**
       .. code-block:: text
@@ -403,7 +407,7 @@ output_name
 **Description**
    Select the display number you want to stream.
 
-   .. Tip:: To find the name of the appropriate values follow these instructions.
+   .. tip:: To find the name of the appropriate values follow these instructions.
 
       **Linux**
          During Sunshine startup, you should see the list of detected monitors:
@@ -419,7 +423,7 @@ output_name
 
          You need to use the value before the colon in the output, e.g. ``1``.
 
-      .. Todo:: macOS
+      .. todo:: macOS
 
       **Windows**
          .. code-block:: batch
@@ -435,7 +439,7 @@ output_name
 
          output_name = 0
 
-   .. Todo:: macOS
+   .. todo:: macOS
 
    **Windows**
       .. code-block:: text
@@ -448,7 +452,7 @@ fps
 **Description**
    The fps modes advertised by Sunshine.
 
-   .. Note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
+   .. note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
       fps is supported.
 
 **Default**
@@ -465,7 +469,7 @@ resolutions
 **Description**
    The resolutions advertised by Sunshine.
 
-   .. Note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
+   .. note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
       resolution is supported.
 
 **Default**
@@ -509,7 +513,7 @@ audio_sink
 **Description**
    The name of the audio sink used for audio loopback.
 
-   .. Tip:: To find the name of the audio sink follow these instructions.
+   .. tip:: To find the name of the audio sink follow these instructions.
 
       **Linux + pulseaudio**
          .. code-block:: bash
@@ -533,9 +537,9 @@ audio_sink
 
             tools\audio-info.exe
 
-         .. Tip:: If you have multiple audio devices with identical names, use the Device ID instead.
+         .. tip:: If you have multiple audio devices with identical names, use the Device ID instead.
 
-   .. Tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
+   .. tip:: If you want to mute the host speakers, use `virtual_sink`_ instead.
 
 **Default**
    Sunshine will select the default audio device.
@@ -563,9 +567,9 @@ virtual_sink
    The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio, while muting
    the speakers.
 
-   .. Tip:: See `audio_sink`_!
+   .. tip:: See `audio_sink`_!
 
-   .. Tip:: These are some options for virtual sound devices.
+   .. tip:: These are some options for virtual sound devices.
 
       - Stream Streaming Speakers (Linux, macOS, Windows)
 
@@ -585,7 +589,7 @@ install_steam_audio_drivers
 **Description**
    Installs the Steam Streaming Speakers driver (if Steam is installed) to support surround sound and muting host audio.
 
-   .. Tip:: This option is only supported on Windows.
+   .. tip:: This option is only supported on Windows.
 
 **Default**
    ``enabled``
@@ -634,7 +638,7 @@ port
    Mic (unused)     48002 UDP    +13
    ================ ============ ===========================
 
-.. Attention:: Custom ports may not be supported by all Moonlight clients.
+.. attention:: Custom ports may not be supported by all Moonlight clients.
 
 **Default**
    ``47989``
@@ -677,7 +681,7 @@ pkey
 **Description**
    The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.
 
-   .. Warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
+   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
 
 **Default**
    ``credentials/cakey.pem``
@@ -693,7 +697,7 @@ cert
 **Description**
    The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.
 
-   .. Warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
+   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
 
 **Default**
    ``credentials/cacert.pem``
@@ -786,7 +790,7 @@ channels
    - Clients connected through WAN and LAN have different bitrate constraints.
    - Decoders may require different settings for color.
 
-   .. Warning:: CPU usage increases for each distinct video stream generated.
+   .. warning:: CPU usage increases for each distinct video stream generated.
 
 **Default**
    ``1``
@@ -802,7 +806,7 @@ fec_percentage
 **Description**
    Percentage of error correcting packets per data packet in each video frame.
 
-   .. Warning:: Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.
+   .. warning:: Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.
 
 **Default**
    ``20``
@@ -821,7 +825,7 @@ qp
 **Description**
    Quantization Parameter. Some devices don't support Constant Bit Rate. For those devices, QP is used instead.
 
-   .. Warning:: Higher value means more compression, but less quality.
+   .. warning:: Higher value means more compression, but less quality.
 
 **Default**
    ``28``
@@ -837,7 +841,7 @@ min_threads
 **Description**
    Minimum number of threads used for software encoding.
 
-   .. Note:: Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually worth it to gain
+   .. note:: Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually worth it to gain
       the use of more CPU cores for encoding. The ideal value is the lowest value that can reliably encode at your
       desired streaming settings on your hardware.
 
@@ -855,7 +859,7 @@ hevc_mode
 **Description**
    Allows the client to request HEVC Main or HEVC Main10 video streams.
 
-   .. Warning:: HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software
+   .. warning:: HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software
       encoding.
 
 **Choices**
@@ -886,7 +890,7 @@ av1_mode
 **Description**
    Allows the client to request AV1 Main 8-bit or 10-bit video streams.
 
-   .. Warning:: AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software
+   .. warning:: AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software
       encoding.
 
 **Choices**
@@ -917,7 +921,7 @@ capture
 **Description**
    Force specific screen capture method.
 
-   .. Caution:: Applies to Linux only.
+   .. caution:: Applies to Linux only.
 
 **Choices**
 
@@ -933,7 +937,7 @@ capture
               or `nvlax <https://github.com/illnyang/nvlax/>`__.
    wlr        Capture for wlroots based Wayland compositors via DMA-BUF.
    kms        DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability.
-              See :ref:`Linux Setup <about/usage:linux>`.
+              See :ref:`Linux Setup <about/setup:install>`.
    x11        Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
    =========  ===========
 
@@ -979,9 +983,9 @@ sw_preset
 **Description**
    The encoder preset to use.
 
-   .. Note:: This option only applies when using software `encoder`_.
+   .. note:: This option only applies when using software `encoder`_.
 
-   .. Note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`__.
+   .. note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`__.
 
          A preset is a collection of options that will provide a certain encoding speed to compression ratio. A slower
          preset will provide better compression (compression is quality per filesize). This means that, for example, if
@@ -1023,9 +1027,9 @@ sw_tune
 **Description**
    The tuning preset to use.
 
-   .. Note:: This option only applies when using software `encoder`_.
+   .. note:: This option only applies when using software `encoder`_.
 
-   .. Note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`__.
+   .. note:: From `FFmpeg <https://trac.ffmpeg.org/wiki/Encode/H.264#preset>`__.
 
          You can optionally use -tune to change settings based upon the specifics of your input.
 
@@ -1061,7 +1065,7 @@ nvenc_preset
    Higher numbers improve compression (quality at given bitrate) at the cost of increased encoding latency.
    Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by increasing bitrate.
 
-   .. Note:: This option only applies when using NVENC `encoder`_.
+   .. note:: This option only applies when using NVENC `encoder`_.
 
 **Choices**
 
@@ -1096,7 +1100,7 @@ nvenc_twopass
    This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere to bitrate limits.
    Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss.
 
-   .. Note:: This option only applies when using NVENC `encoder`_.
+   .. note:: This option only applies when using NVENC `encoder`_.
 
 **Choices**
 
@@ -1127,9 +1131,9 @@ nvenc_realtime_hags
    Currently NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used and VRAM utilization is close to maximum.
    Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
 
-   .. Note:: This option only applies when using NVENC `encoder`_.
+   .. note:: This option only applies when using NVENC `encoder`_.
 
-   .. Caution:: Applies to Windows only.
+   .. caution:: Applies to Windows only.
 
 **Choices**
 
@@ -1158,7 +1162,7 @@ nvenc_h264_cavlc
    Prefer CAVLC entropy coding over CABAC in H.264 when using NVENC.
    CAVLC is outdated and needs around 10% more bitrate for same quality, but provides slightly faster decoding when using software decoder.
 
-   .. Note:: This option only applies when using H.264 format with NVENC `encoder`_.
+   .. note:: This option only applies when using H.264 format with NVENC `encoder`_.
 
 **Choices**
 
@@ -1186,7 +1190,7 @@ qsv_preset
 **Description**
    The encoder preset to use.
 
-   .. Note:: This option only applies when using quicksync `encoder`_.
+   .. note:: This option only applies when using quicksync `encoder`_.
 
 **Choices**
 
@@ -1219,7 +1223,7 @@ qsv_coder
 **Description**
    The entropy encoding to use.
 
-   .. Note:: This option only applies when using H264 with quicksync `encoder`_.
+   .. note:: This option only applies when using H264 with quicksync `encoder`_.
 
 **Choices**
 
@@ -1248,7 +1252,7 @@ amd_quality
 **Description**
    The encoder preset to use.
 
-   .. Note:: This option only applies when using amdvce `encoder`_.
+   .. note:: This option only applies when using amdvce `encoder`_.
 
 **Choices**
 
@@ -1277,7 +1281,7 @@ amd_rc
 **Description**
    The encoder rate control.
 
-   .. Note:: This option only applies when using amdvce `encoder`_.
+   .. note:: This option only applies when using amdvce `encoder`_.
 
 **Choices**
 
@@ -1307,7 +1311,7 @@ amd_usage
 **Description**
    The encoder usage profile, used to balance latency with encoding quality.
 
-   .. Note:: This option only applies when using amdvce `encoder`_.
+   .. note:: This option only applies when using amdvce `encoder`_.
 
 **Choices**
 
@@ -1337,7 +1341,7 @@ amd_preanalysis
 **Description**
    Preanalysis can increase encoding quality at the cost of latency.
 
-   .. Note:: This option only applies when using amdvce `encoder`_.
+   .. note:: This option only applies when using amdvce `encoder`_.
 
 **Default**
    ``disabled``
@@ -1353,7 +1357,7 @@ amd_vbaq
 **Description**
    Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality.
 
-   .. Note:: This option only applies when using amdvce `encoder`_.
+   .. note:: This option only applies when using amdvce `encoder`_.
 
 **Default**
    ``enabled``
@@ -1369,7 +1373,7 @@ amd_coder
 **Description**
    The entropy encoding to use.
 
-   .. Note:: This option only applies when using H264 with amdvce `encoder`_.
+   .. note:: This option only applies when using H264 with amdvce `encoder`_.
 
 **Choices**
 
@@ -1398,7 +1402,7 @@ vt_software
 **Description**
    Force Video Toolbox to use software encoding.
 
-   .. Note:: This option only applies when using macOS.
+   .. note:: This option only applies when using macOS.
 
 **Choices**
 
@@ -1428,9 +1432,9 @@ vt_realtime
 **Description**
    Realtime encoding.
 
-   .. Note:: This option only applies when using macOS.
+   .. note:: This option only applies when using macOS.
 
-   .. Warning:: Disabling realtime encoding might result in a delayed frame encoding or frame drop.
+   .. warning:: Disabling realtime encoding might result in a delayed frame encoding or frame drop.
 
 **Default**
    ``enabled``
@@ -1446,7 +1450,7 @@ vt_coder
 **Description**
    The entropy encoding to use.
 
-   .. Note:: This option only applies when using macOS.
+   .. note:: This option only applies when using macOS.
 
 **Choices**
 
