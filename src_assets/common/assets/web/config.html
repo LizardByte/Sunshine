@@ -27,16 +27,17 @@
   <div class="container">
     <h1 class="my-4">Configuration</h1>
     <div class="form" v-if="config">
-      <!--Header-->
+      <!-- Header -->
       <ul class="nav nav-tabs">
         <li class="nav-item" v-for="tab in tabs" :key="tab.id">
           <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
             @click="currentTab = tab.id">{{tab.name}}</a>
         </li>
       </ul>
-      <!--General Tab-->
+
+      <!-- General Tab -->
       <div v-if="currentTab === 'general'" class="config-page">
-        <!--Sunshine Name-->
+        <!-- Sunshine Name -->
         <div class="mb-3">
           <label for="sunshine_name" class="form-label">Sunshine Name</label>
           <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
@@ -45,7 +46,8 @@
             The name displayed by Moonlight. If not specified, the PC's hostname is used
           </div>
         </div>
-        <!--Log Level-->
+
+        <!-- Log Level -->
         <div class="mb-3">
           <label for="min_log_level" class="form-label">Log Level</label>
           <select id="min_log_level" class="form-select" v-model="config.min_log_level">
@@ -61,90 +63,7 @@
             The minimum log level printed to standard out
           </div>
         </div>
-        <!--Log Path-->
-        <div class="mb-3">
-          <label for="log_path" class="form-label">Logfile Path</label>
-          <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
-          <div class="form-text">
-            The file where the current logs of Sunshine are stored.
-          </div>
-        </div>
-        <!--Origin Web UI Allowed-->
-        <div class="mb-3">
-          <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
-          <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
-            <option value="pc">Only localhost may access Web UI</option>
-            <option value="lan">Only those in LAN may access Web UI</option>
-            <option value="wan">Anyone may access Web UI</option>
-          </select>
-          <div class="form-text">
-            The origin of the remote endpoint address that is not denied access to Web UI
-          </div>
-        </div>
-        <!--UPnP-->
-        <div class="mb-3">
-          <label for="upnp" class="form-label">UPnP</label>
-          <select id="upnp" class="form-select" v-model="config.upnp">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
-          </select>
-          <div class="form-text">Automatically configure port forwarding</div>
-        </div>
-        <!--Ping Timeout-->
-        <div class="mb-3">
-          <label for="ping_timeout" class="form-label">Ping Timeout</label>
-          <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
-          <div class="form-text">
-            How long to wait in milliseconds for data from moonlight before shutting down the stream
-          </div>
-        </div>
-        <!--Advertised FPS and Resolutions-->
-        <div class="mb-3">
-          <label for="ping_timeout" class="form-label">Advertised Resolutions and FPS</label>
-          <div class="resolutions-container">
-            <label>Resolutions</label>
-            <div class="resolutions d-flex flex-wrap">
-              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
-                <span class="px-2">{{r}}</span>
-                <span style="cursor: pointer" @click="resolutions.splice(i,1)">&times;</span>
-              </div>
-              <form @submit.prevent="resolutions.push(resIn);resIn = '';" class="d-flex align-items-center">
-                <input type="text" v-model="resIn" required pattern="[0-9]+x[0-9]+" style="
-                  border-top-right-radius: 0;
-                  border-bottom-right-radius: 0;
-                " class="form-control" />
-                <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
-                  +
-                </button>
-              </form>
-            </div>
-          </div>
-          <div class="fps-container">
-            <label>FPS</label>
-            <div class="fps d-flex flex-wrap">
-              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
-                <span class="px-2">{{f}}</span>
-                <span style="cursor: pointer" @click="fps.splice(i,1)">&times;</span>
-              </div>
-              <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
-                <input type="text" v-model="fpsIn" required pattern="[0-9]+" style="
-                  width: 6ch;
-                  border-top-right-radius: 0;
-                  border-bottom-right-radius: 0;
-                " class="form-control" />
-                <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
-                  +
-                </button>
-              </form>
-            </div>
-          </div>
-          <div class="form-text">
-            The display modes advertised by Sunshine<br />
-            Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
-            resolutions and fps are supported.<br>
-            This setting does <b>not</b> change how the screen stream is sent to Moonlight
-          </div>
-        </div>
+
         <!-- Global Prep Commands -->
         <div class="mb-3 d-flex flex-column">
           <label class="form-label">Command Preparations</label>
@@ -189,21 +108,50 @@
               </tr>
             </tbody>
           </table>
-          <button class="mt-2 btn btn-success" style="margin: 0 auto" @click="add_global_prep_cmd">
+          <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="add_global_prep_cmd">
             &plus; Add
           </button>
         </div>
       </div>
-      <!--Files Tab-->
+
+      <!-- Files Tab -->
       <div v-if="currentTab === 'files'" class="config-page">
-        <!--Private Key-->
+        <!-- Apps File -->
+        <div class="mb-3">
+          <label for="file_apps" class="form-label">Apps File</label>
+          <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
+          <div class="form-text">
+            The file where current apps of Sunshine are stored
+          </div>
+        </div>
+
+        <!-- Credentials File -->
+        <div class="mb-3">
+          <label for="credentials_file" class="form-label">Credentials File</label>
+          <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json" v-model="config.credentials_file" />
+          <div class="form-text">
+            Store Username/Password separately from Sunshine's state file.
+          </div>
+        </div>
+
+        <!-- Log Path -->
+        <div class="mb-3">
+          <label for="log_path" class="form-label">Logfile Path</label>
+          <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
+          <div class="form-text">
+            The file where the current logs of Sunshine are stored.
+          </div>
+        </div>
+
+        <!-- Private Key -->
         <div class="mb-3">
           <label for="pkey" class="form-label">Private Key</label>
           <input type="text" class="form-control" id="pkey" placeholder="/dir/pkey.pem" v-model="config.pkey" />
           <div class="form-text">The private key used for the web UI and Moonlight client pairing. For best
             compatibility, this should be an RSA-2048 private key.</div>
         </div>
-        <!--Certificate-->
+
+        <!-- Certificate -->
         <div class="mb-3">
           <label for="cert" class="form-label">Certificate</label>
           <input type="text" class="form-control" id="cert" placeholder="/dir/cert.pem" v-model="config.cert" />
@@ -213,7 +161,7 @@
           </div>
         </div>
 
-        <!--State File-->
+        <!-- State File -->
         <div class="mb-3">
           <label for="file_state" class="form-label">State File</label>
           <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json"
@@ -222,18 +170,25 @@
             The file where current state of Sunshine is stored
           </div>
         </div>
-        <!--Apps File-->
+
+      </div>
+
+      <!-- Input Tab -->
+      <div v-if="currentTab === 'input'" class="config-page">
+        <!-- Enable Gamepad Input -->
         <div class="mb-3">
-          <label for="file_apps" class="form-label">Apps File</label>
-          <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
+          <label for="gamepad" class="form-label">Enable Gamepad Input</label>
+          <select id="gamepad" class="form-select" v-model="config.controller">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
           <div class="form-text">
-            The file where current apps of Sunshine are stored
+            Allows guests to control the host system with a gamepad / controller
           </div>
         </div>
-      </div>
-      <div v-if="currentTab === 'input'" class="config-page">
-        <!--Emulated Gamepad Type-->
-        <div class="mb-3" v-if="platform === 'windows'">
+
+        <!-- Emulated Gamepad Type -->
+        <div class="mb-3" v-if="config.controller === 'enabled' && platform === 'windows'">
           <label for="gamepad" class="form-label">Emulated Gamepad Type</label>
           <select id="gamepad" class="form-select" v-model="config.gamepad">
             <option value="auto">Automatic</option>
@@ -246,17 +201,17 @@
           <div class="accordion-item">
             <h2 class="accordion-header">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#panelsStayOpen-collapseOne">
+                      data-bs-target="#panelsStayOpen-collapseOne">
                 Manual DS4 options
               </button>
             </h2>
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-              aria-labelledby="panelsStayOpen-headingOne">
+                 aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
                 <div>
                   <label for="ds4_back_as_touchpad_click" class="form-label">Map Back/Select to Touchpad Click</label>
                   <select id="ds4_back_as_touchpad_click" class="form-select"
-                    v-model="config.ds4_back_as_touchpad_click">
+                          v-model="config.ds4_back_as_touchpad_click">
                     <option value="disabled">Disabled</option>
                     <option value="enabled">Enabled (default)</option>
                   </select>
@@ -266,21 +221,21 @@
             </div>
           </div>
         </div>
-        <div class="accordion" v-if="config.gamepad === 'auto'">
+        <div class="accordion" v-if="config.controller === 'enabled' && config.gamepad === 'auto'">
           <div class="accordion-item">
             <h2 class="accordion-header">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#panelsStayOpen-collapseOne">
+                      data-bs-target="#panelsStayOpen-collapseOne">
                 Automatic selection options
               </button>
             </h2>
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-              aria-labelledby="panelsStayOpen-headingOne">
+                 aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
                 <div>
                   <label for="motion_as_ds4" class="form-label">Emulate a DS4 gamepad if the client gamepad reports motion sensors are present</label>
                   <select id="motion_as_ds4" class="form-select"
-                    v-model="config.motion_as_ds4">
+                          v-model="config.motion_as_ds4">
                     <option value="disabled">Disabled</option>
                     <option value="enabled">Enabled (default)</option>
                   </select>
@@ -289,7 +244,7 @@
                 <div>
                   <label for="touchpad_as_ds4" class="form-label">Emulate a DS4 gamepad if the client gamepad reports a touchpad is present</label>
                   <select id="touchpad_as_ds4" class="form-select"
-                    v-model="config.touchpad_as_ds4">
+                          v-model="config.touchpad_as_ds4">
                     <option value="disabled">Disabled</option>
                     <option value="enabled">Enabled (default)</option>
                   </select>
@@ -299,31 +254,21 @@
             </div>
           </div>
         </div>
-        <!--Home/Guide Button Emulation Timeout-->
-        <div class="mb-3">
+
+        <!-- Home/Guide Button Emulation Timeout -->
+        <div class="mb-3" v-if="config.controller === 'enabled'">
           <label for="back_button_timeout" class="form-label">Home/Guide Button Emulation Timeout</label>
           <input type="text" class="form-control" id="back_button_timeout" placeholder="-1"
-            v-model="config.back_button_timeout" />
+                 v-model="config.back_button_timeout" />
           <div class="form-text">
             If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press
-            is
-            emulated.<br />
-            If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide
-            button.<br />
+            is emulated.<br>
+            If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide button.<br>
           </div>
         </div>
-        <!--Enable Mouse Input-->
-        <div class="mb-3">
-          <label for="mouse" class="form-label">Enable Mouse Input</label>
-          <select id="mouse" class="form-select" v-model="config.mouse">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
-          </select>
-          <div class="form-text">
-            Allows guests to control the host system with the mouse
-          </div>
-        </div>
-        <!--Enable Keyboard Input-->
+
+        <!-- Enable Keyboard Input -->
+        <hr>
         <div class="mb-3">
           <label for="keyboard" class="form-label">Enable Keyboard Input</label>
           <select id="keyboard" class="form-select" v-model="config.keyboard">
@@ -334,101 +279,111 @@
             Allows guests to control the host system with the keyboard
           </div>
         </div>
-        <!--Enable Gamepad Input-->
-        <div class="mb-3">
-          <label for="gamepad" class="form-label">Enable Gamepad Input</label>
-          <select id="gamepad" class="form-select" v-model="config.controller">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
-          </select>
-          <div class="form-text">
-            Allows guests to control the host system with a gamepad / controller
-          </div>
-        </div>
+
         <!-- Key Repeat Delay-->
-        <div class="mb-3" v-if="platform === 'windows'">
+        <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
           <label for="key_repeat_delay" class="form-label">Key Repeat Delay</label>
           <input type="text" class="form-control" id="key_repeat_delay" placeholder="500"
-            v-model="config.key_repeat_delay" />
+                 v-model="config.key_repeat_delay" />
           <div class="form-text">
-            Control how fast keys will repeat themselves<br />
+            Control how fast keys will repeat themselves<br>
             The initial delay in milliseconds before repeating keys
           </div>
         </div>
+
         <!-- Key Repeat Frequency-->
-        <div class="mb-3" v-if="platform === 'windows'">
+        <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
           <label for="key_repeat_frequency" class="form-label">Key Repeat Frequency</label>
           <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9"
-            v-model="config.key_repeat_frequency" />
+                 v-model="config.key_repeat_frequency" />
           <div class="form-text">
-            How often keys repeat every second<br />
+            How often keys repeat every second<br>
             This configurable option supports decimals
           </div>
         </div>
+
         <!-- Always send scancodes -->
-        <div class="mb-3" v-if="platform === 'windows'">
+        <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
           <label for="always_send_scancodes" class="form-label">Always Send Scancodes</label>
           <select id="always_send_scancodes" class="form-select" v-model="config.always_send_scancodes">
             <option value="disabled">Disabled</option>
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            Sending scancodes enhances compatibility with games and apps
-            but may result in incorrect keyboard input from certain clients
-            that aren't using a US English keyboard layout.<br />
-            Enable if keyboard input is not working at all in certain applications.<br />
+            Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard
+            input from certain clients that aren't using a US English keyboard layout.<br>
+            Enable if keyboard input is not working at all in certain applications.<br>
             Disable if keys on the client are generating the wrong input on the host.
           </div>
         </div>
+
         <!-- Mapping Key AltRight to Key Windows -->
-        <div class="mb-3">
+        <div class="mb-3" v-if="config.keyboard === 'enabled'">
           <label for="mapkey" class="form-label">Map Right Alt key to Windows key</label>
           <select id="mapkey" class="form-select" v-model="config.key_rightalt_to_key_win">
             <option value="disabled">Disabled</option>
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            It may be possible that you cannot send the Windows Key from Moonlight directly.<br />
+            It may be possible that you cannot send the Windows Key from Moonlight directly.<br>
             In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
           </div>
         </div>
-        <!-- High resolution scrolling support -->
+
+        <!-- Enable Mouse Input -->
+        <hr>
         <div class="mb-3">
+          <label for="mouse" class="form-label">Enable Mouse Input</label>
+          <select id="mouse" class="form-select" v-model="config.mouse">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">
+            Allows guests to control the host system with the mouse
+          </div>
+        </div>
+
+        <!-- High resolution scrolling support -->
+        <div class="mb-3" v-if="config.mouse === 'enabled'">
           <label for="high_resolution_scrolling" class="form-label">High Resolution Scrolling Support</label>
           <select id="high_resolution_scrolling" class="form-select" v-model="config.high_resolution_scrolling">
             <option value="disabled">Disabled</option>
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.<br />
-            This can be useful to disable for older applications that scroll too fast with high resolution scroll events.
+            When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.<br>
+            This can be useful to disable for older applications that scroll too fast with high resolution
+            scroll events.
           </div>
         </div>
+
         <!-- Native pen/touch support -->
-        <div class="mb-3" v-if="platform === 'windows'">
+        <div class="mb-3" v-if="config.mouse === 'enabled' && platform === 'windows'">
           <label for="native_pen_touch" class="form-label">Native Pen/Touch Support</label>
           <select id="native_pen_touch" class="form-select" v-model="config.native_pen_touch">
             <option value="disabled">Disabled</option>
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            When enabled, Sunshine will pass through native pen/touch events from Moonlight clients.<br />
+            When enabled, Sunshine will pass through native pen/touch events from Moonlight clients.<br>
             This can be useful to disable for older applications without native pen/touch support.
           </div>
         </div>
+
       </div>
-      <!--Files Tab-->
+
+      <!-- Audio/Video Tab -->
       <div v-if="currentTab === 'av'" class="config-page">
-        <!--Audio Sink-->
+        <!-- Audio Sink -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="audio_sink" class="form-label">Audio Sink</label>
           <input type="text" class="form-control" id="audio_sink" placeholder="Speakers (High Definition Audio Device)"
             v-model="config.audio_sink" />
           <div class="form-text">
-            Manually specify a specific audio device to capture. If unset, the device is chosen automatically.<br />
-            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
+            Manually specify a specific audio device to capture. If unset, the device is chosen automatically.<br>
+            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br>
             If you have multiple audio devices with identical names, you can get the Device ID using the following
-            command:<br />
+            command:<br>
             <pre>tools\audio-info.exe</pre>
           </div>
         </div>
@@ -437,13 +392,13 @@
           <input type="text" class="form-control" id="audio_sink"
             placeholder="alsa_output.pci-0000_09_00.3.analog-stereo" v-model="config.audio_sink" />
           <div class="form-text">
-            The name of the audio sink used for Audio Loopback<br />
-            If you do not specify this variable, pulseaudio will select the default monitor device.<br />
-            <br />
-            You can find the name of the audio sink using either command:<br />
+            The name of the audio sink used for Audio Loopback<br>
+            If you do not specify this variable, pulseaudio will select the default monitor device.<br>
+            <br>
+            You can find the name of the audio sink using either command:<br>
             <pre>pacmd list-sinks | grep "name:"</pre>
             <pre>pactl info | grep Source</pre>
-            <br />
+            <br>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'macos'">
@@ -451,26 +406,26 @@
           <input type="text" class="form-control" id="audio_sink" placeholder="BlackHole 2ch"
             v-model="config.audio_sink" />
           <div class="form-text">
-            The name of the audio sink used for Audio Loopback<br />
-            Sunshine can only access microphones on macOS due to system limitations.<br />
-            To stream system audio using <a href="https://github.com/mattingalls/Soundflower" target="_blank">
-              Soundflower
-            </a> or <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">
-              BlackHole
-            </a>.
+            The name of the audio sink used for Audio Loopback<br>
+            Sunshine can only access microphones on macOS due to system limitations.<br>
+            To stream system audio using
+            <a href="https://github.com/mattingalls/Soundflower" target="_blank">Soundflower</a> or
+            <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">BlackHole</a>.
           </div>
         </div>
-        <!--Virtual Sink-->
+
+        <!-- Virtual Sink -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="virtual_sink" class="form-label">Virtual Sink</label>
           <input type="text" class="form-control" id="virtual_sink" placeholder="Steam Streaming Speakers"
             v-model="config.virtual_sink" />
           <div class="form-text">
-            Manually specify a virtual audio device to use. If unset, the device is chosen automatically.<br />
-            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br />
+            Manually specify a virtual audio device to use. If unset, the device is chosen automatically.<br>
+            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br>
           </div>
         </div>
-        <!--Install Steam Audio Drivers-->
+
+        <!-- Install Steam Audio Drivers -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="install_steam_audio_drivers" class="form-label">Install Steam Audio Drivers</label>
           <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
@@ -482,37 +437,54 @@
             5.1/7.1 surround sound and muting host audio.
           </div>
         </div>
-        <!--Adapter Name -->
+
+        <!-- Adapter Name -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="adapter_name" class="form-label">Adapter Name</label>
           <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series"
             v-model="config.adapter_name" />
-          <div class="form-text" v-if="platform === 'windows'">
-            Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br />
-            <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br />
-            Note: This GPU must have a display connected and powered on.<br />
-            The appropriate values can be found using the following command:<br />
+          <div class="form-text">
+            Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br>
+            <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br>
+            Note: This GPU must have a display connected and powered on.<br>
+            The appropriate values can be found using the following command:<br>
             <pre>tools\dxgi-info.exe</pre>
           </div>
         </div>
-        <!--Output Name -->
+        <div class="mb-3" v-if="platform === 'linux'">
+          <label for="adapter_name" class="form-label">Adapter Name</label>
+          <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
+          <div class="form-text">
+            Manually specify a GPU to use for capture.<br>
+            <pre>ls /dev/dri/renderD*  # to find all devices capable of VAAPI</pre>
+            <pre>
+              vainfo --display drm --device /dev/dri/renderD129 | \
+                grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"
+            </pre>
+            Replace ``renderD129`` with the device from above to lists the name and capabilities of the device.<br>
+            To be supported by Sunshine, it needs to have at the very minimum:
+            <i>VAProfileH264High   : VAEntrypointEncSlice</i>
+          </div>
+        </div>
+
+        <!-- Output Name -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="output_name" class="form-label">Output Name</label>
           <input type="text" class="form-control" id="output_name" placeholder="\\.\DISPLAY1"
             v-model="config.output_name" />
           <div class="form-text">
-            Manually specify a display to use for capture. If unset, the primary display is captured.<br />
-            Note: If you specified a GPU above, this display must be connected to that GPU.<br />
-            The appropriate values can be found using the following command:<br />
-            tools\dxgi-info.exe<br />
+            Manually specify a display to use for capture. If unset, the primary display is captured.<br>
+            Note: If you specified a GPU above, this display must be connected to that GPU.<br>
+            The appropriate values can be found using the following command:<br>
+            tools\dxgi-info.exe<br>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'linux'">
           <label for="output_name" class="form-label">Monitor number</label>
           <input type="text" class="form-control" id="output_name" placeholder="0" v-model="config.output_name" />
           <div class="form-text">
-            During Sunshine startup, you should see the list of detected monitors, e.g.:<br />
-            <br />
+            During Sunshine startup, you should see the list of detected monitors, e.g.:<br>
+            <br>
             <pre style="white-space: pre-line;">
             Info: Detecting connected monitors
             Info: Detected monitor 0: DVI-D-0, connected: false
@@ -524,9 +496,64 @@
             You need to use the value before the colon in the output, e.g. <b>1</b>.
           </div>
         </div>
+
+        <!-- Display Modes -->
+        <div class="mb-3">
+          <!-- Advertised Resolutions -->
+          <div class="resolutions-container">
+            <label>Advertised Resolutions</label>
+            <div class="resolutions d-flex flex-wrap">
+              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
+                <span class="px-2">{{r}}</span>
+                <span style="cursor: pointer" @click="resolutions.splice(i,1)">&times;</span>
+              </div>
+            </div>
+            <form @submit.prevent="resolutions.push(resIn);resIn = '';" class="d-flex align-items-center">
+              <input type="text" v-model="resIn" required pattern="[0-9]+x[0-9]+" style="
+                  width: 12ch;
+                  border-top-right-radius: 0;
+                  border-bottom-right-radius: 0;
+                " class="form-control" />
+              <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
+                +
+              </button>
+            </form>
+          </div>
+
+          <!-- Advertised FPS -->
+          <div class="fps-container">
+            <label>Advertised FPS</label>
+            <div class="fps d-flex flex-wrap">
+              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
+                <span class="px-2">{{f}}</span>
+                <span style="cursor: pointer" @click="fps.splice(i,1)">&times;</span>
+              </div>
+            </div>
+            <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
+              <input type="text" v-model="fpsIn" required pattern="[0-9]+" style="
+                  width: 6ch;
+                  border-top-right-radius: 0;
+                  border-bottom-right-radius: 0;
+                " class="form-control" />
+              <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
+                +
+              </button>
+            </form>
+          </div>
+
+          <div class="form-text">
+            The display modes advertised by Sunshine.<br>
+            Some versions of Moonlight, such as Moonlight-nx (Switch), rely on these lists to ensure that the requested
+            resolutions and fps are supported.<br>
+            This setting does <b>not</b> change how the screen stream is sent to Moonlight.
+          </div>
+        </div>
+
       </div>
-      <div v-if="currentTab === 'advanced'" class="config-page">
-        <!--Address family-->
+
+      <!-- Network Tab -->
+      <div v-if="currentTab === 'network'" class="config-page">
+        <!-- Address family -->
         <div class="mb-3">
           <label for="address_family" class="form-label">Address Family</label>
           <select id="address_family" class="form-select" v-model="config.address_family">
@@ -535,7 +562,8 @@
           </select>
           <div class="form-text">Set the address family used by Sunshine</div>
         </div>
-        <!--Port family-->
+
+        <!-- Port family -->
         <div class="mb-3">
           <label for="port" class="form-label">Port</label>
           <input type="number" min="1029" max="65514" class="form-control" id="port" placeholder="47989"
@@ -604,63 +632,189 @@
           <!-- add warning about exposing web ui to the internet -->
           <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
             <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Exposing the Web UI to the internet is a security
-            risk!
-            Proceed at your own risk!
+            risk! Proceed at your own risk!
           </div>
         </div>
+
+        <!-- Origin Web UI Allowed -->
+        <div class="mb-3">
+          <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
+          <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
+            <option value="pc">Only localhost may access Web UI</option>
+            <option value="lan">Only those in LAN may access Web UI</option>
+            <option value="wan">Anyone may access Web UI</option>
+          </select>
+          <div class="form-text">
+            The origin of the remote endpoint address that is not denied access to Web UI
+          </div>
+        </div>
+
+        <!-- UPnP -->
+        <div class="mb-3">
+          <label for="upnp" class="form-label">UPnP</label>
+          <select id="upnp" class="form-select" v-model="config.upnp">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">Automatically configure port forwarding</div>
+        </div>
+
+        <!-- External IP -->
+        <div class="mb-3">
+          <label for="external_ip" class="form-label">External IP</label>
+          <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12" v-model="config.external_ip" />
+          <div class="form-text">
+            If no external IP address is given, Sunshine will automatically detect external IP
+          </div>
+        </div>
+
+        <!-- Ping Timeout -->
+        <div class="mb-3">
+          <label for="ping_timeout" class="form-label">Ping Timeout</label>
+          <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
+          <div class="form-text">
+            How long to wait in milliseconds for data from moonlight before shutting down the stream
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Advanced Tab -->
+      <div v-if="currentTab === 'advanced'" class="config-page">
+        <!-- Channels -->
+        <div class="mb-3">
+          <label for="channels" class="form-label">Channels</label>
+          <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
+          <div class="form-text">
+            When multicasting, it could be useful to have different configurations for each connected Client. For example:
+            <ul>
+              <li>Clients connected through WAN and LAN have different bitrate constraints.</li>
+              <li>Decoders may require different settings for color</li>
+            </ul>
+            Unlike simply broadcasting to multiple Client, this will generate distinct video streams.<br>
+            Note, CPU usage increases for each distinct video stream generated
+          </div>
+        </div>
+
+        <!-- FEC Percentage -->
+        <div class="mb-3">
+          <label for="fec_percentage" class="form-label">FEC Percentage</label>
+          <input type="text" class="form-control" id="fec_percentage" placeholder="20" v-model="config.fec_percentage" />
+          <div class="form-text">
+            Percentage of error correcting packets per data packet in each video frame.<br>
+            Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br>
+            The default value of 20 is what GeForce Experience uses.
+          </div>
+        </div>
+
         <!-- Quantization Parameter -->
         <div class="mb-3">
           <label for="qp" class="form-label">Quantization Parameter</label>
           <input type="number" class="form-control" id="qp" placeholder="28" v-model="config.qp" />
           <div class="form-text">
-            Quantization Parameter<br />
-            Some devices may not support Constant Bit Rate.<br />
-            For those devices, QP is used instead.<br />
-            Higher value means more compression, but less quality<br />
+            Quantization Parameter<br>
+            Some devices may not support Constant Bit Rate.<br>
+            For those devices, QP is used instead.<br>
+            Higher value means more compression, but less quality<br>
           </div>
         </div>
-      </div>
-      <!--Software Settings-->
-      <div v-if="currentTab === 'sw'" class="config-page">
+
+        <!-- Min Threads -->
         <div class="mb-3">
-          <label for="sw_preset" class="form-label">SW Presets</label>
-          <select id="sw_preset" class="form-select" v-model="config.sw_preset">
-            <option value="ultrafast">ultrafast</option>
-            <option value="superfast">superfast (default)</option>
-            <option value="veryfast">veryfast</option>
-            <option value="faster">faster</option>
-            <option value="fast">fast</option>
-            <option value="medium">medium</option>
-            <option value="slow">slow</option>
-            <option value="slower">slower</option>
-            <option value="veryslow">veryslow</option>
-          </select>
+          <label for="min_threads" class="form-label">Minimum Software Encoding Thread Count</label>
+          <input type="number" class="form-control" id="min_threads" placeholder="1" min="1" v-model="config.min_threads" />
           <div class="form-text">
-            Optimize the trade-off between encoding speed (encoded frames per second) and compression efficiency
-            (quality
-            per bit in the bitstream). Defaults to superfast.
+            Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br>
+            worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br>
+            value that can reliably encode at your desired streaming settings on your hardware.
           </div>
         </div>
+
+        <!-- HEVC Support -->
         <div class="mb-3">
-          <label for="sw_tune" class="form-label">SW Tune</label>
-          <select id="sw_tune" class="form-select" v-model="config.sw_tune">
-            <option value="film">film -- use for high quality movie content; lowers deblocking</option>
-            <option value="animation">animation -- good for cartoons; uses higher deblocking and more reference frames
+          <label for="hevc_mode" class="form-label">HEVC Support</label>
+          <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
+            <option value="0">
+              Sunshine will advertise support for HEVC based on encoder capabilities (recommended)
             </option>
-            <option value="grain">grain -- preserves the grain structure in old, grainy film material</option>
-            <option value="stillimage">stillimage -- good for slideshow-like content</option>
-            <option value="fastdecode">fastdecode -- allows faster decoding by disabling certain filters</option>
-            <option value="zerolatency">zerolatency -- good for fast encoding and low-latency streaming (default)
+            <option value="1">
+              Sunshine will not advertise support for HEVC
+            </option>
+            <option value="2">
+              Sunshine will advertise support for HEVC Main profile
+            </option>
+            <option value="3">
+              Sunshine will advertise support for HEVC Main and Main10 (HDR) profiles
             </option>
           </select>
           <div class="form-text">
-            Tuning options, which are applied after the preset. Defaults to zerolatency.
+            Allows the client to request HEVC Main or HEVC Main10 video streams.<br>
+            HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
           </div>
         </div>
+
+        <!-- AV1 Support -->
+        <div class="mb-3">
+          <label for="av1_mode" class="form-label">AV1 Support</label>
+          <select id="av1_mode" class="form-select" v-model="config.av1_mode">
+            <option value="0">
+              Sunshine will advertise support for AV1 based on encoder capabilities (recommended)
+            </option>
+            <option value="1">
+              Sunshine will not advertise support for AV1
+            </option>
+            <option value="2">
+              Sunshine will advertise support for AV1 Main 8-bit profile
+            </option>
+            <option value="3">
+              Sunshine will advertise support for AV1 Main 8-bit and 10-bit (HDR) profiles
+            </option>
+          </select>
+          <div class="form-text">
+            Allows the client to request AV1 Main 8-bit or 10-bit video streams.<br>
+            AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
+          </div>
+        </div>
+
+        <!-- Capture -->
+        <div class="mb-3" v-if="platform === 'linux'">
+          <label for="capture" class="form-label">Force a Specific Capture Method</label>
+          <select id="capture" class="form-select" v-model="config.capture">
+            <option value="">Autodetect (recommended)</option>
+            <option value="nvfbc">NvFBC</option>
+            <option value="wlr">wlroots</option>
+            <option value="kms">KMS</option>
+            <option value="x11">X11</option>
+          </select>
+          <div class="form-text">
+            Force a specific capture method, otherwise Sunshine will use the first one that works.
+            NvFBC requires patched nvidia drivers.
+          </div>
+        </div>
+
+        <!-- Encoder -->
+        <div class="mb-3">
+          <label for="encoder" class="form-label">Force a Specific Encoder</label>
+          <select id="encoder" class="form-select" v-model="config.encoder">
+            <option value="">Autodetect (recommended)</option>
+            <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
+            <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
+            <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
+            <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
+            <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
+            <option value="software">Software</option>
+          </select>
+          <div class="form-text">
+            Force a specific encoder, otherwise Sunshine will select the best available option.<br>
+            Note: If you specify a hardware encoder on Windows, it must match the GPU where the display is connected.
+          </div>
+        </div>
+
       </div>
-      <!--Nvidia Encoder Settings-->
+
+      <!-- NVIDIA NVENC Encoder Tab -->
       <div v-if="currentTab === 'nv'" class="config-page">
-        <!--NVENC SETTINGS-->
+        <!-- Performance preset -->
         <div class="mb-3">
           <label for="nvenc_preset" class="form-label">Performance preset</label>
           <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
@@ -675,11 +829,11 @@
           <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
             <strong>increased encoding latency</strong>.<br>
             Recommended to change only when limited by network or decoder, otherwise similar effect can be
-            accomplished
-            by
-            increasing bitrate.
+            accomplished by increasing bitrate.
           </div>
         </div>
+
+        <!-- Two-pass mode -->
         <div class="mb-3">
           <label for="nvenc_twopass" class="form-label">Two-pass mode</label>
           <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
@@ -689,13 +843,13 @@
           </select>
           <div class="form-text">Adds preliminary encoding pass.<br>
             This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly
-            adhere
-            to
-            bitrate limits.<br>
+            adhere to bitrate limits.<br>
             Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet
             loss.
           </div>
         </div>
+
+        <!-- Miscellaneous options -->
         <div class="accordion">
           <div class="accordion-item">
             <h2 class="accordion-header">
@@ -707,6 +861,7 @@
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
               aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
+                <!-- NVENC Realtime HAGS priority -->
                 <div class="mb-3" v-if="platform === 'windows'">
                   <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated
                     gpu
@@ -719,10 +874,11 @@
                     <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
                     is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
                     Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced
-                    capture
-                    performance when the GPU is heavily loaded.
+                    capture performance when the GPU is heavily loaded.
                   </div>
                 </div>
+
+                <!-- NVENC H264 CAVLC -->
                 <div>
                   <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
                   <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
@@ -739,8 +895,10 @@
           </div>
         </div>
       </div>
-      <!--Intel Encoder Settings-->
+
+      <!-- Intel QuickSync Encoder Tab -->
       <div v-if="currentTab === 'qsv'" class="config-page">
+        <!-- QuickSync Preset -->
         <div class="mb-3">
           <label for="qsv_preset" class="form-label">QuickSync Preset</label>
           <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
@@ -753,6 +911,8 @@
             <option value="slowest">slowest (best quality)</option>
           </select>
         </div>
+
+        <!-- QuickSync Coder (H264) -->
         <div class="mb-3">
           <label for="qsv_coder" class="form-label">QuickSync Coder (H264)</label>
           <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
@@ -761,10 +921,12 @@
             <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
           </select>
         </div>
+
       </div>
-      <!--AMD Encoder Settings-->
+
+      <!-- AMD AMF Encoder Tab -->
       <div v-if="currentTab === 'amd'" class="config-page">
-        <!--Presets-->
+        <!-- AMF Quality -->
         <div class="mb-3">
           <label for="amd_quality" class="form-label">AMF Quality</label>
           <select id="amd_quality" class="form-select" v-model="config.amd_quality">
@@ -773,6 +935,8 @@
             <option value="quality">quality -- prefer quality</option>
           </select>
         </div>
+
+        <!-- AMF Rate Control -->
         <div class="mb-3">
           <label for="amd_rc" class="form-label">AMF Rate Control</label>
           <select id="amd_rc" class="form-select" v-model="config.amd_rc">
@@ -782,6 +946,8 @@
             <option value="cbr">cbr -- constant bitrate</option>
           </select>
         </div>
+
+        <!-- AMF Usage -->
         <div class="mb-3">
           <label for="amd_usage" class="form-label">AMF Usage</label>
           <select id="amd_usage" class="form-select" v-model="config.amd_usage">
@@ -791,6 +957,8 @@
             <option value="ultralowlatency">ultralowlatency - ultra low latency (fastest)</option>
           </select>
         </div>
+
+        <!-- AMF Preanalysis -->
         <div class="mb-3">
           <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
           <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
@@ -798,6 +966,8 @@
             <option value="disabled">disabled (default)</option>
           </select>
         </div>
+
+        <!-- AMF VBAQ -->
         <div class="mb-3">
           <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
           <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
@@ -805,6 +975,8 @@
             <option value="disabled">disabled</option>
           </select>
         </div>
+
+        <!-- AMF Coder (H264) -->
         <div class="mb-3">
           <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
           <select id="amd_coder" class="form-select" v-model="config.amd_coder">
@@ -814,13 +986,10 @@
           </select>
         </div>
       </div>
-      <!--VA-API Encoder Settings-->
-      <div v-if="currentTab === 'va-api'" class="config-page">
-        <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
-      </div>
-      <!--VideoToolbox Encoder Settings-->
+
+      <!-- VideoToolbox Encoder Tab -->
       <div v-if="currentTab === 'vt'" class="config-page">
-        <!--Presets-->
+        <!-- Presets -->
         <div class="mb-3">
           <label for="vt_coder" class="form-label">VideoToolbox Coder</label>
           <select id="vt_coder" class="form-select" v-model="config.vt_coder">
@@ -846,7 +1015,48 @@
           </select>
         </div>
       </div>
+
+      <!-- Software Encoder Tab -->
+      <div v-if="currentTab === 'sw'" class="config-page">
+        <div class="mb-3">
+          <label for="sw_preset" class="form-label">SW Presets</label>
+          <select id="sw_preset" class="form-select" v-model="config.sw_preset">
+            <option value="ultrafast">ultrafast</option>
+            <option value="superfast">superfast (default)</option>
+            <option value="veryfast">veryfast</option>
+            <option value="faster">faster</option>
+            <option value="fast">fast</option>
+            <option value="medium">medium</option>
+            <option value="slow">slow</option>
+            <option value="slower">slower</option>
+            <option value="veryslow">veryslow</option>
+          </select>
+          <div class="form-text">
+            Optimize the trade-off between encoding speed (encoded frames per second) and compression efficiency
+            (quality per bit in the bitstream). Defaults to superfast.
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="sw_tune" class="form-label">SW Tune</label>
+          <select id="sw_tune" class="form-select" v-model="config.sw_tune">
+            <option value="film">film -- use for high quality movie content; lowers deblocking</option>
+            <option value="animation">animation -- good for cartoons; uses higher deblocking and more reference frames
+            </option>
+            <option value="grain">grain -- preserves the grain structure in old, grainy film material</option>
+            <option value="stillimage">stillimage -- good for slideshow-like content</option>
+            <option value="fastdecode">fastdecode -- allows faster decoding by disabling certain filters</option>
+            <option value="zerolatency">zerolatency -- good for fast encoding and low-latency streaming (default)
+            </option>
+          </select>
+          <div class="form-text">
+            Tuning options, which are applied after the preset. Defaults to zerolatency.
+          </div>
+        </div>
+      </div>
+
     </div>
+
+    <!-- Save and Apply buttons -->
     <div class="alert alert-success my-4" v-if="saved && !restarted">
       <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
     </div>
@@ -857,6 +1067,7 @@
       <button class="btn btn-primary" @click="save">Save</button>
       <button class="btn btn-success" @click="apply" v-if="saved && !restarted">Apply</button>
     </div>
+
   </div>
 </body>
 <script type="module">
@@ -879,7 +1090,6 @@
     "capture": "",
     "controller": "enabled",
     "ds4_back_as_touchpad_click": "enabled",
-    "dwmflush": "enabled",
     "encoder": "",
     "fps": "[10,30,60,90,120]",
     "gamepad": "auto",
@@ -944,6 +1154,10 @@
             name: "Audio/Video",
           },
           {
+            id: "network",
+            name: "Network",
+          },
+          {
             id: "advanced",
             name: "Advanced",
           },
@@ -958,10 +1172,6 @@
           {
             id: "amd",
             name: "AMD AMF Encoder",
-          },
-          {
-            id: "va-api",
-            name: "VA-API Encoder",
           },
           {
             id: "vt",
@@ -984,7 +1194,7 @@
           var app = document.getElementById("app");
           if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "va-api" && el.id !== "vt";
+              return el.id !== "vt";
             });
           }
           if (this.platform === "linux") {
@@ -994,7 +1204,7 @@
           }
           if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "va-api";
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv";
             });
           }
 

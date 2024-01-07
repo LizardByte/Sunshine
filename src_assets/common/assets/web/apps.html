@@ -102,7 +102,7 @@
     </div>
     <div class="edit-form card mt-2" v-if="showEditForm">
       <div class="p-4">
-        <!--name-->
+        <!-- Application Name -->
         <div class="mb-3">
           <label for="appName" class="form-label">Application Name</label>
           <input type="text" class="form-control" id="appName" aria-describedby="appNameHelp" v-model="editForm.name" />
@@ -110,7 +110,7 @@
             Application Name, as shown on Moonlight
           </div>
         </div>
-        <!--output-->
+        <!-- output -->
         <div class="mb-3">
           <label for="appOutput" class="form-label">Output</label>
           <input type="text" class="form-control monospace" id="appOutput" aria-describedby="appOutputHelp"
@@ -120,7 +120,7 @@
             specified, the output is ignored
           </div>
         </div>
-        <!--prep-cmd-->
+        <!-- prep-cmd -->
         <div class="mb-3">
           <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
           <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
@@ -136,7 +136,7 @@
         <div class="mb-3">
           <label for="appName" class="form-label">Command Preparations</label>
           <div class="form-text">
-            A list of commands to be run before/after this application.<br />
+            A list of commands to be run before/after this application.<br>
             If any of the prep-commands fail, starting the application is aborted.
           </div>
           <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length === 0">
@@ -182,7 +182,7 @@
             </tbody>
           </table>
         </div>
-        <!--detached-->
+        <!-- detached -->
         <div class="mb-3">
           <label for="appName" class="form-label">Detached Commands</label>
           <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
@@ -200,7 +200,7 @@
             A list of commands to be run and forgotten about
           </div>
         </div>
-        <!--command-->
+        <!-- command -->
         <div class="mb-3">
           <label for="appCmd" class="form-label">Command</label>
           <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
@@ -210,7 +210,7 @@
             that sleeps indefinitely
           </div>
         </div>
-        <!--working dir-->
+        <!-- working dir -->
         <div class="mb-3">
           <label for="appWorkingDir" class="form-label">Working Directory</label>
           <input type="text" class="form-control monospace" id="appWorkingDir" aria-describedby="appWorkingDirHelp"
@@ -354,7 +354,7 @@
               href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html"
               target="_blank">See More</a></div>
         </div>
-        <!--buttons-->
+        <!-- Save buttons -->
         <div class="d-flex">
           <button @click="showEditForm = false" class="btn btn-secondary m-2">
             Cancel
