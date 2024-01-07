@@ -522,5 +522,5 @@ If you have any feedback and any suggestions, feel free to make a post on Discor
 
 .. seealso::
    Now that you have a virtual display, you may want to automate changing the resolution
-   and refresh rate prior to connecting to an app. See :ref:`Changing Resolution and
-   Refresh Rate <about/guides/app_examples:linux>` for more information.
+   and refresh rate prior to connecting to an app. See :ref:`Changing Resolution and Refresh Rate
+   <about/guides/app_examples:changing resolution and refresh rate>` for more information.
