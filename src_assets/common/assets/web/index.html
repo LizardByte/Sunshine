@@ -20,11 +20,11 @@
         <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
       </ul>
     </div>
-    <!--Version-->
+    <!-- Version -->
     <div class="card p-2 my-4">
       <div class="card-body" v-if="version">
         <h2>Version {{version}}</h2>
-        <br />
+        <br>
         <div v-if="loading">
           Loading Latest Release...
         </div>
@@ -59,7 +59,7 @@
         </div>
       </div>
     </div>
-    <!--Resources-->
+    <!-- Resources -->
     <div class="my-4">
       <Resource-Card></Resource-Card>
     </div>

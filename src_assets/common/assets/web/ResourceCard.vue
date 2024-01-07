@@ -2,7 +2,7 @@
     <div class="card p-2">
         <div class="card-body">
             <h2>Resources</h2>
-            <br />
+            <br>
             <p>
                 Resources for Sunshine!
             </p>
@@ -15,11 +15,11 @@
             </div>
         </div>
     </div>
-    <!--Legal-->
+    <!-- Legal -->
     <div class="card p-2 mt-4">
         <div class="card-body">
             <h2>Legal</h2>
-            <br />
+            <br>
             <p>
                 By continuing to use this software you agree to the terms and conditions in the following documents.
             </p>
