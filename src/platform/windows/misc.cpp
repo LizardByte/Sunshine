@@ -6,6 +6,7 @@
 #include <csignal>
 #include <filesystem>
 #include <iomanip>
+#include <set>
 #include <sstream>
 
 #include <boost/algorithm/string.hpp>
@@ -902,6 +903,106 @@ namespace platf {
 
     // We use an async exit call here because we can't block the HTTP thread or we'll hang shutdown.
     lifetime::exit_sunshine(0, true);
+  }
+
+  struct enum_wnd_context_t {
+    std::set<DWORD> process_ids;
+    bool requested_exit;
+  };
+
+  static BOOL CALLBACK
+  prgrp_enum_windows(HWND hwnd, LPARAM lParam) {
+    auto enum_ctx = (enum_wnd_context_t *) lParam;
+
+    // Find the owner PID of this window
+    DWORD wnd_process_id;
+    if (!GetWindowThreadProcessId(hwnd, &wnd_process_id)) {
+      // Continue enumeration
+      return TRUE;
+    }
+
+    // Check if this window is owned by a process we want to terminate
+    if (enum_ctx->process_ids.find(wnd_process_id) != enum_ctx->process_ids.end()) {
+      // Send an async WM_CLOSE message to this window
+      if (SendNotifyMessageW(hwnd, WM_CLOSE, 0, 0)) {
+        BOOST_LOG(debug) << "Sent WM_CLOSE to PID: "sv << wnd_process_id;
+        enum_ctx->requested_exit = true;
+      }
+      else {
+        auto error = GetLastError();
+        BOOST_LOG(warning) << "Failed to send WM_CLOSE to PID ["sv << wnd_process_id << "]: " << error;
+      }
+    }
+
+    // Continue enumeration
+    return TRUE;
+  }
+
+  /**
+   * @brief Attempt to gracefully terminate a process group.
+   * @param native_handle The job object handle.
+   * @return true if termination was successfully requested.
+   */
+  bool
+  request_process_group_exit(std::uintptr_t native_handle) {
+    auto job_handle = (HANDLE) native_handle;
+
+    // Get list of all processes in our job object
+    bool success;
+    DWORD required_length = sizeof(JOBOBJECT_BASIC_PROCESS_ID_LIST);
+    auto process_id_list = (PJOBOBJECT_BASIC_PROCESS_ID_LIST) calloc(1, required_length);
+    auto fg = util::fail_guard([&process_id_list]() {
+      free(process_id_list);
+    });
+    while (!(success = QueryInformationJobObject(job_handle, JobObjectBasicProcessIdList,
+               process_id_list, required_length, &required_length)) &&
+           GetLastError() == ERROR_MORE_DATA) {
+      free(process_id_list);
+      process_id_list = (PJOBOBJECT_BASIC_PROCESS_ID_LIST) calloc(1, required_length);
+      if (!process_id_list) {
+        return false;
+      }
+    }
+
+    if (!success) {
+      auto err = GetLastError();
+      BOOST_LOG(warning) << "Failed to enumerate processes in group: "sv << err;
+      return false;
+    }
+    else if (process_id_list->NumberOfProcessIdsInList == 0) {
+      // If all processes are already dead, treat it as a success
+      return true;
+    }
+
+    enum_wnd_context_t enum_ctx = {};
+    enum_ctx.requested_exit = false;
+    for (DWORD i = 0; i < process_id_list->NumberOfProcessIdsInList; i++) {
+      enum_ctx.process_ids.emplace(process_id_list->ProcessIdList[i]);
+    }
+
+    // Enumerate all windows belonging to processes in the list
+    EnumWindows(prgrp_enum_windows, (LPARAM) &enum_ctx);
+
+    // Return success if we told at least one window to close
+    return enum_ctx.requested_exit;
+  }
+
+  /**
+   * @brief Checks if a process group still has running children.
+   * @param native_handle The job object handle.
+   * @return true if processes are still running.
+   */
+  bool
+  process_group_running(std::uintptr_t native_handle) {
+    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting_info;
+
+    if (!QueryInformationJobObject((HANDLE) native_handle, JobObjectBasicAccountingInformation, &accounting_info, sizeof(accounting_info), nullptr)) {
+      auto err = GetLastError();
+      BOOST_LOG(error) << "Failed to get job accounting info: "sv << err;
+      return false;
+    }
+
+    return accounting_info.ActiveProcesses != 0;
   }
 
   SOCKADDR_IN

@@ -618,6 +618,22 @@ namespace platf {
   void
   open_url(const std::string &url);
 
+  /**
+   * @brief Attempt to gracefully terminate a process group.
+   * @param native_handle The native handle of the process group.
+   * @return true if termination was successfully requested.
+   */
+  bool
+  request_process_group_exit(std::uintptr_t native_handle);
+
+  /**
+   * @brief Checks if a process group still has running children.
+   * @param native_handle The native handle of the process group.
+   * @return true if processes are still running.
+   */
+  bool
+  process_group_running(std::uintptr_t native_handle);
+
   input_t
   input();
   void
