@@ -381,6 +381,10 @@ adapter_name
 
             tools\dxgi-info.exe
 
+         .. note:: For hybrid graphics systems, DXGI reports the outputs are connected to whichever graphics adapter
+            that the application is configured to use, so it's not a reliable indicator of how the display is
+            physically connected.
+
 **Default**
    Sunshine will select the default video card.
 
