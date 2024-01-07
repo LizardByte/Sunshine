@@ -262,10 +262,8 @@
                  v-model="config.back_button_timeout" />
           <div class="form-text">
             If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press
-            is
-            emulated.<br>
-            If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide
-            button.<br>
+            is emulated.<br>
+            If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide button.<br>
           </div>
         </div>
 
@@ -312,9 +310,8 @@
             <option value="enabled">Enabled</option>
           </select>
           <div class="form-text">
-            Sending scancodes enhances compatibility with games and apps
-            but may result in incorrect keyboard input from certain clients
-            that aren't using a US English keyboard layout.<br>
+            Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard
+            input from certain clients that aren't using a US English keyboard layout.<br>
             Enable if keyboard input is not working at all in certain applications.<br>
             Disable if keys on the client are generating the wrong input on the host.
           </div>
@@ -355,7 +352,8 @@
           </select>
           <div class="form-text">
             When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.<br>
-            This can be useful to disable for older applications that scroll too fast with high resolution scroll events.
+            This can be useful to disable for older applications that scroll too fast with high resolution
+            scroll events.
           </div>
         </div>
 
@@ -410,11 +408,9 @@
           <div class="form-text">
             The name of the audio sink used for Audio Loopback<br>
             Sunshine can only access microphones on macOS due to system limitations.<br>
-            To stream system audio using <a href="https://github.com/mattingalls/Soundflower" target="_blank">
-              Soundflower
-            </a> or <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">
-              BlackHole
-            </a>.
+            To stream system audio using
+            <a href="https://github.com/mattingalls/Soundflower" target="_blank">Soundflower</a> or
+            <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">BlackHole</a>.
           </div>
         </div>
 
@@ -636,8 +632,7 @@
           <!-- add warning about exposing web ui to the internet -->
           <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
             <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Exposing the Web UI to the internet is a security
-            risk!
-            Proceed at your own risk!
+            risk! Proceed at your own risk!
           </div>
         </div>
 
@@ -834,9 +829,7 @@
           <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
             <strong>increased encoding latency</strong>.<br>
             Recommended to change only when limited by network or decoder, otherwise similar effect can be
-            accomplished
-            by
-            increasing bitrate.
+            accomplished by increasing bitrate.
           </div>
         </div>
 
@@ -850,9 +843,7 @@
           </select>
           <div class="form-text">Adds preliminary encoding pass.<br>
             This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly
-            adhere
-            to
-            bitrate limits.<br>
+            adhere to bitrate limits.<br>
             Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet
             loss.
           </div>
@@ -883,8 +874,7 @@
                     <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
                     is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
                     Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced
-                    capture
-                    performance when the GPU is heavily loaded.
+                    capture performance when the GPU is heavily loaded.
                   </div>
                 </div>
 
@@ -1043,8 +1033,7 @@
           </select>
           <div class="form-text">
             Optimize the trade-off between encoding speed (encoded frames per second) and compression efficiency
-            (quality
-            per bit in the bitstream). Defaults to superfast.
+            (quality per bit in the bitstream). Defaults to superfast.
           </div>
         </div>
         <div class="mb-3">
