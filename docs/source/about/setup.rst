@@ -315,7 +315,8 @@ Install
          .. code-block:: bash
 
             mkdir -p ~/ports/multimedia/sunshine
-            mv ~/Downloads/Portfile ~/ports/multimedia/sunshine/
+            cd ~/ports/multimedia/sunshine
+            curl -O https://github.com/LizardByte/Sunshine/releases/latest/download/Portfile
             cd ~/ports
             portindex
             sudo port install sunshine
