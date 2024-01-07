@@ -243,6 +243,28 @@
             a launcher-type app is detected, it is treated as a detached app.
           </div>
         </div>
+        <!-- wait for all processes -->
+        <div class="mb-3 form-check">
+          <label for="waitAll" class="form-check-label">Continue streaming until all app processes exit</label>
+          <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']"
+            true-value="true" false-value="false" />
+          <div class="form-text">
+            This will continue streaming until all processes started by the app have terminated.
+            When unchecked, streaming will stop when the initial app process exits, even if other
+            app processes are still running.
+          </div>
+        </div>
+        <!-- exit timeout -->
+        <div class="mb-3">
+          <label for="exitTimeout" class="form-label">Exit Timeout</label>
+          <input type="text" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
+            v-model="editForm['exit-timeout']" />
+          <div id="exitTimeoutHelp" class="form-text">
+            Number of seconds to wait for all app processes to gracefully exit when requested to quit.<br>
+            If unset, the default is to wait up to 5 seconds. If set to zero or a negative value,
+            the app will be immediately terminated.
+          </div>
+        </div>
         <div class="mb-3">
           <label for="appImagePath" class="form-label">Image</label>
           <div class="input-group dropup">
@@ -412,6 +434,8 @@
           "exclude-global-prep-cmd": false,
           elevated: false,
           "auto-detach": true,
+          "wait-all": true,
+          "exit-timeout": 5,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -433,6 +457,12 @@
         }
         if (this.editForm["auto-detach"] === undefined) {
           this.editForm["auto-detach"] = true;
+        }
+        if (this.editForm["wait-all"] === undefined) {
+          this.editForm["wait-all"] = true;
+        }
+        if (this.editForm["exit-timeout"] === undefined) {
+          this.editForm["exit-timeout"] = 5;
         }
         this.showEditForm = true;
       },
