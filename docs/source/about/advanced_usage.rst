@@ -320,9 +320,11 @@ keybindings
 **Default**
    .. code-block:: text
 
-      0x10, 0xA0,
-      0x11, 0xA2,
-      0x12, 0xA4
+      [
+        0x10, 0xA0,
+        0x11, 0xA2,
+        0x12, 0xA4
+      ]
 
 **Example**
    .. code-block:: text
