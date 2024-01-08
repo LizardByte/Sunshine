@@ -1136,50 +1136,134 @@
         resIn: "",
         fpsIn: "",
         global_prep_cmd: [],
-        tabs: [
+        tabs: [  // todo: move defaultConfig to the tab['options'] array
           {
             id: "general",
             name: "General",
+            options: [
+              "sunshine_name",
+              "min_log_level",
+              "global_prep_cmd",
+            ],
           },
           {
             id: "files",
             name: "Files",
+            options: [
+              "file_apps",
+              "credentials_file",
+              "log_path",
+              "pkey",
+              "cert",
+              "file_state",
+            ],
           },
           {
             id: "input",
             name: "Input",
+            options: [
+              "controller",
+              "gamepad",
+              "ds4_back_as_touchpad_click",
+              "motion_as_ds4",
+              "touchpad_as_ds4",
+              "back_button_timeout",
+              "keyboard",
+              "key_repeat_delay",
+              "key_repeat_frequency",
+              "always_send_scancodes",
+              "key_rightalt_to_key_win",
+              "mouse",
+              "high_resolution_scrolling",
+              "native_pen_touch",
+              "keybindings",  // todo: add this to UI
+            ],
           },
           {
             id: "av",
             name: "Audio/Video",
+            options: [
+              "audio_sink",
+              "virtual_sink",
+              "install_steam_audio_drivers",
+              "adapter_name",
+              "output_name",
+              "resolutions",
+              "fps",
+            ],
           },
           {
             id: "network",
             name: "Network",
+            options: [
+              "address_family",
+              "port",
+              "origin_web_ui_allowed",
+              "upnp",
+              "external_ip",
+              "ping_timeout",
+            ],
           },
           {
             id: "advanced",
             name: "Advanced",
+            options: [
+              "channels",
+              "fec_percentage",
+              "qp",
+              "min_threads",
+              "hevc_mode",
+              "av1_mode",
+              "capture",
+              "encoder",
+            ],
           },
           {
             id: "nv",
             name: "NVIDIA NVENC Encoder",
+            options: [
+              "nvenc_preset",
+              "nvenc_twopass",
+              "nvenc_realtime_hags",
+              "nvenc_h264_cavlc",
+            ],
           },
           {
             id: "qsv",
             name: "Intel QuickSync Encoder",
+            options: [
+              "qsv_preset",
+              "qsv_coder",
+            ],
           },
           {
             id: "amd",
             name: "AMD AMF Encoder",
+            options: [
+              "amd_quality",
+              "amd_rc",
+              "amd_usage",
+              "amd_preanalysis",
+              "amd_vbaq",
+              "amd_coder",
+            ],
           },
           {
             id: "vt",
             name: "VideoToolbox Encoder",
+            options: [
+              "vt_coder",
+              "vt_software",
+              "vt_realtime",
+            ],
           },
           {
             id: "sw",
             name: "Software Encoder",
+            options: [
+              "sw_preset",
+              "sw_tune",
+            ],
           },
         ],
       };
@@ -1332,8 +1416,41 @@
         // If so, default to config port. Otherwise, use the value of port.
         return port ? port : 47989
       },
-    }
+    },
+    mounted() {
+      // Handle hashchange events
+      const handleHash = () => {
+        let hash = window.location.hash;
+        if (hash) {
+          // remove the # from the hash
+          let stripped_hash = hash.substring(1);
+
+          this.tabs.forEach(tab => {
+            tab.options.forEach(option => {
+              if (option === stripped_hash) {
+                this.currentTab = tab.id;
+
+                // sleep for 2 seconds to allow the page to load
+                setTimeout(() => {
+                  let element = document.getElementById(stripped_hash);
+                  if (element) {
+                    window.location.hash = hash;
+                  }
+                }, 2000);
+              }
+            });
+          })
+        }
+      };
+
+      // Call handleHash for the initial load
+      handleHash();
+
+      // Add hashchange event listener
+      window.addEventListener("hashchange", handleHash);
+    },
   });
 
   app.mount("#app");
 </script>
+
