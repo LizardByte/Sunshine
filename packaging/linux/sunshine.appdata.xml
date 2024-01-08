@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop">
-    <id>@PROJECT_NAME@.desktop</id>
+    <id>@PROJECT_NAME@</id>
     <metadata_license>@PROJECT_LICENSE@</metadata_license>
     <project_license>@PROJECT_LICENSE@</project_license>
     <name>@PROJECT_NAME@</name>
@@ -11,6 +11,8 @@
             @PROJECT_LONG_DESCRIPTION@
         </p>
     </description>
+    <launchable type="desktop-id">sunshine.desktop</launchable>
+    <launchable type="url">https://localhost:47990</launchable>
     <screenshots>
         <screenshot type="default">
             <image>https://app.lizardbyte.dev/Sunshine/assets/images/AdobeStock_305732536_1920x1280.jpg</image>
