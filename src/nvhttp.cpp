@@ -324,6 +324,7 @@ namespace nvhttp {
     tree.put("root.plaincert", util::hex_vec(conf_intern.servercert, true));
     tree.put("root.<xmlattr>.status_code", 200);
   }
+
   void
   serverchallengeresp(pair_session_t &sess, pt::ptree &tree, const args_t &args) {
     auto encrypted_response = util::from_hex_vec(get_arg(args, "serverchallengeresp"), true);
@@ -570,6 +571,23 @@ namespace nvhttp {
   pin(std::string pin) {
     pt::ptree tree;
     if (map_id_sess.empty()) {
+      return false;
+    }
+
+    // ensure pin is 4 digits
+    if (pin.size() != 4) {
+      tree.put("root.paired", 0);
+      tree.put("root.<xmlattr>.status_code", 400);
+      tree.put(
+        "root.<xmlattr>.status_message", "Pin must be 4 digits, " + std::to_string(pin.size()) + " provided");
+      return false;
+    }
+
+    // ensure all pin characters are numeric
+    if (!std::all_of(pin.begin(), pin.end(), ::isdigit)) {
+      tree.put("root.paired", 0);
+      tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "Pin must be numeric");
       return false;
     }
 
