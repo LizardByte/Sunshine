@@ -364,6 +364,7 @@ namespace video {
       std::vector<option_t> common_options;
       std::vector<option_t> sdr_options;
       std::vector<option_t> hdr_options;
+      std::vector<option_t> fallback_options;
       std::optional<option_t> qp;
 
       std::string name;
@@ -578,6 +579,8 @@ namespace video {
       {},
       // HDR-specific options
       {},
+      // Fallback options
+      {},
       std::nullopt,  // QP
       "av1_nvenc"s,
     },
@@ -588,6 +591,8 @@ namespace video {
       {},
       // HDR-specific options
       {},
+      // Fallback options
+      {},
       std::nullopt,  // QP
       "hevc_nvenc"s,
     },
@@ -597,6 +602,8 @@ namespace video {
       // SDR-specific options
       {},
       // HDR-specific options
+      {},
+      // Fallback options
       {},
       std::nullopt,  // QP
       "h264_nvenc"s,
@@ -636,6 +643,8 @@ namespace video {
       {},
       // HDR-specific options
       {},
+      // Fallback options
+      {},
       std::nullopt,
       "av1_nvenc"s,
     },
@@ -658,6 +667,7 @@ namespace video {
       {
         { "profile"s, (int) nv::profile_hevc_e::main_10 },
       },
+      {},  // Fallback options
       std::nullopt,
       "hevc_nvenc"s,
     },
@@ -677,6 +687,7 @@ namespace video {
         { "profile"s, (int) nv::profile_h264_e::high },
       },
       {},  // HDR-specific options
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
       "h264_nvenc"s,
     },
@@ -705,6 +716,8 @@ namespace video {
       {},
       // HDR-specific options
       {},
+      // Fallback options
+      {},
       std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
       "av1_qsv"s,
     },
@@ -727,6 +740,8 @@ namespace video {
       {
         { "profile"s, (int) qsv::profile_hevc_e::main_10 },
       },
+      // Fallback options
+      {},
       std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
       "hevc_qsv"s,
     },
@@ -748,7 +763,12 @@ namespace video {
       {
         { "profile"s, (int) qsv::profile_h264_e::high },
       },
-      {},  // HDR-specific options
+      // HDR-specific options
+      {},
+      // Fallback options
+      {
+        { "low_power"s, 0 },  // Some old/low-end Intel GPUs don't support low power encoding
+      },
       std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
       "h264_qsv"s,
     },
@@ -774,6 +794,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
       "av1_amf"s,
     },
@@ -794,6 +815,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
       "hevc_amf"s,
     },
@@ -810,8 +832,14 @@ namespace video {
         { "usage"s, &config::video.amd.amd_usage_h264 },
         { "vbaq"s, &config::video.amd.amd_vbaq },
       },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      // Fallback options
+      {
+        { "usage"s, 2 /* AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY */ },  // Workaround for https://github.com/GPUOpen-LibrariesAndSDKs/AMF/issues/410
+      },
       std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
       "h264_amf"s,
     },
@@ -837,6 +865,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
 
 #ifdef ENABLE_BROKEN_AV1_ENCODER
@@ -861,6 +890,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "libx265"s,
     },
@@ -872,6 +902,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "libx264"s,
     },
@@ -889,35 +920,56 @@ namespace video {
     {
       // Common options
       {
+        { "low_power"s, 1 },
         { "async_depth"s, 1 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      // Fallback options
+      {
+        { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
+      },
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "av1_vaapi"s,
     },
     {
       // Common options
       {
+        { "low_power"s, 1 },
         { "async_depth"s, 1 },
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      // Fallback options
+      {
+        { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
+      },
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "hevc_vaapi"s,
     },
     {
       // Common options
       {
+        { "low_power"s, 1 },
         { "async_depth"s, 1 },
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      // Fallback options
+      {
+        { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
+      },
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "h264_vaapi"s,
     },
@@ -943,6 +995,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::nullopt,
       "av1_videotoolbox"s,
     },
@@ -956,6 +1009,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::nullopt,
       "hevc_videotoolbox"s,
     },
@@ -969,6 +1023,7 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // Fallback options
       std::nullopt,
       "h264_videotoolbox"s,
     },
@@ -1402,201 +1457,227 @@ namespace video {
       return nullptr;
     }
 
-    avcodec_ctx_t ctx { avcodec_alloc_context3(codec) };
-    ctx->width = config.width;
-    ctx->height = config.height;
-    ctx->time_base = AVRational { 1, config.framerate };
-    ctx->framerate = AVRational { config.framerate, 1 };
-
-    switch (config.videoFormat) {
-      case 0:
-        ctx->profile = FF_PROFILE_H264_HIGH;
-        break;
-
-      case 1:
-        ctx->profile = config.dynamicRange ? FF_PROFILE_HEVC_MAIN_10 : FF_PROFILE_HEVC_MAIN;
-        break;
-
-      case 2:
-        // AV1 supports both 8 and 10 bit encoding with the same Main profile
-        ctx->profile = FF_PROFILE_AV1_MAIN;
-        break;
-    }
-
-    // B-frames delay decoder output, so never use them
-    ctx->max_b_frames = 0;
-
-    // Use an infinite GOP length since I-frames are generated on demand
-    ctx->gop_size = encoder.flags & LIMITED_GOP_SIZE ?
-                      std::numeric_limits<std::int16_t>::max() :
-                      std::numeric_limits<int>::max();
-
-    ctx->keyint_min = std::numeric_limits<int>::max();
-
-    // Some client decoders have limits on the number of reference frames
-    if (config.numRefFrames) {
-      if (video_format[encoder_t::REF_FRAMES_RESTRICT]) {
-        ctx->refs = config.numRefFrames;
-      }
-      else {
-        BOOST_LOG(warning) << "Client requested reference frame limit, but encoder doesn't support it!"sv;
-      }
-    }
-
-    ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
-    ctx->flags2 |= AV_CODEC_FLAG2_FAST;
-
     auto colorspace = encode_device->colorspace;
-    auto avcodec_colorspace = avcodec_colorspace_from_sunshine_colorspace(colorspace);
-
-    ctx->color_range = avcodec_colorspace.range;
-    ctx->color_primaries = avcodec_colorspace.primaries;
-    ctx->color_trc = avcodec_colorspace.transfer_function;
-    ctx->colorspace = avcodec_colorspace.matrix;
-
     auto sw_fmt = (colorspace.bit_depth == 10) ? platform_formats->avcodec_pix_fmt_10bit : platform_formats->avcodec_pix_fmt_8bit;
 
-    // Used by cbs::make_sps_hevc
-    ctx->sw_pix_fmt = sw_fmt;
+    // Allow up to 1 retry to apply the set of fallback options.
+    //
+    // Note: If we later end up needing multiple sets of
+    // fallback options, we may need to allow more retries
+    // to try applying each set.
+    avcodec_ctx_t ctx;
+    for (int retries = 0; retries < 2; retries++) {
+      ctx.reset(avcodec_alloc_context3(codec));
+      ctx->width = config.width;
+      ctx->height = config.height;
+      ctx->time_base = AVRational { 1, config.framerate };
+      ctx->framerate = AVRational { config.framerate, 1 };
 
-    if (hardware) {
-      avcodec_buffer_t encoding_stream_context;
+      switch (config.videoFormat) {
+        case 0:
+          ctx->profile = FF_PROFILE_H264_HIGH;
+          break;
 
-      ctx->pix_fmt = platform_formats->avcodec_dev_pix_fmt;
+        case 1:
+          ctx->profile = config.dynamicRange ? FF_PROFILE_HEVC_MAIN_10 : FF_PROFILE_HEVC_MAIN;
+          break;
 
-      // Create the base hwdevice context
-      auto buf_or_error = platform_formats->init_avcodec_hardware_input_buffer(encode_device.get());
-      if (buf_or_error.has_right()) {
-        return nullptr;
-      }
-      encoding_stream_context = std::move(buf_or_error.left());
-
-      // If this encoder requires derivation from the base, derive the desired type
-      if (platform_formats->avcodec_derived_dev_type != AV_HWDEVICE_TYPE_NONE) {
-        avcodec_buffer_t derived_context;
-
-        // Allow the hwdevice to prepare for this type of context to be derived
-        if (encode_device->prepare_to_derive_context(platform_formats->avcodec_derived_dev_type)) {
-          return nullptr;
-        }
-
-        auto err = av_hwdevice_ctx_create_derived(&derived_context, platform_formats->avcodec_derived_dev_type, encoding_stream_context.get(), 0);
-        if (err) {
-          char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-          BOOST_LOG(error) << "Failed to derive device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
-
-          return nullptr;
-        }
-
-        encoding_stream_context = std::move(derived_context);
+        case 2:
+          // AV1 supports both 8 and 10 bit encoding with the same Main profile
+          ctx->profile = FF_PROFILE_AV1_MAIN;
+          break;
       }
 
-      // Initialize avcodec hardware frames
-      {
-        avcodec_buffer_t frame_ref { av_hwframe_ctx_alloc(encoding_stream_context.get()) };
+      // B-frames delay decoder output, so never use them
+      ctx->max_b_frames = 0;
 
-        auto frame_ctx = (AVHWFramesContext *) frame_ref->data;
-        frame_ctx->format = ctx->pix_fmt;
-        frame_ctx->sw_format = sw_fmt;
-        frame_ctx->height = ctx->height;
-        frame_ctx->width = ctx->width;
-        frame_ctx->initial_pool_size = 0;
+      // Use an infinite GOP length since I-frames are generated on demand
+      ctx->gop_size = encoder.flags & LIMITED_GOP_SIZE ?
+                        std::numeric_limits<std::int16_t>::max() :
+                        std::numeric_limits<int>::max();
 
-        // Allow the hwdevice to modify hwframe context parameters
-        encode_device->init_hwframes(frame_ctx);
+      ctx->keyint_min = std::numeric_limits<int>::max();
 
-        if (auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
-          return nullptr;
-        }
-
-        ctx->hw_frames_ctx = av_buffer_ref(frame_ref.get());
-      }
-
-      ctx->slices = config.slicesPerFrame;
-    }
-    else /* software */ {
-      ctx->pix_fmt = sw_fmt;
-
-      // Clients will request for the fewest slices per frame to get the
-      // most efficient encode, but we may want to provide more slices than
-      // requested to ensure we have enough parallelism for good performance.
-      ctx->slices = std::max(config.slicesPerFrame, config::video.min_threads);
-    }
-
-    if (encoder.flags & SINGLE_SLICE_ONLY) {
-      ctx->slices = 1;
-    }
-
-    ctx->thread_type = FF_THREAD_SLICE;
-    ctx->thread_count = ctx->slices;
-
-    AVDictionary *options { nullptr };
-    auto handle_option = [&options](const encoder_t::option_t &option) {
-      std::visit(
-        util::overloaded {
-          [&](int v) { av_dict_set_int(&options, option.name.c_str(), v, 0); },
-          [&](int *v) { av_dict_set_int(&options, option.name.c_str(), *v, 0); },
-          [&](std::optional<int> *v) { if(*v) av_dict_set_int(&options, option.name.c_str(), **v, 0); },
-          [&](std::function<int()> v) { av_dict_set_int(&options, option.name.c_str(), v(), 0); },
-          [&](const std::string &v) { av_dict_set(&options, option.name.c_str(), v.c_str(), 0); },
-          [&](std::string *v) { if(!v->empty()) av_dict_set(&options, option.name.c_str(), v->c_str(), 0); } },
-        option.value);
-    };
-
-    // Apply common options, then format-specific overrides
-    for (auto &option : video_format.common_options) {
-      handle_option(option);
-    }
-    for (auto &option : (config.dynamicRange ? video_format.hdr_options : video_format.sdr_options)) {
-      handle_option(option);
-    }
-
-    if (video_format[encoder_t::CBR]) {
-      auto bitrate = config.bitrate * 1000;
-      ctx->rc_max_rate = bitrate;
-      ctx->bit_rate = bitrate;
-
-      if (encoder.flags & CBR_WITH_VBR) {
-        // Ensure rc_max_bitrate != bit_rate to force VBR mode
-        ctx->bit_rate--;
-      }
-      else {
-        ctx->rc_min_rate = bitrate;
-      }
-
-      if (encoder.flags & RELAXED_COMPLIANCE) {
-        ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
-      }
-
-      if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
-        if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
-          // Use a larger rc_buffer_size for software encoding when slices are enabled,
-          // because libx264 can severely degrade quality if the buffer is too small.
-          // libx265 encounters this issue more frequently, so always scale the
-          // buffer by 1.5x for software HEVC encoding.
-          ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+      // Some client decoders have limits on the number of reference frames
+      if (config.numRefFrames) {
+        if (video_format[encoder_t::REF_FRAMES_RESTRICT]) {
+          ctx->refs = config.numRefFrames;
         }
         else {
-          ctx->rc_buffer_size = bitrate / config.framerate;
+          BOOST_LOG(warning) << "Client requested reference frame limit, but encoder doesn't support it!"sv;
         }
       }
-    }
-    else if (video_format.qp) {
-      handle_option(*video_format.qp);
-    }
-    else {
-      BOOST_LOG(error) << "Couldn't set video quality: encoder "sv << encoder.name << " doesn't support qp"sv;
-      return nullptr;
-    }
 
-    if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
-      BOOST_LOG(error)
-        << "Could not open codec ["sv
-        << video_format.name << "]: "sv
-        << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+      ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
+      ctx->flags2 |= AV_CODEC_FLAG2_FAST;
 
-      return nullptr;
+      auto avcodec_colorspace = avcodec_colorspace_from_sunshine_colorspace(colorspace);
+
+      ctx->color_range = avcodec_colorspace.range;
+      ctx->color_primaries = avcodec_colorspace.primaries;
+      ctx->color_trc = avcodec_colorspace.transfer_function;
+      ctx->colorspace = avcodec_colorspace.matrix;
+
+      // Used by cbs::make_sps_hevc
+      ctx->sw_pix_fmt = sw_fmt;
+
+      if (hardware) {
+        avcodec_buffer_t encoding_stream_context;
+
+        ctx->pix_fmt = platform_formats->avcodec_dev_pix_fmt;
+
+        // Create the base hwdevice context
+        auto buf_or_error = platform_formats->init_avcodec_hardware_input_buffer(encode_device.get());
+        if (buf_or_error.has_right()) {
+          return nullptr;
+        }
+        encoding_stream_context = std::move(buf_or_error.left());
+
+        // If this encoder requires derivation from the base, derive the desired type
+        if (platform_formats->avcodec_derived_dev_type != AV_HWDEVICE_TYPE_NONE) {
+          avcodec_buffer_t derived_context;
+
+          // Allow the hwdevice to prepare for this type of context to be derived
+          if (encode_device->prepare_to_derive_context(platform_formats->avcodec_derived_dev_type)) {
+            return nullptr;
+          }
+
+          auto err = av_hwdevice_ctx_create_derived(&derived_context, platform_formats->avcodec_derived_dev_type, encoding_stream_context.get(), 0);
+          if (err) {
+            char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+            BOOST_LOG(error) << "Failed to derive device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+
+            return nullptr;
+          }
+
+          encoding_stream_context = std::move(derived_context);
+        }
+
+        // Initialize avcodec hardware frames
+        {
+          avcodec_buffer_t frame_ref { av_hwframe_ctx_alloc(encoding_stream_context.get()) };
+
+          auto frame_ctx = (AVHWFramesContext *) frame_ref->data;
+          frame_ctx->format = ctx->pix_fmt;
+          frame_ctx->sw_format = sw_fmt;
+          frame_ctx->height = ctx->height;
+          frame_ctx->width = ctx->width;
+          frame_ctx->initial_pool_size = 0;
+
+          // Allow the hwdevice to modify hwframe context parameters
+          encode_device->init_hwframes(frame_ctx);
+
+          if (auto err = av_hwframe_ctx_init(frame_ref.get()); err < 0) {
+            return nullptr;
+          }
+
+          ctx->hw_frames_ctx = av_buffer_ref(frame_ref.get());
+        }
+
+        ctx->slices = config.slicesPerFrame;
+      }
+      else /* software */ {
+        ctx->pix_fmt = sw_fmt;
+
+        // Clients will request for the fewest slices per frame to get the
+        // most efficient encode, but we may want to provide more slices than
+        // requested to ensure we have enough parallelism for good performance.
+        ctx->slices = std::max(config.slicesPerFrame, config::video.min_threads);
+      }
+
+      if (encoder.flags & SINGLE_SLICE_ONLY) {
+        ctx->slices = 1;
+      }
+
+      ctx->thread_type = FF_THREAD_SLICE;
+      ctx->thread_count = ctx->slices;
+
+      AVDictionary *options { nullptr };
+      auto handle_option = [&options](const encoder_t::option_t &option) {
+        std::visit(
+          util::overloaded {
+            [&](int v) { av_dict_set_int(&options, option.name.c_str(), v, 0); },
+            [&](int *v) { av_dict_set_int(&options, option.name.c_str(), *v, 0); },
+            [&](std::optional<int> *v) { if(*v) av_dict_set_int(&options, option.name.c_str(), **v, 0); },
+            [&](std::function<int()> v) { av_dict_set_int(&options, option.name.c_str(), v(), 0); },
+            [&](const std::string &v) { av_dict_set(&options, option.name.c_str(), v.c_str(), 0); },
+            [&](std::string *v) { if(!v->empty()) av_dict_set(&options, option.name.c_str(), v->c_str(), 0); } },
+          option.value);
+      };
+
+      // Apply common options, then format-specific overrides
+      for (auto &option : video_format.common_options) {
+        handle_option(option);
+      }
+      for (auto &option : (config.dynamicRange ? video_format.hdr_options : video_format.sdr_options)) {
+        handle_option(option);
+      }
+      if (retries > 0) {
+        for (auto &option : video_format.fallback_options) {
+          handle_option(option);
+        }
+      }
+
+      if (video_format[encoder_t::CBR]) {
+        auto bitrate = config.bitrate * 1000;
+        ctx->rc_max_rate = bitrate;
+        ctx->bit_rate = bitrate;
+
+        if (encoder.flags & CBR_WITH_VBR) {
+          // Ensure rc_max_bitrate != bit_rate to force VBR mode
+          ctx->bit_rate--;
+        }
+        else {
+          ctx->rc_min_rate = bitrate;
+        }
+
+        if (encoder.flags & RELAXED_COMPLIANCE) {
+          ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
+        }
+
+        if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
+          if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
+            // Use a larger rc_buffer_size for software encoding when slices are enabled,
+            // because libx264 can severely degrade quality if the buffer is too small.
+            // libx265 encounters this issue more frequently, so always scale the
+            // buffer by 1.5x for software HEVC encoding.
+            ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+          }
+          else {
+            ctx->rc_buffer_size = bitrate / config.framerate;
+          }
+        }
+      }
+      else if (video_format.qp) {
+        handle_option(*video_format.qp);
+      }
+      else {
+        BOOST_LOG(error) << "Couldn't set video quality: encoder "sv << encoder.name << " doesn't support qp"sv;
+        return nullptr;
+      }
+
+      if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
+        char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+
+        if (!video_format.fallback_options.empty() && retries == 0) {
+          BOOST_LOG(info)
+            << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
+            << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+
+          continue;
+        }
+        else {
+          BOOST_LOG(error)
+            << "Could not open codec ["sv
+            << video_format.name << "]: "sv
+            << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+
+          return nullptr;
+        }
+      }
+
+      // Successfully opened the codec
+      break;
     }
 
     avcodec_frame_t frame { av_frame_alloc() };
