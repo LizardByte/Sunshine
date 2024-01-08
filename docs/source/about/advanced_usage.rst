@@ -5,14 +5,14 @@ Sunshine will work with the default settings for most users. In some cases you m
 Performance Tips
 ----------------
 
-AMD
-^^^
-In Windows, enabling `Enhanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
-applies to `amfenc` and `libx264`.
+.. tab:: AMD
 
-Nvidia
-^^^^^^
-Enabling `Fast Sync` in Nvidia settings may help reduce latency.
+   In Windows, enabling `Enhanced Sync` in AMD's settings may help reduce the latency by an additional frame. This
+   applies to `amfenc` and `libx264`.
+
+.. tab:: NVIDIA
+
+   Enabling `Fast Sync` in Nvidia settings may help reduce latency.
 
 Configuration
 -------------
@@ -41,15 +41,14 @@ location by modifying the configuration file.
 
       sunshine ~/sunshine_config.conf
 
-To manually configure sunshine you may edit the `conf` file in a text editor. Use the examples as reference.
+Although it is recommended to use the configuration UI, it is possible manually configure sunshine by
+editing the `conf` file in a text editor. Use the examples as reference.
 
-.. hint:: Some settings are not available within the web ui.
+`General <https://localhost:47990/config/#general>`__
+-----------------------------------------------------
 
-General
--------
-
-sunshine_name
-^^^^^^^^^^^^^
+`sunshine_name <https://localhost:47990/config/#sunshine_name>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The name displayed by Moonlight
@@ -62,8 +61,8 @@ sunshine_name
 
       sunshine_name = Sunshine
 
-min_log_level
-^^^^^^^^^^^^^
+`min_log_level <https://localhost:47990/config/#min_log_level>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The minimum log level printed to standard out.
@@ -93,22 +92,8 @@ min_log_level
 
       min_log_level = info
 
-log_path
-^^^^^^^^
-
-**Description**
-   The path where the sunshine log is stored.
-
-**Default**
-   ``sunshine.log``
-
-**Example**
-   .. code-block:: text
-
-      log_path = sunshine.log
-
-global_prep_cmd
-^^^^^^^^^^^^^^^
+`global_prep_cmd <https://localhost:47990/config/#global_prep_cmd>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    A list of commands to be run before/after all applications. If any of the prep-commands fail, starting the application is aborted.
@@ -121,11 +106,115 @@ global_prep_cmd
 
       global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
 
-Controls
---------
+`Files <https://localhost:47990/config/#files>`__
+-------------------------------------------------
 
-gamepad
-^^^^^^^
+`file_apps <https://localhost:47990/config/#file_apps>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The application configuration file path. The file contains a json formatted list of applications that can be started
+   by Moonlight.
+
+**Default**
+   OS and package dependent
+
+**Example**
+   .. code-block:: text
+
+      file_apps = apps.json
+
+`credentials_file <https://localhost:47990/config/#credentials_file>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The file where user credentials for the UI are stored.
+
+**Default**
+   ``sunshine_state.json``
+
+**Example**
+   .. code-block:: text
+
+      credentials_file = sunshine_state.json
+
+`log_path <https://localhost:47990/config/#log_path>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The path where the sunshine log is stored.
+
+**Default**
+   ``sunshine.log``
+
+**Example**
+   .. code-block:: text
+
+      log_path = sunshine.log
+
+`pkey <https://localhost:47990/config/#pkey>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.
+
+   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
+
+**Default**
+   ``credentials/cakey.pem``
+
+**Example**
+   .. code-block:: text
+
+      pkey = /dir/pkey.pem
+
+`cert <https://localhost:47990/config/#cert>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.
+
+   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
+
+**Default**
+   ``credentials/cacert.pem``
+
+**Example**
+   .. code-block:: text
+
+      cert = /dir/cert.pem
+
+`file_state <https://localhost:47990/config/#file_state>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The file where current state of Sunshine is stored.
+
+**Default**
+   ``sunshine_state.json``
+
+**Example**
+   .. code-block:: text
+
+      file_state = sunshine_state.json
+
+
+`Input <https://localhost:47990/config/#input>`__
+-------------------------------------------------
+
+`controller <https://localhost:47990/config/#controller>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Whether to allow controller input from the client.
+
+**Example**
+   .. code-block:: text
+
+      controller = enabled
+
+`gamepad <https://localhost:47990/config/#gamepad>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The type of gamepad to emulate on the host.
@@ -153,8 +242,8 @@ gamepad
 
       gamepad = auto
       
-ds4_back_as_touchpad_click
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+`ds4_back_as_touchpad_click <https://localhost:47990/config/#ds4_back_as_touchpad_click>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    .. hint:: Only applies when gamepad is set to ds4 manually. Unused in other gamepad modes.
@@ -170,8 +259,8 @@ ds4_back_as_touchpad_click
 
       ds4_back_as_touchpad_click = enabled
 
-motion_as_ds4
-^^^^^^^^^^^^^
+`motion_as_ds4 <https://localhost:47990/config/#motion_as_ds4>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    .. hint:: Only applies when gamepad is set to auto.
@@ -188,8 +277,8 @@ motion_as_ds4
 
       motion_as_ds4 = enabled
 
-touchpad_as_ds4
-^^^^^^^^^^^^^^^
+`touchpad_as_ds4 <https://localhost:47990/config/#touchpad_as_ds4>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    .. hint:: Only applies when gamepad is set to auto.
@@ -206,8 +295,8 @@ touchpad_as_ds4
 
       touchpad_as_ds4 = enabled
 
-back_button_timeout
-^^^^^^^^^^^^^^^^^^^
+`back_button_timeout <https://localhost:47990/config/#back_button_timeout>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated.
@@ -222,8 +311,19 @@ back_button_timeout
 
       back_button_timeout = 2000
 
-key_repeat_delay
-^^^^^^^^^^^^^^^^
+`keyboard <https://localhost:47990/config/#keyboard>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Whether to allow keyboard input from the client.
+
+**Example**
+   .. code-block:: text
+
+      keyboard = enabled
+
+`key_repeat_delay <https://localhost:47990/config/#key_repeat_delay>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The initial delay, in milliseconds, before repeating keys. Controls how fast keys will repeat themselves.
@@ -236,8 +336,8 @@ key_repeat_delay
 
       key_repeat_delay = 500
 
-key_repeat_frequency
-^^^^^^^^^^^^^^^^^^^^
+`key_repeat_frequency <https://localhost:47990/config/#key_repeat_frequency>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    How often keys repeat every second.
@@ -252,8 +352,8 @@ key_repeat_frequency
 
       key_repeat_frequency = 24.9
 
-always_send_scancodes
-^^^^^^^^^^^^^^^^^^^^^
+`always_send_scancodes <https://localhost:47990/config/#always_send_scancodes>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard input
@@ -273,8 +373,34 @@ always_send_scancodes
 
       always_send_scancodes = enabled
 
-high_resolution_scrolling
-^^^^^^^^^^^^^^^^^^^^^^^^^
+`key_rightalt_to_key_win <https://localhost:47990/config/#key_rightalt_to_key_win>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   It may be possible that you cannot send the Windows Key from Moonlight directly. In those cases it may be useful to
+   make Sunshine think the Right Alt key is the Windows key.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      key_rightalt_to_key_win = enabled
+
+`mouse <https://localhost:47990/config/#mouse>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Whether to allow mouse input from the client.
+
+**Example**
+   .. code-block:: text
+
+      mouse = enabled
+
+`high_resolution_scrolling <https://localhost:47990/config/#high_resolution_scrolling>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.
@@ -289,8 +415,8 @@ high_resolution_scrolling
 
       high_resolution_scrolling = enabled
 
-native_pen_touch
-^^^^^^^^^^^^^^^^
+`native_pen_touch <https://localhost:47990/config/#native_pen_touch>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    When enabled, Sunshine will pass through native pen/touch events from Moonlight clients. 
@@ -336,181 +462,13 @@ keybindings
         0x4A, 0x4B
       ]
 
-key_rightalt_to_key_win
-^^^^^^^^^^^^^^^^^^^^^^^
+.. note:: This option is not available in the UI. A PR would be welcome.
 
-**Description**
-   It may be possible that you cannot send the Windows Key from Moonlight directly. In those cases it may be useful to
-   make Sunshine think the Right Alt key is the Windows key.
+`Audio/Video <https://localhost:47990/config/#audio-video>`__
+-------------------------------------------------------------
 
-**Default**
-   ``disabled``
-
-**Example**
-   .. code-block:: text
-
-      key_rightalt_to_key_win = enabled
-
-Display
--------
-
-adapter_name
-^^^^^^^^^^^^
-
-**Description**
-   Select the video card you want to stream.
-
-   .. tip:: To find the name of the appropriate values follow these instructions.
-
-      **Linux + VA-API**
-         Unlike with `amdvce` and `nvenc`, it doesn't matter if video encoding is done on a different GPU.
-
-         .. code-block:: bash
-
-            ls /dev/dri/renderD*  # to find all devices capable of VAAPI
-
-            # replace ``renderD129`` with the device from above to lists the name and capabilities of the device
-            vainfo --display drm --device /dev/dri/renderD129 | \
-              grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"
-
-         To be supported by Sunshine, it needs to have at the very minimum:
-         ``VAProfileH264High   : VAEntrypointEncSlice``
-
-      .. todo:: macOS
-
-      **Windows**
-         .. code-block:: batch
-
-            tools\dxgi-info.exe
-
-         .. note:: For hybrid graphics systems, DXGI reports the outputs are connected to whichever graphics adapter
-            that the application is configured to use, so it's not a reliable indicator of how the display is
-            physically connected.
-
-**Default**
-   Sunshine will select the default video card.
-
-**Examples**
-   **Linux**
-      .. code-block:: text
-
-         adapter_name = /dev/dri/renderD128
-
-   .. todo:: macOS
-
-   **Windows**
-      .. code-block:: text
-
-         adapter_name = Radeon RX 580 Series
-
-output_name
-^^^^^^^^^^^
-
-**Description**
-   Select the display number you want to stream.
-
-   .. tip:: To find the name of the appropriate values follow these instructions.
-
-      **Linux**
-         During Sunshine startup, you should see the list of detected monitors:
-
-         .. code-block:: text
-
-            Info: Detecting connected monitors
-            Info: Detected monitor 0: DVI-D-0, connected: false
-            Info: Detected monitor 1: HDMI-0, connected: true
-            Info: Detected monitor 2: DP-0, connected: true
-            Info: Detected monitor 3: DP-1, connected: false
-            Info: Detected monitor 4: DVI-D-1, connected: false
-
-         You need to use the value before the colon in the output, e.g. ``1``.
-
-      .. todo:: macOS
-
-      **Windows**
-         .. code-block:: batch
-
-            tools\dxgi-info.exe
-
-**Default**
-   Sunshine will select the default display.
-
-**Examples**
-   **Linux**
-      .. code-block:: text
-
-         output_name = 0
-
-   .. todo:: macOS
-
-   **Windows**
-      .. code-block:: text
-
-         output_name  = \\.\DISPLAY1
-
-fps
-^^^
-
-**Description**
-   The fps modes advertised by Sunshine.
-
-   .. note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
-      fps is supported.
-
-**Default**
-   ``[10, 30, 60, 90, 120]``
-
-**Example**
-   .. code-block:: text
-
-      fps = [10, 30, 60, 90, 120]
-
-resolutions
-^^^^^^^^^^^
-
-**Description**
-   The resolutions advertised by Sunshine.
-
-   .. note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
-      resolution is supported.
-
-**Default**
-   .. code-block:: text
-
-      [
-        352x240,
-        480x360,
-        858x480,
-        1280x720,
-        1920x1080,
-        2560x1080,
-        3440x1440,
-        1920x1200,
-        3840x2160,
-        3840x1600,
-      ]
-
-**Example**
-   .. code-block:: text
-
-      resolutions = [
-        352x240,
-        480x360,
-        858x480,
-        1280x720,
-        1920x1080,
-        2560x1080,
-        3440x1440,
-        1920x1200,
-        3840x2160,
-        3840x1600,
-      ]
-
-Audio
------
-
-audio_sink
-^^^^^^^^^^
+`audio_sink <https://localhost:47990/config/#audio_sink>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The name of the audio sink used for audio loopback.
@@ -562,8 +520,8 @@ audio_sink
 
          audio_sink = Speakers (High Definition Audio Device)
 
-virtual_sink
-^^^^^^^^^^^^
+`virtual_sink <https://localhost:47990/config/#virtual_sink>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio, while muting
@@ -585,8 +543,8 @@ virtual_sink
 
       virtual_sink = Steam Streaming Speakers
 
-install_steam_audio_drivers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+`install_steam_audio_drivers <https://localhost:47990/config/#install_steam_audio_drivers>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Installs the Steam Streaming Speakers driver (if Steam is installed) to support surround sound and muting host audio.
@@ -601,25 +559,187 @@ install_steam_audio_drivers
 
       install_steam_audio_drivers = enabled
 
-Network
--------
-
-external_ip
-^^^^^^^^^^^
+`adapter_name <https://localhost:47990/config/#adapter_name>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   If no external IP address is given, Sunshine will attempt to automatically detect external ip-address.
+   Select the video card you want to stream.
+
+   .. tip:: To find the name of the appropriate values follow these instructions.
+
+      **Linux + VA-API**
+         Unlike with `amdvce` and `nvenc`, it doesn't matter if video encoding is done on a different GPU.
+
+         .. code-block:: bash
+
+            ls /dev/dri/renderD*  # to find all devices capable of VAAPI
+
+            # replace ``renderD129`` with the device from above to lists the name and capabilities of the device
+            vainfo --display drm --device /dev/dri/renderD129 | \
+              grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"
+
+         To be supported by Sunshine, it needs to have at the very minimum:
+         ``VAProfileH264High   : VAEntrypointEncSlice``
+
+      .. todo:: macOS
+
+      **Windows**
+         .. code-block:: batch
+
+            tools\dxgi-info.exe
+
+         .. note:: For hybrid graphics systems, DXGI reports the outputs are connected to whichever graphics adapter
+            that the application is configured to use, so it's not a reliable indicator of how the display is
+            physically connected.
 
 **Default**
-   Automatic
+   Sunshine will select the default video card.
+
+**Examples**
+   **Linux**
+      .. code-block:: text
+
+         adapter_name = /dev/dri/renderD128
+
+   .. todo:: macOS
+
+   **Windows**
+      .. code-block:: text
+
+         adapter_name = Radeon RX 580 Series
+
+`output_name <https://localhost:47990/config/#output_name>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Select the display number you want to stream.
+
+   .. tip:: To find the name of the appropriate values follow these instructions.
+
+      **Linux**
+         During Sunshine startup, you should see the list of detected monitors:
+
+         .. code-block:: text
+
+            Info: Detecting connected monitors
+            Info: Detected monitor 0: DVI-D-0, connected: false
+            Info: Detected monitor 1: HDMI-0, connected: true
+            Info: Detected monitor 2: DP-0, connected: true
+            Info: Detected monitor 3: DP-1, connected: false
+            Info: Detected monitor 4: DVI-D-1, connected: false
+
+         You need to use the value before the colon in the output, e.g. ``1``.
+
+      .. todo:: macOS
+
+      **Windows**
+         .. code-block:: batch
+
+            tools\dxgi-info.exe
+
+**Default**
+   Sunshine will select the default display.
+
+**Examples**
+   **Linux**
+      .. code-block:: text
+
+         output_name = 0
+
+   .. todo:: macOS
+
+   **Windows**
+      .. code-block:: text
+
+         output_name  = \\.\DISPLAY1
+
+`resolutions <https://localhost:47990/config/#resolutions>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The resolutions advertised by Sunshine.
+
+   .. note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
+      resolution is supported.
+
+**Default**
+   .. code-block:: text
+
+      [
+        352x240,
+        480x360,
+        858x480,
+        1280x720,
+        1920x1080,
+        2560x1080,
+        3440x1440,
+        1920x1200,
+        3840x2160,
+        3840x1600,
+      ]
 
 **Example**
    .. code-block:: text
 
-      external_ip = 123.456.789.12
+      resolutions = [
+        352x240,
+        480x360,
+        858x480,
+        1280x720,
+        1920x1080,
+        2560x1080,
+        3440x1440,
+        1920x1200,
+        3840x2160,
+        3840x1600,
+      ]
 
-port
-^^^^
+`fps <https://localhost:47990/config/#fps>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The fps modes advertised by Sunshine.
+
+   .. note:: Some versions of Moonlight, such as Moonlight-nx (Switch), rely on this list to ensure that the requested
+      fps is supported.
+
+**Default**
+   ``[10, 30, 60, 90, 120]``
+
+**Example**
+   .. code-block:: text
+
+      fps = [10, 30, 60, 90, 120]
+
+`Network <https://localhost:47990/config/#network>`__
+-----------------------------------------------------
+
+`address_family <https://localhost:47990/config/#address_family>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Set the address family that Sunshine will use.
+
+.. table::
+   :widths: auto
+
+   =====     ===========
+   Value     Description
+   =====     ===========
+   ipv4      IPv4 only
+   both      IPv4+IPv6
+   =====     ===========
+
+**Default**
+   ``ipv4``
+
+**Example**
+   .. code-block:: text
+
+      address_family = both
+
+`port <https://localhost:47990/config/#port>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Set the family of ports used by Sunshine. Changing this value will offset other ports per the table below.
@@ -653,64 +773,8 @@ port
 
       port = 47989
 
-address_family
-^^^^^^^^^^^^^^
-
-**Description**
-   Set the address family that Sunshine will use.
-
-.. table::
-   :widths: auto
-
-   =====     ===========
-   Value     Description
-   =====     ===========
-   ipv4      IPv4 only
-   both      IPv4+IPv6
-   =====     ===========
-
-**Default**
-   ``ipv4``
-
-**Example**
-   .. code-block:: text
-
-      address_family = both
-
-pkey
-^^^^
-
-**Description**
-   The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.
-
-   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
-
-**Default**
-   ``credentials/cakey.pem``
-
-**Example**
-   .. code-block:: text
-
-      pkey = /dir/pkey.pem
-
-cert
-^^^^
-
-**Description**
-   The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.
-
-   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
-
-**Default**
-   ``credentials/cacert.pem``
-
-**Example**
-   .. code-block:: text
-
-      cert = /dir/cert.pem
-
-origin_web_ui_allowed
-^^^^^^^^^^^^^^^^^^^^^
+`origin_web_ui_allowed <https://localhost:47990/config/#origin_web_ui_allowed>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The origin of the remote endpoint address that is not denied for HTTPS Web UI.
@@ -736,8 +800,8 @@ origin_web_ui_allowed
 
       origin_web_ui_allowed = lan
 
-upnp
-^^^^
+`upnp <https://localhost:47990/config/#upnp>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Sunshine will attempt to open ports for streaming over the internet.
@@ -762,8 +826,22 @@ upnp
 
       upnp = on
 
-ping_timeout
-^^^^^^^^^^^^
+`external_ip <https://localhost:47990/config/#external_ip>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   If no external IP address is given, Sunshine will attempt to automatically detect external ip-address.
+
+**Default**
+   Automatic
+
+**Example**
+   .. code-block:: text
+
+      external_ip = 123.456.789.12
+
+`ping_timeout <https://localhost:47990/config/#ping_timeout>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    How long to wait, in milliseconds, for data from Moonlight before shutting down the stream.
@@ -776,11 +854,11 @@ ping_timeout
 
       ping_timeout = 10000
 
-Encoding
---------
+`Advanced <https://localhost:47990/config/#advanced>`__
+-------------------------------------------------------
 
-channels
-^^^^^^^^
+`channels <https://localhost:47990/config/#channels>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    This will generate distinct video streams, unlike simply broadcasting to multiple Clients.
@@ -802,8 +880,8 @@ channels
 
       channels = 1
 
-fec_percentage
-^^^^^^^^^^^^^^
+`fec_percentage <https://localhost:47990/config/#fec_percentage>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Percentage of error correcting packets per data packet in each video frame.
@@ -821,8 +899,8 @@ fec_percentage
 
       fec_percentage = 20
 
-qp
-^^
+`qp <https://localhost:47990/config/#qp>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Quantization Parameter. Some devices don't support Constant Bit Rate. For those devices, QP is used instead.
@@ -837,8 +915,8 @@ qp
 
       qp = 28
 
-min_threads
-^^^^^^^^^^^
+`min_threads <https://localhost:47990/config/#min_threads>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Minimum number of threads used for software encoding.
@@ -855,8 +933,8 @@ min_threads
 
       min_threads = 1
 
-hevc_mode
-^^^^^^^^^
+`hevc_mode <https://localhost:47990/config/#hevc_mode>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Allows the client to request HEVC Main or HEVC Main10 video streams.
@@ -886,8 +964,8 @@ hevc_mode
 
       hevc_mode = 2
 
-av1_mode
-^^^^^^^^^
+`av1_mode <https://localhost:47990/config/#av1_mode>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Allows the client to request AV1 Main 8-bit or 10-bit video streams.
@@ -917,8 +995,8 @@ av1_mode
 
       av1_mode = 2
 
-capture
-^^^^^^^
+`capture <https://localhost:47990/config/#capture>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Force specific screen capture method.
@@ -951,8 +1029,8 @@ capture
 
       capture = kms
 
-encoder
-^^^^^^^
+`encoder <https://localhost:47990/config/#encoder>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    Force a specific encoder.
@@ -979,8 +1057,439 @@ encoder
 
       encoder = nvenc
 
-sw_preset
-^^^^^^^^^
+`NVIDIA NVENC Encoder <https://localhost:47990/config/#nvidia-nvenc-encoder>`__
+-------------------------------------------------------------------------------
+
+`nvenc_preset <https://localhost:47990/config/#nvenc_preset>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   NVENC encoder performance preset.
+   Higher numbers improve compression (quality at given bitrate) at the cost of increased encoding latency.
+   Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by increasing bitrate.
+
+   .. note:: This option only applies when using NVENC `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   1          P1 (fastest)
+   2          P2
+   3          P3
+   4          P4
+   5          P5
+   6          P6
+   7          P7 (slowest)
+   ========== ===========
+
+**Default**
+   ``1``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_preset = 1
+
+`nvenc_twopass <https://localhost:47990/config/#nvenc_twopass>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Enable two-pass mode in NVENC encoder.
+   This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere to bitrate limits.
+   Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss.
+
+   .. note:: This option only applies when using NVENC `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =========== ===========
+   Value       Description
+   =========== ===========
+   disabled    One pass (fastest)
+   quarter_res Two passes, first pass at quarter resolution (faster)
+   full_res    Two passes, first pass at full resolution (slower)
+   =========== ===========
+
+**Default**
+   ``quarter_res``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_twopass = quarter_res
+
+`nvenc_realtime_hags <https://localhost:47990/config/#nvenc_realtime_hags>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Use realtime gpu scheduling priority in NVENC when hardware accelerated gpu scheduling (HAGS) is enabled in Windows.
+   Currently NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used and VRAM utilization is close to maximum.
+   Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
+
+   .. note:: This option only applies when using NVENC `encoder`_.
+
+   .. caution:: Applies to Windows only.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   disabled   Use high priority
+   enabled    Use realtime priority
+   ========== ===========
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_realtime_hags = enabled
+
+`nvenc_h264_cavlc <https://localhost:47990/config/#nvenc_h264_cavlc>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Prefer CAVLC entropy coding over CABAC in H.264 when using NVENC.
+   CAVLC is outdated and needs around 10% more bitrate for same quality, but provides slightly faster decoding when using software decoder.
+
+   .. note:: This option only applies when using H.264 format with NVENC `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   disabled   Prefer CABAC
+   enabled    Prefer CAVLC
+   ========== ===========
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      nvenc_h264_cavlc = disabled
+
+`Intel QuickSync Encoder <https://localhost:47990/config/#intel-quicksync-encoder>`__
+-------------------------------------------------------------------------------------
+
+`qsv_preset <https://localhost:47990/config/#qsv_preset>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The encoder preset to use.
+
+   .. note:: This option only applies when using quicksync `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   veryfast   fastest (lowest quality)
+   faster     faster (lower quality)
+   fast       fast (low quality)
+   medium     medium (default)
+   slow       slow (good quality)
+   slower     slower (better quality)
+   veryslow   slowest (best quality)
+   ========== ===========
+
+**Default**
+   ``medium``
+
+**Example**
+   .. code-block:: text
+
+      qsv_preset = medium
+
+`qsv_coder <https://localhost:47990/config/#qsv_coder>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The entropy encoding to use.
+
+   .. note:: This option only applies when using H264 with quicksync `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   auto       let ffmpeg decide
+   cabac      context adaptive binary arithmetic coding - higher quality
+   cavlc      context adaptive variable-length coding - faster decode
+   ========== ===========
+
+**Default**
+   ``auto``
+
+**Example**
+   .. code-block:: text
+
+      qsv_coder = auto
+
+`AMD AMF Encoder <https://localhost:47990/config/#amd-amf-encoder>`__
+---------------------------------------------------------------------
+
+`amd_quality <https://localhost:47990/config/#amd_quality>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The encoder preset to use.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   speed      prefer speed
+   balanced   balanced
+   quality    prefer quality
+   ========== ===========
+
+**Default**
+   ``balanced``
+
+**Example**
+   .. code-block:: text
+
+      amd_quality = balanced
+
+`amd_rc <https://localhost:47990/config/#amd_rc>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The encoder rate control.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =========== ===========
+   Value       Description
+   =========== ===========
+   cqp         constant qp mode
+   cbr         constant bitrate
+   vbr_latency variable bitrate, latency constrained
+   vbr_peak    variable bitrate, peak constrained
+   =========== ===========
+
+**Default**
+   ``vbr_latency``
+
+**Example**
+   .. code-block:: text
+
+      amd_rc = vbr_latency
+
+`amd_usage <https://localhost:47990/config/#amd_usage>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The encoder usage profile, used to balance latency with encoding quality.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =============== ===========
+   Value           Description
+   =============== ===========
+   transcoding     transcoding (slowest)
+   webcam          webcam (slow)
+   lowlatency      low latency (fast)
+   ultralowlatency ultra low latency (fastest)
+   =============== ===========
+
+**Default**
+   ``ultralowlatency``
+
+**Example**
+   .. code-block:: text
+
+      amd_usage = ultralowlatency
+
+`amd_preanalysis <https://localhost:47990/config/#amd_preanalysis>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Preanalysis can increase encoding quality at the cost of latency.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_preanalysis = disabled
+
+`amd_vbaq <https://localhost:47990/config/#amd_vbaq>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_vbaq = enabled
+
+`amd_coder <https://localhost:47990/config/#amd_coder>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The entropy encoding to use.
+
+   .. note:: This option only applies when using H264 with amdvce `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   auto       let ffmpeg decide
+   cabac      context adaptive variable-length coding - higher quality
+   cavlc      context adaptive binary arithmetic coding - faster decode
+   ========== ===========
+
+**Default**
+   ``auto``
+
+**Example**
+   .. code-block:: text
+
+      amd_coder = auto
+
+`VideoToolbox Encoder <https://localhost:47990/config/#videotoolbox-encoder>`__
+-------------------------------------------------------------------------------
+
+`vt_coder <https://localhost:47990/config/#vt_coder>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The entropy encoding to use.
+
+   .. note:: This option only applies when using macOS.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   auto       let ffmpeg decide
+   cabac
+   cavlc
+   ========== ===========
+
+**Default**
+   ``auto``
+
+**Example**
+   .. code-block:: text
+
+      vt_coder = auto
+
+`vt_software <https://localhost:47990/config/#vt_software>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Force Video Toolbox to use software encoding.
+
+   .. note:: This option only applies when using macOS.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   auto       let ffmpeg decide
+   disabled   disable software encoding
+   allowed    allow software encoding
+   forced     force software encoding
+   ========== ===========
+
+**Default**
+   ``auto``
+
+**Example**
+   .. code-block:: text
+
+      vt_software = auto
+
+`vt_realtime <https://localhost:47990/config/#vt_realtime>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Realtime encoding.
+
+   .. note:: This option only applies when using macOS.
+
+   .. warning:: Disabling realtime encoding might result in a delayed frame encoding or frame drop.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      vt_realtime = enabled
+
+`Software Encoder <https://localhost:47990/config/#software-encoder>`__
+-----------------------------------------------------------------------
+
+`sw_preset <https://localhost:47990/config/#sw_preset>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The encoder preset to use.
@@ -1021,10 +1530,10 @@ sw_preset
 **Example**
    .. code-block:: text
 
-      sw_preset  = superfast
+      sw_preset = superfast
 
-sw_tune
-^^^^^^^
+`sw_tune <https://localhost:47990/config/#sw_tune>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
    The tuning preset to use.
@@ -1057,466 +1566,4 @@ sw_tune
 **Example**
    .. code-block:: text
 
-      sw_tune    = zerolatency
-
-nvenc_preset
-^^^^^^^^^^^^
-
-**Description**
-   NVENC encoder performance preset.
-   Higher numbers improve compression (quality at given bitrate) at the cost of increased encoding latency.
-   Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by increasing bitrate.
-
-   .. note:: This option only applies when using NVENC `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   1          P1 (fastest)
-   2          P2
-   3          P3
-   4          P4
-   5          P5
-   6          P6
-   7          P7 (slowest)
-   ========== ===========
-
-**Default**
-   ``1``
-
-**Example**
-   .. code-block:: text
-
-      nvenc_preset = 1
-
-nvenc_twopass
-^^^^^^^^^^^^^
-
-**Description**
-   Enable two-pass mode in NVENC encoder.
-   This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly adhere to bitrate limits.
-   Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet loss.
-
-   .. note:: This option only applies when using NVENC `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =========== ===========
-   Value       Description
-   =========== ===========
-   disabled    One pass (fastest)
-   quarter_res Two passes, first pass at quarter resolution (faster)
-   full_res    Two passes, first pass at full resolution (slower)
-   =========== ===========
-
-**Default**
-   ``quarter_res``
-
-**Example**
-   .. code-block:: text
-
-      nvenc_twopass = quarter_res
-
-nvenc_realtime_hags
-^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   Use realtime gpu scheduling priority in NVENC when hardware accelerated gpu scheduling (HAGS) is enabled in Windows.
-   Currently NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used and VRAM utilization is close to maximum.
-   Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
-
-   .. note:: This option only applies when using NVENC `encoder`_.
-
-   .. caution:: Applies to Windows only.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   disabled   Use high priority
-   enabled    Use realtime priority
-   ========== ===========
-
-**Default**
-   ``enabled``
-
-**Example**
-   .. code-block:: text
-
-      nvenc_realtime_hags = enabled
-
-nvenc_h264_cavlc
-^^^^^^^^^^^^^^^^
-
-**Description**
-   Prefer CAVLC entropy coding over CABAC in H.264 when using NVENC.
-   CAVLC is outdated and needs around 10% more bitrate for same quality, but provides slightly faster decoding when using software decoder.
-
-   .. note:: This option only applies when using H.264 format with NVENC `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   disabled   Prefer CABAC
-   enabled    Prefer CAVLC
-   ========== ===========
-
-**Default**
-   ``disabled``
-
-**Example**
-   .. code-block:: text
-
-      nvenc_h264_cavlc = disabled
-
-qsv_preset
-^^^^^^^^^^
-
-**Description**
-   The encoder preset to use.
-
-   .. note:: This option only applies when using quicksync `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   veryfast   fastest (lowest quality)
-   faster     faster (lower quality)
-   fast       fast (low quality)
-   medium     medium (default)
-   slow       slow (good quality)
-   slower     slower (better quality)
-   veryslow   slowest (best quality)
-   ========== ===========
-
-**Default**
-   ``medium``
-
-**Example**
-   .. code-block:: text
-
-      qsv_preset = medium
-
-qsv_coder
-^^^^^^^^^
-
-**Description**
-   The entropy encoding to use.
-
-   .. note:: This option only applies when using H264 with quicksync `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   auto       let ffmpeg decide
-   cabac      context adaptive binary arithmetic coding - higher quality
-   cavlc      context adaptive variable-length coding - faster decode
-   ========== ===========
-
-**Default**
-   ``auto``
-
-**Example**
-   .. code-block:: text
-
-      qsv_coder = auto
-
-amd_quality
-^^^^^^^^^^^
-
-**Description**
-   The encoder preset to use.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   speed      prefer speed
-   balanced   balanced
-   quality    prefer quality
-   ========== ===========
-
-**Default**
-   ``balanced``
-
-**Example**
-   .. code-block:: text
-
-      amd_quality = balanced
-
-amd_rc
-^^^^^^
-
-**Description**
-   The encoder rate control.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =========== ===========
-   Value       Description
-   =========== ===========
-   cqp         constant qp mode
-   cbr         constant bitrate
-   vbr_latency variable bitrate, latency constrained
-   vbr_peak    variable bitrate, peak constrained
-   =========== ===========
-
-**Default**
-   ``vbr_latency``
-
-**Example**
-   .. code-block:: text
-
-      amd_rc = vbr_latency
-
-amd_usage
-^^^^^^^^^
-
-**Description**
-   The encoder usage profile, used to balance latency with encoding quality.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =============== ===========
-   Value           Description
-   =============== ===========
-   transcoding     transcoding (slowest)
-   webcam          webcam (slow)
-   lowlatency      low latency (fast)
-   ultralowlatency ultra low latency (fastest)
-   =============== ===========
-
-**Default**
-   ``ultralowlatency``
-
-**Example**
-   .. code-block:: text
-
-      amd_usage = ultralowlatency
-
-amd_preanalysis
-^^^^^^^^^^^^^^^
-
-**Description**
-   Preanalysis can increase encoding quality at the cost of latency.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Default**
-   ``disabled``
-
-**Example**
-   .. code-block:: text
-
-      amd_preanalysis = disabled
-
-amd_vbaq
-^^^^^^^^
-
-**Description**
-   Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Default**
-   ``enabled``
-
-**Example**
-   .. code-block:: text
-
-      amd_vbaq = enabled
-
-amd_coder
-^^^^^^^^^
-
-**Description**
-   The entropy encoding to use.
-
-   .. note:: This option only applies when using H264 with amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   auto       let ffmpeg decide
-   cabac      context adaptive variable-length coding - higher quality
-   cavlc      context adaptive binary arithmetic coding - faster decode
-   ========== ===========
-
-**Default**
-   ``auto``
-
-**Example**
-   .. code-block:: text
-
-      amd_coder = auto
-
-vt_software
-^^^^^^^^^^^
-
-**Description**
-   Force Video Toolbox to use software encoding.
-
-   .. note:: This option only applies when using macOS.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   auto       let ffmpeg decide
-   disabled   disable software encoding
-   allowed    allow software encoding
-   forced     force software encoding
-   ========== ===========
-
-**Default**
-   ``auto``
-
-**Example**
-   .. code-block:: text
-
-      vt_software = auto
-
-vt_realtime
-^^^^^^^^^^^
-
-**Description**
-   Realtime encoding.
-
-   .. note:: This option only applies when using macOS.
-
-   .. warning:: Disabling realtime encoding might result in a delayed frame encoding or frame drop.
-
-**Default**
-   ``enabled``
-
-**Example**
-   .. code-block:: text
-
-      vt_realtime = enabled
-
-vt_coder
-^^^^^^^^
-
-**Description**
-   The entropy encoding to use.
-
-   .. note:: This option only applies when using macOS.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   auto       let ffmpeg decide
-   cabac
-   cavlc
-   ========== ===========
-
-**Default**
-   ``auto``
-
-**Example**
-   .. code-block:: text
-
-      vt_coder = auto
-
-Advanced
---------
-
-file_apps
-^^^^^^^^^
-
-**Description**
-   The application configuration file path. The file contains a json formatted list of applications that can be started
-   by Moonlight.
-
-**Default**
-   OS and package dependent
-
-**Example**
-   .. code-block:: text
-
-      file_apps = apps.json
-
-file_state
-^^^^^^^^^^
-
-**Description**
-   The file where current state of Sunshine is stored.
-
-**Default**
-   ``sunshine_state.json``
-
-**Example**
-   .. code-block:: text
-
-      file_state = sunshine_state.json
-
-credentials_file
-^^^^^^^^^^^^^^^^
-
-**Description**
-   The file where user credentials for the UI are stored.
-
-**Default**
-   ``sunshine_state.json``
-
-**Example**
-   .. code-block:: text
-
-      credentials_file = sunshine_state.json
+      sw_tune = zerolatency

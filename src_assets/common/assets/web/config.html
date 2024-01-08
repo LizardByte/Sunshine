@@ -36,7 +36,7 @@
       </ul>
 
       <!-- General Tab -->
-      <div v-if="currentTab === 'general'" class="config-page">
+      <div id="general" v-if="currentTab === 'general'" class="config-page">
         <!-- Sunshine Name -->
         <div class="mb-3">
           <label for="sunshine_name" class="form-label">Sunshine Name</label>
@@ -65,7 +65,7 @@
         </div>
 
         <!-- Global Prep Commands -->
-        <div class="mb-3 d-flex flex-column">
+        <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
           <label class="form-label">Command Preparations</label>
           <div class="form-text">
             Configure a list of commands to be executed before or after running any application.
@@ -115,7 +115,7 @@
       </div>
 
       <!-- Files Tab -->
-      <div v-if="currentTab === 'files'" class="config-page">
+      <div id="files" v-if="currentTab === 'files'" class="config-page">
         <!-- Apps File -->
         <div class="mb-3">
           <label for="file_apps" class="form-label">Apps File</label>
@@ -174,11 +174,11 @@
       </div>
 
       <!-- Input Tab -->
-      <div v-if="currentTab === 'input'" class="config-page">
+      <div id="input" v-if="currentTab === 'input'" class="config-page">
         <!-- Enable Gamepad Input -->
         <div class="mb-3">
-          <label for="gamepad" class="form-label">Enable Gamepad Input</label>
-          <select id="gamepad" class="form-select" v-model="config.controller">
+          <label for="controller" class="form-label">Enable Gamepad Input</label>
+          <select id="controller" class="form-select" v-model="config.controller">
             <option value="disabled">Disabled</option>
             <option value="enabled">Enabled</option>
           </select>
@@ -319,8 +319,8 @@
 
         <!-- Mapping Key AltRight to Key Windows -->
         <div class="mb-3" v-if="config.keyboard === 'enabled'">
-          <label for="mapkey" class="form-label">Map Right Alt key to Windows key</label>
-          <select id="mapkey" class="form-select" v-model="config.key_rightalt_to_key_win">
+          <label for="key_rightalt_to_key_win" class="form-label">Map Right Alt key to Windows key</label>
+          <select id="key_rightalt_to_key_win" class="form-select" v-model="config.key_rightalt_to_key_win">
             <option value="disabled">Disabled</option>
             <option value="enabled">Enabled</option>
           </select>
@@ -373,7 +373,7 @@
       </div>
 
       <!-- Audio/Video Tab -->
-      <div v-if="currentTab === 'av'" class="config-page">
+      <div id="audio-video" v-if="currentTab === 'av'" class="config-page">
         <!-- Audio Sink -->
         <div class="mb-3" v-if="platform === 'windows'">
           <label for="audio_sink" class="form-label">Audio Sink</label>
@@ -500,7 +500,7 @@
         <!-- Display Modes -->
         <div class="mb-3">
           <!-- Advertised Resolutions -->
-          <div class="resolutions-container">
+          <div id="resolutions" class="resolutions-container">
             <label>Advertised Resolutions</label>
             <div class="resolutions d-flex flex-wrap">
               <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
@@ -521,7 +521,7 @@
           </div>
 
           <!-- Advertised FPS -->
-          <div class="fps-container">
+          <div id="fps" class="fps-container">
             <label>Advertised FPS</label>
             <div class="fps d-flex flex-wrap">
               <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
@@ -552,7 +552,7 @@
       </div>
 
       <!-- Network Tab -->
-      <div v-if="currentTab === 'network'" class="config-page">
+      <div id="network" v-if="currentTab === 'network'" class="config-page">
         <!-- Address family -->
         <div class="mb-3">
           <label for="address_family" class="form-label">Address Family</label>
@@ -813,7 +813,7 @@
       </div>
 
       <!-- NVIDIA NVENC Encoder Tab -->
-      <div v-if="currentTab === 'nv'" class="config-page">
+      <div id="nvidia-nvenc-encoder" v-if="currentTab === 'nv'" class="config-page">
         <!-- Performance preset -->
         <div class="mb-3">
           <label for="nvenc_preset" class="form-label">Performance preset</label>
@@ -897,7 +897,7 @@
       </div>
 
       <!-- Intel QuickSync Encoder Tab -->
-      <div v-if="currentTab === 'qsv'" class="config-page">
+      <div id="intel-quicksync-encoder" v-if="currentTab === 'qsv'" class="config-page">
         <!-- QuickSync Preset -->
         <div class="mb-3">
           <label for="qsv_preset" class="form-label">QuickSync Preset</label>
@@ -925,7 +925,7 @@
       </div>
 
       <!-- AMD AMF Encoder Tab -->
-      <div v-if="currentTab === 'amd'" class="config-page">
+      <div id="amd-amf-encoder" v-if="currentTab === 'amd'" class="config-page">
         <!-- AMF Quality -->
         <div class="mb-3">
           <label for="amd_quality" class="form-label">AMF Quality</label>
@@ -958,7 +958,7 @@
           </select>
         </div>
 
-        <!-- AMF Preanalysis -->
+        <!-- AMD Preanalysis -->
         <div class="mb-3">
           <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
           <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
@@ -967,7 +967,7 @@
           </select>
         </div>
 
-        <!-- AMF VBAQ -->
+        <!-- AMD VBAQ -->
         <div class="mb-3">
           <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
           <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
@@ -988,7 +988,7 @@
       </div>
 
       <!-- VideoToolbox Encoder Tab -->
-      <div v-if="currentTab === 'vt'" class="config-page">
+      <div id="videotoolbox-encoder" v-if="currentTab === 'vt'" class="config-page">
         <!-- Presets -->
         <div class="mb-3">
           <label for="vt_coder" class="form-label">VideoToolbox Coder</label>
@@ -1017,7 +1017,7 @@
       </div>
 
       <!-- Software Encoder Tab -->
-      <div v-if="currentTab === 'sw'" class="config-page">
+      <div id="software-encoder" v-if="currentTab === 'sw'" class="config-page">
         <div class="mb-3">
           <label for="sw_preset" class="form-label">SW Presets</label>
           <select id="sw_preset" class="form-select" v-model="config.sw_preset">
