@@ -734,11 +734,6 @@ namespace platf {
 
       bool
       is_hdr() {
-        return hdr_metadata_blob_id && *hdr_metadata_blob_id != 0;
-      }
-
-      bool
-      get_hdr_metadata(SS_HDR_METADATA &metadata) {
         if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
           return false;
         }
@@ -765,10 +760,39 @@ namespace platf {
           return false;
         }
 
-        if (raw_metadata->hdmi_metadata_type1.eotf != 2) {  // SMPTE ST 2084 PQ
-          BOOST_LOG(error) << "Unexpected EOTF value: "sv << raw_metadata->hdmi_metadata_type1.eotf;
+        // We only support Traditional Gamma SDR or SMPTE 2084 PQ HDR EOTFs.
+        // Print a warning if we encounter any others.
+        switch (raw_metadata->hdmi_metadata_type1.eotf) {
+          case 0:  // HDMI_EOTF_TRADITIONAL_GAMMA_SDR
+            return false;
+          case 1:  // HDMI_EOTF_TRADITIONAL_GAMMA_HDR
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: Traditional Gamma"sv;
+            return true;
+          case 2:  // HDMI_EOTF_SMPTE_ST2084
+            return true;
+          case 3:  // HDMI_EOTF_BT_2100_HLG
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: HLG"sv;
+            return true;
+          default:
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
+            return true;
+        }
+      }
+
+      bool
+      get_hdr_metadata(SS_HDR_METADATA &metadata) {
+        // This performs all the metadata validation
+        if (!is_hdr()) {
           return false;
         }
+
+        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        if (hdr_metadata_blob == nullptr) {
+          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          return false;
+        }
+
+        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
 
         for (int i = 0; i < 3; i++) {
           metadata.displayPrimaries[i].x = raw_metadata->hdmi_metadata_type1.display_primaries[i].x;
