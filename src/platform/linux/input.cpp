@@ -673,14 +673,14 @@ namespace platf {
   struct input_raw_t {
   public:
     void
-    clear_touchscreen() {
-      std::filesystem::path touch_path { appdata() / "sunshine_touchscreen"sv };
+    clear_mouse_rel() {
+      std::filesystem::path mouse_path { appdata() / "sunshine_mouse_rel"sv };
 
-      if (std::filesystem::is_symlink(touch_path)) {
-        std::filesystem::remove(touch_path);
+      if (std::filesystem::is_symlink(mouse_path)) {
+        std::filesystem::remove(mouse_path);
       }
 
-      touch_input.reset();
+      mouse_rel_input.reset();
     }
 
     void
@@ -695,14 +695,14 @@ namespace platf {
     }
 
     void
-    clear_mouse() {
-      std::filesystem::path mouse_path { appdata() / "sunshine_mouse"sv };
+    clear_mouse_abs() {
+      std::filesystem::path mouse_path { appdata() / "sunshine_mouse_abs"sv };
 
       if (std::filesystem::is_symlink(mouse_path)) {
         std::filesystem::remove(mouse_path);
       }
 
-      mouse_input.reset();
+      mouse_abs_input.reset();
     }
 
     void
@@ -729,29 +729,29 @@ namespace platf {
     }
 
     int
-    create_mouse() {
-      int err = libevdev_uinput_create_from_device(mouse_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &mouse_input);
+    create_mouse_abs() {
+      int err = libevdev_uinput_create_from_device(mouse_abs_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &mouse_abs_input);
 
       if (err) {
-        BOOST_LOG(error) << "Could not create Sunshine Mouse: "sv << strerror(-err);
+        BOOST_LOG(error) << "Could not create Sunshine Mouse (Absolute): "sv << strerror(-err);
         return -1;
       }
 
-      std::filesystem::create_symlink(libevdev_uinput_get_devnode(mouse_input.get()), appdata() / "sunshine_mouse"sv);
+      std::filesystem::create_symlink(libevdev_uinput_get_devnode(mouse_abs_input.get()), appdata() / "sunshine_mouse_abs"sv);
 
       return 0;
     }
 
     int
-    create_touchscreen() {
-      int err = libevdev_uinput_create_from_device(touch_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &touch_input);
+    create_mouse_rel() {
+      int err = libevdev_uinput_create_from_device(mouse_rel_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &mouse_rel_input);
 
       if (err) {
-        BOOST_LOG(error) << "Could not create Sunshine Touchscreen: "sv << strerror(-err);
+        BOOST_LOG(error) << "Could not create Sunshine Mouse (Relative): "sv << strerror(-err);
         return -1;
       }
 
-      std::filesystem::create_symlink(libevdev_uinput_get_devnode(touch_input.get()), appdata() / "sunshine_touchscreen"sv);
+      std::filesystem::create_symlink(libevdev_uinput_get_devnode(mouse_rel_input.get()), appdata() / "sunshine_mouse_rel"sv);
 
       return 0;
     }
@@ -816,9 +816,9 @@ namespace platf {
 
     void
     clear() {
-      clear_touchscreen();
       clear_keyboard();
-      clear_mouse();
+      clear_mouse_abs();
+      clear_mouse_rel();
       for (int x = 0; x < gamepads.size(); ++x) {
         clear_gamepad(x);
       }
@@ -838,13 +838,19 @@ namespace platf {
     safe::shared_t<rumble_ctx_t>::ptr_t rumble_ctx;
 
     std::vector<std::pair<uinput_t, gamepad_state_t>> gamepads;
-    uinput_t mouse_input;
-    uinput_t touch_input;
+    uinput_t mouse_rel_input;
+    uinput_t mouse_abs_input;
     uinput_t keyboard_input;
 
+    uint8_t mouse_rel_buttons_down = 0;
+    uint8_t mouse_abs_buttons_down = 0;
+
+    uinput_t::pointer last_mouse_device_used = nullptr;
+    uint8_t *last_mouse_device_buttons_down = nullptr;
+
     evdev_t gamepad_dev;
-    evdev_t touch_dev;
-    evdev_t mouse_dev;
+    evdev_t mouse_rel_dev;
+    evdev_t mouse_abs_dev;
     evdev_t keyboard_dev;
 
     int accumulated_vscroll_delta = 0;
@@ -1097,8 +1103,9 @@ namespace platf {
    */
   void
   abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
-    auto touchscreen = ((input_raw_t *) input.get())->touch_input.get();
-    if (!touchscreen) {
+    auto raw = (input_raw_t *) input.get();
+    auto mouse_abs = raw->mouse_abs_input.get();
+    if (!mouse_abs) {
       x_abs_mouse(input, x, y);
       return;
     }
@@ -1106,12 +1113,13 @@ namespace platf {
     auto scaled_x = (int) std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
     auto scaled_y = (int) std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
 
-    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_X, scaled_x);
-    libevdev_uinput_write_event(touchscreen, EV_ABS, ABS_Y, scaled_y);
-    libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 1);
-    libevdev_uinput_write_event(touchscreen, EV_KEY, BTN_TOOL_FINGER, 0);
+    libevdev_uinput_write_event(mouse_abs, EV_ABS, ABS_X, scaled_x);
+    libevdev_uinput_write_event(mouse_abs, EV_ABS, ABS_Y, scaled_y);
+    libevdev_uinput_write_event(mouse_abs, EV_SYN, SYN_REPORT, 0);
 
-    libevdev_uinput_write_event(touchscreen, EV_SYN, SYN_REPORT, 0);
+    // Remember this was the last device we sent input on
+    raw->last_mouse_device_used = mouse_abs;
+    raw->last_mouse_device_buttons_down = &raw->mouse_abs_buttons_down;
   }
 
   /**
@@ -1150,21 +1158,26 @@ namespace platf {
    */
   void
   move_mouse(input_t &input, int deltaX, int deltaY) {
-    auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
-    if (!mouse) {
+    auto raw = (input_raw_t *) input.get();
+    auto mouse_rel = raw->mouse_rel_input.get();
+    if (!mouse_rel) {
       x_move_mouse(input, deltaX, deltaY);
       return;
     }
 
     if (deltaX) {
-      libevdev_uinput_write_event(mouse, EV_REL, REL_X, deltaX);
+      libevdev_uinput_write_event(mouse_rel, EV_REL, REL_X, deltaX);
     }
 
     if (deltaY) {
-      libevdev_uinput_write_event(mouse, EV_REL, REL_Y, deltaY);
+      libevdev_uinput_write_event(mouse_rel, EV_REL, REL_Y, deltaY);
     }
 
-    libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+    libevdev_uinput_write_event(mouse_rel, EV_SYN, SYN_REPORT, 0);
+
+    // Remember this was the last device we sent input on
+    raw->last_mouse_device_used = mouse_rel;
+    raw->last_mouse_device_buttons_down = &raw->mouse_rel_buttons_down;
   }
 
   /**
@@ -1223,8 +1236,39 @@ namespace platf {
    */
   void
   button_mouse(input_t &input, int button, bool release) {
-    auto mouse = ((input_raw_t *) input.get())->mouse_input.get();
-    if (!mouse) {
+    auto raw = (input_raw_t *) input.get();
+
+    // We mimic the Linux vmmouse driver here and prefer to send buttons
+    // on the last mouse device we used. However, we make an exception
+    // if it's a release event and the button is down on the other device.
+    uinput_t::pointer chosen_mouse_dev = nullptr;
+    uint8_t *chosen_mouse_dev_buttons_down = nullptr;
+    if (release) {
+      // Prefer to send the release on the mouse with the button down
+      if (raw->mouse_rel_buttons_down & (1 << button)) {
+        chosen_mouse_dev = raw->mouse_rel_input.get();
+        chosen_mouse_dev_buttons_down = &raw->mouse_rel_buttons_down;
+      }
+      else if (raw->mouse_abs_buttons_down & (1 << button)) {
+        chosen_mouse_dev = raw->mouse_abs_input.get();
+        chosen_mouse_dev_buttons_down = &raw->mouse_abs_buttons_down;
+      }
+    }
+
+    if (!chosen_mouse_dev) {
+      if (raw->last_mouse_device_used) {
+        // Prefer to use the last device we sent motion
+        chosen_mouse_dev = raw->last_mouse_device_used;
+        chosen_mouse_dev_buttons_down = raw->last_mouse_device_buttons_down;
+      }
+      else {
+        // Send on the relative device if we have no preference yet
+        chosen_mouse_dev = raw->mouse_rel_input.get();
+        chosen_mouse_dev_buttons_down = &raw->mouse_rel_buttons_down;
+      }
+    }
+
+    if (!chosen_mouse_dev) {
       x_button_mouse(input, button, release);
       return;
     }
@@ -1253,9 +1297,16 @@ namespace platf {
       scan = 90005;
     }
 
-    libevdev_uinput_write_event(mouse, EV_MSC, MSC_SCAN, scan);
-    libevdev_uinput_write_event(mouse, EV_KEY, btn_type, release ? 0 : 1);
-    libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+    libevdev_uinput_write_event(chosen_mouse_dev, EV_MSC, MSC_SCAN, scan);
+    libevdev_uinput_write_event(chosen_mouse_dev, EV_KEY, btn_type, release ? 0 : 1);
+    libevdev_uinput_write_event(chosen_mouse_dev, EV_SYN, SYN_REPORT, 0);
+
+    if (release) {
+      *chosen_mouse_dev_buttons_down &= ~(1 << button);
+    }
+    else {
+      *chosen_mouse_dev_buttons_down |= (1 << button);
+    }
   }
 
   /**
@@ -1304,7 +1355,9 @@ namespace platf {
     raw->accumulated_vscroll_delta += high_res_distance;
     int full_ticks = raw->accumulated_vscroll_delta / 120;
 
-    auto mouse = raw->mouse_input.get();
+    // We mimic the Linux vmmouse driver and always send scroll events
+    // via the relative pointing device for Xorg compatibility.
+    auto mouse = raw->mouse_rel_input.get();
     if (mouse) {
       if (full_ticks) {
         libevdev_uinput_write_event(mouse, EV_REL, REL_WHEEL, full_ticks);
@@ -1336,13 +1389,15 @@ namespace platf {
     raw->accumulated_hscroll_delta += high_res_distance;
     int full_ticks = raw->accumulated_hscroll_delta / 120;
 
-    auto mouse = raw->mouse_input.get();
-    if (mouse) {
+    // We mimic the Linux vmmouse driver and always send scroll events
+    // via the relative pointing device for Xorg compatibility.
+    auto mouse_rel = raw->mouse_rel_input.get();
+    if (mouse_rel) {
       if (full_ticks) {
-        libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL, full_ticks);
+        libevdev_uinput_write_event(mouse_rel, EV_REL, REL_HWHEEL, full_ticks);
       }
-      libevdev_uinput_write_event(mouse, EV_REL, REL_HWHEEL_HI_RES, high_res_distance);
-      libevdev_uinput_write_event(mouse, EV_SYN, SYN_REPORT, 0);
+      libevdev_uinput_write_event(mouse_rel, EV_REL, REL_HWHEEL_HI_RES, high_res_distance);
+      libevdev_uinput_write_event(mouse_rel, EV_SYN, SYN_REPORT, 0);
     }
     else if (full_ticks) {
       x_scroll(input, full_ticks, 6, 7);
@@ -1677,18 +1732,18 @@ namespace platf {
   }
 
   /**
-   * @brief Initialize a new `uinput` virtual mouse and return it.
+   * @brief Initialize a new `uinput` virtual relative mouse and return it.
    *
    * EXAMPLES:
    * ```cpp
-   * auto my_mouse = mouse();
+   * auto my_mouse = mouse_rel();
    * ```
    */
   evdev_t
-  mouse() {
+  mouse_rel() {
     evdev_t dev { libevdev_new() };
 
-    libevdev_set_uniq(dev.get(), "Sunshine Mouse");
+    libevdev_set_uniq(dev.get(), "Sunshine Mouse (Rel)");
     libevdev_set_id_product(dev.get(), 0x4038);
     libevdev_set_id_vendor(dev.get(), 0x46D);
     libevdev_set_id_bustype(dev.get(), 0x3);
@@ -1728,30 +1783,35 @@ namespace platf {
   }
 
   /**
-   * @brief Initialize a new `uinput` virtual touchscreen and return it.
+   * @brief Initialize a new `uinput` virtual absolute mouse and return it.
    *
    * EXAMPLES:
    * ```cpp
-   * auto my_touchscreen = touchscreen();
+   * auto my_mouse = mouse_abs();
    * ```
    */
   evdev_t
-  touchscreen() {
+  mouse_abs() {
     evdev_t dev { libevdev_new() };
 
-    libevdev_set_uniq(dev.get(), "Sunshine Touch");
+    libevdev_set_uniq(dev.get(), "Sunshine Mouse (Abs)");
     libevdev_set_id_product(dev.get(), 0xDEAD);
     libevdev_set_id_vendor(dev.get(), 0xBEEF);
     libevdev_set_id_bustype(dev.get(), 0x3);
     libevdev_set_id_version(dev.get(), 0x111);
-    libevdev_set_name(dev.get(), "Touchscreen passthrough");
+    libevdev_set_name(dev.get(), "Mouse passthrough");
 
     libevdev_enable_property(dev.get(), INPUT_PROP_DIRECT);
 
     libevdev_enable_event_type(dev.get(), EV_KEY);
-    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOUCH, nullptr);
-    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_PEN, nullptr);  // Needed to be enabled for BTN_TOOL_FINGER to work.
-    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_FINGER, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_LEFT, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_RIGHT, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_MIDDLE, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_SIDE, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_EXTRA, nullptr);
+
+    libevdev_enable_event_type(dev.get(), EV_MSC);
+    libevdev_enable_event_code(dev.get(), EV_MSC, MSC_SCAN, nullptr);
 
     input_absinfo absx {
       0,
@@ -1874,16 +1934,16 @@ namespace platf {
     // Ensure starting from clean slate
     gp.clear();
     gp.keyboard_dev = keyboard();
-    gp.touch_dev = touchscreen();
-    gp.mouse_dev = mouse();
+    gp.mouse_rel_dev = mouse_rel();
+    gp.mouse_abs_dev = mouse_abs();
     gp.gamepad_dev = x360();
 
-    gp.create_mouse();
-    gp.create_touchscreen();
+    gp.create_mouse_rel();
+    gp.create_mouse_abs();
     gp.create_keyboard();
 
-    // If we do not have a keyboard, touchscreen, or mouse, fall back to XTest
-    if (!gp.mouse_input || !gp.touch_input || !gp.keyboard_input) {
+    // If we do not have a keyboard or mouse, fall back to XTest
+    if (!gp.mouse_rel_input || !gp.mouse_abs_input || !gp.keyboard_input) {
       BOOST_LOG(error) << "Unable to create some input devices! Are you a member of the 'input' group?"sv;
 
 #ifdef SUNSHINE_BUILD_X11
