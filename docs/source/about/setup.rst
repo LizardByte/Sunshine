@@ -586,15 +586,29 @@ Considerations
 
 HDR Support
 -----------
-Streaming HDR content is supported for Windows hosts with NVIDIA, AMD, or Intel GPUs that support encoding HEVC Main 10.
-You must have an HDR-capable display or EDID emulator dongle connected to your host PC to activate HDR in Windows.
+Streaming HDR content is officially supported on Windows hosts and experimentally supported for Linux hosts.
 
-- Ensure you enable the HDR option in your Moonlight client settings, otherwise the stream will be SDR.
-- A good HDR experience relies on proper HDR display calibration both in Windows and in game. HDR calibration can differ significantly between client and host displays.
-- We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
-- You may also need to tune the brightness slider or HDR calibration options in game to the different HDR brightness capabilities of your client's display.
-- Older games that use NVIDIA-specific NVAPI HDR rather than native Windows 10 OS HDR support may not display in HDR.
-- Some GPUs can produce lower image quality or encoding performance when streaming in HDR compared to SDR.
+- General HDR support information and requirements:
+
+  - HDR must be activated in the host OS, which may require an HDR-capable display or EDID emulator dongle connected to your host PC.
+  - You must also enable the HDR option in your Moonlight client settings, otherwise the stream will be SDR (and probably overexposed if your host is HDR).
+  - A good HDR experience relies on proper HDR display calibration both in the OS and in game. HDR calibration can differ significantly between client and host displays.
+  - You may also need to tune the brightness slider or HDR calibration options in game to the different HDR brightness capabilities of your client's display.
+  - Some GPUs video encoders can produce lower image quality or encoding performance when streaming in HDR compared to SDR.
+
+- Additional information:
+
+.. tab:: Windows
+
+     - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
+     - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
+     - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows HDR support may not display properly in HDR.
+
+.. tab:: Linux
+
+     - HDR streaming is supported for Intel and AMD GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles using VAAPI.
+     - The KMS capture backend is required for HDR capture. Other capture methods, like NvFBC or X11, do not support HDR.
+     - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.
 
 .. seealso::
    `Arch wiki on HDR Support for Linux <https://wiki.archlinux.org/title/HDR_monitor_support>`__ and
