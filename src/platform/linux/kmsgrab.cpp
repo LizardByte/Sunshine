@@ -105,6 +105,7 @@ namespace platf {
     using crtc_t = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
     using obj_prop_t = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
     using prop_t = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
+    using prop_blob_t = util::safe_ptr<drmModePropertyBlobRes, drmModeFreePropertyBlob>;
 
     using conn_type_count_t = std::map<std::uint32_t, std::uint32_t>;
 
@@ -134,6 +135,9 @@ namespace platf {
 
       // For example HDMI-A-{index} or HDMI-{index}
       std::uint32_t index;
+
+      // ID of the connector
+      std::uint32_t connector_id;
 
       bool connected;
     };
@@ -336,13 +340,22 @@ namespace platf {
         return false;
       }
 
+      std::optional<std::uint64_t>
+      prop_value_by_name(const std::vector<std::pair<prop_t, std::uint64_t>> &props, std::string_view name) {
+        for (auto &[prop, val] : props) {
+          if (prop->name == name) {
+            return val;
+          }
+        }
+        return std::nullopt;
+      }
+
       std::uint32_t
       get_panel_orientation(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
-        for (auto &[prop, val] : props) {
-          if (prop->name == "rotation"sv) {
-            return val;
-          }
+        auto value = prop_value_by_name(props, "rotation"sv);
+        if (value) {
+          return *value;
         }
 
         BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
@@ -392,6 +405,7 @@ namespace platf {
             conn->connector_type,
             crtc_id,
             index,
+            conn->connector_id,
             conn->connection == DRM_MODE_CONNECTED,
           });
         });
@@ -414,6 +428,9 @@ namespace platf {
       std::vector<std::pair<prop_t, std::uint64_t>>
       props(std::uint32_t id, std::uint32_t type) {
         obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
+        if (!obj_prop) {
+          return {};
+        }
 
         std::vector<std::pair<prop_t, std::uint64_t>> props;
         props.reserve(obj_prop->count_props);
@@ -651,12 +668,24 @@ namespace platf {
               offset_y = crtc->y;
             }
 
-            this->card = std::move(card);
-
             plane_id = plane->plane_id;
             crtc_id = plane->crtc_id;
-            crtc_index = this->card.get_crtc_index_by_id(plane->crtc_id);
+            crtc_index = card.get_crtc_index_by_id(plane->crtc_id);
 
+            // Find the connector for this CRTC
+            kms::conn_type_count_t conn_type_count;
+            for (auto &connector : card.monitors(conn_type_count)) {
+              if (connector.crtc_id == crtc_id) {
+                BOOST_LOG(info) << "Found connector ID ["sv << connector.connector_id << ']';
+
+                connector_id = connector.connector_id;
+
+                auto connector_props = card.connector_props(*connector_id);
+                hdr_metadata_blob_id = card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
+              }
+            }
+
+            this->card = std::move(card);
             goto break_loop;
           }
         }
@@ -701,6 +730,83 @@ namespace platf {
         }
 
         return 0;
+      }
+
+      bool
+      is_hdr() {
+        if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
+          return false;
+        }
+
+        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        if (hdr_metadata_blob == nullptr) {
+          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          return false;
+        }
+
+        if (hdr_metadata_blob->length < sizeof(uint32_t) + sizeof(hdr_metadata_infoframe)) {
+          BOOST_LOG(error) << "HDR metadata blob is too small: "sv << hdr_metadata_blob->length;
+          return false;
+        }
+
+        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
+        if (raw_metadata->metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
+          BOOST_LOG(error) << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv << raw_metadata->metadata_type;
+          return false;
+        }
+
+        if (raw_metadata->hdmi_metadata_type1.metadata_type != 0) {  // Static Metadata Type 1
+          BOOST_LOG(error) << "Unknown secondary metadata type value: "sv << raw_metadata->hdmi_metadata_type1.metadata_type;
+          return false;
+        }
+
+        // We only support Traditional Gamma SDR or SMPTE 2084 PQ HDR EOTFs.
+        // Print a warning if we encounter any others.
+        switch (raw_metadata->hdmi_metadata_type1.eotf) {
+          case 0:  // HDMI_EOTF_TRADITIONAL_GAMMA_SDR
+            return false;
+          case 1:  // HDMI_EOTF_TRADITIONAL_GAMMA_HDR
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: Traditional Gamma"sv;
+            return true;
+          case 2:  // HDMI_EOTF_SMPTE_ST2084
+            return true;
+          case 3:  // HDMI_EOTF_BT_2100_HLG
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: HLG"sv;
+            return true;
+          default:
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
+            return true;
+        }
+      }
+
+      bool
+      get_hdr_metadata(SS_HDR_METADATA &metadata) {
+        // This performs all the metadata validation
+        if (!is_hdr()) {
+          return false;
+        }
+
+        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        if (hdr_metadata_blob == nullptr) {
+          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          return false;
+        }
+
+        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
+
+        for (int i = 0; i < 3; i++) {
+          metadata.displayPrimaries[i].x = raw_metadata->hdmi_metadata_type1.display_primaries[i].x;
+          metadata.displayPrimaries[i].y = raw_metadata->hdmi_metadata_type1.display_primaries[i].y;
+        }
+
+        metadata.whitePoint.x = raw_metadata->hdmi_metadata_type1.white_point.x;
+        metadata.whitePoint.y = raw_metadata->hdmi_metadata_type1.white_point.y;
+        metadata.maxDisplayLuminance = raw_metadata->hdmi_metadata_type1.max_display_mastering_luminance;
+        metadata.minDisplayLuminance = raw_metadata->hdmi_metadata_type1.min_display_mastering_luminance;
+        metadata.maxContentLightLevel = raw_metadata->hdmi_metadata_type1.max_cll;
+        metadata.maxFrameAverageLightLevel = raw_metadata->hdmi_metadata_type1.max_fall;
+
+        return true;
       }
 
       void
@@ -881,6 +987,15 @@ namespace platf {
 
       inline capture_e
       refresh(file_t *file, egl::surface_descriptor_t *sd) {
+        // Check for a change in HDR metadata
+        if (connector_id) {
+          auto connector_props = card.connector_props(*connector_id);
+          if (hdr_metadata_blob_id != card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv)) {
+            BOOST_LOG(info) << "Reinitializing capture after HDR metadata change"sv;
+            return capture_e::reinit;
+          }
+        }
+
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
 
         auto fb = card.fb(plane.get());
@@ -943,6 +1058,9 @@ namespace platf {
       int plane_id;
       int crtc_id;
       int crtc_index;
+
+      std::optional<uint32_t> connector_id;
+      std::optional<uint64_t> hdr_metadata_blob_id;
 
       int cursor_plane_id;
       cursor_t captured_cursor {};
