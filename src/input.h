@@ -33,4 +33,7 @@ namespace input {
 
     float scalar_inv;
   };
+
+  std::pair<float, float>
+  scale_client_contact_area(const std::pair<float, float> &val, uint16_t rotation, const std::pair<float, float> &scalar);
 }  // namespace input

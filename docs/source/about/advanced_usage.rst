@@ -423,8 +423,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
    This can be useful to disable for older applications without native pen/touch support.
 
-   .. caution:: Applies to Windows only.
-
 **Default**
    ``enabled``
 
