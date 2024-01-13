@@ -223,6 +223,11 @@ if (${SUNSHINE_TRAY} EQUAL 0 AND SUNSHINE_REQUIRE_TRAY)
     message(FATAL_ERROR "Tray icon is required")
 endif()
 
+pkg_check_modules(EVDEV libevdev REQUIRED)
+include_directories(SYSTEM ${EVDEV_INCLUDE_DIRS})
+link_directories(${EVDEV_LIBRARY_DIRS})
+list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${EVDEV_LIBRARIES})
+
 list(APPEND PLATFORM_TARGET_FILES
         src/platform/linux/publish.cpp
         src/platform/linux/graphics.h
@@ -241,13 +246,11 @@ list(APPEND PLATFORM_TARGET_FILES
 list(APPEND PLATFORM_LIBRARIES
         Boost::dynamic_linking
         dl
-        evdev
         numa
         pulse
         pulse-simple)
 
 include_directories(
         SYSTEM
-        /usr/include/libevdev-1.0
         third-party/nv-codec-headers/include
         third-party/glad/include)
