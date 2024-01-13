@@ -21,6 +21,8 @@
 #include <cstring>
 #include <filesystem>
 
+#include "src/config.h"
+#include "src/input.h"
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -41,6 +43,8 @@
 using namespace std::literals;
 
 namespace platf {
+  static bool has_uinput = false;
+
 #ifdef SUNSHINE_BUILD_X11
   namespace x11 {
   #define _FN(x, ret, args)    \
@@ -852,6 +856,8 @@ namespace platf {
     evdev_t mouse_rel_dev;
     evdev_t mouse_abs_dev;
     evdev_t keyboard_dev;
+    evdev_t touchscreen_dev;
+    evdev_t pen_dev;
 
     int accumulated_vscroll_delta = 0;
     int accumulated_hscroll_delta = 0;
@@ -1639,6 +1645,35 @@ namespace platf {
     libevdev_uinput_write_event(uinput.get(), EV_SYN, SYN_REPORT, 0);
   }
 
+  constexpr auto NUM_TOUCH_SLOTS = 10;
+  constexpr auto DISTANCE_MAX = 1024;
+  constexpr auto PRESSURE_MAX = 4096;
+  constexpr int64_t INVALID_TRACKING_ID = -1;
+
+  // HACK: Contacts with very small pressure values get discarded by libinput, but
+  // we assume that the client has already excluded such errant touches. We enforce
+  // a minimum pressure value to prevent our touches from being discarded.
+  constexpr auto PRESSURE_MIN = 0.10f;
+
+  struct client_input_raw_t: public client_input_t {
+    client_input_raw_t(input_t &input) {
+      global = (input_raw_t *) input.get();
+      touch_slots.fill(INVALID_TRACKING_ID);
+    }
+
+    input_raw_t *global;
+
+    // Device state and handles for pen and touch input must be stored in the per-client
+    // input context, because each connected client may be sending their own independent
+    // pen/touch events. To maintain separation, we expose separate pen and touch devices
+    // for each client.
+
+    // Mapping of ABS_MT_SLOT/ABS_MT_TRACKING_ID -> pointerId
+    std::array<int64_t, NUM_TOUCH_SLOTS> touch_slots;
+    uinput_t touch_input;
+    uinput_t pen_input;
+  };
+
   /**
    * @brief Allocates a context to store per-client input data.
    * @param input The global input context.
@@ -1646,8 +1681,47 @@ namespace platf {
    */
   std::unique_ptr<client_input_t>
   allocate_client_input_context(input_t &input) {
-    // Unused
-    return nullptr;
+    return std::make_unique<client_input_raw_t>(input);
+  }
+
+  /**
+   * @brief Retrieves the slot index for a given pointer ID.
+   * @param input The client-specific input context.
+   * @param pointerId The pointer ID sent from the client.
+   * @return Slot index or -1 if not found.
+   */
+  int
+  slot_index_by_pointer_id(client_input_raw_t *input, uint32_t pointerId) {
+    for (int i = 0; i < input->touch_slots.size(); i++) {
+      if (input->touch_slots[i] == pointerId) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * @brief Reserves a slot index for a new pointer ID.
+   * @param input The client-specific input context.
+   * @param pointerId The pointer ID sent from the client.
+   * @return Slot index or -1 if no unallocated slots remain.
+   */
+  int
+  allocate_slot_index_for_pointer_id(client_input_raw_t *input, uint32_t pointerId) {
+    int i = slot_index_by_pointer_id(input, pointerId);
+    if (i >= 0) {
+      BOOST_LOG(warning) << "Pointer "sv << pointerId << " already down. Did the client drop an up/cancel event?"sv;
+      return i;
+    }
+
+    for (int i = 0; i < input->touch_slots.size(); i++) {
+      if (input->touch_slots[i] == INVALID_TRACKING_ID) {
+        input->touch_slots[i] = pointerId;
+        return i;
+      }
+    }
+
+    return -1;
   }
 
   /**
@@ -1658,7 +1732,181 @@ namespace platf {
    */
   void
   touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
-    // Unimplemented feature - platform_caps::pen_touch
+    auto raw = (client_input_raw_t *) input;
+
+    if (!raw->touch_input) {
+      int err = libevdev_uinput_create_from_device(raw->global->touchscreen_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &raw->touch_input);
+      if (err) {
+        BOOST_LOG(error) << "Could not create Sunshine Touchscreen: "sv << strerror(-err);
+        return;
+      }
+    }
+
+    auto touch_input = raw->touch_input.get();
+
+    float pressure = std::max(PRESSURE_MIN, touch.pressureOrDistance);
+
+    if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
+      for (int i = 0; i < raw->touch_slots.size(); i++) {
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_SLOT, i);
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_TRACKING_ID, -1);
+      }
+      raw->touch_slots.fill(INVALID_TRACKING_ID);
+
+      libevdev_uinput_write_event(touch_input, EV_KEY, BTN_TOUCH, 0);
+      libevdev_uinput_write_event(touch_input, EV_ABS, ABS_PRESSURE, 0);
+      libevdev_uinput_write_event(touch_input, EV_SYN, SYN_REPORT, 0);
+      return;
+    }
+
+    if (touch.eventType == LI_TOUCH_EVENT_CANCEL) {
+      // Stop tracking this slot
+      auto slot_index = slot_index_by_pointer_id(raw, touch.pointerId);
+      if (slot_index >= 0) {
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_SLOT, slot_index);
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_TRACKING_ID, -1);
+
+        raw->touch_slots[slot_index] = INVALID_TRACKING_ID;
+
+        // Raise BTN_TOUCH if no touches are down
+        if (std::all_of(raw->touch_slots.cbegin(), raw->touch_slots.cend(),
+              [](uint64_t pointer_id) { return pointer_id == INVALID_TRACKING_ID; })) {
+          libevdev_uinput_write_event(touch_input, EV_KEY, BTN_TOUCH, 0);
+
+          // This may have been the final slot down which was also being emulated
+          // through the single-touch axes. Reset ABS_PRESSURE to ensure code that
+          // uses ABS_PRESSURE instead of BTN_TOUCH will work properly.
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_PRESSURE, 0);
+        }
+      }
+    }
+    else if (touch.eventType == LI_TOUCH_EVENT_DOWN ||
+             touch.eventType == LI_TOUCH_EVENT_MOVE ||
+             touch.eventType == LI_TOUCH_EVENT_UP) {
+      int slot_index;
+      if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+        // Allocate a new slot for this new touch
+        slot_index = allocate_slot_index_for_pointer_id(raw, touch.pointerId);
+        if (slot_index < 0) {
+          BOOST_LOG(error) << "No unused pointer entries! Cancelling all active touches!"sv;
+
+          for (int i = 0; i < raw->touch_slots.size(); i++) {
+            libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_SLOT, i);
+            libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_TRACKING_ID, -1);
+          }
+          raw->touch_slots.fill(INVALID_TRACKING_ID);
+
+          libevdev_uinput_write_event(touch_input, EV_KEY, BTN_TOUCH, 0);
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_PRESSURE, 0);
+          libevdev_uinput_write_event(touch_input, EV_SYN, SYN_REPORT, 0);
+
+          // All slots are clear, so this should never fail on the second try
+          slot_index = allocate_slot_index_for_pointer_id(raw, touch.pointerId);
+          assert(slot_index >= 0);
+        }
+      }
+      else {
+        // Lookup the slot of the previous touch with this pointer ID
+        slot_index = slot_index_by_pointer_id(raw, touch.pointerId);
+        if (slot_index < 0) {
+          BOOST_LOG(warning) << "Pointer "sv << touch.pointerId << " is not down. Did the client drop a down event?"sv;
+          return;
+        }
+      }
+
+      libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_SLOT, slot_index);
+
+      if (touch.eventType == LI_TOUCH_EVENT_UP) {
+        // Stop tracking this touch
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_TRACKING_ID, -1);
+        raw->touch_slots[slot_index] = INVALID_TRACKING_ID;
+
+        // Raise BTN_TOUCH if no touches are down
+        if (std::all_of(raw->touch_slots.cbegin(), raw->touch_slots.cend(),
+              [](uint64_t pointer_id) { return pointer_id == INVALID_TRACKING_ID; })) {
+          libevdev_uinput_write_event(touch_input, EV_KEY, BTN_TOUCH, 0);
+
+          // This may have been the final slot down which was also being emulated
+          // through the single-touch axes. Reset ABS_PRESSURE to ensure code that
+          // uses ABS_PRESSURE instead of BTN_TOUCH will work properly.
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_PRESSURE, 0);
+        }
+      }
+      else {
+        float x = touch.x * touch_port.width;
+        float y = touch.y * touch_port.height;
+
+        auto scaled_x = (int) std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
+        auto scaled_y = (int) std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
+
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_TRACKING_ID, slot_index);
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_POSITION_X, scaled_x);
+        libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_POSITION_Y, scaled_y);
+
+        if (touch.pressureOrDistance) {
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_PRESSURE, PRESSURE_MAX * pressure);
+        }
+        else if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+          // Always report some moderate pressure value when down
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_PRESSURE, PRESSURE_MAX / 2);
+        }
+
+        if (touch.rotation != LI_ROT_UNKNOWN) {
+          // Convert our 0..360 range to -90..90 relative to Y axis
+          int adjusted_angle = touch.rotation;
+
+          if (touch.rotation > 90 && touch.rotation < 270) {
+            // Lower hemisphere
+            adjusted_angle = 180 - adjusted_angle;
+          }
+
+          // Wrap the value if it's out of range
+          if (adjusted_angle > 90) {
+            adjusted_angle -= 360;
+          }
+          else if (adjusted_angle < -90) {
+            adjusted_angle += 360;
+          }
+
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_ORIENTATION, adjusted_angle);
+        }
+
+        if (touch.contactAreaMajor) {
+          // Contact area comes from the input core scaled to the provided touch_port,
+          // however we need it rescaled to target_touch_port instead.
+          auto target_scaled_contact_area = input::scale_client_contact_area(
+            { touch.contactAreaMajor * 65535.f, touch.contactAreaMinor * 65535.f },
+            touch.rotation,
+            { target_touch_port.width / (touch_port.width * 65535.f),
+              target_touch_port.height / (touch_port.height * 65535.f) });
+
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_TOUCH_MAJOR, target_scaled_contact_area.first);
+
+          // scale_client_contact_area() will treat the contact area as circular (major == minor)
+          // if the minor axis wasn't specified, so we unconditionally report ABS_MT_TOUCH_MINOR.
+          libevdev_uinput_write_event(touch_input, EV_ABS, ABS_MT_TOUCH_MINOR, target_scaled_contact_area.second);
+        }
+
+        // If this slot is the first active one, send our data through the single touch axes as well
+        for (int i = 0; i <= slot_index; i++) {
+          if (raw->touch_slots[i] != INVALID_TRACKING_ID) {
+            if (i == slot_index) {
+              libevdev_uinput_write_event(touch_input, EV_ABS, ABS_X, scaled_x);
+              libevdev_uinput_write_event(touch_input, EV_ABS, ABS_Y, scaled_y);
+              if (touch.pressureOrDistance) {
+                libevdev_uinput_write_event(touch_input, EV_ABS, ABS_PRESSURE, PRESSURE_MAX * pressure);
+              }
+              else if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+                libevdev_uinput_write_event(touch_input, EV_ABS, ABS_PRESSURE, PRESSURE_MAX / 2);
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      libevdev_uinput_write_event(touch_input, EV_SYN, SYN_REPORT, 0);
+    }
   }
 
   /**
@@ -1669,7 +1917,142 @@ namespace platf {
    */
   void
   pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
-    // Unimplemented feature - platform_caps::pen_touch
+    auto raw = (client_input_raw_t *) input;
+
+    if (!raw->pen_input) {
+      int err = libevdev_uinput_create_from_device(raw->global->pen_dev.get(), LIBEVDEV_UINPUT_OPEN_MANAGED, &raw->pen_input);
+      if (err) {
+        BOOST_LOG(error) << "Could not create Sunshine Pen: "sv << strerror(-err);
+        return;
+      }
+    }
+
+    auto pen_input = raw->pen_input.get();
+
+    float x = pen.x * touch_port.width;
+    float y = pen.y * touch_port.height;
+    float pressure = std::max(PRESSURE_MIN, pen.pressureOrDistance);
+
+    auto scaled_x = (int) std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
+    auto scaled_y = (int) std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
+
+    // First, process location updates for applicable events
+    switch (pen.eventType) {
+      case LI_TOUCH_EVENT_HOVER:
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_X, scaled_x);
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_Y, scaled_y);
+
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_PRESSURE, 0);
+        if (pen.pressureOrDistance) {
+          libevdev_uinput_write_event(pen_input, EV_ABS, ABS_DISTANCE, DISTANCE_MAX * pen.pressureOrDistance);
+        }
+        else {
+          // Always report some moderate distance value when hovering to ensure hovering
+          // can be detected properly by code that uses ABS_DISTANCE.
+          libevdev_uinput_write_event(pen_input, EV_ABS, ABS_DISTANCE, DISTANCE_MAX / 2);
+        }
+        break;
+
+      case LI_TOUCH_EVENT_DOWN:
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_X, scaled_x);
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_Y, scaled_y);
+
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_DISTANCE, 0);
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_PRESSURE, PRESSURE_MAX * pressure);
+        break;
+
+      case LI_TOUCH_EVENT_UP:
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_X, scaled_x);
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_Y, scaled_y);
+
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_PRESSURE, 0);
+        break;
+
+      case LI_TOUCH_EVENT_MOVE:
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_X, scaled_x);
+        libevdev_uinput_write_event(pen_input, EV_ABS, ABS_Y, scaled_y);
+
+        // Update the pressure value if it's present, otherwise leave the default/previous value alone
+        if (pen.pressureOrDistance) {
+          libevdev_uinput_write_event(pen_input, EV_ABS, ABS_PRESSURE, PRESSURE_MAX * pressure);
+        }
+        break;
+    }
+
+    if (pen.contactAreaMajor) {
+      // Contact area comes from the input core scaled to the provided touch_port,
+      // however we need it rescaled to target_touch_port instead.
+      auto target_scaled_contact_area = input::scale_client_contact_area(
+        { pen.contactAreaMajor * 65535.f, pen.contactAreaMinor * 65535.f },
+        pen.rotation,
+        { target_touch_port.width / (touch_port.width * 65535.f),
+          target_touch_port.height / (touch_port.height * 65535.f) });
+
+      // ABS_TOOL_WIDTH assumes a circular tool, so we just report the major axis
+      libevdev_uinput_write_event(pen_input, EV_ABS, ABS_TOOL_WIDTH, target_scaled_contact_area.first);
+    }
+
+    // We require rotation and tilt to perform the conversion to X and Y tilt angles
+    if (pen.tilt != LI_TILT_UNKNOWN && pen.rotation != LI_ROT_UNKNOWN) {
+      auto rotation_rads = pen.rotation * (M_PI / 180.f);
+      auto tilt_rads = pen.tilt * (M_PI / 180.f);
+      auto r = std::sin(tilt_rads);
+      auto z = std::cos(tilt_rads);
+
+      // Convert polar coordinates into X and Y tilt angles
+      libevdev_uinput_write_event(pen_input, EV_ABS, ABS_TILT_X, std::atan2(std::sin(-rotation_rads) * r, z) * 180.f / M_PI);
+      libevdev_uinput_write_event(pen_input, EV_ABS, ABS_TILT_Y, std::atan2(std::cos(-rotation_rads) * r, z) * 180.f / M_PI);
+    }
+
+    // Don't update tool type if we're cancelling or ending a touch/hover
+    if (pen.eventType != LI_TOUCH_EVENT_CANCEL &&
+        pen.eventType != LI_TOUCH_EVENT_CANCEL_ALL &&
+        pen.eventType != LI_TOUCH_EVENT_HOVER_LEAVE &&
+        pen.eventType != LI_TOUCH_EVENT_UP) {
+      // Update the tool type if it is known
+      switch (pen.toolType) {
+        default:
+          // We need to have _some_ tool type set, otherwise there's no way to know a tool is in
+          // range when hovering. If we don't know the type of tool, let's assume it's a pen.
+          if (pen.eventType != LI_TOUCH_EVENT_DOWN && pen.eventType != LI_TOUCH_EVENT_HOVER) {
+            break;
+          }
+          // fall-through
+        case LI_TOOL_TYPE_PEN:
+          libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOOL_RUBBER, 0);
+          libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOOL_PEN, 1);
+          break;
+        case LI_TOOL_TYPE_ERASER:
+          libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOOL_PEN, 0);
+          libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOOL_RUBBER, 1);
+          break;
+      }
+    }
+
+    // Next, process touch state changes
+    switch (pen.eventType) {
+      case LI_TOUCH_EVENT_CANCEL:
+      case LI_TOUCH_EVENT_CANCEL_ALL:
+      case LI_TOUCH_EVENT_HOVER_LEAVE:
+      case LI_TOUCH_EVENT_UP:
+        libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOUCH, 0);
+
+        // Leaving hover range is detected by all BTN_TOOL_* being cleared
+        libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOOL_PEN, 0);
+        libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOOL_RUBBER, 0);
+        break;
+
+      case LI_TOUCH_EVENT_DOWN:
+        libevdev_uinput_write_event(pen_input, EV_KEY, BTN_TOUCH, 1);
+        break;
+    }
+
+    // Finally, process pen buttons
+    libevdev_uinput_write_event(pen_input, EV_KEY, BTN_STYLUS, !!(pen.penButtons & LI_PEN_BUTTON_PRIMARY));
+    libevdev_uinput_write_event(pen_input, EV_KEY, BTN_STYLUS2, !!(pen.penButtons & LI_PEN_BUTTON_SECONDARY));
+    libevdev_uinput_write_event(pen_input, EV_KEY, BTN_STYLUS3, !!(pen.penButtons & LI_PEN_BUTTON_TERTIARY));
+
+    libevdev_uinput_write_event(pen_input, EV_SYN, SYN_REPORT, 0);
   }
 
   /**
@@ -1838,6 +2221,212 @@ namespace platf {
   }
 
   /**
+   * @brief Initialize a new `uinput` virtual touchscreen and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_touchscreen = touchscreen();
+   * ```
+   */
+  evdev_t
+  touchscreen() {
+    evdev_t dev { libevdev_new() };
+
+    libevdev_set_uniq(dev.get(), "Sunshine Touchscreen");
+    libevdev_set_id_product(dev.get(), 0xDEAD);
+    libevdev_set_id_vendor(dev.get(), 0xBEEF);
+    libevdev_set_id_bustype(dev.get(), 0x3);
+    libevdev_set_id_version(dev.get(), 0x111);
+    libevdev_set_name(dev.get(), "Touch passthrough");
+
+    libevdev_enable_property(dev.get(), INPUT_PROP_DIRECT);
+
+    constexpr auto RESOLUTION = 28;
+
+    input_absinfo abs_slot {
+      0,
+      0,
+      NUM_TOUCH_SLOTS - 1,
+      0,
+      0,
+      0
+    };
+
+    input_absinfo abs_tracking_id {
+      0,
+      0,
+      NUM_TOUCH_SLOTS - 1,
+      0,
+      0,
+      0
+    };
+
+    input_absinfo abs_x {
+      0,
+      0,
+      target_touch_port.width,
+      1,
+      0,
+      RESOLUTION
+    };
+
+    input_absinfo abs_y {
+      0,
+      0,
+      target_touch_port.height,
+      1,
+      0,
+      RESOLUTION
+    };
+
+    input_absinfo abs_pressure {
+      0,
+      0,
+      PRESSURE_MAX,
+      0,
+      0,
+      0
+    };
+
+    // Degrees of a half revolution
+    input_absinfo abs_orientation {
+      0,
+      -90,
+      90,
+      0,
+      0,
+      0
+    };
+
+    // Fractions of the full diagonal
+    input_absinfo abs_contact_area {
+      0,
+      0,
+      (__s32) std::sqrt(std::pow(target_touch_port.width, 2) + std::pow(target_touch_port.height, 2)),
+      1,
+      0,
+      RESOLUTION
+    };
+
+    libevdev_enable_event_type(dev.get(), EV_ABS);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_X, &abs_x);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_Y, &abs_y);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_PRESSURE, &abs_pressure);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_SLOT, &abs_slot);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_TRACKING_ID, &abs_tracking_id);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_POSITION_X, &abs_x);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_POSITION_Y, &abs_y);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_PRESSURE, &abs_pressure);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_ORIENTATION, &abs_orientation);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_TOUCH_MAJOR, &abs_contact_area);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_MT_TOUCH_MINOR, &abs_contact_area);
+
+    libevdev_enable_event_type(dev.get(), EV_KEY);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOUCH, nullptr);
+
+    return dev;
+  }
+
+  /**
+   * @brief Initialize a new `uinput` virtual pen pad and return it.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto my_penpad = penpad();
+   * ```
+   */
+  evdev_t
+  penpad() {
+    evdev_t dev { libevdev_new() };
+
+    libevdev_set_uniq(dev.get(), "Sunshine Pen");
+    libevdev_set_id_product(dev.get(), 0xDEAD);
+    libevdev_set_id_vendor(dev.get(), 0xBEEF);
+    libevdev_set_id_bustype(dev.get(), 0x3);
+    libevdev_set_id_version(dev.get(), 0x111);
+    libevdev_set_name(dev.get(), "Pen passthrough");
+
+    libevdev_enable_property(dev.get(), INPUT_PROP_DIRECT);
+
+    constexpr auto RESOLUTION = 28;
+
+    input_absinfo abs_x {
+      0,
+      0,
+      target_touch_port.width,
+      1,
+      0,
+      RESOLUTION
+    };
+
+    input_absinfo abs_y {
+      0,
+      0,
+      target_touch_port.height,
+      1,
+      0,
+      RESOLUTION
+    };
+
+    input_absinfo abs_pressure {
+      0,
+      0,
+      PRESSURE_MAX,
+      0,
+      0,
+      0
+    };
+
+    input_absinfo abs_distance {
+      0,
+      0,
+      DISTANCE_MAX,
+      0,
+      0,
+      0
+    };
+
+    // Degrees of tilt
+    input_absinfo abs_tilt {
+      0,
+      -90,
+      90,
+      0,
+      0,
+      0
+    };
+
+    // Fractions of the full diagonal
+    input_absinfo abs_contact_area {
+      0,
+      0,
+      (__s32) std::sqrt(std::pow(target_touch_port.width, 2) + std::pow(target_touch_port.height, 2)),
+      1,
+      0,
+      RESOLUTION
+    };
+
+    libevdev_enable_event_type(dev.get(), EV_ABS);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_X, &abs_x);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_Y, &abs_y);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_PRESSURE, &abs_pressure);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_DISTANCE, &abs_distance);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_TILT_X, &abs_tilt);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_TILT_Y, &abs_tilt);
+    libevdev_enable_event_code(dev.get(), EV_ABS, ABS_TOOL_WIDTH, &abs_contact_area);
+
+    libevdev_enable_event_type(dev.get(), EV_KEY);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOUCH, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_PEN, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_TOOL_RUBBER, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_STYLUS, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_STYLUS2, nullptr);
+    libevdev_enable_event_code(dev.get(), EV_KEY, BTN_STYLUS3, nullptr);
+
+    return dev;
+  }
+
+  /**
    * @brief Initialize a new `uinput` virtual X360 gamepad and return it.
    *
    * EXAMPLES:
@@ -1936,6 +2525,8 @@ namespace platf {
     gp.keyboard_dev = keyboard();
     gp.mouse_rel_dev = mouse_rel();
     gp.mouse_abs_dev = mouse_abs();
+    gp.touchscreen_dev = touchscreen();
+    gp.pen_dev = penpad();
     gp.gamepad_dev = x360();
 
     gp.create_mouse_rel();
@@ -1944,18 +2535,21 @@ namespace platf {
 
     // If we do not have a keyboard or mouse, fall back to XTest
     if (!gp.mouse_rel_input || !gp.mouse_abs_input || !gp.keyboard_input) {
-      BOOST_LOG(error) << "Unable to create some input devices! Are you a member of the 'input' group?"sv;
-
 #ifdef SUNSHINE_BUILD_X11
       if (x11::init() || x11::tst::init()) {
-        BOOST_LOG(error) << "Unable to initialize X11 and/or XTest fallback"sv;
+        BOOST_LOG(fatal) << "Unable to create virtual input devices or use XTest fallback! Are you a member of the 'input' group?"sv;
       }
       else {
-        BOOST_LOG(info) << "Falling back to XTest"sv;
+        BOOST_LOG(error) << "Falling back to XTest for virtual input! Are you a member of the 'input' group?"sv;
         x11::InitThreads();
         gp.display = x11::OpenDisplay(NULL);
       }
+#else
+      BOOST_LOG(fatal) << "Unable to create virtual input devices! Are you a member of the 'input' group?"sv;
 #endif
+    }
+    else {
+      has_uinput = true;
     }
 
     return result;
@@ -1980,6 +2574,13 @@ namespace platf {
    */
   platform_caps::caps_t
   get_capabilities() {
-    return 0;
+    platform_caps::caps_t caps = 0;
+
+    // Pen and touch emulation requires uinput
+    if (has_uinput && config::input.native_pen_touch) {
+      caps |= platform_caps::pen_touch;
+    }
+
+    return caps;
   }
 }  // namespace platf

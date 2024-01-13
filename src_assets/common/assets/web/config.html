@@ -358,7 +358,7 @@
         </div>
 
         <!-- Native pen/touch support -->
-        <div class="mb-3" v-if="config.mouse === 'enabled' && platform === 'windows'">
+        <div class="mb-3" v-if="config.mouse === 'enabled'">
           <label for="native_pen_touch" class="form-label">Native Pen/Touch Support</label>
           <select id="native_pen_touch" class="form-select" v-model="config.native_pen_touch">
             <option value="disabled">Disabled</option>
