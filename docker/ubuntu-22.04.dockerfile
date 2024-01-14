@@ -1,19 +1,29 @@
 # syntax=docker/dockerfile:1.4
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64
+# platforms_pr: linux/amd64,linux/arm64/v8
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=ubuntu
 ARG TAG=22.04
-FROM ${BASE}:${TAG} AS sunshine-base
+ARG DIST=jammy
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 FROM sunshine-base as sunshine-build
 
+# reused args from base
+ARG TAG
+ENV TAG=${TAG}
+ARG DIST
+ENV DIST=${DIST}
+
+ARG BUILDPLATFORM
 ARG TARGETPLATFORM
+RUN echo "build_platform: ${BUILDPLATFORM}"
 RUN echo "target_platform: ${TARGETPLATFORM}"
 
+# args from ci workflow
 ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
@@ -24,54 +34,132 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+# setup env
+WORKDIR /env
+RUN <<_ENV
+#!/bin/bash
+set -e
+case "${BUILDPLATFORM}" in
+  linux/amd64)
+    BUILDARCH=amd64
+    ;;
+  linux/arm64)
+    BUILDARCH=arm64
+    ;;
+  *)
+    echo "unsupported platform: ${TARGETPLATFORM}";
+    exit 1
+    ;;
+esac
+
+case "${TARGETPLATFORM}" in
+  linux/amd64)
+    PACKAGEARCH=amd64
+    TARGETARCH=x86_64
+    ;;
+  linux/arm64)
+    PACKAGEARCH=arm64
+    TARGETARCH=aarch64
+    ;;
+  *)
+    echo "unsupported platform: ${TARGETPLATFORM}";
+    exit 1
+    ;;
+esac
+
+mirror="http://ports.ubuntu.com/ubuntu-ports"
+extra_sources=$(cat <<- VAREOF
+  deb [arch=$PACKAGEARCH] $mirror $DIST main restricted
+  deb [arch=$PACKAGEARCH] $mirror $DIST-updates main restricted
+  deb [arch=$PACKAGEARCH] $mirror $DIST universe
+  deb [arch=$PACKAGEARCH] $mirror $DIST-updates universe
+  deb [arch=$PACKAGEARCH] $mirror $DIST multiverse
+  deb [arch=$PACKAGEARCH] $mirror $DIST-updates multiverse
+  deb [arch=$PACKAGEARCH] $mirror $DIST-backports main restricted universe multiverse
+  deb [arch=$PACKAGEARCH] $mirror $DIST-security main restricted
+  deb [arch=$PACKAGEARCH] $mirror $DIST-security universe
+  deb [arch=$PACKAGEARCH] $mirror $DIST-security multiverse
+VAREOF
+)
+
+if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+  # fix original sources
+  sed -i -e "s#deb http#deb [arch=$BUILDARCH] http#g" /etc/apt/sources.list
+  dpkg --add-architecture $PACKAGEARCH
+
+  echo "$extra_sources" | tee -a /etc/apt/sources.list
+fi
+
+echo PACKAGEARCH=${PACKAGEARCH}; \
+echo TARGETARCH=${TARGETARCH}; \
+echo TUPLE=${TARGETARCH}-linux-gnu >> ./env
+_ENV
+
 # install dependencies
 RUN <<_DEPS
 #!/bin/bash
 set -e
-apt-get update -y
-apt-get install -y --no-install-recommends \
-  build-essential \
-  cmake=3.22.* \
-  ca-certificates \
-  doxygen \
-  git \
-  graphviz \
-  libayatana-appindicator3-dev \
-  libavdevice-dev \
-  libboost-filesystem-dev=1.74.* \
-  libboost-locale-dev=1.74.* \
-  libboost-log-dev=1.74.* \
-  libboost-program-options-dev=1.74.* \
-  libcap-dev \
-  libcurl4-openssl-dev \
-  libdrm-dev \
-  libevdev-dev \
-  libminiupnpc-dev \
-  libnotify-dev \
-  libnuma-dev \
-  libopus-dev \
-  libpulse-dev \
-  libssl-dev \
-  libva-dev \
-  libvdpau-dev \
-  libwayland-dev \
-  libx11-dev \
-  libxcb-shm0-dev \
-  libxcb-xfixes0-dev \
-  libxcb1-dev \
-  libxfixes-dev \
-  libxrandr-dev \
-  libxtst-dev \
-  python3.10 \
-  python3.10-venv \
-  udev \
-  wget \
-  x11-xserver-utils \
-  xvfb
-if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  apt-get install -y --no-install-recommends \
-    libmfx-dev
+
+# shellcheck source=/dev/null
+source /env/env
+
+# Initialize an array for packages
+packages=(
+  "build-essential"
+  "cmake=3.22.*"
+  "ca-certificates"
+  "doxygen"
+  "git"
+  "graphviz"
+  "libayatana-appindicator3-dev"
+  "libavdevice-dev"
+  "libboost-filesystem-dev=1.74.*"
+  "libboost-locale-dev=1.74.*"
+  "libboost-log-dev=1.74.*"
+  "libboost-program-options-dev=1.74.*"
+  "libcap-dev"
+  "libcurl4-openssl-dev"
+  "libdrm-dev"
+  "libevdev-dev"
+  "libminiupnpc-dev"
+  "libnotify-dev"
+  "libnuma-dev"
+  "libopus-dev"
+  "libpulse-dev"
+  "libssl-dev"
+  "libva-dev"
+  "libvdpau-dev"
+  "libwayland-dev"
+  "libx11-dev"
+  "libxcb-shm0-dev"
+  "libxcb-xfixes0-dev"
+  "libxcb1-dev"
+  "libxfixes-dev"
+  "libxrandr-dev"
+  "libxtst-dev"
+  "python3.10"
+  "python3.10-venv"
+  "udev"
+  "wget"
+  "x11-xserver-utils"
+  "xvfb"
+)
+
+# Conditionally include arch specific packages
+if [[ "${TARGETARCH}" == 'x86_64' ]]; then
+  packages+=(
+    "libmfx-dev"
+  )
 fi
+if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+  packages+=(
+    "g++-${TUPLE}=4:11.2.*"
+    "gcc-${TUPLE}=4:11.2.*"
+  )
+fi
+
+apt-get update -y
+apt-get install -y --no-install-recommends "${packages[@]}"
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
@@ -98,7 +186,7 @@ RUN <<_INSTALL_CUDA
 set -e
 cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
-if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
+if [[ "${TARGETARCH}" == 'aarch64' ]]; then
   cuda_suffix="_sbsa"
 fi
 url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
@@ -124,8 +212,20 @@ set -e
 #Set Node version
 source "$HOME/.nvm/nvm.sh"
 nvm use 20.9.0
+
+# shellcheck source=/dev/null
+source /env/env
+
+TOOLCHAIN_OPTION=""
+if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+  export "CCPREFIX=/usr/bin/${TUPLE}-"
+
+  TOOLCHAIN_OPTION="-DCMAKE_TOOLCHAIN_FILE=toolchain-${TUPLE}-debian.cmake"
+fi
+
 #Actually build
 cmake \
+  "$TOOLCHAIN_OPTION" \
   -DBUILD_WERROR=ON \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
@@ -158,7 +258,7 @@ ARG TAG
 ARG TARGETARCH
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
 
-FROM sunshine-base as sunshine
+FROM ${BASE}:${TAG} as sunshine
 
 # copy deb from builder
 COPY --link --from=artifacts /sunshine*.deb /sunshine.deb

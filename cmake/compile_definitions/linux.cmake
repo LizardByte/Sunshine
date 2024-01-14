@@ -234,6 +234,11 @@ if (${SUNSHINE_TRAY} EQUAL 0 AND SUNSHINE_REQUIRE_TRAY)
     message(FATAL_ERROR "Tray icon is required")
 endif()
 
+pkg_check_modules(EVDEV libevdev REQUIRED)
+include_directories(SYSTEM ${EVDEV_INCLUDE_DIRS})
+link_directories(${EVDEV_LIBRARY_DIRS})
+list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${EVDEV_LIBRARIES})
+
 list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/publish.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/graphics.h"

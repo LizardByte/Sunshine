@@ -1,17 +1,22 @@
 # syntax=docker/dockerfile:1.4
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64
+# platforms_pr: linux/amd64,linux/arm64/v8
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=fedora
 ARG TAG=39
-FROM ${BASE}:${TAG} AS sunshine-base
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-base
 
 FROM sunshine-base as sunshine-build
+
+# reused args from base
+ARG TAG
+ENV TAG=${TAG}
 
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
 
+# args from ci workflow
 ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
@@ -22,55 +27,116 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-# install dependencies
-# hadolint ignore=DL3041
-RUN <<_DEPS
+# setup env
+WORKDIR /env
+RUN <<_ENV
 #!/bin/bash
 set -e
+case "${TARGETPLATFORM}" in
+  linux/amd64)
+    TARGETARCH=x86_64
+    echo GCC_FLAVOR="" >> ./env
+    echo "DNF=( dnf -y --releasever \"${TAG}\" --forcearch \"${TARGETARCH}\" )" >> ./env
+    ;;
+  linux/arm64)
+    TARGETARCH=aarch64
+    echo GCC_FLAVOR="-${TARGETARCH}-linux-gnu" >> ./env
+    echo "DNF=( dnf -y --installroot /mnt/cross --releasever \"${TAG}\" --forcearch \"${TARGETARCH}\" )" >> ./env
+    ;;
+  *)
+    echo "unsupported platform: ${TARGETPLATFORM}";
+    exit 1
+    ;;
+esac
+echo TARGETARCH=${TARGETARCH} >> ./env
+echo TUPLE=${TARGETARCH}-linux-gnu >> ./env
+_ENV
+
+# reset workdir
+WORKDIR /
+
+# install build dependencies
+# hadolint ignore=DL3041
+RUN <<_DEPS_A
+#!/bin/bash
+set -e
+
+# shellcheck source=/dev/null
+source /env/env
+
 dnf -y update
-dnf -y group install "Development Tools"
 dnf -y install \
-  boost-devel-1.81.0* \
   cmake-3.27.* \
-  doxygen \
-  gcc-13.2.* \
-  gcc-c++-13.2.* \
-  git \
-  graphviz \
-  libappindicator-gtk3-devel \
-  libcap-devel \
-  libcurl-devel \
-  libdrm-devel \
-  libevdev-devel \
-  libnotify-devel \
-  libva-devel \
-  libvdpau-devel \
-  libX11-devel \
-  libxcb-devel \
-  libXcursor-devel \
-  libXfixes-devel \
-  libXi-devel \
-  libXinerama-devel \
-  libXrandr-devel \
-  libXtst-devel \
-  mesa-libGL-devel \
-  miniupnpc-devel \
+  gcc"${GCC_FLAVOR}"-13.2.* \
+  gcc-c++"${GCC_FLAVOR}"-13.2.* \
+  git-core \
   nodejs \
-  numactl-devel \
-  openssl-devel \
-  opus-devel \
-  pulseaudio-libs-devel \
-  python3.11 \
+  pkgconf-pkg-config \
   rpm-build \
+  wayland-devel \
   wget \
-  which \
-  xorg-x11-server-Xvfb
-if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  dnf -y install intel-mediasdk-devel
-fi
+  which
 dnf clean all
+_DEPS_A
+
+# install host dependencies
+# hadolint ignore=DL3041
+RUN <<_DEPS_B
+#!/bin/bash
+set -e
+
+# shellcheck source=/dev/null
+source /env/env
+
+# Initialize an array for packages
+packages=(
+  boost-devel-1.81.0*
+  doxygen
+  glibc-devel
+  graphviz
+  libappindicator-gtk3-devel
+  libcap-devel
+  libcurl-devel
+  libdrm-devel
+  libevdev-devel
+  libnotify-devel
+  libstdc++-devel
+  libva-devel
+  libvdpau-devel
+  libX11-devel
+  libxcb-devel
+  libXcursor-devel
+  libXfixes-devel
+  libXi-devel
+  libXinerama-devel
+  libXrandr-devel
+  libXtst-devel
+  mesa-libGL-devel
+  miniupnpc-devel
+  numactl-devel
+  openssl-devel
+  opus-devel
+  pulseaudio-libs-devel
+  python3.11
+  wayland-devel
+  xorg-x11-server-Xvfb
+)
+
+# Conditionally include arch specific packages
+if [[ "${TARGETARCH}" == 'x86_64' ]]; then
+   packages+=(intel-mediasdk-devel)
+fi
+
+"${DNF[@]}" install \
+  filesystem
+
+# Install packages using the array
+"${DNF[@]}" --setopt=tsflags=noscripts install "${packages[@]}"
+
+# Clean up
+"${DNF[@]}" clean all
 rm -rf /var/cache/yum
-_DEPS
+_DEPS_B
 
 # install cuda
 WORKDIR /build/cuda
@@ -83,7 +149,7 @@ RUN <<_INSTALL_CUDA
 set -e
 cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
-if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
+if [[ "${TARGETARCH}" == 'aarch64' ]]; then
   cuda_suffix="_sbsa"
 
   # patch headers https://bugs.launchpad.net/ubuntu/+source/mumax3/+bug/2032624
@@ -112,7 +178,32 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
+
+# shellcheck source=/dev/null
+source /env/env
+
+# shellcheck disable=SC2086
+if [[ "${TARGETARCH}" == 'aarch64' ]]; then
+  CXX_FLAG_1="$(echo /mnt/cross/usr/include/c++/[0-9]*/)"
+  CXX_FLAG_2="$(echo /mnt/cross/usr/include/c++/[0-9]*/${TUPLE%%-*}-*/)"
+  LD_FLAG="$(echo /mnt/cross/usr/lib/gcc/${TUPLE%%-*}-*/[0-9]*/)"
+
+  export \
+    CXXFLAGS="-isystem ${CXX_FLAG_1} -isystem ${CXX_FLAG_2}" \
+    LDFLAGS="-L${LD_FLAG}" \
+    PKG_CONFIG_LIBDIR=/mnt/cross/usr/lib64/pkgconfig:/mnt/cross/usr/share/pkgconfig \
+    PKG_CONFIG_SYSROOT_DIR=/mnt/cross \
+    PKG_CONFIG_SYSTEM_INCLUDE_PATH=/mnt/cross/usr/include \
+    PKG_CONFIG_SYSTEM_LIBRARY_PATH=/mnt/cross/usr/lib64
+fi
+
+TOOLCHAIN_OPTION=""
+if [[ "${TARGETARCH}" != 'x86_64' ]]; then
+  TOOLCHAIN_OPTION="-DCMAKE_TOOLCHAIN_FILE=toolchain-${TUPLE}.cmake"
+fi
+
 cmake \
+  "$TOOLCHAIN_OPTION" \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
@@ -145,7 +236,7 @@ ARG TAG
 ARG TARGETARCH
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
-FROM sunshine-base as sunshine
+FROM ${BASE}:${TAG} AS sunshine
 
 # copy deb from builder
 COPY --link --from=artifacts /sunshine*.rpm /sunshine.rpm
