@@ -1387,9 +1387,10 @@
 
           this.tabs.forEach(tab => {
             Object.keys(tab.options).forEach(key => {
-              if (key === stripped_hash) {
+              if (tab.id === stripped_hash || key === stripped_hash) {
                 this.currentTab = tab.id;
-
+              }
+              if (key === stripped_hash) {
                 // sleep for 2 seconds to allow the page to load
                 setTimeout(() => {
                   let element = document.getElementById(stripped_hash);
@@ -1398,8 +1399,13 @@
                   }
                 }, 2000);
               }
+
+              if (this.currentTab === tab.id) {
+                // stop looping
+                return true;
+              }
             });
-          })
+          });
         }
       };
 
