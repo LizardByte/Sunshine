@@ -1074,52 +1074,6 @@
   import { createApp } from 'vue'
   import Navbar from './Navbar.vue'
 
-  // Create dictionary for defaultConfig
-  //
-  // Note: Please keep this in alphabetical order!
-  const defaultConfig = {
-    "address_family": "ipv4",
-    "always_send_scancodes": "enabled",
-    "amd_coder": "auto",
-    "amd_preanalysis": "disabled",
-    "amd_quality": "balanced",
-    "amd_rc": "vbr_latency",
-    "amd_usage": "ultralowlatency",
-    "amd_vbaq": "enabled",
-    "av1_mode": 0,
-    "capture": "",
-    "controller": "enabled",
-    "ds4_back_as_touchpad_click": "enabled",
-    "encoder": "",
-    "fps": "[10,30,60,90,120]",
-    "gamepad": "auto",
-    "global_prep_cmd": "[]",
-    "hevc_mode": 0,
-    "high_resolution_scrolling": "enabled",
-    "install_steam_audio_drivers": "enabled",
-    "key_rightalt_to_key_win": "disabled",
-    "keyboard": "enabled",
-    "min_log_level": 2,
-    "motion_as_ds4": "enabled",
-    "mouse": "enabled",
-    "native_pen_touch": "enabled",
-    "nvenc_h264_cavlc": "disabled",
-    "nvenc_preset": "1",
-    "nvenc_realtime_hags": "enabled",
-    "nvenc_twopass": "quarter_res",
-    "origin_web_ui_allowed": "lan",
-    "qsv_coder": "auto",
-    "qsv_preset": "medium",
-    "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3840x2160,3840x1600]",
-    "sw_preset": "superfast",
-    "sw_tune": "zerolatency",
-    "touchpad_as_ds4": "enabled",
-    "upnp": "disabled",
-    "vt_coder": "auto",
-    "vt_realtime": "enabled",
-    "vt_software": "auto",
-  }
-
   const app = createApp({
     components: {
       Navbar
@@ -1140,46 +1094,130 @@
           {
             id: "general",
             name: "General",
+            options: {
+              "sunshine_name": "",
+              "min_log_level": 2,
+              "global_prep_cmd": "[]",
+            },
           },
           {
             id: "files",
             name: "Files",
+            options: {
+              "file_apps": "",
+              "credentials_file": "",
+              "log_path": "",
+              "pkey": "",
+              "cert": "",
+              "file_state": "",
+            },
           },
           {
             id: "input",
             name: "Input",
+            options: {
+              "controller": "enabled",
+              "gamepad": "auto",
+              "ds4_back_as_touchpad_click": "enabled",
+              "motion_as_ds4": "enabled",
+              "touchpad_as_ds4": "enabled",
+              "back_button_timeout": -1,
+              "keyboard": "enabled",
+              "key_repeat_delay": 500,
+              "key_repeat_frequency": 24.9,
+              "always_send_scancodes": "enabled",
+              "key_rightalt_to_key_win": "disabled",
+              "mouse": "enabled",
+              "high_resolution_scrolling": "enabled",
+              "native_pen_touch": "enabled",
+              "keybindings": "[0x10,0xA0,0x11,0xA2,0x12,0xA4]",  // todo: add this to UI
+            },
           },
           {
             id: "av",
             name: "Audio/Video",
+            options: {
+              "audio_sink": "",
+              "virtual_sink": "",
+              "install_steam_audio_drivers": "enabled",
+              "adapter_name": "",
+              "output_name": "",
+              "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,3440x1440,1920x1200,3840x2160,3840x1600]",
+              "fps": "[10,30,60,90,120]",
+            },
           },
           {
             id: "network",
             name: "Network",
+            options: {
+              "address_family": "ipv4",
+              "port": 47989,
+              "origin_web_ui_allowed": "lan",
+              "upnp": "disabled",
+              "external_ip": "",
+              "ping_timeout": 10000,
+            },
           },
           {
             id: "advanced",
             name: "Advanced",
+            options: {
+              "channels": 1,
+              "fec_percentage": 20,
+              "qp": 28,
+              "min_threads": 1,
+              "hevc_mode": 0,
+              "av1_mode": 0,
+              "capture": "",
+              "encoder": "",
+            },
           },
           {
             id: "nv",
             name: "NVIDIA NVENC Encoder",
+            options: {
+              "nvenc_preset": 1,
+              "nvenc_twopass": "quarter_res",
+              "nvenc_realtime_hags": "enabled",
+              "nvenc_h264_cavlc": "disabled",
+            },
           },
           {
             id: "qsv",
             name: "Intel QuickSync Encoder",
+            options: {
+              "qsv_preset": "medium",
+              "qsv_coder": "auto",
+            },
           },
           {
             id: "amd",
             name: "AMD AMF Encoder",
+            options: {
+              "amd_quality": "balanced",
+              "amd_rc": "vbr_latency",
+              "amd_usage": "ultralowlatency",
+              "amd_preanalysis": "disabled",
+              "amd_vbaq": "enabled",
+              "amd_coder": "auto",
+            },
           },
           {
             id: "vt",
             name: "VideoToolbox Encoder",
+            options: {
+              "vt_coder": "auto",
+              "vt_software": "auto",
+              "vt_realtime": "enabled",
+            },
           },
           {
             id: "sw",
             name: "Software Encoder",
+            options: {
+              "sw_preset": "superfast",
+              "sw_tune": "zerolatency",
+            },
           },
         ],
       };
@@ -1212,12 +1250,15 @@
           delete this.config.platform;
           delete this.config.status;
           delete this.config.version;
-          //Populate default values if not present in config
-          for (let key in defaultConfig) {
-            if (this.config[key] === undefined) {
-              this.config[key] = defaultConfig[key]
-            }
-          }
+
+          // Populate default values from tabs options
+          this.tabs.forEach(tab => {
+            Object.keys(tab.options).forEach(optionKey => {
+              if (this.config[optionKey] === undefined) {
+                this.config[optionKey] = tab.options[optionKey];
+              }
+            });
+          });
 
           this.fps = JSON.parse(this.config.fps);
           //Resolutions should be fixed because are not valid JSON
@@ -1259,28 +1300,31 @@
         let config = JSON.parse(JSON.stringify(this.config))
 
         // delete default values from this.config
-        for (let key in defaultConfig) {
-          let delete_value = false
-          if (key === "resolutions" || key === "fps") {
-            let regex = /([\d]+x[\d]+)/g
-            // Use a regular expression to find each value and replace it with a quoted version
+        this.tabs.forEach(tab => {
+          Object.keys(tab.options).forEach(optionKey => {
+            let delete_value = false
+            if (optionKey === "global_prep_cmd" || optionKey === "resolutions" || optionKey === "fps") {
+              let regex = /([\d]+x[\d]+)/g  // this regex is only needed for resolutions
+              // Use a regular expression to find each value and replace it with a quoted version
 
-            let config_value = JSON.parse(config[key].replace(regex, '"$1"')).toString()
-            let default_value = JSON.parse(defaultConfig[key].replace(regex, '"$1"')).toString()
+              let config_value = JSON.parse(config[optionKey].replace(regex, '"$1"')).toString()
+              let default_value = JSON.parse(tab.options[optionKey].replace(regex, '"$1"')).toString()
 
-            if (config_value === default_value) {
+              if (config_value === default_value) {
+                delete_value = true
+              }
+            }
+
+            // todo: add proper type checking
+            if (String(config[optionKey]) === String(tab.options[optionKey])) {
               delete_value = true
             }
-          }
 
-          if (config[key] === defaultConfig[key]) {
-            delete_value = true
-          }
-
-          if (delete_value) {
-            delete config[key]
-          }
-        }
+            if (delete_value) {
+              delete config[optionKey]
+            }
+          });
+        });
 
         return fetch("/api/config", {
           method: "POST",
@@ -1332,7 +1376,39 @@
         // If so, default to config port. Otherwise, use the value of port.
         return port ? port : 47989
       },
-    }
+    },
+    mounted() {
+      // Handle hashchange events
+      const handleHash = () => {
+        let hash = window.location.hash;
+        if (hash) {
+          // remove the # from the hash
+          let stripped_hash = hash.substring(1);
+
+          this.tabs.forEach(tab => {
+            Object.keys(tab.options).forEach(key => {
+              if (key === stripped_hash) {
+                this.currentTab = tab.id;
+
+                // sleep for 2 seconds to allow the page to load
+                setTimeout(() => {
+                  let element = document.getElementById(stripped_hash);
+                  if (element) {
+                    window.location.hash = hash;
+                  }
+                }, 2000);
+              }
+            });
+          })
+        }
+      };
+
+      // Call handleHash for the initial load
+      handleHash();
+
+      // Add hashchange event listener
+      window.addEventListener("hashchange", handleHash);
+    },
   });
 
   app.mount("#app");
