@@ -38,6 +38,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             libvdpau1, \
             libwayland-client0, \
             libx11-6, \
+            miniupnpc, \
             openssl | libssl3")
 set(CPACK_RPM_PACKAGE_REQUIRES "\
             ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
@@ -54,6 +55,7 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             libvdpau >= 1.5, \
             libwayland-client >= 1.20.0, \
             libX11 >= 1.7.3.1, \
+            miniupnpc >= 2.2.4, \
             numactl-libs >= 2.0.14, \
             openssl >= 3.0.2, \
             pulseaudio-libs >= 10.0")
