@@ -1,17 +1,22 @@
 # syntax=docker/dockerfile:1.4
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64
+# platforms_pr: linux/amd64,linux/arm64/v8
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=fedora
 ARG TAG=39
-FROM ${BASE}:${TAG} AS sunshine-base
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-base
 
 FROM sunshine-base as sunshine-build
+
+# reused args from base
+ARG TAG
+ENV TAG=${TAG}
 
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
 
+# args from ci workflow
 ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
@@ -22,25 +27,77 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-# install dependencies
-# hadolint ignore=DL3041
-RUN <<_DEPS
+# setup env
+WORKDIR /env
+RUN <<_ENV
 #!/bin/bash
 set -e
+case "${TARGETPLATFORM}" in
+  linux/amd64)
+    echo TARGETARCH=x86_64 >> ./env
+    echo TUPLE=x86_64-linux-gnu >> ./env
+    ;;
+  linux/arm64)
+    echo TARGETARCH=aarch64 >> ./env
+    echo TUPLE=aarch64-linux-gnu >> ./env
+    ;;
+  *)
+    echo "unsupported platform: ${TARGETPLATFORM}";
+    exit 1
+    ;;
+esac
+_ENV
+
+# reset workdir
+WORKDIR /
+
+# install build dependencies
+# hadolint ignore=DL3041
+RUN <<_DEPS_A
+#!/bin/bash
+set -e
+
+# shellcheck source=/dev/null
+source /env/env
+
 dnf -y update
-dnf -y group install "Development Tools"
 dnf -y install \
-  boost-devel-1.81.0* \
   cmake-3.27.* \
-  gcc-13.2.* \
-  gcc-c++-13.2.* \
-  git \
+  gcc-"${TARGETARCH}"-linux-gnu-13.2.* \
+  gcc-c++-"${TARGETARCH}"-linux-gnu-13.2.* \
+  git-core \
+  nodejs \
+  pkgconf-pkg-config \
+  rpm-build \
+  wayland-devel \
+  wget \
+  which
+dnf clean all
+_DEPS_A
+
+# install host dependencies
+# hadolint ignore=DL3041
+RUN <<_DEPS_B
+#!/bin/bash
+set -e
+
+# shellcheck source=/dev/null
+source /env/env
+
+DNF=( dnf -y --installroot /mnt/cross --releasever "${TAG}" --forcearch "${TARGETARCH}" )
+"${DNF[@]}" install \
+  filesystem
+"${DNF[@]}" --setopt=tsflags=noscripts install \
+  $([[ "${TARGETARCH}" == x86_64 ]] && echo intel-mediasdk-devel) \
+  boost-devel-1.81.0* \
+  glibc-devel \
   libappindicator-gtk3-devel \
   libcap-devel \
   libcurl-devel \
   libdrm-devel \
   libevdev-devel \
   libnotify-devel \
+  libstdc++-devel \
   libva-devel \
   libvdpau-devel \
   libX11-devel \
@@ -53,20 +110,13 @@ dnf -y install \
   libXtst-devel \
   mesa-libGL-devel \
   miniupnpc-devel \
-  nodejs \
   numactl-devel \
   openssl-devel \
   opus-devel \
   pulseaudio-libs-devel \
-  rpm-build \
-  wget \
-  which
-if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  dnf -y install intel-mediasdk-devel
-fi
-dnf clean all
-rm -rf /var/cache/yum
-_DEPS
+  wayland-devel
+"${DNF[@]}" clean all
+_DEPS_B
 
 # todo - enable cuda once it's supported for gcc 13 and fedora 39
 ## install cuda
@@ -78,9 +128,12 @@ _DEPS
 #RUN <<_INSTALL_CUDA
 ##!/bin/bash
 #set -e
+#
+## shellcheck source=/dev/null
+#source /env/env
 #cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 #cuda_suffix=""
-#if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
+#if [[ "${TARGETARCH}" == 'aarch64' ]]; then
 #  cuda_suffix="_sbsa"
 #fi
 #url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
@@ -104,7 +157,20 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
+
+# shellcheck source=/dev/null
+source /env/env
+
+export \
+  CXXFLAGS="-isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/) -isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/${TUPLE%%-*}-*/)" \
+  LDFLAGS="-L$(echo /mnt/cross/usr/lib/gcc/${TUPLE%%-*}-*/[0-9]*/)" \
+  PKG_CONFIG_LIBDIR=/mnt/cross/usr/lib64/pkgconfig:/mnt/cross/usr/share/pkgconfig \
+  PKG_CONFIG_SYSROOT_DIR=/mnt/cross \
+  PKG_CONFIG_SYSTEM_INCLUDE_PATH=/mnt/cross/usr/include \
+  PKG_CONFIG_SYSTEM_LIBRARY_PATH=/mnt/cross/usr/lib64
+
 cmake \
+  -DCMAKE_TOOLCHAIN_FILE=toolchain-${TARGETARCH}-linux-gnu.cmake \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
@@ -124,7 +190,7 @@ ARG TAG
 ARG TARGETARCH
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
-FROM sunshine-base as sunshine
+FROM ${BASE}:${TAG} AS sunshine
 
 # copy deb from builder
 COPY --link --from=artifacts /sunshine*.rpm /sunshine.rpm
