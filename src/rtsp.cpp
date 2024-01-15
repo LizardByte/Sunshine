@@ -518,14 +518,22 @@ namespace rtsp_stream {
     std::stringstream ss;
 
     // Tell the client about our supported features
-    ss << "a=x-ss-general.featureFlags: " << (uint32_t) platf::get_capabilities() << std::endl;
+    ss << "a=x-ss-general.featureFlags:" << (uint32_t) platf::get_capabilities() << std::endl;
+
+    // Always request new control stream encryption if the client supports it
+    uint32_t encryption_flags_supported = SS_ENC_CONTROL_V2 | SS_ENC_AUDIO;
+    uint32_t encryption_flags_requested = SS_ENC_CONTROL_V2;
+
+    // Report supported and required encryption flags
+    ss << "a=x-ss-general.encryptionSupported:" << encryption_flags_supported << std::endl;
+    ss << "a=x-ss-general.encryptionRequested:" << encryption_flags_requested << std::endl;
+
+    if (video::last_encoder_probe_supported_ref_frames_invalidation) {
+      ss << "a=x-nv-video[0].refPicInvalidation:1"sv << std::endl;
+    }
 
     if (video::active_hevc_mode != 1) {
       ss << "sprop-parameter-sets=AAAAAU"sv << std::endl;
-    }
-
-    if (video::last_encoder_probe_supported_ref_frames_invalidation) {
-      ss << "x-nv-video[0].refPicInvalidation=1"sv << std::endl;
     }
 
     if (video::active_av1_mode != 1) {
