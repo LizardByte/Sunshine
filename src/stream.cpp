@@ -121,6 +121,17 @@ namespace stream {
     NV_VIDEO_PACKET packet;
   };
 
+  struct video_packet_enc_prefix_t {
+    video_packet_raw_t *
+    payload() {
+      return (video_packet_raw_t *) (this + 1);
+    }
+
+    std::uint8_t iv[12];  // 12-byte IV is ideal for AES-GCM
+    std::uint32_t unused;
+    std::uint8_t tag[16];
+  };
+
   struct audio_packet_raw_t {
     uint8_t *
     payload() {
@@ -353,6 +364,9 @@ namespace stream {
 
       int lowseq;
       udp::endpoint peer;
+
+      std::optional<crypto::cipher::gcm_t> cipher;
+      std::uint64_t gcm_iv_counter;
 
       safe::mail_raw_t::event_t<bool> idr_events;
       safe::mail_raw_t::event_t<std::pair<int64_t, int64_t>> invalidate_ref_frames_events;
@@ -588,16 +602,17 @@ namespace stream {
       size_t percentage;
 
       size_t blocksize;
+      size_t prefixsize;
       util::buffer_t<char> shards;
 
       char *
       data(size_t el) {
-        return &shards[el * blocksize];
+        return &shards[(el + 1) * prefixsize + el * blocksize];
       }
 
-      std::string_view
-      operator[](size_t el) const {
-        return { &shards[el * blocksize], blocksize };
+      char *
+      prefix(size_t el) {
+        return &shards[el * (prefixsize + blocksize)];
       }
 
       size_t
@@ -607,7 +622,7 @@ namespace stream {
     };
 
     static fec_t
-    encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage, size_t minparityshards) {
+    encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage, size_t minparityshards, size_t prefixsize) {
       auto payload_size = payload.size();
 
       auto pad = payload_size % blocksize != 0;
@@ -634,15 +649,21 @@ namespace stream {
         fecpercentage = 0;
       }
 
-      util::buffer_t<char> shards { nr_shards * blocksize };
+      util::buffer_t<char> shards { nr_shards * (blocksize + prefixsize) };
       util::buffer_t<uint8_t *> shards_p { nr_shards };
 
-      // copy payload + padding
-      auto next = std::copy(std::begin(payload), std::end(payload), std::begin(shards));
-      std::fill(next, std::end(shards), 0);  // padding with zero
-
+      auto next = std::begin(payload);
       for (auto x = 0; x < nr_shards; ++x) {
-        shards_p[x] = (uint8_t *) &shards[x * blocksize];
+        shards_p[x] = (uint8_t *) &shards[(x + 1) * prefixsize + x * blocksize];
+
+        auto copy_len = std::min<size_t>(blocksize, std::end(payload) - next);
+        std::copy_n(next, copy_len, shards_p[x]);
+        if (copy_len < blocksize) {
+          // Zero any additional space after the end of the payload
+          std::fill_n(shards_p[x] + copy_len, blocksize - copy_len, 0);
+        }
+
+        next += copy_len;
       }
 
       if (data_shards + parity_shards <= DATA_SHARDS_MAX) {
@@ -657,6 +678,7 @@ namespace stream {
         nr_shards,
         fecpercentage,
         blocksize,
+        prefixsize,
         std::move(shards)
       };
     }
@@ -1337,7 +1359,9 @@ namespace stream {
             }
           }
 
-          auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets);
+          // If video encryption is enabled, we allocate space for the encryption header before each shard
+          auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets,
+            session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
 
           // set FEC info now that we know for sure what our percentage will be for this frame
           for (auto x = 0; x < shards.size(); ++x) {
@@ -1358,12 +1382,34 @@ namespace stream {
 
             inspect->packet.multiFecBlocks = (blockIndex << 4) | lastBlockIndex;
             inspect->packet.frameIndex = packet->frame_index();
+
+            // Encrypt this shard if video encryption is enabled
+            if (session->video.cipher) {
+              // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
+              // Section 8.2.1. The sequence number is our "invocation" field and the 'V' in the
+              // high bytes is the "fixed" field. Because each client provides their own unique
+              // key, our values in the fixed field need only uniquely identify each independent
+              // use of the client's key with AES-GCM in our code.
+              //
+              // The IV counter is 64 bits long which allows for 2^64 encrypted video packets
+              // to be sent to each client before the IV repeats.
+              crypto::aes_t iv(12);
+              std::copy_n((uint8_t *) &session->video.gcm_iv_counter, sizeof(session->video.gcm_iv_counter), std::begin(iv));
+              iv[11] = 'V';  // Video stream
+              session->video.gcm_iv_counter++;
+
+              // Encrypt the target buffer in place
+              auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
+              prefix->unused = 0;
+              std::copy(std::begin(iv), std::end(iv), prefix->iv);
+              session->video.cipher->encrypt(std::string_view { (char *) inspect, (size_t) blocksize }, prefix->tag, &iv);
+            }
           }
 
           auto peer_address = session->video.peer.address();
           auto batch_info = platf::batched_send_info_t {
             shards.shards.begin(),
-            shards.blocksize,
+            shards.prefixsize + shards.blocksize,
             shards.nr_shards,
             (uintptr_t) sock.native_handle(),
             peer_address,
@@ -1377,8 +1423,8 @@ namespace stream {
             BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
             for (auto x = 0; x < shards.size(); ++x) {
               auto send_info = platf::send_info_t {
-                shards[x].data(),
-                shards[x].size(),
+                shards.prefix(x),
+                shards.prefixsize + shards.blocksize,
                 (uintptr_t) sock.native_handle(),
                 peer_address,
                 session->video.peer.port(),
@@ -1836,6 +1882,13 @@ namespace stream {
       session->video.invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
       session->video.lowseq = 0;
       session->video.ping_payload = launch_session.av_ping_payload;
+      if (config.encryptionFlagsEnabled & SS_ENC_VIDEO) {
+        BOOST_LOG(info) << "Video encryption enabled"sv;
+        session->video.cipher = crypto::cipher::gcm_t {
+          launch_session.gcm_key, false
+        };
+        session->video.gcm_iv_counter = 0;
+      }
 
       constexpr auto max_block_size = crypto::cipher::round_to_pkcs7_padded(2048);
 
