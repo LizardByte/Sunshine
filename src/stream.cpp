@@ -381,11 +381,11 @@ namespace stream {
       crypto::cipher::gcm_t cipher;
       crypto::aes_t legacy_input_enc_iv;  // Only used when the client doesn't support full control stream encryption
 
-      uint32_t connect_data;  // Used for new clients with ML_FF_SESSION_ID_V1
+      std::uint32_t connect_data;  // Used for new clients with ML_FF_SESSION_ID_V1
       std::string expected_peer_address;  // Only used for legacy clients without ML_FF_SESSION_ID_V1
 
       net::peer_t peer;
-      std::uint8_t seq;
+      std::uint32_t seq;
 
       platf::feedback_queue_t feedback_queue;
       safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
@@ -414,9 +414,29 @@ namespace stream {
       return plaintext;
     }
 
-    crypto::aes_t iv(16);
     auto seq = session->control.seq++;
-    iv[0] = seq;
+
+    crypto::aes_t iv;
+    if (session->config.encryptionFlagsEnabled & SS_ENC_CONTROL_V2) {
+      // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
+      // Section 8.2.1. The sequence number is our "invocation" field and the 'CH' in the
+      // high bytes is the "fixed" field. Because each client provides their own unique
+      // key, our values in the fixed field need only uniquely identify each independent
+      // use of the client's key with AES-GCM in our code.
+      //
+      // The sequence number is 32 bits long which allows for 2^32 control stream messages
+      // to be sent to each client before the IV repeats.
+      iv.resize(12);
+      std::copy_n((uint8_t *) &seq, sizeof(seq), std::begin(iv));
+      iv[10] = 'H';  // Host originated
+      iv[11] = 'C';  // Control stream
+    }
+    else {
+      // Nvidia's old style encryption uses a 16-byte IV
+      iv.resize(16);
+
+      iv[0] = (std::uint8_t) seq;
+    }
 
     auto packet = (control_encrypted_p) tagged_cipher.data();
 
@@ -915,11 +935,27 @@ namespace stream {
       std::string_view tagged_cipher { (char *) header->payload(), (size_t) tagged_cipher_length };
 
       auto &cipher = session->control.cipher;
-      crypto::aes_t iv(16);
-      iv[0] = (std::uint8_t) seq;
+      crypto::aes_t iv;
+      if (session->config.encryptionFlagsEnabled & SS_ENC_CONTROL_V2) {
+        // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
+        // Section 8.2.1. The sequence number is our "invocation" field and the 'CC' in the
+        // high bytes is the "fixed" field. Because each client provides their own unique
+        // key, our values in the fixed field need only uniquely identify each independent
+        // use of the client's key with AES-GCM in our code.
+        //
+        // The sequence number is 32 bits long which allows for 2^32 control stream messages
+        // to be received from each client before the IV repeats.
+        iv.resize(12);
+        std::copy_n((uint8_t *) &seq, sizeof(seq), std::begin(iv));
+        iv[10] = 'C';  // Client originated
+        iv[11] = 'C';  // Control stream
+      }
+      else {
+        // Nvidia's old style encryption uses a 16-byte IV
+        iv.resize(16);
 
-      // update control sequence
-      ++session->control.seq;
+        iv[0] = (std::uint8_t) seq;
+      }
 
       std::vector<uint8_t> plaintext;
       if (cipher.decrypt(tagged_cipher, plaintext, &iv)) {
