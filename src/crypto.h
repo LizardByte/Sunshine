@@ -23,7 +23,7 @@ namespace crypto {
 
   using sha256_t = std::array<std::uint8_t, SHA256_DIGEST_LENGTH>;
 
-  using aes_t = std::array<std::uint8_t, 16>;
+  using aes_t = std::vector<std::uint8_t>;
   using x509_t = util::safe_ptr<X509, X509_free>;
   using x509_store_t = util::safe_ptr<X509_STORE, X509_STORE_free>;
   using x509_store_ctx_t = util::safe_ptr<X509_STORE_CTX, X509_STORE_CTX_free>;

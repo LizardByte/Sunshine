@@ -152,10 +152,11 @@ namespace crypto {
       auto cipher = tagged_cipher.substr(tag_size);
       auto tag = tagged_cipher.substr(0, tag_size);
 
-      plaintext.resize((cipher.size() + 15) / 16 * 16);
+      plaintext.resize(round_to_pkcs7_padded(cipher.size()));
 
-      int size;
-      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &size, (const std::uint8_t *) cipher.data(), cipher.size()) != 1) {
+      int update_outlen, final_outlen;
+
+      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), cipher.size()) != 1) {
         return -1;
       }
 
@@ -163,12 +164,11 @@ namespace crypto {
         return -1;
       }
 
-      int len = size;
-      if (EVP_DecryptFinal_ex(decrypt_ctx.get(), plaintext.data() + size, &len) != 1) {
+      if (EVP_DecryptFinal_ex(decrypt_ctx.get(), plaintext.data() + update_outlen, &final_outlen) != 1) {
         return -1;
       }
 
-      plaintext.resize(size + len);
+      plaintext.resize(update_outlen + final_outlen);
       return 0;
     }
 
@@ -187,16 +187,15 @@ namespace crypto {
       auto tag = tagged_cipher;
       auto cipher = tag + tag_size;
 
-      int len;
-      int size = round_to_pkcs7_padded(plaintext.size());
+      int update_outlen, final_outlen;
 
       // Encrypt into the caller's buffer
-      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &size, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
+      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
         return -1;
       }
 
       // GCM encryption won't ever fill ciphertext here but we have to call it anyway
-      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher + size, &len) != 1) {
+      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher + update_outlen, &final_outlen) != 1) {
         return -1;
       }
 
@@ -204,13 +203,11 @@ namespace crypto {
         return -1;
       }
 
-      return len + size;
+      return update_outlen + final_outlen;
     }
 
     int
     ecb_t::decrypt(const std::string_view &cipher, std::vector<std::uint8_t> &plaintext) {
-      int len;
-
       auto fg = util::fail_guard([this]() {
         EVP_CIPHER_CTX_reset(decrypt_ctx.get());
       });
@@ -221,19 +218,19 @@ namespace crypto {
       }
 
       EVP_CIPHER_CTX_set_padding(decrypt_ctx.get(), padding);
+      plaintext.resize(round_to_pkcs7_padded(cipher.size()));
 
-      plaintext.resize((cipher.size() + 15) / 16 * 16);
-      auto size = (int) plaintext.size();
-      // Decrypt into the caller's buffer, leaving room for the auth tag to be prepended
-      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &size, (const std::uint8_t *) cipher.data(), cipher.size()) != 1) {
+      int update_outlen, final_outlen;
+
+      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), cipher.size()) != 1) {
         return -1;
       }
 
-      if (EVP_DecryptFinal_ex(decrypt_ctx.get(), plaintext.data(), &len) != 1) {
+      if (EVP_DecryptFinal_ex(decrypt_ctx.get(), plaintext.data() + update_outlen, &final_outlen) != 1) {
         return -1;
       }
 
-      plaintext.resize(len + size);
+      plaintext.resize(update_outlen + final_outlen);
       return 0;
     }
 
@@ -249,22 +246,20 @@ namespace crypto {
       }
 
       EVP_CIPHER_CTX_set_padding(encrypt_ctx.get(), padding);
+      cipher.resize(round_to_pkcs7_padded(plaintext.size()));
 
-      int len;
-
-      cipher.resize((plaintext.size() + 15) / 16 * 16);
-      auto size = (int) cipher.size();
+      int update_outlen, final_outlen;
 
       // Encrypt into the caller's buffer
-      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &size, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
+      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
         return -1;
       }
 
-      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher.data() + size, &len) != 1) {
+      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher.data() + update_outlen, &final_outlen) != 1) {
         return -1;
       }
 
-      cipher.resize(len + size);
+      cipher.resize(update_outlen + final_outlen);
       return 0;
     }
 
@@ -280,20 +275,18 @@ namespace crypto {
         return false;
       }
 
-      int len;
-
-      int size = plaintext.size();  // round_to_pkcs7_padded(plaintext.size());
+      int update_outlen, final_outlen;
 
       // Encrypt into the caller's buffer
-      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &size, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
+      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
         return -1;
       }
 
-      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher + size, &len) != 1) {
+      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher + update_outlen, &final_outlen) != 1) {
         return -1;
       }
 
-      return size + len;
+      return update_outlen + final_outlen;
     }
 
     ecb_t::ecb_t(const aes_t &key, bool padding):
@@ -309,7 +302,7 @@ namespace crypto {
 
   aes_t
   gen_aes_key(const std::array<uint8_t, 16> &salt, const std::string_view &pin) {
-    aes_t key;
+    aes_t key(16);
 
     std::string salt_pin;
     salt_pin.reserve(salt.size() + pin.size());
