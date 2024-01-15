@@ -88,36 +88,48 @@ set -e
 # shellcheck source=/dev/null
 source /env/env
 
+# Initialize an array for packages
+packages=(
+  boost-devel-1.78.0*
+  glibc-devel
+  libappindicator-gtk3-devel
+  libcap-devel
+  libcurl-devel
+  libdrm-devel
+  libevdev-devel
+  libnotify-devel
+  libstdc++-devel
+  libva-devel
+  libvdpau-devel
+  libX11-devel
+  libxcb-devel
+  libXcursor-devel
+  libXfixes-devel
+  libXi-devel
+  libXinerama-devel
+  libXrandr-devel
+  libXtst-devel
+  mesa-libGL-devel
+  miniupnpc-devel
+  numactl-devel
+  openssl-devel
+  opus-devel
+  pulseaudio-libs-devel
+  wayland-devel
+)
+
+# Conditionally include arch specific packages
+if [[ "${TARGETARCH}" == 'x86_64' ]]; then
+   packages+=(intel-mediasdk-devel)
+fi
+
 "${DNF[@]}" install \
   filesystem
-"${DNF[@]}" --setopt=tsflags=noscripts install \
-  $([[ "${TARGETARCH}" == x86_64 ]] && echo intel-mediasdk-devel) \
-  boost-devel-1.78.0* \
-  glibc-devel \
-  libappindicator-gtk3-devel \
-  libcap-devel \
-  libcurl-devel \
-  libdrm-devel \
-  libevdev-devel \
-  libnotify-devel \
-  libstdc++-devel \
-  libva-devel \
-  libvdpau-devel \
-  libX11-devel \
-  libxcb-devel \
-  libXcursor-devel \
-  libXfixes-devel \
-  libXi-devel \
-  libXinerama-devel \
-  libXrandr-devel \
-  libXtst-devel \
-  mesa-libGL-devel \
-  miniupnpc-devel \
-  numactl-devel \
-  openssl-devel \
-  opus-devel \
-  pulseaudio-libs-devel \
-  wayland-devel
+
+# Install packages using the array
+"${DNF[@]}" --setopt=tsflags=noscripts install "${packages[@]}"
+
+# Clean up
 "${DNF[@]}" clean all
 _DEPS_B
 
@@ -164,18 +176,28 @@ set -e
 # shellcheck source=/dev/null
 source /env/env
 
+# shellcheck disable=SC2086
 if [[ "${TARGETARCH}" == 'aarch64' ]]; then
+  CXX_FLAG_1="$(echo /mnt/cross/usr/include/c++/[0-9]*/)"
+  CXX_FLAG_2="$(echo /mnt/cross/usr/include/c++/[0-9]*/${TUPLE%%-*}-*/)"
+  LD_FLAG="$(echo /mnt/cross/usr/lib/gcc/${TUPLE%%-*}-*/[0-9]*/)"
+
   export \
-    CXXFLAGS="-isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/) -isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/${TUPLE%%-*}-*/)" \
-    LDFLAGS="-L$(echo /mnt/cross/usr/lib/gcc/${TUPLE%%-*}-*/[0-9]*/)" \
+    CXXFLAGS="-isystem ${CXX_FLAG_1} -isystem ${CXX_FLAG_2}" \
+    LDFLAGS="-L${LD_FLAG}" \
     PKG_CONFIG_LIBDIR=/mnt/cross/usr/lib64/pkgconfig:/mnt/cross/usr/share/pkgconfig \
     PKG_CONFIG_SYSROOT_DIR=/mnt/cross \
     PKG_CONFIG_SYSTEM_INCLUDE_PATH=/mnt/cross/usr/include \
     PKG_CONFIG_SYSTEM_LIBRARY_PATH=/mnt/cross/usr/lib64
 fi
 
+TOOLCHAIN_OPTION=""
+if [[ "${TARGETARCH}" != 'x86_64' ]]; then
+  TOOLCHAIN_OPTION="-DCMAKE_TOOLCHAIN_FILE=toolchain-${TUPLE}.cmake"
+fi
+
 cmake \
-  $([[ "${TARGETARCH}" != x86_64 ]] && echo -DCMAKE_TOOLCHAIN_FILE=toolchain-${TARGETARCH}-linux-gnu.cmake) \
+  "$TOOLCHAIN_OPTION" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
