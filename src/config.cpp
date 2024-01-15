@@ -376,7 +376,10 @@ namespace config {
     APPS_JSON_PATH,
 
     20,  // fecPercentage
-    1  // channels
+    1,  // channels
+
+    ENCRYPTION_MODE_NEVER,  // lan_encryption_mode
+    ENCRYPTION_MODE_OPPORTUNISTIC,  // wan_encryption_mode
   };
 
   nvhttp_t nvhttp {
@@ -1015,6 +1018,9 @@ namespace config {
     }
 
     int_between_f(vars, "channels", stream.channels, { 1, std::numeric_limits<int>::max() });
+
+    int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, { 0, 2 });
+    int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, { 0, 2 });
 
     path_f(vars, "file_apps", stream.file_apps);
     int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 255 });
