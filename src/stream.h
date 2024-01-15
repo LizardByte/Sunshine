@@ -22,11 +22,12 @@ namespace stream {
 
     int packetsize;
     int minRequiredFecPackets;
-    int nvFeatureFlags;
     int mlFeatureFlags;
     int controlProtocolType;
     int audioQosType;
     int videoQosType;
+
+    uint32_t encryptionFlagsEnabled;
 
     std::optional<int> gcmap;
   };
