@@ -235,9 +235,9 @@ namespace stream {
   // return bytes written on success
   // return -1 on error
   static inline int
-  encode_audio(int featureSet, const audio::buffer_t &plaintext, audio_packet_t &destination, std::uint32_t avRiKeyIv, crypto::cipher::cbc_t &cbc) {
+  encode_audio(bool encrypted, const audio::buffer_t &plaintext, audio_packet_t &destination, std::uint32_t avRiKeyIv, crypto::cipher::cbc_t &cbc) {
     // If encryption isn't enabled
-    if (!(featureSet & 0x20)) {
+    if (!encrypted) {
       std::copy(std::begin(plaintext), std::end(plaintext), destination->payload());
       return plaintext.size();
     }
@@ -1415,7 +1415,7 @@ namespace stream {
       // For now, encode_audio needs it to be the proper sequenceNumber
       audio_packet->rtp.sequenceNumber = sequenceNumber;
 
-      auto bytes = encode_audio(session->config.nvFeatureFlags, packet_data, audio_packet, session->audio.avRiKeyId, session->audio.cipher);
+      auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data, audio_packet, session->audio.avRiKeyId, session->audio.cipher);
       if (bytes < 0) {
         BOOST_LOG(error) << "Couldn't encode audio packet"sv;
         break;

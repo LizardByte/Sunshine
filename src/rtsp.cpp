@@ -5,6 +5,7 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 extern "C" {
+#include <moonlight-common-c/src/Limelight-internal.h>
 #include <moonlight-common-c/src/Rtsp.h>
 }
 
@@ -705,6 +706,7 @@ namespace rtsp_stream {
     args.try_emplace("x-nv-vqos[0].qosTrafficType"sv, "5"sv);
     args.try_emplace("x-nv-aqos.qosTrafficType"sv, "4"sv);
     args.try_emplace("x-ml-video.configuredBitrateKbps"sv, "0"sv);
+    args.try_emplace("x-ss-general.encryptionEnabled"sv, "0"sv);
 
     stream::config_t config;
 
@@ -721,10 +723,15 @@ namespace rtsp_stream {
       config.controlProtocolType = util::from_view(args.at("x-nv-general.useReliableUdp"sv));
       config.packetsize = util::from_view(args.at("x-nv-video[0].packetSize"sv));
       config.minRequiredFecPackets = util::from_view(args.at("x-nv-vqos[0].fec.minRequiredFecPackets"sv));
-      config.nvFeatureFlags = util::from_view(args.at("x-nv-general.featureFlags"sv));
       config.mlFeatureFlags = util::from_view(args.at("x-ml-general.featureFlags"sv));
       config.audioQosType = util::from_view(args.at("x-nv-aqos.qosTrafficType"sv));
       config.videoQosType = util::from_view(args.at("x-nv-vqos[0].qosTrafficType"sv));
+      config.encryptionFlagsEnabled = util::from_view(args.at("x-ss-general.encryptionEnabled"sv));
+
+      // Legacy clients use nvFeatureFlags to indicate support for audio encryption
+      if (util::from_view(args.at("x-nv-general.featureFlags"sv)) & 0x20) {
+        config.encryptionFlagsEnabled |= SS_ENC_AUDIO;
+      }
 
       config.monitor.height = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
       config.monitor.width = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
