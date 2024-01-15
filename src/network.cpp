@@ -44,7 +44,7 @@ namespace net {
 
   net_e
   from_address(const std::string_view &view) {
-    auto addr = ip::make_address(view);
+    auto addr = normalize_address(ip::make_address(view));
 
     if (addr.is_v6()) {
       for (auto &range : pc_ips_v6) {
