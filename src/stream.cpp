@@ -1779,7 +1779,7 @@ namespace stream {
     }
 
     std::shared_ptr<session_t>
-    alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv, std::string_view av_ping_payload, uint32_t control_connect_data) {
+    alloc(config_t &config, rtsp_stream::launch_session_t &launch_session) {
       auto session = std::make_shared<session_t>();
 
       auto mail = std::make_shared<safe::mail_raw_t>();
@@ -1788,18 +1788,18 @@ namespace stream {
 
       session->config = config;
 
-      session->control.connect_data = control_connect_data;
+      session->control.connect_data = launch_session.control_connect_data;
       session->control.feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
       session->control.hdr_queue = mail->event<video::hdr_info_t>(mail::hdr);
-      session->control.iv = iv;
+      session->control.iv = launch_session.iv;
       session->control.cipher = crypto::cipher::gcm_t {
-        gcm_key, false
+        launch_session.gcm_key, false
       };
 
       session->video.idr_events = mail->event<bool>(mail::idr);
       session->video.invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
       session->video.lowseq = 0;
-      session->video.ping_payload = av_ping_payload;
+      session->video.ping_payload = launch_session.av_ping_payload;
 
       constexpr auto max_block_size = crypto::cipher::round_to_pkcs7_padded(2048);
 
@@ -1826,11 +1826,11 @@ namespace stream {
       session->audio.fec_packet->fecHeader.ssrc = 0;
 
       session->audio.cipher = crypto::cipher::cbc_t {
-        gcm_key, true
+        launch_session.gcm_key, true
       };
 
-      session->audio.ping_payload = av_ping_payload;
-      session->audio.avRiKeyId = util::endian::big(*(std::uint32_t *) iv.data());
+      session->audio.ping_payload = launch_session.av_ping_payload;
+      session->audio.avRiKeyId = util::endian::big(*(std::uint32_t *) launch_session.iv.data());
       session->audio.sequenceNumber = 0;
       session->audio.timestamp = 0;
 
