@@ -40,7 +40,7 @@ namespace stream {
     };
 
     std::shared_ptr<session_t>
-    alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv, std::string_view av_ping_payload, uint32_t control_connect_data);
+    alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
     int
     start(session_t &session, const std::string &addr_string);
     void

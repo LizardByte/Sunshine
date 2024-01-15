@@ -796,7 +796,7 @@ namespace rtsp_stream {
       return;
     }
 
-    auto session = stream::session::alloc(config, launch_session->gcm_key, launch_session->iv, launch_session->av_ping_payload, launch_session->control_connect_data);
+    auto session = stream::session::alloc(config, *launch_session);
 
     auto slot = server->accept(session);
     if (!slot) {
