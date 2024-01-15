@@ -76,6 +76,10 @@ namespace config {
     bool install_steam_drivers;
   };
 
+  constexpr int ENCRYPTION_MODE_NEVER = 0;  // Never use video encryption, even if the client supports it
+  constexpr int ENCRYPTION_MODE_OPPORTUNISTIC = 1;  // Use video encryption if available, but stream without it if not supported
+  constexpr int ENCRYPTION_MODE_MANDATORY = 2;  // Always use video encryption and refuse clients that can't encrypt
+
   struct stream_t {
     std::chrono::milliseconds ping_timeout;
 
@@ -85,6 +89,10 @@ namespace config {
 
     // max unique instances of video and audio streams
     int channels;
+
+    // Video encryption settings for LAN and WAN streams
+    int lan_encryption_mode;
+    int wan_encryption_mode;
   };
 
   struct nvhttp_t {

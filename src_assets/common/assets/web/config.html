@@ -668,6 +668,46 @@
           </div>
         </div>
 
+        <!-- LAN Encryption Mode -->
+        <div class="mb-3">
+          <label for="lan_encryption_mode" class="form-label">LAN Encryption Mode</label>
+          <select id="lan_encryption_mode" class="form-select" v-model="config.lan_encryption_mode">
+            <option value="0">
+              Disabled (default)
+            </option>
+            <option value="1">
+              Enabled for supported clients
+            </option>
+            <option value="2">
+              Required for all clients
+            </option>
+          </select>
+          <div class="form-text">
+            This determines when encryption will be used when streaming over your local network.<br>
+            Encryption can reduce streaming performance, particularly on less powerful hosts and clients.
+          </div>
+        </div>
+
+        <!-- WAN Encryption Mode -->
+        <div class="mb-3">
+          <label for="wan_encryption_mode" class="form-label">WAN Encryption Mode</label>
+          <select id="wan_encryption_mode" class="form-select" v-model="config.wan_encryption_mode">
+            <option value="0">
+              Disabled
+            </option>
+            <option value="1">
+              Enabled for supported clients (default)
+            </option>
+            <option value="2">
+              Required for all clients
+            </option>
+          </select>
+          <div class="form-text">
+            This determines when encryption will be used when streaming over the Internet.<br>
+            Encryption can reduce streaming performance, particularly on less powerful hosts and clients.
+          </div>
+        </div>
+
         <!-- Ping Timeout -->
         <div class="mb-3">
           <label for="ping_timeout" class="form-label">Ping Timeout</label>
@@ -1155,6 +1195,8 @@
               "origin_web_ui_allowed": "lan",
               "upnp": "disabled",
               "external_ip": "",
+              "lan_encryption_mode": 0,
+              "wan_encryption_mode": 1,
               "ping_timeout": 10000,
             },
           },

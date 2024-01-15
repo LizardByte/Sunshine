@@ -838,6 +838,64 @@ keybindings
 
       external_ip = 123.456.789.12
 
+`lan_encryption_mode <https://localhost:47990/config/#lan_encryption_mode>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   This determines when encryption will be used when streaming over your local network.
+
+   .. warning:: Encryption can reduce streaming performance, particularly on less powerful hosts and clients.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =====     ===========
+   Value     Description
+   =====     ===========
+   0         encryption will not be used
+   1         encryption will be used if the client supports it
+   2         encryption is mandatory and unencrypted connections are rejected
+   =====     ===========
+
+**Default**
+   ``0``
+
+**Example**
+   .. code-block:: text
+
+      lan_encryption_mode = 0
+
+`wan_encryption_mode <https://localhost:47990/config/#wan_encryption_mode>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   This determines when encryption will be used when streaming over the Internet.
+
+   .. warning:: Encryption can reduce streaming performance, particularly on less powerful hosts and clients.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =====     ===========
+   Value     Description
+   =====     ===========
+   0         encryption will not be used
+   1         encryption will be used if the client supports it
+   2         encryption is mandatory and unencrypted connections are rejected
+   =====     ===========
+
+**Default**
+   ``1``
+
+**Example**
+   .. code-block:: text
+
+      wan_encryption_mode = 1
+
 `ping_timeout <https://localhost:47990/config/#ping_timeout>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
