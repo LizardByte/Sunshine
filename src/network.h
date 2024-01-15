@@ -59,6 +59,15 @@ namespace net {
   af_to_any_address_string(af_e af);
 
   /**
+   * @brief Converts an address to a normalized form.
+   * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
+   * @param address The address to normalize.
+   * @return Normalized address.
+   */
+  boost::asio::ip::address
+  normalize_address(boost::asio::ip::address address);
+
+  /**
    * @brief Returns the given address in normalized string form.
    * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
    * @param address The address to normalize.
