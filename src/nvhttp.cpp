@@ -271,8 +271,10 @@ namespace nvhttp {
   make_launch_session(bool host_audio, const args_t &args) {
     rtsp_stream::launch_session_t launch_session;
 
+    auto rikey = util::from_hex_vec(get_arg(args, "rikey"), true);
+    std::copy(rikey.cbegin(), rikey.cend(), std::back_inserter(launch_session.gcm_key));
+
     launch_session.host_audio = host_audio;
-    launch_session.gcm_key = util::from_hex<crypto::aes_t>(get_arg(args, "rikey"), true);
     std::stringstream mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
     int x = 0;
@@ -296,11 +298,10 @@ namespace nvhttp {
     launch_session.av_ping_payload = util::hex_vec(raw_payload);
     RAND_bytes((unsigned char *) &launch_session.control_connect_data, sizeof(launch_session.control_connect_data));
 
+    launch_session.iv.resize(16);
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
-
-    auto next = std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
-    std::fill(next, std::end(launch_session.iv), 0);
+    std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
     return launch_session;
   }
 
