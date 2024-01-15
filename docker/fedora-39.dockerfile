@@ -34,18 +34,22 @@ RUN <<_ENV
 set -e
 case "${TARGETPLATFORM}" in
   linux/amd64)
-    echo TARGETARCH=x86_64 >> ./env
-    echo TUPLE=x86_64-linux-gnu >> ./env
+    TARGETARCH=x86_64
+    echo GCC_FLAVOR="" >> ./env
+    echo "DNF=( dnf -y --releasever \"${TAG}\" --forcearch \"${TARGETARCH}\" )" >> ./env
     ;;
   linux/arm64)
-    echo TARGETARCH=aarch64 >> ./env
-    echo TUPLE=aarch64-linux-gnu >> ./env
+    TARGETARCH=aarch64
+    echo GCC_FLAVOR="-${TARGETARCH}-linux-gnu" >> ./env
+    echo "DNF=( dnf -y --installroot /mnt/cross --releasever \"${TAG}\" --forcearch \"${TARGETARCH}\" )" >> ./env
     ;;
   *)
     echo "unsupported platform: ${TARGETPLATFORM}";
     exit 1
     ;;
 esac
+echo TARGETARCH=${TARGETARCH} >> ./env
+echo TUPLE=${TARGETARCH}-linux-gnu >> ./env
 _ENV
 
 # reset workdir
@@ -63,8 +67,8 @@ source /env/env
 dnf -y update
 dnf -y install \
   cmake-3.27.* \
-  gcc-"${TARGETARCH}"-linux-gnu-13.2.* \
-  gcc-c++-"${TARGETARCH}"-linux-gnu-13.2.* \
+  gcc"${GCC_FLAVOR}"-13.2.* \
+  gcc-c++"${GCC_FLAVOR}"-13.2.* \
   git-core \
   nodejs \
   pkgconf-pkg-config \
@@ -84,7 +88,6 @@ set -e
 # shellcheck source=/dev/null
 source /env/env
 
-DNF=( dnf -y --installroot /mnt/cross --releasever "${TAG}" --forcearch "${TARGETARCH}" )
 "${DNF[@]}" install \
   filesystem
 "${DNF[@]}" --setopt=tsflags=noscripts install \
@@ -161,16 +164,18 @@ set -e
 # shellcheck source=/dev/null
 source /env/env
 
-export \
-  CXXFLAGS="-isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/) -isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/${TUPLE%%-*}-*/)" \
-  LDFLAGS="-L$(echo /mnt/cross/usr/lib/gcc/${TUPLE%%-*}-*/[0-9]*/)" \
-  PKG_CONFIG_LIBDIR=/mnt/cross/usr/lib64/pkgconfig:/mnt/cross/usr/share/pkgconfig \
-  PKG_CONFIG_SYSROOT_DIR=/mnt/cross \
-  PKG_CONFIG_SYSTEM_INCLUDE_PATH=/mnt/cross/usr/include \
-  PKG_CONFIG_SYSTEM_LIBRARY_PATH=/mnt/cross/usr/lib64
+if [[ "${TARGETARCH}" == 'aarch64' ]]; then
+  export \
+    CXXFLAGS="-isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/) -isystem $(echo /mnt/cross/usr/include/c++/[0-9]*/${TUPLE%%-*}-*/)" \
+    LDFLAGS="-L$(echo /mnt/cross/usr/lib/gcc/${TUPLE%%-*}-*/[0-9]*/)" \
+    PKG_CONFIG_LIBDIR=/mnt/cross/usr/lib64/pkgconfig:/mnt/cross/usr/share/pkgconfig \
+    PKG_CONFIG_SYSROOT_DIR=/mnt/cross \
+    PKG_CONFIG_SYSTEM_INCLUDE_PATH=/mnt/cross/usr/include \
+    PKG_CONFIG_SYSTEM_LIBRARY_PATH=/mnt/cross/usr/lib64
+fi
 
 cmake \
-  -DCMAKE_TOOLCHAIN_FILE=toolchain-${TARGETARCH}-linux-gnu.cmake \
+  $([[ "${TARGETARCH}" != x86_64 ]] && echo -DCMAKE_TOOLCHAIN_FILE=toolchain-${TARGETARCH}-linux-gnu.cmake) \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
