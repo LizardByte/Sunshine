@@ -242,7 +242,7 @@ namespace stream {
       return plaintext.size();
     }
 
-    crypto::aes_t iv {};
+    crypto::aes_t iv(16);
     *(std::uint32_t *) iv.data() = util::endian::big<std::uint32_t>(avRiKeyIv + destination->rtp.sequenceNumber);
 
     return cbc.encrypt(std::string_view { (char *) std::begin(plaintext), plaintext.size() }, destination->payload(), &iv);
@@ -379,7 +379,7 @@ namespace stream {
 
     struct {
       crypto::cipher::gcm_t cipher;
-      crypto::aes_t iv;
+      crypto::aes_t legacy_input_enc_iv;  // Only used when the client doesn't support full control stream encryption
 
       uint32_t connect_data;  // Used for new clients with ML_FF_SESSION_ID_V1
       std::string expected_peer_address;  // Only used for legacy clients without ML_FF_SESSION_ID_V1
@@ -414,7 +414,7 @@ namespace stream {
       return plaintext;
     }
 
-    crypto::aes_t iv {};
+    crypto::aes_t iv(16);
     auto seq = session->control.seq++;
     iv[0] = seq;
 
@@ -881,7 +881,7 @@ namespace stream {
       std::vector<uint8_t> plaintext;
 
       auto &cipher = session->control.cipher;
-      auto &iv = session->control.iv;
+      auto &iv = session->control.legacy_input_enc_iv;
       if (cipher.decrypt(tagged_cipher, plaintext, &iv)) {
         // something went wrong :(
 
@@ -891,7 +891,7 @@ namespace stream {
         return;
       }
 
-      if (tagged_cipher_length >= 16 + sizeof(crypto::aes_t)) {
+      if (tagged_cipher_length >= 16 + iv.size()) {
         std::copy(payload.end() - 16, payload.end(), std::begin(iv));
       }
 
@@ -915,7 +915,7 @@ namespace stream {
       std::string_view tagged_cipher { (char *) header->payload(), (size_t) tagged_cipher_length };
 
       auto &cipher = session->control.cipher;
-      crypto::aes_t iv {};
+      crypto::aes_t iv(16);
       iv[0] = (std::uint8_t) seq;
 
       // update control sequence
@@ -1791,7 +1791,7 @@ namespace stream {
       session->control.connect_data = launch_session.control_connect_data;
       session->control.feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);
       session->control.hdr_queue = mail->event<video::hdr_info_t>(mail::hdr);
-      session->control.iv = launch_session.iv;
+      session->control.legacy_input_enc_iv = launch_session.iv;
       session->control.cipher = crypto::cipher::gcm_t {
         launch_session.gcm_key, false
       };
