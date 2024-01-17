@@ -101,9 +101,12 @@ namespace platf {
   appdata() {
     const char *dir;
 
+    // May be set if running under a systemd service with the ConfigurationDirectory= option set.
     if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr) {
       return fs::path { dir } / "sunshine"sv;
     }
+    // Otherwise, follow the XDG base directory specification:
+    // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
     if ((dir = getenv("XDG_CONFIG_HOME")) != nullptr) {
       return fs::path { dir } / "sunshine"sv;
     }
