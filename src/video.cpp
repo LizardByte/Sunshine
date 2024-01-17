@@ -1068,6 +1068,61 @@ namespace video {
     }
   }
 
+  /**
+   * @brief Updates the list of display names before or during a stream.
+   * @details This will attempt to keep `current_display_index` pointing at the same display.
+   * @param dev_type The encoder device type used for display lookup.
+   * @param display_names The list of display names to repopulate.
+   * @param current_display_index The current display index or -1 if not yet known.
+   */
+  void
+  refresh_displays(platf::mem_type_e dev_type, std::vector<std::string> &display_names, int &current_display_index) {
+    std::string current_display_name;
+
+    // If we have a current display index, let's start with that
+    if (current_display_index >= 0 && current_display_index < display_names.size()) {
+      current_display_name = display_names.at(current_display_index);
+    }
+
+    // Refresh the display names
+    auto old_display_names = std::move(display_names);
+    display_names = platf::display_names(dev_type);
+
+    // If we now have no displays, let's put the old display array back and fail
+    if (display_names.empty() && !old_display_names.empty()) {
+      BOOST_LOG(error) << "No displays were found after reenumeration!"sv;
+      display_names = std::move(old_display_names);
+      return;
+    }
+    else if (display_names.empty()) {
+      display_names.emplace_back(config::video.output_name);
+    }
+
+    // We now have a new display name list, so reset the index back to 0
+    current_display_index = 0;
+
+    // If we had a name previously, let's try to find it in the new list
+    if (!current_display_name.empty()) {
+      for (int x = 0; x < display_names.size(); ++x) {
+        if (display_names[x] == current_display_name) {
+          current_display_index = x;
+          return;
+        }
+      }
+
+      // The old display was removed, so we'll start back at the first display again
+      BOOST_LOG(warning) << "Previous active display ["sv << current_display_name << "] is no longer present"sv;
+    }
+    else {
+      for (int x = 0; x < display_names.size(); ++x) {
+        if (display_names[x] == config::video.output_name) {
+          current_display_index = x;
+          return;
+        }
+      }
+    }
+  }
+
   void
   captureThread(
     std::shared_ptr<safe::queue_t<capture_ctx_t>> capture_ctx_queue,
@@ -1090,23 +1145,6 @@ namespace video {
 
     auto switch_display_event = mail::man->event<int>(mail::switch_display);
 
-    // Get all the monitor names now, rather than at boot, to
-    // get the most up-to-date list available monitors
-    auto display_names = platf::display_names(encoder.platform_formats->dev_type);
-    int display_p = 0;
-
-    if (display_names.empty()) {
-      display_names.emplace_back(config::video.output_name);
-    }
-
-    for (int x = 0; x < display_names.size(); ++x) {
-      if (display_names[x] == config::video.output_name) {
-        display_p = x;
-
-        break;
-      }
-    }
-
     // Wait for the initial capture context or a request to stop the queue
     auto initial_capture_ctx = capture_ctx_queue->pop();
     if (!initial_capture_ctx) {
@@ -1114,6 +1152,11 @@ namespace video {
     }
     capture_ctxs.emplace_back(std::move(*initial_capture_ctx));
 
+    // Get all the monitor names now, rather than at boot, to
+    // get the most up-to-date list available monitors
+    std::vector<std::string> display_names;
+    int display_p = -1;
+    refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
     auto disp = platf::display(encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
     if (!disp) {
       return;
@@ -1247,8 +1290,6 @@ namespace video {
 
         if (switch_display_event->peek()) {
           artificial_reinit = true;
-
-          display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
           return false;
         }
 
@@ -1297,6 +1338,18 @@ namespace video {
           }
 
           while (capture_ctx_queue->running()) {
+            // Release the display before reenumerating displays, since some capture backends
+            // only support a single display session per device/application.
+            disp.reset();
+
+            // Refresh display names since a display removal might have caused the reinitialization
+            refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
+
+            // Process any pending display switch with the new list of displays
+            if (switch_display_event->peek()) {
+              display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
+            }
+
             // reset_display() will sleep between retries
             reset_display(disp, encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
             if (disp) {
@@ -1977,22 +2030,10 @@ namespace video {
   encode_e
   encode_run_sync(
     std::vector<std::unique_ptr<sync_session_ctx_t>> &synced_session_ctxs,
-    encode_session_ctx_queue_t &encode_session_ctx_queue) {
+    encode_session_ctx_queue_t &encode_session_ctx_queue,
+    std::vector<std::string> &display_names,
+    int &display_p) {
     const auto &encoder = *chosen_encoder;
-    auto display_names = platf::display_names(encoder.platform_formats->dev_type);
-    int display_p = 0;
-
-    if (display_names.empty()) {
-      display_names.emplace_back(config::video.output_name);
-    }
-
-    for (int x = 0; x < display_names.size(); ++x) {
-      if (display_names[x] == config::video.output_name) {
-        display_p = x;
-
-        break;
-      }
-    }
 
     std::shared_ptr<platf::display_t> disp;
 
@@ -2008,6 +2049,14 @@ namespace video {
     }
 
     while (encode_session_ctx_queue.running()) {
+      // Refresh display names since a display removal might have caused the reinitialization
+      refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
+
+      // Process any pending display switch with the new list of displays
+      if (switch_display_event->peek()) {
+        display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
+      }
+
       // reset_display() will sleep between retries
       reset_display(disp, encoder.platform_formats->dev_type, display_names[display_p], synced_session_ctxs.front()->config);
       if (disp) {
@@ -2103,8 +2152,6 @@ namespace video {
 
         if (switch_display_event->peek()) {
           ec = platf::capture_e::reinit;
-
-          display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
           return false;
         }
 
@@ -2155,7 +2202,9 @@ namespace video {
     // Encoding and capture takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
-    while (encode_run_sync(synced_session_ctxs, ctx) == encode_e::reinit) {}
+    std::vector<std::string> display_names;
+    int display_p = -1;
+    while (encode_run_sync(synced_session_ctxs, ctx, display_names, display_p) == encode_e::reinit) {}
   }
 
   void
