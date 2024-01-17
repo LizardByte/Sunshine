@@ -163,20 +163,53 @@ namespace platf {
 #define _CONVERT(x, y) \
   if (string == x) return DRM_MODE_CONNECTOR_##y
 
+      // This list was created from the following sources:
+      // https://gitlab.freedesktop.org/mesa/drm/-/blob/main/xf86drmMode.c (drmModeGetConnectorTypeName)
+      // https://gitlab.freedesktop.org/wayland/weston/-/blob/e74f2897b9408b6356a555a0ce59146836307ff5/libweston/backend-drm/drm.c#L1458-1477
+      // https://github.com/GNOME/mutter/blob/65d481594227ea7188c0416e8e00b57caeea214f/src/backends/meta-monitor-manager.c#L1618-L1639
       _CONVERT("VGA"sv, VGA);
+      _CONVERT("DVII"sv, DVII);
       _CONVERT("DVI-I"sv, DVII);
+      _CONVERT("DVID"sv, DVID);
       _CONVERT("DVI-D"sv, DVID);
+      _CONVERT("DVIA"sv, DVIA);
       _CONVERT("DVI-A"sv, DVIA);
+      _CONVERT("Composite"sv, Composite);
+      _CONVERT("SVIDEO"sv, SVIDEO);
       _CONVERT("S-Video"sv, SVIDEO);
       _CONVERT("LVDS"sv, LVDS);
+      _CONVERT("Component"sv, Component);
+      _CONVERT("9PinDIN"sv, 9PinDIN);
       _CONVERT("DIN"sv, 9PinDIN);
       _CONVERT("DisplayPort"sv, DisplayPort);
       _CONVERT("DP"sv, DisplayPort);
+      _CONVERT("HDMIA"sv, HDMIA);
       _CONVERT("HDMI-A"sv, HDMIA);
       _CONVERT("HDMI"sv, HDMIA);
+      _CONVERT("HDMIB"sv, HDMIB);
       _CONVERT("HDMI-B"sv, HDMIB);
+      _CONVERT("TV"sv, TV);
       _CONVERT("eDP"sv, eDP);
+      _CONVERT("VIRTUAL"sv, VIRTUAL);
+      _CONVERT("Virtual"sv, VIRTUAL);
       _CONVERT("DSI"sv, DSI);
+      _CONVERT("DPI"sv, DPI);
+      _CONVERT("WRITEBACK"sv, WRITEBACK);
+      _CONVERT("Writeback"sv, WRITEBACK);
+      _CONVERT("SPI"sv, SPI);
+#ifdef DRM_MODE_CONNECTOR_USB
+      _CONVERT("USB"sv, USB);
+#endif
+
+      // If the string starts with "Unknown", it may have the raw type
+      // value appended to the string. Let's try to read it.
+      if (string.find("Unknown"sv) == 0) {
+        std::uint32_t type;
+        std::string null_terminated_string { string };
+        if (std::sscanf(null_terminated_string.c_str(), "Unknown%u", &type) == 1) {
+          return type;
+        }
+      }
 
       BOOST_LOG(error) << "Unknown Monitor connector type ["sv << string << "]: Please report this to the GitHub issue tracker"sv;
       return DRM_MODE_CONNECTOR_Unknown;
