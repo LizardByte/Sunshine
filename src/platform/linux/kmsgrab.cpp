@@ -186,14 +186,14 @@ namespace platf {
     public:
       plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end):
           fd { fd }, plane_p { plane_p }, end { end } {
-        inc();
+        load_next_valid_plane();
       }
 
       plane_it_t(int fd, std::uint32_t *end):
           fd { fd }, plane_p { end }, end { end } {}
 
       void
-      inc() {
+      load_next_valid_plane() {
         this->plane.reset();
 
         for (; plane_p != end; ++plane_p) {
@@ -204,11 +204,14 @@ namespace platf {
           }
 
           this->plane = util::make_shared<plane_t>(plane.release());
-
-          // One last increment
-          ++plane_p;
           break;
         }
+      }
+
+      void
+      inc() {
+        ++plane_p;
+        load_next_valid_plane();
       }
 
       bool
