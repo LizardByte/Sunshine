@@ -99,12 +99,19 @@ namespace platf {
 
   fs::path
   appdata() {
-    const char *homedir;
-    if ((homedir = getenv("HOME")) == nullptr) {
-      homedir = getpwuid(geteuid())->pw_dir;
+    const char *dir;
+
+    if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr) {
+      return fs::path { dir } / "sunshine"sv;
+    }
+    if ((dir = getenv("XDG_CONFIG_HOME")) != nullptr) {
+      return fs::path { dir } / "sunshine"sv;
+    }
+    if ((dir = getenv("HOME")) == nullptr) {
+      dir = getpwuid(geteuid())->pw_dir;
     }
 
-    return fs::path { homedir } / ".config/sunshine"sv;
+    return fs::path { dir } / ".config/sunshine"sv;
   }
 
   std::string
