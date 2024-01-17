@@ -52,6 +52,23 @@ set_gpu_preference(int preference) {
   return ERROR_SUCCESS;
 }
 
+void
+syncThreadDesktop() {
+  auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
+  if (!hDesk) {
+    auto err = GetLastError();
+    std::cout << "Failed to Open Input Desktop [0x"sv << util::hex(err).to_string_view() << ']' << std::endl;
+    return;
+  }
+
+  if (!SetThreadDesktop(hDesk)) {
+    auto err = GetLastError();
+    std::cout << "Failed to sync desktop to thread [0x"sv << util::hex(err).to_string_view() << ']' << std::endl;
+  }
+
+  CloseDesktop(hDesk);
+}
+
 HRESULT
 test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
   D3D_FEATURE_LEVEL featureLevels[] {
@@ -86,6 +103,9 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
     std::cout << "Failed to query IDXGIOutput1 from the output"sv << std::endl;
     return status;
   }
+
+  // Ensure we can duplicate the current display
+  syncThreadDesktop();
 
   // Return the result of DuplicateOutput() to Sunshine
   dxgi::dup_t dup;

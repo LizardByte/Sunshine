@@ -376,11 +376,15 @@ namespace platf::dxgi {
     // Check if we can use the Desktop Duplication API on this output
     for (int x = 0; x < 2; ++x) {
       dup_t dup;
+
+      // Ensure we can duplicate the current display
+      syncThreadDesktop();
+
       status = output1->DuplicateOutput((IUnknown *) device.get(), &dup);
       if (SUCCEEDED(status)) {
         return true;
       }
-      Sleep(200);
+      std::this_thread::sleep_for(200ms);
     }
 
     BOOST_LOG(error) << "DuplicateOutput() test failed [0x"sv << util::hex(status).to_string_view() << ']';
@@ -404,9 +408,6 @@ namespace platf::dxgi {
 
       FreeLibrary(user32);
     });
-
-    // Ensure we can duplicate the current display
-    syncThreadDesktop();
 
     // Get rectangle of full desktop for absolute mouse coordinates
     env_width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
@@ -679,6 +680,9 @@ namespace platf::dxgi {
 
         // We try this twice, in case we still get an error on reinitialization
         for (int x = 0; x < 2; ++x) {
+          // Ensure we can duplicate the current display
+          syncThreadDesktop();
+
           status = output5->DuplicateOutput1((IUnknown *) device.get(), 0, supported_formats.size(), supported_formats.data(), &dup.dup);
           if (SUCCEEDED(status)) {
             break;
@@ -705,6 +709,9 @@ namespace platf::dxgi {
         }
 
         for (int x = 0; x < 2; ++x) {
+          // Ensure we can duplicate the current display
+          syncThreadDesktop();
+
           status = output1->DuplicateOutput((IUnknown *) device.get(), &dup.dup);
           if (SUCCEEDED(status)) {
             break;
