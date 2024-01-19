@@ -52,8 +52,9 @@ Create and run the container (substitute your `<values>`):
 
 ```bash
 docker run -d \
+  --device /dev/dri/ \
   --name=<image_name> \
-  --restart=unless-stopped
+  --restart=unless-stopped \
   -e PUID=<uid> \
   -e PGID=<gid> \
   -e TZ=<timezone> \
@@ -84,6 +85,25 @@ services:
       - "47984-47990:47984-47990/tcp"
       - "48010:48010"
       - "47998-48000:47998-48000/udp"
+```
+
+### Using podman run
+Create and run the container (substitute your `<values>`):
+
+```bash
+podman run -d \
+  --device /dev/dri/ \
+  --name=<image_name> \
+  --restart=unless-stopped \
+  --userns=keep-id \
+  -e PUID=<uid> \
+  -e PGID=<gid> \
+  -e TZ=<timezone> \
+  -v <path to data>:/config \
+  -p 47984-47990:47984-47990/tcp \
+  -p 48010:48010 \
+  -p 47998-48000:47998-48000/udp \
+  <image>
 ```
 
 ### Parameters
@@ -132,8 +152,9 @@ The architectures supported by these images are shown in the table below.
 | tag suffix      | amd64/x86_64 | arm64/aarch64 |
 |-----------------|--------------|---------------|
 | archlinux       | ✅            | ❌             |
+| debian-bookworm | ✅            | ✅             |
 | debian-bullseye | ✅            | ✅             |
-| fedora-36       | ✅            | ✅             |
-| fedora-37       | ✅            | ✅             |
+| fedora-38       | ✅            | ✅             |
+| fedora-39       | ✅            | ✅             |
 | ubuntu-20.04    | ✅            | ✅             |
 | ubuntu-22.04    | ✅            | ✅             |
