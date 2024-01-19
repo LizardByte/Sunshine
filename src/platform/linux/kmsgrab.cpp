@@ -1036,8 +1036,9 @@ namespace platf {
 
         auto fb = card.fb(plane.get());
         if (!fb) {
-          BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-          return capture_e::error;
+          // This can happen if the display is being reconfigured while streaming
+          BOOST_LOG(warning) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+          return capture_e::timeout;
         }
 
         if (!fb->handles[0]) {
