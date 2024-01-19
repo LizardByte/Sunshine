@@ -209,7 +209,7 @@ namespace platf::dxgi {
 
       // Start new frame pacing group if necessary, snapshot() is called with non-zero timeout
       if (status == capture_e::timeout || (status == capture_e::ok && !frame_pacing_group_start)) {
-        status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
+        status = snapshot(pull_free_image_cb, img_out, 200ms, *cursor);
 
         if (status == capture_e::ok && img_out) {
           frame_pacing_group_start = img_out->frame_timestamp;
@@ -220,6 +220,26 @@ namespace platf::dxgi {
           }
 
           frame_pacing_group_frames = 1;
+        }
+        else if (status == platf::capture_e::timeout) {
+          // The D3D11 device is protected by an unfair lock that is held the entire time that
+          // IDXGIOutputDuplication::AcquireNextFrame() is running. This is normally harmless,
+          // however sometimes the encoding thread needs to interact with our ID3D11Device to
+          // create dummy images or initialize the shared state that is used to pass textures
+          // between the capture and encoding ID3D11Devices.
+          //
+          // When we're in a state where we're not actively receiving frames regularly, we will
+          // spend almost 100% of our time in AcquireNextFrame() holding that critical lock.
+          // Worse still, since it's unfair, we can monopolize it while the encoding thread
+          // is starved. The encoding thread may acquire it for a few moments across a few
+          // ID3D11Device calls before losing it again to us for another long time waiting in
+          // AcquireNextFrame(). The starvation caused by this lock contention causes encoder
+          // reinitialization to take several seconds instead of a fraction of a second.
+          //
+          // To avoid starving the encoding thread, sleep without the lock held for a little
+          // while each time we reach our max frame timeout. This will only happen when nothing
+          // is updating the display, so no visible stutter should be introduced by the sleep.
+          std::this_thread::sleep_for(10ms);
         }
       }
 
