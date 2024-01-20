@@ -42,35 +42,21 @@ dpkg --add-architecture "${TARGETARCH}"
 sed -i "s/^deb /deb [arch=$(dpkg --print-architecture)] /" /etc/apt/sources.list
 
 cat > /etc/apt/sources.list.d/ports.list <<_SOURCES
-deb [arch=${TARGETARCH}] http://ports.ubuntu.com/ ${DISTRIB_CODENAME} main restricted universe
-deb [arch=${TARGETARCH}] http://ports.ubuntu.com/ ${DISTRIB_CODENAME}-updates main restricted universe
+deb [arch=${TARGETARCH}] http://ports.ubuntu.com/ ${DISTRIB_CODENAME} main restricted universe multiverse
+deb [arch=${TARGETARCH}] http://ports.ubuntu.com/ ${DISTRIB_CODENAME}-updates main restricted universe multiverse
 _SOURCES
+
 apt-get update -y
-
 apt-get install -y --no-install-recommends \
-  apt-transport-https \
   ca-certificates \
-  gnupg \
-  wget
-
-if [[ "${TARGETARCH}" == arm64 ]]; then
-  CUDA_REPO="https://developer.download.nvidia.com/compute/cuda/repos/ubuntu${DISTRIB_RELEASE//.}"
-  wget -O - "${CUDA_REPO}/x86_64/3bf863cc.pub" | apt-key add -
-  cat > /etc/apt/sources.list.d/cuda.list <<_SOURCES
-  deb [arch=$(dpkg --print-architecture)] ${CUDA_REPO}/cross-linux-sbsa/ /
-  deb [arch=$(dpkg --print-architecture)] ${CUDA_REPO}/$(uname -m)/ /
-_SOURCES
-  apt-get update -y
-fi
-
-apt-get install -y --no-install-recommends \
-  $([[ "${TARGETARCH}" == arm64 ]] && echo cuda-{cudart-cross-sbsa,nvcc-cross-sbsa,nvcc}-12-3) \
   cmake=3.22.* \
   gcc-"${TUPLE}" \
   g++-"${TUPLE}" \
   git \
   libwayland-bin \
+  nvidia-cuda-toolkit \
   pkgconf \
+  wget \
   $([[ "${TARGETARCH}" == amd64 ]] && echo libmfx-dev:"${TARGETARCH}") \
   libayatana-appindicator3-dev:"${TARGETARCH}" \
   libavdevice-dev:"${TARGETARCH}" \
@@ -97,7 +83,8 @@ apt-get install -y --no-install-recommends \
   libxcb1-dev:"${TARGETARCH}" \
   libxfixes-dev:"${TARGETARCH}" \
   libxrandr-dev:"${TARGETARCH}" \
-  libxtst-dev:"${TARGETARCH}"
+  libxtst-dev:"${TARGETARCH}" \
+  nvidia-cuda-dev:"${TARGETARCH}"
 
 rm -rf /var/lib/apt/lists/*
 _DEPS
@@ -157,7 +144,7 @@ export \
 # Actually build
 cmake \
   -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake \
-  -DCMAKE_CUDA_COMPILER:PATH=/usr/local/cuda/bin/nvcc \
+  -DCMAKE_CUDA_COMPILER:PATH=/usr/bin/nvcc \
   -DCMAKE_CUDA_HOST_COMPILER:PATH="${TUPLE}-g++" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
@@ -167,7 +154,7 @@ cmake \
   -DSUNSHINE_ENABLE_WAYLAND=ON \
   -DSUNSHINE_ENABLE_X11=ON \
   -DSUNSHINE_ENABLE_DRM=ON \
-  -DSUNSHINE_ENABLE_CUDA=$([[ "${TARGETARCH}" == arm64 ]] && echo ON || echo OFF) \
+  -DSUNSHINE_ENABLE_CUDA=ON \
   /build/sunshine
 make -j "$(nproc)"
 cpack -G DEB
