@@ -1,6 +1,6 @@
+#include "undo_data.h"
 #include "nvprefs_common.h"
 
-#include "undo_data.h"
 
 namespace {
 

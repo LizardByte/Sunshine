@@ -1,5 +1,11 @@
+// standard library headers
+#include <map>
+
+// local includes
+#include "driver_settings.h"
 #include "nvprefs_common.h"
 
+// special nvapi header that should be the last include
 #include <nvapi_interface.h>
 
 namespace {

@@ -1,5 +1,8 @@
 #pragma once
 
+// standard library headers
+#include <memory>
+
 namespace nvprefs {
 
   class nvprefs_interface {

@@ -1,5 +1,14 @@
 #pragma once
 
+// standard library headers
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
+// boost includes
+#include <boost/json.hpp>
+
 namespace nvprefs {
 
   class undo_data_t {
@@ -10,14 +19,8 @@ namespace nvprefs {
     std::tuple<bool, uint32_t, std::optional<uint32_t>>
     get_opengl_swapchain() const;
 
-    void
-    write(std::ostream &stream) const;
-
     std::string
     write() const;
-
-    void
-    read(std::istream &stream);
 
     void
     read(const std::vector<char> &buffer);

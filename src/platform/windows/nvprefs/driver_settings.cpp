@@ -1,6 +1,6 @@
-#include "nvprefs_common.h"
-
+// local includes
 #include "driver_settings.h"
+#include "nvprefs_common.h"
 
 namespace {
 
