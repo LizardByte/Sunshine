@@ -1,6 +1,6 @@
-#include "nvprefs_common.h"
-
+// local includes
 #include "driver_settings.h"
+#include "nvprefs_common.h"
 
 namespace {
 
@@ -94,9 +94,8 @@ namespace nvprefs {
   driver_settings_t::restore_global_profile_to_undo(const undo_data_t &undo_data) {
     if (!session_handle) return false;
 
-    auto [opengl_swapchain_saved, opengl_swapchain_our_value, opengl_swapchain_undo_value] = undo_data.get_opengl_swapchain();
-
-    if (opengl_swapchain_saved) {
+    const auto &swapchain_data = undo_data.get_opengl_swapchain();
+    if (swapchain_data) {
       NvAPI_Status status;
 
       NvDRSProfileHandle profile_handle = 0;
@@ -111,14 +110,14 @@ namespace nvprefs {
       setting.version = NVDRS_SETTING_VER;
       status = NvAPI_DRS_GetSetting(session_handle, profile_handle, OGL_CPL_PREFER_DXPRESENT_ID, &setting);
 
-      if (status == NVAPI_OK && setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION && setting.u32CurrentValue == opengl_swapchain_our_value) {
-        if (opengl_swapchain_undo_value) {
+      if (status == NVAPI_OK && setting.settingLocation == NVDRS_CURRENT_PROFILE_LOCATION && setting.u32CurrentValue == swapchain_data->our_value) {
+        if (swapchain_data->undo_value) {
           setting = {};
           setting.version = NVDRS_SETTING_VER1;
           setting.settingId = OGL_CPL_PREFER_DXPRESENT_ID;
           setting.settingType = NVDRS_DWORD_TYPE;
           setting.settingLocation = NVDRS_CURRENT_PROFILE_LOCATION;
-          setting.u32CurrentValue = *opengl_swapchain_undo_value;
+          setting.u32CurrentValue = *swapchain_data->undo_value;
 
           status = NvAPI_DRS_SetSetting(session_handle, profile_handle, &setting);
 

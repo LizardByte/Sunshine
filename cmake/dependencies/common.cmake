@@ -19,6 +19,9 @@ pkg_check_modules(CURL REQUIRED libcurl)
 pkg_check_modules(MINIUPNP miniupnpc REQUIRED)
 include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
 
+# nlohmann_json
+add_subdirectory(third-party/nlohmann_json)
+
 # ffmpeg pre-compiled binaries
 if(WIN32)
     if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
