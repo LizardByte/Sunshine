@@ -289,8 +289,15 @@ namespace stream {
     void
     iterate(std::chrono::milliseconds timeout);
 
+    /**
+     * @brief Calls the handler for a given control stream message.
+     * @param type The message type.
+     * @param session The session the message was received on.
+     * @param payload The payload of the message.
+     * @param reinjected `true` if this message is being reprocessed after decryption.
+     */
     void
-    call(std::uint16_t type, session_t *session, const std::string_view &payload);
+    call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected);
 
     void
     map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
@@ -537,8 +544,21 @@ namespace stream {
     return nullptr;
   }
 
+  /**
+   * @brief Calls the handler for a given control stream message.
+   * @param type The message type.
+   * @param session The session the message was received on.
+   * @param payload The payload of the message.
+   * @param reinjected `true` if this message is being reprocessed after decryption.
+   */
   void
-  control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload) {
+  control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected) {
+    // If we are using the encrypted control stream protocol, drop any messages that come off the wire unencrypted
+    if (session->config.controlProtocolType == 13 && !reinjected && type != packetTypes[IDX_ENCRYPTED]) {
+      BOOST_LOG(error) << "Dropping unencrypted message on encrypted control stream: "sv << util::hex(type).to_string_view();
+      return;
+    }
+
     auto cb = _map_type_cb.find(type);
     if (cb == std::end(_map_type_cb)) {
       BOOST_LOG(debug)
@@ -575,7 +595,7 @@ namespace stream {
           auto type = *(std::uint16_t *) packet->data;
           std::string_view payload { (char *) packet->data + sizeof(type), packet->dataLength - sizeof(type) };
 
-          call(type, session, payload);
+          call(type, session, payload, false);
         } break;
         case ENET_EVENT_TYPE_CONNECT:
           BOOST_LOG(info) << "CLIENT CONNECTED"sv;
@@ -1004,7 +1024,7 @@ namespace stream {
         input::passthrough(session->input, std::move(plaintext));
       }
       else {
-        server->call(type, session, next_payload);
+        server->call(type, session, next_payload, true);
       }
     });
 
