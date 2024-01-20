@@ -1,5 +1,14 @@
 #pragma once
 
+// nvapi headers
+// disable clang-format header reordering
+// as <NvApiDriverSettings.h> needs types from <nvapi.h>
+// clang-format off
+#include <nvapi.h>
+#include <NvApiDriverSettings.h>
+// clang-format on
+
+// local includes
 #include "undo_data.h"
 
 namespace nvprefs {

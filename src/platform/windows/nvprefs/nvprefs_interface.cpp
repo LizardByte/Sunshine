@@ -1,9 +1,7 @@
-#include "nvprefs_common.h"
-
+// local includes
 #include "nvprefs_interface.h"
-
 #include "driver_settings.h"
-#include "undo_data.h"
+#include "src/main.h"  // main include for assert
 #include "undo_file.h"
 
 namespace {

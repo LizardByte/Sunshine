@@ -1,23 +1,32 @@
 #pragma once
 
+// standard library headers
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
 namespace nvprefs {
 
   class undo_data_t {
   public:
+    struct data_t {
+      struct opengl_swapchain_t {
+        uint32_t our_value;
+        std::optional<uint32_t> undo_value;
+      };
+
+      std::optional<opengl_swapchain_t> opengl_swapchain;
+    };
+
     void
     set_opengl_swapchain(uint32_t our_value, std::optional<uint32_t> undo_value);
 
-    std::tuple<bool, uint32_t, std::optional<uint32_t>>
+    std::optional<data_t::opengl_swapchain_t>
     get_opengl_swapchain() const;
-
-    void
-    write(std::ostream &stream) const;
 
     std::string
     write() const;
-
-    void
-    read(std::istream &stream);
 
     void
     read(const std::vector<char> &buffer);
@@ -26,7 +35,7 @@ namespace nvprefs {
     merge(const undo_data_t &newer_data);
 
   private:
-    boost::json::value data;
+    data_t data;
   };
 
 }  // namespace nvprefs

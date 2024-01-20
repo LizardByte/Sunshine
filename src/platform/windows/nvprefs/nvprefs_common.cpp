@@ -1,4 +1,6 @@
+// local includes
 #include "nvprefs_common.h"
+#include "src/main.h"  // sunshine boost::log severity levels
 
 namespace nvprefs {
 

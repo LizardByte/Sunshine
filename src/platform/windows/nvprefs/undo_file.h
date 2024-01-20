@@ -1,5 +1,10 @@
 #pragma once
 
+// standard library headers
+#include <filesystem>
+
+// local includes
+#include "nvprefs_common.h"
 #include "undo_data.h"
 
 namespace nvprefs {
