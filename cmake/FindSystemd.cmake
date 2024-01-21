@@ -7,28 +7,28 @@
 
 IF (NOT WIN32)
 
-	find_package(PkgConfig QUIET)
-	if(PKG_CONFIG_FOUND)
-		pkg_check_modules(SYSTEMD "systemd")
-	endif()
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(SYSTEMD "systemd")
+    endif()
 
-	if (SYSTEMD_FOUND)
-		execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE}
-			--variable=systemd_user_unit_dir systemd
-			OUTPUT_VARIABLE SYSTEMD_USER_UNIT_INSTALL_DIR)
+    if (SYSTEMD_FOUND)
+        execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE}
+            --variable=systemd_user_unit_dir systemd
+            OUTPUT_VARIABLE SYSTEMD_USER_UNIT_INSTALL_DIR)
 
-		string(REGEX REPLACE "[ \t\n]+" "" SYSTEMD_USER_UNIT_INSTALL_DIR
-			"${SYSTEMD_USER_UNIT_INSTALL_DIR}")
+        string(REGEX REPLACE "[ \t\n]+" "" SYSTEMD_USER_UNIT_INSTALL_DIR
+            "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
 
-		execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE}
-			--variable=systemd_system_unit_dir systemd
-			OUTPUT_VARIABLE SYSTEMD_SYSTEM_UNIT_INSTALL_DIR)
+        execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE}
+            --variable=systemd_system_unit_dir systemd
+            OUTPUT_VARIABLE SYSTEMD_SYSTEM_UNIT_INSTALL_DIR)
 
-		string(REGEX REPLACE "[ \t\n]+" "" SYSTEMD_SYSTEM_UNIT_INSTALL_DIR
-			"${SYSTEMD_SYSTEM_UNIT_INSTALL_DIR}")
+        string(REGEX REPLACE "[ \t\n]+" "" SYSTEMD_SYSTEM_UNIT_INSTALL_DIR
+            "${SYSTEMD_SYSTEM_UNIT_INSTALL_DIR}")
 
-		mark_as_advanced(SYSTEMD_USER_UNIT_INSTALL_DIR SYSTEMD_SYSTEM_UNIT_INSTALL_DIR)
+        mark_as_advanced(SYSTEMD_USER_UNIT_INSTALL_DIR SYSTEMD_SYSTEM_UNIT_INSTALL_DIR)
 
-	endif ()
+    endif ()
 
 ENDIF ()
