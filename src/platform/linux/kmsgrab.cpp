@@ -304,10 +304,6 @@ namespace platf {
           }
           free(rendernode_path);
         }
-        else {
-          BOOST_LOG(warning) << "No render device name for: "sv << path;
-          render_fd.el = dup(fd.el);
-        }
 
         if (drmSetClientCap(fd.el, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
           BOOST_LOG(error) << "Couldn't expose some/all drm planes for card: "sv << path;
@@ -1427,15 +1423,44 @@ namespace platf {
         }
 
 #ifdef SUNSHINE_BUILD_VAAPI
-        if (!va::validate(card.render_fd.el)) {
-#else
-        if (true) {
-#endif
-          BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
-          return -1;
-        }
+        if (card.render_fd.el < 0 || !va::validate(card.render_fd.el)) {
+          BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Testing other available GPUs."sv;
 
-        return 0;
+          fs::path card_dir { "/dev/dri"sv };
+          for (auto &entry : fs::directory_iterator { card_dir }) {
+            auto file = entry.path().filename();
+
+            auto filestring = file.generic_u8string();
+            if (std::string_view { filestring }.substr(0, 7) != "renderD"sv) {
+              continue;
+            }
+
+            // Check if this render device has support for VAAPI and supports EGL import of framebuffers from this GPU
+            file_t compatible_render_fd;
+            compatible_render_fd.el = open(entry.path().c_str(), O_RDWR);
+            if (compatible_render_fd.el >= 0 && va::validate(compatible_render_fd.el)) {
+              file_t fb_fd[4];
+              egl::surface_descriptor_t sd;
+              if (refresh(fb_fd, &sd) == capture_e::ok) {
+                gbm::gbm_t gbm { gbm::create_device(compatible_render_fd.el) };
+                if (gbm) {
+                  egl::display_t display = egl::make_display(gbm.get());
+                  if (display && egl::import_source(display.get(), sd)) {
+                    BOOST_LOG(info) << "EGL import and hardware encoding test was successful on GPU: "sv << entry.path().c_str();
+                    card.render_fd = std::move(compatible_render_fd);
+                    return 0;
+                  }
+                }
+              }
+            }
+          }
+        }
+        else {
+          return 0;
+        }
+#endif
+        BOOST_LOG(warning) << "Reverting back to GPU -> RAM for monitor "sv << display_name;
+        return -1;
       }
 
       std::uint64_t sequence {};
