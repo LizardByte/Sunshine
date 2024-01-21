@@ -727,13 +727,11 @@ namespace platf {
           }
         }
 
+        BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
+        return -1;
+
       // Neatly break from nested for loop
       break_loop:
-        if (monitor != monitor_index) {
-          BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
-
-          return -1;
-        }
 
         // Look for the cursor plane for this CRTC
         cursor_plane_id = -1;
