@@ -14,6 +14,7 @@
 
 #include <filesystem>
 
+#include "src/config.h"
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/round_robin.h"
@@ -292,17 +293,30 @@ namespace platf {
           return -1;
         }
 
-        // Open the render node for this card to share with libva.
-        // If it fails, we'll just share the primary node instead.
-        char *rendernode_path = drmGetRenderDeviceNameFromFd(fd.el);
-        if (rendernode_path) {
+        // The render node will be used for color conversion and encoding operations
+        std::string rendernode_path = config::video.adapter_name;
+        if (rendernode_path.empty()) {
+          char *rendernode_cstr = drmGetRenderDeviceNameFromFd(fd.el);
+          if (rendernode_cstr) {
+            rendernode_path.assign(rendernode_cstr);
+            free(rendernode_cstr);
+
+            BOOST_LOG(info) << "Using capture adapter for encoding: "sv << path << " -> "sv << rendernode_path;
+          }
+          else {
+            BOOST_LOG(info) << "Capture adapter has no render node: "sv << path;
+          }
+        }
+        else {
+          BOOST_LOG(info) << "Using manually selected adapter for encoding: "sv << path << " -> "sv << rendernode_path;
+        }
+        if (!rendernode_path.empty()) {
           BOOST_LOG(debug) << "Opening render node: "sv << rendernode_path;
-          render_fd.el = open(rendernode_path, O_RDWR);
+          render_fd.el = open(rendernode_path.c_str(), O_RDWR);
           if (render_fd.el < 0) {
             BOOST_LOG(warning) << "Couldn't open render node: "sv << rendernode_path << ": "sv << strerror(errno);
             render_fd.el = dup(fd.el);
           }
-          free(rendernode_path);
         }
 
         if (drmSetClientCap(fd.el, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1)) {
