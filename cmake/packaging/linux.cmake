@@ -8,10 +8,13 @@ if(${SUNSHINE_BUILD_APPIMAGE} OR ${SUNSHINE_BUILD_FLATPAK})
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
 else()
+    find_package(Systemd)
+    find_package(Udev)
+
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules"
-            DESTINATION "${CMAKE_INSTALL_LIBDIR}/udev/rules.d")
+            DESTINATION "${UDEV_RULES_INSTALL_DIR}")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
-            DESTINATION "${CMAKE_INSTALL_LIBDIR}/systemd/user")
+            DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
 endif()
 
 # Post install

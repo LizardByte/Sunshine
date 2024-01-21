@@ -61,6 +61,7 @@ apt-get install -y --no-install-recommends \
   libxtst-dev \
   nodejs \
   npm \
+  udev \
   wget
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
