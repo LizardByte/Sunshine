@@ -2,19 +2,21 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64,linux/arm64/v8
-# no-cache-filters: sunshine-base,artifacts,sunshine
+# no-cache-filters: sunshine-base,sunshine-install,artifacts,sunshine
+ARG UNAME=lizard
 ARG BASE=fedora
 ARG TAG=39
-FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-base
-
-FROM sunshine-base as sunshine-build
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-build
 
 # reused args from base
+ARG BASE
 ARG TAG
 ENV TAG=${TAG}
 
-ARG TARGETPLATFORM
-RUN echo "target_platform: ${TARGETPLATFORM}"
+ARG BUILDARCH
+ARG TARGETARCH
+RUN echo "build_arch: ${BUILDARCH}"
+RUN echo "target_arch: ${TARGETARCH}"
 
 # args from ci workflow
 ARG BRANCH
@@ -26,30 +28,60 @@ ENV BRANCH=${BRANCH}
 ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
+ENV CUDA_NATIVE_DISTRO=fedora37
+ENV CUDA_CROSS_DISTRO=rhel8
+ENV CUDA_RT_VERSION=12.3.101
+ENV CUDA_NVCC_VERSION=12.3.107
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # setup env
 WORKDIR /env
 RUN <<_ENV
 #!/bin/bash
 set -e
-case "${TARGETPLATFORM}" in
-  linux/amd64)
-    TARGETARCH=x86_64
-    echo GCC_FLAVOR="" >> ./env
-    echo "DNF=( dnf -y --releasever \"${TAG}\" --forcearch \"${TARGETARCH}\" )" >> ./env
+
+BUILD_DNF=( dnf -y --setopt=install_weak_deps=False --setopt=keepcache=True )
+DNF=( "${BUILD_DNF[@]}" --releasever "${TAG}" )
+
+case "${TARGETARCH}" in
+  amd64)
+    DNF_ARCH=x86_64
+    CUDA_ARCH=x86_64
+    DNF+=( --forcearch "${DNF_ARCH}" )
+    GCC_FLAVOR=""
     ;;
-  linux/arm64)
-    TARGETARCH=aarch64
-    echo GCC_FLAVOR="-${TARGETARCH}-linux-gnu" >> ./env
-    echo "DNF=( dnf -y --installroot /mnt/cross --releasever \"${TAG}\" --forcearch \"${TARGETARCH}\" )" >> ./env
+  arm64)
+    DNF_ARCH=aarch64
+    CUDA_ARCH=sbsa
+    DNF+=( --forcearch "${DNF_ARCH}" --installroot /mnt/cross )
+    GCC_FLAVOR="-${DNF_ARCH}-linux-gnu"
+    ;;
+  ppc64le)
+    DNF_ARCH=ppc64le
+    CUDA_ARCH=ppc64le
+    DNF+=( --forcearch "${DNF_ARCH}" --installroot /mnt/cross )
+    GCC_FLAVOR="-${DNF_ARCH}-linux-gnu"
     ;;
   *)
-    echo "unsupported platform: ${TARGETPLATFORM}";
+    echo "unsupported platform: ${TARGETARCH}";
     exit 1
     ;;
 esac
-echo TARGETARCH=${TARGETARCH} >> ./env
-echo TUPLE=${TARGETARCH}-linux-gnu >> ./env
+
+CUDA_REPOS="https://developer.download.nvidia.com/compute/cuda/repos"
+CUDA_VERSION_SHORT="${CUDA_RT_VERSION%.*}"
+TUPLE="${DNF_ARCH}-linux-gnu"
+
+declare -p \
+  BUILD_DNF \
+  DNF \
+  DNF_ARCH \
+  CUDA_ARCH \
+  CUDA_REPOS \
+  CUDA_VERSION_SHORT \
+  GCC_FLAVOR \
+  TUPLE \
+  > ./env
 _ENV
 
 # reset workdir
@@ -57,31 +89,32 @@ WORKDIR /
 
 # install build dependencies
 # hadolint ignore=DL3041
-RUN <<_DEPS_A
+RUN --mount=type=cache,target=/var/cache/dnf,mode=0755,id=${BASE}-${TAG}-dnf <<_DEPS_A
 #!/bin/bash
 set -e
 
 # shellcheck source=/dev/null
 source /env/env
 
-dnf -y update
-dnf -y install \
+#curl -s -f -L --output-dir /etc/yum.repos.d -O "${CUDA_REPOS}/${CUDA_NATIVE_DISTRO}/$(uname -m)/cuda-${CUDA_NATIVE_DISTRO}.repo"
+
+"${BUILD_DNF[@]}" -y update
+"${BUILD_DNF[@]}" -y install \
   cmake-3.27.* \
   gcc"${GCC_FLAVOR}"-13.2.* \
   gcc-c++"${GCC_FLAVOR}"-13.2.* \
   git-core \
-  nodejs \
+  nodejs-npm \
   pkgconf-pkg-config \
   rpm-build \
   wayland-devel \
-  wget \
   which
-dnf clean all
+#  cuda-nvcc-"${CUDA_VERSION_SHORT//./-}" \
 _DEPS_A
 
 # install host dependencies
 # hadolint ignore=DL3041
-RUN <<_DEPS_B
+RUN --mount=type=cache,target=/mnt/cross/var/cache/dnf,mode=0755,id=${BASE}-${TAG}-dnf <<_DEPS_B
 #!/bin/bash
 set -e
 
@@ -119,7 +152,7 @@ packages=(
 )
 
 # Conditionally include arch specific packages
-if [[ "${TARGETARCH}" == 'x86_64' ]]; then
+if [[ "${TARGETARCH}" == 'amd64' ]]; then
    packages+=(intel-mediasdk-devel)
 fi
 
@@ -129,35 +162,12 @@ fi
 # Install packages using the array
 "${DNF[@]}" --setopt=tsflags=noscripts install "${packages[@]}"
 
-# Clean up
-"${DNF[@]}" clean all
+# if [[ "${BUILDARCH}" != "${TARGETARCH}" ]]; then
+#   for URL in "${CUDA_REPOS}/${CUDA_CROSS_DISTRO}/${CUDA_ARCH}"/{cuda-cudart-devel-${CUDA_VERSION_SHORT//./-}-${CUDA_RT_VERSION},cuda-nvcc-${CUDA_VERSION_SHORT//./-}-${CUDA_NVCC_VERSION}}-1.${DNF_ARCH}.rpm; do
+#     curl -s -f -L "${URL}" | rpm2archive | tar --directory=/ -zx "./usr/local/cuda-${CUDA_VERSION_SHORT}/targets/"
+#   done
+# fi
 _DEPS_B
-
-# todo - enable cuda once it's supported for gcc 13 and fedora 39
-## install cuda
-#WORKDIR /build/cuda
-## versions: https://developer.nvidia.com/cuda-toolkit-archive
-#ENV CUDA_VERSION="12.0.0"
-#ENV CUDA_BUILD="525.60.13"
-## hadolint ignore=SC3010
-#RUN <<_INSTALL_CUDA
-##!/bin/bash
-#set -e
-#
-## shellcheck source=/dev/null
-#source /env/env
-#cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
-#cuda_suffix=""
-#if [[ "${TARGETARCH}" == 'aarch64' ]]; then
-#  cuda_suffix="_sbsa"
-#fi
-#url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
-#echo "cuda url: ${url}"
-#wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
-#chmod a+x ./cuda.run
-#./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
-#rm ./cuda.run
-#_INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
@@ -176,28 +186,48 @@ set -e
 # shellcheck source=/dev/null
 source /env/env
 
-# shellcheck disable=SC2086
-if [[ "${TARGETARCH}" == 'aarch64' ]]; then
+cat > toolchain.cmake <<_TOOLCHAIN
+  set(CMAKE_ASM_COMPILER "${TUPLE}-gcc")
+  set(CMAKE_ASM-ATT_COMPILER "${TUPLE}-gcc")
+  set(CMAKE_C_COMPILER "${TUPLE}-gcc")
+  set(CMAKE_CXX_COMPILER "${TUPLE}-g++")
+  set(CMAKE_AR "${TUPLE}-gcc-ar" CACHE FILEPATH "Archive manager" FORCE)
+  set(CMAKE_RANLIB "${TUPLE}-gcc-ranlib" CACHE FILEPATH "Archive index generator" FORCE)
+  set(CMAKE_SYSTEM_PROCESSOR "$(case ${TARGETARCH} in
+      arm) echo armv7l ;;
+      *) echo ${DNF_ARCH} ;;
+  esac)")
+  set(CMAKE_SYSTEM_NAME "Linux")
+  set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+  set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+  set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+_TOOLCHAIN
+
+if [[ "${TARGETARCH}" != 'amd64' ]]; then
+  cat >> toolchain.cmake <<_TOOLCHAIN
+    set(CMAKE_SYSROOT "/mnt/cross")
+_TOOLCHAIN
+
   CXX_FLAG_1="$(echo /mnt/cross/usr/include/c++/[0-9]*/)"
   CXX_FLAG_2="$(echo /mnt/cross/usr/include/c++/[0-9]*/${TUPLE%%-*}-*/)"
   LD_FLAG="$(echo /mnt/cross/usr/lib/gcc/${TUPLE%%-*}-*/[0-9]*/)"
 
   export \
     CXXFLAGS="-isystem ${CXX_FLAG_1} -isystem ${CXX_FLAG_2}" \
-    LDFLAGS="-L${LD_FLAG}" \
+    LDFLAGS="--sysroot=/mnt/cross -L${LD_FLAG}" \
     PKG_CONFIG_LIBDIR=/mnt/cross/usr/lib64/pkgconfig:/mnt/cross/usr/share/pkgconfig \
     PKG_CONFIG_SYSROOT_DIR=/mnt/cross \
     PKG_CONFIG_SYSTEM_INCLUDE_PATH=/mnt/cross/usr/include \
     PKG_CONFIG_SYSTEM_LIBRARY_PATH=/mnt/cross/usr/lib64
-fi
 
-TOOLCHAIN_OPTION=""
-if [[ "${TARGETARCH}" != 'x86_64' ]]; then
-  TOOLCHAIN_OPTION="-DCMAKE_TOOLCHAIN_FILE=toolchain-${TUPLE}.cmake"
+  export \
+    CUDAFLAGS="--compiler-options --sysroot=/mnt/cross,${CXXFLAGS// /,} --linker-options ${LDFLAGS// /,}"
 fi
 
 cmake \
-  "$TOOLCHAIN_OPTION" \
+  -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake \
+  -DCMAKE_CUDA_COMPILER:PATH="/usr/local/cuda-${CUDA_VERSION_SHORT}/bin/nvcc;${CUDAFLAGS// /;}" \
+  -DCMAKE_CUDA_HOST_COMPILER:PATH="${TUPLE}-g++" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
@@ -215,49 +245,60 @@ FROM scratch AS artifacts
 ARG BASE
 ARG TAG
 ARG TARGETARCH
+
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
-FROM ${BASE}:${TAG} AS sunshine
+FROM ${BASE}:${TAG} AS sunshine-base
 
-# copy deb from builder
-COPY --link --from=artifacts /sunshine*.rpm /sunshine.rpm
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-install
+ARG BASE
+ARG TAG
+ARG TARGETARCH
 
-# install sunshine
-RUN <<_INSTALL_SUNSHINE
-#!/bin/bash
-set -e
-dnf -y update
-dnf -y install /sunshine.rpm
-dnf clean all
-rm -rf /var/cache/yum
-_INSTALL_SUNSHINE
-
-# network setup
-EXPOSE 47984-47990/tcp
-EXPOSE 48010
-EXPOSE 47998-48000/udp
+COPY --link --from=sunshine-build /env/env /env/env
+COPY --link --from=sunshine-base /usr/lib/sysimage/rpm /mnt/cross/usr/lib/sysimage/rpm
+COPY --link --from=sunshine-base /etc/passwd /etc/group /etc/shadow /etc/gshadow /etc/sub?id /mnt/cross/etc/
 
 # setup user
 ARG PGID=1000
 ENV PGID=${PGID}
 ARG PUID=1000
 ENV PUID=${PUID}
-ENV TZ="UTC"
-ARG UNAME=lizard
+ARG UNAME
 ENV UNAME=${UNAME}
 
-ENV HOME=/home/$UNAME
-
-# setup user
-RUN <<_SETUP_USER
+# install sunshine
+RUN --mount=type=cache,target=/mnt/cross/var/cache/dnf,mode=0755,id=${BASE}-${TAG}-dnf \
+    --mount=type=bind,from=artifacts,source=/sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm,target=/tmp/sunshine.rpm \
+    <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
-groupadd -f -g "${PGID}" "${UNAME}"
-useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
-mkdir -p ${HOME}/.config/sunshine
-ln -s ${HOME}/.config/sunshine /config
-chown -R ${UNAME} ${HOME}
-_SETUP_USER
+
+# shellcheck source=/dev/null
+source /env/env
+
+"${DNF[@]}" reinstall filesystem
+"${DNF[@]}" --setopt=tsflags=noscripts update
+"${DNF[@]}" --setopt=tsflags=noscripts install /tmp/sunshine.rpm
+
+groupadd -R /mnt/cross -f -g "${PGID}" "${UNAME}"
+useradd -R /mnt/cross -lm -d "/home/${UNAME}" -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
+mkdir -p "/mnt/cross/home/${UNAME}/.config/sunshine"
+ln -s "home/${UNAME}/.config/sunshine" /mnt/cross/config
+chown -R "${PUID}:${PGID}" "/mnt/cross/home/${UNAME}"
+_INSTALL_SUNSHINE
+
+FROM ${BASE}:${TAG} AS sunshine
+COPY --link --from=sunshine-install /mnt/cross /
+
+# network setup
+EXPOSE 47984-47990/tcp
+EXPOSE 48010
+EXPOSE 47998-48000/udp
+
+ARG UNAME
+ENV HOME=/home/${UNAME}
+ENV TZ="UTC"
 
 USER ${UNAME}
 WORKDIR ${HOME}
