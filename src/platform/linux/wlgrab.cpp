@@ -182,6 +182,13 @@ namespace wl {
       }
 
       gl::ctx.BindTexture(GL_TEXTURE_2D, (*rgb_opt)->tex[0]);
+
+      // Don't remove these lines, see https://github.com/LizardByte/Sunshine/issues/453
+      int w, h;
+      gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+      gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+      BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;
+
       gl::ctx.GetTextureSubImage((*rgb_opt)->tex[0], 0, 0, 0, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
       gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
