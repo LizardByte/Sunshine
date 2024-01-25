@@ -128,7 +128,7 @@ namespace stream {
     }
 
     std::uint8_t iv[12];  // 12-byte IV is ideal for AES-GCM
-    std::uint32_t unused;
+    std::uint32_t frameNumber;
     std::uint8_t tag[16];
   };
 
@@ -1419,7 +1419,7 @@ namespace stream {
 
               // Encrypt the target buffer in place
               auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
-              prefix->unused = 0;
+              prefix->frameNumber = packet->frame_index();
               std::copy(std::begin(iv), std::end(iv), prefix->iv);
               session->video.cipher->encrypt(std::string_view { (char *) inspect, (size_t) blocksize }, prefix->tag, &iv);
             }
