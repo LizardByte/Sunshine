@@ -379,6 +379,10 @@ namespace video {
       std::vector<option_t> sdr_options;
       std::vector<option_t> hdr_options;
       std::vector<option_t> fallback_options;
+
+      // QP option to set in the case that CBR/VBR is not supported
+      // by the encoder. If CBR/VBR is guaranteed to be supported,
+      // don't specify this option to avoid wasteful encoder probing.
       std::optional<option_t> qp;
 
       std::string name;
@@ -595,7 +599,7 @@ namespace video {
       {},
       // Fallback options
       {},
-      std::nullopt,  // QP
+      std::nullopt,  // QP rate control fallback
       "av1_nvenc"s,
     },
     {
@@ -607,7 +611,7 @@ namespace video {
       {},
       // Fallback options
       {},
-      std::nullopt,  // QP
+      std::nullopt,  // QP rate control fallback
       "hevc_nvenc"s,
     },
     {
@@ -619,7 +623,7 @@ namespace video {
       {},
       // Fallback options
       {},
-      std::nullopt,  // QP
+      std::nullopt,  // QP rate control fallback
       "h264_nvenc"s,
     },
     PARALLEL_ENCODING | REF_FRAMES_INVALIDATION  // flags
@@ -660,7 +664,7 @@ namespace video {
       {},
       // Fallback options
       {},
-      std::nullopt,
+      std::nullopt,  // QP rate control fallback
       "av1_nvenc"s,
     },
     {
@@ -684,7 +688,7 @@ namespace video {
         { "profile"s, (int) nv::profile_hevc_e::main_10 },
       },
       {},  // Fallback options
-      std::nullopt,
+      std::nullopt,  // QP rate control fallback
       "hevc_nvenc"s,
     },
     {
@@ -705,7 +709,7 @@ namespace video {
       },
       {},  // HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+      std::nullopt,  // QP rate control fallback
       "h264_nvenc"s,
     },
     PARALLEL_ENCODING
@@ -735,7 +739,7 @@ namespace video {
       {},
       // Fallback options
       {},
-      std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+      std::nullopt,  // QP rate control fallback
       "av1_qsv"s,
     },
     {
@@ -759,7 +763,7 @@ namespace video {
       },
       // Fallback options
       {},
-      std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+      std::nullopt,  // QP rate control fallback
       "hevc_qsv"s,
     },
     {
@@ -786,7 +790,7 @@ namespace video {
       {
         { "low_power"s, 0 },  // Some old/low-end Intel GPUs don't support low power encoding
       },
-      std::make_optional<encoder_t::option_t>({ "qp"s, &config::video.qp }),
+      std::nullopt,  // QP rate control fallback
       "h264_qsv"s,
     },
     PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT
@@ -812,7 +816,7 @@ namespace video {
       {},  // SDR-specific options
       {},  // HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
+      std::nullopt,  // QP rate control fallback
       "av1_amf"s,
     },
     {
@@ -833,7 +837,7 @@ namespace video {
       {},  // SDR-specific options
       {},  // HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
+      std::nullopt,  // QP rate control fallback
       "hevc_amf"s,
     },
     {
@@ -857,7 +861,7 @@ namespace video {
       {
         { "usage"s, 2 /* AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY */ },  // Workaround for https://github.com/GPUOpen-LibrariesAndSDKs/AMF/issues/410
       },
-      std::make_optional<encoder_t::option_t>({ "qp_p"s, &config::video.qp }),
+      std::nullopt,  // QP rate control fallback
       "h264_amf"s,
     },
     PARALLEL_ENCODING
@@ -883,7 +887,9 @@ namespace video {
       {},  // SDR-specific options
       {},  // HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+
+      // QP rate control fallback
+      std::nullopt,
 
 #ifdef ENABLE_BROKEN_AV1_ENCODER
       // Due to bugs preventing on-demand IDR frames from working and very poor
@@ -908,7 +914,7 @@ namespace video {
       {},  // SDR-specific options
       {},  // HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+      std::nullopt,  // QP rate control fallback
       "libx265"s,
     },
     {
@@ -920,7 +926,7 @@ namespace video {
       {},  // SDR-specific options
       {},  // HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+      std::nullopt,  // QP rate control fallback
       "libx264"s,
     },
     H264_ONLY | PARALLEL_ENCODING | ALWAYS_REPROBE
