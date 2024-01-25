@@ -2479,7 +2479,13 @@ namespace video {
       if (disp->is_codec_supported(encoder.hevc.name, config_autoselect)) {
       retry_hevc:
         auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
-        auto autoselect_hevc = max_ref_frames_hevc >= 0 ? max_ref_frames_hevc : validate_config(disp, encoder, config_autoselect);
+
+        // If H.264 succeeded with max ref frames specified, assume that we can count on
+        // HEVC to also succeed with max ref frames specified if HEVC is supported.
+        auto autoselect_hevc = (max_ref_frames_hevc >= 0 || max_ref_frames_h264 >= 0) ?
+                                 max_ref_frames_hevc :
+                                 validate_config(disp, encoder, config_autoselect);
+
         if (autoselect_hevc < 0 && encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
           // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
           encoder.hevc.capabilities.set();
@@ -2511,7 +2517,13 @@ namespace video {
       if (disp->is_codec_supported(encoder.av1.name, config_autoselect)) {
       retry_av1:
         auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
-        auto autoselect_av1 = max_ref_frames_av1 >= 0 ? max_ref_frames_av1 : validate_config(disp, encoder, config_autoselect);
+
+        // If H.264 succeeded with max ref frames specified, assume that we can count on
+        // AV1 to also succeed with max ref frames specified if AV1 is supported.
+        auto autoselect_av1 = (max_ref_frames_av1 >= 0 || max_ref_frames_h264 >= 0) ?
+                                max_ref_frames_av1 :
+                                validate_config(disp, encoder, config_autoselect);
+
         if (autoselect_av1 < 0 && encoder.av1.qp && encoder.av1[encoder_t::CBR]) {
           // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
           encoder.av1.capabilities.set();
