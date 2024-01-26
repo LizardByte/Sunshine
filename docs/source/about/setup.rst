@@ -310,7 +310,7 @@ Install
 
          ``Ctrl+x``, then ``Y`` to exit and save changes.
 
-      #. Download the ``Portfile`` to ``~/Downloads`` and run the following code.
+      #. Download and install by running the following code.
 
          .. code-block:: bash
 
