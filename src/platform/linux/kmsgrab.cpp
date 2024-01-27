@@ -20,6 +20,7 @@
 #include "src/utility.h"
 #include "src/video.h"
 
+#include "cuda.h"
 #include "graphics.h"
 #include "vaapi.h"
 #include "wayland.h"
@@ -1192,6 +1193,12 @@ namespace platf {
         }
 #endif
 
+#ifdef SUNSHINE_BUILD_CUDA
+        if (mem_type == mem_type_e::cuda) {
+          return cuda::make_avcodec_encode_device(width, height, false);
+        }
+#endif
+
         return std::make_unique<avcodec_encode_device_t>();
       }
 
@@ -1315,6 +1322,12 @@ namespace platf {
         }
 #endif
 
+#ifdef SUNSHINE_BUILD_CUDA
+        if (mem_type == mem_type_e::cuda) {
+          return cuda::make_avcodec_gl_encode_device(width, height, img_offset_x, img_offset_y);
+        }
+#endif
+
         BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
         return nullptr;
       }
@@ -1434,13 +1447,18 @@ namespace platf {
         }
 
 #ifdef SUNSHINE_BUILD_VAAPI
-        if (!va::validate(card.render_fd.el)) {
-#else
-        if (true) {
-#endif
+        if (mem_type == mem_type_e::vaapi && !va::validate(card.render_fd.el)) {
           BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
           return -1;
         }
+#endif
+
+#ifndef SUNSHINE_BUILD_CUDA
+        if (mem_type == mem_type_e::cuda) {
+          BOOST_LOG(warning) << "Attempting to use NVENC without CUDA support. Reverting back to GPU -> RAM -> GPU"sv;
+          return -1;
+        }
+#endif
 
         return 0;
       }
@@ -1452,7 +1470,7 @@ namespace platf {
 
   std::shared_ptr<display_t>
   kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
-    if (hwdevice_type == mem_type_e::vaapi) {
+    if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda) {
       auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
       if (!disp->init(display_name, config)) {
