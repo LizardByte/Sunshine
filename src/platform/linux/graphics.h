@@ -316,7 +316,7 @@ namespace egl {
     static std::optional<sws_t>
     make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
     static std::optional<sws_t>
-    make(int in_width, int in_height, int out_width, int out_height, GLint gl_tex_internal_fmt);
+    make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format);
 
     // Convert the loaded image into the first two framebuffers
     int
