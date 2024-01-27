@@ -27,6 +27,18 @@ namespace cuda {
   }
   std::unique_ptr<platf::avcodec_encode_device_t>
   make_avcodec_encode_device(int width, int height, bool vram);
+
+  /**
+   * @brief Create a GL->CUDA encoding device for consuming captured dmabufs.
+   * @param in_width Width of captured frames.
+   * @param in_height Height of captured frames.
+   * @param offset_x Offset of content in captured frame.
+   * @param offset_y Offset of content in captured frame.
+   * @return FFmpeg encoding device context.
+   */
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y);
+
   int
   init();
 }  // namespace cuda

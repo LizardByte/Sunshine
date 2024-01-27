@@ -6,6 +6,8 @@
 
 #include "src/main.h"
 #include "src/video.h"
+
+#include "cuda.h"
 #include "vaapi.h"
 #include "wayland.h"
 
@@ -224,6 +226,12 @@ namespace wl {
       }
 #endif
 
+#ifdef SUNSHINE_BUILD_CUDA
+      if (mem_type == platf::mem_type_e::cuda) {
+        return cuda::make_avcodec_encode_device(width, height, false);
+      }
+#endif
+
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
@@ -336,6 +344,12 @@ namespace wl {
       }
 #endif
 
+#ifdef SUNSHINE_BUILD_CUDA
+      if (mem_type == platf::mem_type_e::cuda) {
+        return cuda::make_avcodec_gl_encode_device(width, height, 0, 0);
+      }
+#endif
+
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
@@ -358,7 +372,7 @@ namespace platf {
       return nullptr;
     }
 
-    if (hwdevice_type == platf::mem_type_e::vaapi) {
+    if (hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;

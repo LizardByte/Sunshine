@@ -4,6 +4,10 @@
  */
 #include <bitset>
 
+#include <fcntl.h>
+
+#include <filesystem>
+
 #include <NvFBC.h>
 #include <ffnvcodec/dynlink_loader.h>
 
@@ -28,6 +32,8 @@ extern "C" {
 
 #define CU_CHECK_IGNORE(x, y) \
   check((x), SUNSHINE_STRINGVIEW(y ": "))
+
+namespace fs = std::filesystem;
 
 using namespace std::literals;
 namespace cuda {
@@ -68,6 +74,13 @@ namespace cuda {
   freeStream(CUstream stream) {
     CU_CHECK_IGNORE(cdf->cuStreamDestroy(stream), "Couldn't destroy cuda stream");
   }
+
+  void
+  unregisterResource(CUgraphicsResource resource) {
+    CU_CHECK_IGNORE(cdf->cuGraphicsUnregisterResource(resource), "Couldn't unregister resource");
+  }
+
+  using registered_resource_t = util::safe_ptr<CUgraphicsResource_st, unregisterResource>;
 
   class img_t: public platf::img_t {
   public:
@@ -223,6 +236,236 @@ namespace cuda {
     }
   };
 
+  /**
+   * @brief Opens the DRM device associated with the CUDA device index.
+   * @param index CUDA device index to open.
+   * @return File descriptor or -1 on failure.
+   */
+  file_t
+  open_drm_fd_for_cuda_device(int index) {
+    CUdevice device;
+    CU_CHECK(cdf->cuDeviceGet(&device, index), "Couldn't get CUDA device");
+
+    // There's no way to directly go from CUDA to a DRM device, so we'll
+    // use sysfs to look up the DRM device name from the PCI ID.
+    char pci_bus_id[13];
+    CU_CHECK(cdf->cuDeviceGetPCIBusId(pci_bus_id, sizeof(pci_bus_id), device), "Couldn't get CUDA device PCI bus ID");
+    BOOST_LOG(debug) << "Found CUDA device with PCI bus ID: "sv << pci_bus_id;
+
+    // Look for the name of the primary node in sysfs
+    char sysfs_path[PATH_MAX];
+    std::snprintf(sysfs_path, sizeof(sysfs_path), "/sys/bus/pci/devices/%s/drm", pci_bus_id);
+    fs::path sysfs_dir { sysfs_path };
+    for (auto &entry : fs::directory_iterator { sysfs_dir }) {
+      auto file = entry.path().filename();
+      auto filestring = file.generic_u8string();
+      if (std::string_view { filestring }.substr(0, 4) != "card"sv) {
+        continue;
+      }
+
+      BOOST_LOG(debug) << "Found DRM primary node: "sv << filestring;
+
+      fs::path dri_path { "/dev/dri"sv };
+      auto device_path = dri_path / file;
+      return open(device_path.c_str(), O_RDWR);
+    }
+
+    BOOST_LOG(error) << "Unable to find DRM device with PCI bus ID: "sv << pci_bus_id;
+    return -1;
+  }
+
+  class gl_cuda_vram_t: public platf::avcodec_encode_device_t {
+  public:
+    /**
+     * @brief Initialize the GL->CUDA encoding device.
+     * @param in_width Width of captured frames.
+     * @param in_height Height of captured frames.
+     * @param offset_x Offset of content in captured frame.
+     * @param offset_y Offset of content in captured frame.
+     * @return 0 on success or -1 on failure.
+     */
+    int
+    init(int in_width, int in_height, int offset_x, int offset_y) {
+      // This must be non-zero to tell the video core that it's a hardware encoding device.
+      data = (void *) 0x1;
+
+      // TODO: Support more than one CUDA device
+      file = std::move(open_drm_fd_for_cuda_device(0));
+      if (file.el < 0) {
+        char string[1024];
+        BOOST_LOG(error) << "Couldn't open DRM FD for CUDA device: "sv << strerror_r(errno, string, sizeof(string));
+        return -1;
+      }
+
+      gbm.reset(gbm::create_device(file.el));
+      if (!gbm) {
+        BOOST_LOG(error) << "Couldn't create GBM device: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+        return -1;
+      }
+
+      display = egl::make_display(gbm.get());
+      if (!display) {
+        return -1;
+      }
+
+      auto ctx_opt = egl::make_ctx(display.get());
+      if (!ctx_opt) {
+        return -1;
+      }
+
+      ctx = std::move(*ctx_opt);
+
+      width = in_width;
+      height = in_height;
+
+      sequence = 0;
+
+      this->offset_x = offset_x;
+      this->offset_y = offset_y;
+
+      return 0;
+    }
+
+    /**
+     * @brief Initialize color conversion into target CUDA frame.
+     * @param frame Destination CUDA frame to write into.
+     * @param hw_frames_ctx_buf FFmpeg hardware frame context.
+     * @return 0 on success or -1 on failure.
+     */
+    int
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
+      this->hwframe.reset(frame);
+      this->frame = frame;
+
+      if (!frame->buf[0]) {
+        if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
+          BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
+          return -1;
+        }
+      }
+
+      auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
+      sw_format = hw_frames_ctx->sw_format;
+
+      auto nv12_opt = egl::create_target(frame->width, frame->height, sw_format);
+      if (!nv12_opt) {
+        return -1;
+      }
+
+      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, sw_format);
+      if (!sws_opt) {
+        return -1;
+      }
+
+      this->sws = std::move(*sws_opt);
+      this->nv12 = std::move(*nv12_opt);
+
+      auto cuda_ctx = (AVCUDADeviceContext *) hw_frames_ctx->device_ctx->hwctx;
+
+      stream = make_stream();
+      if (!stream) {
+        return -1;
+      }
+
+      cuda_ctx->stream = stream.get();
+
+      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY),
+        "Couldn't register Y plane texture");
+      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY),
+        "Couldn't register UV plane texture");
+
+      return 0;
+    }
+
+    /**
+     * @brief Convert the captured image into the target CUDA frame.
+     * @param img Captured screen image.
+     * @return 0 on success or -1 on failure.
+     */
+    int
+    convert(platf::img_t &img) override {
+      auto &descriptor = (egl::img_descriptor_t &) img;
+
+      if (descriptor.sequence == 0) {
+        // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
+        rgb = egl::create_blank(img);
+      }
+      else if (descriptor.sequence > sequence) {
+        sequence = descriptor.sequence;
+
+        rgb = egl::rgb_t {};
+
+        auto rgb_opt = egl::import_source(display.get(), descriptor.sd);
+
+        if (!rgb_opt) {
+          return -1;
+        }
+
+        rgb = std::move(*rgb_opt);
+      }
+
+      // Perform the color conversion and scaling in GL
+      sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
+      sws.convert(nv12->buf);
+
+      auto fmt_desc = av_pix_fmt_desc_get(sw_format);
+
+      // Map the GL textures to read for CUDA
+      CUgraphicsResource resources[2] = { y_res.get(), uv_res.get() };
+      CU_CHECK(cdf->cuGraphicsMapResources(2, resources, stream.get()), "Couldn't map GL textures in CUDA");
+
+      // Copy from the GL textures to the target CUDA frame
+      for (int i = 0; i < 2; i++) {
+        CUDA_MEMCPY2D cpy = {};
+        cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+        CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+
+        cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+        cpy.dstDevice = (CUdeviceptr) frame->data[i];
+        cpy.dstPitch = frame->linesize[i];
+        cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
+        cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
+
+        CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+      }
+
+      // Unmap the textures to allow modification from GL again
+      CU_CHECK(cdf->cuGraphicsUnmapResources(2, resources, stream.get()), "Couldn't unmap GL textures from CUDA");
+      return 0;
+    }
+
+    /**
+     * @brief Configures shader parameters for the specified colorspace.
+     */
+    void
+    apply_colorspace() override {
+      sws.apply_colorspace(colorspace);
+    }
+
+    file_t file;
+    gbm::gbm_t gbm;
+    egl::display_t display;
+    egl::ctx_t ctx;
+
+    // This must be destroyed before display_t
+    stream_t stream;
+    frame_t hwframe;
+
+    egl::sws_t sws;
+    egl::nv12_t nv12;
+    AVPixelFormat sw_format;
+
+    int width, height;
+
+    std::uint64_t sequence;
+    egl::rgb_t rgb;
+
+    registered_resource_t y_res;
+    registered_resource_t uv_res;
+
+    int offset_x, offset_y;
+  };
+
   std::unique_ptr<platf::avcodec_encode_device_t>
   make_avcodec_encode_device(int width, int height, bool vram) {
     if (init()) {
@@ -239,6 +482,29 @@ namespace cuda {
     }
 
     if (cuda->init(width, height)) {
+      return nullptr;
+    }
+
+    return cuda;
+  }
+
+  /**
+   * @brief Create a GL->CUDA encoding device for consuming captured dmabufs.
+   * @param in_width Width of captured frames.
+   * @param in_height Height of captured frames.
+   * @param offset_x Offset of content in captured frame.
+   * @param offset_y Offset of content in captured frame.
+   * @return FFmpeg encoding device context.
+   */
+  std::unique_ptr<platf::avcodec_encode_device_t>
+  make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y) {
+    if (init()) {
+      return nullptr;
+    }
+
+    auto cuda = std::make_unique<gl_cuda_vram_t>();
+
+    if (cuda->init(width, height, offset_x, offset_y)) {
       return nullptr;
     }
 

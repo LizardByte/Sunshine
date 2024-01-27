@@ -277,6 +277,16 @@ namespace egl {
     std::array<file_t, nv12_img_t::num_fds> &&fds,
     const surface_descriptor_t &y, const surface_descriptor_t &uv);
 
+  /**
+   * @brief Creates biplanar YUV textures to render into.
+   * @param width Width of the target frame.
+   * @param height Height of the target frame.
+   * @param format Format of the target frame.
+   * @return The new RGB texture.
+   */
+  std::optional<nv12_t>
+  create_target(int width, int height, AVPixelFormat format);
+
   class cursor_t: public platf::img_t {
   public:
     int x, y;

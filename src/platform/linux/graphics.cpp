@@ -647,6 +647,71 @@ namespace egl {
     return nv12;
   }
 
+  /**
+   * @brief Creates biplanar YUV textures to render into.
+   * @param width Width of the target frame.
+   * @param height Height of the target frame.
+   * @param format Format of the target frame.
+   * @return The new RGB texture.
+   */
+  std::optional<nv12_t>
+  create_target(int width, int height, AVPixelFormat format) {
+    nv12_t nv12 {
+      EGL_NO_DISPLAY,
+      EGL_NO_IMAGE,
+      EGL_NO_IMAGE,
+      gl::tex_t::make(2),
+      gl::frame_buf_t::make(2),
+    };
+
+    GLint y_format;
+    GLint uv_format;
+
+    // Determine the size of each plane element
+    auto fmt_desc = av_pix_fmt_desc_get(format);
+    if (fmt_desc->comp[0].depth <= 8) {
+      y_format = GL_R8;
+      uv_format = GL_RG8;
+    }
+    else if (fmt_desc->comp[0].depth <= 16) {
+      y_format = GL_R16;
+      uv_format = GL_RG16;
+    }
+    else {
+      BOOST_LOG(error) << "Unsupported target pixel format: "sv << format;
+      return std::nullopt;
+    }
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[0]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, y_format, width, height);
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[1]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, uv_format,
+      width >> fmt_desc->log2_chroma_w, height >> fmt_desc->log2_chroma_h);
+
+    nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
+
+    GLenum attachments[] {
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    };
+
+    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+
+      const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+      const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl_drain_errors;
+
+    return nv12;
+  }
+
   void
   sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
     auto color_p = video::color_vectors_from_colorspace(colorspace);
