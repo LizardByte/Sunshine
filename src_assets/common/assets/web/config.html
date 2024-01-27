@@ -761,8 +761,8 @@
 
         <!-- Min Threads -->
         <div class="mb-3">
-          <label for="min_threads" class="form-label">Minimum Software Encoding Thread Count</label>
-          <input type="number" class="form-control" id="min_threads" placeholder="1" min="1" v-model="config.min_threads" />
+          <label for="min_threads" class="form-label">Minimum CPU Thread Count</label>
+          <input type="number" class="form-control" id="min_threads" placeholder="2" min="1" v-model="config.min_threads" />
           <div class="form-text">
             Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br>
             worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br>
@@ -1266,7 +1266,7 @@
               "channels": 1,
               "fec_percentage": 20,
               "qp": 28,
-              "min_threads": 1,
+              "min_threads": 2,
               "hevc_mode": 0,
               "av1_mode": 0,
               "capture": "",
