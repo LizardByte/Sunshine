@@ -320,7 +320,7 @@ namespace config {
     0,  // hevc_mode
     0,  // av1_mode
 
-    1,  // min_threads
+    2,  // min_threads
     {
       "superfast"s,  // preset
       "zerolatency"s,  // tune
