@@ -975,19 +975,19 @@ keybindings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   Minimum number of threads used for software encoding.
+   Minimum number of CPU threads used for encoding.
 
    .. note:: Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually worth it to gain
       the use of more CPU cores for encoding. The ideal value is the lowest value that can reliably encode at your
       desired streaming settings on your hardware.
 
 **Default**
-   ``1``
+   ``2``
 
 **Example**
    .. code-block:: text
 
-      min_threads = 1
+      min_threads = 2
 
 `hevc_mode <https://localhost:47990/config/#hevc_mode>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
