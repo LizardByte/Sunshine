@@ -7,6 +7,10 @@
 
 #include <fcntl.h>
 
+extern "C" {
+#include <libavutil/pixdesc.h>
+}
+
 // I want to have as little build dependencies as possible
 // There aren't that many DRM_FORMAT I need to use, so define them here
 //
@@ -806,10 +810,36 @@ namespace egl {
   }
 
   std::optional<sws_t>
-  sws_t::make(int in_width, int in_height, int out_width, int out_height, GLint gl_tex_internal_fmt) {
+  sws_t::make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format) {
+    GLint gl_format;
+
+    // Decide the bit depth format of the backing texture based the target frame format
+    auto fmt_desc = av_pix_fmt_desc_get(format);
+    switch (fmt_desc->comp[0].depth) {
+      case 8:
+        gl_format = GL_RGBA8;
+        break;
+
+      case 10:
+        gl_format = GL_RGB10_A2;
+        break;
+
+      case 12:
+        gl_format = GL_RGBA12;
+        break;
+
+      case 16:
+        gl_format = GL_RGBA16;
+        break;
+
+      default:
+        BOOST_LOG(error) << "Unsupported pixel format for EGL frame: "sv << (int) format;
+        return std::nullopt;
+    }
+
     auto tex = gl::tex_t::make(2);
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, gl_tex_internal_fmt, in_width, in_height);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, gl_format, in_width, in_height);
 
     return make(in_width, in_height, out_width, out_height, std::move(tex));
   }
