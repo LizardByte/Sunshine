@@ -10,7 +10,10 @@
 #include <boost/pointer_cast.hpp>
 
 extern "C" {
+#include <libavutil/imgutils.h>
 #include <libavutil/mastering_display_metadata.h>
+#include <libavutil/opt.h>
+#include <libavutil/pixdesc.h>
 #include <libswscale/swscale.h>
 }
 
@@ -101,30 +104,37 @@ namespace video {
   public:
     int
     convert(platf::img_t &img) override {
-      av_frame_make_writable(sw_frame.get());
+      // If we need to add aspect ratio padding, we need to scale into an intermediate output buffer
+      bool requires_padding = (sw_frame->width != sws_output_frame->width || sw_frame->height != sws_output_frame->height);
 
-      const int linesizes[2] {
-        img.row_pitch, 0
-      };
+      // Setup the input frame using the caller's img_t
+      sws_input_frame->data[0] = img.data;
+      sws_input_frame->linesize[0] = img.row_pitch;
 
-      std::uint8_t *data[4];
-
-      data[0] = sw_frame->data[0] + offsetY;
-      if (sw_frame->format == AV_PIX_FMT_NV12) {
-        data[1] = sw_frame->data[1] + offsetUV * 2;
-        data[2] = nullptr;
-      }
-      else {
-        data[1] = sw_frame->data[1] + offsetUV;
-        data[2] = sw_frame->data[2] + offsetUV;
-        data[3] = nullptr;
-      }
-
-      int ret = sws_scale(sws.get(), (std::uint8_t *const *) &img.data, linesizes, 0, img.height, data, sw_frame->linesize);
-      if (ret <= 0) {
-        BOOST_LOG(error) << "Couldn't convert image to required format and/or size"sv;
-
+      // Perform color conversion and scaling to the final size
+      auto status = sws_scale_frame(sws.get(), requires_padding ? sws_output_frame.get() : sw_frame.get(), sws_input_frame.get());
+      if (status < 0) {
+        char string[AV_ERROR_MAX_STRING_SIZE];
+        BOOST_LOG(error) << "Couldn't scale frame: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
         return -1;
+      }
+
+      // If we require aspect ratio padding, copy the output frame into the final padded frame
+      if (requires_padding) {
+        auto fmt_desc = av_pix_fmt_desc_get((AVPixelFormat) sws_output_frame->format);
+        auto planes = av_pix_fmt_count_planes((AVPixelFormat) sws_output_frame->format);
+        for (int plane = 0; plane < planes; plane++) {
+          auto shift_h = plane == 0 ? 0 : fmt_desc->log2_chroma_h;
+          auto shift_w = plane == 0 ? 0 : fmt_desc->log2_chroma_w;
+          auto offset = ((offsetW >> shift_w) * fmt_desc->comp[plane].step) + (offsetH >> shift_h) * sw_frame->linesize[plane];
+
+          // Copy line-by-line to preserve leading padding for each row
+          for (int line = 0; line < sws_output_frame->height >> shift_h; line++) {
+            memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]),
+              sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]),
+              (size_t) (sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step);
+          }
+        }
       }
 
       // If frame is not a software frame, it means we still need to transfer from main memory
@@ -170,43 +180,13 @@ namespace video {
     /**
      * When preserving aspect ratio, ensure that padding is black
      */
-    int
+    void
     prefill() {
       auto frame = sw_frame ? sw_frame.get() : this->frame;
-      auto width = frame->width;
-      auto height = frame->height;
-
       av_frame_get_buffer(frame, 0);
-      sws_t sws {
-        sws_getContext(
-          width, height, AV_PIX_FMT_BGR0,
-          width, height, (AVPixelFormat) frame->format,
-          SWS_LANCZOS | SWS_ACCURATE_RND,
-          nullptr, nullptr, nullptr)
-      };
-
-      if (!sws) {
-        return -1;
-      }
-
-      util::buffer_t<std::uint32_t> img { (std::size_t)(width * height) };
-      std::fill(std::begin(img), std::end(img), 0);
-
-      const int linesizes[2] {
-        width, 0
-      };
-
       av_frame_make_writable(frame);
-
-      auto data = img.begin();
-      int ret = sws_scale(sws.get(), (std::uint8_t *const *) &data, linesizes, 0, height, frame->data, frame->linesize);
-      if (ret <= 0) {
-        BOOST_LOG(error) << "Couldn't convert image to required format and/or size"sv;
-
-        return -1;
-      }
-
-      return 0;
+      ptrdiff_t linesize[4] = { frame->linesize[0], frame->linesize[1], frame->linesize[2], frame->linesize[3] };
+      av_image_fill_black(frame->data, linesize, (AVPixelFormat) frame->format, frame->color_range, frame->width, frame->height);
     }
 
     int
@@ -223,9 +203,8 @@ namespace video {
         this->frame = frame;
       }
 
-      if (prefill()) {
-        return -1;
-      }
+      // Fill aspect ratio padding in the destination frame
+      prefill();
 
       auto out_width = frame->width;
       auto out_height = frame->height;
@@ -235,30 +214,64 @@ namespace video {
       out_width = in_width * scalar;
       out_height = in_height * scalar;
 
-      // result is always positive
-      auto offsetW = (frame->width - out_width) / 2;
-      auto offsetH = (frame->height - out_height) / 2;
-      offsetUV = (offsetW + offsetH * frame->width / 2) / 2;
-      offsetY = offsetW + offsetH * frame->width;
+      sws_input_frame.reset(av_frame_alloc());
+      sws_input_frame->width = in_width;
+      sws_input_frame->height = in_height;
+      sws_input_frame->format = AV_PIX_FMT_BGR0;
 
-      sws.reset(sws_getContext(
-        in_width, in_height, AV_PIX_FMT_BGR0,
-        out_width, out_height, format,
-        SWS_LANCZOS | SWS_ACCURATE_RND,
-        nullptr, nullptr, nullptr));
+      sws_output_frame.reset(av_frame_alloc());
+      sws_output_frame->width = out_width;
+      sws_output_frame->height = out_height;
+      sws_output_frame->format = format;
 
-      return sws ? 0 : -1;
+      // Result is always positive
+      offsetW = (frame->width - out_width) / 2;
+      offsetH = (frame->height - out_height) / 2;
+
+      sws.reset(sws_alloc_context());
+      if (!sws) {
+        return -1;
+      }
+
+      AVDictionary *options { nullptr };
+      av_dict_set_int(&options, "srcw", sws_input_frame->width, 0);
+      av_dict_set_int(&options, "srch", sws_input_frame->height, 0);
+      av_dict_set_int(&options, "src_format", sws_input_frame->format, 0);
+      av_dict_set_int(&options, "dstw", sws_output_frame->width, 0);
+      av_dict_set_int(&options, "dsth", sws_output_frame->height, 0);
+      av_dict_set_int(&options, "dst_format", sws_output_frame->format, 0);
+      av_dict_set_int(&options, "sws_flags", SWS_LANCZOS | SWS_ACCURATE_RND, 0);
+      av_dict_set_int(&options, "threads", config::video.min_threads, 0);
+
+      auto status = av_opt_set_dict(sws.get(), &options);
+      av_dict_free(&options);
+      if (status < 0) {
+        char string[AV_ERROR_MAX_STRING_SIZE];
+        BOOST_LOG(error) << "Failed to set SWS options: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+        return -1;
+      }
+
+      status = sws_init_context(sws.get(), nullptr, nullptr);
+      if (status < 0) {
+        char string[AV_ERROR_MAX_STRING_SIZE];
+        BOOST_LOG(error) << "Failed to initialize SWS: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
+        return -1;
+      }
+
+      return 0;
     }
 
     // Store ownership when frame is hw_frame
     avcodec_frame_t hw_frame;
 
     avcodec_frame_t sw_frame;
+    avcodec_frame_t sws_input_frame;
+    avcodec_frame_t sws_output_frame;
     sws_t sws;
 
-    // offset of input image to output frame in pixels
-    int offsetUV;
-    int offsetY;
+    // Offset of input image to output frame in pixels
+    int offsetW;
+    int offsetH;
   };
 
   enum flag_e : uint32_t {
