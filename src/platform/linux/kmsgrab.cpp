@@ -979,6 +979,20 @@ namespace platf {
           // We will map the entire region, but only copy what the source rectangle specifies
           size_t mapped_size = ((size_t) fb->pitches[0]) * fb->height;
           void *mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, plane_fd.el, fb->offsets[0]);
+
+          // If we got ENOSYS back, let's try to map it as a dumb buffer instead (required for Nvidia GPUs)
+          if (mapped_data == MAP_FAILED && errno == ENOSYS) {
+            drm_mode_map_dumb map = {};
+            map.handle = fb->handles[0];
+            if (drmIoctl(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
+              BOOST_LOG(error) << "Failed to map cursor FB as dumb buffer: "sv << strerror(errno);
+              captured_cursor.visible = false;
+              return;
+            }
+
+            mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, card.fd.el, map.offset);
+          }
+
           if (mapped_data == MAP_FAILED) {
             BOOST_LOG(error) << "Failed to mmap cursor FB: "sv << strerror(errno);
             captured_cursor.visible = false;
