@@ -2,26 +2,25 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64,linux/arm64/v8
-# no-cache-filters: sunshine-base,artifacts,sunshine
+# no-cache-filters: artifacts,sunshine
 ARG BASE=ubuntu
 ARG TAG=22.04
 ARG DIST=jammy
-FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-base
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-build
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM sunshine-base as sunshine-build
-
 # reused args from base
+ARG BASE
 ARG TAG
 ENV TAG=${TAG}
 ARG DIST
 ENV DIST=${DIST}
 
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
-RUN echo "build_platform: ${BUILDPLATFORM}"
-RUN echo "target_platform: ${TARGETPLATFORM}"
+ARG BUILDARCH
+ARG TARGETARCH
+RUN echo "build_arch: ${BUILDARCH}"
+RUN echo "target_arch: ${TARGETARCH}"
 
 # args from ci workflow
 ARG BRANCH
@@ -33,118 +32,124 @@ ENV BRANCH=${BRANCH}
 ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
+ENV CUDA_DISTRO=rhel8
+ENV CUDA_RT_VERSION=12.3.101
+ENV CUDA_NVCC_VERSION=12.3.107
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-# setup env
-WORKDIR /env
-RUN <<_ENV
-#!/bin/bash
-set -e
-case "${BUILDPLATFORM}" in
-  linux/amd64)
-    BUILDARCH=amd64
-    ;;
-  linux/arm64)
-    BUILDARCH=arm64
-    ;;
-  *)
-    echo "unsupported platform: ${TARGETPLATFORM}";
-    exit 1
-    ;;
-esac
-
-case "${TARGETPLATFORM}" in
-  linux/amd64)
-    PACKAGEARCH=amd64
-    TARGETARCH=x86_64
-    ;;
-  linux/arm64)
-    PACKAGEARCH=arm64
-    TARGETARCH=aarch64
-    ;;
-  *)
-    echo "unsupported platform: ${TARGETPLATFORM}";
-    exit 1
-    ;;
-esac
-
-mirror="http://ports.ubuntu.com/ubuntu-ports"
-extra_sources=$(cat <<- VAREOF
-  deb [arch=$PACKAGEARCH] $mirror $DIST main restricted
-  deb [arch=$PACKAGEARCH] $mirror $DIST-updates main restricted
-  deb [arch=$PACKAGEARCH] $mirror $DIST universe
-  deb [arch=$PACKAGEARCH] $mirror $DIST-updates universe
-  deb [arch=$PACKAGEARCH] $mirror $DIST multiverse
-  deb [arch=$PACKAGEARCH] $mirror $DIST-updates multiverse
-  deb [arch=$PACKAGEARCH] $mirror $DIST-backports main restricted universe multiverse
-  deb [arch=$PACKAGEARCH] $mirror $DIST-security main restricted
-  deb [arch=$PACKAGEARCH] $mirror $DIST-security universe
-  deb [arch=$PACKAGEARCH] $mirror $DIST-security multiverse
-VAREOF
-)
-
-if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
-  # fix original sources
-  sed -i -e "s#deb http#deb [arch=$BUILDARCH] http#g" /etc/apt/sources.list
-  dpkg --add-architecture $PACKAGEARCH
-
-  echo "$extra_sources" | tee -a /etc/apt/sources.list
-fi
-
-echo PACKAGEARCH=${PACKAGEARCH}; \
-echo TARGETARCH=${TARGETARCH}; \
-echo TUPLE=${TARGETARCH}-linux-gnu >> ./env
-_ENV
-
 # install dependencies
-RUN <<_DEPS
+WORKDIR /env
+RUN --mount=type=cache,target=/var/cache/apt/archives,mode=0755,id=${BASE}-${TAG}-apt-archives \
+    --mount=type=cache,target=/var/lib/apt/lists,mode=0755,id=${BASE}-${TAG}-apt-lists <<_DEPS
 #!/bin/bash
 set -e
 
-# shellcheck source=/dev/null
-source /env/env
+# Keep downloaded archives in the cache.
+rm /etc/apt/apt.conf.d/docker-clean
+
+case "${TARGETARCH}" in
+  amd64)
+    DEB_ARCH=amd64
+    DNF_ARCH=x86_64
+    CUDA_ARCH=x86_64
+    TUPLE=x86_64-linux-gnu
+    ;;
+  arm64)
+    DEB_ARCH=arm64
+    DNF_ARCH=aarch64
+    CUDA_ARCH=sbsa
+    TUPLE=aarch64-linux-gnu
+    ;;
+  ppc64le)
+    DEB_ARCH=ppc64el
+    DNF_ARCH=ppc64le
+    CUDA_ARCH=ppc64le
+    TUPLE=powerpc64le-linux-gnu
+    ;;
+  *)
+    echo "unsupported arch: ${TARGETARCH}";
+    exit 1
+    ;;
+esac
+
+declare -p DEB_ARCH DNF_ARCH TUPLE > env
+
+apt-get update -y
+apt-get install -y --no-install-recommends \
+  apt-transport-https \
+  ca-certificates \
+  gnupg \
+  wget
+
+source /etc/lsb-release
+
+CUDA_REPOS="https://developer.download.nvidia.com/compute/cuda/repos"
+CUDA_UBUNTU="${CUDA_REPOS}/ubuntu${DISTRIB_RELEASE//.}/$(uname -m)"
+CUDA_VERSION_SHORT="${CUDA_RT_VERSION%.*}"
+
+wget -qO- "${CUDA_UBUNTU}/3bf863cc.pub" | gpg --dearmor > /etc/apt/trusted.gpg.d/cuda.gpg
+cat > /etc/apt/sources.list.d/cuda.list <<_SOURCES
+  deb [arch=$(dpkg --print-architecture)] ${CUDA_UBUNTU}/ /
+_SOURCES
+
+if [[ "${BUILDARCH}" != "${TARGETARCH}" ]]; then
+  sed -i "s/^deb /deb [arch=$(dpkg --print-architecture)] /" /etc/apt/sources.list
+  dpkg --add-architecture "${DEB_ARCH}"
+
+  cat > /etc/apt/sources.list.d/ports.list <<_SOURCES
+    deb [arch=${DEB_ARCH}] http://ports.ubuntu.com/ubuntu-ports/ ${DISTRIB_CODENAME} main restricted universe multiverse
+    deb [arch=${DEB_ARCH}] http://ports.ubuntu.com/ubuntu-ports/ ${DISTRIB_CODENAME}-updates main restricted universe multiverse
+_SOURCES
+fi
 
 # Initialize an array for packages
 packages=(
-  "build-essential"
   "cmake=3.22.*"
-  "ca-certificates"
+  "cuda-nvcc-${CUDA_VERSION_SHORT//./-}"
   "git"
-  "libayatana-appindicator3-dev"
-  "libavdevice-dev"
-  "libboost-filesystem-dev=1.74.*"
-  "libboost-locale-dev=1.74.*"
-  "libboost-log-dev=1.74.*"
-  "libboost-program-options-dev=1.74.*"
-  "libcap-dev"
-  "libcurl4-openssl-dev"
-  "libdrm-dev"
-  "libevdev-dev"
-  "libminiupnpc-dev"
-  "libnotify-dev"
-  "libnuma-dev"
-  "libopus-dev"
-  "libpulse-dev"
-  "libssl-dev"
-  "libva-dev"
-  "libvdpau-dev"
-  "libwayland-dev"
-  "libx11-dev"
-  "libxcb-shm0-dev"
-  "libxcb-xfixes0-dev"
-  "libxcb1-dev"
-  "libxfixes-dev"
-  "libxrandr-dev"
-  "libxtst-dev"
-  "wget"
+  "libwayland-bin"
+  "pkgconf"
+  "rpm2cpio"
+  "libayatana-appindicator3-dev:${DEB_ARCH}"
+  "libavdevice-dev:${DEB_ARCH}"
+  "libboost-filesystem-dev:${DEB_ARCH}=1.74.*"
+  "libboost-locale-dev:${DEB_ARCH}=1.74.*"
+  "libboost-log-dev:${DEB_ARCH}=1.74.*"
+  "libboost-program-options-dev:${DEB_ARCH}=1.74.*"
+  "libcap-dev:${DEB_ARCH}"
+  "libcurl4-openssl-dev:${DEB_ARCH}"
+  "libdrm-dev:${DEB_ARCH}"
+  "libevdev-dev:${DEB_ARCH}"
+  "libminiupnpc-dev:${DEB_ARCH}"
+  "libnotify-dev:${DEB_ARCH}"
+  "libnuma-dev:${DEB_ARCH}"
+  "libopus-dev:${DEB_ARCH}"
+  "libpulse-dev:${DEB_ARCH}"
+  "libssl-dev:${DEB_ARCH}"
+  "libva-dev:${DEB_ARCH}"
+  "libvdpau-dev:${DEB_ARCH}"
+  "libwayland-dev:${DEB_ARCH}"
+  "libx11-dev:${DEB_ARCH}"
+  "libxcb-shm0-dev:${DEB_ARCH}"
+  "libxcb-xfixes0-dev:${DEB_ARCH}"
+  "libxcb1-dev:${DEB_ARCH}"
+  "libxfixes-dev:${DEB_ARCH}"
+  "libxrandr-dev:${DEB_ARCH}"
+  "libxtst-dev:${DEB_ARCH}"
 )
 
 # Conditionally include arch specific packages
-if [[ "${TARGETARCH}" == 'x86_64' ]]; then
+if [[ "${TARGETARCH}" == 'amd64' ]]; then
   packages+=(
-    "libmfx-dev"
+    "libmfx-dev:${DEB_ARCH}"
   )
 fi
-if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+if [[ "${BUILDARCH}" == "${TARGETARCH}" ]]; then
+  packages+=(
+    "g++=4:11.2.*"
+    "gcc=4:11.2.*"
+  )
+else
   packages+=(
     "g++-${TUPLE}=4:11.2.*"
     "gcc-${TUPLE}=4:11.2.*"
@@ -153,8 +158,14 @@ fi
 
 apt-get update -y
 apt-get install -y --no-install-recommends "${packages[@]}"
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+
+if [[ "${BUILDARCH}" != "${TARGETARCH}" ]]; then
+  for URL in "${CUDA_REPOS}/${CUDA_DISTRO}/${CUDA_ARCH}"/{cuda-cudart-devel-${CUDA_VERSION_SHORT//./-}-${CUDA_RT_VERSION},cuda-nvcc-${CUDA_VERSION_SHORT//./-}-${CUDA_NVCC_VERSION}}-1.${DNF_ARCH}.rpm; do
+    wget -q "${URL}"
+    rpm2archive "${URL##*/}"
+    tar --directory=/ -zxf "${URL##*/}.tgz" "./usr/local/cuda-${CUDA_VERSION_SHORT}/targets/"
+  done
+fi
 _DEPS
 
 #Install Node
@@ -167,28 +178,6 @@ source "$HOME/.nvm/nvm.sh"
 nvm install 20.9.0
 nvm use 20.9.0
 _INSTALL_NODE
-
-# install cuda
-WORKDIR /build/cuda
-# versions: https://developer.nvidia.com/cuda-toolkit-archive
-ENV CUDA_VERSION="11.8.0"
-ENV CUDA_BUILD="520.61.05"
-# hadolint ignore=SC3010
-RUN <<_INSTALL_CUDA
-#!/bin/bash
-set -e
-cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
-cuda_suffix=""
-if [[ "${TARGETARCH}" == 'aarch64' ]]; then
-  cuda_suffix="_sbsa"
-fi
-url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
-echo "cuda url: ${url}"
-wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
-chmod a+x ./cuda.run
-./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
-rm ./cuda.run
-_INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
@@ -209,19 +198,35 @@ nvm use 20.9.0
 # shellcheck source=/dev/null
 source /env/env
 
-TOOLCHAIN_OPTION=""
-if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
-  export "CCPREFIX=/usr/bin/${TUPLE}-"
+# Configure build
+cat > toolchain.cmake <<_TOOLCHAIN
+set(CMAKE_ASM_COMPILER "${TUPLE}-gcc")
+set(CMAKE_ASM-ATT_COMPILER "${TUPLE}-gcc")
+set(CMAKE_C_COMPILER "${TUPLE}-gcc")
+set(CMAKE_CXX_COMPILER "${TUPLE}-g++")
+set(CMAKE_AR "${TUPLE}-gcc-ar" CACHE FILEPATH "Archive manager" FORCE)
+set(CMAKE_RANLIB "${TUPLE}-gcc-ranlib" CACHE FILEPATH "Archive index generator" FORCE)
+set(CMAKE_SYSTEM_PROCESSOR "$(case ${TARGETARCH} in
+    arm) echo armv7l ;;
+    *) echo ${DNF_ARCH} ;;
+esac)")
+set(CMAKE_SYSTEM_NAME "Linux")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+_TOOLCHAIN
 
-  TOOLCHAIN_OPTION="-DCMAKE_TOOLCHAIN_FILE=toolchain-${TUPLE}-debian.cmake"
-fi
+export \
+    PKG_CONFIG_LIBDIR=/usr/lib/"${TUPLE}"/pkgconfig:/usr/share/pkgconfig
 
-#Actually build
+# Actually build
 cmake \
-  "$TOOLCHAIN_OPTION" \
-  -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
+  -DCMAKE_TOOLCHAIN_FILE=toolchain.cmake \
+  -DCMAKE_CUDA_COMPILER:PATH=/usr/local/cuda/bin/nvcc \
+  -DCMAKE_CUDA_HOST_COMPILER:PATH="${TUPLE}-g++" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCPACK_DEBIAN_PACKAGE_ARCHITECTURE="${DEB_ARCH}" \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
   -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
   -DSUNSHINE_ENABLE_WAYLAND=ON \
@@ -240,18 +245,19 @@ ARG TARGETARCH
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
 
 FROM ${BASE}:${TAG} as sunshine
-
-# copy deb from builder
-COPY --link --from=artifacts /sunshine*.deb /sunshine.deb
+ARG BASE
+ARG TAG
+ARG TARGETARCH
 
 # install sunshine
-RUN <<_INSTALL_SUNSHINE
+RUN --mount=type=cache,target=/var/cache/apt/archives,mode=0755,id=${BASE}-${TAG}-apt-archives \
+    --mount=type=cache,target=/var/lib/apt/lists,mode=0755,id=${BASE}-${TAG}-apt-lists \
+    --mount=type=bind,from=artifacts,source=/sunshine-${BASE}-${TAG}-${TARGETARCH}.deb,target=/tmp/sunshine.deb \
+    <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
 apt-get update -y
-apt-get install -y --no-install-recommends /sunshine.deb
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+apt-get install -y --no-install-recommends /tmp/sunshine.deb
 _INSTALL_SUNSHINE
 
 # network setup
