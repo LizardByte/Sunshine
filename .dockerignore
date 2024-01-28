@@ -17,3 +17,6 @@ venv/
 
 # ignore artifacts
 artifacts/
+
+# ignore Dockerfiles themselves
+/docker/
