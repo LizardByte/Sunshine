@@ -106,6 +106,7 @@ Install Requirements
           libboost-log-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
+          libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
           libminiupnpc-dev \
@@ -156,6 +157,7 @@ Install Requirements
           libboost-log-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
+          libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
           libminiupnpc-dev \
