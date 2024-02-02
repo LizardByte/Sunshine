@@ -584,16 +584,25 @@ namespace platf {
     return true;
   }
 
+  // We can't track QoS state separately for each destination on this OS,
+  // so we keep a ref count to only disable QoS options when all clients
+  // are disconnected.
+  static std::atomic<int> qos_ref_count = 0;
+
   class qos_t: public deinit_t {
   public:
     qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
-        sockfd(sockfd), options(options) {}
+        sockfd(sockfd), options(options) {
+      qos_ref_count++;
+    }
 
     virtual ~qos_t() {
-      for (const auto &tuple : options) {
-        auto reset_val = std::get<2>(tuple);
-        if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
-          BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
+      if (--qos_ref_count == 0) {
+        for (const auto &tuple : options) {
+          auto reset_val = std::get<2>(tuple);
+          if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
+            BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
+          }
         }
       }
     }
