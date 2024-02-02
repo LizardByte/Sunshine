@@ -407,12 +407,103 @@ namespace platf {
     return true;
   }
 
+  class qos_t: public deinit_t {
+  public:
+    qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
+        sockfd(sockfd), options(options) {}
+
+    virtual ~qos_t() {
+      for (const auto &tuple : options) {
+        auto reset_val = std::get<2>(tuple);
+        if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
+          BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
+        }
+      }
+    }
+
+  private:
+    int sockfd;
+    std::vector<std::tuple<int, int, int>> options;
+  };
+
+  /**
+   * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @param native_socket The native socket handle.
+   * @param address The destination address for traffic sent on this socket.
+   * @param port The destination port for traffic sent on this socket.
+   * @param data_type The type of traffic sent on this socket.
+   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
+   */
   std::unique_ptr<deinit_t>
-  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
-    // Unimplemented
-    //
-    // NB: When implementing, remember to consider that some routes can drop DSCP-tagged packets completely!
-    return nullptr;
+  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+    int sockfd = (int) native_socket;
+    std::vector<std::tuple<int, int, int>> reset_options;
+
+    // We can use SO_NET_SERVICE_TYPE to set link-layer prioritization without DSCP tagging
+    int service_type = 0;
+    switch (data_type) {
+      case qos_data_type_e::video:
+        service_type = NET_SERVICE_TYPE_VI;
+        break;
+      case qos_data_type_e::audio:
+        service_type = NET_SERVICE_TYPE_VO;
+        break;
+      default:
+        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        break;
+    }
+
+    if (service_type) {
+      if (setsockopt(sockfd, SOL_SOCKET, SO_NET_SERVICE_TYPE, &service_type, sizeof(service_type)) == 0) {
+        // Reset SO_NET_SERVICE_TYPE to best-effort when QoS is disabled
+        reset_options.emplace_back(std::make_tuple(SOL_SOCKET, SO_NET_SERVICE_TYPE, NET_SERVICE_TYPE_BE));
+      }
+      else {
+        BOOST_LOG(error) << "Failed to set SO_NET_SERVICE_TYPE: "sv << errno;
+      }
+    }
+
+    if (dscp_tagging) {
+      int level;
+      int option;
+      if (address.is_v6()) {
+        level = IPPROTO_IPV6;
+        option = IPV6_TCLASS;
+      }
+      else {
+        level = IPPROTO_IP;
+        option = IP_TOS;
+      }
+
+      // The specific DSCP values here are chosen to be consistent with Windows
+      int dscp = 0;
+      switch (data_type) {
+        case qos_data_type_e::video:
+          dscp = 40;
+          break;
+        case qos_data_type_e::audio:
+          dscp = 56;
+          break;
+        default:
+          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          break;
+      }
+
+      if (dscp) {
+        // Shift to put the DSCP value in the correct position in the TOS field
+        dscp <<= 2;
+
+        if (setsockopt(sockfd, level, option, &dscp, sizeof(dscp)) == 0) {
+          // Reset TOS to -1 when QoS is disabled
+          reset_options.emplace_back(std::make_tuple(level, option, -1));
+        }
+        else {
+          BOOST_LOG(error) << "Failed to set TOS/TCLASS: "sv << errno;
+        }
+      }
+    }
+
+    return std::make_unique<qos_t>(sockfd, reset_options);
   }
 
 }  // namespace platf

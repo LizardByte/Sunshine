@@ -1209,12 +1209,25 @@ namespace platf {
     QOS_FLOWID flow_id;
   };
 
+  /**
+   * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @param native_socket The native socket handle.
+   * @param address The destination address for traffic sent on this socket.
+   * @param port The destination port for traffic sent on this socket.
+   * @param data_type The type of traffic sent on this socket.
+   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
+   */
   std::unique_ptr<deinit_t>
-  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
+  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     SOCKADDR_IN saddr_v4;
     SOCKADDR_IN6 saddr_v6;
     PSOCKADDR dest_addr;
     bool using_connect_hack = false;
+
+    // Windows doesn't support any concept of traffic priority without DSCP tagging
+    if (!dscp_tagging) {
+      return nullptr;
+    }
 
     static std::once_flag load_qwave_once_flag;
     std::call_once(load_qwave_once_flag, []() {

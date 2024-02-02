@@ -1740,12 +1740,10 @@ namespace stream {
       return;
     }
 
-    // Enable QoS tagging on video traffic if requested by the client
-    if (session->config.videoQosType) {
-      auto address = session->video.peer.address();
-      session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address,
-        session->video.peer.port(), platf::qos_data_type_e::video);
-    }
+    // Enable local prioritization and QoS tagging on video traffic if requested by the client
+    auto address = session->video.peer.address();
+    session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address,
+      session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
     video::capture(session->mail, session->config.monitor, session);
@@ -1765,12 +1763,10 @@ namespace stream {
       return;
     }
 
-    // Enable QoS tagging on audio traffic if requested by the client
-    if (session->config.audioQosType) {
-      auto address = session->audio.peer.address();
-      session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
-        session->audio.peer.port(), platf::qos_data_type_e::audio);
-    }
+    // Enable local prioritization and QoS tagging on audio traffic if requested by the client
+    auto address = session->audio.peer.address();
+    session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
+      session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;
     audio::capture(session->mail, session->config.audio, session);
