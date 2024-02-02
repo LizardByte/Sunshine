@@ -1214,6 +1214,7 @@ namespace platf {
     SOCKADDR_IN saddr_v4;
     SOCKADDR_IN6 saddr_v6;
     PSOCKADDR dest_addr;
+    bool using_connect_hack = false;
 
     static std::once_flag load_qwave_once_flag;
     std::call_once(load_qwave_once_flag, []() {
@@ -1252,9 +1253,40 @@ namespace platf {
       return nullptr;
     }
 
+    auto disconnect_fg = util::fail_guard([&]() {
+      if (using_connect_hack) {
+        SOCKADDR_IN6 empty = {};
+        empty.sin6_family = AF_INET6;
+        if (connect((SOCKET) native_socket, (PSOCKADDR) &empty, sizeof(empty)) < 0) {
+          auto wsaerr = WSAGetLastError();
+          BOOST_LOG(error) << "qWAVE dual-stack workaround failed: "sv << wsaerr;
+        }
+      }
+    });
+
     if (address.is_v6()) {
-      saddr_v6 = to_sockaddr(address.to_v6(), port);
+      auto address_v6 = address.to_v6();
+
+      saddr_v6 = to_sockaddr(address_v6, port);
       dest_addr = (PSOCKADDR) &saddr_v6;
+
+      // qWAVE doesn't properly support IPv4-mapped IPv6 addresses, nor does it
+      // correctly support IPv4 addresses on a dual-stack socket (despite MSDN's
+      // claims to the contrary). To get proper QoS tagging when hosting in dual
+      // stack mode, we will temporarily connect() the socket to allow qWAVE to
+      // successfully initialize a flow, then disconnect it again so WSASendMsg()
+      // works later on.
+      if (address_v6.is_v4_mapped()) {
+        if (connect((SOCKET) native_socket, (PSOCKADDR) &saddr_v6, sizeof(saddr_v6)) < 0) {
+          auto wsaerr = WSAGetLastError();
+          BOOST_LOG(error) << "qWAVE dual-stack workaround failed: "sv << wsaerr;
+        }
+        else {
+          BOOST_LOG(debug) << "Using qWAVE connect() workaround for QoS tagging"sv;
+          using_connect_hack = true;
+          dest_addr = nullptr;
+        }
+      }
     }
     else {
       saddr_v4 = to_sockaddr(address.to_v4(), port);
