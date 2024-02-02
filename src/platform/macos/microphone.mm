@@ -6,15 +6,14 @@
 #include "src/platform/macos/av_audio.h"
 
 #include "src/config.h"
-#include "src/main.h"
 
 namespace platf {
   using namespace std::literals;
 
   struct av_mic_t: public mic_t {
-    AVAudio *av_audio_capture;
+    AVAudio *av_audio_capture {};
 
-    ~av_mic_t() {
+    ~av_mic_t() override {
       [av_audio_capture release];
     }
 
@@ -42,7 +41,7 @@ namespace platf {
   };
 
   struct macos_audio_control_t: public audio_control_t {
-    AVCaptureDevice *audio_capture_device;
+    AVCaptureDevice *audio_capture_device {};
 
   public:
     int

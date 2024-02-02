@@ -4,7 +4,7 @@
  */
 
 // Required for IPV6_PKTINFO with Darwin headers
-#ifndef __APPLE_USE_RFC_3542
+#ifndef __APPLE_USE_RFC_3542  // NOLINT(bugprone-reserved-identifier)
   #define __APPLE_USE_RFC_3542 1
 #endif
 
@@ -53,13 +53,11 @@ namespace platf {
     // Xcode 12.2 and later, these functions are not weakly linked and will never
     // be null, and therefore generate this warning. Since we are weakly linking
     // when compiling with earlier Xcode versions, the check for null is
-    // necessary and so we ignore the warning.
+    // necessary, and so we ignore the warning.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #pragma clang diagnostic ignored "-Wtautological-pointer-compare"
-    if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) { 10, 15, 0 })] &&
-        // Double check that these weakly-linked symbols have been loaded:
-        CGPreflightScreenCaptureAccess != nullptr && CGRequestScreenCaptureAccess != nullptr &&
+    if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) { 10, 15, 0 })] != 0 && YES &&
         !CGPreflightScreenCaptureAccess()) {
       BOOST_LOG(error) << "No screen capture permission!"sv;
       BOOST_LOG(error) << "Please activate it in 'System Preferences' -> 'Privacy' -> 'Screen Recording'"sv;
@@ -141,7 +139,7 @@ namespace platf {
         std::string mac_address;
 
         if (getifaddrs(&ifap) == 0) {
-          for (ifaptr = ifap; ifaptr != NULL; ifaptr = (ifaptr)->ifa_next) {
+          for (ifaptr = ifap; ifaptr != nullptr; ifaptr = (ifaptr)->ifa_next) {
             if (!strcmp((ifaptr)->ifa_name, pos->ifa_name) && (((ifaptr)->ifa_addr)->sa_family == AF_LINK)) {
               ptr = (unsigned char *) LLADDR((struct sockaddr_dl *) (ifaptr)->ifa_addr);
               char buff[100];
@@ -155,7 +153,7 @@ namespace platf {
 
           freeifaddrs(ifap);
 
-          if (ifaptr != NULL) {
+          if (ifaptr != nullptr) {
             BOOST_LOG(verbose) << "Found MAC of "sv << pos->ifa_name << ": "sv << mac_address;
             return mac_address;
           }
@@ -336,7 +334,7 @@ namespace platf {
     union {
       char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
       struct cmsghdr alignment;
-    } cmbuf;
+    } cmbuf {};
     socklen_t cmbuflen = 0;
 
     msg.msg_control = cmbuf.buf;
@@ -344,7 +342,7 @@ namespace platf {
 
     auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
     if (send_info.source_address.is_v6()) {
-      struct in6_pktinfo pktInfo;
+      struct in6_pktinfo pktInfo {};
 
       struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
       pktInfo.ipi6_addr = saddr_v6.sin6_addr;
@@ -358,7 +356,7 @@ namespace platf {
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     }
     else {
-      struct in_pktinfo pktInfo;
+      struct in_pktinfo pktInfo {};
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
       pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
