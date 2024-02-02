@@ -637,14 +637,15 @@ namespace platf {
         option = IP_TOS;
       }
 
-      // The specific DSCP values here are chosen to be consistent with Windows
+      // The specific DSCP values here are chosen to be consistent with Windows,
+      // except that we use CS6 instead of CS7 for audio traffic.
       int dscp = 0;
       switch (data_type) {
         case qos_data_type_e::video:
           dscp = 40;
           break;
         case qos_data_type_e::audio:
-          dscp = 56;
+          dscp = 48;
           break;
         default:
           BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
