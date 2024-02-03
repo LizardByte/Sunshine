@@ -41,6 +41,40 @@ namespace rtsp_stream {
     delete msg;
   }
 
+#pragma pack(push, 1)
+
+  struct encrypted_rtsp_header_t {
+    // We set the MSB in encrypted RTSP messages to allow format-agnostic
+    // parsing code to be able to tell encrypted from plaintext messages.
+    static constexpr std::uint32_t ENCRYPTED_MESSAGE_TYPE_BIT = 0x80000000;
+
+    uint8_t *
+    payload() {
+      return (uint8_t *) (this + 1);
+    }
+
+    std::uint32_t
+    payload_length() {
+      return util::endian::big<std::uint32_t>(typeAndLength) & ~ENCRYPTED_MESSAGE_TYPE_BIT;
+    }
+
+    bool
+    is_encrypted() {
+      return !!(util::endian::big<std::uint32_t>(typeAndLength) & ENCRYPTED_MESSAGE_TYPE_BIT);
+    }
+
+    // This field is the length of the payload + ENCRYPTED_MESSAGE_TYPE_BIT in big-endian
+    std::uint32_t typeAndLength;
+
+    // This field is the number used to initialize the bottom 4 bytes of the AES IV in big-endian
+    std::uint32_t sequenceNumber;
+
+    // This field is the AES GCM authentication tag
+    std::uint8_t tag[16];
+  };
+
+#pragma pack(pop)
+
   class rtsp_server_t;
 
   using msg_t = util::safe_ptr<RTSP_MESSAGE, free_msg>;
@@ -58,61 +92,207 @@ namespace rtsp_stream {
     socket_t(boost::asio::io_service &ios, std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> &&handle_data_fn):
         handle_data_fn { std::move(handle_data_fn) }, sock { ios } {}
 
+    /**
+     * @brief Queues an asynchronous read to begin the next message.
+     */
     void
     read() {
-      if (begin == std::end(msg_buf)) {
+      if (begin == std::end(msg_buf) || (session->rtsp_cipher && begin + sizeof(encrypted_rtsp_header_t) >= std::end(msg_buf))) {
         BOOST_LOG(error) << "RTSP: read(): Exceeded maximum rtsp packet size: "sv << msg_buf.size();
 
         respond(sock, *session, nullptr, 400, "BAD REQUEST", 0, {});
 
-        sock.close();
+        boost::system::error_code ec;
+        sock.close(ec);
 
         return;
       }
 
-      sock.async_read_some(
-        boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
-        boost::bind(
-          &socket_t::handle_read, shared_from_this(),
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::bytes_transferred));
-    }
-
-    void
-    read_payload() {
-      if (begin == std::end(msg_buf)) {
-        BOOST_LOG(error) << "RTSP: read_payload(): Exceeded maximum rtsp packet size: "sv << msg_buf.size();
-
-        respond(sock, *session, nullptr, 400, "BAD REQUEST", 0, {});
-
-        sock.close();
-
-        return;
+      if (session->rtsp_cipher) {
+        // For encrypted RTSP, we will read the the entire header first
+        boost::asio::async_read(sock,
+          boost::asio::buffer(begin, sizeof(encrypted_rtsp_header_t)),
+          boost::bind(
+            &socket_t::handle_read_encrypted_header, shared_from_this(),
+            boost::asio::placeholders::error,
+            boost::asio::placeholders::bytes_transferred));
       }
-
-      sock.async_read_some(
-        boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
-        boost::bind(
-          &socket_t::handle_payload, shared_from_this(),
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::bytes_transferred));
+      else {
+        sock.async_read_some(
+          boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
+          boost::bind(
+            &socket_t::handle_read_plaintext, shared_from_this(),
+            boost::asio::placeholders::error,
+            boost::asio::placeholders::bytes_transferred));
+      }
     }
 
+    /**
+     * @brief Handles the initial read of the header of an encrypted message.
+     * @param socket The socket the message was received on.
+     * @param ec The error code of the read operation.
+     * @param bytes The number of bytes read.
+     */
     static void
-    handle_payload(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
-      BOOST_LOG(debug) << "handle_payload(): Handle read of size: "sv << bytes << " bytes"sv;
+    handle_read_encrypted_header(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+      BOOST_LOG(debug) << "handle_read_encrypted_header(): Handle read of size: "sv << bytes << " bytes"sv;
 
       auto sock_close = util::fail_guard([&socket]() {
         boost::system::error_code ec;
         socket->sock.close(ec);
 
         if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_payload(): Couldn't close tcp socket: "sv << ec.message();
+          BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Couldn't close tcp socket: "sv << ec.message();
+        }
+      });
+
+      if (ec || bytes < sizeof(encrypted_rtsp_header_t)) {
+        BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Couldn't read from tcp socket: "sv << ec.message();
+
+        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
+        return;
+      }
+
+      auto header = (encrypted_rtsp_header_t *) socket->begin;
+      if (!header->is_encrypted()) {
+        BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Rejecting unencrypted RTSP message"sv;
+
+        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
+        return;
+      }
+
+      auto payload_length = header->payload_length();
+
+      // Check if we have enough space to read this message
+      if (socket->begin + sizeof(*header) + payload_length >= std::end(socket->msg_buf)) {
+        BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Exceeded maximum rtsp packet size: "sv << socket->msg_buf.size();
+
+        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
+        return;
+      }
+
+      sock_close.disable();
+
+      // Read the remainder of the header and full encrypted payload
+      boost::asio::async_read(socket->sock,
+        boost::asio::buffer(socket->begin + bytes, payload_length),
+        boost::bind(
+          &socket_t::handle_read_encrypted_message, socket->shared_from_this(),
+          boost::asio::placeholders::error,
+          boost::asio::placeholders::bytes_transferred));
+    }
+
+    /**
+     * @brief Handles the final read of the content of an encrypted message.
+     * @param socket The socket the message was received on.
+     * @param ec The error code of the read operation.
+     * @param bytes The number of bytes read.
+     */
+    static void
+    handle_read_encrypted_message(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+      BOOST_LOG(debug) << "handle_read_encrypted(): Handle read of size: "sv << bytes << " bytes"sv;
+
+      auto sock_close = util::fail_guard([&socket]() {
+        boost::system::error_code ec;
+        socket->sock.close(ec);
+
+        if (ec) {
+          BOOST_LOG(error) << "RTSP: handle_read_encrypted_message(): Couldn't close tcp socket: "sv << ec.message();
+        }
+      });
+
+      auto header = (encrypted_rtsp_header_t *) socket->begin;
+      auto payload_length = header->payload_length();
+      auto seq = util::endian::big<std::uint32_t>(header->sequenceNumber);
+
+      if (ec || bytes < payload_length) {
+        BOOST_LOG(error) << "RTSP: handle_read_encrypted(): Couldn't read from tcp socket: "sv << ec.message();
+
+        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
+        return;
+      }
+
+      // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
+      // Section 8.2.1. The sequence number is our "invocation" field and the 'RC' in the
+      // high bytes is the "fixed" field. Because each client provides their own unique
+      // key, our values in the fixed field need only uniquely identify each independent
+      // use of the client's key with AES-GCM in our code.
+      //
+      // The sequence number is 32 bits long which allows for 2^32 RTSP messages to be
+      // received from each client before the IV repeats.
+      crypto::aes_t iv(12);
+      std::copy_n((uint8_t *) &seq, sizeof(seq), std::begin(iv));
+      iv[10] = 'C';  // Client originated
+      iv[11] = 'R';  // RTSP
+
+      std::vector<uint8_t> plaintext;
+      if (socket->session->rtsp_cipher->decrypt(std::string_view { (const char *) header->tag, sizeof(header->tag) + bytes }, plaintext, &iv)) {
+        BOOST_LOG(error) << "Failed to verify RTSP message tag"sv;
+
+        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
+        return;
+      }
+
+      msg_t req { new msg_t::element_type {} };
+      if (auto status = parseRtspMessage(req.get(), (char *) plaintext.data(), plaintext.size())) {
+        BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
+
+        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
+        return;
+      }
+
+      sock_close.disable();
+
+      print_msg(req.get());
+
+      socket->handle_data(std::move(req));
+    }
+
+    /**
+     * @brief Queues an asynchronous read of the payload portion of a plaintext message.
+     */
+    void
+    read_plaintext_payload() {
+      if (begin == std::end(msg_buf)) {
+        BOOST_LOG(error) << "RTSP: read_plaintext_payload(): Exceeded maximum rtsp packet size: "sv << msg_buf.size();
+
+        respond(sock, *session, nullptr, 400, "BAD REQUEST", 0, {});
+
+        boost::system::error_code ec;
+        sock.close(ec);
+
+        return;
+      }
+
+      sock.async_read_some(
+        boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
+        boost::bind(
+          &socket_t::handle_plaintext_payload, shared_from_this(),
+          boost::asio::placeholders::error,
+          boost::asio::placeholders::bytes_transferred));
+    }
+
+    /**
+     * @brief Handles the read of the payload portion of a plaintext message.
+     * @param socket The socket the message was received on.
+     * @param ec The error code of the read operation.
+     * @param bytes The number of bytes read.
+     */
+    static void
+    handle_plaintext_payload(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+      BOOST_LOG(debug) << "handle_plaintext_payload(): Handle read of size: "sv << bytes << " bytes"sv;
+
+      auto sock_close = util::fail_guard([&socket]() {
+        boost::system::error_code ec;
+        socket->sock.close(ec);
+
+        if (ec) {
+          BOOST_LOG(error) << "RTSP: handle_plaintext_payload(): Couldn't close tcp socket: "sv << ec.message();
         }
       });
 
       if (ec) {
-        BOOST_LOG(error) << "RTSP: handle_payload(): Couldn't read from tcp socket: "sv << ec.message();
+        BOOST_LOG(error) << "RTSP: handle_plaintext_payload(): Couldn't read from tcp socket: "sv << ec.message();
 
         return;
       }
@@ -122,14 +302,14 @@ namespace rtsp_stream {
       if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (std::size_t)(end - socket->msg_buf.data()))) {
         BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
 
-        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", req->sequenceNumber, {});
+        respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
         return;
       }
 
       sock_close.disable();
 
       auto fg = util::fail_guard([&socket]() {
-        socket->read_payload();
+        socket->read_plaintext_payload();
       });
 
       auto content_length = 0;
@@ -161,18 +341,24 @@ namespace rtsp_stream {
       socket->begin = end;
     }
 
+    /**
+     * @brief Handles the read of the header portion of a plaintext message.
+     * @param socket The socket the message was received on.
+     * @param ec The error code of the read operation.
+     * @param bytes The number of bytes read.
+     */
     static void
-    handle_read(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
-      BOOST_LOG(debug) << "handle_read(): Handle read of size: "sv << bytes << " bytes"sv;
+    handle_read_plaintext(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+      BOOST_LOG(debug) << "handle_read_plaintext(): Handle read of size: "sv << bytes << " bytes"sv;
 
       if (ec) {
-        BOOST_LOG(error) << "RTSP: handle_read(): Couldn't read from tcp socket: "sv << ec.message();
+        BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't read from tcp socket: "sv << ec.message();
 
         boost::system::error_code ec;
         socket->sock.close(ec);
 
         if (ec) {
-          BOOST_LOG(error) << "RTSP: handle_read(): Couldn't close tcp socket: "sv << ec.message();
+          BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't close tcp socket: "sv << ec.message();
         }
 
         return;
@@ -201,7 +387,7 @@ namespace rtsp_stream {
       buf_size = end - socket->begin;
 
       fg.disable();
-      handle_payload(socket, ec, buf_size);
+      handle_plaintext_payload(socket, ec, buf_size);
     }
 
     void
@@ -280,7 +466,8 @@ namespace rtsp_stream {
         cmd_not_found(sock, session, std::move(req));
       }
 
-      sock.shutdown(boost::asio::socket_base::shutdown_type::shutdown_both);
+      boost::system::error_code ec;
+      sock.shutdown(boost::asio::socket_base::shutdown_type::shutdown_both, ec);
     }
 
     void
@@ -293,18 +480,27 @@ namespace rtsp_stream {
         return;
       }
 
-      auto launch_session { launch_event.view() };
+      auto socket = std::move(next_socket);
+
+      auto launch_session { launch_event.view(0s) };
       if (launch_session) {
         // Associate the current RTSP session with this socket and start reading
-        auto socket = std::move(next_socket);
         socket->session = launch_session;
         socket->read();
+      }
+      else {
+        // This can happen due to normal things like port scanning, so let's not make these visible by default
+        BOOST_LOG(debug) << "No pending session for incoming RTSP connection"sv;
 
-        next_socket = std::make_shared<socket_t>(ios, [this](tcp::socket &sock, launch_session_t &session, msg_t &&msg) {
-          handle_msg(sock, session, std::move(msg));
-        });
+        // If there is no session pending, close the connection immediately
+        boost::system::error_code ec;
+        socket->sock.close(ec);
       }
 
+      // Queue another asynchronous accept for the next incoming connection
+      next_socket = std::make_shared<socket_t>(ios, [this](tcp::socket &sock, launch_session_t &session, msg_t &&msg) {
+        handle_msg(sock, session, std::move(msg));
+      });
       acceptor.async_accept(next_socket->sock, [this](const auto &ec) {
         handle_accept(ec);
       });
@@ -343,7 +539,7 @@ namespace rtsp_stream {
     session_clear(uint32_t launch_session_id) {
       // We currently only support a single pending RTSP session,
       // so the ID should always match the one for that session.
-      auto launch_session = launch_event.view();
+      auto launch_session = launch_event.view(0s);
       if (launch_session) {
         if (launch_session->id != launch_session_id) {
           BOOST_LOG(error) << "Attempted to clear unexpected session: "sv << launch_session_id << " vs "sv << launch_session->id;
@@ -498,13 +694,53 @@ namespace rtsp_stream {
       << std::string_view { payload.first, (std::size_t) payload.second } << std::endl
       << "---End Response---"sv << std::endl;
 
-    std::string_view tmp_resp { raw_resp.get(), (size_t) serialized_len };
+    // Encrypt the RTSP message if encryption is enabled
+    if (session.rtsp_cipher) {
+      // We use the deterministic IV construction algorithm specified in NIST SP 800-38D
+      // Section 8.2.1. The sequence number is our "invocation" field and the 'RH' in the
+      // high bytes is the "fixed" field. Because each client provides their own unique
+      // key, our values in the fixed field need only uniquely identify each independent
+      // use of the client's key with AES-GCM in our code.
+      //
+      // The sequence number is 32 bits long which allows for 2^32 RTSP messages to be
+      // sent to each client before the IV repeats.
+      crypto::aes_t iv(12);
+      session.rtsp_iv_counter++;
+      std::copy_n((uint8_t *) &session.rtsp_iv_counter, sizeof(session.rtsp_iv_counter), std::begin(iv));
+      iv[10] = 'H';  // Host originated
+      iv[11] = 'R';  // RTSP
 
-    if (send(sock, tmp_resp)) {
-      return;
+      // Allocate the message with an empty header and reserved space for the payload
+      auto payload_length = serialized_len + payload.second;
+      std::vector<uint8_t> message(sizeof(encrypted_rtsp_header_t));
+      message.reserve(message.size() + payload_length);
+
+      // Copy the complete plaintext into the message
+      std::copy_n(raw_resp.get(), serialized_len, std::back_inserter(message));
+      std::copy_n(payload.first, payload.second, std::back_inserter(message));
+
+      // Initialize the message header
+      auto header = (encrypted_rtsp_header_t *) message.data();
+      header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + payload_length);
+      header->sequenceNumber = util::endian::big<std::uint32_t>(session.rtsp_iv_counter);
+
+      // Encrypt the RTSP message in place
+      session.rtsp_cipher->encrypt(std::string_view { (const char *) header->payload(), (std::size_t) payload_length }, header->tag, &iv);
+
+      // Send the full encrypted message
+      send(sock, std::string_view { (char *) message.data(), message.size() });
     }
+    else {
+      std::string_view tmp_resp { raw_resp.get(), (size_t) serialized_len };
 
-    send(sock, std::string_view { payload.first, (std::size_t) payload.second });
+      // Send the plaintext RTSP message header
+      if (send(sock, tmp_resp)) {
+        return;
+      }
+
+      // Send the plaintext RTSP message payload (if present)
+      send(sock, std::string_view { payload.first, (std::size_t) payload.second });
+    }
   }
 
   void
