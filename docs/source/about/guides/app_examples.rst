@@ -206,6 +206,9 @@ Changing Resolution and Refresh Rate
       |                      | Undo: ``xrandr --output HDMI-1 --mode 3840x2160 --rate 120``                                                                       |
       +----------------------+------------------------------------------------------------------------------------------------------------------------------------+
 
+      .. warning::
+         The ``SUNSHINE*`` variables are not set for the Flatpak version of sunshine.
+
       .. hint::
          The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS and iOS devices, since they use non standard resolutions.
 
@@ -228,7 +231,7 @@ Changing Resolution and Refresh Rate
                scale=${4:-0.55}
 
                # Get the name of the active display
-               display_output=$(xrandr | grep " connected" | awk '{ print $1 }')
+               display_output=$(xrandr | grep " primary" | awk '{ print $1 }')
 
                # Get the modeline info from the 2nd row in the cvt output
                modeline=$(cvt ${width} ${height} ${refresh_rate} | awk 'FNR == 2')
@@ -247,6 +250,13 @@ Changing Resolution and Refresh Rate
 
                # Optional reset your wallpaper to fit to new resolution
                # xwallpaper --zoom /path/to/wallpaper.png
+         
+         .. note::
+            Using ``xrandr --scale`` may lead to poor results like blurriness. It is preferred to adjust the DPI instead.
+
+            reference:
+              - https://wiki.archlinux.org/title/xorg
+              - https://winaero.com/find-change-screen-dpi-linux/
 
    .. tab:: Wayland
 
