@@ -628,7 +628,10 @@ namespace platf {
     if (dscp_tagging) {
       int level;
       int option;
-      if (address.is_v6()) {
+
+      // With dual-stack sockets, Linux uses IPV6_TCLASS for IPv6 traffic
+      // and IP_TOS for IPv4 traffic.
+      if (address.is_v6() && !address.to_v6().is_v4_mapped()) {
         level = SOL_IPV6;
         option = IPV6_TCLASS;
       }
