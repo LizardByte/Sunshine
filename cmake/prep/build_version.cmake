@@ -14,12 +14,12 @@ if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMI
 else()
     find_package(Git)
     if(GIT_EXECUTABLE)
-        MESSAGE("${CMAKE_CURRENT_SOURCE_DIR}")
-        get_filename_component(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+        MESSAGE("${CMAKE_SOURCE_DIR}")
+        get_filename_component(SRC_DIR "${CMAKE_SOURCE_DIR}" DIRECTORY)
         #Get current Branch
         execute_process(
                 COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
-                #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                #WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                 OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
                 RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
                 OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -27,7 +27,7 @@ else()
         # Gather current commit
         execute_process(
                 COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-                #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                #WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                 OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
                 RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
                 OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -35,7 +35,7 @@ else()
         # Check if Dirty
         execute_process(
                 COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
-                #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                #WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                 RESULT_VARIABLE GIT_IS_DIRTY
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )
