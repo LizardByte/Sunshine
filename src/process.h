@@ -75,7 +75,7 @@ namespace proc {
         _apps(std::move(apps)) {}
 
     int
-    execute(int app_id, rtsp_stream::launch_session_t launch_session);
+    execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
 
     /**
      * @return _app_id if a process is running, otherwise returns 0

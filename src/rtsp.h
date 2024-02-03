@@ -13,6 +13,8 @@ namespace rtsp_stream {
   constexpr auto RTSP_SETUP_PORT = 21;
 
   struct launch_session_t {
+    uint32_t id;
+
     crypto::aes_t gcm_key;
     crypto::aes_t iv;
 
@@ -32,7 +34,11 @@ namespace rtsp_stream {
   };
 
   void
-  launch_session_raise(launch_session_t launch_session);
+  launch_session_raise(std::shared_ptr<launch_session_t> launch_session);
+
+  void
+  launch_session_clear(uint32_t launch_session_id);
+
   int
   session_count();
 
