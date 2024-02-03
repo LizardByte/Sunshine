@@ -820,6 +820,17 @@ namespace nvhttp {
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     auto launch_session = make_launch_session(host_audio, args);
 
+    auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
+    if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
+      BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
+
+      tree.put("root.<xmlattr>.status_code", 403);
+      tree.put("root.<xmlattr>.status_message", "Encryption is mandatory for this host but unsupported by the client");
+      tree.put("root.gamesession", 0);
+
+      return;
+    }
+
     if (appid > 0) {
       auto err = proc::proc.execute(appid, launch_session);
       if (err) {
@@ -905,6 +916,17 @@ namespace nvhttp {
     }
 
     auto launch_session = make_launch_session(host_audio, args);
+
+    auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
+    if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
+      BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
+
+      tree.put("root.<xmlattr>.status_code", 403);
+      tree.put("root.<xmlattr>.status_message", "Encryption is mandatory for this host but unsupported by the client");
+      tree.put("root.gamesession", 0);
+
+      return;
+    }
 
     tree.put("root.<xmlattr>.status_code", 200);
     tree.put("root.sessionUrl0", launch_session->rtsp_url_scheme +

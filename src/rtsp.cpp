@@ -789,14 +789,7 @@ namespace rtsp_stream {
     uint32_t encryption_flags_requested = SS_ENC_CONTROL_V2;
 
     // Determine the encryption desired for this remote endpoint
-    auto nettype = net::from_address(sock.remote_endpoint().address().to_string());
-    int encryption_mode;
-    if (nettype == net::net_e::PC || nettype == net::net_e::LAN) {
-      encryption_mode = config::stream.lan_encryption_mode;
-    }
-    else {
-      encryption_mode = config::stream.wan_encryption_mode;
-    }
+    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
     if (encryption_mode != config::ENCRYPTION_MODE_NEVER) {
       // Advertise support for video encryption if it's not disabled
       encryption_flags_supported |= SS_ENC_VIDEO;
@@ -1080,14 +1073,7 @@ namespace rtsp_stream {
     }
 
     // Check that any required encryption is enabled
-    auto nettype = net::from_address(sock.remote_endpoint().address().to_string());
-    int encryption_mode;
-    if (nettype == net::net_e::PC || nettype == net::net_e::LAN) {
-      encryption_mode = config::stream.lan_encryption_mode;
-    }
-    else {
-      encryption_mode = config::stream.wan_encryption_mode;
-    }
+    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
     if (encryption_mode == config::ENCRYPTION_MODE_MANDATORY &&
         (config.encryptionFlagsEnabled & (SS_ENC_VIDEO | SS_ENC_AUDIO)) != (SS_ENC_VIDEO | SS_ENC_AUDIO)) {
       BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
