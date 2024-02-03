@@ -207,7 +207,7 @@ Changing Resolution and Refresh Rate
       +----------------------+------------------------------------------------------------------------------------------------------------------------------------+
 
       .. warning::
-         The ``SUNSHINE*`` variables are not set for the Flatpak version of sunshine.
+         Due to the sandboxed nature of Flatpak, Sunshine cannot access the global ``SUNSHINE*`` variables on the host.
 
       .. hint::
          The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS and iOS devices, since they use non standard resolutions.
