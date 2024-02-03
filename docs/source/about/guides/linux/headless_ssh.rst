@@ -12,7 +12,8 @@ This is a guide to setup remote SSH into host to startup X server and sunshine w
 The virtual display is accelerated by the NVidia GPU using the TwinView configuration.
 
 .. attention::
-    This guide is specific for Xorg and NVidia GPUs. I start the X server using the ``startx`` command.
+    This guide is specific for Xorg and NVidia GPUs. This guide assumes the host is not using a desktop environment and only a barebones windows manager.
+    I configure the X server with ``~/.xinitrc`` and start the X server using the ``startx`` command.
     I also only tested this on an Artix runit init system on LAN.
     I didn't have to do anything special with pulseaudio (pipewire untested).
 
@@ -29,7 +30,6 @@ Once you are done, you will need to perform these 3 steps:
 #. Turn on the host machine
 #. Start sunshine on remote host with a script that:
 
-   - Edits permissions of ``/dev/uinput`` (added sudo config to execute script with no password prompt)
    - Starts X server with ``startx`` on virtual display
    - Starts ``Sunshine``
 
@@ -41,10 +41,9 @@ Once you are done, you will need to perform these 3 steps:
 
    **Step 2** can be replaced with autologin and starting sunshine as a service or putting
    ``sunshine &`` in your ``.xinitrc`` file if you start your X server with ``startx``.
-   In this case, the workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered
-   for "physical" login. See :ref:`Linux Setup <about/setup:install>`. I personally think autologin compromises the
-   security of the PC, so I went with the remote SSH route. I use the PC more than for gaming, so I don't need a
-   virtual display everytime I turn on the PC (E.g running updates, config changes, file/media server).
+   See :ref:`Linux Setup <about/setup:install>` for setting up autologin. I personally think autologin compromises the
+   security of the PC, so I went with the remote SSH route. I use the PC more than for gaming,
+   so I don't need a virtual display everytime I turn on the PC (E.g running updates, config changes, file/media server).
 
 First we will setup the host and then the SSH Client (Which may not be the same as the machine running the
 moonlight client)
@@ -57,7 +56,7 @@ We will be setting up:
 #. `Static IP Setup`_
 #. `SSH Server Setup`_
 #. `Virtual Display Setup`_
-#. `Uinput Permissions Workaround`_
+#. `Alternate Uinput Udev Rules`_
 #. `Stream Launcher Script`_
 
 
@@ -198,7 +197,7 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
 
    .. code-block:: bash
 
-      xrandr | grep " connected" | awk '{ print $1 }'
+      xrandr | grep " primary" | awk '{ print $1 }'
 
 
 .. code-block:: xorg.conf
@@ -250,125 +249,102 @@ As an alternative to a dummy dongle, you can use this config to create a virtual
      <https://unix.stackexchange.com/questions/559918/how-to-add-virtual-monitor-with-nvidia-proprietary-driver>`__
 
 
-Uinput Permissions Workaround
+Alternate Uinput Udev Rules
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Steps**
 
-We can use ``chown`` to change the permissions from a script. Since this requires ``sudo``,
-we will need to update the sudo configuration to execute this without being prompted for a password.
+#. Create alternate *udev* rules.
 
-#. Create a ``sunshine-setup.sh`` script to update permissions on ``/dev/uinput``. Since we aren't logged into the host,
-   the udev rule doesn't apply.
-#. Update user sudo configuration ``/etc/sudoers.d/<user>`` to allow the ``sunshine-setup.sh``
-   script to be executed with ``sudo``.
-
-.. note::
-   After I setup the :ref:`udev rule <about/setup:install>` to get access to ``/dev/uinput``,
-   I noticed when I sshed into the host without physical login, the ACL permissions on ``/dev/uinput`` were not changed.
-   So I asked `reddit
-   <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`__.
-   I discovered that SSH sessions are not the same as a physical login.
-   I suppose it's not possible for SSH to trigger a udev rule or create a physical login session.
-
-**Setup Script**
-
-This script will take care of any preconditions prior to starting up sunshine.
-
-Run the following to create a script named something like ``sunshine-setup.sh``:
-   .. code-block:: bash
-
-      echo "chown $(id -un):$(id -gn) /dev/uinput" > sunshine-setup.sh &&\
-        chmod +x sunshine-setup.sh
-
-(**Optional**) To Ensure ethernet is being used for streaming,
-you can block WiFi with ``rfkill``.
-
-Run this command to append the rfkill block command to the script:
-   .. code-block:: bash
-
-      echo "rfkill block $(rfkill list | grep "Wireless LAN" \
-        | sed 's/^\([[:digit:]]\).*/\1/')" >> sunshine-setup.sh
-
-**Sudo Configuration**
-
-We will manually change the permissions of ``/dev/uinput`` using ``chown``.
-You need to use ``sudo`` to make this change, so add/update the entry in ``/etc/sudoers.d/${USER}``
-
-.. danger::
-   Do so at your own risk! It is more secure to give sudo and no password prompt to a single script,
-   than a generic executable like chown.
-
-.. warning::
-   Be very careful of messing this config up. If you make a typo, *YOU LOSE THE ABILITY TO USE SUDO*.
-   Fortunately, your system is not borked, you will need to login as root to fix the config.
-   You may want to setup a backup user / SSH into the host as root to fix the config if this happens.
-   Otherwise you will need to plug your machine back into a monitor and login as root to fix this.
-   To enable root login over SSH edit your SSHD config, and add ``PermitRootLogin yes``, and restart the SSH server.
-
-#. First make a backup of your ``/etc/sudoers.d/${USER}`` file.
+   .. note::
+      These alternative rules are necessary because the original rules only seem to trigger on physical login and not ssh.
+      These rules open access to uinput to the input group.
 
    .. code-block:: bash
 
-      sudo cp /etc/sudoers.d/${USER} /etc/sudoers.d/${USER}.backup
+      echo 'KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"' | \
+      sudo tee /etc/udev/rules.d/85-sunshine.rules
 
-#. ``cd`` to the parent dir of the ``sunshine-setup.sh`` script.
-#. Execute the following to update your sudoer config file.
+#. Add the user running sunshine to the `input` group.
 
    .. code-block:: bash
 
-      echo "${USER} ALL=(ALL:ALL) ALL, NOPASSWD: $(pwd)/sunshine-setup.sh" \
-        | sudo tee /etc/sudoers.d/${USER}
+      sudo groupadd input
+      sudo usermod -aG input $USER
 
-These changes allow the script to use sudo without being prompted with a password.
+#. Reboot or run the following:
 
-e.g. ``sudo $(pwd)/sunshine-setup.sh``
+   .. code-block:: bash
 
+      sudo udevadm control --reload-rules && sudo udevadm trigger
+
+.. hint::
+   If you need to roll back your uinput udev rules, follow the linux install instructions again in :ref:`setup <about/setup:install>`
 
 Stream Launcher Script
 ^^^^^^^^^^^^^^^^^^^^^^
 
-This is the main entrypoint script that will run the ``sunshine-setup.sh`` script, start up X server, and Sunshine.
-The client will call this script that runs on the host via ssh.
+The client will execute this script on the host to startup Xorg and Sunshine.
 
 
 **Sunshine Startup Script**
 
 This guide will refer to this script as ``~/scripts/sunshine.sh``.
-The setup script will be referred as ``~/scripts/sunshine-setup.sh``
 
 .. code-block:: bash
 
-    #!/bin/bash
+   #!/bin/bash
 
-    export DISPLAY=:0
+   export DISPLAY=:0
 
-    # Check existing X server
-    ps -e | grep X >/dev/null
-    [[ ${?} -ne 0 ]] && {
+   dpi=${1:-144}
+   
+   # Check existing X server
+   ps -e | grep X >/dev/null
+   [[ ${?} -ne 0 ]] && {
+     echo "DPI: ${dpi}"
+     echo "Xft.dpi: ${dpi}" > $HOME/.Xresources
      echo "Starting X server"
      startx &>/dev/null &
      [[ ${?} -eq 0 ]] && {
        echo "X server started successfully"
      } || echo "X server failed to start"
-    } || echo "X server already running"
+   } || echo "X server already running"
 
-    # Check if sunshine is already running
-    ps -e | grep -e .*sunshine$ >/dev/null
-    [[ ${?} -ne 0 ]] && {
+   # Give some time for X server to startup
+   sleep 3
+
+   # Check if sunshine is already running
+   ps -e | grep -e .*sunshine$ >/dev/null
+   [[ ${?} -ne 0 ]] && {
      sudo ~/scripts/sunshine-setup.sh
      echo "Starting Sunshine!"
      sunshine > /dev/null &
      [[ ${?} -eq 0 ]] && {
        echo "Sunshine started successfully"
      } || echo "Sunshine failed to start"
-    } || echo "Sunshine is already running"
+   } || echo "Sunshine is already running"
 
-    # Add any other Programs that you want to startup automatically
-    # e.g.
-    # steam &> /dev/null &
-    # firefox &> /dev/null &
-    # kdeconnect-app &> /dev/null &
+   # Add any other Programs that you want to startup automatically
+   # e.g.
+   # steam &> /dev/null &
+   # firefox &> /dev/null &
+   # kdeconnect-app &> /dev/null &
+
+Notice how we pass the "dpi" as a way to get a good scale level for the font and windows.
+You can change the default if "144" doesn't suit  your needs.
+The .xinitrc will use the .Xresources file to set the dpi.
+
+This is what my .xinitrc file looks like:
+
+.. code-block:: bash
+
+   xrdb -merge ~/.Xresources
+   ...
+
+   exec dwm
+
+Replace dwm with your windows manager.
 
 ----
 
@@ -452,18 +428,18 @@ With your monitor still plugged into your Sunshine host PC:
 
    .. code-block:: console
 
-      crw------- 1 <user> <primary_group> 10, 223 Aug 29 17:31 /dev/uinput
+      crw-rw---- 1 root input 10, 223 Feb  2 13:53 /dev/uinput
 
 #. Connect to Sunshine host from a moonlight client
 
-Now kill X and sunshine by running ``pkill X`` on the host,
+Now kill X and sunshine by running ``pkill -ef X`` on the host,
 unplug your monitors from your GPU, and repeat steps 1 - 5.
 You should get the same result.
 With this setup you don't need to modify the Xorg config regardless if monitors are plugged in or not.
 
 .. code-block:: bash
 
-   pkill X
+   pkill -ef X
 
 
 SSH Client Script (Optional)
@@ -476,24 +452,28 @@ This can be run on Unix systems, or on Windows using the ``git-bash`` or any bas
 For Android/iOS you can install Linux emulators, e.g. ``Userland`` for Android and ``ISH`` for iOS.
 The neat part is that you can execute one script to launch Sunshine from your phone or tablet!
 
+Let's call this script ``start-stream.sh``.
+
 .. code-block:: bash
 
    #!/bin/bash
 
-   ssh_args="<user>@192.168.X.X" # Or use alias set in ~/.ssh/config
+   ssh_args="<remote_user>@192.168.X.X"
+
+   dpi=${1:-144}
 
    check_ssh(){
      result=1
-      # Note this checks infinitely, you could update this to have a max # of retries
+     # Note this checks infinitely, you could update this to have a max # of retries
      while [[ $result -ne 0 ]]
      do
        echo "checking host..."
        ssh $ssh_args "exit 0" 2>/dev/null
        result=$?
        [[ $result -ne 0 ]] && {
-          echo "Failed to ssh to $ssh_args, with exit code $result"
+         echo "Failed to ssh to $ssh_args, with exit code $result"
        }
-       sleep 3
+     sleep 3
      done
      echo "Host is ready for streaming!"
    }
@@ -501,16 +481,32 @@ The neat part is that you can execute one script to launch Sunshine from your ph
    start_stream(){
      echo "Starting sunshine server on host..."
      echo "Start moonlight on your client of choice"
-      # -f runs ssh in the background
-     ssh -f $ssh_args "~/scripts/sunshine.sh &"
+     # -f runs ssh in the background
+     ssh -f $ssh_args "~/scripts/sunshine.sh ${dpi} &"
    }
 
    check_ssh
    start_stream
    exit_code=${?}
 
-   sleep 3
+   sleep 5
    exit ${exit_code}
+
+.. note::
+   The ``dpi`` is passed to the remote ``sunshine.sh`` script that we created earlier.
+
+**example** 
+
+You may need to experiment with the correct DPI to get things scaled right.
+
+You could write a script if you found a DPI you like for streaming to your iPad.
+
+``ipad.sh``
+
+.. code-block:: bash
+
+   #!/bin/bash
+   /path/to/start-stream.sh 180
 
 Next Steps
 ----------
