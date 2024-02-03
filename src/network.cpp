@@ -3,6 +3,7 @@
  * @brief todo
  */
 #include "network.h"
+#include "config.h"
 #include "utility.h"
 #include <algorithm>
 
@@ -171,6 +172,22 @@ namespace net {
     }
     else {
       return address.to_string();
+    }
+  }
+
+  /**
+   * @brief Returns the encryption mode for the given remote endpoint address.
+   * @param address The address used to look up the desired encryption mode.
+   * @return The WAN or LAN encryption mode, based on the provided address.
+   */
+  int
+  encryption_mode_for_address(boost::asio::ip::address address) {
+    auto nettype = net::from_address(address.to_string());
+    if (nettype == net::net_e::PC || nettype == net::net_e::LAN) {
+      return config::stream.lan_encryption_mode;
+    }
+    else {
+      return config::stream.wan_encryption_mode;
     }
   }
 
