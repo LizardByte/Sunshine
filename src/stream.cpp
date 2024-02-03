@@ -411,6 +411,8 @@ namespace stream {
       safe::mail_raw_t::event_t<video::hdr_info_t> hdr_queue;
     } control;
 
+    std::uint32_t launch_session_id;
+
     safe::mail_raw_t::event_t<bool> shutdown_event;
     safe::signal_t controlEnd;
 
@@ -522,6 +524,9 @@ namespace stream {
           BOOST_LOG(debug) << "Initialized new control stream session by IP address match [v1]"sv;
         }
       }
+
+      // Once the control stream connection is established, RTSP session state can be torn down
+      rtsp_stream::launch_session_clear(session_p->launch_session_id);
 
       session_p->control.peer = peer;
 
@@ -1881,6 +1886,7 @@ namespace stream {
       auto mail = std::make_shared<safe::mail_raw_t>();
 
       session->shutdown_event = mail->event<bool>(mail::shutdown);
+      session->launch_session_id = launch_session.id;
 
       session->config = config;
 

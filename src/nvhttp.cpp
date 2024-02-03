@@ -141,6 +141,7 @@ namespace nvhttp {
   // uniqueID, session
   std::unordered_map<std::string, pair_session_t> map_id_sess;
   std::unordered_map<std::string, client_t> map_id_client;
+  std::atomic<uint32_t> session_id_counter;
 
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
@@ -267,41 +268,43 @@ namespace nvhttp {
     }
   }
 
-  rtsp_stream::launch_session_t
+  std::shared_ptr<rtsp_stream::launch_session_t>
   make_launch_session(bool host_audio, const args_t &args) {
-    rtsp_stream::launch_session_t launch_session;
+    auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
+
+    launch_session->id = ++session_id_counter;
 
     auto rikey = util::from_hex_vec(get_arg(args, "rikey"), true);
-    std::copy(rikey.cbegin(), rikey.cend(), std::back_inserter(launch_session.gcm_key));
+    std::copy(rikey.cbegin(), rikey.cend(), std::back_inserter(launch_session->gcm_key));
 
-    launch_session.host_audio = host_audio;
+    launch_session->host_audio = host_audio;
     std::stringstream mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
     int x = 0;
     std::string segment;
     while (std::getline(mode, segment, 'x')) {
-      if (x == 0) launch_session.width = atoi(segment.c_str());
-      if (x == 1) launch_session.height = atoi(segment.c_str());
-      if (x == 2) launch_session.fps = atoi(segment.c_str());
+      if (x == 0) launch_session->width = atoi(segment.c_str());
+      if (x == 1) launch_session->height = atoi(segment.c_str());
+      if (x == 2) launch_session->fps = atoi(segment.c_str());
       x++;
     }
-    launch_session.unique_id = (get_arg(args, "uniqueid", "unknown"));
-    launch_session.appid = util::from_view(get_arg(args, "appid", "unknown"));
-    launch_session.enable_sops = util::from_view(get_arg(args, "sops", "0"));
-    launch_session.surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
-    launch_session.gcmap = util::from_view(get_arg(args, "gcmap", "0"));
-    launch_session.enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
+    launch_session->unique_id = (get_arg(args, "uniqueid", "unknown"));
+    launch_session->appid = util::from_view(get_arg(args, "appid", "unknown"));
+    launch_session->enable_sops = util::from_view(get_arg(args, "sops", "0"));
+    launch_session->surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
+    launch_session->gcmap = util::from_view(get_arg(args, "gcmap", "0"));
+    launch_session->enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
 
     // Generate the unique identifiers for this connection that we will send later during RTSP handshake
     unsigned char raw_payload[8];
     RAND_bytes(raw_payload, sizeof(raw_payload));
-    launch_session.av_ping_payload = util::hex_vec(raw_payload);
-    RAND_bytes((unsigned char *) &launch_session.control_connect_data, sizeof(launch_session.control_connect_data));
+    launch_session->av_ping_payload = util::hex_vec(raw_payload);
+    RAND_bytes((unsigned char *) &launch_session->control_connect_data, sizeof(launch_session->control_connect_data));
 
-    launch_session.iv.resize(16);
+    launch_session->iv.resize(16);
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
-    std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session.iv));
+    std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session->iv));
     return launch_session;
   }
 
