@@ -31,6 +31,10 @@ namespace rtsp_stream {
     int surround_info;
     bool enable_hdr;
     bool enable_sops;
+
+    std::optional<crypto::cipher::gcm_t> rtsp_cipher;
+    std::string rtsp_url_scheme;
+    uint32_t rtsp_iv_counter;
   };
 
   void

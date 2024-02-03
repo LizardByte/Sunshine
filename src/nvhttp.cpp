@@ -295,6 +295,16 @@ namespace nvhttp {
     launch_session->gcmap = util::from_view(get_arg(args, "gcmap", "0"));
     launch_session->enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
 
+    // Encrypted RTSP is enabled with client reported corever >= 1
+    auto corever = util::from_view(get_arg(args, "corever", "0"));
+    if (corever >= 1) {
+      launch_session->rtsp_cipher = crypto::cipher::gcm_t {
+        launch_session->gcm_key, false
+      };
+      launch_session->rtsp_iv_counter = 0;
+    }
+    launch_session->rtsp_url_scheme = launch_session->rtsp_cipher ? "rtspenc://"s : "rtsp://"s;
+
     // Generate the unique identifiers for this connection that we will send later during RTSP handshake
     unsigned char raw_payload[8];
     RAND_bytes(raw_payload, sizeof(raw_payload));
@@ -821,11 +831,13 @@ namespace nvhttp {
       }
     }
 
-    rtsp_stream::launch_session_raise(launch_session);
-
     tree.put("root.<xmlattr>.status_code", 200);
-    tree.put("root.sessionUrl0", "rtsp://"s + net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
+    tree.put("root.sessionUrl0", launch_session->rtsp_url_scheme +
+                                   net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' +
+                                   std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
     tree.put("root.gamesession", 1);
+
+    rtsp_stream::launch_session_raise(launch_session);
   }
 
   void
@@ -892,11 +904,15 @@ namespace nvhttp {
       }
     }
 
-    rtsp_stream::launch_session_raise(make_launch_session(host_audio, args));
+    auto launch_session = make_launch_session(host_audio, args);
 
     tree.put("root.<xmlattr>.status_code", 200);
-    tree.put("root.sessionUrl0", "rtsp://"s + net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' + std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
+    tree.put("root.sessionUrl0", launch_session->rtsp_url_scheme +
+                                   net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' +
+                                   std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
     tree.put("root.resume", 1);
+
+    rtsp_stream::launch_session_raise(launch_session);
   }
 
   void
