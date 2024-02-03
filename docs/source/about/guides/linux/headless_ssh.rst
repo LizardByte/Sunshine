@@ -493,9 +493,9 @@ Let's call this script ``start-stream.sh``.
    exit ${exit_code}
 
 .. note::
-   The ``dpi`` is passed to the remote ``sunshine.sh`` script that we created earlier.
+   The ``dpi`` param is passed to the remote ``sunshine.sh`` script that we created earlier.
 
-**example** 
+**Example** 
 
 You may need to experiment with the correct DPI to get things scaled right.
 
