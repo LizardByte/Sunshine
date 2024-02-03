@@ -508,6 +508,10 @@ You could write a script if you found a DPI you like for streaming to your iPad.
    #!/bin/bash
    /path/to/start-stream.sh 180
 
+DPI References:
+  - https://wiki.archlinux.org/title/xorg
+  - https://winaero.com/find-change-screen-dpi-linux/
+
 Next Steps
 ----------
 
