@@ -1035,8 +1035,12 @@ namespace stream {
     // This thread handles latency-sensitive control messages
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
-    auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
-    while (!shutdown_event->peek()) {
+    // Check for both the full shutdown event and the shutdown event for this
+    // broadcast to ensure we can inform connected clients of our graceful
+    // termination when we shut down.
+    auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+    auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+    while (!shutdown_event->peek() && !broadcast_shutdown_event->peek()) {
       bool has_session_awaiting_peer = false;
 
       {
@@ -1045,6 +1049,11 @@ namespace stream {
         auto now = std::chrono::steady_clock::now();
 
         KITTY_WHILE_LOOP(auto pos = std::begin(*server->_sessions), pos != std::end(*server->_sessions), {
+          // Don't perform additional session processing if we're shutting down
+          if (shutdown_event->peek() || broadcast_shutdown_event->peek()) {
+            break;
+          }
+
           auto session = *pos;
 
           if (now > session->pingTimeout) {
