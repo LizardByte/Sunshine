@@ -21,17 +21,17 @@ namespace platf {
 
   struct macos_input_t {
   public:
-    CGDirectDisplayID display;
-    CGFloat displayScaling;
-    CGEventSourceRef source;
+    CGDirectDisplayID display {};
+    CGFloat displayScaling {};
+    CGEventSourceRef source {};
 
     // keyboard related stuff
-    CGEventRef kb_event;
-    CGEventFlags kb_flags;
+    CGEventRef kb_event {};
+    CGEventFlags kb_flags {};
 
     // mouse related stuff
-    CGEventRef mouse_event;  // mouse event source
-    bool mouse_down[3];  // mouse button status
+    CGEventRef mouse_event {};  // mouse event source
+    bool mouse_down[3] {};  // mouse button status
     std::chrono::steady_clock::steady_clock::time_point last_mouse_event[3][2];  // timestamp of last mouse events
   };
 
@@ -221,7 +221,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   int
   keysym(int keycode) {
-    KeyCodeMap key_map;
+    KeyCodeMap key_map {};
 
     key_map.win_keycode = keycode;
     const KeyCodeMap *temp_map = std::lower_bound(
@@ -330,13 +330,13 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     if (location.x < 0)
       location.x = 0;
-    if (location.x >= CGDisplayPixelsWide(display))
-      location.x = CGDisplayPixelsWide(display) - 1;
+    if (location.x >= (double) CGDisplayPixelsWide(display))
+      location.x = (double) CGDisplayPixelsWide(display) - 1;
 
     if (location.y < 0)
       location.y = 0;
-    if (location.y >= CGDisplayPixelsHigh(display))
-      location.y = CGDisplayPixelsHigh(display) - 1;
+    if (location.y >= (double) CGDisplayPixelsHigh(display))
+      location.y = (double) CGDisplayPixelsHigh(display) - 1;
 
     CGEventSetType(event, type);
     CGEventSetLocation(event, location);
@@ -428,7 +428,7 @@ const KeyCodeMap kKeyCodesMap[] = {
   void
   scroll(input_t &input, int high_res_distance) {
     CGEventRef upEvent = CGEventCreateScrollWheelEvent(
-      NULL,
+      nullptr,
       kCGScrollEventUnitLine,
       2, high_res_distance > 0 ? 1 : -1, high_res_distance);
     CGEventPost(kCGHIDEventTap, upEvent);

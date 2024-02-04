@@ -8,7 +8,6 @@
 #include "src/platform/macos/nv12_zero_device.h"
 
 #include "src/config.h"
-#include "src/main.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
 #define AVMediaType AVMediaType_FFmpeg
@@ -21,10 +20,10 @@ namespace platf {
   using namespace std::literals;
 
   struct av_display_t: public display_t {
-    AVVideo *av_capture;
-    CGDirectDisplayID display_id;
+    AVVideo *av_capture {};
+    CGDirectDisplayID display_id {};
 
-    ~av_display_t() {
+    ~av_display_t() override {
       [av_capture release];
     }
 
@@ -45,9 +44,9 @@ namespace platf {
         av_img->pixel_buffer = std::make_shared<av_pixel_buf_t>(pixelBuffer);
         img_out->data = av_img->pixel_buffer->lock();
 
-        img_out->width = CVPixelBufferGetWidth(pixelBuffer);
-        img_out->height = CVPixelBufferGetHeight(pixelBuffer);
-        img_out->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        img_out->width = (int) CVPixelBufferGetWidth(pixelBuffer);
+        img_out->height = (int) CVPixelBufferGetHeight(pixelBuffer);
+        img_out->row_pitch = (int) CVPixelBufferGetBytesPerRow(pixelBuffer);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
 
         if (!push_captured_image_cb(std::move(img_out), true)) {
@@ -101,9 +100,9 @@ namespace platf {
         av_img->pixel_buffer = std::make_shared<av_pixel_buf_t>(pixelBuffer);
         img->data = av_img->pixel_buffer->lock();
 
-        img->width = CVPixelBufferGetWidth(pixelBuffer);
-        img->height = CVPixelBufferGetHeight(pixelBuffer);
-        img->row_pitch = CVPixelBufferGetBytesPerRow(pixelBuffer);
+        img->width = (int) CVPixelBufferGetWidth(pixelBuffer);
+        img->height = (int) CVPixelBufferGetHeight(pixelBuffer);
+        img->row_pitch = (int) CVPixelBufferGetBytesPerRow(pixelBuffer);
         img->pixel_pitch = img->row_pitch / img->width;
 
         // returning false here stops capture backend
@@ -177,7 +176,7 @@ namespace platf {
     display_names.reserve([display_array count]);
     [display_array enumerateObjectsUsingBlock:^(NSDictionary *_Nonnull obj, NSUInteger idx, BOOL *_Nonnull stop) {
       NSString *name = obj[@"name"];
-      display_names.push_back(name.UTF8String);
+      display_names.emplace_back(name.UTF8String);
     }];
 
     return display_names;

@@ -11,7 +11,7 @@
 
 namespace platf {
   struct av_sample_buf_t {
-    av_sample_buf_t(CMSampleBufferRef buf):
+    explicit av_sample_buf_t(CMSampleBufferRef buf):
         buf((CMSampleBufferRef) CFRetain(buf)) {}
 
     ~av_sample_buf_t() {
@@ -22,12 +22,12 @@ namespace platf {
   };
 
   struct av_pixel_buf_t {
-    av_pixel_buf_t(CVPixelBufferRef buf):
+    explicit av_pixel_buf_t(CVPixelBufferRef buf):
         buf((CVPixelBufferRef) CFRetain(buf)),
         locked(false) {}
 
-    uint8_t *
-    lock() {
+    [[nodiscard]] uint8_t *
+    lock() const {
       if (!locked) {
         CVPixelBufferLockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
       }

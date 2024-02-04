@@ -402,7 +402,7 @@ namespace platf::publish {
   public:
     std::thread poll_thread;
 
-    deinit_t(std::thread poll_thread):
+    explicit deinit_t(std::thread poll_thread):
         poll_thread { std::move(poll_thread) } {}
 
     ~deinit_t() override {

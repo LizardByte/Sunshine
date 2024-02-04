@@ -9,7 +9,7 @@
 #include <CoreGraphics/CoreGraphics.h>
 
 namespace dyn {
-  typedef void (*apiproc)(void);
+  typedef void (*apiproc)();
 
   int
   load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
