@@ -17,6 +17,7 @@
 #include <xcb/xfixes.h>
 
 #include "src/config.h"
+#include "src/logging.h"
 #include "src/main.h"
 #include "src/task_pool.h"
 #include "src/video.h"

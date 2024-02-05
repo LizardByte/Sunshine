@@ -18,6 +18,7 @@
 #include <pwd.h>
 
 #include "misc.h"
+#include "src/logging.h"
 #include "src/main.h"
 #include "src/platform/common.h"
 

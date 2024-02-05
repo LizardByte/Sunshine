@@ -17,7 +17,7 @@ extern "C" {
 #include "display.h"
 #include "misc.h"
 #include "src/config.h"
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/nvenc/nvenc_config.h"
 #include "src/nvenc/nvenc_d3d11.h"
 #include "src/nvenc/nvenc_utils.h"

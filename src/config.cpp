@@ -15,6 +15,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "config.h"
+#include "logging.h"
 #include "main.h"
 #include "nvhttp.h"
 #include "rtsp.h"

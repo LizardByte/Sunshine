@@ -19,6 +19,7 @@ extern "C" {
 
 #include "config.h"
 #include "input.h"
+#include "logging.h"
 #include "main.h"
 #include "network.h"
 #include "stat_trackers.h"

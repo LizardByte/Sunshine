@@ -16,7 +16,7 @@
 #include <avrt.h>
 
 #include "src/config.h"
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 
 // Must be the last included file

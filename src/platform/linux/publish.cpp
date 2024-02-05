@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "misc.h"
+#include "src/logging.h"
 #include "src/main.h"
 #include "src/nvhttp.h"
 #include "src/platform/common.h"

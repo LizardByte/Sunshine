@@ -1,6 +1,7 @@
 #include "nvenc_base.h"
 
 #include "src/config.h"
+#include "src/logging.h"
 #include "src/utility.h"
 
 namespace {

@@ -21,6 +21,7 @@
 #include "config.h"
 #include "confighttp.h"
 #include "httpcommon.h"
+#include "logging.h"
 #include "main.h"
 #include "nvhttp.h"
 #include "platform/common.h"
@@ -52,12 +53,6 @@ nvprefs::nvprefs_interface nvprefs_instance;
 #endif
 
 thread_pool_util::ThreadPool task_pool;
-bl::sources::severity_logger<int> verbose(0);  // Dominating output
-bl::sources::severity_logger<int> debug(1);  // Follow what is happening
-bl::sources::severity_logger<int> info(2);  // Should be informed about
-bl::sources::severity_logger<int> warning(3);  // Strange events
-bl::sources::severity_logger<int> error(4);  // Recoverable errors
-bl::sources::severity_logger<int> fatal(5);  // Unrecoverable errors
 
 bool display_cursor = true;
 

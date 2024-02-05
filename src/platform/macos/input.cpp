@@ -6,7 +6,7 @@
 #include <chrono>
 #include <mach/mach.h>
 
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
 

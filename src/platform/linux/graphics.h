@@ -11,7 +11,7 @@
 #include <glad/gl.h>
 
 #include "misc.h"
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
 #include "src/video_colorspace.h"

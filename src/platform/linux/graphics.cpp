@@ -3,6 +3,8 @@
  * @brief todo
  */
 #include "graphics.h"
+#include "src/logging.h"
+#include "src/main.h"
 #include "src/video.h"
 
 #include <fcntl.h>
