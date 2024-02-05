@@ -12,6 +12,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/process.hpp>
+#include <boost/program_options/parsers.hpp>
 
 // prevent clang format from "optimizing" the header include order
 // clang-format off
@@ -28,6 +29,11 @@
 #include <wtsapi32.h>
 #include <sddl.h>
 // clang-format on
+
+// Boost overrides NTDDI_VERSION, so we re-override it here
+#undef NTDDI_VERSION
+#define NTDDI_VERSION NTDDI_WIN10
+#include <Shlwapi.h>
 
 #include "src/logging.h"
 #include "src/main.h"
@@ -552,6 +558,252 @@ namespace platf {
   }
 
   /**
+   * @brief This function overrides HKEY_CURRENT_USER and HKEY_CLASSES_ROOT using the provided token.
+   * @param token The primary token identifying the user to use, or `NULL` to restore original keys.
+   * @return `true` if the override or restore operation was successful.
+   */
+  bool
+  override_per_user_predefined_keys(HANDLE token) {
+    HKEY user_classes_root = NULL;
+    if (token) {
+      auto err = RegOpenUserClassesRoot(token, 0, GENERIC_ALL, &user_classes_root);
+      if (err != ERROR_SUCCESS) {
+        BOOST_LOG(error) << "Failed to open classes root for target user: "sv << err;
+        return false;
+      }
+    }
+    auto close_classes_root = util::fail_guard([user_classes_root]() {
+      if (user_classes_root) {
+        RegCloseKey(user_classes_root);
+      }
+    });
+
+    HKEY user_key = NULL;
+    if (token) {
+      impersonate_current_user(token, [&]() {
+        // RegOpenCurrentUser() doesn't take a token. It assumes we're impersonating the desired user.
+        auto err = RegOpenCurrentUser(GENERIC_ALL, &user_key);
+        if (err != ERROR_SUCCESS) {
+          BOOST_LOG(error) << "Failed to open user key for target user: "sv << err;
+          user_key = NULL;
+        }
+      });
+      if (!user_key) {
+        return false;
+      }
+    }
+    auto close_user = util::fail_guard([user_key]() {
+      if (user_key) {
+        RegCloseKey(user_key);
+      }
+    });
+
+    auto err = RegOverridePredefKey(HKEY_CLASSES_ROOT, user_classes_root);
+    if (err != ERROR_SUCCESS) {
+      BOOST_LOG(error) << "Failed to override HKEY_CLASSES_ROOT: "sv << err;
+      return false;
+    }
+
+    err = RegOverridePredefKey(HKEY_CURRENT_USER, user_key);
+    if (err != ERROR_SUCCESS) {
+      BOOST_LOG(error) << "Failed to override HKEY_CURRENT_USER: "sv << err;
+      RegOverridePredefKey(HKEY_CLASSES_ROOT, NULL);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * @brief This function resolves the given raw command into a proper command string for CreateProcess().
+   * @details This converts URLs and non-executable file paths into a runnable command like ShellExecute().
+   * @param raw_cmd The raw command provided by the user.
+   * @param working_dir The working directory for the new process.
+   * @param token The user token currently being impersonated or `NULL` if running as ourselves.
+   * @return A command string suitable for use by CreateProcess().
+   */
+  std::wstring
+  resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token) {
+    std::wstring raw_cmd_w = converter.from_bytes(raw_cmd);
+
+    // First, convert the given command into parts so we can get the executable/file/URL without parameters
+    auto raw_cmd_parts = boost::program_options::split_winmain(raw_cmd_w);
+    if (raw_cmd_parts.empty()) {
+      // This is highly unexpected, but we'll just return the raw string and hope for the best.
+      BOOST_LOG(warning) << "Failed to split command string: "sv << raw_cmd;
+      return converter.from_bytes(raw_cmd);
+    }
+
+    auto raw_target = raw_cmd_parts.at(0);
+    std::wstring lookup_string;
+    HRESULT res;
+
+    if (PathIsURLW(raw_target.c_str())) {
+      std::array<WCHAR, 128> scheme;
+
+      DWORD out_len = scheme.size();
+      res = UrlGetPartW(raw_target.c_str(), scheme.data(), &out_len, URL_PART_SCHEME, 0);
+      if (res != S_OK) {
+        BOOST_LOG(warning) << "Failed to extract URL scheme from URL: "sv << raw_target << " ["sv << util::hex(res).to_string_view() << ']';
+        return converter.from_bytes(raw_cmd);
+      }
+
+      // If the target is a URL, the class is found using the URL scheme (prior to and not including the ':')
+      lookup_string = scheme.data();
+    }
+    else {
+      // If the target is not a URL, assume it's a regular file path
+      auto extension = PathFindExtensionW(raw_target.c_str());
+      if (extension == nullptr || *extension == 0) {
+        // If the file has no extension, assume it's a command and allow CreateProcess()
+        // to try to find it via PATH
+        return converter.from_bytes(raw_cmd);
+      }
+
+      // For regular files, the class is found using the file extension (including the dot)
+      lookup_string = extension;
+    }
+
+    std::array<WCHAR, MAX_PATH> shell_command_string;
+    {
+      // Overriding these predefined keys affects process-wide state, so serialize all calls
+      // to ensure the handle state is consistent while we perform the command query.
+      static std::mutex per_user_key_mutex;
+      auto lg = std::lock_guard(per_user_key_mutex);
+
+      // Override HKEY_CLASSES_ROOT and HKEY_CURRENT_USER to ensure we query the correct class info
+      if (!override_per_user_predefined_keys(token)) {
+        return converter.from_bytes(raw_cmd);
+      }
+
+      // Find the command string for the specified class
+      DWORD out_len = shell_command_string.size();
+      res = AssocQueryStringW(ASSOCF_NOTRUNCATE, ASSOCSTR_COMMAND, lookup_string.c_str(), L"open", shell_command_string.data(), &out_len);
+
+      // In some cases (UWP apps), we might not have a command for this target. If that happens,
+      // we'll have to launch via cmd.exe. This prevents proper job tracking, but that was already
+      // broken for UWP apps anyway due to how they are started by Windows. Even 'start /wait'
+      // doesn't work properly for UWP, so really no termination tracking seems to work at all.
+      //
+      // FIXME: Maybe we can improve this in the future.
+      if (res == HRESULT_FROM_WIN32(ERROR_NO_ASSOCIATION)) {
+        BOOST_LOG(warning) << "Using trampoline to handle target: "sv << raw_cmd;
+        std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" \"%1\" %*");
+        res = S_OK;
+      }
+
+      // Reset per-user keys back to the original value
+      override_per_user_predefined_keys(NULL);
+    }
+
+    if (res != S_OK) {
+      BOOST_LOG(warning) << "Failed to query command string for raw command: "sv << raw_cmd << " ["sv << util::hex(res).to_string_view() << ']';
+      return converter.from_bytes(raw_cmd);
+    }
+
+    // Finally, construct the real command string that will be passed into CreateProcess().
+    // We support common substitutions (%*, %1, %2, %L, %W, %V, etc), but there are other
+    // uncommon ones that are unsupported here.
+    //
+    // https://web.archive.org/web/20111002101214/http://msdn.microsoft.com/en-us/library/windows/desktop/cc144101(v=vs.85).aspx
+    std::wstring cmd_string { shell_command_string.data() };
+    size_t match_pos = 0;
+    while ((match_pos = cmd_string.find_first_of(L'%', match_pos)) != std::wstring::npos) {
+      std::wstring match_replacement;
+
+      // Shell command replacements are strictly '%' followed by a single non-'%' character
+      auto next_char = std::tolower(match_pos + 1 < cmd_string.size() ? cmd_string.at(match_pos + 1) : 0);
+      switch (next_char) {
+        // No next character
+        case 0:
+          break;
+
+        // Escape character
+        case L'%':
+          // Skip this character and the next one
+          match_pos += 2;
+          continue;
+
+        // Argument replacements
+        case L'0':
+        case L'1':
+        case L'2':
+        case L'3':
+        case L'4':
+        case L'5':
+        case L'6':
+        case L'7':
+        case L'8':
+        case L'9': {
+          // Arguments numbers are 1-based, except for %0 which is equivalent to %1
+          int index = next_char - L'0';
+          if (next_char != L'0') {
+            index--;
+          }
+
+          // Replace with the matching argument, or nothing if the index is invalid
+          if (index < raw_cmd_parts.size()) {
+            match_replacement = raw_cmd_parts.at(index);
+          }
+          break;
+        }
+
+        // All arguments following the target
+        case L'*':
+          for (int i = 1; i < raw_cmd_parts.size(); i++) {
+            match_replacement += raw_cmd_parts.at(i);
+          }
+          break;
+
+        // Long file path of target
+        case L'l':
+        case L'd':
+        case L'v': {
+          std::array<WCHAR, MAX_PATH> path;
+          std::array<PCWCHAR, 2> other_dirs { working_dir.c_str(), nullptr };
+
+          // PathFindOnPath() is a little gross because it uses the same
+          // buffer for input and output, so we need to copy our input
+          // into the path array.
+          std::wcsncpy(path.data(), raw_target.c_str(), path.size());
+          if (path[path.size() - 1] != 0) {
+            // The path was so long it was truncated by this copy. We'll
+            // assume it was an absolute path (likely) and use it unmodified.
+            match_replacement = raw_target;
+          }
+          // See if we can find the path on our search path or working directory
+          else if (PathFindOnPathW(path.data(), other_dirs.data())) {
+            match_replacement = std::wstring { path.data() };
+          }
+          else {
+            // We couldn't find the target, so we'll just hope for the best
+            match_replacement = raw_target;
+          }
+          break;
+        }
+
+        // Working directory
+        case L'w':
+          match_replacement = working_dir;
+          break;
+
+        default:
+          BOOST_LOG(warning) << "Unsupported argument replacement: %%" << next_char;
+          break;
+      }
+
+      // Replace the % and following character with the match replacement
+      cmd_string.replace(match_pos, 2, match_replacement);
+
+      // Skip beyond the match replacement itself to prevent recursive replacement
+      match_pos += match_replacement.size();
+    }
+
+    BOOST_LOG(info) << "Resolved user-provided command '"sv << raw_cmd << "' to '"sv << cmd_string << '\'';
+    return cmd_string;
+  }
+
+  /**
    * @brief Run a command on the users profile.
    *
    * Launches a child process as the user, using the current user's environment and a specific working directory.
@@ -568,11 +820,7 @@ namespace platf {
    */
   bp::child
   run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-    BOOL ret;
-    // Convert cmd, env, and working_dir to the appropriate character sets for Win32 APIs
-    std::wstring wcmd = converter.from_bytes(cmd);
     std::wstring start_dir = converter.from_bytes(working_dir.string());
-
     HANDLE job = group ? group->native_handle() : nullptr;
     STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
     PROCESS_INFORMATION process_info;
@@ -597,6 +845,7 @@ namespace platf {
     // Create a new console for interactive processes and use no console for non-interactive processes
     creation_flags |= interactive ? CREATE_NEW_CONSOLE : CREATE_NO_WINDOW;
 
+    BOOL ret;
     if (is_running_as_system()) {
       // Duplicate the current user's token
       HANDLE user_token = retrieve_users_token(elevated);
@@ -620,6 +869,7 @@ namespace platf {
       // Open the process as the current user account, elevation is handled in the token itself.
       ec = impersonate_current_user(user_token, [&]() {
         std::wstring env_block = create_environment_block(cloned_env);
+        std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token);
         ret = CreateProcessAsUserW(user_token,
           NULL,
           (LPWSTR) wcmd.c_str(),
@@ -653,6 +903,7 @@ namespace platf {
       }
 
       std::wstring env_block = create_environment_block(cloned_env);
+      std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL);
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
         NULL,
@@ -675,15 +926,11 @@ namespace platf {
    */
   void
   open_url(const std::string &url) {
-    // set working dir to Windows system directory
-    auto working_dir = boost::filesystem::path(std::getenv("SystemRoot"));
-
     boost::process::environment _env = boost::this_process::environment();
+    auto working_dir = boost::filesystem::path();
     std::error_code ec;
 
-    // Launch this as a non-interactive non-elevated command to avoid an extra console window
-    std::string cmd = R"(cmd /C "start )" + url + R"(")";
-    auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
+    auto child = run_command(false, false, url, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
       BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
     }
