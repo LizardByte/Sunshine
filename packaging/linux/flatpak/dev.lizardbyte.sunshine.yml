@@ -34,6 +34,8 @@ build-options:
   prepend-ld-library-path: /usr/lib/sdk/vala/lib
 
 modules:
+  - "org.flatpak.Builder.BaseApp/xvfb.json"
+
   - name: boost
     disabled: false
     buildsystem: simple
@@ -341,6 +343,7 @@ modules:
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
       - -DSUNSHINE_BUILD_FLATPAK=ON
+      - -DTESTS_ENABLE_PYTHON_TESTS=OFF
     sources:
       - type: git
         url: "@GITHUB_CLONE_URL@"
@@ -358,3 +361,7 @@ modules:
         's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
         /app/share/sunshine/systemd/user/sunshine.service
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
+    run-tests: true
+    test-rule: ""  # empty to disable
+    test-commands:
+      - xvfb-run tests/test_sunshine --gtest_color=yes

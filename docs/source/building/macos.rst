@@ -12,14 +12,14 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install avahi boost180 cmake curl libopus miniupnpc npm9 pkgconfig
+      sudo port install avahi boost180 cmake curl doxygen graphviz libopus miniupnpc npm9 pkgconfig python311 py311-pip
 
 Homebrew
 """"""""
 Install Requirements
    .. code-block:: bash
 
-      brew install boost cmake miniupnpc node opus pkg-config
+      brew install boost cmake doxygen graphviz miniupnpc node opus pkg-config python@3.11
 
 If there are issues with an SSL header that is not found:
    .. tab:: Intel
@@ -45,7 +45,7 @@ Build
 .. code-block:: bash
 
    cmake ..
-   make -j ${nproc}
+   make -j $(sysctl -n hw.ncpu)
 
    cpack -G DragNDrop  # optionally, create a macOS dmg package
 
