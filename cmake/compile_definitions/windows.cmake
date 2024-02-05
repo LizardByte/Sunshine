@@ -74,6 +74,7 @@ list(PREPEND PLATFORM_LIBRARIES
         synchronization.lib
         avrt
         iphlpapi
+        shlwapi
         ${CURL_STATIC_LIBRARIES})
 
 if(SUNSHINE_ENABLE_TRAY)
