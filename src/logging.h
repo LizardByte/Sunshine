@@ -15,3 +15,7 @@ extern boost::log::sources::severity_logger<int> info;
 extern boost::log::sources::severity_logger<int> warning;
 extern boost::log::sources::severity_logger<int> error;
 extern boost::log::sources::severity_logger<int> fatal;
+
+// functions
+void
+print_help(const char *name);

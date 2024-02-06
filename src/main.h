@@ -28,8 +28,6 @@ int
 main(int argc, char *argv[]);
 void
 log_flush();
-void
-print_help(const char *name);
 std::string
 read_file(const char *path);
 int
