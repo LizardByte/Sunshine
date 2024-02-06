@@ -276,7 +276,7 @@ namespace video {
 
   enum flag_e : uint32_t {
     DEFAULT = 0,
-    PARALLEL_ENCODING = 1 << 1,
+    PARALLEL_ENCODING = 1 << 1,  // Capture and encoding can run concurrently on separate threads
     H264_ONLY = 1 << 2,  // When HEVC is too heavy
     LIMITED_GOP_SIZE = 1 << 3,  // Some encoders don't like it when you have an infinite GOP_SIZE. *cough* VAAPI *cough*
     SINGLE_SLICE_ONLY = 1 << 4,  // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
@@ -284,6 +284,7 @@ namespace video {
     RELAXED_COMPLIANCE = 1 << 6,  // Use FF_COMPLIANCE_UNOFFICIAL compliance mode
     NO_RC_BUF_LIMIT = 1 << 7,  // Don't set rc_buffer_size
     REF_FRAMES_INVALIDATION = 1 << 8,  // Support reference frames invalidation
+    ALWAYS_REPROBE = 1 << 9,  // This is an encoder of last resort and we want to aggressively probe for a better one
   };
 
   struct encoder_platform_formats_t {
@@ -922,7 +923,7 @@ namespace video {
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "libx264"s,
     },
-    H264_ONLY | PARALLEL_ENCODING
+    H264_ONLY | PARALLEL_ENCODING | ALWAYS_REPROBE
   };
 
 #ifdef __linux__
@@ -2578,6 +2579,11 @@ namespace video {
   int
   probe_encoders() {
     auto encoder_list = encoders;
+
+    // If we already have a good encoder, check to see if another probe is required
+    if (chosen_encoder && !(chosen_encoder->flags & ALWAYS_REPROBE) && !platf::needs_encoder_reenumeration()) {
+      return 0;
+    }
 
     // Restart encoder selection
     auto previous_encoder = chosen_encoder;

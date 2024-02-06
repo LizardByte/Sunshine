@@ -181,4 +181,14 @@ namespace platf {
 
     return display_names;
   }
+
+  /**
+   * @brief Returns if GPUs/drivers have changed since the last call to this function.
+   * @return `true` if a change has occurred or if it is unknown whether a change occurred.
+   */
+  bool
+  needs_encoder_reenumeration() {
+    // We don't track GPU state, so we will always reenumerate. Fortunately, it is fast on macOS.
+    return true;
+  }
 }  // namespace platf
