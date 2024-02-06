@@ -56,9 +56,6 @@ thread_pool_util::ThreadPool task_pool;
 
 bool display_cursor = true;
 
-using text_sink = bl::sinks::asynchronous_sink<bl::sinks::text_ostream_backend>;
-boost::shared_ptr<text_sink> sink;
-
 struct NoDelete {
   void
   operator()(void *) {}
@@ -367,19 +364,6 @@ void
 launch_ui_with_path(std::string path) {
   std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS)) + path;
   platf::open_url(url);
-}
-
-/**
- * @brief Flush the log.
- *
- * EXAMPLES:
- * ```cpp
- * log_flush();
- * ```
- */
-void
-log_flush() {
-  sink->flush();
 }
 
 std::map<int, std::function<void()>> signal_handlers;

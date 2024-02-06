@@ -20,12 +20,27 @@ using namespace std::literals;
 
 namespace bl = boost::log;
 
+boost::shared_ptr<boost::log::sinks::asynchronous_sink<boost::log::sinks::text_ostream_backend>> sink;
+
 bl::sources::severity_logger<int> verbose(0);  // Dominating output
 bl::sources::severity_logger<int> debug(1);  // Follow what is happening
 bl::sources::severity_logger<int> info(2);  // Should be informed about
 bl::sources::severity_logger<int> warning(3);  // Strange events
 bl::sources::severity_logger<int> error(4);  // Recoverable errors
 bl::sources::severity_logger<int> fatal(5);  // Unrecoverable errors
+
+/**
+ * @brief Flush the log.
+ *
+ * EXAMPLES:
+ * ```cpp
+ * log_flush();
+ * ```
+ */
+void
+log_flush() {
+  sink->flush();
+}
 
 /**
  * @brief Print help to stdout.

@@ -26,8 +26,6 @@ extern bool display_cursor;
 // functions
 int
 main(int argc, char *argv[]);
-void
-log_flush();
 std::string
 read_file(const char *path);
 int
