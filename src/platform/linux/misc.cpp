@@ -773,6 +773,16 @@ namespace platf {
     return {};
   }
 
+  /**
+   * @brief Returns if GPUs/drivers have changed since the last call to this function.
+   * @return `true` if a change has occurred or if it is unknown whether a change occurred.
+   */
+  bool
+  needs_encoder_reenumeration() {
+    // We don't track GPU state, so we will always reenumerate. Fortunately, it is fast on Linux.
+    return true;
+  }
+
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
 #ifdef SUNSHINE_BUILD_CUDA
