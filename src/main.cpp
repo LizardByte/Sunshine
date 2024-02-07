@@ -437,6 +437,9 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
  */
 int
 main(int argc, char *argv[]) {
+  // the version should be printed to the log before anything else
+  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER;
+
   lifetime::argv = argv;
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
@@ -638,7 +641,6 @@ main(int argc, char *argv[]) {
 
 #endif
 
-  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
