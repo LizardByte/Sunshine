@@ -2353,12 +2353,7 @@ namespace video {
   };
 
   int
-  validate_config(std::shared_ptr<platf::display_t> &disp, const encoder_t &encoder, const config_t &config) {
-    reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, config);
-    if (!disp) {
-      return -1;
-    }
-
+  validate_config(std::shared_ptr<platf::display_t> disp, const encoder_t &encoder, const config_t &config) {
     auto encode_device = make_encode_device(*disp, encoder, config);
     if (!encode_device) {
       return -1;
@@ -2560,6 +2555,12 @@ namespace video {
       h264.videoFormat = 0;
       hevc.videoFormat = 1;
       av1.videoFormat = 2;
+
+      // Reset the display since we're switching from SDR to HDR
+      reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, config);
+      if (!disp) {
+        return false;
+      }
 
       // HDR is not supported with H.264. Don't bother even trying it.
       encoder.h264[flag] = flag != encoder_t::DYNAMIC_RANGE && validate_config(disp, encoder, h264) >= 0;
