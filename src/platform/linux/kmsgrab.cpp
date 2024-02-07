@@ -14,6 +14,7 @@
 
 #include <filesystem>
 
+#include "src/logging.h"
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/round_robin.h"

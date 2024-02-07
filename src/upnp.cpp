@@ -7,6 +7,7 @@
 
 #include "config.h"
 #include "confighttp.h"
+#include "logging.h"
 #include "main.h"
 #include "network.h"
 #include "nvhttp.h"

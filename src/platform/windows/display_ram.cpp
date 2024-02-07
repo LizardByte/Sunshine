@@ -5,7 +5,7 @@
 #include "display.h"
 
 #include "misc.h"
-#include "src/main.h"
+#include "src/logging.h"
 
 namespace platf {
   using namespace std::literals;

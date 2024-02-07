@@ -29,6 +29,7 @@
 #include <sddl.h>
 // clang-format on
 
+#include "src/logging.h"
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"

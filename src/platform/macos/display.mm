@@ -8,6 +8,7 @@
 #include "src/platform/macos/nv12_zero_device.h"
 
 #include "src/config.h"
+#include "src/logging.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
 #define AVMediaType AVMediaType_FFmpeg

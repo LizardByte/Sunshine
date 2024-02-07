@@ -1,6 +1,6 @@
 // local includes
 #include "nvprefs_common.h"
-#include "src/main.h"  // sunshine boost::log severity levels
+#include "src/logging.h"
 
 // read user override preferences from global sunshine config
 #include "src/config.h"

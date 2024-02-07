@@ -30,6 +30,7 @@
 #include "confighttp.h"
 #include "crypto.h"
 #include "httpcommon.h"
+#include "logging.h"
 #include "main.h"
 #include "network.h"
 #include "nvhttp.h"

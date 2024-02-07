@@ -21,6 +21,7 @@
 #include "config.h"
 #include "confighttp.h"
 #include "httpcommon.h"
+#include "logging.h"
 #include "main.h"
 #include "nvhttp.h"
 #include "platform/common.h"
@@ -52,17 +53,8 @@ nvprefs::nvprefs_interface nvprefs_instance;
 #endif
 
 thread_pool_util::ThreadPool task_pool;
-bl::sources::severity_logger<int> verbose(0);  // Dominating output
-bl::sources::severity_logger<int> debug(1);  // Follow what is happening
-bl::sources::severity_logger<int> info(2);  // Should be informed about
-bl::sources::severity_logger<int> warning(3);  // Strange events
-bl::sources::severity_logger<int> error(4);  // Recoverable errors
-bl::sources::severity_logger<int> fatal(5);  // Unrecoverable errors
 
 bool display_cursor = true;
-
-using text_sink = bl::sinks::asynchronous_sink<bl::sinks::text_ostream_backend>;
-boost::shared_ptr<text_sink> sink;
 
 struct NoDelete {
   void
@@ -70,36 +62,6 @@ struct NoDelete {
 };
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
-
-/**
- * @brief Print help to stdout.
- * @param name The name of the program.
- *
- * EXAMPLES:
- * ```cpp
- * print_help("sunshine");
- * ```
- */
-void
-print_help(const char *name) {
-  std::cout
-    << "Usage: "sv << name << " [options] [/path/to/configuration_file] [--cmd]"sv << std::endl
-    << "    Any configurable option can be overwritten with: \"name=value\""sv << std::endl
-    << std::endl
-    << "    Note: The configuration will be created if it doesn't exist."sv << std::endl
-    << std::endl
-    << "    --help                    | print help"sv << std::endl
-    << "    --creds username password | set user credentials for the Web manager"sv << std::endl
-    << "    --version                 | print the version of sunshine"sv << std::endl
-    << std::endl
-    << "    flags"sv << std::endl
-    << "        -0 | Read PIN from stdin"sv << std::endl
-    << "        -1 | Do not load previously saved state and do retain any state after shutdown"sv << std::endl
-    << "           | Effectively starting as if for the first time without overwriting any pairings with your devices"sv << std::endl
-    << "        -2 | Force replacement of headers in video stream"sv << std::endl
-    << "        -p | Enable/Disable UPnP"sv << std::endl
-    << std::endl;
-}
 
 namespace help {
   int
@@ -404,19 +366,6 @@ launch_ui_with_path(std::string path) {
   platf::open_url(url);
 }
 
-/**
- * @brief Flush the log.
- *
- * EXAMPLES:
- * ```cpp
- * log_flush();
- * ```
- */
-void
-log_flush() {
-  sink->flush();
-}
-
 std::map<int, std::function<void()>> signal_handlers;
 void
 on_signal_forwarder(int sig) {
@@ -488,6 +437,9 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
  */
 int
 main(int argc, char *argv[]) {
+  // the version should be printed to the log before anything else
+  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER;
+
   lifetime::argv = argv;
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
@@ -689,7 +641,6 @@ main(int argc, char *argv[]) {
 
 #endif
 
-  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER << std::endl;
   task_pool.start(1);
 
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1

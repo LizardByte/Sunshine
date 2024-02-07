@@ -37,6 +37,7 @@
 
   // local includes
   #include "confighttp.h"
+  #include "logging.h"
   #include "main.h"
   #include "platform/common.h"
   #include "process.h"

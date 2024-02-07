@@ -13,6 +13,7 @@
 
 #include "misc.h"
 #include "src/config.h"
+#include "src/logging.h"
 #include "src/main.h"
 #include "src/network.h"
 #include "src/nvhttp.h"

@@ -6,6 +6,7 @@
 #include "src/platform/macos/av_audio.h"
 
 #include "src/config.h"
+#include "src/logging.h"
 
 namespace platf {
   using namespace std::literals;

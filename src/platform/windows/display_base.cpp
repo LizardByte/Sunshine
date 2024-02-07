@@ -15,6 +15,7 @@ typedef long NTSTATUS;
 #include "display.h"
 #include "misc.h"
 #include "src/config.h"
+#include "src/logging.h"
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/stat_trackers.h"

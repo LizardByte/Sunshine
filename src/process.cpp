@@ -22,6 +22,7 @@
 
 #include "config.h"
 #include "crypto.h"
+#include "logging.h"
 #include "main.h"
 #include "platform/common.h"
 #include "system_tray.h"

@@ -1,3 +1,5 @@
+#include "src/logging.h"
+
 #ifdef _WIN32
   #include "nvenc_d3d11.h"
 

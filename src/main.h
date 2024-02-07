@@ -10,9 +10,6 @@
 #include <filesystem>
 #include <string_view>
 
-// lib includes
-#include <boost/log/common.hpp>
-
 // local includes
 #include "thread_pool.h"
 #include "thread_safe.h"
@@ -26,20 +23,9 @@ extern nvprefs::nvprefs_interface nvprefs_instance;
 extern thread_pool_util::ThreadPool task_pool;
 extern bool display_cursor;
 
-extern boost::log::sources::severity_logger<int> verbose;
-extern boost::log::sources::severity_logger<int> debug;
-extern boost::log::sources::severity_logger<int> info;
-extern boost::log::sources::severity_logger<int> warning;
-extern boost::log::sources::severity_logger<int> error;
-extern boost::log::sources::severity_logger<int> fatal;
-
 // functions
 int
 main(int argc, char *argv[]);
-void
-log_flush();
-void
-print_help(const char *name);
 std::string
 read_file(const char *path);
 int

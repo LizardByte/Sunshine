@@ -20,6 +20,7 @@ extern "C" {
 #include "cbs.h"
 #include "config.h"
 #include "input.h"
+#include "logging.h"
 #include "main.h"
 #include "nvenc/nvenc_base.h"
 #include "platform/common.h"

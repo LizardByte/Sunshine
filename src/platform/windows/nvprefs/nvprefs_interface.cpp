@@ -1,7 +1,9 @@
+// standard includes
+#include <cassert>
+
 // local includes
-#include "nvprefs_interface.h"
 #include "driver_settings.h"
-#include "src/main.h"  // main include for assert
+#include "nvprefs_interface.h"
 #include "undo_file.h"
 
 namespace {
