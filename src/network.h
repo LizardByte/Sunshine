@@ -12,6 +12,10 @@
 
 #include "utility.h"
 
+// functions
+std::uint16_t
+map_port(int port);
+
 namespace net {
   void
   free_host(ENetHost *host);

@@ -8,7 +8,7 @@
 
 #include "misc.h"
 #include "src/logging.h"
-#include "src/main.h"
+#include "src/network.h"
 #include "src/nvhttp.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
