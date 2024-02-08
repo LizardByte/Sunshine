@@ -869,13 +869,13 @@ namespace rtsp_stream {
 
     std::uint16_t port;
     if (type == "audio"sv) {
-      port = map_port(stream::AUDIO_STREAM_PORT);
+      port = net::map_port(stream::AUDIO_STREAM_PORT);
     }
     else if (type == "video"sv) {
-      port = map_port(stream::VIDEO_STREAM_PORT);
+      port = net::map_port(stream::VIDEO_STREAM_PORT);
     }
     else if (type == "control"sv) {
-      port = map_port(stream::CONTROL_PORT);
+      port = net::map_port(stream::CONTROL_PORT);
     }
     else {
       cmd_not_found(sock, session, std::move(req));
@@ -1129,8 +1129,8 @@ namespace rtsp_stream {
     server.map("PLAY"sv, &cmd_play);
 
     boost::system::error_code ec;
-    if (server.bind(net::af_from_enum_string(config::sunshine.address_family), map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
-      BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << map_port(rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
+    if (server.bind(net::af_from_enum_string(config::sunshine.address_family), net::map_port(rtsp_stream::RTSP_SETUP_PORT), ec)) {
+      BOOST_LOG(fatal) << "Couldn't bind RTSP server to port ["sv << net::map_port(rtsp_stream::RTSP_SETUP_PORT) << "], " << ec.message();
       shutdown_event->raise(true);
 
       return;

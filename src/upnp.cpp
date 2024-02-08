@@ -62,13 +62,13 @@ namespace upnp {
   class deinit_t: public platf::deinit_t {
   public:
     deinit_t() {
-      auto rtsp = std::to_string(::map_port(rtsp_stream::RTSP_SETUP_PORT));
-      auto video = std::to_string(::map_port(stream::VIDEO_STREAM_PORT));
-      auto audio = std::to_string(::map_port(stream::AUDIO_STREAM_PORT));
-      auto control = std::to_string(::map_port(stream::CONTROL_PORT));
-      auto gs_http = std::to_string(::map_port(nvhttp::PORT_HTTP));
-      auto gs_https = std::to_string(::map_port(nvhttp::PORT_HTTPS));
-      auto wm_http = std::to_string(::map_port(confighttp::PORT_HTTPS));
+      auto rtsp = std::to_string(net::map_port(rtsp_stream::RTSP_SETUP_PORT));
+      auto video = std::to_string(net::map_port(stream::VIDEO_STREAM_PORT));
+      auto audio = std::to_string(net::map_port(stream::AUDIO_STREAM_PORT));
+      auto control = std::to_string(net::map_port(stream::CONTROL_PORT));
+      auto gs_http = std::to_string(net::map_port(nvhttp::PORT_HTTP));
+      auto gs_https = std::to_string(net::map_port(nvhttp::PORT_HTTPS));
+      auto wm_http = std::to_string(net::map_port(confighttp::PORT_HTTPS));
 
       mappings.assign({
         { { rtsp, rtsp, "TCP"s }, "Sunshine - RTSP"s },

@@ -349,7 +349,7 @@ namespace platf::publish {
         name.get(),
         SERVICE_TYPE,
         nullptr, nullptr,
-        map_port(nvhttp::PORT_HTTP),
+        net::map_port(nvhttp::PORT_HTTP),
         nullptr);
 
       if (ret < 0) {

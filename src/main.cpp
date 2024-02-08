@@ -298,7 +298,7 @@ namespace service_ctrl {
         return false;
       }
 
-      uint16_t port_nbo = htons(map_port(confighttp::PORT_HTTPS));
+      uint16_t port_nbo = htons(net::map_port(confighttp::PORT_HTTPS));
       for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
         auto &entry = tcp_table->table[i];
 
@@ -349,7 +349,7 @@ is_gamestream_enabled() {
  */
 void
 launch_ui() {
-  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS));
+  std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS));
   platf::open_url(url);
 }
 
@@ -363,7 +363,7 @@ launch_ui() {
  */
 void
 launch_ui_with_path(std::string path) {
-  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS)) + path;
+  std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS)) + path;
   platf::open_url(url);
 }
 
