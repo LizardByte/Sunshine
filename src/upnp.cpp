@@ -62,13 +62,13 @@ namespace upnp {
   class deinit_t: public platf::deinit_t {
   public:
     deinit_t() {
-      auto rtsp = std::to_string(::map_port(rtsp_stream::RTSP_SETUP_PORT));
-      auto video = std::to_string(::map_port(stream::VIDEO_STREAM_PORT));
-      auto audio = std::to_string(::map_port(stream::AUDIO_STREAM_PORT));
-      auto control = std::to_string(::map_port(stream::CONTROL_PORT));
-      auto gs_http = std::to_string(::map_port(nvhttp::PORT_HTTP));
-      auto gs_https = std::to_string(::map_port(nvhttp::PORT_HTTPS));
-      auto wm_http = std::to_string(::map_port(confighttp::PORT_HTTPS));
+      auto rtsp = std::to_string(net::map_port(rtsp_stream::RTSP_SETUP_PORT));
+      auto video = std::to_string(net::map_port(stream::VIDEO_STREAM_PORT));
+      auto audio = std::to_string(net::map_port(stream::AUDIO_STREAM_PORT));
+      auto control = std::to_string(net::map_port(stream::CONTROL_PORT));
+      auto gs_http = std::to_string(net::map_port(nvhttp::PORT_HTTP));
+      auto gs_https = std::to_string(net::map_port(nvhttp::PORT_HTTPS));
+      auto wm_http = std::to_string(net::map_port(confighttp::PORT_HTTPS));
 
       mappings.assign({
         { { rtsp, rtsp, "TCP"s }, "Sunshine - RTSP"s },
@@ -179,7 +179,7 @@ namespace upnp {
      * @return `true` on success.
      */
     bool
-    map_port(const IGDdatas &data, const urls_t &urls, const std::string &lan_addr, const mapping_t &mapping) {
+    map_upnp_port(const IGDdatas &data, const urls_t &urls, const std::string &lan_addr, const mapping_t &mapping) {
       char intClient[16];
       char intPort[6];
       char desc[80];
@@ -284,7 +284,7 @@ namespace upnp {
      * @param data urls_t from UPNP_GetValidIGD()
      */
     void
-    unmap_all_ports(const urls_t &urls, const IGDdatas &data) {
+    unmap_all_upnp_ports(const urls_t &urls, const IGDdatas &data) {
       for (auto it = std::begin(mappings); it != std::end(mappings); ++it) {
         auto status = UPNP_DeletePortMapping(
           urls->controlURL,
@@ -343,7 +343,7 @@ namespace upnp {
         BOOST_LOG(debug) << "Found valid IGD device: "sv << urls->rootdescURL;
 
         for (auto it = std::begin(mappings); it != std::end(mappings) && !shutdown_event->peek(); ++it) {
-          map_port(data, urls, lan_addr_str, *it);
+          map_upnp_port(data, urls, lan_addr_str, *it);
         }
 
         if (!mapped) {
@@ -365,7 +365,7 @@ namespace upnp {
       if (mapped) {
         // Unmap ports upon termination
         BOOST_LOG(info) << "Unmapping UPNP ports..."sv;
-        unmap_all_ports(mapped_urls, data);
+        unmap_all_upnp_ports(mapped_urls, data);
       }
     }
 

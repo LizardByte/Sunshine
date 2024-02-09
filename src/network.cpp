@@ -4,6 +4,7 @@
  */
 #include "network.h"
 #include "config.h"
+#include "logging.h"
 #include "utility.h"
 #include <algorithm>
 
@@ -221,5 +222,30 @@ namespace net {
     });
 
     enet_host_destroy(host);
+  }
+
+  /**
+   * @brief Map a specified port based on the base port.
+   * @param port The port to map as a difference from the base port.
+   * @return `std:uint16_t` : The mapped port number.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * std::uint16_t mapped_port = net::map_port(1);
+   * ```
+   */
+  std::uint16_t
+  map_port(int port) {
+    // calculate the port from the config port
+    auto mapped_port = (std::uint16_t)((int) config::sunshine.port + port);
+
+    // Ensure port is in the range of 1024-65535
+    if (mapped_port < 1024 || mapped_port > 65535) {
+      BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
+    }
+
+    // TODO: Ensure port is not already in use by another application
+
+    return mapped_port;
   }
 }  // namespace net

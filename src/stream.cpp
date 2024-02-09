@@ -1600,9 +1600,9 @@ namespace stream {
   start_broadcast(broadcast_ctx_t &ctx) {
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
     auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
-    auto control_port = map_port(CONTROL_PORT);
-    auto video_port = map_port(VIDEO_STREAM_PORT);
-    auto audio_port = map_port(AUDIO_STREAM_PORT);
+    auto control_port = net::map_port(CONTROL_PORT);
+    auto video_port = net::map_port(VIDEO_STREAM_PORT);
+    auto audio_port = net::map_port(AUDIO_STREAM_PORT);
 
     if (ctx.control_server.bind(address_family, control_port)) {
       BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;

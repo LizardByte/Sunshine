@@ -657,8 +657,8 @@ namespace nvhttp {
     tree.put("root.appversion", VERSION);
     tree.put("root.GfeVersion", GFE_VERSION);
     tree.put("root.uniqueid", http::unique_id);
-    tree.put("root.HttpsPort", map_port(PORT_HTTPS));
-    tree.put("root.ExternalPort", map_port(PORT_HTTP));
+    tree.put("root.HttpsPort", net::map_port(PORT_HTTPS));
+    tree.put("root.ExternalPort", net::map_port(PORT_HTTP));
     tree.put("root.mac", platf::get_mac_address(net::addr_to_normalized_string(local_endpoint.address())));
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
 
@@ -846,7 +846,7 @@ namespace nvhttp {
     tree.put("root.<xmlattr>.status_code", 200);
     tree.put("root.sessionUrl0", launch_session->rtsp_url_scheme +
                                    net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' +
-                                   std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
+                                   std::to_string(net::map_port(rtsp_stream::RTSP_SETUP_PORT)));
     tree.put("root.gamesession", 1);
 
     rtsp_stream::launch_session_raise(launch_session);
@@ -932,7 +932,7 @@ namespace nvhttp {
     tree.put("root.<xmlattr>.status_code", 200);
     tree.put("root.sessionUrl0", launch_session->rtsp_url_scheme +
                                    net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' +
-                                   std::to_string(map_port(rtsp_stream::RTSP_SETUP_PORT)));
+                                   std::to_string(net::map_port(rtsp_stream::RTSP_SETUP_PORT)));
     tree.put("root.resume", 1);
 
     rtsp_stream::launch_session_raise(launch_session);
@@ -995,8 +995,8 @@ namespace nvhttp {
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
-    auto port_http = map_port(PORT_HTTP);
-    auto port_https = map_port(PORT_HTTPS);
+    auto port_http = net::map_port(PORT_HTTP);
+    auto port_https = net::map_port(PORT_HTTPS);
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];

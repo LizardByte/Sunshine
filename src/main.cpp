@@ -23,6 +23,7 @@
 #include "httpcommon.h"
 #include "logging.h"
 #include "main.h"
+#include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
@@ -297,7 +298,7 @@ namespace service_ctrl {
         return false;
       }
 
-      uint16_t port_nbo = htons(map_port(confighttp::PORT_HTTPS));
+      uint16_t port_nbo = htons(net::map_port(confighttp::PORT_HTTPS));
       for (DWORD i = 0; i < tcp_table->dwNumEntries; i++) {
         auto &entry = tcp_table->table[i];
 
@@ -348,7 +349,7 @@ is_gamestream_enabled() {
  */
 void
 launch_ui() {
-  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS));
+  std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS));
   platf::open_url(url);
 }
 
@@ -362,7 +363,7 @@ launch_ui() {
  */
 void
 launch_ui_with_path(std::string path) {
-  std::string url = "https://localhost:" + std::to_string(map_port(confighttp::PORT_HTTPS)) + path;
+  std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS)) + path;
   platf::open_url(url);
 }
 
@@ -810,29 +811,4 @@ write_file(const char *path, const std::string_view &contents) {
   out << contents;
 
   return 0;
-}
-
-/**
- * @brief Map a specified port based on the base port.
- * @param port The port to map as a difference from the base port.
- * @return `std:uint16_t` : The mapped port number.
- *
- * EXAMPLES:
- * ```cpp
- * std::uint16_t mapped_port = map_port(1);
- * ```
- */
-std::uint16_t
-map_port(int port) {
-  // calculate the port from the config port
-  auto mapped_port = (std::uint16_t)((int) config::sunshine.port + port);
-
-  // Ensure port is in the range of 1024-65535
-  if (mapped_port < 1024 || mapped_port > 65535) {
-    BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
-  }
-
-  // TODO: Ensure port is not already in use by another application
-
-  return mapped_port;
 }

@@ -16,6 +16,9 @@ namespace net {
   void
   free_host(ENetHost *host);
 
+  std::uint16_t
+  map_port(int port);
+
   using host_t = util::safe_ptr<ENetHost, free_host>;
   using peer_t = ENetPeer *;
   using packet_t = util::safe_ptr<ENetPacket, enet_packet_destroy>;
