@@ -15,6 +15,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "config.h"
+#include "file_handler.h"
 #include "logging.h"
 #include "main.h"
 #include "nvhttp.h"
@@ -1215,7 +1216,7 @@ namespace config {
       }
 
       // Read config file
-      auto vars = parse_config(read_file(sunshine.config_file.c_str()));
+      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
 
       for (auto &[name, value] : cmd_vars) {
         vars.insert_or_assign(std::move(name), std::move(value));
