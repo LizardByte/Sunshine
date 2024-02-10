@@ -1,0 +1,92 @@
+/**
+ * @file entry_handler.h
+ * @brief Header file for entry point functions.
+ */
+#pragma once
+
+// standard includes
+#include <atomic>
+#include <string_view>
+
+// local includes
+#include "thread_pool.h"
+#include "thread_safe.h"
+
+extern thread_pool_util::ThreadPool task_pool;
+extern bool display_cursor;
+
+// functions
+void
+launch_ui();
+void
+launch_ui_with_path(std::string path);
+
+#ifdef _WIN32
+  // Declare global singleton used for NVIDIA control panel modifications
+  #include "platform/windows/nvprefs/nvprefs_interface.h"
+extern nvprefs::nvprefs_interface nvprefs_instance;
+
+// windows only functions
+bool
+is_gamestream_enabled();
+#endif
+
+namespace args {
+  int
+  creds(const char *name, int argc, char *argv[]);
+  int
+  help(const char *name, int argc, char *argv[]);
+  int
+  version(const char *name, int argc, char *argv[]);
+#ifdef _WIN32
+  int
+  restore_nvprefs_undo(const char *name, int argc, char *argv[]);
+#endif
+}  // namespace args
+
+namespace lifetime {
+  extern char **argv;
+  extern std::atomic_int desired_exit_code;
+  void
+  exit_sunshine(int exit_code, bool async);
+  char **
+  get_argv();
+}  // namespace lifetime
+
+namespace mail {
+#define MAIL(x)                         \
+  constexpr auto x = std::string_view { \
+    #x                                  \
+  }
+
+  extern safe::mail_t man;
+
+  // Global mail
+  MAIL(shutdown);
+  MAIL(broadcast_shutdown);
+  MAIL(video_packets);
+  MAIL(audio_packets);
+  MAIL(switch_display);
+
+  // Local mail
+  MAIL(touch_port);
+  MAIL(idr);
+  MAIL(invalidate_ref_frames);
+  MAIL(gamepad_feedback);
+  MAIL(hdr);
+#undef MAIL
+
+}  // namespace mail
+
+#ifdef _WIN32
+namespace service_ctrl {
+  bool
+  is_service_running();
+
+  bool
+  start_service();
+
+  bool
+  wait_for_ui_ready();
+}  // namespace service_ctrl
+#endif

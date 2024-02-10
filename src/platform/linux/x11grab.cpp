@@ -17,9 +17,10 @@
 #include <xcb/xfixes.h>
 
 #include "src/config.h"
+#include "src/entry_handler.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/task_pool.h"
+#include "src/thread_pool.h"
 #include "src/video.h"
 
 #include "cuda.h"

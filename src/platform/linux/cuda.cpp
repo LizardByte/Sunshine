@@ -20,7 +20,7 @@ extern "C" {
 #include "cuda.h"
 #include "graphics.h"
 #include "src/logging.h"
-#include "src/main.h"
+#include "src/thread_pool.h"
 #include "src/utility.h"
 #include "src/video.h"
 #include "wayland.h"

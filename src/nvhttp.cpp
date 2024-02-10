@@ -22,10 +22,10 @@
 // local includes
 #include "config.h"
 #include "crypto.h"
+#include "entry_handler.h"
 #include "file_handler.h"
 #include "httpcommon.h"
 #include "logging.h"
-#include "main.h"
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"

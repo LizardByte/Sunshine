@@ -14,8 +14,8 @@
 #include "src/platform/common.h"
 
 #include "src/config.h"
+#include "src/entry_handler.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/thread_safe.h"
 
 namespace platf {

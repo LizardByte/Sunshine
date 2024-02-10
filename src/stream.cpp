@@ -18,14 +18,15 @@ extern "C" {
 }
 
 #include "config.h"
+#include "entry_handler.h"
 #include "input.h"
 #include "logging.h"
-#include "main.h"
 #include "network.h"
 #include "stat_trackers.h"
 #include "stream.h"
 #include "sync.h"
 #include "system_tray.h"
+#include "thread_pool.h"
 #include "thread_safe.h"
 #include "utility.h"
 

@@ -15,11 +15,12 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "config.h"
+#include "entry_handler.h"
 #include "file_handler.h"
 #include "logging.h"
-#include "main.h"
 #include "nvhttp.h"
 #include "rtsp.h"
+#include "thread_pool.h"
 #include "utility.h"
 
 #include "platform/common.h"

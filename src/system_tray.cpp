@@ -38,9 +38,9 @@
   // local includes
   #include "confighttp.h"
   #include "logging.h"
-  #include "main.h"
   #include "platform/common.h"
   #include "process.h"
+  #include "src/entry_handler.h"
   #include "version.h"
 
 using namespace std::literals;

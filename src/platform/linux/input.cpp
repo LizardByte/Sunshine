@@ -24,8 +24,8 @@
 #include "src/config.h"
 #include "src/input.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/platform/common.h"
+#include "src/thread_pool.h"
 #include "src/utility.h"
 
 #include "src/platform/common.h"

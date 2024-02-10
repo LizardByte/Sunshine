@@ -18,8 +18,8 @@
 #include <pwd.h>
 
 #include "misc.h"
+#include "src/entry_handler.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/platform/common.h"
 
 #include <boost/asio/ip/address.hpp>

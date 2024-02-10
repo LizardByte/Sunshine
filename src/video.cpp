@@ -19,12 +19,13 @@ extern "C" {
 
 #include "cbs.h"
 #include "config.h"
+#include "entry_handler.h"
 #include "input.h"
 #include "logging.h"
-#include "main.h"
 #include "nvenc/nvenc_base.h"
 #include "platform/common.h"
 #include "sync.h"
+#include "thread_pool.h"
 #include "video.h"
 
 #ifdef _WIN32
