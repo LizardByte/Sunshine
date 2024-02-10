@@ -6,18 +6,16 @@
 #include <windows.h>
 
 #include <cmath>
+#include <thread>
 
 #include <ViGEm/Client.h>
 
 #include "keylayout.h"
 #include "misc.h"
 #include "src/config.h"
-#include "src/entry_handler.h"
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-#include "src/task_pool.h"
-#include "src/thread_pool.h"
 
 #ifdef __MINGW32__
 DECLARE_HANDLE(HSYNTHETICPOINTERDEVICE);

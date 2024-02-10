@@ -18,7 +18,6 @@ extern "C" {
 }
 
 #include "config.h"
-#include "entry_handler.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
@@ -27,7 +26,6 @@ extern "C" {
 #include "stream.h"
 #include "sync.h"
 #include "system_tray.h"
-#include "thread_pool.h"
 #include "thread_safe.h"
 #include "utility.h"
 

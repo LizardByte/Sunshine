@@ -7,6 +7,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <thread>
 #include <unordered_map>
 
 #include <boost/asio.hpp>
@@ -20,7 +21,6 @@
 #include "logging.h"
 #include "nvhttp.h"
 #include "rtsp.h"
-#include "thread_pool.h"
 #include "utility.h"
 
 #include "platform/common.h"

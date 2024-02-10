@@ -13,11 +13,11 @@
 #include <xf86drmMode.h>
 
 #include <filesystem>
+#include <thread>
 
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/round_robin.h"
-#include "src/thread_pool.h"
 #include "src/utility.h"
 #include "src/video.h"
 

@@ -2,10 +2,11 @@
  * @file src/platform/linux/wlgrab.cpp
  * @brief todo
  */
+#include <thread>
+
 #include "src/platform/common.h"
 
 #include "src/logging.h"
-#include "src/thread_pool.h"
 #include "src/video.h"
 
 #include "cuda.h"

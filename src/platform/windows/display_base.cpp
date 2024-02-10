@@ -5,6 +5,7 @@
 #include <cmath>
 #include <codecvt>
 #include <initguid.h>
+#include <thread>
 
 #include <boost/process.hpp>
 
@@ -18,7 +19,6 @@ typedef long NTSTATUS;
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/stat_trackers.h"
-#include "src/thread_pool.h"
 #include "src/video.h"
 
 namespace platf {

@@ -17,7 +17,6 @@ extern "C" {
 #include <unordered_map>
 
 #include "config.h"
-#include "entry_handler.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"

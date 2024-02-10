@@ -4,6 +4,7 @@
  */
 #include <bitset>
 #include <sstream>
+#include <thread>
 
 #include <boost/regex.hpp>
 
@@ -14,7 +15,6 @@
 #include "src/platform/common.h"
 
 #include "src/config.h"
-#include "src/entry_handler.h"
 #include "src/logging.h"
 #include "src/thread_safe.h"
 

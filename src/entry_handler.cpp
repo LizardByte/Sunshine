@@ -16,7 +16,6 @@
 #include "logging.h"
 #include "network.h"
 #include "platform/common.h"
-#include "thread_pool.h"
 #include "version.h"
 
 extern "C" {

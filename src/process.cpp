@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
@@ -25,7 +26,6 @@
 #include "logging.h"
 #include "platform/common.h"
 #include "system_tray.h"
-#include "thread_pool.h"
 #include "utility.h"
 
 #ifdef _WIN32
