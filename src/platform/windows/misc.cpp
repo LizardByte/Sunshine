@@ -753,6 +753,9 @@ namespace platf {
         // All arguments following the target
         case L'*':
           for (int i = 1; i < raw_cmd_parts.size(); i++) {
+            if (i > 1) {
+              match_replacement += L' ';
+            }
             match_replacement += raw_cmd_parts.at(i);
           }
           break;
