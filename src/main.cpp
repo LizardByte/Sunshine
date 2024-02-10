@@ -5,17 +5,11 @@
 
 // standard includes
 #include <csignal>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <thread>
 
 // lib includes
-#include <boost/log/attributes/clock.hpp>
-#include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
-#include <boost/log/sinks.hpp>
-#include <boost/log/sources/severity_logger.hpp>
 
 // local includes
 #include "confighttp.h"
@@ -24,18 +18,14 @@
 #include "httpcommon.h"
 #include "logging.h"
 #include "main.h"
-#include "network.h"
 #include "nvhttp.h"
 #include "process.h"
-#include "rtsp.h"
 #include "system_tray.h"
-#include "thread_pool.h"
 #include "upnp.h"
 #include "version.h"
 #include "video.h"
 
 extern "C" {
-#include <libavutil/log.h>
 #include <rs.h>
 }
 
