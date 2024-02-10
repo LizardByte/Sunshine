@@ -615,6 +615,67 @@ namespace platf {
   }
 
   /**
+   * @brief This function quotes/escapes an argument according to the Windows parsing convention.
+   * @param argument The raw argument to process.
+   * @return An argument string suitable for use by CreateProcess().
+   */
+  std::wstring
+  escape_argument(const std::wstring &argument) {
+    // If there are no characters requiring quoting/escaping, we're done
+    if (argument.find_first_of(L" \t\n\v\"") == argument.npos) {
+      return argument;
+    }
+
+    // The algorithm implemented here comes from a MSDN blog post:
+    // https://web.archive.org/web/20120201194949/http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
+    std::wstring escaped_arg;
+    escaped_arg.push_back(L'"');
+    for (auto it = argument.begin();; it++) {
+      auto backslash_count = 0U;
+      while (it != argument.end() && *it == L'\\') {
+        it++;
+        backslash_count++;
+      }
+
+      if (it == argument.end()) {
+        escaped_arg.append(backslash_count * 2, L'\\');
+        break;
+      }
+      else if (*it == L'"') {
+        escaped_arg.append(backslash_count * 2 + 1, L'\\');
+      }
+      else {
+        escaped_arg.append(backslash_count, L'\\');
+      }
+
+      escaped_arg.push_back(*it);
+    }
+    escaped_arg.push_back(L'"');
+    return escaped_arg;
+  }
+
+  /**
+   * @brief This function escapes an argument according to cmd's parsing convention.
+   * @param argument An argument already escaped by `escape_argument()`.
+   * @return An argument string suitable for use by cmd.exe.
+   */
+  std::wstring
+  escape_argument_for_cmd(const std::wstring &argument) {
+    // Start with the original string and modify from there
+    std::wstring escaped_arg = argument;
+
+    // Look for the next cmd metacharacter
+    size_t match_pos = 0;
+    while ((match_pos = escaped_arg.find_first_of(L"()%!^\"<>&|", match_pos)) != std::wstring::npos) {
+      // Insert an escape character and skip past the match
+      escaped_arg.insert(match_pos, 1, L'^');
+      match_pos += 2;
+    }
+
+    return escaped_arg;
+  }
+
+  /**
    * @brief This function resolves the given raw command into a proper command string for CreateProcess().
    * @details This converts URLs and non-executable file paths into a runnable command like ShellExecute().
    * @param raw_cmd The raw command provided by the user.
@@ -665,6 +726,7 @@ namespace platf {
     }
 
     std::array<WCHAR, MAX_PATH> shell_command_string;
+    bool needs_cmd_escaping = false;
     {
       // Overriding these predefined keys affects process-wide state, so serialize all calls
       // to ensure the handle state is consistent while we perform the command query.
@@ -689,6 +751,7 @@ namespace platf {
       if (res == HRESULT_FROM_WIN32(ERROR_NO_ASSOCIATION)) {
         BOOST_LOG(warning) << "Using trampoline to handle target: "sv << raw_cmd;
         std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" \"%1\" %*");
+        needs_cmd_escaping = true;
         res = S_OK;
       }
 
@@ -752,10 +815,18 @@ namespace platf {
         // All arguments following the target
         case L'*':
           for (int i = 1; i < raw_cmd_parts.size(); i++) {
+            // Insert a space before arguments after the first one
             if (i > 1) {
               match_replacement += L' ';
             }
-            match_replacement += raw_cmd_parts.at(i);
+
+            // Argument escaping applies only to %*, not the single substitutions like %2
+            auto escaped_argument = escape_argument(raw_cmd_parts.at(i));
+            if (needs_cmd_escaping) {
+              // If we're using the cmd.exe trampoline, we'll need to add additional escaping
+              escaped_argument = escape_argument_for_cmd(escaped_argument);
+            }
+            match_replacement += escaped_argument;
           }
           break;
 
