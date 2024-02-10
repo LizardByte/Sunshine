@@ -722,9 +722,8 @@ namespace platf {
       switch (next_char) {
         // Escape character
         case L'%':
-          // Skip this character and the next one
-          match_pos += 2;
-          continue;
+          match_replacement = L'%';
+          break;
 
         // Argument replacements
         case L'0':
