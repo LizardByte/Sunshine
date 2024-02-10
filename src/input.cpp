@@ -18,6 +18,7 @@ extern "C" {
 
 #include "config.h"
 #include "entry_handler.h"
+#include "globals.h"
 #include "input.h"
 #include "logging.h"
 #include "platform/common.h"

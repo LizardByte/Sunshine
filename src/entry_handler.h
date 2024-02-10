@@ -12,9 +12,6 @@
 #include "thread_pool.h"
 #include "thread_safe.h"
 
-extern thread_pool_util::ThreadPool task_pool;
-extern bool display_cursor;
-
 // functions
 void
 launch_ui();

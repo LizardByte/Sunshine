@@ -20,6 +20,7 @@
 // local includes
 #include "confighttp.h"
 #include "entry_handler.h"
+#include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
 #include "main.h"
@@ -38,14 +39,8 @@ extern "C" {
 #include <rs.h>
 }
 
-safe::mail_t mail::man;
-
 using namespace std::literals;
 namespace bl = boost::log;
-
-thread_pool_util::ThreadPool task_pool;
-
-bool display_cursor = true;
 
 struct NoDelete {
   void
