@@ -660,8 +660,16 @@ namespace nvhttp {
     tree.put("root.uniqueid", http::unique_id);
     tree.put("root.HttpsPort", net::map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", net::map_port(PORT_HTTP));
-    tree.put("root.mac", platf::get_mac_address(net::addr_to_normalized_string(local_endpoint.address())));
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
+
+    // Only include the MAC address for requests sent from paired clients over HTTPS.
+    // For HTTP requests, use a placeholder MAC address that Moonlight knows to ignore.
+    if constexpr (std::is_same_v<SimpleWeb::HTTPS, T>) {
+      tree.put("root.mac", platf::get_mac_address(net::addr_to_normalized_string(local_endpoint.address())));
+    }
+    else {
+      tree.put("root.mac", "00:00:00:00:00:00");
+    }
 
     // Moonlight clients track LAN IPv6 addresses separately from LocalIP which is expected to
     // always be an IPv4 address. If we return that same IPv6 address here, it will clobber the
