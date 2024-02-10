@@ -26,10 +26,6 @@ extern bool display_cursor;
 // functions
 int
 main(int argc, char *argv[]);
-std::string
-read_file(const char *path);
-int
-write_file(const char *path, const std::string_view &contents);
 void
 launch_ui();
 void

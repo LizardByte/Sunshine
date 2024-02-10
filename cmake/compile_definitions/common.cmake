@@ -45,6 +45,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/uuid.h"
         "${CMAKE_SOURCE_DIR}/src/config.h"
         "${CMAKE_SOURCE_DIR}/src/config.cpp"
+        "${CMAKE_SOURCE_DIR}/src/file_handler.cpp"
+        "${CMAKE_SOURCE_DIR}/src/file_handler.h"
         "${CMAKE_SOURCE_DIR}/src/logging.cpp"
         "${CMAKE_SOURCE_DIR}/src/logging.h"
         "${CMAKE_SOURCE_DIR}/src/main.cpp"

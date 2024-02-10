@@ -3,8 +3,8 @@
  * @brief todo
  */
 #include "graphics.h"
+#include "src/file_handler.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/video.h"
 
 #include <fcntl.h>
@@ -780,7 +780,7 @@ namespace egl {
       for (int x = 0; x < count; ++x) {
         auto &compiled_source = compiled_sources[x];
 
-        compiled_source = gl::shader_t::compile(read_file(sources[x]), shader_type[x % 2]);
+        compiled_source = gl::shader_t::compile(file_handler::read_file(sources[x]), shader_type[x % 2]);
         gl_drain_errors;
 
         if (compiled_source.has_right()) {

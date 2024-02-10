@@ -22,6 +22,7 @@
 // local includes
 #include "config.h"
 #include "crypto.h"
+#include "file_handler.h"
 #include "httpcommon.h"
 #include "logging.h"
 #include "main.h"
@@ -1005,8 +1006,8 @@ namespace nvhttp {
       load_state();
     }
 
-    conf_intern.pkey = read_file(config::nvhttp.pkey.c_str());
-    conf_intern.servercert = read_file(config::nvhttp.cert.c_str());
+    conf_intern.pkey = file_handler::read_file(config::nvhttp.pkey.c_str());
+    conf_intern.servercert = file_handler::read_file(config::nvhttp.cert.c_str());
 
     crypto::cert_chain_t cert_chain;
     for (auto &[_, client] : map_id_client) {
