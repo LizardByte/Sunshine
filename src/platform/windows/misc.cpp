@@ -711,13 +711,15 @@ namespace platf {
     while ((match_pos = cmd_string.find_first_of(L'%', match_pos)) != std::wstring::npos) {
       std::wstring match_replacement;
 
-      // Shell command replacements are strictly '%' followed by a single non-'%' character
-      auto next_char = std::tolower(match_pos + 1 < cmd_string.size() ? cmd_string.at(match_pos + 1) : 0);
-      switch (next_char) {
-        // No next character
-        case 0:
-          break;
+      // If no additional character exists after the match, the dangling '%' is stripped
+      if (match_pos + 1 == cmd_string.size()) {
+        cmd_string.erase(match_pos, 1);
+        break;
+      }
 
+      // Shell command replacements are strictly '%' followed by a single non-'%' character
+      auto next_char = std::tolower(cmd_string.at(match_pos + 1));
+      switch (next_char) {
         // Escape character
         case L'%':
           // Skip this character and the next one
