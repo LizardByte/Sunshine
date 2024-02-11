@@ -4,8 +4,6 @@
  */
 #include <cmath>
 
-#include <codecvt>
-
 #include <d3dcompiler.h>
 #include <directxmath.h>
 
@@ -342,9 +340,8 @@ namespace platf::dxgi {
 #ifndef NDEBUG
     flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
-    auto wFile = converter.from_bytes(file);
+    auto wFile = from_utf8(file);
     auto status = D3DCompileFromFile(wFile.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, entrypoint, shader_model, flags, 0, &compiled_p, &msg_p);
 
     if (msg_p) {

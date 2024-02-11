@@ -2,7 +2,6 @@
  * @file src/platform/windows/misc.cpp
  * @brief todo
  */
-#include <codecvt>
 #include <csignal>
 #include <filesystem>
 #include <iomanip>
@@ -35,6 +34,8 @@
 #define NTDDI_VERSION NTDDI_WIN10
 #include <Shlwapi.h>
 
+#include "misc.h"
+
 #include "src/entry_handler.h"
 #include "src/globals.h"
 #include "src/logging.h"
@@ -65,8 +66,6 @@ namespace bp = boost::process;
 using namespace std::literals;
 namespace platf {
   using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
-
-  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   bool enabled_mouse_keys = false;
   MOUSEKEYS previous_mouse_keys_state;
@@ -297,7 +296,7 @@ namespace platf {
     // Parse the environment block and populate env
     for (auto c = (PWCHAR) env_block; *c != UNICODE_NULL; c += wcslen(c) + 1) {
       // Environment variable entries end with a null-terminator, so std::wstring() will get an entire entry.
-      std::string env_tuple = converter.to_bytes(std::wstring { c });
+      std::string env_tuple = to_utf8(std::wstring { c });
       std::string env_name = env_tuple.substr(0, env_tuple.find('='));
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
@@ -371,7 +370,7 @@ namespace platf {
     for (const auto &entry : env) {
       auto name = entry.get_name();
       auto value = entry.to_string();
-      size += converter.from_bytes(name).length() + 1 /* L'=' */ + converter.from_bytes(value).length() + 1 /* L'\0' */;
+      size += from_utf8(name).length() + 1 /* L'=' */ + from_utf8(value).length() + 1 /* L'\0' */;
     }
 
     size += 1 /* L'\0' */;
@@ -383,9 +382,9 @@ namespace platf {
       auto value = entry.to_string();
 
       // Construct the NAME=VAL\0 string
-      append_string_to_environment_block(env_block, offset, converter.from_bytes(name));
+      append_string_to_environment_block(env_block, offset, from_utf8(name));
       env_block[offset++] = L'=';
-      append_string_to_environment_block(env_block, offset, converter.from_bytes(value));
+      append_string_to_environment_block(env_block, offset, from_utf8(value));
       env_block[offset++] = L'\0';
     }
 
@@ -625,14 +624,14 @@ namespace platf {
    */
   std::wstring
   resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token) {
-    std::wstring raw_cmd_w = converter.from_bytes(raw_cmd);
+    std::wstring raw_cmd_w = from_utf8(raw_cmd);
 
     // First, convert the given command into parts so we can get the executable/file/URL without parameters
     auto raw_cmd_parts = boost::program_options::split_winmain(raw_cmd_w);
     if (raw_cmd_parts.empty()) {
       // This is highly unexpected, but we'll just return the raw string and hope for the best.
       BOOST_LOG(warning) << "Failed to split command string: "sv << raw_cmd;
-      return converter.from_bytes(raw_cmd);
+      return from_utf8(raw_cmd);
     }
 
     auto raw_target = raw_cmd_parts.at(0);
@@ -646,7 +645,7 @@ namespace platf {
       res = UrlGetPartW(raw_target.c_str(), scheme.data(), &out_len, URL_PART_SCHEME, 0);
       if (res != S_OK) {
         BOOST_LOG(warning) << "Failed to extract URL scheme from URL: "sv << raw_target << " ["sv << util::hex(res).to_string_view() << ']';
-        return converter.from_bytes(raw_cmd);
+        return from_utf8(raw_cmd);
       }
 
       // If the target is a URL, the class is found using the URL scheme (prior to and not including the ':')
@@ -658,7 +657,7 @@ namespace platf {
       if (extension == nullptr || *extension == 0) {
         // If the file has no extension, assume it's a command and allow CreateProcess()
         // to try to find it via PATH
-        return converter.from_bytes(raw_cmd);
+        return from_utf8(raw_cmd);
       }
 
       // For regular files, the class is found using the file extension (including the dot)
@@ -674,7 +673,7 @@ namespace platf {
 
       // Override HKEY_CLASSES_ROOT and HKEY_CURRENT_USER to ensure we query the correct class info
       if (!override_per_user_predefined_keys(token)) {
-        return converter.from_bytes(raw_cmd);
+        return from_utf8(raw_cmd);
       }
 
       // Find the command string for the specified class
@@ -699,7 +698,7 @@ namespace platf {
 
     if (res != S_OK) {
       BOOST_LOG(warning) << "Failed to query command string for raw command: "sv << raw_cmd << " ["sv << util::hex(res).to_string_view() << ']';
-      return converter.from_bytes(raw_cmd);
+      return from_utf8(raw_cmd);
     }
 
     // Finally, construct the real command string that will be passed into CreateProcess().
@@ -825,7 +824,7 @@ namespace platf {
    */
   bp::child
   run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-    std::wstring start_dir = converter.from_bytes(working_dir.string());
+    std::wstring start_dir = from_utf8(working_dir.string());
     HANDLE job = group ? group->native_handle() : nullptr;
     STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
     PROCESS_INFORMATION process_info;
@@ -1601,5 +1600,71 @@ namespace platf {
       return std::chrono::nanoseconds((int64_t) ((performance_counter1 - performance_counter2) * frequency / std::nano::den));
     }
     return {};
+  }
+
+  /**
+   * @brief Converts a UTF-8 string into a UTF-16 wide string.
+   * @param string The UTF-8 string.
+   * @return The converted UTF-16 wide string.
+   */
+  std::wstring
+  from_utf8(const std::string &string) {
+    // No conversion needed if the string is empty
+    if (string.empty()) {
+      return {};
+    }
+
+    // Get the output size required to store the string
+    auto output_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, string.data(), string.size(), nullptr, 0);
+    if (output_size == 0) {
+      auto winerr = GetLastError();
+      BOOST_LOG(error) << "Failed to get UTF-16 buffer size: "sv << winerr;
+      return {};
+    }
+
+    // Perform the conversion
+    std::wstring output(output_size, L'\0');
+    output_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, string.data(), string.size(), output.data(), output.size());
+    if (output_size == 0) {
+      auto winerr = GetLastError();
+      BOOST_LOG(error) << "Failed to convert string to UTF-16: "sv << winerr;
+      return {};
+    }
+
+    return output;
+  }
+
+  /**
+   * @brief Converts a UTF-16 wide string into a UTF-8 string.
+   * @param string The UTF-16 wide string.
+   * @return The converted UTF-8 string.
+   */
+  std::string
+  to_utf8(const std::wstring &string) {
+    // No conversion needed if the string is empty
+    if (string.empty()) {
+      return {};
+    }
+
+    // Get the output size required to store the string
+    auto output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(),
+      nullptr, 0, nullptr, nullptr);
+    if (output_size == 0) {
+      auto winerr = GetLastError();
+      BOOST_LOG(error) << "Failed to get UTF-8 buffer size: "sv << winerr;
+      return {};
+    }
+
+    // Perform the conversion
+    std::string output(output_size, '\0');
+    output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(),
+      output.data(), output.size(), nullptr, nullptr);
+    if (output_size == 0) {
+      auto winerr = GetLastError();
+      BOOST_LOG(error) << "Failed to convert string to UTF-8: "sv << winerr;
+      return {};
+    }
+
+    return output;
   }
 }  // namespace platf
