@@ -29,6 +29,9 @@
 #include "utility.h"
 
 #ifdef _WIN32
+  // from_utf8() string conversion function
+  #include "platform/windows/misc.h"
+
   // _SH constants for _wfsopen()
   #include <share.h>
 #endif
@@ -187,8 +190,7 @@ namespace proc {
 #ifdef _WIN32
       // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
       // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
-      std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-      auto woutput = converter.from_bytes(_app.output);
+      auto woutput = platf::from_utf8(_app.output);
 
       // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
       // still open from a previous execution. This is required to handle the case of a

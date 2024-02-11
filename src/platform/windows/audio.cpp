@@ -7,8 +7,6 @@
 #include <mmdeviceapi.h>
 #include <roapi.h>
 
-#include <codecvt>
-
 #include <synchapi.h>
 
 #include <newdev.h>
@@ -18,6 +16,8 @@
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+
+#include "misc.h"
 
 // Must be the last included file
 // clang-format off
@@ -89,7 +89,6 @@ namespace platf::audio {
     PROPVARIANT prop;
   };
 
-  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
   struct format_t {
     enum type_e : int {
       none,
@@ -613,7 +612,7 @@ namespace platf::audio {
       audio::wstring_t wstring;
       device->GetId(&wstring);
 
-      sink.host = converter.to_bytes(wstring.get());
+      sink.host = to_utf8(wstring.get());
 
       collection_t collection;
       auto status = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
@@ -627,7 +626,7 @@ namespace platf::audio {
       collection->GetCount(&count);
 
       // If the sink isn't a device name, we'll assume it's a device ID
-      auto virtual_device_id = find_device_id_by_name(config::audio.virtual_sink).value_or(converter.from_bytes(config::audio.virtual_sink));
+      auto virtual_device_id = find_device_id_by_name(config::audio.virtual_sink).value_or(from_utf8(config::audio.virtual_sink));
       auto virtual_device_found = false;
 
       for (auto x = 0; x < count; ++x) {
@@ -674,7 +673,7 @@ namespace platf::audio {
       }
 
       if (virtual_device_found) {
-        auto name_suffix = converter.to_bytes(virtual_device_id);
+        auto name_suffix = to_utf8(virtual_device_id);
         sink.null = std::make_optional(sink_t::null_t {
           "virtual-"s.append(formats[format_t::stereo - 1].name) + name_suffix,
           "virtual-"s.append(formats[format_t::surr51 - 1].name) + name_suffix,
@@ -749,7 +748,7 @@ namespace platf::audio {
       auto sink_info = get_sink_info(sink);
 
       // If the sink isn't a device name, we'll assume it's a device ID
-      auto wstring_device_id = find_device_id_by_name(sink).value_or(converter.from_bytes(sink_info.second.data()));
+      auto wstring_device_id = find_device_id_by_name(sink).value_or(from_utf8(sink_info.second.data()));
 
       if (sink_info.first == format_t::none) {
         // wstring_device_id does not contain virtual-(format name)
@@ -839,7 +838,7 @@ namespace platf::audio {
       UINT count;
       collection->GetCount(&count);
 
-      auto wstring_name = converter.from_bytes(name.data());
+      auto wstring_name = from_utf8(name.data());
 
       for (auto x = 0; x < count; ++x) {
         audio::device_t device;
