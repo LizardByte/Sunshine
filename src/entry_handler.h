@@ -19,10 +19,6 @@ void
 launch_ui_with_path(std::string path);
 
 #ifdef _WIN32
-  // Declare global singleton used for NVIDIA control panel modifications
-  #include "platform/windows/nvprefs/nvprefs_interface.h"
-extern nvprefs::nvprefs_interface nvprefs_instance;
-
 // windows only functions
 bool
 is_gamestream_enabled();

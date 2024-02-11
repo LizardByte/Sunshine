@@ -12,6 +12,7 @@
 #include "config.h"
 #include "confighttp.h"
 #include "entry_handler.h"
+#include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
 #include "network.h"
@@ -53,11 +54,6 @@ launch_ui_with_path(std::string path) {
   std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS)) + path;
   platf::open_url(url);
 }
-
-#ifdef _WIN32
-// Define global singleton used for NVIDIA control panel modifications
-nvprefs::nvprefs_interface nvprefs_instance;
-#endif
 
 namespace args {
   int

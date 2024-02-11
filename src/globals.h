@@ -10,6 +10,12 @@
 extern thread_pool_util::ThreadPool task_pool;
 extern bool display_cursor;
 
+#ifdef _WIN32
+  // Declare global singleton used for NVIDIA control panel modifications
+  #include "platform/windows/nvprefs/nvprefs_interface.h"
+extern nvprefs::nvprefs_interface nvprefs_instance;
+#endif
+
 namespace mail {
 #define MAIL(x)                         \
   constexpr auto x = std::string_view { \
