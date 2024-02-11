@@ -7,6 +7,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <thread>
 #include <unordered_map>
 
 #include <boost/asio.hpp>
@@ -15,9 +16,9 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "config.h"
+#include "entry_handler.h"
 #include "file_handler.h"
 #include "logging.h"
-#include "main.h"
 #include "nvhttp.h"
 #include "rtsp.h"
 #include "utility.h"

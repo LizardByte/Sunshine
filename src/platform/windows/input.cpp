@@ -6,14 +6,15 @@
 #include <windows.h>
 
 #include <cmath>
+#include <thread>
 
 #include <ViGEm/Client.h>
 
 #include "keylayout.h"
 #include "misc.h"
 #include "src/config.h"
+#include "src/globals.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/platform/common.h"
 
 #ifdef __MINGW32__

@@ -35,8 +35,9 @@
 #define NTDDI_VERSION NTDDI_WIN10
 #include <Shlwapi.h>
 
+#include "src/entry_handler.h"
+#include "src/globals.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
 #include <iterator>

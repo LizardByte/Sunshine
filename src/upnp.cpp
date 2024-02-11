@@ -7,8 +7,8 @@
 
 #include "config.h"
 #include "confighttp.h"
+#include "globals.h"
 #include "logging.h"
-#include "main.h"
 #include "network.h"
 #include "nvhttp.h"
 #include "rtsp.h"

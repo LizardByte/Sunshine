@@ -5,6 +5,7 @@
 #include <cmath>
 #include <codecvt>
 #include <initguid.h>
+#include <thread>
 
 #include <boost/process.hpp>
 
@@ -16,7 +17,6 @@ typedef long NTSTATUS;
 #include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/platform/common.h"
 #include "src/stat_trackers.h"
 #include "src/video.h"

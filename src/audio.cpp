@@ -10,8 +10,8 @@
 
 #include "audio.h"
 #include "config.h"
+#include "globals.h"
 #include "logging.h"
-#include "main.h"
 #include "thread_safe.h"
 #include "utility.h"
 

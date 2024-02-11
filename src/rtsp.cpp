@@ -16,9 +16,9 @@ extern "C" {
 #include <boost/bind.hpp>
 
 #include "config.h"
+#include "globals.h"
 #include "input.h"
 #include "logging.h"
-#include "main.h"
 #include "network.h"
 #include "rtsp.h"
 #include "stream.h"

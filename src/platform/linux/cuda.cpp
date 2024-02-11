@@ -3,10 +3,9 @@
  * @brief todo
  */
 #include <bitset>
-
 #include <fcntl.h>
-
 #include <filesystem>
+#include <thread>
 
 #include <NvFBC.h>
 #include <ffnvcodec/dynlink_loader.h>
@@ -20,7 +19,6 @@ extern "C" {
 #include "cuda.h"
 #include "graphics.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/utility.h"
 #include "src/video.h"
 #include "wayland.h"

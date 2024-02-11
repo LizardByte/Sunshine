@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
@@ -23,7 +24,6 @@
 #include "config.h"
 #include "crypto.h"
 #include "logging.h"
-#include "main.h"
 #include "platform/common.h"
 #include "system_tray.h"
 #include "utility.h"

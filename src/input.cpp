@@ -17,9 +17,9 @@ extern "C" {
 #include <unordered_map>
 
 #include "config.h"
+#include "globals.h"
 #include "input.h"
 #include "logging.h"
-#include "main.h"
 #include "platform/common.h"
 #include "thread_pool.h"
 #include "utility.h"

@@ -5,6 +5,7 @@
 #include "src/platform/common.h"
 
 #include <fstream>
+#include <thread>
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -17,8 +18,8 @@
 #include <xcb/xfixes.h>
 
 #include "src/config.h"
+#include "src/globals.h"
 #include "src/logging.h"
-#include "src/main.h"
 #include "src/task_pool.h"
 #include "src/video.h"
 
