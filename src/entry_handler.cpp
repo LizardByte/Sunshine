@@ -56,11 +56,22 @@ launch_ui_with_path(std::string path) {
 }
 
 namespace args {
+  /**
+   * @brief Reset the user credentials.
+   *
+   * @param name The name of the program.
+   * @param argc The number of arguments.
+   * @param argv The arguments.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * creds("sunshine", 2, {"new_username", "new_password"});
+   * ```
+   */
   int
   creds(const char *name, int argc, char *argv[]) {
     if (argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
-      print_help(name);
-      return 0;
+      help(name, argc, argv);
     }
 
     http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
@@ -68,12 +79,34 @@ namespace args {
     return 0;
   }
 
+  /**
+   * @brief Print help to stdout, then exit.
+   * @param name The name of the program.
+   * @param argc The number of arguments. (Unused)
+   * @param argv The arguments. (Unused)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * print_help("sunshine", 0, nullptr);
+   * ```
+   */
   int
   help(const char *name, int argc, char *argv[]) {
     print_help(name);
     return 0;
   }
 
+  /**
+   * @brief Print the version to stdout, then exit.
+   * @param name The name of the program. (Unused)
+   * @param argc The number of arguments. (Unused)
+   * @param argv The arguments. (Unused)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * version("sunshine", 0, nullptr);
+   * ```
+   */
   int
   version(const char *name, int argc, char *argv[]) {
     std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
@@ -81,11 +114,24 @@ namespace args {
   }
 
 #ifdef _WIN32
+  /**
+   * @brief Restore global NVIDIA control panel settings.
+   *
+   * If Sunshine was improperly terminated, this function restores
+   * the global NVIDIA control panel settings to the undo file left
+   * by Sunshine. This function is typically called by the uninstaller.
+   *
+   * @param name The name of the program. (Unused)
+   * @param argc The number of arguments. (Unused)
+   * @param argv The arguments. (Unused)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * restore_nvprefs_undo("sunshine", 0, nullptr);
+   * ```
+   */
   int
   restore_nvprefs_undo(const char *name, int argc, char *argv[]) {
-    // Restore global NVIDIA control panel settings to the undo file
-    // left by improper termination of sunshine.exe, if it exists.
-    // This entry point is typically called by the uninstaller.
     if (nvprefs_instance.load()) {
       nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
       nvprefs_instance.unload();
@@ -131,8 +177,8 @@ namespace lifetime {
 
 #ifdef _WIN32
 /**
- * @brief Checks if NVIDIA's GameStream software is running.
- * @return `true` if GameStream is enabled.
+ * @brief Check if NVIDIA's GameStream software is running.
+ * @return `true` if GameStream is enabled, `false` otherwise.
  */
 bool
 is_gamestream_enabled() {
