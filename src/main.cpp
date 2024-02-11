@@ -26,6 +26,7 @@
 #include "video.h"
 
 extern "C" {
+#include <libavutil/log.h>
 #include <rs.h>
 }
 
