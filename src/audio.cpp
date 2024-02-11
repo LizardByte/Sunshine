@@ -10,7 +10,7 @@
 
 #include "audio.h"
 #include "config.h"
-#include "entry_handler.h"
+#include "globals.h"
 #include "logging.h"
 #include "thread_safe.h"
 #include "utility.h"

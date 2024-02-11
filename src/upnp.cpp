@@ -7,7 +7,7 @@
 
 #include "config.h"
 #include "confighttp.h"
-#include "entry_handler.h"
+#include "globals.h"
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"

@@ -16,7 +16,7 @@ extern "C" {
 #include <boost/bind.hpp>
 
 #include "config.h"
-#include "entry_handler.h"
+#include "globals.h"
 #include "input.h"
 #include "logging.h"
 #include "network.h"

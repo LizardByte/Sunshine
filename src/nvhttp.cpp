@@ -22,8 +22,8 @@
 // local includes
 #include "config.h"
 #include "crypto.h"
-#include "entry_handler.h"
 #include "file_handler.h"
+#include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
 #include "network.h"
