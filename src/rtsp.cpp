@@ -529,6 +529,30 @@ namespace rtsp_stream {
       raised_timeout = now + config::stream.ping_timeout;
 
       --_slot_count;
+
+      launch_session->env["SUNSHINE_CLIENT_ID"] = std::to_string(launch_session->id);
+      launch_session->env["SUNSHINE_CLIENT_UNIQUE_ID"] = launch_session->unique_id;
+      launch_session->env["SUNSHINE_CLIENT_SLOT"] = std::to_string(session_count());
+      launch_session->env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
+      launch_session->env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session->height);
+      launch_session->env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session->fps);
+      launch_session->env["SUNSHINE_CLIENT_HDR"] = launch_session->enable_hdr ? "true" : "false";
+      launch_session->env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session->gcmap);
+      launch_session->env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session->host_audio ? "true" : "false";
+      launch_session->env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session->enable_sops ? "true" : "false";
+      int channelCount = launch_session->surround_info & (65535);
+      switch (channelCount) {
+        case 2:
+          launch_session->env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
+          break;
+        case 6:
+          launch_session->env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "5.1";
+          break;
+        case 8:
+          launch_session->env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
+          break;
+      }
+
       launch_event.raise(std::move(launch_session));
     }
 

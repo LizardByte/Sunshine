@@ -838,8 +838,9 @@ namespace config {
       auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
       auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
       auto elevated = prep_cmd.get_optional<bool>("elevated"s);
+      auto on_session = prep_cmd.get_optional<bool>("on-session"s);
 
-      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
+      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false), on_session.value_or(false));
     }
   }
 
