@@ -162,8 +162,8 @@ namespace proc {
 
     // Add Process-specific environment variables
     _env = launch_session->env;
-    _env.env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
-    _env.env["SUNSHINE_APP_NAME"] = _app.name;
+    _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
+    _env["SUNSHINE_APP_NAME"] = _app.name;
 
     if (!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
