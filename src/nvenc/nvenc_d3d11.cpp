@@ -39,7 +39,7 @@ namespace nvenc {
     if ((dll = LoadLibraryEx(dll_name, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
       if (auto create_instance = (decltype(NvEncodeAPICreateInstance) *) GetProcAddress(dll, "NvEncodeAPICreateInstance")) {
         auto new_nvenc = std::make_unique<NV_ENCODE_API_FUNCTION_LIST>();
-        new_nvenc->version = NV_ENCODE_API_FUNCTION_LIST_VER;
+        new_nvenc->version = min_struct_version(NV_ENCODE_API_FUNCTION_LIST_VER);
         if (nvenc_failed(create_instance(new_nvenc.get()))) {
           BOOST_LOG(error) << "NvEncodeAPICreateInstance failed: " << last_error_string;
         }
@@ -83,7 +83,7 @@ namespace nvenc {
     }
 
     if (!registered_input_buffer) {
-      NV_ENC_REGISTER_RESOURCE register_resource = { NV_ENC_REGISTER_RESOURCE_VER };
+      NV_ENC_REGISTER_RESOURCE register_resource = { min_struct_version(NV_ENC_REGISTER_RESOURCE_VER, 3, 4) };
       register_resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
       register_resource.width = encoder_params.width;
       register_resource.height = encoder_params.height;
