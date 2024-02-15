@@ -720,6 +720,13 @@ namespace platf {
         // to try to find it via PATH
         return from_utf8(raw_cmd);
       }
+      else if (boost::iequals(extension, L".exe")) {
+        // If the file has an .exe extension, we will bypass the resolution here and
+        // directly pass the unmodified command string to CreateProcess(). The argument
+        // escaping rules are subtly different between CreateProcess() and ShellExecute(),
+        // and we want to preserve backwards compatibility with older configs.
+        return from_utf8(raw_cmd);
+      }
 
       // For regular files, the class is found using the file extension (including the dot)
       lookup_string = extension;
