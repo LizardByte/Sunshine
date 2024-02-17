@@ -20,7 +20,13 @@ pkg_check_modules(MINIUPNP miniupnpc REQUIRED)
 include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
 
 # nlohmann_json
-add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/nlohmann_json")
+if(NOT SUNSHINE_SYSTEM_NLOHMANN_JSON)
+    add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/nlohmann_json")
+    set(JSON_LIBRARIES nlohmann_json::nlohmann_json)
+else()
+    pkg_check_modules(NLOHMANN_JSON nlohmann_json REQUIRED IMPORTED_TARGET)
+    set(JSON_LIBRARIES PkgConfig::NLOHMANN_JSON)
+endif()
 
 # ffmpeg pre-compiled binaries
 if(WIN32)

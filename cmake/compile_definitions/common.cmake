@@ -135,4 +135,4 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${OPENSSL_LIBRARIES}
         ${CURL_LIBRARIES}
         ${PLATFORM_LIBRARIES}
-        nlohmann_json::nlohmann_json)
+        ${JSON_LIBRARIES})
