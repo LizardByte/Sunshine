@@ -39,8 +39,8 @@ Build
 
 .. code-block:: bash
 
-   cmake -G "MinGW Makefiles" ..
-   mingw32-make -j$(nproc)
+   cmake -GNinja ..
+   ninja
 
    cpack -G NSIS  # optionally, create a windows installer
    cpack -G ZIP  # optionally, create a windows standalone package
