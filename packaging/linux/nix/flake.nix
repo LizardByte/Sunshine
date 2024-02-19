@@ -39,7 +39,7 @@
           libdrm
           wayland
           # TODO: Audit me
-          wayland-scanner
+          # wayland-scanner
           libffi
           libevdev
           libcap
@@ -66,6 +66,8 @@
           cudaPackages.cudatoolkit
           intel-media-sdk
           miniupnpc
+          libgudev
+          systemdLibs
         ];
 
       runtimeDependencies = with pkgs; [
