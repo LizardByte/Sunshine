@@ -32,6 +32,7 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
   cmake=3.22.* \
+  ca-certificates \
   git \
   libayatana-appindicator3-dev \
   libavdevice-dev \
@@ -43,6 +44,7 @@ apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libminiupnpc-dev \
   libnotify-dev \
   libnuma-dev \
   libopus-dev \
@@ -58,8 +60,7 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
-  nodejs \
-  npm \
+  udev \
   wget
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
@@ -68,6 +69,17 @@ fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
+
+#Install Node
+# hadolint ignore=SC1091
+RUN <<_INSTALL_NODE
+#!/bin/bash
+set -e
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+source "$HOME/.nvm/nvm.sh"
+nvm install 20.9.0
+nvm use 20.9.0
+_INSTALL_NODE
 
 # install cuda
 WORKDIR /build/cuda
@@ -95,16 +107,18 @@ _INSTALL_CUDA
 WORKDIR /build/sunshine/
 COPY --link .. .
 
-# setup npm dependencies
-RUN npm install
-
 # setup build directory
 WORKDIR /build/sunshine/build
 
 # cmake and cpack
+# hadolint ignore=SC1091
 RUN <<_MAKE
 #!/bin/bash
 set -e
+#Set Node version
+source "$HOME/.nvm/nvm.sh"
+nvm use 20.9.0
+#Actually build
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \

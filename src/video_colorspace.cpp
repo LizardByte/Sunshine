@@ -1,6 +1,6 @@
 #include "video_colorspace.h"
 
-#include "main.h"
+#include "logging.h"
 #include "video.h"
 
 extern "C" {

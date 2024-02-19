@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
@@ -22,12 +23,15 @@
 
 #include "config.h"
 #include "crypto.h"
-#include "main.h"
+#include "logging.h"
 #include "platform/common.h"
 #include "system_tray.h"
 #include "utility.h"
 
 #ifdef _WIN32
+  // from_utf8() string conversion function
+  #include "platform/windows/misc.h"
+
   // _SH constants for _wfsopen()
   #include <share.h>
 #endif
@@ -57,17 +61,51 @@ namespace proc {
     return std::make_unique<deinit_t>();
   }
 
+  /**
+   * @brief Terminates all child processes in a process group.
+   * @param proc The child process itself.
+   * @param group The group of all children in the process tree.
+   * @param exit_timeout The timeout to wait for the process group to gracefully exit.
+   */
   void
-  process_end(bp::child &proc, bp::group &proc_handle) {
-    if (!proc.running()) {
-      return;
+  terminate_process_group(bp::child &proc, bp::group &group, std::chrono::seconds exit_timeout) {
+    if (group.valid() && platf::process_group_running((std::uintptr_t) group.native_handle())) {
+      if (exit_timeout.count() > 0) {
+        // Request processes in the group to exit gracefully
+        if (platf::request_process_group_exit((std::uintptr_t) group.native_handle())) {
+          // If the request was successful, wait for a little while for them to exit.
+          BOOST_LOG(info) << "Successfully requested the app to exit. Waiting up to "sv << exit_timeout.count() << " seconds for it to close."sv;
+
+          // group::wait_for() and similar functions are broken and deprecated, so we use a simple polling loop
+          while (platf::process_group_running((std::uintptr_t) group.native_handle()) && (--exit_timeout).count() >= 0) {
+            std::this_thread::sleep_for(1s);
+          }
+
+          if (exit_timeout.count() < 0) {
+            BOOST_LOG(warning) << "App did not fully exit within the timeout. Terminating the app's remaining processes."sv;
+          }
+          else {
+            BOOST_LOG(info) << "All app processes have successfully exited."sv;
+          }
+        }
+        else {
+          BOOST_LOG(info) << "App did not respond to a graceful termination request. Forcefully terminating the app's processes."sv;
+        }
+      }
+      else {
+        BOOST_LOG(info) << "No graceful exit timeout was specified for this app. Forcefully terminating the app's processes."sv;
+      }
+
+      // We always call terminate() even if we waited successfully for all processes above.
+      // This ensures the process group state is consistent with the OS in boost.
+      group.terminate();
+      group.detach();
     }
 
-    BOOST_LOG(debug) << "Force termination Child-Process"sv;
-    proc_handle.terminate();
-
-    // avoid zombie process
-    proc.wait();
+    if (proc.valid()) {
+      // avoid zombie process
+      proc.detach();
+    }
   }
 
   boost::filesystem::path
@@ -83,7 +121,12 @@ namespace proc {
       return boost::filesystem::path();
     }
 
-    BOOST_LOG(debug) << "Parsed executable ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
+    BOOST_LOG(debug) << "Parsed target ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
+
+    // If the target is a URL, don't parse any further here
+    if (parts.at(0).find("://") != std::string::npos) {
+      return boost::filesystem::path();
+    }
 
     // If the cmd path is not an absolute path, resolve it using our PATH variable
     boost::filesystem::path cmd_path(parts.at(0));
@@ -95,14 +138,14 @@ namespace proc {
       }
     }
 
-    BOOST_LOG(debug) << "Resolved executable ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
+    BOOST_LOG(debug) << "Resolved target ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
 
     // Now that we have a complete path, we can just use parent_path()
     return cmd_path.parent_path();
   }
 
   int
-  proc_t::execute(int app_id, rtsp_stream::launch_session_t launch_session) {
+  proc_t::execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
     // Ensure starting from a clean slate
     terminate();
 
@@ -123,14 +166,14 @@ namespace proc {
     // Add Stream-specific environment variables
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
     _env["SUNSHINE_APP_NAME"] = _app.name;
-    _env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session.width);
-    _env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session.height);
-    _env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session.fps);
-    _env["SUNSHINE_CLIENT_HDR"] = launch_session.enable_hdr ? "true" : "false";
-    _env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session.gcmap);
-    _env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session.host_audio ? "true" : "false";
-    _env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session.enable_sops ? "true" : "false";
-    int channelCount = launch_session.surround_info & (65535);
+    _env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
+    _env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session->height);
+    _env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session->fps);
+    _env["SUNSHINE_CLIENT_HDR"] = launch_session->enable_hdr ? "true" : "false";
+    _env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session->gcmap);
+    _env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session->host_audio ? "true" : "false";
+    _env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session->enable_sops ? "true" : "false";
+    int channelCount = launch_session->surround_info & (65535);
     switch (channelCount) {
       case 2:
         _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
@@ -147,8 +190,7 @@ namespace proc {
 #ifdef _WIN32
       // fopen() interprets the filename as an ANSI string on Windows, so we must convert it
       // to UTF-16 and use the wchar_t variants for proper Unicode log file path support.
-      std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-      auto woutput = converter.from_bytes(_app.output);
+      auto woutput = platf::from_utf8(_app.output);
 
       // Use _SH_DENYNO to allow us to open this log file again for writing even if it is
       // still open from a previous execution. This is required to handle the case of a
@@ -220,7 +262,7 @@ namespace proc {
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
-      _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_handle);
+      _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_group);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't run ["sv << _app.cmd << "]: System: "sv << ec.message();
         return -1;
@@ -236,7 +278,15 @@ namespace proc {
 
   int
   proc_t::running() {
-    if (placebo || _process.running()) {
+    if (placebo) {
+      return _app_id;
+    }
+    else if (_app.wait_all && _process_group && platf::process_group_running((std::uintptr_t) _process_group.native_handle())) {
+      // The app is still running if any process in the group is still running
+      return _app_id;
+    }
+    else if (_process.running()) {
+      // The app is still running only if the initial process launched is still running
       return _app_id;
     }
     else if (_app.auto_detach && _process.native_exit_code() == 0 &&
@@ -258,13 +308,11 @@ namespace proc {
 
   void
   proc_t::terminate() {
-    bool has_run = _app_id > 0;
     std::error_code ec;
     placebo = false;
-    process_end(_process, _process_handle);
+    terminate_process_group(_process, _process_group, _app.exit_timeout);
     _process = bp::child();
-    _process_handle = bp::group();
-    _app_id = -1;
+    _process_group = bp::group();
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);
@@ -293,12 +341,16 @@ namespace proc {
 
     _pipe.reset();
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+    bool has_run = _app_id > 0;
+
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
     if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
       system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
     }
 #endif
+
+    _app_id = -1;
   }
 
   const std::vector<ctx_t> &
@@ -559,6 +611,8 @@ namespace proc {
         auto working_dir = app_node.get_optional<std::string>("working-dir"s);
         auto elevated = app_node.get_optional<bool>("elevated"s);
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
+        auto wait_all = app_node.get_optional<bool>("wait-all"s);
+        auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -618,6 +672,8 @@ namespace proc {
 
         ctx.elevated = elevated.value_or(false);
         ctx.auto_detach = auto_detach.value_or(true);
+        ctx.wait_all = wait_all.value_or(true);
+        ctx.exit_timeout = std::chrono::seconds { exit_timeout.value_or(5) };
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {

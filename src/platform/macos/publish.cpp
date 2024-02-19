@@ -7,7 +7,8 @@
 #include <thread>
 
 #include "misc.h"
-#include "src/main.h"
+#include "src/logging.h"
+#include "src/network.h"
 #include "src/nvhttp.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -348,7 +349,7 @@ namespace platf::publish {
         name.get(),
         SERVICE_TYPE,
         nullptr, nullptr,
-        map_port(nvhttp::PORT_HTTP),
+        net::map_port(nvhttp::PORT_HTTP),
         nullptr);
 
       if (ret < 0) {
@@ -402,7 +403,7 @@ namespace platf::publish {
   public:
     std::thread poll_thread;
 
-    deinit_t(std::thread poll_thread):
+    explicit deinit_t(std::thread poll_thread):
         poll_thread { std::move(poll_thread) } {}
 
     ~deinit_t() override {

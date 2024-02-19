@@ -2,10 +2,14 @@
  * @file src/platform/linux/wlgrab.cpp
  * @brief todo
  */
+#include <thread>
+
 #include "src/platform/common.h"
 
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/video.h"
+
+#include "cuda.h"
 #include "vaapi.h"
 #include "wayland.h"
 
@@ -87,11 +91,11 @@ namespace wl {
     snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
+      // Dispatch events until we get a new frame or the timeout expires
       dmabuf.listen(interface.dmabuf_manager, output, cursor);
       do {
-        display.roundtrip();
-
-        if (to < std::chrono::steady_clock::now()) {
+        auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
+        if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
           return platf::capture_e::timeout;
         }
       } while (dmabuf.status == dmabuf_t::WAITING);
@@ -183,6 +187,7 @@ namespace wl {
 
       gl::ctx.BindTexture(GL_TEXTURE_2D, (*rgb_opt)->tex[0]);
 
+      // Don't remove these lines, see https://github.com/LizardByte/Sunshine/issues/453
       int w, h;
       gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
       gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
@@ -217,9 +222,17 @@ namespace wl {
 
     std::unique_ptr<platf::avcodec_encode_device_t>
     make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
         return va::make_avcodec_encode_device(width, height, false);
       }
+#endif
+
+#ifdef SUNSHINE_BUILD_CUDA
+      if (mem_type == platf::mem_type_e::cuda) {
+        return cuda::make_avcodec_encode_device(width, height, false);
+      }
+#endif
 
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
@@ -313,6 +326,8 @@ namespace wl {
     alloc_img() override {
       auto img = std::make_shared<egl::img_descriptor_t>();
 
+      img->width = width;
+      img->height = height;
       img->sequence = 0;
       img->serial = std::numeric_limits<decltype(img->serial)>::max();
       img->data = nullptr;
@@ -325,25 +340,25 @@ namespace wl {
 
     std::unique_ptr<platf::avcodec_encode_device_t>
     make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
         return va::make_avcodec_encode_device(width, height, 0, 0, true);
       }
+#endif
+
+#ifdef SUNSHINE_BUILD_CUDA
+      if (mem_type == platf::mem_type_e::cuda) {
+        return cuda::make_avcodec_gl_encode_device(width, height, 0, 0);
+      }
+#endif
 
       return std::make_unique<platf::avcodec_encode_device_t>();
     }
 
     int
     dummy_img(platf::img_t *img) override {
-      // TODO: stop cheating and give black image
-      if (!img) {
-        return -1;
-      };
-      auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
-        img_out = img->shared_from_this();
-        return true;
-      };
-      std::shared_ptr<platf::img_t> img_out;
-      return snapshot(pull_dummy_img_callback, img_out, 1000ms, false) != platf::capture_e::ok;
+      // Empty images are recognized as dummies by the zero sequence number
+      return 0;
     }
 
     std::uint64_t sequence {};
@@ -359,7 +374,7 @@ namespace platf {
       return nullptr;
     }
 
-    if (hwdevice_type == platf::mem_type_e::vaapi) {
+    if (hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;

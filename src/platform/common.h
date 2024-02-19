@@ -10,7 +10,7 @@
 #include <mutex>
 #include <string>
 
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
 #include "src/video_colorspace.h"
@@ -558,6 +558,13 @@ namespace platf {
   std::vector<std::string>
   display_names(mem_type_e hwdevice_type);
 
+  /**
+   * @brief Returns if GPUs/drivers have changed since the last call to this function.
+   * @return `true` if a change has occurred or if it is unknown whether a change occurred.
+   */
+  bool
+  needs_encoder_reenumeration();
+
   boost::process::child
   run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
@@ -608,8 +615,17 @@ namespace platf {
     audio,
     video
   };
+
+  /**
+   * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @param native_socket The native socket handle.
+   * @param address The destination address for traffic sent on this socket.
+   * @param port The destination port for traffic sent on this socket.
+   * @param data_type The type of traffic sent on this socket.
+   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
+   */
   std::unique_ptr<deinit_t>
-  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type);
+  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
 
   /**
    * @brief Open a url in the default web browser.
@@ -617,6 +633,22 @@ namespace platf {
    */
   void
   open_url(const std::string &url);
+
+  /**
+   * @brief Attempt to gracefully terminate a process group.
+   * @param native_handle The native handle of the process group.
+   * @return true if termination was successfully requested.
+   */
+  bool
+  request_process_group_exit(std::uintptr_t native_handle);
+
+  /**
+   * @brief Checks if a process group still has running children.
+   * @param native_handle The native handle of the process group.
+   * @return true if processes are still running.
+   */
+  bool
+  process_group_running(std::uintptr_t native_handle);
 
   input_t
   input();

@@ -4,7 +4,7 @@
  */
 
 // Required for IPV6_PKTINFO with Darwin headers
-#ifndef __APPLE_USE_RFC_3542
+#ifndef __APPLE_USE_RFC_3542  // NOLINT(bugprone-reserved-identifier)
   #define __APPLE_USE_RFC_3542 1
 #endif
 
@@ -18,7 +18,8 @@
 #include <pwd.h>
 
 #include "misc.h"
-#include "src/main.h"
+#include "src/entry_handler.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 
 #include <boost/asio/ip/address.hpp>
@@ -53,7 +54,7 @@ namespace platf {
     // Xcode 12.2 and later, these functions are not weakly linked and will never
     // be null, and therefore generate this warning. Since we are weakly linking
     // when compiling with earlier Xcode versions, the check for null is
-    // necessary and so we ignore the warning.
+    // necessary, and so we ignore the warning.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
 #pragma clang diagnostic ignored "-Wtautological-pointer-compare"
@@ -141,7 +142,7 @@ namespace platf {
         std::string mac_address;
 
         if (getifaddrs(&ifap) == 0) {
-          for (ifaptr = ifap; ifaptr != NULL; ifaptr = (ifaptr)->ifa_next) {
+          for (ifaptr = ifap; ifaptr != nullptr; ifaptr = (ifaptr)->ifa_next) {
             if (!strcmp((ifaptr)->ifa_name, pos->ifa_name) && (((ifaptr)->ifa_addr)->sa_family == AF_LINK)) {
               ptr = (unsigned char *) LLADDR((struct sockaddr_dl *) (ifaptr)->ifa_addr);
               char buff[100];
@@ -155,7 +156,7 @@ namespace platf {
 
           freeifaddrs(ifap);
 
-          if (ifaptr != NULL) {
+          if (ifaptr != nullptr) {
             BOOST_LOG(verbose) << "Found MAC of "sv << pos->ifa_name << ": "sv << mac_address;
             return mac_address;
           }
@@ -252,6 +253,33 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
+  /**
+   * @brief Attempt to gracefully terminate a process group.
+   * @param native_handle The process group ID.
+   * @return true if termination was successfully requested.
+   */
+  bool
+  request_process_group_exit(std::uintptr_t native_handle) {
+    if (killpg((pid_t) native_handle, SIGTERM) == 0 || errno == ESRCH) {
+      BOOST_LOG(debug) << "Successfully sent SIGTERM to process group: "sv << native_handle;
+      return true;
+    }
+    else {
+      BOOST_LOG(warning) << "Unable to send SIGTERM to process group ["sv << native_handle << "]: "sv << errno;
+      return false;
+    }
+  }
+
+  /**
+   * @brief Checks if a process group still has running children.
+   * @param native_handle The process group ID.
+   * @return true if processes are still running.
+   */
+  bool
+  process_group_running(std::uintptr_t native_handle) {
+    return waitpid(-((pid_t) native_handle), nullptr, WNOHANG) >= 0;
+  }
+
   struct sockaddr_in
   to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
     struct sockaddr_in saddr_v4 = {};
@@ -309,7 +337,7 @@ namespace platf {
     union {
       char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
       struct cmsghdr alignment;
-    } cmbuf;
+    } cmbuf {};
     socklen_t cmbuflen = 0;
 
     msg.msg_control = cmbuf.buf;
@@ -317,7 +345,7 @@ namespace platf {
 
     auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
     if (send_info.source_address.is_v6()) {
-      struct in6_pktinfo pktInfo;
+      struct in6_pktinfo pktInfo {};
 
       struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
       pktInfo.ipi6_addr = saddr_v6.sin6_addr;
@@ -331,7 +359,7 @@ namespace platf {
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     }
     else {
-      struct in_pktinfo pktInfo;
+      struct in_pktinfo pktInfo {};
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
       pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
@@ -380,12 +408,113 @@ namespace platf {
     return true;
   }
 
+  // We can't track QoS state separately for each destination on this OS,
+  // so we keep a ref count to only disable QoS options when all clients
+  // are disconnected.
+  static std::atomic<int> qos_ref_count = 0;
+
+  class qos_t: public deinit_t {
+  public:
+    qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
+        sockfd(sockfd), options(options) {
+      qos_ref_count++;
+    }
+
+    virtual ~qos_t() {
+      if (--qos_ref_count == 0) {
+        for (const auto &tuple : options) {
+          auto reset_val = std::get<2>(tuple);
+          if (setsockopt(sockfd, std::get<0>(tuple), std::get<1>(tuple), &reset_val, sizeof(reset_val)) < 0) {
+            BOOST_LOG(warning) << "Failed to reset option: "sv << errno;
+          }
+        }
+      }
+    }
+
+  private:
+    int sockfd;
+    std::vector<std::tuple<int, int, int>> options;
+  };
+
+  /**
+   * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @param native_socket The native socket handle.
+   * @param address The destination address for traffic sent on this socket.
+   * @param port The destination port for traffic sent on this socket.
+   * @param data_type The type of traffic sent on this socket.
+   * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
+   */
   std::unique_ptr<deinit_t>
-  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type) {
-    // Unimplemented
-    //
-    // NB: When implementing, remember to consider that some routes can drop DSCP-tagged packets completely!
-    return nullptr;
+  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+    int sockfd = (int) native_socket;
+    std::vector<std::tuple<int, int, int>> reset_options;
+
+    // We can use SO_NET_SERVICE_TYPE to set link-layer prioritization without DSCP tagging
+    int service_type = 0;
+    switch (data_type) {
+      case qos_data_type_e::video:
+        service_type = NET_SERVICE_TYPE_VI;
+        break;
+      case qos_data_type_e::audio:
+        service_type = NET_SERVICE_TYPE_VO;
+        break;
+      default:
+        BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+        break;
+    }
+
+    if (service_type) {
+      if (setsockopt(sockfd, SOL_SOCKET, SO_NET_SERVICE_TYPE, &service_type, sizeof(service_type)) == 0) {
+        // Reset SO_NET_SERVICE_TYPE to best-effort when QoS is disabled
+        reset_options.emplace_back(std::make_tuple(SOL_SOCKET, SO_NET_SERVICE_TYPE, NET_SERVICE_TYPE_BE));
+      }
+      else {
+        BOOST_LOG(error) << "Failed to set SO_NET_SERVICE_TYPE: "sv << errno;
+      }
+    }
+
+    if (dscp_tagging) {
+      int level;
+      int option;
+      if (address.is_v6()) {
+        level = IPPROTO_IPV6;
+        option = IPV6_TCLASS;
+      }
+      else {
+        level = IPPROTO_IP;
+        option = IP_TOS;
+      }
+
+      // The specific DSCP values here are chosen to be consistent with Windows,
+      // except that we use CS6 instead of CS7 for audio traffic.
+      int dscp = 0;
+      switch (data_type) {
+        case qos_data_type_e::video:
+          dscp = 40;
+          break;
+        case qos_data_type_e::audio:
+          dscp = 48;
+          break;
+        default:
+          BOOST_LOG(error) << "Unknown traffic type: "sv << (int) data_type;
+          break;
+      }
+
+      if (dscp) {
+        // Shift to put the DSCP value in the correct position in the TOS field
+        dscp <<= 2;
+
+        if (setsockopt(sockfd, level, option, &dscp, sizeof(dscp)) == 0) {
+          // Reset TOS to -1 when QoS is disabled
+          reset_options.emplace_back(std::make_tuple(level, option, -1));
+        }
+        else {
+          BOOST_LOG(error) << "Failed to set TOS/TCLASS: "sv << errno;
+        }
+      }
+    }
+
+    return std::make_unique<qos_t>(sockfd, reset_options);
   }
 
 }  // namespace platf

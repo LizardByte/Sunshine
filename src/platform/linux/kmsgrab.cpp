@@ -5,24 +5,26 @@
 #include <drm_fourcc.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/dma-buf.h>
 #include <sys/capability.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
 #include <filesystem>
+#include <thread>
 
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/round_robin.h"
 #include "src/utility.h"
 #include "src/video.h"
 
-// Cursor rendering support through x11
+#include "cuda.h"
 #include "graphics.h"
 #include "vaapi.h"
 #include "wayland.h"
-#include "x11grab.h"
 
 using namespace std::literals;
 namespace fs = std::filesystem;
@@ -105,6 +107,7 @@ namespace platf {
     using crtc_t = util::safe_ptr<drmModeCrtc, drmModeFreeCrtc>;
     using obj_prop_t = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
     using prop_t = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
+    using prop_blob_t = util::safe_ptr<drmModePropertyBlobRes, drmModeFreePropertyBlob>;
 
     using conn_type_count_t = std::map<std::uint32_t, std::uint32_t>;
 
@@ -135,6 +138,9 @@ namespace platf {
       // For example HDMI-A-{index} or HDMI-{index}
       std::uint32_t index;
 
+      // ID of the connector
+      std::uint32_t connector_id;
+
       bool connected;
     };
 
@@ -159,20 +165,53 @@ namespace platf {
 #define _CONVERT(x, y) \
   if (string == x) return DRM_MODE_CONNECTOR_##y
 
+      // This list was created from the following sources:
+      // https://gitlab.freedesktop.org/mesa/drm/-/blob/main/xf86drmMode.c (drmModeGetConnectorTypeName)
+      // https://gitlab.freedesktop.org/wayland/weston/-/blob/e74f2897b9408b6356a555a0ce59146836307ff5/libweston/backend-drm/drm.c#L1458-1477
+      // https://github.com/GNOME/mutter/blob/65d481594227ea7188c0416e8e00b57caeea214f/src/backends/meta-monitor-manager.c#L1618-L1639
       _CONVERT("VGA"sv, VGA);
+      _CONVERT("DVII"sv, DVII);
       _CONVERT("DVI-I"sv, DVII);
+      _CONVERT("DVID"sv, DVID);
       _CONVERT("DVI-D"sv, DVID);
+      _CONVERT("DVIA"sv, DVIA);
       _CONVERT("DVI-A"sv, DVIA);
+      _CONVERT("Composite"sv, Composite);
+      _CONVERT("SVIDEO"sv, SVIDEO);
       _CONVERT("S-Video"sv, SVIDEO);
       _CONVERT("LVDS"sv, LVDS);
+      _CONVERT("Component"sv, Component);
+      _CONVERT("9PinDIN"sv, 9PinDIN);
       _CONVERT("DIN"sv, 9PinDIN);
       _CONVERT("DisplayPort"sv, DisplayPort);
       _CONVERT("DP"sv, DisplayPort);
+      _CONVERT("HDMIA"sv, HDMIA);
       _CONVERT("HDMI-A"sv, HDMIA);
       _CONVERT("HDMI"sv, HDMIA);
+      _CONVERT("HDMIB"sv, HDMIB);
       _CONVERT("HDMI-B"sv, HDMIB);
+      _CONVERT("TV"sv, TV);
       _CONVERT("eDP"sv, eDP);
+      _CONVERT("VIRTUAL"sv, VIRTUAL);
+      _CONVERT("Virtual"sv, VIRTUAL);
       _CONVERT("DSI"sv, DSI);
+      _CONVERT("DPI"sv, DPI);
+      _CONVERT("WRITEBACK"sv, WRITEBACK);
+      _CONVERT("Writeback"sv, WRITEBACK);
+      _CONVERT("SPI"sv, SPI);
+#ifdef DRM_MODE_CONNECTOR_USB
+      _CONVERT("USB"sv, USB);
+#endif
+
+      // If the string starts with "Unknown", it may have the raw type
+      // value appended to the string. Let's try to read it.
+      if (string.find("Unknown"sv) == 0) {
+        std::uint32_t type;
+        std::string null_terminated_string { string };
+        if (std::sscanf(null_terminated_string.c_str(), "Unknown%u", &type) == 1) {
+          return type;
+        }
+      }
 
       BOOST_LOG(error) << "Unknown Monitor connector type ["sv << string << "]: Please report this to the GitHub issue tracker"sv;
       return DRM_MODE_CONNECTOR_Unknown;
@@ -182,33 +221,32 @@ namespace platf {
     public:
       plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end):
           fd { fd }, plane_p { plane_p }, end { end } {
-        inc();
+        load_next_valid_plane();
       }
 
       plane_it_t(int fd, std::uint32_t *end):
           fd { fd }, plane_p { end }, end { end } {}
 
       void
-      inc() {
+      load_next_valid_plane() {
         this->plane.reset();
 
         for (; plane_p != end; ++plane_p) {
           plane_t plane = drmModeGetPlane(fd, *plane_p);
-
           if (!plane) {
             BOOST_LOG(error) << "Couldn't get drm plane ["sv << (end - plane_p) << "]: "sv << strerror(errno);
             continue;
           }
 
-          // If this plane is unused
-          if (plane->fb_id) {
-            this->plane = util::make_shared<plane_t>(plane.release());
-
-            // One last increment
-            ++plane_p;
-            break;
-          }
+          this->plane = util::make_shared<plane_t>(plane.release());
+          break;
         }
+      }
+
+      void
+      inc() {
+        ++plane_p;
+        load_next_valid_plane();
       }
 
       bool
@@ -226,6 +264,20 @@ namespace platf {
       std::uint32_t *end;
 
       util::shared_t<plane_t> plane;
+    };
+
+    struct cursor_t {
+      // Public properties used during blending
+      bool visible = false;
+      std::int32_t x, y;
+      std::uint32_t dst_w, dst_h;
+      std::uint32_t src_w, src_h;
+      std::vector<std::uint8_t> pixels;
+      unsigned long serial;
+
+      // Private properties used for tracking cursor changes
+      std::uint64_t prop_src_x, prop_src_y, prop_src_w, prop_src_h;
+      std::uint32_t fb_id;
     };
 
     class card_t {
@@ -326,17 +378,37 @@ namespace platf {
         return false;
       }
 
+      std::optional<std::uint64_t>
+      prop_value_by_name(const std::vector<std::pair<prop_t, std::uint64_t>> &props, std::string_view name) {
+        for (auto &[prop, val] : props) {
+          if (prop->name == name) {
+            return val;
+          }
+        }
+        return std::nullopt;
+      }
+
       std::uint32_t
       get_panel_orientation(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
-        for (auto &[prop, val] : props) {
-          if (prop->name == "rotation"sv) {
-            return val;
-          }
+        auto value = prop_value_by_name(props, "rotation"sv);
+        if (value) {
+          return *value;
         }
 
         BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
         return DRM_MODE_ROTATE_0;
+      }
+
+      int
+      get_crtc_index_by_id(std::uint32_t crtc_id) {
+        auto resources = res();
+        for (int i = 0; i < resources->count_crtcs; i++) {
+          if (resources->crtcs[i] == crtc_id) {
+            return i;
+          }
+        }
+        return -1;
       }
 
       connector_interal_t
@@ -371,6 +443,7 @@ namespace platf {
             conn->connector_type,
             crtc_id,
             index,
+            conn->connector_id,
             conn->connection == DRM_MODE_CONNECTED,
           });
         });
@@ -393,6 +466,9 @@ namespace platf {
       std::vector<std::pair<prop_t, std::uint64_t>>
       props(std::uint32_t id, std::uint32_t type) {
         obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
+        if (!obj_prop) {
+          return {};
+        }
 
         std::vector<std::pair<prop_t, std::uint64_t>> props;
         props.reserve(obj_prop->count_props);
@@ -522,11 +598,16 @@ namespace platf {
 
           kms::card_t card;
           if (card.init(entry.path().c_str())) {
-            return {};
+            continue;
           }
 
           auto end = std::end(card);
           for (auto plane = std::begin(card); plane != end; ++plane) {
+            // Skip unused planes
+            if (!plane->fb_id) {
+              continue;
+            }
+
             if (card.is_cursor(plane->plane_id)) {
               continue;
             }
@@ -560,6 +641,12 @@ namespace platf {
               }
             }
 
+            auto crtc = card.crtc(plane->crtc_id);
+            if (!crtc) {
+              BOOST_LOG(error) << "Couldn't get CRTC info: "sv << strerror(errno);
+              continue;
+            }
+
             BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
 
             // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
@@ -576,13 +663,12 @@ namespace platf {
 
             // TODO: surf_sd = fb->to_sd();
 
-            auto crct = card.crtc(plane->crtc_id);
-            kms::print(plane.get(), fb.get(), crct.get());
+            kms::print(plane.get(), fb.get(), crtc.get());
 
             img_width = fb->width;
             img_height = fb->height;
-            img_offset_x = crct->x;
-            img_offset_y = crct->y;
+            img_offset_x = crtc->x;
+            img_offset_y = crtc->y;
 
             this->env_width = ::platf::kms::env_width;
             this->env_height = ::platf::kms::env_height;
@@ -614,41 +700,359 @@ namespace platf {
             // crtc_to_monitor is part of the guesswork after all.
             else {
               BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
-              width = crct->width;
-              height = crct->height;
-              offset_x = crct->x;
-              offset_y = crct->y;
+              width = crtc->width;
+              height = crtc->height;
+              offset_x = crtc->x;
+              offset_y = crtc->y;
+            }
+
+            plane_id = plane->plane_id;
+            crtc_id = plane->crtc_id;
+            crtc_index = card.get_crtc_index_by_id(plane->crtc_id);
+
+            // Find the connector for this CRTC
+            kms::conn_type_count_t conn_type_count;
+            for (auto &connector : card.monitors(conn_type_count)) {
+              if (connector.crtc_id == crtc_id) {
+                BOOST_LOG(info) << "Found connector ID ["sv << connector.connector_id << ']';
+
+                connector_id = connector.connector_id;
+
+                auto connector_props = card.connector_props(*connector_id);
+                hdr_metadata_blob_id = card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
+              }
             }
 
             this->card = std::move(card);
-
-            plane_id = plane->plane_id;
-
             goto break_loop;
           }
         }
 
+        BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
+        return -1;
+
       // Neatly break from nested for loop
       break_loop:
-        if (monitor != monitor_index) {
-          BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
 
-          return -1;
+        // Look for the cursor plane for this CRTC
+        cursor_plane_id = -1;
+        auto end = std::end(card);
+        for (auto plane = std::begin(card); plane != end; ++plane) {
+          if (!card.is_cursor(plane->plane_id)) {
+            continue;
+          }
+
+          // NB: We do not skip unused planes here because cursor planes
+          // will look unused if the cursor is currently hidden.
+
+          if (!(plane->possible_crtcs & (1 << crtc_index))) {
+            // Skip cursor planes for other CRTCs
+            continue;
+          }
+          else if (plane->possible_crtcs != (1 << crtc_index)) {
+            // We assume a 1:1 mapping between cursor planes and CRTCs, which seems to
+            // match the behavior of drivers in the real world. If it's violated, we'll
+            // proceed anyway but print a warning in the log.
+            BOOST_LOG(warning) << "Cursor plane spans multiple CRTCs!"sv;
+          }
+
+          BOOST_LOG(info) << "Found cursor plane ["sv << plane->plane_id << ']';
+          cursor_plane_id = plane->plane_id;
+          break;
         }
 
-        cursor_opt = x11::cursor_t::make();
+        if (cursor_plane_id < 0) {
+          BOOST_LOG(warning) << "No KMS cursor plane found. Cursor may not be displayed while streaming!"sv;
+        }
 
         return 0;
       }
 
+      bool
+      is_hdr() {
+        if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
+          return false;
+        }
+
+        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        if (hdr_metadata_blob == nullptr) {
+          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          return false;
+        }
+
+        if (hdr_metadata_blob->length < sizeof(uint32_t) + sizeof(hdr_metadata_infoframe)) {
+          BOOST_LOG(error) << "HDR metadata blob is too small: "sv << hdr_metadata_blob->length;
+          return false;
+        }
+
+        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
+        if (raw_metadata->metadata_type != 0) {  // HDMI_STATIC_METADATA_TYPE1
+          BOOST_LOG(error) << "Unknown HDMI_STATIC_METADATA_TYPE value: "sv << raw_metadata->metadata_type;
+          return false;
+        }
+
+        if (raw_metadata->hdmi_metadata_type1.metadata_type != 0) {  // Static Metadata Type 1
+          BOOST_LOG(error) << "Unknown secondary metadata type value: "sv << raw_metadata->hdmi_metadata_type1.metadata_type;
+          return false;
+        }
+
+        // We only support Traditional Gamma SDR or SMPTE 2084 PQ HDR EOTFs.
+        // Print a warning if we encounter any others.
+        switch (raw_metadata->hdmi_metadata_type1.eotf) {
+          case 0:  // HDMI_EOTF_TRADITIONAL_GAMMA_SDR
+            return false;
+          case 1:  // HDMI_EOTF_TRADITIONAL_GAMMA_HDR
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: Traditional Gamma"sv;
+            return true;
+          case 2:  // HDMI_EOTF_SMPTE_ST2084
+            return true;
+          case 3:  // HDMI_EOTF_BT_2100_HLG
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: HLG"sv;
+            return true;
+          default:
+            BOOST_LOG(warning) << "Unsupported HDR EOTF: "sv << raw_metadata->hdmi_metadata_type1.eotf;
+            return true;
+        }
+      }
+
+      bool
+      get_hdr_metadata(SS_HDR_METADATA &metadata) {
+        // This performs all the metadata validation
+        if (!is_hdr()) {
+          return false;
+        }
+
+        prop_blob_t hdr_metadata_blob = drmModeGetPropertyBlob(card.fd.el, *hdr_metadata_blob_id);
+        if (hdr_metadata_blob == nullptr) {
+          BOOST_LOG(error) << "Unable to get HDR metadata blob: "sv << strerror(errno);
+          return false;
+        }
+
+        auto raw_metadata = (hdr_output_metadata *) hdr_metadata_blob->data;
+
+        for (int i = 0; i < 3; i++) {
+          metadata.displayPrimaries[i].x = raw_metadata->hdmi_metadata_type1.display_primaries[i].x;
+          metadata.displayPrimaries[i].y = raw_metadata->hdmi_metadata_type1.display_primaries[i].y;
+        }
+
+        metadata.whitePoint.x = raw_metadata->hdmi_metadata_type1.white_point.x;
+        metadata.whitePoint.y = raw_metadata->hdmi_metadata_type1.white_point.y;
+        metadata.maxDisplayLuminance = raw_metadata->hdmi_metadata_type1.max_display_mastering_luminance;
+        metadata.minDisplayLuminance = raw_metadata->hdmi_metadata_type1.min_display_mastering_luminance;
+        metadata.maxContentLightLevel = raw_metadata->hdmi_metadata_type1.max_cll;
+        metadata.maxFrameAverageLightLevel = raw_metadata->hdmi_metadata_type1.max_fall;
+
+        return true;
+      }
+
+      void
+      update_cursor() {
+        if (cursor_plane_id < 0) {
+          return;
+        }
+
+        plane_t plane = drmModeGetPlane(card.fd.el, cursor_plane_id);
+
+        std::optional<std::int32_t> prop_crtc_x;
+        std::optional<std::int32_t> prop_crtc_y;
+        std::optional<std::uint32_t> prop_crtc_w;
+        std::optional<std::uint32_t> prop_crtc_h;
+
+        std::optional<std::uint64_t> prop_src_x;
+        std::optional<std::uint64_t> prop_src_y;
+        std::optional<std::uint64_t> prop_src_w;
+        std::optional<std::uint64_t> prop_src_h;
+
+        auto props = card.plane_props(cursor_plane_id);
+        for (auto &[prop, val] : props) {
+          if (prop->name == "CRTC_X"sv) {
+            prop_crtc_x = val;
+          }
+          else if (prop->name == "CRTC_Y"sv) {
+            prop_crtc_y = val;
+          }
+          else if (prop->name == "CRTC_W"sv) {
+            prop_crtc_w = val;
+          }
+          else if (prop->name == "CRTC_H"sv) {
+            prop_crtc_h = val;
+          }
+          else if (prop->name == "SRC_X"sv) {
+            prop_src_x = val;
+          }
+          else if (prop->name == "SRC_Y"sv) {
+            prop_src_y = val;
+          }
+          else if (prop->name == "SRC_W"sv) {
+            prop_src_w = val;
+          }
+          else if (prop->name == "SRC_H"sv) {
+            prop_src_h = val;
+          }
+        }
+
+        if (!prop_crtc_w || !prop_crtc_h || !prop_crtc_x || !prop_crtc_y) {
+          BOOST_LOG(error) << "Cursor plane is missing required plane CRTC properties!"sv;
+          cursor_plane_id = -1;
+          captured_cursor.visible = false;
+          return;
+        }
+        if (!prop_src_x || !prop_src_y || !prop_src_w || !prop_src_h) {
+          BOOST_LOG(error) << "Cursor plane is missing required plane SRC properties!"sv;
+          cursor_plane_id = -1;
+          captured_cursor.visible = false;
+          return;
+        }
+
+        // Update the cursor position and size unconditionally
+        captured_cursor.x = *prop_crtc_x;
+        captured_cursor.y = *prop_crtc_y;
+        captured_cursor.dst_w = *prop_crtc_w;
+        captured_cursor.dst_h = *prop_crtc_h;
+
+        // We're technically cheating a bit here by assuming that we can detect
+        // changes to the cursor plane via property adjustments. If this isn't
+        // true, we'll really have to mmap() the dmabuf and draw that every time.
+        bool cursor_dirty = false;
+
+        if (!plane->fb_id) {
+          captured_cursor.visible = false;
+          captured_cursor.fb_id = 0;
+        }
+        else if (plane->fb_id != captured_cursor.fb_id) {
+          BOOST_LOG(debug) << "Refreshing cursor image after FB changed"sv;
+          cursor_dirty = true;
+        }
+        else if (*prop_src_x != captured_cursor.prop_src_x ||
+                 *prop_src_y != captured_cursor.prop_src_y ||
+                 *prop_src_w != captured_cursor.prop_src_w ||
+                 *prop_src_h != captured_cursor.prop_src_h) {
+          BOOST_LOG(debug) << "Refreshing cursor image after source dimensions changed"sv;
+          cursor_dirty = true;
+        }
+
+        // If the cursor is dirty, map it so we can download the new image
+        if (cursor_dirty) {
+          auto fb = card.fb(plane.get());
+          if (!fb || !fb->handles[0]) {
+            // This means the cursor is not currently visible
+            captured_cursor.visible = false;
+            return;
+          }
+
+          // All known cursor planes in the wild are ARGB8888
+          if (fb->pixel_format != DRM_FORMAT_ARGB8888) {
+            BOOST_LOG(error) << "Unsupported non-ARGB8888 cursor format: "sv << fb->pixel_format;
+            captured_cursor.visible = false;
+            cursor_plane_id = -1;
+            return;
+          }
+
+          // All known cursor planes in the wild require linear buffers
+          if (fb->modifier != DRM_FORMAT_MOD_LINEAR && fb->modifier != DRM_FORMAT_MOD_INVALID) {
+            BOOST_LOG(error) << "Unsupported non-linear cursor modifier: "sv << fb->modifier;
+            captured_cursor.visible = false;
+            cursor_plane_id = -1;
+            return;
+          }
+
+          // The SRC_* properties are in Q16.16 fixed point, so convert to integers
+          auto src_x = *prop_src_x >> 16;
+          auto src_y = *prop_src_y >> 16;
+          auto src_w = *prop_src_w >> 16;
+          auto src_h = *prop_src_h >> 16;
+
+          // Check for a legal source rectangle
+          if (src_x + src_w > fb->width || src_y + src_h > fb->height) {
+            BOOST_LOG(error) << "Illegal source size: ["sv << src_x + src_w << ',' << src_y + src_h << "] > ["sv << fb->width << ',' << fb->height << ']';
+            captured_cursor.visible = false;
+            return;
+          }
+
+          file_t plane_fd = card.handleFD(fb->handles[0]);
+          if (plane_fd.el < 0) {
+            captured_cursor.visible = false;
+            return;
+          }
+
+          // We will map the entire region, but only copy what the source rectangle specifies
+          size_t mapped_size = ((size_t) fb->pitches[0]) * fb->height;
+          void *mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, plane_fd.el, fb->offsets[0]);
+
+          // If we got ENOSYS back, let's try to map it as a dumb buffer instead (required for Nvidia GPUs)
+          if (mapped_data == MAP_FAILED && errno == ENOSYS) {
+            drm_mode_map_dumb map = {};
+            map.handle = fb->handles[0];
+            if (drmIoctl(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) < 0) {
+              BOOST_LOG(error) << "Failed to map cursor FB as dumb buffer: "sv << strerror(errno);
+              captured_cursor.visible = false;
+              return;
+            }
+
+            mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, card.fd.el, map.offset);
+          }
+
+          if (mapped_data == MAP_FAILED) {
+            BOOST_LOG(error) << "Failed to mmap cursor FB: "sv << strerror(errno);
+            captured_cursor.visible = false;
+            return;
+          }
+
+          captured_cursor.pixels.resize(src_w * src_h * 4);
+
+          // Prepare to read the dmabuf from the CPU
+          struct dma_buf_sync sync;
+          sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ;
+          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+
+          // If the image is tightly packed, copy it in one shot
+          if (fb->pitches[0] == src_w * 4 && src_x == 0) {
+            memcpy(captured_cursor.pixels.data(), &((std::uint8_t *) mapped_data)[src_y * fb->pitches[0]], src_h * fb->pitches[0]);
+          }
+          else {
+            // Copy row by row to deal with mismatched pitch or an X offset
+            auto pixel_dst = captured_cursor.pixels.data();
+            for (int y = 0; y < src_h; y++) {
+              memcpy(&pixel_dst[y * (src_w * 4)], &((std::uint8_t *) mapped_data)[(y + src_y) * fb->pitches[0] + (src_x * 4)], src_w * 4);
+            }
+          }
+
+          // End the CPU read and unmap the dmabuf
+          sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
+          drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+
+          munmap(mapped_data, mapped_size);
+
+          captured_cursor.visible = true;
+          captured_cursor.src_w = src_w;
+          captured_cursor.src_h = src_h;
+          captured_cursor.prop_src_x = *prop_src_x;
+          captured_cursor.prop_src_y = *prop_src_y;
+          captured_cursor.prop_src_w = *prop_src_w;
+          captured_cursor.prop_src_h = *prop_src_h;
+          captured_cursor.fb_id = plane->fb_id;
+          ++captured_cursor.serial;
+        }
+      }
+
       inline capture_e
       refresh(file_t *file, egl::surface_descriptor_t *sd) {
+        // Check for a change in HDR metadata
+        if (connector_id) {
+          auto connector_props = card.connector_props(*connector_id);
+          if (hdr_metadata_blob_id != card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv)) {
+            BOOST_LOG(info) << "Reinitializing capture after HDR metadata change"sv;
+            return capture_e::reinit;
+          }
+        }
+
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
 
         auto fb = card.fb(plane.get());
         if (!fb) {
-          BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-          return capture_e::error;
+          // This can happen if the display is being reconfigured while streaming
+          BOOST_LOG(warning) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
+          return capture_e::timeout;
         }
 
         if (!fb->handles[0]) {
@@ -690,6 +1094,8 @@ namespace platf {
           return capture_e::reinit;
         }
 
+        update_cursor();
+
         return capture_e::ok;
       }
 
@@ -701,10 +1107,16 @@ namespace platf {
       int img_offset_x, img_offset_y;
 
       int plane_id;
+      int crtc_id;
+      int crtc_index;
+
+      std::optional<uint32_t> connector_id;
+      std::optional<uint64_t> hdr_metadata_blob_id;
+
+      int cursor_plane_id;
+      cursor_t captured_cursor {};
 
       card_t card;
-
-      std::optional<x11::cursor_t> cursor_opt;
     };
 
     class display_ram_t: public display_t {
@@ -788,11 +1200,64 @@ namespace platf {
 
       std::unique_ptr<avcodec_encode_device_t>
       make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
           return va::make_avcodec_encode_device(width, height, false);
         }
+#endif
+
+#ifdef SUNSHINE_BUILD_CUDA
+        if (mem_type == mem_type_e::cuda) {
+          return cuda::make_avcodec_encode_device(width, height, false);
+        }
+#endif
 
         return std::make_unique<avcodec_encode_device_t>();
+      }
+
+      void
+      blend_cursor(img_t &img) {
+        // TODO: Cursor scaling is not supported in this codepath.
+        // We always draw the cursor at the source size.
+        auto pixels = (int *) img.data;
+
+        int32_t screen_height = img.height;
+        int32_t screen_width = img.width;
+
+        // This is the position in the target that we will start drawing the cursor
+        auto cursor_x = std::max<int32_t>(0, captured_cursor.x - img_offset_x);
+        auto cursor_y = std::max<int32_t>(0, captured_cursor.y - img_offset_y);
+
+        // If the cursor is partially off screen, the coordinates may be negative
+        // which means we will draw the top-right visible portion of the cursor only.
+        auto cursor_delta_x = cursor_x - std::max<int32_t>(-captured_cursor.src_w, captured_cursor.x - img_offset_x);
+        auto cursor_delta_y = cursor_y - std::max<int32_t>(-captured_cursor.src_h, captured_cursor.y - img_offset_y);
+
+        auto delta_height = std::min<uint32_t>(captured_cursor.src_h, std::max<int32_t>(0, screen_height - cursor_y)) - cursor_delta_y;
+        auto delta_width = std::min<uint32_t>(captured_cursor.src_w, std::max<int32_t>(0, screen_width - cursor_x)) - cursor_delta_x;
+        for (auto y = 0; y < delta_height; ++y) {
+          // Offset into the cursor image to skip drawing the parts of the cursor image that are off screen
+          auto cursor_begin = (uint32_t *) &captured_cursor.pixels[((y + cursor_delta_y) * captured_cursor.src_w + cursor_delta_x) * 4];
+          auto cursor_end = (uint32_t *) &captured_cursor.pixels[((y + cursor_delta_y) * captured_cursor.src_w + delta_width + cursor_delta_x) * 4];
+
+          auto pixels_begin = &pixels[(y + cursor_y) * (img.row_pitch / img.pixel_pitch) + cursor_x];
+
+          std::for_each(cursor_begin, cursor_end, [&](uint32_t cursor_pixel) {
+            auto colors_in = (uint8_t *) pixels_begin;
+
+            auto alpha = (*(uint *) &cursor_pixel) >> 24u;
+            if (alpha == 255) {
+              *pixels_begin = cursor_pixel;
+            }
+            else {
+              auto colors_out = (uint8_t *) &cursor_pixel;
+              colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255 / 2) / 255;
+              colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255 / 2) / 255;
+              colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255 / 2) / 255;
+            }
+            ++pixels_begin;
+          });
+        }
       }
 
       capture_e
@@ -816,6 +1281,7 @@ namespace platf {
 
         gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
 
+        // Don't remove these lines, see https://github.com/LizardByte/Sunshine/issues/453
         int w, h;
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
@@ -827,8 +1293,8 @@ namespace platf {
 
         gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
 
-        if (cursor_opt && cursor) {
-          cursor_opt->blend(*img_out, img_offset_x, img_offset_y);
+        if (cursor && captured_cursor.visible) {
+          blend_cursor(*img_out);
         }
 
         return capture_e::ok;
@@ -863,9 +1329,17 @@ namespace platf {
 
       std::unique_ptr<avcodec_encode_device_t>
       make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
           return va::make_avcodec_encode_device(width, height, dup(card.render_fd.el), img_offset_x, img_offset_y, true);
         }
+#endif
+
+#ifdef SUNSHINE_BUILD_CUDA
+        if (mem_type == mem_type_e::cuda) {
+          return cuda::make_avcodec_gl_encode_device(width, height, img_offset_x, img_offset_y);
+        }
+#endif
 
         BOOST_LOG(error) << "Unsupported pixel format for egl::display_vram_t: "sv << platf::from_pix_fmt(pix_fmt);
         return nullptr;
@@ -875,6 +1349,8 @@ namespace platf {
       alloc_img() override {
         auto img = std::make_shared<egl::img_descriptor_t>();
 
+        img->width = width;
+        img->height = height;
         img->serial = std::numeric_limits<decltype(img->serial)>::max();
         img->data = nullptr;
         img->pixel_pitch = 4;
@@ -887,16 +1363,8 @@ namespace platf {
 
       int
       dummy_img(platf::img_t *img) override {
-        // TODO: stop cheating and give black image
-        if (!img) {
-          return -1;
-        };
-        auto pull_dummy_img_callback = [&img](std::shared_ptr<platf::img_t> &img_out) -> bool {
-          img_out = img->shared_from_this();
-          return true;
-        };
-        std::shared_ptr<platf::img_t> img_out;
-        return snapshot(pull_dummy_img_callback, img_out, 1s, false) != platf::capture_e::ok;
+        // Empty images are recognized as dummies by the zero sequence number
+        return 0;
       }
 
       capture_e
@@ -958,19 +1426,26 @@ namespace platf {
 
         img->sequence = ++sequence;
 
-        if (!cursor || !cursor_opt) {
-          img->data = nullptr;
-
-          for (auto x = 0; x < 4; ++x) {
-            fb_fd[x].release();
+        if (cursor && captured_cursor.visible) {
+          // Copy new cursor pixel data if it's been updated
+          if (img->serial != captured_cursor.serial) {
+            img->buffer = captured_cursor.pixels;
+            img->serial = captured_cursor.serial;
           }
-          return capture_e::ok;
+
+          img->x = captured_cursor.x;
+          img->y = captured_cursor.y;
+          img->src_w = captured_cursor.src_w;
+          img->src_h = captured_cursor.src_h;
+          img->width = captured_cursor.dst_w;
+          img->height = captured_cursor.dst_h;
+          img->pixel_pitch = 4;
+          img->row_pitch = img->pixel_pitch * img->width;
+          img->data = img->buffer.data();
         }
-
-        cursor_opt->capture(*img);
-
-        img->x -= offset_x;
-        img->y -= offset_y;
+        else {
+          img->data = nullptr;
+        }
 
         for (auto x = 0; x < 4; ++x) {
           fb_fd[x].release();
@@ -984,24 +1459,31 @@ namespace platf {
           return -1;
         }
 
-        if (!va::validate(card.render_fd.el)) {
+#ifdef SUNSHINE_BUILD_VAAPI
+        if (mem_type == mem_type_e::vaapi && !va::validate(card.render_fd.el)) {
           BOOST_LOG(warning) << "Monitor "sv << display_name << " doesn't support hardware encoding. Reverting back to GPU -> RAM -> GPU"sv;
           return -1;
         }
+#endif
 
-        sequence = 0;
+#ifndef SUNSHINE_BUILD_CUDA
+        if (mem_type == mem_type_e::cuda) {
+          BOOST_LOG(warning) << "Attempting to use NVENC without CUDA support. Reverting back to GPU -> RAM -> GPU"sv;
+          return -1;
+        }
+#endif
 
         return 0;
       }
 
-      std::uint64_t sequence;
+      std::uint64_t sequence {};
     };
 
   }  // namespace kms
 
   std::shared_ptr<display_t>
   kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
-    if (hwdevice_type == mem_type_e::vaapi) {
+    if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda) {
       auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
       if (!disp->init(display_name, config)) {
@@ -1112,13 +1594,22 @@ namespace platf {
 
       kms::card_t card;
       if (card.init(entry.path().c_str())) {
-        return {};
+        continue;
       }
 
       auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
 
       auto end = std::end(card);
       for (auto plane = std::begin(card); plane != end; ++plane) {
+        // Skip unused planes
+        if (!plane->fb_id) {
+          continue;
+        }
+
+        if (card.is_cursor(plane->plane_id)) {
+          continue;
+        }
+
         auto fb = card.fb(plane.get());
         if (!fb) {
           BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
@@ -1131,15 +1622,11 @@ namespace platf {
           break;
         }
 
-        if (card.is_cursor(plane->plane_id)) {
-          continue;
-        }
-
         // This appears to return the offset of the monitor
         auto crtc = card.crtc(plane->crtc_id);
         if (!crtc) {
-          BOOST_LOG(error) << "Couldn't get crtc info: "sv << strerror(errno);
-          return {};
+          BOOST_LOG(error) << "Couldn't get CRTC info: "sv << strerror(errno);
+          continue;
         }
 
         auto it = crtc_to_monitor.find(plane->crtc_id);

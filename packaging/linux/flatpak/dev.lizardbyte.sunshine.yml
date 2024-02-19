@@ -253,6 +253,23 @@ modules:
             commands:
               - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
 
+  - name: miniupnpc
+    buildsystem: cmake
+    config-opts:
+      - -DUPNPC_BUILD_SAMPLE=OFF
+      - -DUPNPC_BUILD_SHARED=ON
+      - -DUPNPC_BUILD_TESTS=OFF
+    sources:
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/m/miniupnpc/miniupnpc_2.2.5.orig.tar.gz
+        sha256: 38acd5f4602f7cf8bcdc1ec30b2d58db2e9912e5d9f5350dd99b06bfdffb517c
+      - type: archive
+        url: http://archive.ubuntu.com/ubuntu/pool/main/m/miniupnpc/miniupnpc_2.2.5-1.debian.tar.xz
+        sha256: f6ab181f3c999ae0630508ea1e6c76ae302262414061acaab12bf8763431ffd1
+      - type: shell
+        commands:
+          - for n in $(cat patches/series); do if [[ $n != "#"* ]]; then patch -Np1 -i "patches/$n" -d .; fi; done
+
   - name: numactl
     buildsystem: autotools
     make-args:
@@ -312,9 +329,6 @@ modules:
       env:
         npm_config_nodedir: /usr/lib/sdk/node18
         NPM_CONFIG_LOGLEVEL: info
-    build-commands:
-      # Install npm dependencies
-      - cd ${FLATPAK_BUILDER_BUILDDIR} && npm install
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app

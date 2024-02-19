@@ -10,7 +10,8 @@
 
 #include "audio.h"
 #include "config.h"
-#include "main.h"
+#include "globals.h"
+#include "logging.h"
 #include "thread_safe.h"
 #include "utility.h"
 
@@ -39,6 +40,8 @@ namespace audio {
 
   constexpr auto SAMPLE_RATE = 48000;
 
+  // NOTE: If you adjust the bitrates listed here, make sure to update the
+  // corresponding bitrate adjustment logic in rtsp_stream::cmd_announce()
   opus_stream_config_t stream_configs[MAX_STREAM_CONFIG] {
     {
       SAMPLE_RATE,

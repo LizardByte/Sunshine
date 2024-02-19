@@ -1,6 +1,32 @@
 @echo off
 setlocal enabledelayedexpansion
 
+rem Check if a compatible version of ViGEmBus is already installed (1.17 or later)
+set Version=
+for /f "usebackq delims=" %%a in (`wmic product where "name='ViGEm Bus Driver' or name='Nefarius Virtual Gamepad Emulation Bus Driver'" get Version /format:Textvaluelist`) do (
+    for /f "delims=" %%# in ("%%a") do set "%%#"
+)
+
+rem Extract Major and Minor versions
+for /f "tokens=1,2 delims=." %%a in ("%Version%") do (
+    set "MajorVersion=%%a"
+    set "MinorVersion=%%b"
+)
+
+rem Compare the version to 1.17
+if /i !MajorVersion! gtr 1 goto skip
+if /i !MajorVersion! equ 1 (
+    if /i !MinorVersion! geq 17 (
+        goto skip
+    )
+)
+goto continue
+
+:skip
+echo "The installed version is %Version%, no update needed. Exiting."
+exit /b 0
+
+:continue
 rem Get temp directory
 set temp_dir=%temp%/Sunshine
 

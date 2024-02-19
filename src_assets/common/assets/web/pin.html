@@ -1,25 +1,39 @@
-<div id="content" class="container">
-  <h1 class="my-4">PIN Pairing</h1>
-  <form action="" class="form d-flex flex-column align-items-center" id="form">
-    <div class="card flex-column d-flex p-4 mb-4">
-      <input
-        type="number"
-        placeholder="PIN"
-        id="pin-input"
-        class="form-control my-4"
-      />
-      <button class="btn btn-primary">Send</button>
-    </div>
-    <div class="alert alert-warning">
-      <b>Warning!</b> Make sure you have access to the client you are pairing
-      with.<br />
-      This software can give total control to your computer, so be careful!
-    </div>
-    <div id="status"></div>
-  </form>
-</div>
+<!DOCTYPE html>
+<html lang="en">
 
-<script>
+<head>
+  <%- header %>
+</head>
+
+<body id="app">
+  <Navbar></Navbar>
+  <div id="content" class="container">
+    <h1 class="my-4">PIN Pairing</h1>
+    <form action="" class="form d-flex flex-column align-items-center" id="form">
+      <div class="card flex-column d-flex p-4 mb-4">
+        <input type="text" pattern="\d*"  placeholder="PIN" id="pin-input" class="form-control my-4" />
+        <button class="btn btn-primary">Send</button>
+      </div>
+      <div class="alert alert-warning">
+        <b>Warning!</b> Make sure you have access to the client you are pairing
+        with.<br>
+        This software can give total control to your computer, so be careful!
+      </div>
+      <div id="status"></div>
+    </form>
+  </div>
+</body>
+
+<script type="module">
+  import Navbar from './Navbar.vue'
+  import {createApp} from 'vue'
+  let app = createApp({
+    components: {
+      Navbar
+    }
+  });
+  app.mount("#app");
+  
   document.querySelector("#form").addEventListener("submit", (e) => {
     e.preventDefault();
     let pin = document.querySelector("#pin-input").value;

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <thread>
 #include <unordered_map>
 
 #include <boost/asio.hpp>
@@ -15,7 +16,9 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "config.h"
-#include "main.h"
+#include "entry_handler.h"
+#include "file_handler.h"
+#include "logging.h"
 #include "nvhttp.h"
 #include "rtsp.h"
 #include "utility.h"
@@ -320,7 +323,7 @@ namespace config {
     0,  // hevc_mode
     0,  // av1_mode
 
-    1,  // min_threads
+    2,  // min_threads
     {
       "superfast"s,  // preset
       "zerolatency"s,  // tune
@@ -329,6 +332,8 @@ namespace config {
 
     {},  // nv
     true,  // nv_realtime_hags
+    true,  // nv_opengl_vulkan_on_dxgi
+    true,  // nv_sunshine_high_power_mode
     {},  // nv_legacy
 
     {
@@ -376,7 +381,10 @@ namespace config {
     APPS_JSON_PATH,
 
     20,  // fecPercentage
-    1  // channels
+    1,  // channels
+
+    ENCRYPTION_MODE_NEVER,  // lan_encryption_mode
+    ENCRYPTION_MODE_OPPORTUNISTIC,  // wan_encryption_mode
   };
 
   nvhttp_t nvhttp {
@@ -395,6 +403,7 @@ namespace config {
       "1280x720"s,
       "1920x1080"s,
       "2560x1080"s,
+      "2560x1440"s,
       "3440x1440"s,
       "1920x1200"s,
       "3840x2160"s,
@@ -418,11 +427,16 @@ namespace config {
       platf::supported_gamepads().front().data(),
       platf::supported_gamepads().front().size(),
     },  // Default gamepad
+    true,  // back as touchpad click enabled (manual DS4 only)
+    true,  // client gamepads with motion events are emulated as DS4
+    true,  // client gamepads with touchpads are emulated as DS4
 
     true,  // keyboard enabled
     true,  // mouse enabled
     true,  // controller enabled
     true,  // always send scancodes
+    true,  // high resolution scrolling
+    true,  // native pen/touch support
   };
 
   sunshine_t sunshine {
@@ -834,6 +848,10 @@ namespace config {
     std::vector<std::string> list;
     list_string_f(vars, name, list);
 
+    // The framerate list must be cleared before adding values from the file configuration.
+    // If the list is not cleared, then the specified parameters do not affect the behavior of the sunshine server.
+    // That is, if you set only 30 fps in the configuration file, it will not work because by default, during initialization the list includes 10, 30, 60, 90 and 120 fps.
+    input.clear();
     for (auto &el : list) {
       std::string_view val = el;
 
@@ -924,9 +942,13 @@ namespace config {
     string_f(vars, "sw_tune", video.sw.sw_tune);
 
     int_between_f(vars, "nvenc_preset", video.nv.quality_preset, { 1, 7 });
+    int_between_f(vars, "nvenc_vbv_increase", video.nv.vbv_percentage_increase, { 0, 400 });
+    bool_f(vars, "nvenc_spatial_aq", video.nv.adaptive_quantization);
     generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
     bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
     bool_f(vars, "nvenc_realtime_hags", video.nv_realtime_hags);
+    bool_f(vars, "nvenc_opengl_vulkan_on_dxgi", video.nv_opengl_vulkan_on_dxgi);
+    bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
 
 #ifndef __APPLE__
     video.nv_legacy.preset = video.nv.quality_preset + 11;
@@ -934,6 +956,8 @@ namespace config {
                                 video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
                                                                                                  NV_ENC_MULTI_PASS_DISABLED;
     video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
+    video.nv_legacy.aq = video.nv.adaptive_quantization;
+    video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
 #endif
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
@@ -1006,6 +1030,9 @@ namespace config {
 
     int_between_f(vars, "channels", stream.channels, { 1, std::numeric_limits<int>::max() });
 
+    int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, { 0, 2 });
+    int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, { 0, 2 });
+
     path_f(vars, "file_apps", stream.file_apps);
     int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 255 });
 
@@ -1041,12 +1068,18 @@ namespace config {
     }
 
     string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
+    bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
+    bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
+    bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);
     bool_f(vars, "controller", input.controller);
 
     bool_f(vars, "always_send_scancodes", input.always_send_scancodes);
+
+    bool_f(vars, "high_resolution_scrolling", input.high_resolution_scrolling);
+    bool_f(vars, "native_pen_touch", input.native_pen_touch);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, { 1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT });
@@ -1184,7 +1217,7 @@ namespace config {
       }
 
       // Read config file
-      auto vars = parse_config(read_file(sunshine.config_file.c_str()));
+      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
 
       for (auto &[name, value] : cmd_vars) {
         vars.insert_or_assign(std::move(name), std::move(value));

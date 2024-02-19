@@ -3,9 +3,15 @@
  * @brief todo
  */
 #include "graphics.h"
+#include "src/file_handler.h"
+#include "src/logging.h"
 #include "src/video.h"
 
 #include <fcntl.h>
+
+extern "C" {
+#include <libavutil/pixdesc.h>
+}
 
 // I want to have as little build dependencies as possible
 // There aren't that many DRM_FORMAT I need to use, so define them here
@@ -14,11 +20,6 @@
 #define fourcc_code(a, b, c, d) ((std::uint32_t)(a) | ((std::uint32_t)(b) << 8) | \
                                  ((std::uint32_t)(c) << 16) | ((std::uint32_t)(d) << 24))
 #define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) &0x00ffffffffffffffULL))
-#define DRM_FORMAT_R8 fourcc_code('R', '8', ' ', ' ') /* [7:0] R */
-#define DRM_FORMAT_GR88 fourcc_code('G', 'R', '8', '8') /* [15:0] G:R 8:8 little endian */
-#define DRM_FORMAT_ARGB8888 fourcc_code('A', 'R', '2', '4') /* [31:0] A:R:G:B 8:8:8:8 little endian */
-#define DRM_FORMAT_XRGB8888 fourcc_code('X', 'R', '2', '4') /* [31:0] x:R:G:B 8:8:8:8 little endian */
-#define DRM_FORMAT_XBGR8888 fourcc_code('X', 'B', '2', '4') /* [31:0] x:B:G:R 8:8:8:8 little endian */
 #define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
 
 #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/opengl"
@@ -500,45 +501,56 @@ namespace egl {
     return {};
   }
 
-  std::optional<rgb_t>
-  import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
-    EGLAttrib attribs[47];
-    int atti = 0;
-    attribs[atti++] = EGL_WIDTH;
-    attribs[atti++] = xrgb.width;
-    attribs[atti++] = EGL_HEIGHT;
-    attribs[atti++] = xrgb.height;
-    attribs[atti++] = EGL_LINUX_DRM_FOURCC_EXT;
-    attribs[atti++] = xrgb.fourcc;
+  /**
+   * @brief Returns EGL attributes for eglCreateImage() to import the provided surface.
+   * @param surface The surface descriptor.
+   * @return Vector of EGL attributes.
+   */
+  std::vector<EGLAttrib>
+  surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
+    std::vector<EGLAttrib> attribs;
+
+    attribs.emplace_back(EGL_WIDTH);
+    attribs.emplace_back(surface.width);
+    attribs.emplace_back(EGL_HEIGHT);
+    attribs.emplace_back(surface.height);
+    attribs.emplace_back(EGL_LINUX_DRM_FOURCC_EXT);
+    attribs.emplace_back(surface.fourcc);
 
     for (auto x = 0; x < 4; ++x) {
-      auto fd = xrgb.fds[x];
-
+      auto fd = surface.fds[x];
       if (fd < 0) {
         continue;
       }
 
       auto plane_attr = get_plane(x);
 
-      attribs[atti++] = plane_attr.fd;
-      attribs[atti++] = fd;
-      attribs[atti++] = plane_attr.offset;
-      attribs[atti++] = xrgb.offsets[x];
-      attribs[atti++] = plane_attr.pitch;
-      attribs[atti++] = xrgb.pitches[x];
+      attribs.emplace_back(plane_attr.fd);
+      attribs.emplace_back(fd);
+      attribs.emplace_back(plane_attr.offset);
+      attribs.emplace_back(surface.offsets[x]);
+      attribs.emplace_back(plane_attr.pitch);
+      attribs.emplace_back(surface.pitches[x]);
 
-      if (xrgb.modifier != DRM_FORMAT_MOD_INVALID) {
-        attribs[atti++] = plane_attr.lo;
-        attribs[atti++] = xrgb.modifier & 0xFFFFFFFF;
-        attribs[atti++] = plane_attr.hi;
-        attribs[atti++] = xrgb.modifier >> 32;
+      if (surface.modifier != DRM_FORMAT_MOD_INVALID) {
+        attribs.emplace_back(plane_attr.lo);
+        attribs.emplace_back(surface.modifier & 0xFFFFFFFF);
+        attribs.emplace_back(plane_attr.hi);
+        attribs.emplace_back(surface.modifier >> 32);
       }
     }
-    attribs[atti++] = EGL_NONE;
+
+    attribs.emplace_back(EGL_NONE);
+    return attribs;
+  }
+
+  std::optional<rgb_t>
+  import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
+    auto attribs = surface_descriptor_to_egl_attribs(xrgb);
 
     rgb_t rgb {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.data()),
       gl::tex_t::make(1)
     };
 
@@ -558,37 +570,52 @@ namespace egl {
     return rgb;
   }
 
-  std::optional<nv12_t>
-  import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &r8, const surface_descriptor_t &gr88) {
-    EGLAttrib img_attr_planes[2][13] {
-      { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_R8,
-        EGL_WIDTH, r8.width,
-        EGL_HEIGHT, r8.height,
-        EGL_DMA_BUF_PLANE0_FD_EXT, r8.fds[0],
-        EGL_DMA_BUF_PLANE0_OFFSET_EXT, r8.offsets[0],
-        EGL_DMA_BUF_PLANE0_PITCH_EXT, r8.pitches[0],
-        EGL_NONE },
-
-      { EGL_LINUX_DRM_FOURCC_EXT, DRM_FORMAT_GR88,
-        EGL_WIDTH, gr88.width,
-        EGL_HEIGHT, gr88.height,
-        EGL_DMA_BUF_PLANE0_FD_EXT, r8.fds[0],
-        EGL_DMA_BUF_PLANE0_OFFSET_EXT, gr88.offsets[0],
-        EGL_DMA_BUF_PLANE0_PITCH_EXT, gr88.pitches[0],
-        EGL_NONE },
+  /**
+   * @brief Creates a black RGB texture of the specified image size.
+   * @param img The image to use for texture sizing.
+   * @return The new RGB texture.
+   */
+  rgb_t
+  create_blank(platf::img_t &img) {
+    rgb_t rgb {
+      EGL_NO_DISPLAY,
+      EGL_NO_IMAGE,
+      gl::tex_t::make(1)
     };
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, img.width, img.height);
+    gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+
+    auto framebuf = gl::frame_buf_t::make(1);
+    framebuf.bind(&rgb->tex[0], &rgb->tex[0] + 1);
+
+    GLenum attachment = GL_COLOR_ATTACHMENT0;
+    gl::ctx.DrawBuffers(1, &attachment);
+    const GLuint rgb_black[] = { 0, 0, 0, 0 };
+    gl::ctx.ClearBufferuiv(GL_COLOR, 0, rgb_black);
+
+    gl_drain_errors;
+
+    return rgb;
+  }
+
+  std::optional<nv12_t>
+  import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
+    auto y_attribs = surface_descriptor_to_egl_attribs(y);
+    auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
 
     nv12_t nv12 {
       egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[0]),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, img_attr_planes[1]),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, uv_attribs.data()),
       gl::tex_t::make(2),
       gl::frame_buf_t::make(2),
       std::move(fds)
     };
 
     if (!nv12->r8 || !nv12->bg88) {
-      BOOST_LOG(error) << "Couldn't create KHR Image"sv;
+      BOOST_LOG(error) << "Couldn't import YUV target: "sv << util::hex(eglGetError()).to_string_view();
 
       return std::nullopt;
     }
@@ -600,6 +627,87 @@ namespace egl {
     gl::ctx.EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->bg88);
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
+
+    GLenum attachments[] {
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    };
+
+    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+
+      const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+      const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl_drain_errors;
+
+    return nv12;
+  }
+
+  /**
+   * @brief Creates biplanar YUV textures to render into.
+   * @param width Width of the target frame.
+   * @param height Height of the target frame.
+   * @param format Format of the target frame.
+   * @return The new RGB texture.
+   */
+  std::optional<nv12_t>
+  create_target(int width, int height, AVPixelFormat format) {
+    nv12_t nv12 {
+      EGL_NO_DISPLAY,
+      EGL_NO_IMAGE,
+      EGL_NO_IMAGE,
+      gl::tex_t::make(2),
+      gl::frame_buf_t::make(2),
+    };
+
+    GLint y_format;
+    GLint uv_format;
+
+    // Determine the size of each plane element
+    auto fmt_desc = av_pix_fmt_desc_get(format);
+    if (fmt_desc->comp[0].depth <= 8) {
+      y_format = GL_R8;
+      uv_format = GL_RG8;
+    }
+    else if (fmt_desc->comp[0].depth <= 16) {
+      y_format = GL_R16;
+      uv_format = GL_RG16;
+    }
+    else {
+      BOOST_LOG(error) << "Unsupported target pixel format: "sv << format;
+      return std::nullopt;
+    }
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[0]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, y_format, width, height);
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[1]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, uv_format,
+      width >> fmt_desc->log2_chroma_w, height >> fmt_desc->log2_chroma_h);
+
+    nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
+
+    GLenum attachments[] {
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    };
+
+    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+
+      const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+      const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
 
     gl_drain_errors;
 
@@ -625,19 +733,19 @@ namespace egl {
   }
 
   std::optional<sws_t>
-  sws_t::make(int in_width, int in_height, int out_width, int out_heigth, gl::tex_t &&tex) {
+  sws_t::make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
     sws_t sws;
 
     sws.serial = std::numeric_limits<std::uint64_t>::max();
 
     // Ensure aspect ratio is maintained
-    auto scalar = std::fminf(out_width / (float) in_width, out_heigth / (float) in_height);
+    auto scalar = std::fminf(out_width / (float) in_width, out_height / (float) in_height);
     auto out_width_f = in_width * scalar;
     auto out_height_f = in_height * scalar;
 
     // result is always positive
     auto offsetX_f = (out_width - out_width_f) / 2;
-    auto offsetY_f = (out_heigth - out_height_f) / 2;
+    auto offsetY_f = (out_height - out_height_f) / 2;
 
     sws.out_width = out_width_f;
     sws.out_height = out_height_f;
@@ -672,7 +780,7 @@ namespace egl {
       for (int x = 0; x < count; ++x) {
         auto &compiled_source = compiled_sources[x];
 
-        compiled_source = gl::shader_t::compile(read_file(sources[x]), shader_type[x % 2]);
+        compiled_source = gl::shader_t::compile(file_handler::read_file(sources[x]), shader_type[x % 2]);
         gl_drain_errors;
 
         if (compiled_source.has_right()) {
@@ -769,12 +877,38 @@ namespace egl {
   }
 
   std::optional<sws_t>
-  sws_t::make(int in_width, int in_height, int out_width, int out_heigth) {
+  sws_t::make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format) {
+    GLint gl_format;
+
+    // Decide the bit depth format of the backing texture based the target frame format
+    auto fmt_desc = av_pix_fmt_desc_get(format);
+    switch (fmt_desc->comp[0].depth) {
+      case 8:
+        gl_format = GL_RGBA8;
+        break;
+
+      case 10:
+        gl_format = GL_RGB10_A2;
+        break;
+
+      case 12:
+        gl_format = GL_RGBA12;
+        break;
+
+      case 16:
+        gl_format = GL_RGBA16;
+        break;
+
+      default:
+        BOOST_LOG(error) << "Unsupported pixel format for EGL frame: "sv << (int) format;
+        return std::nullopt;
+    }
+
     auto tex = gl::tex_t::make(2);
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, in_width, in_height);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, gl_format, in_width, in_height);
 
-    return make(in_width, in_height, out_width, out_heigth, std::move(tex));
+    return make(in_width, in_height, out_width, out_height, std::move(tex));
   }
 
   void
@@ -821,7 +955,7 @@ namespace egl {
       if (serial != img.serial) {
         serial = img.serial;
 
-        gl::ctx.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.width, img.height, 0, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
+        gl::ctx.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.src_w, img.src_h, 0, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
       }
 
       gl::ctx.Enable(GL_BLEND);

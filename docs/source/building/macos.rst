@@ -12,28 +12,21 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install avahi boost180 cmake curl libopus npm9 pkgconfig
+      sudo port install avahi boost180 cmake curl libopus miniupnpc npm9 pkgconfig
 
 Homebrew
 """"""""
 Install Requirements
    .. code-block:: bash
 
-      brew install boost cmake node opus pkg-config
+      brew install boost cmake miniupnpc node opus pkg-config
       # if there are issues with an SSL header that is not found:
       cd /usr/local/include
       ln -s ../opt/openssl/include/openssl .
 
-npm dependencies
-----------------
-Install npm dependencies.
-   .. code-block:: bash
-
-      npm install
-
 Build
 -----
-.. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
+.. attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
 .. code-block:: bash
 

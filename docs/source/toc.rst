@@ -3,13 +3,11 @@
    :caption: About
 
    about/overview
-   about/installation
+   about/setup
    about/docker
    about/third_party_packages
-   about/usage
    about/guides/guides
    about/advanced_usage
-   about/changelog
 
 .. toctree::
    :maxdepth: 2
@@ -53,4 +51,10 @@
    :maxdepth: 2
    :caption: source
 
-   source/src
+   source_code/source_code
+
+.. toctree::
+   :maxdepth: 2
+   :caption: History
+
+   history/changelog

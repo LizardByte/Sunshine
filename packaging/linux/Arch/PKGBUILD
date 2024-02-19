@@ -1,4 +1,4 @@
-# Edit on github: https://github.com/LizardByte/Sunshine/tree/nightly/packaging/linux/aur/PKGBUILD
+# Edit on github: https://github.com/LizardByte/Sunshine/blob/nightly/packaging/linux/Arch/PKGBUILD
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
 pkgname='sunshine'
@@ -24,6 +24,7 @@ depends=('avahi'
          'libxfixes'
          'libxrandr'
          'libxtst'
+         'miniupnpc'
          'numactl'
          'openssl'
          'opus'
@@ -45,35 +46,10 @@ sha256sums=('SKIP')
 
 prepare() {
     cd "$pkgname"
-    # Skip submodules that we don't want
-    if [[ $CARCH == "x86_64" ]]; then
-        git -c submodule."ffmpeg-macos-x86_64".update=none \
-            -c submodule."ffmpeg-windows-x86_64".update=none \
-            -c submodule."ffmpeg-linux-aarch64".update=none \
-            -c submodule."ffmpeg-macos-aarch64".update=none \
-            submodule update --recursive --init
-    elif [[ $CARCH == "aarch64" ]]; then
-        git -c submodule."ffmpeg-macos-x86_64".update=none \
-            -c submodule."ffmpeg-windows-x86_64".update=none \
-            -c submodule."ffmpeg-linux-x86_64".update=none \
-            -c submodule."ffmpeg-macos-aarch64".update=none \
-            submodule update --recursive --init
-
-    # It's unlikely that someone could get this far on a system with an incorrect arch, but we should handle it anyway
-    # Pull linux ffmpeg submodules
-    else
-        git -c submodule."ffmpeg-macos-x86_64".update=none \
-            -c submodule."ffmpeg-windows-x86_64".update=none \
-            -c submodule."ffmpeg-macos-aarch64".update=none \
-            submodule update --recursive --init
-    fi
+    git submodule update --recursive --init
 }
 
 build() {
-    pushd "$pkgname"
-    npm install
-    popd
-
     export BRANCH="@GITHUB_BRANCH@"
     export BUILD_VERSION="@GITHUB_BUILD_VERSION@"
     export COMMIT="@GITHUB_COMMIT@"

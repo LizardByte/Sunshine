@@ -6,13 +6,15 @@
 #include <windows.h>
 
 #include <cmath>
+#include <thread>
 
 #include <ViGEm/Client.h>
 
 #include "keylayout.h"
 #include "misc.h"
 #include "src/config.h"
-#include "src/main.h"
+#include "src/globals.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 
 #ifdef __MINGW32__
@@ -192,15 +194,16 @@ namespace platf {
   public:
     int
     init() {
-      VIGEM_ERROR status;
-
-      client.reset(vigem_alloc());
-
-      status = vigem_connect(client.get());
+      // Probe ViGEm during startup to see if we can successfully attach gamepads. This will allow us to
+      // immediately display the error message in the web UI even before the user tries to stream.
+      client_t client { vigem_alloc() };
+      VIGEM_ERROR status = vigem_connect(client.get());
       if (!VIGEM_SUCCESS(status)) {
-        BOOST_LOG(warning) << "Couldn't setup connection to ViGEm for gamepad support ["sv << util::hex(status).to_string_view() << ']';
-
-        return -1;
+        // Log a special fatal message for this case to show the error in the web UI
+        BOOST_LOG(fatal) << "ViGEmBus is not installed or running. You must install ViGEmBus for gamepad support!"sv;
+      }
+      else {
+        vigem_disconnect(client.get());
       }
 
       gamepads.resize(MAX_GAMEPADS);
@@ -222,6 +225,19 @@ namespace platf {
 
       gamepad.client_relative_index = id.clientRelativeIndex;
       gamepad.last_report_ts = std::chrono::steady_clock::now();
+
+      // Establish a connect to the ViGEm driver if we don't have one yet
+      if (!client) {
+        BOOST_LOG(debug) << "Connecting to ViGEmBus driver"sv;
+        client.reset(vigem_alloc());
+
+        auto status = vigem_connect(client.get());
+        if (!VIGEM_SUCCESS(status)) {
+          BOOST_LOG(warning) << "Couldn't setup connection to ViGEm for gamepad support ["sv << util::hex(status).to_string_view() << ']';
+          client.reset();
+          return -1;
+        }
+      }
 
       if (gp_type == Xbox360Wired) {
         gamepad.gp.reset(vigem_target_x360_alloc());
@@ -289,6 +305,20 @@ namespace platf {
       }
 
       gamepad.gp.reset();
+
+      // Disconnect from ViGEm if we just removed the last gamepad
+      bool disconnect = true;
+      for (auto &gamepad : gamepads) {
+        if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
+          disconnect = false;
+          break;
+        }
+      }
+      if (disconnect) {
+        BOOST_LOG(debug) << "Disconnecting from ViGEmBus driver"sv;
+        vigem_disconnect(client.get());
+        client.reset();
+      }
     }
 
     /**
@@ -1174,7 +1204,7 @@ namespace platf {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (manual selection)"sv;
       selectedGamepadType = Xbox360Wired;
     }
-    else if (config::input.gamepad == "ps4"sv || config::input.gamepad == "ds4"sv) {
+    else if (config::input.gamepad == "ds4"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (manual selection)"sv;
       selectedGamepadType = DualShock4Wired;
     }
@@ -1186,17 +1216,37 @@ namespace platf {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
       selectedGamepadType = Xbox360Wired;
     }
-    else if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
+    else if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
       selectedGamepadType = DualShock4Wired;
     }
-    else if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
+    else if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
       selectedGamepadType = DualShock4Wired;
     }
     else {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (default)"sv;
       selectedGamepadType = Xbox360Wired;
+    }
+
+    if (selectedGamepadType == Xbox360Wired) {
+      if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has motion sensors, but they are not usable when emulating an Xbox 360 controller"sv;
+      }
+      if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has a touchpad, but it is not usable when emulating an Xbox 360 controller"sv;
+      }
+      if (metadata.capabilities & LI_CCAP_RGB_LED) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has an RGB LED, but it is not usable when emulating an Xbox 360 controller"sv;
+      }
+    }
+    else if (selectedGamepadType == DualShock4Wired) {
+      if (!(metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have motion sensors active"sv;
+      }
+      if (!(metadata.capabilities & LI_CCAP_TOUCHPAD)) {
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have a touchpad"sv;
+      }
     }
 
     return raw->vigem->alloc_gamepad_internal(id, feedback_queue, selectedGamepadType);
@@ -1333,6 +1383,9 @@ namespace platf {
 
     // Allow either PS4/PS5 clickpad button or Xbox Series X share button to activate DS4 clickpad
     if (gamepad_state.buttonFlags & (TOUCHPAD_BUTTON | MISC_BUTTON)) buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
+
+    // Manual DS4 emulation: check if BACK button should also trigger DS4 touchpad click
+    if (config::input.gamepad == "ds4"sv && config::input.ds4_back_as_touchpad_click && (gamepad_state.buttonFlags & BACK)) buttons |= DS4_SPECIAL_BUTTON_TOUCHPAD;
 
     return (DS4_SPECIAL_BUTTONS) buttons;
   }
@@ -1695,7 +1748,9 @@ namespace platf {
 
     // We support pen and touch input on Win10 1809+
     if (GetProcAddress(GetModuleHandleA("user32.dll"), "CreateSyntheticPointerDevice") != nullptr) {
-      caps |= platform_caps::pen_touch;
+      if (config::input.native_pen_touch) {
+        caps |= platform_caps::pen_touch;
+      }
     }
     else {
       BOOST_LOG(warning) << "Touch input requires Windows 10 1809 or later"sv;

@@ -59,5 +59,5 @@ Format inplace with rstfmt
 
 Unit Testing
 ------------
-.. Todo:: Sunshine does not currently have any unit tests. If you would like to help us improve please get in contact
+.. todo:: Sunshine does not currently have any unit tests. If you would like to help us improve please get in contact
    with us, or make a PR with suggested changes.

@@ -82,7 +82,7 @@ namespace safe {
     }
 
     // pop and view should not be used interchangeably
-    const status_t &
+    status_t
     view() {
       std::unique_lock ul { _lock };
 

@@ -8,10 +8,13 @@ if(${SUNSHINE_BUILD_APPIMAGE} OR ${SUNSHINE_BUILD_FLATPAK})
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
 else()
+    find_package(Systemd)
+    find_package(Udev)
+
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d")
+            DESTINATION "${UDEV_RULES_INSTALL_DIR}")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
+            DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
 endif()
 
 # Post install
@@ -38,6 +41,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             libvdpau1, \
             libwayland-client0, \
             libx11-6, \
+            miniupnpc, \
             openssl | libssl3")
 set(CPACK_RPM_PACKAGE_REQUIRES "\
             ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
@@ -54,6 +58,7 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             libvdpau >= 1.5, \
             libwayland-client >= 1.20.0, \
             libX11 >= 1.7.3.1, \
+            miniupnpc >= 2.2.4, \
             numactl-libs >= 2.0.14, \
             openssl >= 3.0.2, \
             pulseaudio-libs >= 10.0")
@@ -63,19 +68,19 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
 # application icon
 install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/apps")
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps")
 
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)
     install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
             RENAME "sunshine-tray.svg")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-playing.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-pausing.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-locked.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-playing.svg"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status")
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-pausing.svg"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status")
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-locked.svg"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status")
 
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
@@ -88,13 +93,18 @@ endif()
 
 # desktop file
 # todo - validate desktop files with `desktop-file-validate`
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop" DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
+if(NOT ${SUNSHINE_BUILD_APPIMAGE})
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_terminal.desktop"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
+endif()
 if(${SUNSHINE_BUILD_FLATPAK})
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_kms.desktop"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
 endif()
 
 # metadata file
 # todo - validate file with `appstream-util validate-relax`
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.appdata.xml"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/metainfo")
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")

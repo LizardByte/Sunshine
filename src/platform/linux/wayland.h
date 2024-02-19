@@ -118,7 +118,19 @@ namespace wl {
     void
     xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height);
     void
-    xdg_done(zxdg_output_v1 *);
+    xdg_done(zxdg_output_v1 *) {}
+
+    void
+    wl_geometry(wl_output *wl_output, std::int32_t x, std::int32_t y,
+      std::int32_t physical_width, std::int32_t physical_height, std::int32_t subpixel,
+      const char *make, const char *model, std::int32_t transform) {}
+    void
+    wl_mode(wl_output *wl_output, std::uint32_t flags,
+      std::int32_t width, std::int32_t height, std::int32_t refresh);
+    void
+    wl_done(wl_output *wl_output) {}
+    void
+    wl_scale(wl_output *wl_output, std::int32_t factor) {}
 
     void
     listen(zxdg_output_manager_v1 *output_manager);
@@ -130,7 +142,8 @@ namespace wl {
 
     platf::touch_port_t viewport;
 
-    zxdg_output_v1_listener listener;
+    wl_output_listener wl_listener;
+    zxdg_output_v1_listener xdg_listener;
   };
 
   class interface_t {
@@ -192,6 +205,10 @@ namespace wl {
     // Roundtrip with Wayland connection
     void
     roundtrip();
+
+    // Wait up to the timeout to read and dispatch new events
+    bool
+    dispatch(std::chrono::milliseconds timeout);
 
     // Get the registry associated with the display
     // No need to manually free the registry

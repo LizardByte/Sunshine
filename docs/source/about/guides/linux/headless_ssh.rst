@@ -42,7 +42,7 @@ Once you are done, you will need to perform these 3 steps:
    **Step 2** can be replaced with autologin and starting sunshine as a service or putting
    ``sunshine &`` in your ``.xinitrc`` file if you start your X server with ``startx``.
    In this case, the workaround for ``/dev/uinput`` permissions is not needed because the udev rule would be triggered
-   for "physical" login. See :ref:`Linux Setup <about/usage:linux>`. I personally think autologin compromises the
+   for "physical" login. See :ref:`Linux Setup <about/setup:install>`. I personally think autologin compromises the
    security of the PC, so I went with the remote SSH route. I use the PC more than for gaming, so I don't need a
    virtual display everytime I turn on the PC (E.g running updates, config changes, file/media server).
 
@@ -264,7 +264,7 @@ we will need to update the sudo configuration to execute this without being prom
    script to be executed with ``sudo``.
 
 .. note::
-   After I setup the :ref:`udev rule <about/usage:linux>` to get access to ``/dev/uinput``,
+   After I setup the :ref:`udev rule <about/setup:install>` to get access to ``/dev/uinput``,
    I noticed when I sshed into the host without physical login, the ACL permissions on ``/dev/uinput`` were not changed.
    So I asked `reddit
    <https://www.reddit.com/r/linux_gaming/comments/14htuzv/does_sshing_into_host_trigger_udev_rule_on_the/>`__.
@@ -273,7 +273,7 @@ we will need to update the sudo configuration to execute this without being prom
 
 **Setup Script**
 
-This script will take care of any precondtions prior to starting up sunshine.
+This script will take care of any preconditions prior to starting up sunshine.
 
 Run the following to create a script named something like ``sunshine-setup.sh``:
    .. code-block:: bash
@@ -522,5 +522,5 @@ If you have any feedback and any suggestions, feel free to make a post on Discor
 
 .. seealso::
    Now that you have a virtual display, you may want to automate changing the resolution
-   and refresh rate prior to connecting to an app. See :ref:`Changing Resolution and
-   Refresh Rate <about/guides/app_examples:linux>` for more information.
+   and refresh rate prior to connecting to an app. See :ref:`Changing Resolution and Refresh Rate
+   <about/guides/app_examples:changing resolution and refresh rate>` for more information.

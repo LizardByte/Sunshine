@@ -37,8 +37,8 @@
 
   self.displayID = displayID;
   self.pixelFormat = kCVPixelFormatType_32BGRA;
-  self.frameWidth = CGDisplayModeGetPixelWidth(mode);
-  self.frameHeight = CGDisplayModeGetPixelHeight(mode);
+  self.frameWidth = (int) CGDisplayModeGetPixelWidth(mode);
+  self.frameHeight = (int) CGDisplayModeGetPixelHeight(mode);
   self.minFrameDuration = CMTimeMake(1, frameRate);
   self.session = [[AVCaptureSession alloc] init];
   self.videoOutputs = [[NSMapTable alloc] init];

@@ -43,6 +43,7 @@ apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libminiupnpc-dev \
   libnotify-dev \
   libnuma-dev \
   libopus-dev \
@@ -60,6 +61,7 @@ apt-get install -y --no-install-recommends \
   libxtst-dev \
   nodejs \
   npm \
+  udev \
   wget
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
@@ -94,9 +96,6 @@ _INSTALL_CUDA
 # copy repository
 WORKDIR /build/sunshine/
 COPY --link .. .
-
-# setup npm dependencies
-RUN npm install
 
 # setup build directory
 WORKDIR /build/sunshine/build

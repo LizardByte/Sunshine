@@ -13,7 +13,7 @@
 
 #include "misc.h"
 #include "src/config.h"
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/network.h"
 #include "src/nvhttp.h"
 #include "src/platform/common.h"
@@ -107,17 +107,30 @@ namespace platf::publish {
   service(bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
     auto alarm = safe::make_alarm<PDNS_SERVICE_INSTANCE>();
 
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-
     std::wstring name { SERVICE_INSTANCE_NAME.data(), SERVICE_INSTANCE_NAME.size() };
     std::wstring domain { SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size() };
 
-    auto host = converter.from_bytes(boost::asio::ip::host_name() + ".local");
+    auto host = from_utf8(boost::asio::ip::host_name() + ".local");
 
     DNS_SERVICE_INSTANCE instance {};
     instance.pszInstanceName = name.data();
-    instance.wPort = map_port(nvhttp::PORT_HTTP);
+    instance.wPort = net::map_port(nvhttp::PORT_HTTP);
     instance.pszHostName = host.data();
+
+    // Setting these values ensures Windows mDNS answers comply with RFC 1035.
+    // If these are unset, Windows will send a TXT record that has zero strings,
+    // which is illegal. Setting them to a single empty value causes Windows to
+    // send a single empty string for the TXT record, which is the correct thing
+    // to do when advertising a service without any TXT strings.
+    //
+    // Most clients aren't strictly checking TXT record compliance with RFC 1035,
+    // but Apple's mDNS resolver does and rejects the entire answer if an invalid
+    // TXT record is present.
+    PWCHAR keys[] = { nullptr };
+    PWCHAR values[] = { nullptr };
+    instance.dwPropertyCount = 1;
+    instance.keys = keys;
+    instance.values = values;
 
     DNS_SERVICE_REGISTER_REQUEST req {};
     req.Version = DNS_QUERY_REQUEST_VERSION1;

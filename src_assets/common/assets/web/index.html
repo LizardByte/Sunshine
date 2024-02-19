@@ -1,93 +1,82 @@
-<div id="content" class="container">
-  <h1 class="my-4">Hello, Sunshine!</h1>
-  <p>Sunshine is a self-hosted game stream host for Moonlight.</p>
-  <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
-    <div style="line-height: 32px;">
-      <i class="fas fa-circle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
-      <b>Attention!</b> Sunshine detected these errors during startup. These errors <b>MUST</b> be fixed before using
-      Sunshine.<br>
-    </div>
-    <ul>
-      <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
-    </ul>
-  </div>
-  <!--Version-->
-  <div class="card p-2 my-4">
-    <div class="card-body" v-if="version">
-      <h2>Version {{version}}</h2>
-      <br />
-      <div v-if="loading">
-        Loading Latest Release...
-      </div>
-      <div class="alert alert-success" v-if="buildVersionIsDirty">
-        Thank you for helping to make Sunshine a better software! 🌇
-      </div>
-      <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable && !buildVersionIsDirty">
-        <div class="alert alert-success">
-          You're running the latest version of Sunshine
-        </div>
-      </div>
-      <div v-if="nightlyBuildAvailable">
-        <div class="alert alert-warning">
-          <div class="d-flex justify-content-between">
-            <div class="my-2">A new <b>Nightly</b> Version is Available!</div>
-            <a class="btn btn-success m-1" href="https://github.com/LizardByte/Sunshine/releases/nightly-dev"
-              target="_blank">Download</a>
-          </div>
-          <pre><b>{{nightlyData.head_sha}}</b></pre>
-          <pre>{{nightlyData.display_title}}</pre>
-        </div>
-      </div>
-      <div v-if="stableBuildAvailable">
-        <div class="alert alert-warning">
-          <div class="d-flex justify-content-between">
-            <div class="my-2">A new <b>Stable</b> Version is Available!</div>
-            <a class="btn btn-success m-1" :href="githubVersion.html_url" target="_blank">Download</a>
-          </div>
-          <h3>{{githubVersion.name}}</h3>
-          <pre>{{githubVersion.body}}</pre>
-        </div>
-      </div>
-    </div>
-  </div>
-  <!--Resources-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Resources</h2>
-      <br />
-      <p>
-        Resources for Sunshine!
-      </p>
-      <div class="card-group p-4 align-items-center">
-        <a class="btn btn-success m-1" href="https://app.lizardbyte.dev" target="_blank">LizardByte Website</a>
-        <a class="btn btn-primary m-1" href="https://app.lizardbyte.dev/discord" target="_blank">
-          <i class="fab fa-fw fa-discord"></i> Discord</a>
-        <a class="btn btn-secondary m-1" href="https://github.com/LizardByte/Sunshine/discussions" target="_blank">
-          <i class="fab fa-fw fa-github"></i> Github Discussions</a>
-      </div>
-    </div>
-  </div>
-  <!--Legal-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Legal</h2>
-      <br />
-      <p>
-        By continuing to use this software you agree to the terms and conditions in the following documents.
-      </p>
-      <div class="card-group p-4 align-items-center">
-        <a class="btn btn-danger m-1" href="https://github.com/LizardByte/Sunshine/blob/master/LICENSE" target="_blank">
-          <i class="fas fa-fw fa-file-alt"></i> License</a>
-        <a class="btn btn-danger m-1" href="https://github.com/LizardByte/Sunshine/blob/master/NOTICE" target="_blank">
-          <i class="fas fa-fw fa-exclamation"></i> Third Party Notice</a>
-      </div>
-    </div>
-  </div>
-</div>
+<!DOCTYPE html>
+<html lang="en">
 
-<script>
-  new Vue({
-    el: "#content",
+<head>
+  <%- header %>
+</head>
+
+<body id="app">
+  <Navbar></Navbar>
+  <div id="content" class="container">
+    <h1 class="my-4">Hello, Sunshine!</h1>
+    <p>Sunshine is a self-hosted game stream host for Moonlight.</p>
+    <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+      <div style="line-height: 32px;">
+        <i class="fas fa-circle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
+        <b>Attention!</b> Sunshine detected these errors during startup. We <b>STRONGLY RECOMMEND</b> fixing them
+        before streaming.<br>
+      </div>
+      <ul>
+        <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
+      </ul>
+      <a class="btn btn-danger" href="/troubleshooting/#logs">View Logs</a>
+    </div>
+    <!-- Version -->
+    <div class="card p-2 my-4">
+      <div class="card-body" v-if="version">
+        <h2>Version {{version}}</h2>
+        <br>
+        <div v-if="loading">
+          Loading Latest Release...
+        </div>
+        <div class="alert alert-success" v-if="buildVersionIsDirty">
+          Thank you for helping to make Sunshine a better software! 🌇
+        </div>
+        <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable && !buildVersionIsDirty">
+          <div class="alert alert-success">
+            You're running the latest version of Sunshine
+          </div>
+        </div>
+        <div v-if="nightlyBuildAvailable">
+          <div class="alert alert-warning">
+            <div class="d-flex justify-content-between">
+              <div class="my-2">A new <b>Nightly</b> Version is Available!</div>
+              <a class="btn btn-success m-1" href="https://github.com/LizardByte/Sunshine/releases/nightly-dev"
+                target="_blank">Download</a>
+            </div>
+            <pre><b>{{nightlyData.head_sha}}</b></pre>
+            <pre>{{nightlyData.display_title}}</pre>
+          </div>
+        </div>
+        <div v-if="stableBuildAvailable">
+          <div class="alert alert-warning">
+            <div class="d-flex justify-content-between">
+              <div class="my-2">A new <b>Stable</b> Version is Available!</div>
+              <a class="btn btn-success m-1" :href="githubVersion.html_url" target="_blank">Download</a>
+            </div>
+            <h3>{{githubVersion.name}}</h3>
+            <pre>{{githubVersion.body}}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Resources -->
+    <div class="my-4">
+      <Resource-Card></Resource-Card>
+    </div>
+  </div>
+</body>
+
+<script type="module">
+  import { createApp } from 'vue'
+  import Navbar from './Navbar.vue'
+  import ResourceCard from './ResourceCard.vue'
+  console.log("Hello, Sunshine!")
+  let app = createApp({
+    components: {
+      Navbar,
+      ResourceCard
+    },
     data() {
       return {
         version: null,
@@ -165,4 +154,5 @@
       }
     }
   });
+  app.mount('#app');
 </script>

@@ -1,370 +1,405 @@
-<div id="app" class="container">
-  <div class="my-4">
-    <h1>Applications</h1>
-    <div>Applications are refreshed only when Client is restarted</div>
-  </div>
-  <div class="card p-4">
-    <table class="table">
-      <thead>
-        <tr>
-          <th scope="col">Name</th>
-          <th scope="col">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(app,i) in apps" :key="i">
-          <td>{{app.name}}</td>
-          <td>
-            <button class="btn btn-primary" @click="editApp(i)">
-              <i class="fas fa-edit"></i> Edit
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+      <%- header %>
+      <style>
+        .precmd-head {
+          width: 200px;
+        }
+
+        .monospace {
+          font-family: monospace;
+        }
+
+        .cover-finder {}
+
+        .cover-finder .cover-results {
+          max-height: 400px;
+          overflow-x: hidden;
+          overflow-y: auto;
+        }
+
+        .cover-finder .cover-results.busy * {
+          cursor: wait !important;
+          pointer-events: none;
+        }
+
+        .cover-container {
+          padding-top: 133.33%;
+          position: relative;
+        }
+
+        .cover-container.result {
+          cursor: pointer;
+        }
+
+        .spinner-border {
+          position: absolute;
+          left: 0;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          margin: auto;
+        }
+
+        .cover-container img {
+          display: block;
+          position: absolute;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .config-page {
+          padding: 1em;
+          border: 1px solid #dee2e6;
+          border-top: none;
+        }
+
+        td {
+          padding: 0 0.5em;
+        }
+
+        .env-table td {
+          padding: 0.25em;
+          border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
+          vertical-align: top;
+        }
+      </style>
+</head>
+
+<body id="app">
+  <Navbar></Navbar>
+  <div class="container">
+    <div class="my-4">
+      <h1>Applications</h1>
+      <div>Applications are refreshed only when Client is restarted</div>
+    </div>
+    <div class="card p-4">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(app,i) in apps" :key="i">
+            <td>{{app.name}}</td>
+            <td>
+              <button class="btn btn-primary mx-1" @click="editApp(i)">
+                <i class="fas fa-edit"></i> Edit
+              </button>
+              <button class="btn btn-danger mx-1" @click="showDeleteForm(i)">
+                <i class="fas fa-trash"></i> Delete
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="edit-form card mt-2" v-if="showEditForm">
+      <div class="p-4">
+        <!-- Application Name -->
+        <div class="mb-3">
+          <label for="appName" class="form-label">Application Name</label>
+          <input type="text" class="form-control" id="appName" aria-describedby="appNameHelp" v-model="editForm.name" />
+          <div id="appNameHelp" class="form-text">
+            Application Name, as shown on Moonlight
+          </div>
+        </div>
+        <!-- output -->
+        <div class="mb-3">
+          <label for="appOutput" class="form-label">Output</label>
+          <input type="text" class="form-control monospace" id="appOutput" aria-describedby="appOutputHelp"
+            v-model="editForm.output" />
+          <div id="appOutputHelp" class="form-text">
+            The file where the output of the command is stored, if it is not
+            specified, the output is ignored
+          </div>
+        </div>
+        <!-- prep-cmd -->
+        <div class="mb-3">
+          <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
+          <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
+            <option v-for="val in [false, true]" :value="val">
+              {{ !val ? 'Enabled' : 'Disabled' }}
+            </option>
+          </select>
+          <div class="form-text">
+            Enable/Disable the execution of Global Prep Commands for this
+            application.
+          </div>
+        </div>
+        <div class="mb-3">
+          <label for="appName" class="form-label">Command Preparations</label>
+          <div class="form-text">
+            A list of commands to be run before/after this application.<br>
+            If any of the prep-commands fail, starting the application is aborted.
+          </div>
+          <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length === 0">
+            <button class="btn btn-success" @click="addPrepCmd">
+              <i class="fas fa-plus mr-1"></i> Add Commands
             </button>
-            <button class="btn btn-danger" @click="showDeleteForm(i)">
-              <i class="fas fa-trash"></i> Delete
+          </div>
+          <table class="table" v-if="editForm['prep-cmd'].length > 0">
+            <thead>
+              <tr>
+                <th scope="col"><i class="fas fa-play"></i> Do Command</th>
+                <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
+                <th scope="col" v-if="platform === 'windows'">
+                  <i class="fas fa-shield-alt"></i> Run as Admin
+                </th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(c, i) in editForm['prep-cmd']">
+                <td>
+                  <input type="text" class="form-control monospace" v-model="c.do" />
+                </td>
+                <td>
+                  <input type="text" class="form-control monospace" v-model="c.undo" />
+                </td>
+                <td v-if="platform === 'windows'">
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
+                      true-value="true" false-value="false" />
+                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">Elevated</label>
+                  </div>
+                </td>
+                <td>
+                  <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                  <button class="btn btn-success" @click="addPrepCmd">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- detached -->
+        <div class="mb-3">
+          <label for="appName" class="form-label">Detached Commands</label>
+          <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
+            <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
+            <button class="btn btn-danger mx-2" @click="editForm.detached.splice(i,1)">
+              &times;
             </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="edit-form card mt-2" v-if="showEditForm">
-    <div class="p-4">
-      <!--name-->
-      <div class="mb-3">
-        <label for="appName" class="form-label">Application Name</label>
-        <input
-          type="text"
-          class="form-control"
-          id="appName"
-          aria-describedby="appNameHelp"
-          v-model="editForm.name"
-        />
-        <div id="appNameHelp" class="form-text">
-          Application Name, as shown on Moonlight
+          </div>
+          <div class="d-flex justify-content-between">
+            <button class="btn btn-success" @click="editForm.detached.push('');">
+              <i class="fas fa-plus mr-1"></i> Add Detached Command
+            </button>
+          </div>
+          <div class="form-text">
+            A list of commands to be run and forgotten about
+          </div>
         </div>
-      </div>
-      <!--output-->
-      <div class="mb-3">
-        <label for="appOutput" class="form-label">Output</label>
-        <input
-          type="text"
-          class="form-control monospace"
-          id="appOutput"
-          aria-describedby="appOutputHelp"
-          v-model="editForm.output"
-        />
-        <div id="appOutputHelp" class="form-text">
-          The file where the output of the command is stored, if it is not
-          specified, the output is ignored
+        <!-- command -->
+        <div class="mb-3">
+          <label for="appCmd" class="form-label">Command</label>
+          <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
+            v-model="editForm.cmd" />
+          <div id="appCmdHelp" class="form-text">
+            The main application, if it is not specified, a process is started
+            that sleeps indefinitely
+          </div>
         </div>
-      </div>
-      <!--prep-cmd-->
-      <div class="mb-3">
-        <label for="excludeGlobalPrep" class="form-label"
-          >Global Prep Commands</label
-        >
-        <select
-          id="excludeGlobalPrep"
-          class="form-select"
-          v-model="editForm['exclude-global-prep-cmd']"
-        >
-          <option v-for="val in [false, true]" :value="val">
-            {{ !val ? 'Enabled' : 'Disabled' }}
-          </option>
-        </select>
-        <div class="form-text">
-          Enable/Disable the execution of Global Prep Commands for this
-          application.
+        <!-- working dir -->
+        <div class="mb-3">
+          <label for="appWorkingDir" class="form-label">Working Directory</label>
+          <input type="text" class="form-control monospace" id="appWorkingDir" aria-describedby="appWorkingDirHelp"
+            v-model="editForm['working-dir']" />
+          <div id="appWorkingDirHelp" class="form-text">
+            The working directory that should be passed to the process. For
+            example, some applications use the working directory to search for
+            configuration files. If not set, Sunshine will default to the parent
+            directory of the command
+          </div>
         </div>
-      </div>
-      <div class="mb-3">
-        <label for="appName" class="form-label">Command Preparations</label>
-        <div class="form-text">
-          A list of commands to be run before/after this application.<br />
-          If any of the prep-commands fail, starting the application is aborted.
+        <!-- elevation -->
+        <div class="mb-3 form-check" v-if="platform === 'windows'">
+          <label for="appElevation" class="form-check-label">Run as administrator</label>
+          <input type="checkbox" class="form-check-input" id="appElevation" v-model="editForm.elevated"
+            true-value="true" false-value="false" />
+          <div class="form-text">
+            This can be necessary for some applications that require administrator
+            permissions to run properly.
+          </div>
         </div>
-        <div
-          class="d-flex justify-content-start mb-3 mt-3"
-          v-if="editForm['prep-cmd'].length === 0"
-        >
-          <button class="btn btn-success" @click="addPrepCmd">
-            <i class="fas fa-plus mr-1"></i> Add Commands
-          </button>
+        <!-- auto-detach -->
+        <div class="mb-3 form-check">
+          <label for="autoDetach" class="form-check-label">Continue streaming if the application exits quickly</label>
+          <input type="checkbox" class="form-check-input" id="autoDetach" v-model="editForm['auto-detach']"
+            true-value="true" false-value="false" />
+          <div class="form-text">
+            This will attempt to automatically detect launcher-type apps that close
+            quickly after launching another program or instance of themselves. When
+            a launcher-type app is detected, it is treated as a detached app.
+          </div>
         </div>
-        <table class="table" v-if="editForm['prep-cmd'].length > 0">
-          <thead>
-            <tr>
-              <th scope="col"><i class="fas fa-play"></i> Do Command</th>
-              <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
-              <th scope="col" v-if="platform === 'windows'">
-                <i class="fas fa-shield-alt"></i> Run as Admin
-              </th>
-              <th scope="col"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(c, i) in editForm['prep-cmd']">
-              <td>
-                <input
-                  type="text"
-                  class="form-control monospace"
-                  v-model="c.do"
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  class="form-control monospace"
-                  v-model="c.undo"
-                />
-              </td>
-              <td v-if="platform === 'windows'">
-                <div class="form-check">
-                  <input
-                    type="checkbox"
-                    class="form-check-input"
-                    :id="'prep-cmd-admin-' + i"
-                    v-model="c.elevated"
-                    true-value="true"
-                    false-value="false"
-                  />
-                  <label :for="'prep-cmd-admin-' + i" class="form-check-label"
-                    >Elevated</label
-                  >
-                </div>
-              </td>
-              <td>
-                <button
-                  class="btn btn-danger"
-                  @click="$delete(editForm['prep-cmd'], i)"
-                >
-                  <i class="fas fa-trash"></i>
-                </button>
-                <button class="btn btn-success" @click="addPrepCmd">
-                  <i class="fas fa-plus"></i>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <!--detatched-->
-      <div class="mb-3">
-        <label for="appName" class="form-label">Detached Commands</label>
-        <div
-          v-for="(c,i) in editForm.detached"
-          class="d-flex justify-content-between my-2"
-        >
-          <pre>{{c}}</pre>
-          <button
-            class="btn btn-danger mx-2"
-            @click="editForm.detached.splice(i,1)"
-          >
-            &times;
-          </button>
+        <!-- wait for all processes -->
+        <div class="mb-3 form-check">
+          <label for="waitAll" class="form-check-label">Continue streaming until all app processes exit</label>
+          <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']"
+            true-value="true" false-value="false" />
+          <div class="form-text">
+            This will continue streaming until all processes started by the app have terminated.
+            When unchecked, streaming will stop when the initial app process exits, even if other
+            app processes are still running.
+          </div>
         </div>
-        <div class="d-flex justify-content-between">
-          <input
-            type="text"
-            class="form-control monospace"
-            v-model="detachedCmd"
-          />
-          <button
-            class="btn btn-success mx-2"
-            @click="editForm.detached.push(detachedCmd);detachedCmd = '';"
-          >
-            +
-          </button>
+        <!-- exit timeout -->
+        <div class="mb-3">
+          <label for="exitTimeout" class="form-label">Exit Timeout</label>
+          <input type="text" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
+            v-model="editForm['exit-timeout']" />
+          <div id="exitTimeoutHelp" class="form-text">
+            Number of seconds to wait for all app processes to gracefully exit when requested to quit.<br>
+            If unset, the default is to wait up to 5 seconds. If set to zero or a negative value,
+            the app will be immediately terminated.
+          </div>
         </div>
-        <div class="form-text">
-          A list of commands to be run and forgotten about
-        </div>
-      </div>
-      <!--command-->
-      <div class="mb-3">
-        <label for="appCmd" class="form-label">Command</label>
-        <input
-          type="text"
-          class="form-control monospace"
-          id="appCmd"
-          aria-describedby="appCmdHelp"
-          v-model="editForm.cmd"
-        />
-        <div id="appCmdHelp" class="form-text">
-          The main application, if it is not specified, a process is started
-          that sleeps indefinitely
-        </div>
-      </div>
-      <!--working dir-->
-      <div class="mb-3">
-        <label for="appWorkingDir" class="form-label">Working Directory</label>
-        <input
-          type="text"
-          class="form-control monospace"
-          id="appWorkingDir"
-          aria-describedby="appWorkingDirHelp"
-          v-model="editForm['working-dir']"
-        />
-        <div id="appWorkingDirHelp" class="form-text">
-          The working directory that should be passed to the process. For
-          example, some applications use the working directory to search for
-          configuration files. If not set, Sunshine will default to the parent
-          directory of the command
-        </div>
-      </div>
-      <!-- elevation -->
-      <div class="mb-3 form-check" v-if="platform === 'windows'">
-        <label for="appElevation" class="form-check-label"
-          >Run as administrator</label
-        >
-        <input
-          type="checkbox"
-          class="form-check-input"
-          id="appElevation"
-          v-model="editForm.elevated"
-          true-value="true"
-          false-value="false"
-        />
-        <div class="form-text">
-          This can be necessary for some applications that require administrator
-          permissions to run properly.
-        </div>
-      </div>
-      <!-- auto-detach -->
-      <div class="mb-3 form-check">
-        <label for="autoDetach" class="form-check-label"
-          >Continue streaming if the application exits quickly</label
-        >
-        <input
-          type="checkbox"
-          class="form-check-input"
-          id="autoDetach"
-          v-model="editForm['auto-detach']"
-          true-value="true"
-          false-value="false"
-        />
-        <div class="form-text">
-          This will attempt to automatically detect launcher-type apps that close
-          quickly after launching another program or instance of themselves. When
-          a launcher-type app is detected, it is treated as a detached app.
-        </div>
-      </div>
-      <!-- Image path -->
-      <div class="mb-3">
-        <label for="appImagePath" class="form-label">Image</label>
-        <div class="input-group dropup">
-          <input
-            type="text"
-            class="form-control monospace"
-            id="appImagePath"
-            aria-describedby="appImagePathHelp"
-            v-model="editForm['image-path']"
-          />
-          <button
-            class="btn btn-secondary dropdown-toggle"
-            type="button"
-            id="findCoverToggle"
-            data-bs-toggle="dropdown"
-            data-bs-auto-close="outside"
-            aria-expanded="false"
-            v-dropdown-show="showCoverFinder"
-            ref="coverFinderDropdown"
-          >
-            Find Cover
-          </button>
-          <div
-            class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
-            aria-labelledby="findCoverToggle"
-          >
-            <div class="modal-header">
-              <h4 class="modal-title">Covers Found</h4>
-              <button
-                type="button"
-                class="btn-close"
-                aria-label="Close"
-                @click="closeCoverFinder"
-              ></button>
-            </div>
-            <div
-              class="modal-body cover-results px-3 pt-3"
-              :class="{ busy: coverFinderBusy }"
-            >
-              <div class="row">
-                <div
-                  v-if="coverSearching"
-                  class="col-12 col-sm-6 col-lg-4 mb-3"
-                >
-                  <div class="cover-container">
-                    <div class="spinner-border" role="status">
-                      <span class="visually-hidden">Loading...</span>
+        <div class="mb-3">
+          <label for="appImagePath" class="form-label">Image</label>
+          <div class="input-group dropup">
+            <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
+              v-model="editForm['image-path']" />
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle"
+              aria-expanded="false" @click="showCoverFinder" ref="coverFinderDropdown">
+              Find Cover
+            </button>
+            <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
+              aria-labelledby="findCoverToggle">
+              <div class="modal-header px-2">
+                <h4 class="modal-title">Covers Found</h4>
+                <button type="button" class="btn-close mr-2" aria-label="Close" @click="closeCoverFinder"></button>
+              </div>
+              <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
+                <div class="row">
+                  <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
+                    <div class="cover-container">
+                      <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div
-                  v-for="(cover,i) in coverCandidates"
-                  :key="'i'"
-                  class="col-12 col-sm-6 col-lg-4 mb-3"
-                  @click="useCover(cover)"
-                >
-                  <div class="cover-container result">
-                    <img class="rounded" :src="cover.url" />
+                  <div v-for="(cover,i) in coverCandidates" :key="'i'" class="col-12 col-sm-6 col-lg-4 mb-3"
+                    @click="useCover(cover)">
+                    <div class="cover-container result">
+                      <img class="rounded" :src="cover.url" />
+                    </div>
+                    <label class="d-block text-nowrap text-center text-truncate">
+                      {{cover.name}}
+                    </label>
                   </div>
-                  <label class="d-block text-nowrap text-center text-truncate">
-                    {{cover.name}}
-                  </label>
                 </div>
               </div>
             </div>
           </div>
+          <div id="appImagePathHelp" class="form-text">
+            Application icon/picture/image path that will be sent to client. Image
+            must be a PNG file. If not set, Sunshine will send default box image.
+          </div>
         </div>
-        <div id="appImagePathHelp" class="form-text">
-          Application icon/picture/image path that will be sent to client. Image
-          must be a PNG file. If not set, Sunshine will send default box image.
+        <div class="env-hint alert alert-info">
+          <div class="form-text">
+            <h4>About Environment Variables</h4>
+            All commands get these environment variables by default:
+          </div>
+          <table class="env-table">
+            <tr>
+              <td><b>Var Name</b></td>
+              <td><b></b></td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_APP_ID</td>
+              <td>App ID</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_APP_NAME</td>
+              <td>App Name</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_WIDTH</td>
+              <td>The Width requested by the client</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_HEIGHT</td>
+              <td>The Height requested by the client</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_FPS</td>
+              <td>The FPS requested by the client</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_HDR</td>
+              <td>(true/false) if HDR is enabled by the client</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_GCMAP</td>
+              <td>(int) the requested gamepad mask, in a bitset/bitfield format</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_HOST_AUDIO</td>
+              <td>(true/false) if the client has requested host audio</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td>
+              <td>(true/false) if the client has requested the option to optimize the game for optimal
+                streaming</td>
+            </tr>
+            <tr>
+              <td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td>
+              <td>The Audio Configuration requested by the client (2.0/5.1/7.1)</td>
+            </tr>
+          </table>
+          <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution
+              Automation:</b>
+            <pre>cmd /C &lt;qres path&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre>
+          </div>
+          <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution
+              Automation:</b>
+            <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate 60"</pre>
+          </div>
+          <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for
+              Resolution
+              Automation:</b>
+            <pre>sh -c "displayplacer "id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre>
+          </div>
+          <div class="form-text"><a
+              href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html"
+              target="_blank">See More</a></div>
         </div>
-      </div>
-      <div class="env-hint">
-        <div class="form-text"><b>About Environment Variables: </b> All commands get these environment variables by default: </div>
-        <table>
-          <tr><td><b>Var Name</b></td><td><b></b></td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_APP_ID</td><td>App ID</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_APP_NAME</td><td>App Name</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_WIDTH</td><td>The Width requested by the client</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HEIGHT</td><td>The Height requested by the client</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_FPS</td><td>The FPS requested by the client</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HDR</td><td>(true/false) if HDR is enabled by the client</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_GCMAP</td><td>(int) the requested gamepad mask, in a bitset/bitfield format</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_HOST_AUDIO</td><td>(true/false) if the client has requested host audio</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td><td>(true/false) if the client has requested the option to optimize the game for optimal streaming</td></tr>
-          <tr><td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td><td>The Audio Configuration requested by the client (2.0/5.1/7.1)</td></tr>
-        </table>
-        <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution Automation:</b> <pre>cmd /C &lt;qres path&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre></div>
-        <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution Automation:</b> <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate 60"</pre></div>
-        <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for Resolution Automation:</b> <pre>sh -c "displayplacer "id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre></div>
-        <div class="form-text"><a href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html" target="_blank">See More</a></div>
-      </div>
-      <!--buttons-->
-      <div class="d-flex">
-        <button @click="showEditForm = false" class="btn btn-secondary m-2">
-          Cancel
-        </button>
-        <button class="btn btn-primary m-2" @click="save">Save</button>
+        <!-- Save buttons -->
+        <div class="d-flex">
+          <button @click="showEditForm = false" class="btn btn-secondary m-2">
+            Cancel
+          </button>
+          <button class="btn btn-primary m-2" @click="save">Save</button>
+        </div>
       </div>
     </div>
+    <div class="mt-2" v-else>
+      <button class="btn btn-primary" @click="newApp">
+        <i class="fas fa-plus"></i> Add New
+      </button>
+    </div>
   </div>
-  <div class="mt-2" v-else>
-    <button class="btn btn-primary" @click="newApp">
-      <i class="fas fa-plus"></i> Add New
-    </button>
-  </div>
-</div>
-<script>
-  Vue.directive('dropdown-show', {
-    bind: function (el, binding) {
-      el.addEventListener('show.bs.dropdown', binding.value);
-    }
-  });
-
-  new Vue({
-    el: "#app",
+</body>
+<script type="module">
+  import { createApp } from 'vue';
+  import Navbar from './Navbar.vue'
+  import {Dropdown} from 'bootstrap'
+  const app = createApp({
+    components: {
+      Navbar
+    },
     data() {
       return {
         apps: [],
@@ -384,7 +419,7 @@
           console.log(r);
           this.apps = r.apps;
         });
-      
+
       fetch("/api/config")
         .then(r => r.json())
         .then(r => this.platform = r.platform);
@@ -399,6 +434,8 @@
           "exclude-global-prep-cmd": false,
           elevated: false,
           "auto-detach": true,
+          "wait-all": true,
+          "exit-timeout": 5,
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -408,18 +445,24 @@
       },
       editApp(id) {
         this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
-        this.$set(this.editForm, "index", id);
+        this.editForm.index = id;
         if (this.editForm["prep-cmd"] === undefined)
-          this.$set(this.editForm, "prep-cmd", []);
+          this.editForm["prep-cmd"] = [];
         if (this.editForm["detached"] === undefined)
-          this.$set(this.editForm, "detached", []);
+          this.editForm["detached"] = [];
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
-          this.$set(this.editForm, "exclude-global-prep-cmd", false);
-        if(this.editForm["elevated"] === undefined && this.platform === 'windows'){
-          this.$set(this.editForm, "elevated", false);
+          this.editForm["exclude-global-prep-cmd"] = [];
+        if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
+          this.editForm["elevated"] = [];
         }
-        if(this.editForm["auto-detach"] === undefined){
-          this.$set(this.editForm, "auto-detach", true);
+        if (this.editForm["auto-detach"] === undefined) {
+          this.editForm["auto-detach"] = true;
+        }
+        if (this.editForm["wait-all"] === undefined) {
+          this.editForm["wait-all"] = true;
+        }
+        if (this.editForm["exit-timeout"] === undefined) {
+          this.editForm["exit-timeout"] = 5;
         }
         this.showEditForm = true;
       },
@@ -439,8 +482,8 @@
           undo: ""
         };
 
-        if(this.platform === 'windows'){
-          template = {...template, elevated: false};
+        if (this.platform === 'windows') {
+          template = { ...template, elevated: false };
         }
 
         this.editForm["prep-cmd"].push(template);
@@ -448,7 +491,19 @@
       showCoverFinder($event) {
         this.coverCandidates = [];
         this.coverSearching = true;
-
+        const ref = this.$refs.coverFinderDropdown;
+        if (!ref) {
+          console.error("Ref not found!");
+          return;
+        }
+        this.coverFinderDropdown = Dropdown.getInstance(ref);
+        if (!this.coverFinderDropdown) {
+          this.coverFinderDropdown = new Dropdown(ref);
+          if (!this.coverFinderDropdown) {
+            return;
+          }
+        }
+        this.coverFinderDropdown.show();
         function getSearchBucket(name) {
           let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
           if (!bucket) {
@@ -503,7 +558,7 @@
         if (!ref) {
           return;
         }
-        const dropdown = this.coverFinderDropdown = bootstrap.Dropdown.getInstance(ref);
+        const dropdown = this.coverFinderDropdown = Dropdown.getInstance(ref);
         if (!dropdown) {
           return;
         }
@@ -520,7 +575,7 @@
         }).then(r => {
           if (!r.ok) throw new Error("Failed to download covers");
           return r.json();
-        }).then(body => this.$set(this.editForm, "image-path", body.path))
+        }).then(body => this.editForm["image-path"] = body.path)
           .then(() => this.closeCoverFinder())
           .finally(() => this.coverFinderBusy = false);
       },
@@ -535,66 +590,13 @@
       },
     },
   });
+
+  app.directive('dropdown-show', {
+    mounted: function (el, binding) {
+      el.addEventListener('show.bs.dropdown', binding.value);
+    }
+  });
+
+  app.mount("#app")
+
 </script>
-
-<style>
-  .precmd-head {
-    width: 200px;
-  }
-
-  .monospace {
-    font-family: monospace;
-  }
-
-  .cover-finder {
-  }
-
-  .cover-finder .cover-results {
-    max-height: 400px;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  .cover-finder .cover-results.busy * {
-    cursor: wait !important;
-    pointer-events: none;
-  }
-
-  .cover-container {
-    padding-top: 133.33%;
-    position: relative;
-  }
-
-  .cover-container.result {
-    cursor: pointer;
-  }
-
-  .spinner-border {
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    margin: auto;
-  }
-
-  .cover-container img {
-    display: block;
-    position: absolute;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .config-page {
-    padding: 1em;
-    border: 1px solid #dee2e6;
-    border-top: none;
-  }
-
-  td {
-    padding: 0 0.5em;
-  }
-
-</style>

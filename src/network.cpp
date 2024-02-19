@@ -3,6 +3,8 @@
  * @brief todo
  */
 #include "network.h"
+#include "config.h"
+#include "logging.h"
 #include "utility.h"
 #include <algorithm>
 
@@ -44,7 +46,7 @@ namespace net {
 
   net_e
   from_address(const std::string_view &view) {
-    auto addr = ip::make_address(view);
+    auto addr = normalize_address(ip::make_address(view));
 
     if (addr.is_v6()) {
       for (auto &range : pc_ips_v6) {
@@ -174,13 +176,39 @@ namespace net {
     }
   }
 
+  /**
+   * @brief Returns the encryption mode for the given remote endpoint address.
+   * @param address The address used to look up the desired encryption mode.
+   * @return The WAN or LAN encryption mode, based on the provided address.
+   */
+  int
+  encryption_mode_for_address(boost::asio::ip::address address) {
+    auto nettype = net::from_address(address.to_string());
+    if (nettype == net::net_e::PC || nettype == net::net_e::LAN) {
+      return config::stream.lan_encryption_mode;
+    }
+    else {
+      return config::stream.wan_encryption_mode;
+    }
+  }
+
   host_t
   host_create(af_e af, ENetAddress &addr, std::size_t peers, std::uint16_t port) {
+    static std::once_flag enet_init_flag;
+    std::call_once(enet_init_flag, []() {
+      enet_initialize();
+    });
+
     auto any_addr = net::af_to_any_address_string(af);
     enet_address_set_host(&addr, any_addr.data());
     enet_address_set_port(&addr, port);
 
-    return host_t { enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, peers, 0, 0, 0) };
+    auto host = host_t { enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, peers, 0, 0, 0) };
+
+    // Enable opportunistic QoS tagging (automatically disables if the network appears to drop tagged packets)
+    enet_socket_set_option(host->socket, ENET_SOCKOPT_QOS, 1);
+
+    return host;
   }
 
   void
@@ -194,5 +222,30 @@ namespace net {
     });
 
     enet_host_destroy(host);
+  }
+
+  /**
+   * @brief Map a specified port based on the base port.
+   * @param port The port to map as a difference from the base port.
+   * @return `std:uint16_t` : The mapped port number.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * std::uint16_t mapped_port = net::map_port(1);
+   * ```
+   */
+  std::uint16_t
+  map_port(int port) {
+    // calculate the port from the config port
+    auto mapped_port = (std::uint16_t)((int) config::sunshine.port + port);
+
+    // Ensure port is in the range of 1024-65535
+    if (mapped_port < 1024 || mapped_port > 65535) {
+      BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
+    }
+
+    // TODO: Ensure port is not already in use by another application
+
+    return mapped_port;
   }
 }  // namespace net
