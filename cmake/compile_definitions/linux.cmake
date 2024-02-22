@@ -120,6 +120,17 @@ elseif(NOT LIBDRM_FOUND)
     message(WARNING "Missing libcap")
 endif()
 
+# evdev
+pkg_check_modules(PC_EVDEV libevdev REQUIRED)
+find_path(EVDEV_INCLUDE_DIR libevdev/libevdev.h
+        HINTS ${PC_EVDEV_INCLUDE_DIRS} ${PC_EVDEV_INCLUDEDIR})
+find_library(EVDEV_LIBRARY
+        NAMES evdev libevdev)
+if(EVDEV_INCLUDE_DIR AND EVDEV_LIBRARY)
+    include_directories(SYSTEM ${EVDEV_INCLUDE_DIR})
+    list(APPEND PLATFORM_LIBRARIES ${EVDEV_LIBRARY})
+endif()
+
 # vaapi
 if(${SUNSHINE_ENABLE_VAAPI})
     find_package(Libva)
@@ -241,13 +252,11 @@ list(APPEND PLATFORM_TARGET_FILES
 list(APPEND PLATFORM_LIBRARIES
         Boost::dynamic_linking
         dl
-        evdev
         numa
         pulse
         pulse-simple)
 
 include_directories(
         SYSTEM
-        /usr/include/libevdev-1.0
         "${CMAKE_SOURCE_DIR}/third-party/nv-codec-headers/include"
         "${CMAKE_SOURCE_DIR}/third-party/glad/include")
