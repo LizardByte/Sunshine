@@ -61,6 +61,7 @@ build() {
         -S "$pkgname" \
         -B build \
         -Wno-dev \
+        -D BUILD_WERROR=ON \
         -D CMAKE_INSTALL_PREFIX=/usr \
         -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
         -D SUNSHINE_ASSETS_DIR="share/sunshine"

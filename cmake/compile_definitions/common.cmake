@@ -3,7 +3,25 @@
 
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wall -Wno-sign-compare)
 # Wall - enable all warnings
+# Werror - treat warnings as errors
+# Wno-maybe-uninitialized/Wno-uninitialized - disable warnings for maybe uninitialized variables
 # Wno-sign-compare - disable warnings for signed/unsigned comparisons
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC specific compile options
+
+    # GCC 12 and higher will complain about maybe-uninitialized
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 12)
+        list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-maybe-uninitialized)
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # Clang specific compile options
+
+    # Clang doesn't actually complain about this this, so disabling for now
+    # list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
+endif()
+if(BUILD_WERROR)
+    list(APPEND SUNSHINE_COMPILE_OPTIONS -Werror)
+endif()
 
 # setup assets directory
 if(NOT SUNSHINE_ASSETS_DIR)
@@ -28,7 +46,7 @@ file(GLOB NVENC_SOURCES CONFIGURE_DEPENDS "src/nvenc/*.cpp" "src/nvenc/*.h")
 list(APPEND PLATFORM_TARGET_FILES ${NVENC_SOURCES})
 
 configure_file("${CMAKE_SOURCE_DIR}/src/version.h.in" version.h @ONLY)
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")  # required for importing version.h
 
 set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/nanors/rs.c"
