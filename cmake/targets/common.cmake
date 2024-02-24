@@ -28,9 +28,12 @@ set_target_properties(sunshine PROPERTIES CXX_STANDARD 17
         VERSION ${PROJECT_VERSION}
         SOVERSION ${PROJECT_VERSION_MAJOR})
 
-foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
-    list(APPEND SUNSHINE_COMPILE_OPTIONS_CUDA "$<$<COMPILE_LANGUAGE:CUDA>:--compiler-options=${flag}>")
-endforeach()
+# CLion complains about unknown flags after running cmake, and cannot add symbols to the index for cuda files
+if(CUDA_INHERIT_COMPILE_OPTIONS)
+    foreach(flag IN LISTS SUNSHINE_COMPILE_OPTIONS)
+        list(APPEND SUNSHINE_COMPILE_OPTIONS_CUDA "$<$<COMPILE_LANGUAGE:CUDA>:--compiler-options=${flag}>")
+    endforeach()
+endif()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 
