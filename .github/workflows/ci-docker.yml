@@ -416,7 +416,7 @@ jobs:
 
       - name: Update Docker Hub Description
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: peter-evans/dockerhub-description@v3
+        uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}  # token is not currently supported
