@@ -119,6 +119,7 @@ set -e
 source "$HOME/.nvm/nvm.sh"
 nvm use 20.9.0
 cmake \
+  -DBUILD_WERROR=ON \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \

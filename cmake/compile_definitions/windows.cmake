@@ -6,6 +6,9 @@ enable_language(RC)
 set(CMAKE_RC_COMPILER windres)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 
+# gcc complains about misleading indentation in some mingw includes
+list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-misleading-indentation)
+
 # curl
 add_definitions(-DCURL_STATICLIB)
 include_directories(SYSTEM ${CURL_STATIC_INCLUDE_DIRS})
@@ -28,8 +31,14 @@ file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include")
 set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
         PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
+set(VIGEM_COMPILE_FLAGS "")
+string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unknown-pragmas ")
+string(APPEND VIGEM_COMPILE_FLAGS "-Wno-misleading-indentation ")
+string(APPEND VIGEM_COMPILE_FLAGS "-Wno-class-memaccess ")
+string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-function ")
+string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-variable ")
 set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
-        PROPERTIES COMPILE_FLAGS "-Wno-unknown-pragmas -Wno-misleading-indentation -Wno-class-memaccess")
+        PROPERTIES COMPILE_FLAGS ${VIGEM_COMPILE_FLAGS})
 
 # sunshine icon
 if(NOT DEFINED SUNSHINE_ICON_PATH)

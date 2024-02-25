@@ -400,7 +400,9 @@ jobs:
           mkdir -p artifacts
 
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=share/sunshine \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
@@ -576,7 +578,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
@@ -784,7 +788,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          cmake \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DSUNSHINE_ASSETS_DIR=assets \
             -G "MinGW Makefiles" \
             ..
