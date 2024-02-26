@@ -42,6 +42,8 @@ namespace lifetime {
   extern std::atomic_int desired_exit_code;
   void
   exit_sunshine(int exit_code, bool async);
+  void
+  debug_trap();
   char **
   get_argv();
 }  // namespace lifetime

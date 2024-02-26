@@ -489,7 +489,7 @@ namespace platf {
       auto winerror = GetLastError();
       // Log the failure of reverting to self and its error code
       BOOST_LOG(fatal) << "Failed to revert to self after impersonation: "sv << winerror;
-      std::abort();
+      DebugBreak();
     }
 
     return ec;
