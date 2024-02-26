@@ -6,8 +6,10 @@
 #include <linux/uinput.h>
 #include <poll.h>
 
+extern "C" {
 #include <libevdev/libevdev-uinput.h>
 #include <libevdev/libevdev.h>
+}
 
 #ifdef SUNSHINE_BUILD_X11
   #include <X11/Xutil.h>

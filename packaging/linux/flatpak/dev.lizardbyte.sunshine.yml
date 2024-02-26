@@ -325,7 +325,6 @@ modules:
       append-path: /usr/lib/sdk/node18/bin
       build-args:
         - --share=network
-      cxxflags: -I${C_INCLUDE_PATH}/libevdev-1.0
       env:
         npm_config_nodedir: /usr/lib/sdk/node18
         NPM_CONFIG_LOGLEVEL: info
