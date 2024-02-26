@@ -1815,7 +1815,7 @@ namespace stream {
       auto task = []() {
         BOOST_LOG(fatal) << "Hang detected! Session failed to terminate in 10 seconds."sv;
         log_flush();
-        std::abort();
+        lifetime::debug_trap();
       };
       auto force_kill = task_pool.pushDelayed(task, 10s).task_id;
       auto fg = util::fail_guard([&force_kill]() {

@@ -167,6 +167,18 @@ namespace lifetime {
   }
 
   /**
+   * @brief Breaks into the debugger or terminates Sunshine if no debugger is attached.
+   */
+  void
+  debug_trap() {
+#ifdef _WIN32
+    DebugBreak();
+#else
+    std::raise(SIGTRAP);
+#endif
+  }
+
+  /**
    * @brief Gets the argv array passed to main().
    */
   char **

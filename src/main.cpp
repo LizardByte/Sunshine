@@ -318,7 +318,7 @@ main(int argc, char *argv[]) {
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
       log_flush();
-      std::abort();
+      lifetime::debug_trap();
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
@@ -331,7 +331,7 @@ main(int argc, char *argv[]) {
     auto task = []() {
       BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
       log_flush();
-      std::abort();
+      lifetime::debug_trap();
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
