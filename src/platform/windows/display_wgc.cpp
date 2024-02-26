@@ -1,5 +1,5 @@
 /**
- * @file src/platform/windows/display_uwp.cpp
+ * @file src/platform/windows/display_wgc.cpp
  * @brief WinRT Windows.Graphics.Capture API
  */
 #include <dxgi1_2.h>
@@ -46,109 +46,149 @@ __mingw_uuidof<winrt::IDirect3DDxgiInterfaceAccess>() -> GUID const & {
 #endif
 
 namespace platf::dxgi {
-  static HRESULT
-  create_item_for_monitor(HMONITOR mon, winrt::GraphicsCaptureItem &item) {
-    auto interop_factory = winrt::get_activation_factory<winrt::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
-    return interop_factory->CreateForMonitor(mon, winrt::guid_of<winrt::Windows::Graphics::Capture::IGraphicsCaptureItem>(), winrt::put_abi(item));
-  }
-
-  uwp_capture_t::uwp_capture_t() {
-    InitializeCriticalSection(&frame_lock);
+  wgc_capture_t::wgc_capture_t() {
     InitializeConditionVariable(&frame_present_cv);
   }
 
-  uwp_capture_t::~uwp_capture_t() {
-    capture_session.Close();
-    frame_pool.Close();
+  wgc_capture_t::~wgc_capture_t() {
+    if (capture_session)
+      capture_session.Close();
+    if (frame_pool)
+      frame_pool.Close();
     item = nullptr;
     capture_session = nullptr;
     frame_pool = nullptr;
   }
 
   int
-  uwp_capture_t::init(display_base_t *display, const ::video::config_t &config) {
+  wgc_capture_t::init(display_base_t *display, const ::video::config_t &config) {
     HRESULT status;
     dxgi::dxgi_t dxgi;
     winrt::com_ptr<::IInspectable> d3d_comhandle;
-    if (!winrt::GraphicsCaptureSession::IsSupported()) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows!"sv;
-      return -1;
+    try {
+      if (!winrt::GraphicsCaptureSession::IsSupported()) {
+        BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows!"sv;
+        return -1;
+      }
+      if (FAILED(status = display->device->QueryInterface(IID_IDXGIDevice, (void **) &dxgi))) {
+        BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
+      if (FAILED(status = winrt::CreateDirect3D11DeviceFromDXGIDevice(*&dxgi, d3d_comhandle.put()))) {
+        BOOST_LOG(error) << "Failed to query WinRT DirectX interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+        return -1;
+      }
     }
-    if (FAILED(status = display->device->QueryInterface(IID_IDXGIDevice, (void **) &dxgi))) {
-      BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
-      return -1;
-    }
-    if (FAILED(status = winrt::CreateDirect3D11DeviceFromDXGIDevice(*&dxgi, d3d_comhandle.put()))) {
-      BOOST_LOG(error) << "Failed to query WinRT DirectX interface from device [0x"sv << util::hex(status).to_string_view() << ']';
+    catch (winrt::hresult_error &e) {
+      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: "sv << e.code();
       return -1;
     }
 
-    uwp_device = d3d_comhandle.as<winrt::IDirect3DDevice>();
     DXGI_OUTPUT_DESC output_desc;
+    uwp_device = d3d_comhandle.as<winrt::IDirect3DDevice>();
     display->output->GetDesc(&output_desc);
-    if (FAILED(status = create_item_for_monitor(output_desc.Monitor, item))) {
-      BOOST_LOG(error) << "Failed to activate GraphicsCaptureItem for monitor [0x"sv << util::hex(status).to_string_view() << ']';
+
+    auto monitor_factory = winrt::get_activation_factory<winrt::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
+    if (monitor_factory == nullptr ||
+        FAILED(status = monitor_factory->CreateForMonitor(output_desc.Monitor, winrt::guid_of<winrt::IGraphicsCaptureItem>(), winrt::put_abi(item)))) {
+      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
-    if (config.dynamicRange && display->is_hdr())
+
+    if (config.dynamicRange)
       display->capture_format = DXGI_FORMAT_R16G16B16A16_FLOAT;
     else
       display->capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
 
-    frame_pool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(uwp_device, static_cast<winrt::Windows::Graphics::DirectX::DirectXPixelFormat>(display->capture_format), 2, item.Size());
-    capture_session = frame_pool.CreateCaptureSession(item);
-    frame_pool.FrameArrived({ this, &uwp_capture_t::on_frame_arrived });
-    capture_session.IsBorderRequired(false);
-    capture_session.IsCursorCaptureEnabled(true);
-    capture_session.StartCapture();
+    try {
+      frame_pool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(uwp_device, static_cast<winrt::Windows::Graphics::DirectX::DirectXPixelFormat>(display->capture_format), 2, item.Size());
+      capture_session = frame_pool.CreateCaptureSession(item);
+      frame_pool.FrameArrived({ this, &wgc_capture_t::on_frame_arrived });
+      capture_session.IsBorderRequired(false);
+      capture_session.StartCapture();
+    }
+    catch (winrt::hresult_error &e) {
+      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: "sv << e.code();
+      return -1;
+    }
     return 0;
   }
 
   void
-  uwp_capture_t::on_frame_arrived(winrt::Direct3D11CaptureFramePool const &sender, winrt::IInspectable const &) {
+  wgc_capture_t::on_frame_arrived(winrt::Direct3D11CaptureFramePool const &sender, winrt::IInspectable const &) {
     // this PRODUCER runs in a separate thread spawned by the frame pool. to
-    // retain parity with the original API, the frame will be consumed by
+    // retain parity with the original interface, the frame will be consumed by
     // the capture thread, not this one.
 
-    auto frame = sender.TryGetNextFrame();
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame frame { nullptr };
+    try {
+      frame = sender.TryGetNextFrame();
+    }
+    catch (winrt::hresult_error &e) {
+      BOOST_LOG(warning) << "Failed to capture frame: "sv << e.code();
+      return;
+    }
     if (frame != nullptr) {
-      EnterCriticalSection(&frame_lock);
-      capture_frame = frame;
-      LeaveCriticalSection(&frame_lock);
+      AcquireSRWLockExclusive(&frame_lock);
+      if (produced_frame) {
+        produced_frame.Close();
+      }
+      produced_frame = frame;
       WakeConditionVariable(&frame_present_cv);
+      ReleaseSRWLockExclusive(&frame_lock);
     }
   }
 
   capture_e
-  uwp_capture_t::next_frame(std::chrono::milliseconds timeout, ID3D11Texture2D **out, uint64_t &out_time) {
+  wgc_capture_t::next_frame(std::chrono::milliseconds timeout, ID3D11Texture2D **out, uint64_t &out_time) {
     // this CONSUMER runs in the capture thread
-    EnterCriticalSection(&frame_lock);
-    SleepConditionVariableCS(&frame_present_cv, &frame_lock, timeout.count());
-    if (capture_frame == nullptr) {
-      LeaveCriticalSection(&frame_lock);
-      return capture_e::timeout;
-    }
+    release_frame();
 
-    auto capture_access = capture_frame.Surface().as<winrt::IDirect3DDxgiInterfaceAccess>();
+    AcquireSRWLockExclusive(&frame_lock);
+    if (SleepConditionVariableSRW(&frame_present_cv, &frame_lock, timeout.count(), 0) == FALSE) {
+      ReleaseSRWLockExclusive(&frame_lock);
+      if (GetLastError() == ERROR_TIMEOUT)
+        return capture_e::timeout;
+      else
+        return capture_e::error;
+    }
+    if (produced_frame) {
+      consumed_frame = produced_frame;
+      produced_frame = nullptr;
+    }
+    ReleaseSRWLockExclusive(&frame_lock);
+
+    auto capture_access = consumed_frame.Surface().as<winrt::IDirect3DDxgiInterfaceAccess>();
+    if (capture_access == nullptr)
+      return capture_e::error;
     capture_access->GetInterface(IID_ID3D11Texture2D, (void **) out);
-    out_time = capture_frame.SystemRelativeTime().count();  // raw ticks from query performance counter
-    LeaveCriticalSection(&frame_lock);
+    out_time = consumed_frame.SystemRelativeTime().count();  // raw ticks from query performance counter
     return capture_e::ok;
   }
 
   capture_e
-  uwp_capture_t::release_frame() {
-    if (capture_frame != nullptr) {
-      EnterCriticalSection(&frame_lock);
-      capture_frame.Close();
-      capture_frame = nullptr;
-      LeaveCriticalSection(&frame_lock);
+  wgc_capture_t::release_frame() {
+    if (consumed_frame != nullptr) {
+      consumed_frame.Close();
+      consumed_frame = nullptr;
     }
     return capture_e::ok;
   }
 
   int
-  display_uwp_ram_t::init(const ::video::config_t &config, const std::string &display_name) {
+  wgc_capture_t::set_cursor_visible(bool x) {
+    try {
+      if (capture_session.IsCursorCaptureEnabled() != x)
+        capture_session.IsCursorCaptureEnabled(x);
+      return 0;
+    }
+    catch (winrt::hresult_error &) {
+      return -1;
+    }
+  }
+
+  int
+  display_wgc_ram_t::init(const ::video::config_t &config, const std::string &display_name) {
     if (display_base_t::init(config, display_name) || dup.init(this, config))
       return -1;
 
@@ -157,10 +197,11 @@ namespace platf::dxgi {
   }
 
   capture_e
-  display_uwp_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+  display_wgc_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     HRESULT status;
     texture2d_t src;
     uint64_t frame_qpc;
+    dup.set_cursor_visible(cursor_visible);
     auto capture_status = dup.next_frame(timeout, &src, frame_qpc);
     if (capture_status != capture_e::ok)
       return capture_status;
@@ -241,7 +282,7 @@ namespace platf::dxgi {
   }
 
   capture_e
-  display_uwp_ram_t::release_snapshot() {
+  display_wgc_ram_t::release_snapshot() {
     return dup.release_frame();
   }
 }  // namespace platf::dxgi
