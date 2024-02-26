@@ -15,15 +15,17 @@ Install dependencies:
    .. code-block:: bash
 
       pacman -S \
-        mingw-w64-ucrt-x86_64-boost
-        mingw-w64-ucrt-x86_64-cmake
-        mingw-w64-ucrt-x86_64-curl
-        mingw-w64-ucrt-x86_64-miniupnpc
-        mingw-w64-ucrt-x86_64-nlohmann-json
-        mingw-w64-ucrt-x86_64-nodejs
-        mingw-w64-ucrt-x86_64-onevpl
-        mingw-w64-ucrt-x86_64-openssl
-        mingw-w64-ucrt-x86_64-opus
+        git \
+        mingw-w64-ucrt-x86_64-boost \
+        mingw-w64-ucrt-x86_64-cmake \
+        mingw-w64-ucrt-x86_64-cppwinrt \
+        mingw-w64-ucrt-x86_64-curl \
+        mingw-w64-ucrt-x86_64-miniupnpc \
+        mingw-w64-ucrt-x86_64-nlohmann-json \
+        mingw-w64-ucrt-x86_64-nodejs \
+        mingw-w64-ucrt-x86_64-onevpl \
+        mingw-w64-ucrt-x86_64-openssl \
+        mingw-w64-ucrt-x86_64-opus \
         mingw-w64-ucrt-x86_64-toolchain
 
 Build
@@ -32,8 +34,8 @@ Build
 
 .. code-block:: bash
 
-   cmake -GNinja ..
-   ninja
+   cmake -G "MinGW Makefiles" ..
+   mingw32-make -j$(nproc)
 
    cpack -G NSIS  # optionally, create a windows installer
    cpack -G ZIP  # optionally, create a windows standalone package

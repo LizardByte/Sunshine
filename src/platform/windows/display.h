@@ -359,21 +359,21 @@ namespace platf::dxgi {
     std::variant<std::monostate, texture2d_t, std::shared_ptr<platf::img_t>> last_frame_variant;
   };
 
-  class uwp_capture_t {
+  class wgc_capture_t {
     winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice uwp_device { nullptr };
     winrt::Windows::Graphics::Capture::GraphicsCaptureItem item { nullptr };
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool frame_pool { nullptr };
     winrt::Windows::Graphics::Capture::GraphicsCaptureSession capture_session { nullptr };
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame capture_frame { nullptr };
-    CRITICAL_SECTION frame_lock;
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame produced_frame { nullptr }, consumed_frame { nullptr };
+    SRWLOCK frame_lock = SRWLOCK_INIT;
     CONDITION_VARIABLE frame_present_cv;
 
     void
     on_frame_arrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &);
 
   public:
-    uwp_capture_t();
-    ~uwp_capture_t();
+    wgc_capture_t();
+    ~wgc_capture_t();
 
     int
     init(display_base_t *display, const ::video::config_t &config);
@@ -381,10 +381,12 @@ namespace platf::dxgi {
     next_frame(std::chrono::milliseconds timeout, ID3D11Texture2D **out, uint64_t &out_time);
     capture_e
     release_frame();
+    int
+    set_cursor_visible(bool);
   };
 
-  class display_uwp_ram_t: public display_ram_t {
-    uwp_capture_t dup;
+  class display_wgc_ram_t: public display_ram_t {
+    wgc_capture_t dup;
 
   public:
     int
@@ -395,8 +397,8 @@ namespace platf::dxgi {
     release_snapshot() override;
   };
 
-  class display_uwp_vram_t: public display_vram_t {
-    uwp_capture_t dup;
+  class display_wgc_vram_t: public display_vram_t {
+    wgc_capture_t dup;
 
   public:
     int

@@ -1406,9 +1406,10 @@ namespace platf::dxgi {
   }
 
   capture_e
-  display_uwp_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+  display_wgc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     texture2d_t src;
     uint64_t frame_qpc;
+    dup.set_cursor_visible(cursor_visible);
     auto capture_status = dup.next_frame(timeout, &src, frame_qpc);
     if (capture_status != capture_e::ok)
       return capture_status;
@@ -1458,12 +1459,12 @@ namespace platf::dxgi {
   }
 
   capture_e
-  display_uwp_vram_t::release_snapshot() {
+  display_wgc_vram_t::release_snapshot() {
     return dup.release_frame();
   }
 
   int
-  display_uwp_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
+  display_wgc_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
     if (display_base_t::init(config, display_name) || dup.init(this, config))
       return -1;
 
