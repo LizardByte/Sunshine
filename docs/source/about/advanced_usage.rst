@@ -712,6 +712,32 @@ keybindings
 `Network <https://localhost:47990/config/#network>`__
 -----------------------------------------------------
 
+`upnp <https://localhost:47990/config/#upnp>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Sunshine will attempt to open ports for streaming over the internet.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =====     ===========
+   Value     Description
+   =====     ===========
+   on        enable UPnP
+   off       disable UPnP
+   =====     ===========
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      upnp = on
+
 `address_family <https://localhost:47990/config/#address_family>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -797,32 +823,6 @@ keybindings
    .. code-block:: text
 
       origin_web_ui_allowed = lan
-
-`upnp <https://localhost:47990/config/#upnp>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   Sunshine will attempt to open ports for streaming over the internet.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =====     ===========
-   Value     Description
-   =====     ===========
-   on        enable UPnP
-   off       disable UPnP
-   =====     ===========
-
-**Default**
-   ``disabled``
-
-**Example**
-   .. code-block:: text
-
-      upnp = on
 
 `external_ip <https://localhost:47990/config/#external_ip>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

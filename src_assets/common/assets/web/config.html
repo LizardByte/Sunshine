@@ -553,6 +553,16 @@
 
       <!-- Network Tab -->
       <div id="network" v-if="currentTab === 'network'" class="config-page">
+        <!-- UPnP -->
+        <div class="mb-3">
+          <label for="upnp" class="form-label">UPnP</label>
+          <select id="upnp" class="form-select" v-model="config.upnp">
+            <option value="disabled">Disabled</option>
+            <option value="enabled">Enabled</option>
+          </select>
+          <div class="form-text">Automatically configure port forwarding for streaming over the Internet</div>
+        </div>
+
         <!-- Address family -->
         <div class="mb-3">
           <label for="address_family" class="form-label">Address Family</label>
@@ -647,16 +657,6 @@
           <div class="form-text">
             The origin of the remote endpoint address that is not denied access to Web UI
           </div>
-        </div>
-
-        <!-- UPnP -->
-        <div class="mb-3">
-          <label for="upnp" class="form-label">UPnP</label>
-          <select id="upnp" class="form-select" v-model="config.upnp">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
-          </select>
-          <div class="form-text">Automatically configure port forwarding</div>
         </div>
 
         <!-- External IP -->
@@ -1261,10 +1261,10 @@
             id: "network",
             name: "Network",
             options: {
+              "upnp": "disabled",
               "address_family": "ipv4",
               "port": 47989,
               "origin_web_ui_allowed": "lan",
-              "upnp": "disabled",
               "external_ip": "",
               "lan_encryption_mode": 0,
               "wan_encryption_mode": 1,
