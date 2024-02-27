@@ -64,6 +64,16 @@
           </div>
         </div>
 
+        <!-- Maximum Connected Clients -->
+        <div class="mb-3">
+          <label for="channels" class="form-label">Maximum Connected Clients</label>
+          <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
+          <div class="form-text">
+            Sunshine can allow a single streaming session to be shared with multiple clients simultaneously.<br>
+            Note: Some hardware encoders may have limitations that reduce performance with multiple streams.
+          </div>
+        </div>
+
         <!-- Global Prep Commands -->
         <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
           <label class="form-label">Command Preparations</label>
@@ -721,21 +731,6 @@
 
       <!-- Advanced Tab -->
       <div v-if="currentTab === 'advanced'" class="config-page">
-        <!-- Channels -->
-        <div class="mb-3">
-          <label for="channels" class="form-label">Channels</label>
-          <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
-          <div class="form-text">
-            When multicasting, it could be useful to have different configurations for each connected Client. For example:
-            <ul>
-              <li>Clients connected through WAN and LAN have different bitrate constraints.</li>
-              <li>Decoders may require different settings for color</li>
-            </ul>
-            Unlike simply broadcasting to multiple Client, this will generate distinct video streams.<br>
-            Note, CPU usage increases for each distinct video stream generated
-          </div>
-        </div>
-
         <!-- FEC Percentage -->
         <div class="mb-3">
           <label for="fec_percentage" class="form-label">FEC Percentage</label>

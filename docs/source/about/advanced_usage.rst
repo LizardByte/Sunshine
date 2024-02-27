@@ -92,6 +92,24 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
       min_log_level = info
 
+`channels <https://localhost:47990/config/#channels>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Sunshine can support multiple clients streaming simultaneously, at the cost of higher CPU and GPU usage.
+
+   .. note:: All connected clients share control of the same streaming session.
+
+   .. warning:: Some hardware encoders may have limitations that reduce performance with multiple streams.
+
+**Default**
+   ``1``
+
+**Example**
+   .. code-block:: text
+
+      channels = 1
+
 `global_prep_cmd <https://localhost:47990/config/#global_prep_cmd>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -912,29 +930,6 @@ keybindings
 
 `Advanced <https://localhost:47990/config/#advanced>`__
 -------------------------------------------------------
-
-`channels <https://localhost:47990/config/#channels>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   This will generate distinct video streams, unlike simply broadcasting to multiple Clients.
-
-   When multicasting, it could be useful to have different configurations for each connected Client.
-
-   For instance:
-
-   - Clients connected through WAN and LAN have different bitrate constraints.
-   - Decoders may require different settings for color.
-
-   .. warning:: CPU usage increases for each distinct video stream generated.
-
-**Default**
-   ``1``
-
-**Example**
-   .. code-block:: text
-
-      channels = 1
 
 `fec_percentage <https://localhost:47990/config/#fec_percentage>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
