@@ -197,7 +197,8 @@
             </button>
           </div>
           <div class="form-text">
-            A list of commands to be run and forgotten about
+            A list of commands to be run in the background.<br>
+            <b>Note:</b> If the path to the command executable contains spaces, you must enclose it in quotes.
           </div>
         </div>
         <!-- command -->
@@ -206,8 +207,8 @@
           <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
             v-model="editForm.cmd" />
           <div id="appCmdHelp" class="form-text">
-            The main application, if it is not specified, a process is started
-            that sleeps indefinitely
+            The main application to start. If blank, no application will be started.<br>
+            <b>Note:</b> If the path to the command executable contains spaces, you must enclose it in quotes.
           </div>
         </div>
         <!-- working dir -->
