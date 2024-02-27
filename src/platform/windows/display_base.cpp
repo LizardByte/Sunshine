@@ -358,8 +358,15 @@ namespace platf::dxgi {
     return false;
   }
 
+  /**
+   * @brief Tests to determine if the Desktop Duplication API can capture the given output.
+   * @details When testing for enumeration only, we avoid resyncing the thread desktop.
+   * @param adapter The DXGI adapter to use for capture.
+   * @param output The DXGI output to capture.
+   * @param enumeration_only Specifies whether this test is occurring for display enumeration.
+   */
   bool
-  test_dxgi_duplication(adapter_t &adapter, output_t &output) {
+  test_dxgi_duplication(adapter_t &adapter, output_t &output, bool enumeration_only) {
     D3D_FEATURE_LEVEL featureLevels[] {
       D3D_FEATURE_LEVEL_11_1,
       D3D_FEATURE_LEVEL_11_0,
@@ -397,14 +404,26 @@ namespace platf::dxgi {
     for (int x = 0; x < 2; ++x) {
       dup_t dup;
 
-      // Ensure we can duplicate the current display
-      syncThreadDesktop();
+      // Only resynchronize the thread desktop when not enumerating displays.
+      // During enumeration, the caller will do this only once to ensure
+      // a consistent view of available outputs.
+      if (!enumeration_only) {
+        syncThreadDesktop();
+      }
 
       status = output1->DuplicateOutput((IUnknown *) device.get(), &dup);
       if (SUCCEEDED(status)) {
         return true;
       }
-      std::this_thread::sleep_for(200ms);
+
+      // If we're not resyncing the thread desktop and we don't have permission to
+      // capture the current desktop, just bail immediately. Retrying won't help.
+      if (enumeration_only && status == E_ACCESSDENIED) {
+        break;
+      }
+      else {
+        std::this_thread::sleep_for(200ms);
+      }
     }
 
     BOOST_LOG(error) << "DuplicateOutput() test failed [0x"sv << util::hex(status).to_string_view() << ']';
@@ -472,7 +491,7 @@ namespace platf::dxgi {
             continue;
           }
 
-          if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp)) {
+          if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp, false)) {
             output = std::move(output_tmp);
 
             offset_x = desc.DesktopCoordinates.left;
@@ -1068,6 +1087,13 @@ namespace platf {
       BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
     }
 
+    // We sync the thread desktop once before we start the enumeration process
+    // to ensure test_dxgi_duplication() returns consistent results for all GPUs
+    // even if the current desktop changes during our enumeration process.
+    // It is critical that we either fully succeed in enumeration or fully fail,
+    // otherwise it can lead to the capture code switching monitors unexpectedly.
+    syncThreadDesktop();
+
     dxgi::factory1_t factory;
     status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &factory);
     if (FAILED(status)) {
@@ -1111,7 +1137,7 @@ namespace platf {
           << std::endl;
 
         // Don't include the display in the list if we can't actually capture it
-        if (desc.AttachedToDesktop && dxgi::test_dxgi_duplication(adapter, output)) {
+        if (desc.AttachedToDesktop && dxgi::test_dxgi_duplication(adapter, output, true)) {
           display_names.emplace_back(std::move(device_name));
         }
       }
