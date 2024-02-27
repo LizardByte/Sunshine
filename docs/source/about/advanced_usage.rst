@@ -1424,6 +1424,22 @@ keybindings
 
       qsv_coder = auto
 
+`qsv_slow_hevc <https://localhost:47990/config/#qsv_slow_hevc>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   This options enables use of HEVC on older Intel GPUs that only support low power encoding for H.264.
+
+   .. Caution:: Streaming performance may be significantly reduced when this option is enabled.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      qsv_slow_hevc = disabled
+
 `AMD AMF Encoder <https://localhost:47990/config/#amd-amf-encoder>`__
 ---------------------------------------------------------------------
 

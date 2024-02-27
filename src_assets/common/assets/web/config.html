@@ -1021,6 +1021,18 @@
           </select>
         </div>
 
+        <!-- Allow Slow HEVC Encoding -->
+        <div class="mb-3">
+          <label for="qsv_slow_hevc" class="form-label">Allow Slow HEVC Encoding</label>
+          <select id="qsv_slow_hevc" class="form-select" v-model="config.qsv_slow_hevc">
+            <option value="enabled">enabled</option>
+            <option value="disabled">disabled (default)</option>
+          </select>
+          <div class="form-text">
+            This can enable HEVC encoding on older Intel GPUs, at the cost of higher GPU usage and worse performance.
+          </div>
+        </div>
+
       </div>
 
       <!-- AMD AMF Encoder Tab -->
@@ -1293,6 +1305,7 @@
             options: {
               "qsv_preset": "medium",
               "qsv_coder": "auto",
+              "qsv_slow_hevc": "disabled",
             },
           },
           {
