@@ -31,16 +31,18 @@ post-fetch {
     system -W ${worksrcpath} "${git.cmd} submodule update --init --recursive"
 }
 
+depends_build-append     port:npm9 \
+                         port:pkgconfig
+
 depends_lib              port:avahi \
                          port:curl \
                          port:libopus \
-                         port:miniupnpc \
-                         port:npm9 \
-                         port:pkgconfig
+                         port:miniupnpc
 
 boost.version            1.81
 
-configure.args           -DCMAKE_INSTALL_PREFIX=${prefix} \
+configure.args           -DBUILD_WERROR=ON \
+                         -DCMAKE_INSTALL_PREFIX=${prefix} \
                          -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets
 
 startupitem.create       yes

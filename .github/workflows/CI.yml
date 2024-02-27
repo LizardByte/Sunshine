@@ -400,7 +400,9 @@ jobs:
           mkdir -p artifacts
 
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=share/sunshine \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
@@ -576,7 +578,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
+          cmake \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
@@ -765,6 +769,7 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-curl
             mingw-w64-x86_64-miniupnpc
+            mingw-w64-x86_64-nlohmann-json
             mingw-w64-x86_64-nodejs
             mingw-w64-x86_64-nsis
             mingw-w64-x86_64-onevpl
@@ -784,7 +789,9 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          cmake \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DSUNSHINE_ASSETS_DIR=assets \
             -G "MinGW Makefiles" \
             ..

@@ -97,9 +97,6 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
  */
 int
 main(int argc, char *argv[]) {
-  // the version should be printed to the log before anything else
-  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER;
-
   lifetime::argv = argv;
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
@@ -196,6 +193,11 @@ main(int argc, char *argv[]) {
 
   bl::core::get()->add_sink(sink);
   auto fg = util::fail_guard(log_flush);
+
+  // logging can begin at this point
+  // if anything is logged prior to this point, it will appear in stdout, but not in the log viewer in the UI
+  // the version should be printed to the log before anything else
+  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER;
 
   if (!config::sunshine.cmd.name.empty()) {
     auto fn = cmd_to_func.find(config::sunshine.cmd.name);

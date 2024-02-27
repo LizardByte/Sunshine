@@ -105,6 +105,7 @@ RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
+  -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
