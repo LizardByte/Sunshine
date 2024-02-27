@@ -2721,7 +2721,13 @@ namespace video {
     }
 
     if (chosen_encoder == nullptr) {
-      BOOST_LOG(fatal) << "Couldn't find any working encoder"sv;
+      BOOST_LOG(fatal) << "Unable to find display or encoder during startup."sv;
+      if (!config::video.adapter_name.empty() || !config::video.output_name.empty()) {
+        BOOST_LOG(fatal) << "Please ensure your manually chosen GPU and monitor are connected and powered on."sv;
+      }
+      else {
+        BOOST_LOG(fatal) << "Please check that a display is connected and powered on."sv;
+      }
       return -1;
     }
 
