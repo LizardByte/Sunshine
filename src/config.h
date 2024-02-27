@@ -44,6 +44,7 @@ namespace config {
     struct {
       std::optional<int> qsv_preset;
       std::optional<int> qsv_cavlc;
+      bool qsv_slow_hevc;
     } qsv;
 
     struct {

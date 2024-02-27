@@ -763,7 +763,9 @@ namespace video {
         { "profile"s, (int) qsv::profile_hevc_e::main_10 },
       },
       // Fallback options
-      {},
+      {
+        { "low_power"s, []() { return config::video.qsv.qsv_slow_hevc ? 0 : 1; } },
+      },
       std::nullopt,  // QP rate control fallback
       "hevc_qsv"s,
     },

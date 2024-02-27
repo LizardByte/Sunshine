@@ -339,6 +339,7 @@ namespace config {
     {
       qsv::medium,  // preset
       qsv::_auto,  // cavlc
+      false,  // slow_hevc
     },  // qsv
 
     {
@@ -962,6 +963,7 @@ namespace config {
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
     int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
+    bool_f(vars, "qsv_slow_hevc", video.qsv.qsv_slow_hevc);
 
     std::string quality;
     string_f(vars, "amd_quality", quality);
