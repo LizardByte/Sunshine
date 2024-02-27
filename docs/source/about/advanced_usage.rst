@@ -124,99 +124,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
       global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
 
-`Files <https://localhost:47990/config/#files>`__
--------------------------------------------------
-
-`file_apps <https://localhost:47990/config/#file_apps>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The application configuration file path. The file contains a json formatted list of applications that can be started
-   by Moonlight.
-
-**Default**
-   OS and package dependent
-
-**Example**
-   .. code-block:: text
-
-      file_apps = apps.json
-
-`credentials_file <https://localhost:47990/config/#credentials_file>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The file where user credentials for the UI are stored.
-
-**Default**
-   ``sunshine_state.json``
-
-**Example**
-   .. code-block:: text
-
-      credentials_file = sunshine_state.json
-
-`log_path <https://localhost:47990/config/#log_path>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The path where the sunshine log is stored.
-
-**Default**
-   ``sunshine.log``
-
-**Example**
-   .. code-block:: text
-
-      log_path = sunshine.log
-
-`pkey <https://localhost:47990/config/#pkey>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.
-
-   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
-
-**Default**
-   ``credentials/cakey.pem``
-
-**Example**
-   .. code-block:: text
-
-      pkey = /dir/pkey.pem
-
-`cert <https://localhost:47990/config/#cert>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.
-
-   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
-
-**Default**
-   ``credentials/cacert.pem``
-
-**Example**
-   .. code-block:: text
-
-      cert = /dir/cert.pem
-
-`file_state <https://localhost:47990/config/#file_state>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The file where current state of Sunshine is stored.
-
-**Default**
-   ``sunshine_state.json``
-
-**Example**
-   .. code-block:: text
-
-      file_state = sunshine_state.json
-
-
 `Input <https://localhost:47990/config/#input>`__
 -------------------------------------------------
 
@@ -927,6 +834,98 @@ keybindings
    .. code-block:: text
 
       ping_timeout = 10000
+
+`Config Files <https://localhost:47990/config/#files>`__
+--------------------------------------------------------
+
+`file_apps <https://localhost:47990/config/#file_apps>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The application configuration file path. The file contains a json formatted list of applications that can be started
+   by Moonlight.
+
+**Default**
+   OS and package dependent
+
+**Example**
+   .. code-block:: text
+
+      file_apps = apps.json
+
+`credentials_file <https://localhost:47990/config/#credentials_file>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The file where user credentials for the UI are stored.
+
+**Default**
+   ``sunshine_state.json``
+
+**Example**
+   .. code-block:: text
+
+      credentials_file = sunshine_state.json
+
+`log_path <https://localhost:47990/config/#log_path>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The path where the sunshine log is stored.
+
+**Default**
+   ``sunshine.log``
+
+**Example**
+   .. code-block:: text
+
+      log_path = sunshine.log
+
+`pkey <https://localhost:47990/config/#pkey>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The private key used for the web UI and Moonlight client pairing. For best compatibility, this should be an RSA-2048 private key.
+
+   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
+
+**Default**
+   ``credentials/cakey.pem``
+
+**Example**
+   .. code-block:: text
+
+      pkey = /dir/pkey.pem
+
+`cert <https://localhost:47990/config/#cert>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.
+
+   .. warning:: Not all Moonlight clients support ECDSA keys or RSA key lengths other than 2048 bits.
+
+**Default**
+   ``credentials/cacert.pem``
+
+**Example**
+   .. code-block:: text
+
+      cert = /dir/cert.pem
+
+`file_state <https://localhost:47990/config/#file_state>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The file where current state of Sunshine is stored.
+
+**Default**
+   ``sunshine_state.json``
+
+**Example**
+   .. code-block:: text
+
+      file_state = sunshine_state.json
 
 `Advanced <https://localhost:47990/config/#advanced>`__
 -------------------------------------------------------
