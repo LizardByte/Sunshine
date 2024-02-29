@@ -1408,12 +1408,20 @@
         this.tabs.forEach(tab => {
           Object.keys(tab.options).forEach(optionKey => {
             let delete_value = false
-            if (optionKey === "global_prep_cmd" || optionKey === "resolutions" || optionKey === "fps") {
-              let regex = /([\d]+x[\d]+)/g  // this regex is only needed for resolutions
-              // Use a regular expression to find each value and replace it with a quoted version
 
-              let config_value = JSON.parse(config[optionKey].replace(regex, '"$1"')).toString()
-              let default_value = JSON.parse(tab.options[optionKey].replace(regex, '"$1"')).toString()
+            if (["resolutions", "fps", "global_prep_cmd"].includes(optionKey)) {
+              let config_value, default_value
+
+              if (optionKey === "resolutions") {
+                let regex = /([\d]+x[\d]+)/g
+
+                // Use a regular expression to find each value and replace it with a quoted version
+                config_value = JSON.parse(config[optionKey].replace(regex, '"$1"')).toString()
+                default_value = JSON.parse(tab.options[optionKey].replace(regex, '"$1"')).toString()
+              } else {
+                config_value = JSON.parse(config[optionKey])
+                default_value = JSON.parse(tab.options[optionKey])
+              }
 
               if (config_value === default_value) {
                 delete_value = true
