@@ -947,19 +947,18 @@
                   </div>
                 </div>
 
-                <!-- Prefer lower encoding latency over increased power consumption -->
+                <!-- Prevent GPU downclocking -->
                 <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_latency_over_power" class="form-label">Prefer lower encoding latency over increased power
-                    consumption</label>
+                  <label for="nvenc_latency_over_power" class="form-label">Prevent GPU downclocking</label>
                   <select id="nvenc_latency_over_power" class="form-select" v-model="config.nvenc_latency_over_power">
                     <option value="disabled">Disabled</option>
                     <option value="enabled">Enabled (default)</option>
                   </select>
                   <div class="form-text">
-                    Adaptive P-State algorithm which NVIDIA drivers employ doesn't work well with low latency streaming, so
-                    sunshine requests high power mode explicitly.<br>
-                    Disabling it is not recommended since this can lead to
-                    <strong>significantly increased encoding latency</strong>.
+                    When set to enabled, this option prevents NVIDIA GPUs from downclocking via adaptive P-State while a Sunshine stream is active.<br>
+                    This may lead to decreased encoding latency, but it will also render a major GPU power efficiency feature inoperative.<br>
+                    As a consequence, the GPU's temperature as well as power and fan usage will greatly increase.<br>
+                    This may lower the GPU's durability and increase your energy bills and likelihood of computer issues due to overheating.
                   </div>
                 </div>
                 
