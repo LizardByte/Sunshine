@@ -836,27 +836,29 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_CUDA
-    if (config::video.capture.empty() || config::video.capture == "nvfbc") {
+    if ((config::video.capture.empty() && sources.none()) || config::video.capture == "nvfbc") {
       if (verify_nvfbc()) {
         sources[source::NVFBC] = true;
       }
     }
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (config::video.capture.empty() || config::video.capture == "wlr") {
+    if ((config::video.capture.empty() && sources.none()) || config::video.capture == "wlr") {
       if (verify_wl()) {
         sources[source::WAYLAND] = true;
       }
     }
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-    if (config::video.capture.empty() || config::video.capture == "kms") {
+    if ((config::video.capture.empty() && sources.none()) || config::video.capture == "kms") {
       if (verify_kms()) {
         sources[source::KMS] = true;
       }
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
+    // We enumerate this capture backend regardless of other suitable sources,
+    // since it may be needed as a NvFBC fallback for software encoding on X11.
     if (config::video.capture.empty() || config::video.capture == "x11") {
       if (verify_x11()) {
         sources[source::X11] = true;
