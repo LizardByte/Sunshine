@@ -424,14 +424,20 @@ namespace platf {
 
     display.roundtrip();
 
+    BOOST_LOG(info) << "-------- Start of Wayland monitor list --------"sv;
+
     for (int x = 0; x < interface.monitors.size(); ++x) {
       auto monitor = interface.monitors[x].get();
 
       wl::env_width = std::max(wl::env_width, (int) (monitor->viewport.offset_x + monitor->viewport.width));
       wl::env_height = std::max(wl::env_height, (int) (monitor->viewport.offset_y + monitor->viewport.height));
 
+      BOOST_LOG(info) << "Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
+
       display_names.emplace_back(std::to_string(x));
     }
+
+    BOOST_LOG(info) << "--------- End of Wayland monitor list ---------"sv;
 
     return display_names;
   }

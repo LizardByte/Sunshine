@@ -145,9 +145,12 @@ namespace platf {
     };
 
     struct monitor_t {
+      // Connector attributes
       std::uint32_t type;
-
       std::uint32_t index;
+
+      // Monitor index in the global list
+      std::uint32_t monitor_index;
 
       platf::touch_port_t viewport;
     };
@@ -1516,10 +1519,10 @@ namespace platf {
   correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
     auto monitors = wl::monitors();
 
+    BOOST_LOG(info) << "-------- Start of KMS monitor list --------"sv;
+
     for (auto &monitor : monitors) {
       std::string_view name = monitor->name;
-
-      BOOST_LOG(info) << name << ": "sv << monitor->description;
 
       // Try to convert names in the format:
       // {type}-{index}
@@ -1553,6 +1556,7 @@ namespace platf {
                 << monitor->viewport.width << 'x' << monitor->viewport.height;
             }
 
+            BOOST_LOG(info) << "Monitor " << monitor_descriptor.monitor_index << " is "sv << name << ": "sv << monitor->description;
             goto break_for_loop;
           }
         }
@@ -1561,6 +1565,8 @@ namespace platf {
 
       BOOST_LOG(verbose) << "Reduced to name: "sv << name << ": "sv << index;
     }
+
+    BOOST_LOG(info) << "--------- End of KMS monitor list ---------"sv;
   }
 
   // A list of names of displays accepted as display_name
@@ -1637,6 +1643,7 @@ namespace platf {
             (int) crtc->width,
             (int) crtc->height,
           };
+          it->second.monitor_index = count;
         }
 
         kms::env_width = std::max(kms::env_width, (int) (crtc->x + crtc->width));
