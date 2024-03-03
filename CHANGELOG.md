@@ -1,5 +1,85 @@
 # Changelog
 
+## [0.22.0] - 2024-03-03
+**Breaking**
+- (Build/Linux) Drop Fedora 37 support
+
+**Added**
+- (Input/Windows) Add setting to allow DS4 back/select button to trigger touchpad click
+- (Build/Linux) Add Fedora 39 docker image and rpm package
+- (UI) Add link to logs inside fatal error container
+- (UI) Add hash handler and ids for all configuration categories and settings
+
+**Changed**
+- (Linux) Updated desktop files
+- (Config) Add 2560x1440 to default resolutions
+- (Network) Allow signature lengths other than RSA-2048
+- (Network) Use the configured ping timeout for the initial launch event timeout
+- (UI) Migrate UI to Vite and Vue3, and various UX improvements
+- (Logging) Adjust wording and severity of some log messages
+- (Build) Use a single submodule for ffmpeg
+- (Install/Windows) Skip ViGEmBus installation if a supported version is already installed
+- (Build/Linux) Optionally, allow using the system installation of wayland-protocols
+- (Build/Linux) Make vaapi optional
+- (Windows) Replace boost::json with nlohmann/json
+
+**Fixed**
+- (Audio/Windows) Fix audio capture failures on updated/pre-release versions of Windows
+- (Capture/Windows) Fix incorrect portrait mode rotation origin
+- (Network/Windows) Fix discovery by Apple clients
+- (Capture) Ensure user supplied framerates are used
+- (CMake/Linux) Skip including unnecessary headers
+- (Capture/Linux) Replace vaTerminate method with dl handle
+- (Capture/Linux) Fix capture when DRM is enabled and x11 is disabled
+- (Tray) Use PROJECT_NAME definition for tooltip
+- (CMake) Use GNUInstallDirs to install data and lib directories
+- (macOS) Replace depreciated code
+- (API) Allow trailing slashes in on API endpoints
+- (UI) Re-order config options
+- (API) Add additional pin validation
+- (Linux) Use XDG spec for fetching config directory
+- (CMake) Properly find evdev
+- (Config) Properly save global_prep_cmd and fps settings
+
+**Dependencies**
+- Bump third-party/wayland-protocols from 681c33c to 46f201b
+- Bump third-party/nv-codec-headers from 9402b5a to 22441b5
+- Bump third-party/nanors from 395e5ad to e9e242e
+- Bump third-party/Simple-Web-Server from 2f29926 to 27b41f5
+- Bump ffmpeg
+- Bump third-party/tray from 2664388 to 2bf1c61
+- Bump actions/setup-python from 4 to 5
+- Bump actions/upload-artifact from 3 to 4
+- Bump @fortawesome/fontawesome-free from 6.4.2 to 6.5.1
+- Bump babel from 2.13.0 to 2.14.0
+- Move miniupnpc from submodule to system installed package
+- Bump furo from 2023.9.10 to 2024.1.29
+- Bump third-party/moonlight-common-c from f78f213 to cbd0ec1
+- Bump third-party/ViGEmClient from 1920260 to 8d71f67
+- Bump peter-evans/create-pull-request from 5 to 6
+- Bump bootstrap from 5.3.2 to 5.3.3
+
+**Misc**
+- (Build) Update global workflows
+- (Docs/Linux) Add example for setting custom resolution with NVIDIA
+- (Docs) Fix broken links
+- (Docs/Windows) Add information about disk permissions
+- (Docs) Fix failing images
+- (Docs) Use glob pattern to match source code docs
+- (CI/macOS) Install boost from source
+- (Docs) Add reset credentials examples for unique packages
+- (Docs) Refactor and general cleanup
+- (Docs) Cross-reference config settings to the UI
+- (Docs/Docker) Add podman notes
+- (Build) Use CMAKE_SOURCE_DIR property everywhere
+- (Build/Docker) Add docker toolchain file for CLion
+- (macOS) Various code style fixes
+- (Deps) Alphabetize git submodules
+- (Docs/Examples) Update URI examples
+- (Refactor) Refactored some code in preparation for unit testing implementation
+- (CMake) Add option to skip cuda inheriting compile options
+- (CMake) Add option to error build on warnings
+
 ## [0.21.0] - 2023-10-15
 **Added**
 - (Input) Add support for automatically selecting the emulated controller type based on the physical controller connected to the client
@@ -592,3 +672,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.19.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.19.1
 [0.20.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.20.0
 [0.21.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.21.0
+[0.22.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.0
