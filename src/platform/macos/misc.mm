@@ -16,6 +16,7 @@
 #include <mach-o/dyld.h>
 #include <net/if_dl.h>
 #include <pwd.h>
+#include <sstream>
 
 #include "misc.h"
 #include "src/entry_handler.h"
