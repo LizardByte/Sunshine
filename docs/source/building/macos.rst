@@ -20,9 +20,23 @@ Install Requirements
    .. code-block:: bash
 
       brew install boost cmake miniupnpc node opus pkg-config
-      # if there are issues with an SSL header that is not found:
-      cd /usr/local/include
-      ln -s ../opt/openssl/include/openssl .
+
+If there are issues with an SSL header that is not found:
+   .. tab:: Intel
+
+      .. code-block:: bash
+
+         pushd /usr/local/include
+         ln -s ../opt/openssl/include/openssl .
+         popd
+
+   .. tab:: Apple Silicon
+
+      .. code-block:: bash
+
+         pushd /opt/homebrew/include
+         ln -s ../opt/openssl/include/openssl .
+         popd
 
 Build
 -----
