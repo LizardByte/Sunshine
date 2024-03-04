@@ -4,6 +4,7 @@
  */
 #include <bitset>
 #include <sstream>
+#include <thread>
 
 #include <boost/regex.hpp>
 
@@ -14,7 +15,7 @@
 #include "src/platform/common.h"
 
 #include "src/config.h"
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/thread_safe.h"
 
 namespace platf {

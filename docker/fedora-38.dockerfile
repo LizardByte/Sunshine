@@ -52,7 +52,8 @@ dnf -y install \
   libXrandr-devel \
   libXtst-devel \
   mesa-libGL-devel \
-  nodejs-npm \
+  miniupnpc-devel \
+  nodejs \
   numactl-devel \
   openssl-devel \
   opus-devel \
@@ -94,9 +95,6 @@ _DEPS
 WORKDIR /build/sunshine/
 COPY --link .. .
 
-# setup npm dependencies
-RUN npm install
-
 # setup build directory
 WORKDIR /build/sunshine/build
 
@@ -107,6 +105,7 @@ RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
+  -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \

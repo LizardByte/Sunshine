@@ -1,9 +1,9 @@
-#include "nvprefs_common.h"
+// standard includes
+#include <cassert>
 
-#include "nvprefs_interface.h"
-
+// local includes
 #include "driver_settings.h"
-#include "undo_data.h"
+#include "nvprefs_interface.h"
 #include "undo_file.h"
 
 namespace {

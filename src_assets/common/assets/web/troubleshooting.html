@@ -1,190 +1,209 @@
-<div id="app" class="container">
-  <h1 class="my-4">Troubleshooting</h1>
-  <!--Force Close App-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Force Close</h2>
-      <br />
-      <p>
-        If Moonlight complains about an app currently running, force closing the
-        app should fix the issue.
-      </p>
-      <div class="alert alert-success" v-if="closeAppStatus === true">
-        Application Closed Successfully!
-      </div>
-      <div class="alert alert-danger" v-if="closeAppStatus === false">
-        Error while closing Application
-      </div>
-      <div>
-        <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
-          Force Close
-        </button>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+      <%- header %>
+      <style>
+        .troubleshooting-logs {
+          white-space: pre;
+          font-family: monospace;
+          overflow: auto;
+          max-height: 500px;
+          min-height: 500px;
+          font-size: 16px;
+          position: relative;
+        }
+
+        .copy-icon {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          padding: 8px;
+          cursor: pointer;
+          color: rgba(0, 0, 0, 1);
+          appearance: none;
+          border: none;
+          background: none;
+        }
+
+        .copy-icon:hover {
+          color: rgba(0, 0, 0, 0.75);
+        }
+
+        .copy-icon:active {
+          color: rgba(0, 0, 0, 1);
+        }
+      </style>
+</head>
+
+<body id="app">
+  <Navbar></Navbar>
+  <div class="container">
+    <h1 class="my-4">Troubleshooting</h1>
+    <!-- Force Close App -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="close_apps">Force Close</h2>
+        <br>
+        <p>
+          If Moonlight complains about an app currently running, force closing the
+          app should fix the issue.
+        </p>
+        <div class="alert alert-success" v-if="closeAppStatus === true">
+          Application Closed Successfully!
+        </div>
+        <div class="alert alert-danger" v-if="closeAppStatus === false">
+          Error while closing Application
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
+            Force Close
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-  <!--Restart Sunshine-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Restart Sunshine</h2>
-      <br />
-      <p>
-        If Sunshine isn't working properly, you can try restarting it.
-        This will terminate any running sessions.
-      </p>
-      <div class="alert alert-success" v-if="restartPressed === true">
-        Sunshine is restarting
-      </div>
-      <div>
-        <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
-          Restart Sunshine
-        </button>
-      </div>
-    </div>
-  </div>
-  <!--Unpair all Clients-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Unpair All Clients</h2>
-      <br />
-      <p>Remove all your paired devices</p>
-      <div class="alert alert-success" v-if="unpairAllStatus === true">
-        Unpair Successful!
-      </div>
-      <div class="alert alert-danger" v-if="unpairAllStatus === false">
-        Error while unpairing
-      </div>
-      <div>
-        <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
-          Unpair All
-        </button>
+    <!-- Restart Sunshine -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="restart">Restart Sunshine</h2>
+        <br>
+        <p>
+          If Sunshine isn't working properly, you can try restarting it.
+          This will terminate any running sessions.
+        </p>
+        <div class="alert alert-success" v-if="restartPressed === true">
+          Sunshine is restarting
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
+            Restart Sunshine
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-  <!--Logs-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Logs</h2>
-      <br />
-      <div class="d-flex justify-content-between align-items-baseline py-2">
-        <p>See the logs uploaded by Sunshine</p>
-        <input type="text" class="form-control" v-model="logFilter" placeholder="Find..." style="width: 300px">
+    <!-- Unpair all Clients -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="unpair">Unpair All Clients</h2>
+        <br>
+        <p>Remove all your paired devices</p>
+        <div class="alert alert-success" v-if="unpairAllStatus === true">
+          Unpair Successful!
+        </div>
+        <div class="alert alert-danger" v-if="unpairAllStatus === false">
+          Error while unpairing
+        </div>
+        <div>
+          <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+            Unpair All
+          </button>
+        </div>
       </div>
-      <div>
-        <div class="troubleshooting-logs">
-          <button class="copy-icon"><i class="fas fa-copy " @click="copyLogs"></i></button>{{actualLogs}}
+    </div>
+    <!-- Logs -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="logs">Logs</h2>
+        <br>
+        <div class="d-flex justify-content-between align-items-baseline py-2">
+          <p>See the logs uploaded by Sunshine</p>
+          <input type="text" class="form-control" v-model="logFilter" placeholder="Find..." style="width: 300px">
+        </div>
+        <div>
+          <div class="troubleshooting-logs">
+            <button class="copy-icon"><i class="fas fa-copy " @click="copyLogs"></i></button>{{actualLogs}}
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<script>
-  new Vue({
-    el: "#app",
-    data() {
-      return {
-        closeAppPressed: false,
-        closeAppStatus: null,
-        unpairAllPressed: false,
-        unpairAllStatus: null,
-        restartPressed: false,
-        logs: 'Loading...',
-        logFilter: null,
-        logInterval: null,
-      };
-    },
-    computed: {
-      actualLogs(){
-        if(!this.logFilter)return this.logs;
-        let lines = this.logs.split("\n");
-        lines = lines.filter(x => x.indexOf(this.logFilter) != -1);
-        return lines.join("\n");
-      }
-    },
-    created() {
-      this.logInterval = setInterval(() => {
+  <script type="module">
+    import { createApp } from 'vue'
+    import Navbar from './Navbar.vue'
+
+    const app = createApp({
+      components: {
+        Navbar
+      },
+      data() {
+        return {
+          closeAppPressed: false,
+          closeAppStatus: null,
+          unpairAllPressed: false,
+          unpairAllStatus: null,
+          restartPressed: false,
+          logs: 'Loading...',
+          logFilter: null,
+          logInterval: null,
+        };
+      },
+      computed: {
+        actualLogs() {
+          if (!this.logFilter) return this.logs;
+          let lines = this.logs.split("\n");
+          lines = lines.filter(x => x.indexOf(this.logFilter) != -1);
+          return lines.join("\n");
+        }
+      },
+      created() {
+        this.logInterval = setInterval(() => {
+          this.refreshLogs();
+        }, 5000);
         this.refreshLogs();
-      }, 5000);
-      this.refreshLogs();
-    },
-    beforeDestroy(){
-      clearInterval(this.logInterval);
-    },
-    methods: {
-      refreshLogs() {
-        fetch("/api/logs",)
-          .then((r) => r.text())
-          .then((r) => {
-            this.logs = r;
-          });
       },
-      closeApp() {
-        this.closeAppPressed = true;
-        fetch("/api/apps/close", { method: "POST" })
-          .then((r) => r.json())
-          .then((r) => {
-            this.closeAppPressed = false;
-            this.closeAppStatus = r.status.toString() === "true";
-            setTimeout(() => {
-              this.closeAppStatus = null;
-            }, 5000);
-          });
+      beforeDestroy() {
+        clearInterval(this.logInterval);
       },
-      unpairAll() {
-        this.unpairAllPressed = true;
-        fetch("/api/clients/unpair", { method: "POST" })
-          .then((r) => r.json())
-          .then((r) => {
-            this.unpairAllPressed = false;
-            this.unpairAllStatus = r.status.toString() === "true";
-            setTimeout(() => {
-              this.unpairAllStatus = null;
-            }, 5000);
-          });
-      },
-      copyLogs(){
-        navigator.clipboard.writeText(this.actualLogs);
-      },
-      restart() {
-        this.restartPressed = true;
-        setTimeout(() => {
+      methods: {
+        refreshLogs() {
+          fetch("/api/logs",)
+            .then((r) => r.text())
+            .then((r) => {
+              this.logs = r;
+            });
+        },
+        closeApp() {
+          this.closeAppPressed = true;
+          fetch("/api/apps/close", { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => {
+              this.closeAppPressed = false;
+              this.closeAppStatus = r.status.toString() === "true";
+              setTimeout(() => {
+                this.closeAppStatus = null;
+              }, 5000);
+            });
+        },
+        unpairAll() {
+          this.unpairAllPressed = true;
+          fetch("/api/clients/unpair", { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => {
+              this.unpairAllPressed = false;
+              this.unpairAllStatus = r.status.toString() === "true";
+              setTimeout(() => {
+                this.unpairAllStatus = null;
+              }, 5000);
+            });
+        },
+        copyLogs() {
+          navigator.clipboard.writeText(this.actualLogs);
+        },
+        restart() {
+          this.restartPressed = true;
+          setTimeout(() => {
             this.restartPressed = false;
           }, 5000);
-        fetch("/api/restart", {
+          fetch("/api/restart", {
             method: "POST",
           });
+        },
       },
-    },
-  });
-</script>
+    });
 
-<style>
-  .troubleshooting-logs {
-    white-space: pre;
-    font-family: monospace;
-    overflow: auto;
-    max-height: 500px;
-    min-height: 500px;
-    font-size: 16px;
-    position: relative;
-  }
+    app.mount("#app");
+  </script>
 
-  .copy-icon {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    padding: 8px;
-    cursor: pointer;
-    color: rgba(0,0,0,1);
-    appearance: none;
-    border: none;
-    background: none;
-  }
 
-  .copy-icon:hover {
-    color: rgba(0,0,0,0.75);
-  }
-  .copy-icon:active {
-    color: rgba(0,0,0,1);
-  }
-</style>
+</body>

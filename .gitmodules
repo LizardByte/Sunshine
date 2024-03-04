@@ -1,63 +1,39 @@
+[submodule "third-party/build-deps"]
+	path = third-party/build-deps
+	url = https://github.com/LizardByte/build-deps.git
+	branch = dist
 [submodule "third-party/moonlight-common-c"]
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git
 	branch = master
-[submodule "third-party/Simple-Web-Server"]
-	path = third-party/Simple-Web-Server
-	url = https://gitlab.com/eidheim/Simple-Web-Server.git
-	branch = master
-[submodule "third-party/ViGEmClient"]
-	path = third-party/ViGEmClient
-	url = https://github.com/nefarius/ViGEmClient
-	branch = master
-[submodule "third-party/miniupnp"]
-	path = third-party/miniupnp
-	url = https://github.com/miniupnp/miniupnp
+[submodule "third-party/nanors"]
+	path = third-party/nanors
+	url = https://github.com/sleepybishop/nanors.git
 	branch = master
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers
 	branch = sdk/12.0
+[submodule "third-party/nvapi-open-source-sdk"]
+	path = third-party/nvapi-open-source-sdk
+	url = https://github.com/LizardByte/nvapi-open-source-sdk
+	branch = sdk
+[submodule "third-party/Simple-Web-Server"]
+	path = third-party/Simple-Web-Server
+	url = https://gitlab.com/eidheim/Simple-Web-Server.git
+	branch = master
 [submodule "third-party/TPCircularBuffer"]
 	path = third-party/TPCircularBuffer
 	url = https://github.com/michaeltyson/TPCircularBuffer
-	branch = master
-[submodule "third-party/ffmpeg-windows-x86_64"]
-	path = third-party/ffmpeg-windows-x86_64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-windows-x86_64
-[submodule "third-party/ffmpeg-macos-x86_64"]
-	path = third-party/ffmpeg-macos-x86_64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-macos-x86_64
-[submodule "third-party/ffmpeg-linux-x86_64"]
-	path = third-party/ffmpeg-linux-x86_64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-linux-x86_64
-[submodule "third-party/ffmpeg-linux-aarch64"]
-	path = third-party/ffmpeg-linux-aarch64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-linux-aarch64
-[submodule "third-party/ffmpeg-macos-aarch64"]
-	path = third-party/ffmpeg-macos-aarch64
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-macos-aarch64
-[submodule "third-party/nanors"]
-	path = third-party/nanors
-	url = https://github.com/sleepybishop/nanors.git
 	branch = master
 [submodule "third-party/tray"]
 	path = third-party/tray
 	url = https://github.com/LizardByte/tray
 	branch = master
-[submodule "third-party/nvapi-open-source-sdk"]
-	path = third-party/nvapi-open-source-sdk
-	url = https://github.com/LizardByte/nvapi-open-source-sdk
-	branch = sdk
-[submodule "third-party/ffmpeg-linux-powerpc64le"]
-	path = third-party/ffmpeg-linux-powerpc64le
-	url = https://github.com/LizardByte/build-deps
-	branch = ffmpeg-linux-powerpc64le
+[submodule "third-party/ViGEmClient"]
+	path = third-party/ViGEmClient
+	url = https://github.com/LizardByte/Virtual-Gamepad-Emulation-Client.git
+	branch = master
 [submodule "third-party/wayland-protocols"]
 	path = third-party/wayland-protocols
 	url = https://gitlab.freedesktop.org/wayland/wayland-protocols

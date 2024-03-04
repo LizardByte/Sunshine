@@ -29,8 +29,10 @@
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
+#include "file_handler.h"
+#include "globals.h"
 #include "httpcommon.h"
-#include "main.h"
+#include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
@@ -161,11 +163,10 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string header = read_file(WEB_DIR "header.html");
-    std::string content = read_file(WEB_DIR "index.html");
+    std::string content = file_handler::read_file(WEB_DIR "index.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -174,11 +175,10 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string header = read_file(WEB_DIR "header.html");
-    std::string content = read_file(WEB_DIR "pin.html");
+    std::string content = file_handler::read_file(WEB_DIR "pin.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -187,12 +187,11 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string header = read_file(WEB_DIR "header.html");
-    std::string content = read_file(WEB_DIR "apps.html");
+    std::string content = file_handler::read_file(WEB_DIR "apps.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -201,11 +200,10 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string header = read_file(WEB_DIR "header.html");
-    std::string content = read_file(WEB_DIR "clients.html");
+    std::string content = file_handler::read_file(WEB_DIR "clients.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -214,11 +212,10 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string header = read_file(WEB_DIR "header.html");
-    std::string content = read_file(WEB_DIR "config.html");
+    std::string content = file_handler::read_file(WEB_DIR "config.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -227,11 +224,10 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string header = read_file(WEB_DIR "header.html");
-    std::string content = read_file(WEB_DIR "password.html");
+    std::string content = file_handler::read_file(WEB_DIR "password.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -241,11 +237,10 @@ namespace confighttp {
       send_redirect(response, request, "/");
       return;
     }
-    std::string header = read_file(WEB_DIR "header-no-nav.html");
-    std::string content = read_file(WEB_DIR "welcome.html");
+    std::string content = file_handler::read_file(WEB_DIR "welcome.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -254,11 +249,10 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string header = read_file(WEB_DIR "header.html");
-    std::string content = read_file(WEB_DIR "troubleshooting.html");
+    std::string content = file_handler::read_file(WEB_DIR "troubleshooting.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(header + content, headers);
+    response->write(content, headers);
   }
 
   void
@@ -295,14 +289,14 @@ namespace confighttp {
   getNodeModules(resp_https_t response, req_https_t request) {
     print_req(request);
     fs::path webDirPath(WEB_DIR);
-    fs::path nodeModulesPath(webDirPath / "node_modules");
+    fs::path nodeModulesPath(webDirPath / "assets");
 
     // .relative_path is needed to shed any leading slash that might exist in the request path
     auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
-    // Don't do anything if file does not exist or is outside the node_modules directory
+    // Don't do anything if file does not exist or is outside the assets directory
     if (!isChildPath(filePath, nodeModulesPath)) {
-      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the node_modules folder";
+      BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets folder";
       response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
     }
     else if (!fs::exists(filePath)) {
@@ -331,7 +325,7 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string content = read_file(config::stream.file_apps.c_str());
+    std::string content = file_handler::read_file(config::stream.file_apps.c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
     response->write(content, headers);
@@ -343,7 +337,7 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string content = read_file(config::sunshine.log_file.c_str());
+    std::string content = file_handler::read_file(config::sunshine.log_file.c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/plain");
     response->write(SimpleWeb::StatusCode::success_ok, content, headers);
@@ -549,7 +543,7 @@ namespace confighttp {
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
 
-    auto vars = config::parse_config(read_file(config::sunshine.config_file.c_str()));
+    auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
 
     for (auto &[name, value] : vars) {
       outputTree.put(std::move(name), std::move(value));
@@ -582,7 +576,7 @@ namespace confighttp {
 
         configStream << kv.first << " = " << value << std::endl;
       }
-      write_file(config::sunshine.config_file.c_str(), configStream.str());
+      file_handler::write_file(config::sunshine.config_file.c_str(), configStream.str());
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
@@ -730,19 +724,19 @@ namespace confighttp {
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
-    auto port_https = map_port(PORT_HTTPS);
+    auto port_https = net::map_port(PORT_HTTPS);
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
     https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
     server.default_resource["GET"] = not_found;
     server.resource["^/$"]["GET"] = getIndexPage;
-    server.resource["^/pin$"]["GET"] = getPinPage;
-    server.resource["^/apps$"]["GET"] = getAppsPage;
-    server.resource["^/clients$"]["GET"] = getClientsPage;
-    server.resource["^/config$"]["GET"] = getConfigPage;
-    server.resource["^/password$"]["GET"] = getPasswordPage;
-    server.resource["^/welcome$"]["GET"] = getWelcomePage;
-    server.resource["^/troubleshooting$"]["GET"] = getTroubleshootingPage;
+    server.resource["^/pin/?$"]["GET"] = getPinPage;
+    server.resource["^/apps/?$"]["GET"] = getAppsPage;
+    server.resource["^/clients/?$"]["GET"] = getClientsPage;
+    server.resource["^/config/?$"]["GET"] = getConfigPage;
+    server.resource["^/password/?$"]["GET"] = getPasswordPage;
+    server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
+    server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/apps$"]["GET"] = getApps;
     server.resource["^/api/logs$"]["GET"] = getLogs;
@@ -757,7 +751,7 @@ namespace confighttp {
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-    server.resource["^/node_modules\\/.+$"]["GET"] = getNodeModules;
+    server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;

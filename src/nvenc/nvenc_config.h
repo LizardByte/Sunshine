@@ -20,6 +20,9 @@ namespace nvenc {
     // Use optional preliminary pass for better motion vectors, bitrate distribution and stricter VBV(HRD), uses CUDA cores
     nvenc_two_pass two_pass = nvenc_two_pass::quarter_resolution;
 
+    // Percentage increase of VBV/HRD from the default single frame, allows low-latency variable bitrate
+    int vbv_percentage_increase = 0;
+
     // Improves fades compression, uses CUDA cores
     bool weighted_prediction = false;
 

@@ -11,7 +11,7 @@ extern "C" {
 }
 
 #include "cbs.h"
-#include "main.h"
+#include "logging.h"
 #include "utility.h"
 
 using namespace std::literals;

@@ -3,7 +3,7 @@ Localization
 Sunshine and related LizardByte projects are being localized into various languages. The default language is
 `en` (English).
 
- .. image:: https://badges.awesome-crowdin.com/translation-15178612-606145.png
+ .. image:: https://app.lizardbyte.dev/uno/crowdin/LizardByte_graph.svg
 
 CrowdIn
 -------
@@ -41,10 +41,10 @@ situations. For example if a system tray icon is added it should be localized as
 
       std::string msg = boost::locale::translate("Hello world!");
 
-.. Tip:: More examples can be found in the documentation for
+.. tip:: More examples can be found in the documentation for
    `boost locale <https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html>`__.
 
-.. Warning:: This is for information only. Contributors should never include manually updated template files, or
+.. warning:: This is for information only. Contributors should never include manually updated template files, or
    manually compiled language files in Pull Requests.
 
 Strings are automatically extracted from the code to the `locale/sunshine.po` template file. The generated file is

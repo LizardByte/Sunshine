@@ -25,13 +25,14 @@ Install Requirements
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
+          libminiupnpc-dev \
           libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
           libssl-dev \
-          libva-dev \
+          libva-dev \  # VA-API
           libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
@@ -46,7 +47,7 @@ Install Requirements
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit  # Cuda, NvFBC
 
-Fedora 37, 38
+Fedora 38, 39
 ^^^^^^^^^^^^^
 
 Install Requirements
@@ -66,7 +67,7 @@ Install Requirements
           libdrm-devel \
           libevdev-devel \
           libnotify-devel \
-          libva-devel \
+          libva-devel \  # VA-API
           libvdpau-devel \
           libX11-devel \  # X11
           libxcb-devel \  # X11
@@ -77,6 +78,7 @@ Install Requirements
           libXrandr-devel \  # X11
           libXtst-devel \  # X11
           mesa-libGL-devel \
+          miniupnpc-devel \
           npm \
           numactl-devel \
           openssl-devel \
@@ -104,15 +106,17 @@ Install Requirements
           libboost-log-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
+          libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
+          libminiupnpc-dev \
           libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
           libssl-dev \
-          libva-dev \
+          libva-dev \  # VA-API
           libvdpau-dev \
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
@@ -153,14 +157,17 @@ Install Requirements
           libboost-log-dev \
           libboost-program-options-dev \
           libcap-dev \  # KMS
+          libcurl4-openssl-dev \
           libdrm-dev \  # KMS
           libevdev-dev \
+          libminiupnpc-dev \
           libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
           libpulse-dev \
           libssl-dev \
+          libva-dev \  # VA-API
           libwayland-dev \  # Wayland
           libx11-dev \  # X11
           libxcb-shm0-dev \  # X11
@@ -178,7 +185,7 @@ CUDA
 ----
 If the version of CUDA available from your distro is not adequate, manually install CUDA.
 
-.. Tip:: The version of CUDA you use will determine compatibility with various GPU generations.
+.. tip:: The version of CUDA you use will determine compatibility with various GPU generations.
    See `CUDA compatibility <https://docs.nvidia.com/deploy/cuda-compatibility/index.html>`__ for more info.
 
    Select the appropriate run file based on your desired CUDA version and architecture according to
@@ -192,16 +199,9 @@ If the version of CUDA available from your distro is not adequate, manually inst
    ./cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
    rm ./cuda.run
 
-npm dependencies
-----------------
-Install npm dependencies.
-   .. code-block:: bash
-
-      npm install
-
 Build
 -----
-.. Attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
+.. attention:: Ensure you are in the build directory created during the clone step earlier before continuing.
 
 .. code-block:: bash
 

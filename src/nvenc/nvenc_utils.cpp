@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include "nvenc_utils.h"
 
 namespace nvenc {

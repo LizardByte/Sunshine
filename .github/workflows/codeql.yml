@@ -28,7 +28,7 @@ jobs:
       continue: ${{ steps.continue.outputs.result }}
     steps:
       - name: Get repo languages
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: lang
         with:
           script: |
@@ -70,7 +70,7 @@ jobs:
             return matrix
 
       - name: Continue
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         id: continue
         with:
           script: |
@@ -116,7 +116,7 @@ jobs:
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           # If you wish to specify custom queries, you can do so here or in a config file.
@@ -139,9 +139,9 @@ jobs:
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{matrix.language}}"

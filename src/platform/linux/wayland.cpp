@@ -2,13 +2,14 @@
  * @file src/platform/linux/wayland.cpp
  * @brief todo
  */
+#include <poll.h>
 #include <wayland-client.h>
 #include <wayland-util.h>
 
 #include <cstdlib>
 
 #include "graphics.h"
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/round_robin.h"
 #include "src/utility.h"
@@ -61,13 +62,52 @@ namespace wl {
     wl_display_roundtrip(display_internal.get());
   }
 
+  /**
+   * @brief Waits up to the specified timeout to dispatch new events on the wl_display.
+   * @param timeout The timeout in milliseconds.
+   * @return true if new events were dispatched or false if the timeout expired.
+   */
+  bool
+  display_t::dispatch(std::chrono::milliseconds timeout) {
+    // Check if any events are queued already. If not, flush
+    // outgoing events, and prepare to wait for readability.
+    if (wl_display_prepare_read(display_internal.get()) == 0) {
+      wl_display_flush(display_internal.get());
+
+      // Wait for an event to come in
+      struct pollfd pfd = {};
+      pfd.fd = wl_display_get_fd(display_internal.get());
+      pfd.events = POLLIN;
+      if (poll(&pfd, 1, timeout.count()) == 1 && (pfd.revents & POLLIN)) {
+        // Read the new event(s)
+        wl_display_read_events(display_internal.get());
+      }
+      else {
+        // We timed out, so unlock the queue now
+        wl_display_cancel_read(display_internal.get());
+        return false;
+      }
+    }
+
+    // Dispatch any existing or new pending events
+    wl_display_dispatch_pending(display_internal.get());
+    return true;
+  }
+
   wl_registry *
   display_t::registry() {
     return wl_display_get_registry(display_internal.get());
   }
 
   inline monitor_t::monitor_t(wl_output *output):
-      output { output }, listener {
+      output { output },
+      wl_listener {
+        &CLASS_CALL(monitor_t, wl_geometry),
+        &CLASS_CALL(monitor_t, wl_mode),
+        &CLASS_CALL(monitor_t, wl_done),
+        &CLASS_CALL(monitor_t, wl_scale),
+      },
+      xdg_listener {
         &CLASS_CALL(monitor_t, xdg_position),
         &CLASS_CALL(monitor_t, xdg_size),
         &CLASS_CALL(monitor_t, xdg_done),
@@ -99,6 +139,12 @@ namespace wl {
 
   void
   monitor_t::xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height) {
+    BOOST_LOG(info) << "Logical size: "sv << width << 'x' << height;
+  }
+
+  void
+  monitor_t::wl_mode(wl_output *wl_output, std::uint32_t flags,
+    std::int32_t width, std::int32_t height, std::int32_t refresh) {
     viewport.width = width;
     viewport.height = height;
 
@@ -106,14 +152,10 @@ namespace wl {
   }
 
   void
-  monitor_t::xdg_done(zxdg_output_v1 *) {
-    BOOST_LOG(info) << "All info about monitor ["sv << name << "] has been send"sv;
-  }
-
-  void
   monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
     auto xdg_output = zxdg_output_manager_v1_get_xdg_output(output_manager, output);
-    zxdg_output_v1_add_listener(xdg_output, &listener, this);
+    zxdg_output_v1_add_listener(xdg_output, &xdg_listener, this);
+    wl_output_add_listener(output, &wl_listener, this);
   }
 
   interface_t::interface_t() noexcept
@@ -137,7 +179,7 @@ namespace wl {
       BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
       monitors.emplace_back(
         std::make_unique<monitor_t>(
-          (wl_output *) wl_registry_bind(registry, id, &wl_output_interface, version)));
+          (wl_output *) wl_registry_bind(registry, id, &wl_output_interface, 2)));
     }
     else if (!std::strcmp(interface, zxdg_output_manager_v1_interface.name)) {
       BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;

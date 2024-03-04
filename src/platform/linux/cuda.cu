@@ -222,7 +222,7 @@ std::optional<tex_t> tex_t::make(int height, int pitch) {
   return tex;
 }
 
-tex_t::tex_t() : array {}, texture { INVALID_TEXTURE } {}
+tex_t::tex_t() : array {}, texture { INVALID_TEXTURE, INVALID_TEXTURE } {}
 tex_t::tex_t(tex_t &&other) : array { other.array }, texture { other.texture } {
   other.array          = 0;
   other.texture.point  = INVALID_TEXTURE;

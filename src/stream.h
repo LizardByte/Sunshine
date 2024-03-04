@@ -22,10 +22,12 @@ namespace stream {
 
     int packetsize;
     int minRequiredFecPackets;
-    int featureFlags;
+    int mlFeatureFlags;
     int controlProtocolType;
     int audioQosType;
     int videoQosType;
+
+    uint32_t encryptionFlagsEnabled;
 
     std::optional<int> gcmap;
   };
@@ -39,7 +41,7 @@ namespace stream {
     };
 
     std::shared_ptr<session_t>
-    alloc(config_t &config, crypto::aes_t &gcm_key, crypto::aes_t &iv);
+    alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
     int
     start(session_t &session, const std::string &addr_string);
     void

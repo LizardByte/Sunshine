@@ -10,6 +10,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <va/va.h>
+#include <va/va_drm.h>
 #if !VA_CHECK_VERSION(1, 9, 0)
 // vaSyncBuffer stub allows Sunshine built against libva <2.9.0 to link against ffmpeg on libva 2.9.0 or later
 VAStatus
@@ -25,7 +26,7 @@ vaSyncBuffer(
 #include "graphics.h"
 #include "misc.h"
 #include "src/config.h"
-#include "src/main.h"
+#include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
 #include "src/video.h"
@@ -37,7 +38,7 @@ extern "C" struct AVBufferRef;
 namespace va {
   constexpr auto SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2 = 0x40000000;
   constexpr auto EXPORT_SURFACE_WRITE_ONLY = 0x0002;
-  constexpr auto EXPORT_SURFACE_COMPOSED_LAYERS = 0x0008;
+  constexpr auto EXPORT_SURFACE_SEPARATE_LAYERS = 0x0004;
 
   using VADisplay = void *;
   using VAStatus = int;
@@ -85,209 +86,7 @@ namespace va {
     } layers[4];
   };
 
-  /**
-   * @brief Defined profiles
-   */
-  enum class profile_e {
-    // Profile ID used for video processing.
-    ProfileNone = -1,
-    MPEG2Simple = 0,
-    MPEG2Main = 1,
-    MPEG4Simple = 2,
-    MPEG4AdvancedSimple = 3,
-    MPEG4Main = 4,
-    H264Baseline = 5,
-    H264Main = 6,
-    H264High = 7,
-    VC1Simple = 8,
-    VC1Main = 9,
-    VC1Advanced = 10,
-    H263Baseline = 11,
-    JPEGBaseline = 12,
-    H264ConstrainedBaseline = 13,
-    VP8Version0_3 = 14,
-    H264MultiviewHigh = 15,
-    H264StereoHigh = 16,
-    HEVCMain = 17,
-    HEVCMain10 = 18,
-    VP9Profile0 = 19,
-    VP9Profile1 = 20,
-    VP9Profile2 = 21,
-    VP9Profile3 = 22,
-    HEVCMain12 = 23,
-    HEVCMain422_10 = 24,
-    HEVCMain422_12 = 25,
-    HEVCMain444 = 26,
-    HEVCMain444_10 = 27,
-    HEVCMain444_12 = 28,
-    HEVCSccMain = 29,
-    HEVCSccMain10 = 30,
-    HEVCSccMain444 = 31,
-    AV1Profile0 = 32,
-    AV1Profile1 = 33,
-    HEVCSccMain444_10 = 34,
-
-    // Profile ID used for protected video playback.
-    Protected = 35
-  };
-
-  enum class entry_e {
-    VLD = 1,
-    IZZ = 2,
-    IDCT = 3,
-    MoComp = 4,
-    Deblocking = 5,
-    EncSlice = 6, /** slice level encode */
-    EncPicture = 7, /** picture encode, JPEG, etc */
-    /**
-     * For an implementation that supports a low power/high performance variant
-     * for slice level encode, it can choose to expose the
-     * VAEntrypointEncSliceLP entrypoint. Certain encoding tools may not be
-     * available with this entrypoint (e.g. interlace, MBAFF) and the
-     * application can query the encoding configuration attributes to find
-     * out more details if this entrypoint is supported.
-     */
-    EncSliceLP = 8,
-    VideoProc = 10, /**< Video pre/post-processing. */
-    /**
-     * @brief FEI
-     *
-     * The purpose of FEI (Flexible Encoding Infrastructure) is to allow applications to
-     * have more controls and trade off quality for speed with their own IPs.
-     * The application can optionally provide input to ENC for extra encode control
-     * and get the output from ENC. Application can chose to modify the ENC
-     * output/PAK input during encoding, but the performance impact is significant.
-     *
-     * On top of the existing buffers for normal encode, there will be
-     * one extra input buffer (VAEncMiscParameterFEIFrameControl) and
-     * three extra output buffers (VAEncFEIMVBufferType, VAEncFEIMBModeBufferType
-     * and VAEncFEIDistortionBufferType) for FEI entry function.
-     * If separate PAK is set, two extra input buffers
-     * (VAEncFEIMVBufferType, VAEncFEIMBModeBufferType) are needed for PAK input.
-     */
-    FEI = 11,
-    /**
-     * @brief Stats
-     *
-     * A pre-processing function for getting some statistics and motion vectors is added,
-     * and some extra controls for Encode pipeline are provided. The application can
-     * optionally call the statistics function to get motion vectors and statistics like
-     * variances, distortions before calling Encode function via this entry point.
-     *
-     * Checking whether Statistics is supported can be performed with vaQueryConfigEntrypoints().
-     * If Statistics entry point is supported, then the list of returned entry-points will
-     * include #Stats. Supported pixel format, maximum resolution and statistics
-     * specific attributes can be obtained via normal attribute query. One input buffer
-     * (VAStatsStatisticsParameterBufferType) and one or two output buffers
-     * (VAStatsStatisticsBufferType, VAStatsStatisticsBottomFieldBufferType (for interlace only)
-     * and VAStatsMVBufferType) are needed for this entry point.
-     */
-    Stats = 12,
-    /**
-     * @brief ProtectedTEEComm
-     *
-     * A function for communicating with TEE (Trusted Execution Environment).
-     */
-    ProtectedTEEComm = 13,
-    /**
-     * @brief ProtectedContent
-     *
-     * A function for protected content to decrypt encrypted content.
-     */
-    ProtectedContent = 14,
-  };
-
-  typedef VAStatus (*queryConfigEntrypoints_fn)(VADisplay dpy, profile_e profile, entry_e *entrypoint_list, int *num_entrypoints);
-  typedef int (*maxNumEntrypoints_fn)(VADisplay dpy);
-  typedef VADisplay (*getDisplayDRM_fn)(int fd);
-  typedef VAStatus (*terminate_fn)(VADisplay dpy);
-  typedef VAStatus (*initialize_fn)(VADisplay dpy, int *major_version, int *minor_version);
-  typedef const char *(*errorStr_fn)(VAStatus error_status);
-  typedef void (*VAMessageCallback)(void *user_context, const char *message);
-  typedef VAMessageCallback (*setErrorCallback_fn)(VADisplay dpy, VAMessageCallback callback, void *user_context);
-  typedef VAMessageCallback (*setInfoCallback_fn)(VADisplay dpy, VAMessageCallback callback, void *user_context);
-  typedef const char *(*queryVendorString_fn)(VADisplay dpy);
-  typedef VAStatus (*exportSurfaceHandle_fn)(
-    VADisplay dpy, VASurfaceID surface_id,
-    uint32_t mem_type, uint32_t flags,
-    void *descriptor);
-
-  static maxNumEntrypoints_fn maxNumEntrypoints;
-  static queryConfigEntrypoints_fn queryConfigEntrypoints;
-  static getDisplayDRM_fn getDisplayDRM;
-  static terminate_fn terminate;
-  static initialize_fn initialize;
-  static errorStr_fn errorStr;
-  static setErrorCallback_fn setErrorCallback;
-  static setInfoCallback_fn setInfoCallback;
-  static queryVendorString_fn queryVendorString;
-  static exportSurfaceHandle_fn exportSurfaceHandle;
-
-  using display_t = util::dyn_safe_ptr_v2<void, VAStatus, &terminate>;
-
-  int
-  init_main_va() {
-    static void *handle { nullptr };
-    static bool funcs_loaded = false;
-
-    if (funcs_loaded) return 0;
-
-    if (!handle) {
-      handle = dyn::handle({ "libva.so.2", "libva.so" });
-      if (!handle) {
-        return -1;
-      }
-    }
-
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      { (dyn::apiproc *) &maxNumEntrypoints, "vaMaxNumEntrypoints" },
-      { (dyn::apiproc *) &queryConfigEntrypoints, "vaQueryConfigEntrypoints" },
-      { (dyn::apiproc *) &terminate, "vaTerminate" },
-      { (dyn::apiproc *) &initialize, "vaInitialize" },
-      { (dyn::apiproc *) &errorStr, "vaErrorStr" },
-      { (dyn::apiproc *) &setErrorCallback, "vaSetErrorCallback" },
-      { (dyn::apiproc *) &setInfoCallback, "vaSetInfoCallback" },
-      { (dyn::apiproc *) &queryVendorString, "vaQueryVendorString" },
-      { (dyn::apiproc *) &exportSurfaceHandle, "vaExportSurfaceHandle" },
-    };
-
-    if (dyn::load(handle, funcs)) {
-      return -1;
-    }
-
-    funcs_loaded = true;
-    return 0;
-  }
-
-  int
-  init() {
-    if (init_main_va()) {
-      return -1;
-    }
-
-    static void *handle { nullptr };
-    static bool funcs_loaded = false;
-
-    if (funcs_loaded) return 0;
-
-    if (!handle) {
-      handle = dyn::handle({ "libva-drm.so.2", "libva-drm.so" });
-      if (!handle) {
-        return -1;
-      }
-    }
-
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      { (dyn::apiproc *) &getDisplayDRM, "vaGetDisplayDRM" },
-    };
-
-    if (dyn::load(handle, funcs)) {
-      return -1;
-    }
-
-    funcs_loaded = true;
-    return 0;
-  }
+  using display_t = util::safe_ptr_v2<void, VAStatus, vaTerminate>;
 
   int
   vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
@@ -298,9 +97,8 @@ namespace va {
     init(int in_width, int in_height, file_t &&render_device) {
       file = std::move(render_device);
 
-      if (!va::initialize || !gbm::create_device) {
-        if (!va::initialize) BOOST_LOG(warning) << "libva not initialized"sv;
-        if (!gbm::create_device) BOOST_LOG(warning) << "libgbm not initialized"sv;
+      if (!gbm::create_device) {
+        BOOST_LOG(warning) << "libgbm not initialized"sv;
         return -1;
       }
 
@@ -332,12 +130,12 @@ namespace va {
     }
 
     int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
       this->hwframe.reset(frame);
       this->frame = frame;
 
       if (!frame->buf[0]) {
-        if (av_hwframe_get_buffer(hw_frames_ctx, frame, 0)) {
+        if (av_hwframe_get_buffer(hw_frames_ctx_buf, frame, 0)) {
           BOOST_LOG(error) << "Couldn't get hwframe for VAAPI"sv;
           return -1;
         }
@@ -345,15 +143,16 @@ namespace va {
 
       va::DRMPRIMESurfaceDescriptor prime;
       va::VASurfaceID surface = (std::uintptr_t) frame->data[3];
+      auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
-      auto status = va::exportSurfaceHandle(
+      auto status = vaExportSurfaceHandle(
         this->va_display,
         surface,
         va::SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2,
-        va::EXPORT_SURFACE_WRITE_ONLY | va::EXPORT_SURFACE_COMPOSED_LAYERS,
+        va::EXPORT_SURFACE_WRITE_ONLY | va::EXPORT_SURFACE_SEPARATE_LAYERS,
         &prime);
       if (status) {
-        BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int) surface << "]: "sv << va::errorStr(status);
+        BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int) surface << "]: "sv << vaErrorStr(status);
 
         return -1;
       }
@@ -364,29 +163,39 @@ namespace va {
         fds[x] = prime.objects[x].fd;
       }
 
-      auto nv12_opt = egl::import_target(
-        display.get(),
-        std::move(fds),
-        { (int) prime.width,
-          (int) prime.height,
-          { prime.objects[prime.layers[0].object_index[0]].fd, -1, -1, -1 },
-          0,
-          0,
-          { prime.layers[0].pitch[0] },
-          { prime.layers[0].offset[0] } },
-        { (int) prime.width / 2,
-          (int) prime.height / 2,
-          { prime.objects[prime.layers[0].object_index[1]].fd, -1, -1, -1 },
-          0,
-          0,
-          { prime.layers[0].pitch[1] },
-          { prime.layers[0].offset[1] } });
+      if (prime.num_layers != 2) {
+        BOOST_LOG(error) << "Invalid layer count for VA surface: expected 2, got "sv << prime.num_layers;
+        return -1;
+      }
 
+      egl::surface_descriptor_t sds[2] = {};
+      for (int plane = 0; plane < 2; ++plane) {
+        auto &sd = sds[plane];
+        auto &layer = prime.layers[plane];
+
+        sd.fourcc = layer.drm_format;
+
+        // UV plane is subsampled
+        sd.width = prime.width / (plane == 0 ? 1 : 2);
+        sd.height = prime.height / (plane == 0 ? 1 : 2);
+
+        // The modifier must be the same for all planes
+        sd.modifier = prime.objects[layer.object_index[0]].drm_format_modifier;
+
+        std::fill_n(sd.fds, 4, -1);
+        for (int x = 0; x < layer.num_planes; ++x) {
+          sd.fds[x] = prime.objects[layer.object_index[x]].fd;
+          sd.pitches[x] = layer.pitch[x];
+          sd.offsets[x] = layer.offset[x];
+        }
+      }
+
+      auto nv12_opt = egl::import_target(display.get(), std::move(fds), sds[0], sds[1]);
       if (!nv12_opt) {
         return -1;
       }
 
-      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height);
+      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, hw_frames_ctx->sw_format);
       if (!sws_opt) {
         return -1;
       }
@@ -436,7 +245,11 @@ namespace va {
     convert(platf::img_t &img) override {
       auto &descriptor = (egl::img_descriptor_t &) img;
 
-      if (descriptor.sequence > sequence) {
+      if (descriptor.sequence == 0) {
+        // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
+        rgb = egl::create_blank(img);
+      }
+      else if (descriptor.sequence > sequence) {
         sequence = descriptor.sequence;
 
         rgb = egl::rgb_t {};
@@ -527,16 +340,6 @@ namespace va {
 
   int
   vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *base, AVBufferRef **hw_device_buf) {
-    if (!va::initialize) {
-      BOOST_LOG(warning) << "libva not loaded"sv;
-      return -1;
-    }
-
-    if (!va::getDisplayDRM) {
-      BOOST_LOG(warning) << "libva-drm not loaded"sv;
-      return -1;
-    }
-
     auto va = (va::va_t *) base;
     auto fd = dup(va->file.el);
 
@@ -548,7 +351,7 @@ namespace va {
       av_free(priv);
     });
 
-    va::display_t display { va::getDisplayDRM(fd) };
+    va::display_t display { vaGetDisplayDRM(fd) };
     if (!display) {
       auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
@@ -558,17 +361,17 @@ namespace va {
 
     va->va_display = display.get();
 
-    va::setErrorCallback(display.get(), __log, &error);
-    va::setErrorCallback(display.get(), __log, &info);
+    vaSetErrorCallback(display.get(), __log, &error);
+    vaSetErrorCallback(display.get(), __log, &info);
 
     int major, minor;
-    auto status = va::initialize(display.get(), &major, &minor);
+    auto status = vaInitialize(display.get(), &major, &minor);
     if (status) {
-      BOOST_LOG(error) << "Couldn't initialize va display: "sv << va::errorStr(status);
+      BOOST_LOG(error) << "Couldn't initialize va display: "sv << vaErrorStr(status);
       return -1;
     }
 
-    BOOST_LOG(debug) << "vaapi vendor: "sv << va::queryVendorString(display.get());
+    BOOST_LOG(debug) << "vaapi vendor: "sv << vaQueryVendorString(display.get());
 
     *hw_device_buf = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
     auto ctx = (AVHWDeviceContext *) (*hw_device_buf)->data;
@@ -592,20 +395,20 @@ namespace va {
   }
 
   static bool
-  query(display_t::pointer display, profile_e profile) {
-    std::vector<entry_e> entrypoints;
-    entrypoints.resize(maxNumEntrypoints(display));
+  query(display_t::pointer display, VAProfile profile) {
+    std::vector<VAEntrypoint> entrypoints;
+    entrypoints.resize(vaMaxNumEntrypoints(display));
 
     int count;
-    auto status = queryConfigEntrypoints(display, profile, entrypoints.data(), &count);
+    auto status = vaQueryConfigEntrypoints(display, profile, entrypoints.data(), &count);
     if (status) {
-      BOOST_LOG(error) << "Couldn't query entrypoints: "sv << va::errorStr(status);
+      BOOST_LOG(error) << "Couldn't query entrypoints: "sv << vaErrorStr(status);
       return false;
     }
     entrypoints.resize(count);
 
     for (auto entrypoint : entrypoints) {
-      if (entrypoint == entry_e::EncSlice || entrypoint == entry_e::EncSliceLP) {
+      if (entrypoint == VAEntrypointEncSlice || entrypoint == VAEntrypointEncSliceLP) {
         return true;
       }
     }
@@ -615,11 +418,7 @@ namespace va {
 
   bool
   validate(int fd) {
-    if (init()) {
-      return false;
-    }
-
-    va::display_t display { va::getDisplayDRM(fd) };
+    va::display_t display { vaGetDisplayDRM(fd) };
     if (!display) {
       char string[1024];
 
@@ -632,21 +431,21 @@ namespace va {
     }
 
     int major, minor;
-    auto status = initialize(display.get(), &major, &minor);
+    auto status = vaInitialize(display.get(), &major, &minor);
     if (status) {
-      BOOST_LOG(error) << "Couldn't initialize va display: "sv << va::errorStr(status);
+      BOOST_LOG(error) << "Couldn't initialize va display: "sv << vaErrorStr(status);
       return false;
     }
 
-    if (!query(display.get(), profile_e::H264Main)) {
+    if (!query(display.get(), VAProfileH264Main)) {
       return false;
     }
 
-    if (video::active_hevc_mode > 1 && !query(display.get(), profile_e::HEVCMain)) {
+    if (video::active_hevc_mode > 1 && !query(display.get(), VAProfileHEVCMain)) {
       return false;
     }
 
-    if (video::active_hevc_mode > 2 && !query(display.get(), profile_e::HEVCMain10)) {
+    if (video::active_hevc_mode > 2 && !query(display.get(), VAProfileHEVCMain10)) {
       return false;
     }
 

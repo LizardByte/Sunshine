@@ -38,10 +38,16 @@ namespace proc {
     std::vector<cmd_t> prep_cmds;
 
     /**
-     * Some applications, such as Steam,
-     * either exit quickly, or keep running indefinitely.
-     * Steam.exe is one such application.
-     * That is why some applications need be run and forgotten about
+     * Some applications, such as Steam, either exit quickly, or keep running indefinitely.
+     *
+     * Apps that launch normal child processes and terminate will be handled by the process
+     * grouping logic (wait_all). However, apps that launch child processes indirectly or
+     * into another process group (such as UWP apps) can only be handled by the auto-detach
+     * heuristic which catches processes that exit 0 very quickly, but we won't have proper
+     * process tracking for those.
+     *
+     * For cases where users just want to kick off a background process and never manage the
+     * lifetime of that process, they can use detached commands for that.
      */
     std::vector<std::string> detached;
 
@@ -53,6 +59,8 @@ namespace proc {
     std::string id;
     bool elevated;
     bool auto_detach;
+    bool wait_all;
+    std::chrono::seconds exit_timeout;
   };
 
   class proc_t {
@@ -67,7 +75,7 @@ namespace proc {
         _apps(std::move(apps)) {}
 
     int
-    execute(int app_id, rtsp_stream::launch_session_t launch_session);
+    execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
 
     /**
      * @return _app_id if a process is running, otherwise returns 0
@@ -100,7 +108,7 @@ namespace proc {
     bool placebo {};
 
     boost::process::child _process;
-    boost::process::group _process_handle;
+    boost::process::group _process_group;
 
     file_t _pipe;
     std::vector<cmd_t>::const_iterator _app_prep_it;

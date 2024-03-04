@@ -1,6 +1,8 @@
 # unix specific packaging
 # put anything here that applies to both linux and macos
 
+include(GNUInstallDirs)
+
 # return here if building a macos package
 if(SUNSHINE_PACKAGE_MACOS)
     return()
@@ -13,6 +15,3 @@ if(NOT CMAKE_INSTALL_PREFIX)
 endif()
 
 install(TARGETS sunshine RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
-
-install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/"
-        DESTINATION "${SUNSHINE_ASSETS_DIR}")

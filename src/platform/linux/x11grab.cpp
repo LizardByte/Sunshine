@@ -5,6 +5,7 @@
 #include "src/platform/common.h"
 
 #include <fstream>
+#include <thread>
 
 #include <X11/X.h>
 #include <X11/Xlib.h>
@@ -17,7 +18,8 @@
 #include <xcb/xfixes.h>
 
 #include "src/config.h"
-#include "src/main.h"
+#include "src/globals.h"
+#include "src/logging.h"
 #include "src/task_pool.h"
 #include "src/video.h"
 
@@ -555,9 +557,11 @@ namespace platf {
 
     std::unique_ptr<avcodec_encode_device_t>
     make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+#ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == mem_type_e::vaapi) {
         return va::make_avcodec_encode_device(width, height, false);
       }
+#endif
 
 #ifdef SUNSHINE_BUILD_CUDA
       if (mem_type == mem_type_e::cuda) {
@@ -881,8 +885,8 @@ namespace platf {
       }
 
       img.data = img.buffer.data();
-      img.width = xcursor->width;
-      img.height = xcursor->height;
+      img.width = img.src_w = xcursor->width;
+      img.height = img.src_h = xcursor->height;
       img.x = xcursor->x - xcursor->xhot;
       img.y = xcursor->y - xcursor->yhot;
       img.pixel_pitch = 4;

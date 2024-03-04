@@ -65,7 +65,7 @@ jobs:
 
       - name: Upload Artifacts
         if: failure()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: clang-format-fixes
           path: ${{ steps.find_files.outputs.found_files }}
@@ -79,7 +79,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
