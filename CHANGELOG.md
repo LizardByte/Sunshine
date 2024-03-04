@@ -50,7 +50,7 @@
 - (Capture/Linux) Fix missing mouse cursor when using KMS capture on a GPU with hardware cursor support
 - (Capture/Windows) Add workaround for Nvidia driver bug causing Sunshine to crash when RTX HDR is globally enabled
 - (Capture/Windows) Add workaround for AMD driver bug on pre-RDNA GPUs causing hardware encoding failure
-- (Capture/Windows) Reintroduce support for encoding on older Nvidia GPU drivers (v456.71-v522.25)
+- (Capture/Windows) Reintroduce support for NVENC on older Nvidia GPU drivers (v456.71-v522.25)
 - (Capture/Windows) Fix encoding on old Intel GPUs that don't support low-power H.264 encoding
 - (Capture/Linux) Fix GL errors or corrupt video output on GPUs that use aux planes such as Intel Arc
 - (Capture/Linux) Fix GL errors or corrupt video output on GPUs that use DRM modifiers on YUV buffers
@@ -68,6 +68,7 @@
 - (Capture/Windows) Fix delay displaying UAC dialogs when the mouse cursor is not moving
 - (Capture/Linux) Fix corrupt video output or stream disconnections if the display resolution changes while streaming
 - (Capture/Linux) Fix color of aspect ratio padding in the capture image with VAAPI
+- (Capture/Linux) Fix NVENC initialization error when using X11 capture with some GPUs
 - (Tray/Linux) Fix random crash when the tray icon is updating
 - (Network) Fix QoS tagging when running in IPv4+IPv6 mode
 - (Process) Fix termination of child processes upon app quit when the parent has already terminated
