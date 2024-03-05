@@ -753,14 +753,14 @@ jobs:
           echo "::endgroup::"
 
       - name: Upload Artifacts
-        if: ${{ matrix.release == 'true' }}
+        if: ${{ matrix.release }}
         uses: actions/upload-artifact@v4
         with:
           name: sunshine-macports
           path: artifacts/
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' && matrix.release == 'true' }}
+        if: ${{ needs.setup_release.outputs.create_release == 'true' && matrix.release }}
         uses: ncipollo/release-action@v1
         with:
           name: ${{ needs.setup_release.outputs.release_name }}
