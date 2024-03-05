@@ -506,11 +506,23 @@ jobs:
           prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac:
-    name: MacOS
-    runs-on: macos-11
     needs: [check_changelog, setup_release]
     env:
       BOOST_VERSION: 1.83.0
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        include:
+          # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+          # while GitHub has larger macOS runners, they are not available for our repos :(
+          - os_version: "12"
+            arch: "x86_64"
+          - os_version: "13"
+            arch: "x86_64"
+          - os_version: "14"
+            arch: "arm64"
+    name: macOS-${{ matrix.os_version }} ${{ matrix.arch }}
+    runs-on: macos-${{ matrix.os_version }}
 
     steps:
       - name: Checkout
@@ -520,24 +532,32 @@ jobs:
 
       - name: Setup Dependencies MacOS
         run: |
+          if [[ ${{ matrix.arch }} == "arm64" ]]; then
+            brew_prefix="/opt/homebrew"
+          else
+            brew_prefix="/usr/local"
+          fi
+
           # install dependencies using homebrew
           brew install cmake curl miniupnpc node openssl opus pkg-config
 
           # fix openssl header not found
-          # ln -sf /usr/local/opt/openssl/include/openssl /usr/local/include/openssl
-
-          # by installing boost from source, several headers cannot be found...
-          # the above commented out link only works if boost is installed from homebrew... does not make sense
-          ln -sf $(find /usr/local/Cellar -type d -name "openssl" -path "*/openssl@3/*/include" | head -n 1) \
-            /usr/local/include/openssl
+          openssl_path=$(find ${brew_prefix}/Cellar -type d -name "openssl" -path "*/openssl@3/*/include" | head -n 1)
+          echo "OpenSSL path: $openssl_path"
+          ln -sf $openssl_path ${brew_prefix}/include/openssl
+          ls -l ${brew_prefix}/include/openssl
 
           # fix opus header not found
-          ln -sf $(find /usr/local/Cellar -type d -name "opus" -path "*/opus/*/include" | head -n 1) \
-            /usr/local/include/opus
+          opus_path=$(find ${brew_prefix}/Cellar -type d -name "opus" -path "*/opus/*/include" | head -n 1)
+          echo "Opus path: $opus_path"
+          ln -sf $opus_path ${brew_prefix}/include/opus
+          ls -l ${brew_prefix}/include/opus
 
           # fix miniupnpc header not found
-          ln -sf $(find /usr/local/Cellar -type d -name "miniupnpc" -path "*/miniupnpc/*/include" | head -n 1) \
-            /usr/local/include/miniupnpc
+          upnp_path=$(find ${brew_prefix}/Cellar -type d -name "miniupnpc" -path "*/miniupnpc/*/include" | head -n 1)
+          echo "Miniupnpc path: $upnp_path"
+          ln -sf $upnp_path ${brew_prefix}/include/miniupnpc
+          ls -l ${brew_prefix}/include/miniupnpc
 
       - name: Install Boost
         # installing boost from homebrew takes 30 minutes in a GitHub runner
@@ -594,15 +614,13 @@ jobs:
 
           # package
           cpack -G DragNDrop
-          mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine.dmg
-
-          # cpack -G Bundle
-          # mv ./cpack_artifacts/Sunshine.dmg ../artifacts/sunshine-bundle.dmg
+          mv ./cpack_artifacts/Sunshine.dmg \
+            ../artifacts/sunshine-macos-${{ matrix.os_version }}-${{ matrix.arch }}.dmg
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sunshine-macos
+          name: sunshine-macos-${{ matrix.os_version }}-${{ matrix.arch }}
           path: artifacts/
 
       - name: Create/Update GitHub Release
@@ -620,9 +638,19 @@ jobs:
           prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac_port:
-    name: Macports
     needs: [check_changelog, setup_release]
-    runs-on: macos-11
+    strategy:
+      fail-fast: false  # false to test all, true to fail entire job if any fail
+      matrix:
+        include:
+          # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+          # while GitHub has larger macOS runners, they are not available for our repos :(
+          - os_version: "12"
+            release: true
+          - os_version: "13"
+          - os_version: "14"
+    name: Macports (macOS-${{ matrix.os_version }})
+    runs-on: macos-${{ matrix.os_version }}
 
     steps:
       - name: Checkout
@@ -725,13 +753,14 @@ jobs:
           echo "::endgroup::"
 
       - name: Upload Artifacts
+        if: ${{ matrix.release == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sunshine-macports
           path: artifacts/
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
+        if: ${{ needs.setup_release.outputs.create_release == 'true' && matrix.release == 'true' }}
         uses: ncipollo/release-action@v1
         with:
           name: ${{ needs.setup_release.outputs.release_name }}
