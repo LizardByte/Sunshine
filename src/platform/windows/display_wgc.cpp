@@ -80,7 +80,7 @@ namespace platf::dxgi {
       }
     }
     catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: "sv << e.code();
+      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to acquire device: [0x"sv << util::hex(e.code()).to_string_view() << ']';
       return -1;
     }
 
@@ -91,7 +91,7 @@ namespace platf::dxgi {
     auto monitor_factory = winrt::get_activation_factory<winrt::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
     if (monitor_factory == nullptr ||
         FAILED(status = monitor_factory->CreateForMonitor(output_desc.Monitor, winrt::guid_of<winrt::IGraphicsCaptureItem>(), winrt::put_abi(item)))) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: [0x"sv << util::hex(status).to_string_view() << ']';
+      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to acquire display: [0x"sv << util::hex(status).to_string_view() << ']';
       return -1;
     }
 
@@ -104,11 +104,22 @@ namespace platf::dxgi {
       frame_pool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(uwp_device, static_cast<winrt::Windows::Graphics::DirectX::DirectXPixelFormat>(display->capture_format), 2, item.Size());
       capture_session = frame_pool.CreateCaptureSession(item);
       frame_pool.FrameArrived({ this, &wgc_capture_t::on_frame_arrived });
+    }
+    catch (winrt::hresult_error &e) {
+      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to create capture session: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+      return -1;
+    }
+    try {
       capture_session.IsBorderRequired(false);
+    }
+    catch (winrt::hresult_error &e) {
+      BOOST_LOG(warning) << "Screen capture may not be fully supported on this device for this release of Windows: failed to disable border around capture area: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+    }
+    try {
       capture_session.StartCapture();
     }
     catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: "sv << e.code();
+      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to start capture: [0x"sv << util::hex(e.code()).to_string_view() << ']';
       return -1;
     }
     return 0;
