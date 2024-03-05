@@ -87,6 +87,7 @@ RUN <<_PKGBUILD
 set -e
 namcap -i PKGBUILD
 makepkg -si --noconfirm
+rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst
 ls -a
 _PKGBUILD
 
