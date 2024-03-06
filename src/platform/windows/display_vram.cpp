@@ -1444,6 +1444,7 @@ namespace platf::dxgi {
       return capture_e::interrupted;
 
     auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
+    d3d_img->blank = false; // image is always ready for capture
     if (complete_img(d3d_img.get(), false) == 0) {
       texture_lock_helper lock_helper(d3d_img->capture_mutex.get());
       if (lock_helper.lock()) {
