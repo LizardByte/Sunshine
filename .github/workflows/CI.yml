@@ -843,11 +843,15 @@ jobs:
       - name: Package Windows Debug Info
         working-directory: build
         run: |
-          # save the original binaries with debug info
+          # use .dbg file extension for binaries to avoid confusion with real packages
+          Get-ChildItem -File -Recurse | `
+            % { Rename-Item -Path $_.PSPath -NewName $_.Name.Replace(".exe",".dbg") }
+
+          # save the binaries with debug info
           7z -r `
             "-xr!CMakeFiles" `
             "-xr!cpack_artifacts" `
-            a "../artifacts/sunshine-debuginfo-win32.zip" "*.exe"
+            a "../artifacts/sunshine-win32-debuginfo.7z" "*.dbg"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
