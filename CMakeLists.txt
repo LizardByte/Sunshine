@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.18)
 
 # todo - set version to 0.0.0 once confident in automated versioning
 project(Sunshine VERSION 0.22.0
-        DESCRIPTION "Sunshine is a self-hosted game stream host for Moonlight."
+        DESCRIPTION "Self-hosted game stream host for Moonlight"
         HOMEPAGE_URL "https://app.lizardbyte.dev/Sunshine")
 
 set(PROJECT_LICENSE "GPL-3.0")

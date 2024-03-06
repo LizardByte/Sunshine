@@ -2,6 +2,9 @@ if (APPLE)
     if(${SUNSHINE_CONFIGURE_PORTFILE})
         configure_file(packaging/macos/Portfile Portfile @ONLY)
     endif()
+    if(${SUNSHINE_CONFIGURE_HOMEBREW})
+        configure_file(packaging/macos/sunshine.rb sunshine.rb @ONLY)
+    endif()
 elseif (UNIX)
     include(GNUInstallDirs)  # this needs to be included prior to configuring the desktop files
 

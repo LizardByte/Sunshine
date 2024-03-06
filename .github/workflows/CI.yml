@@ -505,10 +505,8 @@ jobs:
           discussionCategory: announcements
           prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
-  build_mac:
+  build_mac_brew:
     needs: [check_changelog, setup_release]
-    env:
-      BOOST_VERSION: 1.83.0
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -516,126 +514,87 @@ jobs:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
           - os_version: "12"
-            arch: "x86_64"
+            release: true
           - os_version: "13"
-            arch: "x86_64"
           - os_version: "14"
-            arch: "arm64"
-    name: macOS-${{ matrix.os_version }} ${{ matrix.arch }}
+    name: Homebrew (macOS-${{ matrix.os_version }})
     runs-on: macos-${{ matrix.os_version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
-      - name: Setup Dependencies MacOS
+      - name: Setup Dependencies Homebrew
         run: |
-          if [[ ${{ matrix.arch }} == "arm64" ]]; then
-            brew_prefix="/opt/homebrew"
-          else
-            brew_prefix="/usr/local"
-          fi
-
           # install dependencies using homebrew
-          brew install cmake curl miniupnpc node openssl opus pkg-config
+          brew install cmake
 
-          # fix openssl header not found
-          openssl_path=$(find ${brew_prefix}/Cellar -type d -name "openssl" -path "*/openssl@3/*/include" | head -n 1)
-          echo "OpenSSL path: $openssl_path"
-          ln -sf $openssl_path ${brew_prefix}/include/openssl
-          ls -l ${brew_prefix}/include/openssl
-
-          # fix opus header not found
-          opus_path=$(find ${brew_prefix}/Cellar -type d -name "opus" -path "*/opus/*/include" | head -n 1)
-          echo "Opus path: $opus_path"
-          ln -sf $opus_path ${brew_prefix}/include/opus
-          ls -l ${brew_prefix}/include/opus
-
-          # fix miniupnpc header not found
-          upnp_path=$(find ${brew_prefix}/Cellar -type d -name "miniupnpc" -path "*/miniupnpc/*/include" | head -n 1)
-          echo "Miniupnpc path: $upnp_path"
-          ln -sf $upnp_path ${brew_prefix}/include/miniupnpc
-          ls -l ${brew_prefix}/include/miniupnpc
-
-      - name: Install Boost
-        # installing boost from homebrew takes 30 minutes in a GitHub runner
+      - name: Configure formula
         run: |
-          export BOOST_ROOT=${HOME}/boost-${BOOST_VERSION}
+          # variables for formula
+          branch=${GITHUB_HEAD_REF}
 
-          # install boost
-          wget \
-            https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz \
-            --progress=bar:force:noscroll -q --show-progress
-          tar xf boost-${BOOST_VERSION}.tar.gz
-          cd boost-${BOOST_VERSION}
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+            echo "This is a PUSH event"
+            clone_url=${{ github.event.repository.clone_url }}
+            branch="${{ github.ref_name }}"
+          else
+            echo "This is a PR event"
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+            branch="${{ github.event.pull_request.head.ref }}"
+          fi
+          echo "Branch: ${branch}"
+          echo "Clone URL: ${clone_url}"
 
-          # libdir should be set by --prefix but isn't
-          ./bootstrap.sh \
-            --prefix=${BOOST_ROOT} \
-            --libdir=${BOOST_ROOT}/lib \
-            --with-libraries=locale,log,program_options,system,thread
-          ./b2 headers
-          ./b2 install \
-            --prefix=${BOOST_ROOT} \
-            --libdir=${BOOST_ROOT}/lib \
-            -j$(sysctl -n hw.ncpu) \
-            link=shared,static \
-            variant=release \
-            cxxflags=-std=c++14 \
-            cxxflags=-stdlib=libc++ \
-            linkflags=-stdlib=libc++
-
-          # put boost in cmake prefix path
-          echo "BOOST_ROOT=${BOOST_ROOT}" >> ${GITHUB_ENV}
-
-      - name: Build MacOS
-        env:
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
-          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
           mkdir build
           cd build
           cmake \
-            -DBUILD_WERROR=ON \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr \
-            -DSUNSHINE_ASSETS_DIR=local/sunshine/assets \
-            -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
+            -DGITHUB_BRANCH="${branch}" \
+            -DGITHUB_CLONE_URL="${clone_url}" \
+            -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
-          make -j $(sysctl -n hw.ncpu)
+          cd ..
 
-      - name: Package MacOS
-        run: |
-          mkdir -p artifacts
-          cd build
+          # copy formula to artifacts
+          mkdir -p homebrew
+          cp -f ./build/sunshine.rb ./homebrew/sunshine.rb
 
-          # package
-          cpack -G DragNDrop
-          mv ./cpack_artifacts/Sunshine.dmg \
-            ../artifacts/sunshine-macos-${{ matrix.os_version }}-${{ matrix.arch }}.dmg
+          # testing
+          cat ./homebrew/sunshine.rb
 
       - name: Upload Artifacts
+        if: ${{ matrix.release }}
         uses: actions/upload-artifact@v4
         with:
-          name: sunshine-macos-${{ matrix.os_version }}-${{ matrix.arch }}
-          path: artifacts/
+          name: sunshine-homebrew
+          path: homebrew/
 
-      - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
-        uses: ncipollo/release-action@v1
+      - name: Should Publish Homebrew Formula
+        id: homebrew_publish
+        run: |
+          PUBLISH=false
+          if [[ \
+            "${{ matrix.release }}" == "true" && \
+            "${{ github.repository_owner }}" == "LizardByte" && \
+            "${{ needs.setup_release.outputs.create_release }}" == "true" && \
+            "${{ github.ref }}" == "refs/heads/master" \
+          ]]; then
+            PUBLISH=true
+          fi
+
+          echo "publish=${PUBLISH}" >> $GITHUB_OUTPUT
+
+      - name: Validate and Publish Homebrew Formula
+        uses: LizardByte/homebrew-release-action@v2024.309.150158
         with:
-          name: ${{ needs.setup_release.outputs.release_name }}
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          commit: ${{ needs.setup_release.outputs.release_commit }}
-          artifacts: "*artifacts/*"
+          formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
+          git_email: ${{ secrets.GH_BOT_EMAIL }}
+          git_username: ${{ secrets.GH_BOT_NAME }}
+          publish: ${{ steps.homebrew_publish.outputs.publish }}
           token: ${{ secrets.GH_BOT_TOKEN }}
-          allowUpdates: true
-          body: ${{ needs.setup_release.outputs.release_body }}
-          discussionCategory: announcements
-          prerelease: ${{ needs.setup_release.outputs.pre_release }}
 
   build_mac_port:
     needs: [check_changelog, setup_release]

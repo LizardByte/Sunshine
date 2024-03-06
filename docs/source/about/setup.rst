@@ -283,18 +283,15 @@ Install
 
    .. important:: Sunshine on macOS is experimental. Gamepads do not work.
 
-   .. tab:: dmg
+   .. tab:: Homebrew
 
-      .. warning:: The `dmg` does not include runtime dependencies. This package is not recommended for most users.
-         No support will be provided!
+      #. Install `Homebrew <https://docs.brew.sh/Installation>`__
+      #. Update the Homebrew sources and install Sunshine.
 
-      #. Download the ``sunshine-<macos_version>-<cpu_architecture>.dmg`` file and install it.
-
-      Uninstall:
          .. code-block:: bash
 
-            cd /etc/sunshine/assets
-            uninstall_pkg.sh
+            brew tap LizardByte/homebrew
+            brew install sunshine
 
    .. tab:: Portfile
 
