@@ -12,4 +12,4 @@ Actions=RunInTerminal;
 [Desktop Action RunInTerminal]
 Name=Run in Terminal
 Icon=application-x-executable
-Exec=gio launch @CMAKE_INSTALL_DATAROOTDIR@/applications/sunshine_terminal.desktop
+Exec=gio launch @CMAKE_INSTALL_FULL_DATAROOTDIR@/applications/sunshine_terminal.desktop
