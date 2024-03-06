@@ -3,7 +3,7 @@ if (APPLE)
         configure_file(packaging/macos/Portfile Portfile @ONLY)
     endif()
 elseif (UNIX)
-    include(GNUInstallDirs)
+    include(GNUInstallDirs)  # this needs to be included prior to configuring the desktop files
 
     # configure the .desktop file
     if(${SUNSHINE_BUILD_APPIMAGE})
