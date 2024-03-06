@@ -281,14 +281,14 @@ Install
 
 .. tab:: macOS
 
-   .. important:: Sunshine on macOS is experimental. Gamepads do not work. Other features may not work as expected.
+   .. important:: Sunshine on macOS is experimental. Gamepads do not work.
 
    .. tab:: dmg
 
       .. warning:: The `dmg` does not include runtime dependencies. This package is not recommended for most users.
          No support will be provided!
 
-      #. Download the ``sunshine.dmg`` file and install it.
+      #. Download the ``sunshine-<macos_version>-<cpu_architecture>.dmg`` file and install it.
 
       Uninstall:
          .. code-block:: bash
