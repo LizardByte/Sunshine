@@ -1,8 +1,6 @@
 # unix specific packaging
 # put anything here that applies to both linux and macos
 
-include(GNUInstallDirs)
-
 # return here if building a macos package
 if(SUNSHINE_PACKAGE_MACOS)
     return()
