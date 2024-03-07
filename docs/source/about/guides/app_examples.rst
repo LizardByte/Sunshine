@@ -6,6 +6,8 @@ and applications to Sunshine.
 .. attention:: Throughout these examples, any fields not shown are left blank. You can enhance your experience by
    adding an image or a log file (via the ``Output`` field).
 
+.. note:: When a working directory is not specified, it defaults to the folder where the target application resides.
+
 Common Examples
 ---------------
 
@@ -24,7 +26,7 @@ Steam Big Picture
 ^^^^^^^^^^^^^^^^^
 
 .. note:: Steam is launched as a detached command because Steam starts with a process that self updates itself and the original
-   process is killed. Since the original process ends it will not work as a regular command.
+   process is killed.
 
 .. tab:: Linux
 
@@ -51,7 +53,7 @@ Steam Big Picture
    +----------------------+-----------------------------+
    | Application Name     | ``Steam Big Picture``       |
    +----------------------+-----------------------------+
-   | Detached Commands    | ``steam://open/bigpicture`` |
+   | Command              | ``steam://open/bigpicture`` |
    +----------------------+-----------------------------+
    | Image                | ``steam.png``               |
    +----------------------+-----------------------------+
@@ -59,8 +61,7 @@ Steam Big Picture
 Epic Game Store game
 ^^^^^^^^^^^^^^^^^^^^
 
-.. note:: Using URI method will be the most consistent between various games, but does not allow a game to be launched
-   using the "Command" and therefore the stream will not end when the game ends.
+.. note:: Using URI method will be the most consistent between various games.
 
 URI (Epic)
 """"""""""
@@ -70,7 +71,7 @@ URI (Epic)
    +----------------------+--------------------------------------------------------------------------------------------------------------------------------------------+
    | Application Name     | ``Surviving Mars``                                                                                                                         |
    +----------------------+--------------------------------------------------------------------------------------------------------------------------------------------+
-   | Detached Commands    | ``com.epicgames.launcher://apps/d759128018124dcabb1fbee9bb28e178%3A20729b9176c241f0b617c5723e70ec2d%3AOvenbird?action=launch&silent=true`` |
+   | Command              | ``com.epicgames.launcher://apps/d759128018124dcabb1fbee9bb28e178%3A20729b9176c241f0b617c5723e70ec2d%3AOvenbird?action=launch&silent=true`` |
    +----------------------+--------------------------------------------------------------------------------------------------------------------------------------------+
 
 Binary (Epic w/ working directory)
@@ -81,7 +82,7 @@ Binary (Epic w/ working directory)
    +----------------------+-----------------------------------------------+
    | Application Name     | ``Surviving Mars``                            |
    +----------------------+-----------------------------------------------+
-   | Command              | ``cmd /c "MarsEpic.exe"``                     |
+   | Command              | ``MarsEpic.exe``                              |
    +----------------------+-----------------------------------------------+
    | Working Directory    | ``C:\Program Files\Epic Games\SurvivingMars`` |
    +----------------------+-----------------------------------------------+
@@ -100,8 +101,7 @@ Binary (Epic w/o working directory)
 Steam game
 ^^^^^^^^^^
 
-.. note:: Using URI method will be the most consistent between various games, but does not allow a game to be launched
-   using the "Command" and therefore the stream will not end when the game ends.
+.. note:: Using URI method will be the most consistent between various games.
 
 URI (Steam)
 """""""""""
@@ -127,7 +127,7 @@ URI (Steam)
    +----------------------+------------------------------+
    | Application Name     | ``Surviving Mars``           |
    +----------------------+------------------------------+
-   | Detached Commands    | ``steam://rungameid/464920`` |
+   | Command              | ``steam://rungameid/464920`` |
    +----------------------+------------------------------+
 
 Binary (Steam w/ working directory)
