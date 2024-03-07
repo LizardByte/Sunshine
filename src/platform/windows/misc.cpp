@@ -681,10 +681,11 @@ namespace platf {
    * @param raw_cmd The raw command provided by the user.
    * @param working_dir The working directory for the new process.
    * @param token The user token currently being impersonated or `NULL` if running as ourselves.
+   * @param creation_flags The creation flags for CreateProcess(), which may be modified by this function.
    * @return A command string suitable for use by CreateProcess().
    */
   std::wstring
-  resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token) {
+  resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token, DWORD &creation_flags) {
     std::wstring raw_cmd_w = from_utf8(raw_cmd);
 
     // First, convert the given command into parts so we can get the executable/file/URL without parameters
@@ -757,8 +758,13 @@ namespace platf {
       // FIXME: Maybe we can improve this in the future.
       if (res == HRESULT_FROM_WIN32(ERROR_NO_ASSOCIATION)) {
         BOOST_LOG(warning) << "Using trampoline to handle target: "sv << raw_cmd;
-        std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" \"%1\" %*");
+        std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" /wait \"%1\" %*");
         needs_cmd_escaping = true;
+
+        // We must suppress the console window that would otherwise appear when starting cmd.exe.
+        creation_flags &= ~CREATE_NEW_CONSOLE;
+        creation_flags |= CREATE_NO_WINDOW;
+
         res = S_OK;
       }
 
@@ -951,7 +957,7 @@ namespace platf {
       // Open the process as the current user account, elevation is handled in the token itself.
       ec = impersonate_current_user(user_token, [&]() {
         std::wstring env_block = create_environment_block(cloned_env);
-        std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token);
+        std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
         ret = CreateProcessAsUserW(user_token,
           NULL,
           (LPWSTR) wcmd.c_str(),
@@ -985,7 +991,7 @@ namespace platf {
       }
 
       std::wstring env_block = create_environment_block(cloned_env);
-      std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL);
+      std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL, creation_flags);
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
         NULL,
