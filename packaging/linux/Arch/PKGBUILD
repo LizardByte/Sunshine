@@ -37,7 +37,9 @@ makedepends=('boost'
              'make'
              'nodejs'
              'npm')
-optdepends=('cuda: NvFBC capture support')
+optdepends=('cuda: Nvidia GPU encoding support'
+            'libva-mesa-driver: AMD GPU encoding support'
+            'intel-media-driver: Intel GPU encoding support')
 
 provides=('sunshine')
 
