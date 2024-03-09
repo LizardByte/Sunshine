@@ -29,6 +29,7 @@ elseif (UNIX)
     # configure the arch linux pkgbuild
     if(${SUNSHINE_CONFIGURE_PKGBUILD})
         configure_file(packaging/linux/Arch/PKGBUILD PKGBUILD @ONLY)
+        configure_file(packaging/linux/Arch/sunshine.install sunshine.install @ONLY)
     endif()
 
     # configure the flatpak manifest

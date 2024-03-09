@@ -1,0 +1,12 @@
+do_setcap() {
+  setcap cap_sys_admin+p $(readlink -f $(which sunshine))
+}
+
+post_install() {
+  do_setcap
+}
+
+post_upgrade() {
+  do_setcap
+}
+
