@@ -34,7 +34,7 @@ ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
-# cuda, libcap, and libdrm are optional dependencies for PKGBUILD
+# cuda is an optional build-time dependency for PKGBUILD
 RUN <<_DEPS
 #!/bin/bash
 set -e
@@ -43,8 +43,6 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   cmake \
   cuda \
   git \
-  libcap \
-  libdrm \
   namcap
 _DEPS
 

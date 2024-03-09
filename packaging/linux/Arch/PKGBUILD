@@ -13,6 +13,8 @@ depends=('avahi'
          'boost-libs'
          'curl'
          'libayatana-appindicator'
+         'libcap'
+         'libdrm'
          'libevdev'
          'libmfx'
          'libnotify'
@@ -35,9 +37,7 @@ makedepends=('boost'
              'make'
              'nodejs'
              'npm')
-optdepends=('cuda: NvFBC capture support'
-            'libcap'
-            'libdrm')
+optdepends=('cuda: NvFBC capture support')
 
 provides=('sunshine')
 
