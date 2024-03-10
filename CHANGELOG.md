@@ -1,18 +1,35 @@
 # Changelog
 
 ## [0.22.1] - 2024-03-10
+**Breaking**
+- (ArchLinux) Drop support for standalone PKGBUILD files. Use the binary Arch package or install via AUR instead.
+- (macOS) Drop support for experimental dmg package. Use Homebrew or MacPorts instead.
+
 **Added**
 - (macOS) Added Homebrew support
 
+**Changed**
+- (Process/Windows) The working directory is now searched first when the command contains a relative path
+- (ArchLinux) The kmsgrab capture backend is now compiled by default to support Wayland capture on non-wlroots-based compositors
+
 **Fixed**
+- (Config) Fix unsupported resolution error with some Moonlight clients
+- (Capture/Windows) Fix crash when streaming Ryujinx, Red Alert 2, and other apps that use unusually sized monochrome cursors
+- (Capture/Linux) Fix crash in KMS cursor capture when running on Arch-based distros
+- (Capture/Linux) Fix crash if CUDA GPU has a PCI ID with hexadecimal digits greater than 9
+- (Process/Windows) Fix starting apps when the working directory is enclosed in quotes
+- (Process/Windows) Fix process tree tracking when the app is launched via a cmd.exe trampoline
+- (Installer/Windows) Fix slow operation during ViGEmBus installation that may cause the installer to appear stuck
 - (Build/macOS) Fix issues building on macOS 13 and 14
-- (Build/Linux) Ensure correct pkg archive is published to GitHub releases
+- (Build/Linux) Fix missing install script in the Arch binary package
+- (Build/Linux) Fix missing optional dependencies in the Arch binary package
+- (Build/Linux) Ensure correct Arch pkg is published to GitHub releases
 - (Capture/Linux) Fix mismatched case and unhandled exception in CUDA device lookup
 - (Config) Add missing resolution to default config ui
 - (Linux) Fix wrong path in desktop files
 
 **Misc**
-- (macOS) Drop support for experimental dmg package
+- (Build/Windows) Adjust Windows debuginfo artifact to reduce confusion with real release binaries
 
 ## [0.22.0] - 2024-03-03
 **Breaking**
