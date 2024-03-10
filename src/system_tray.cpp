@@ -145,6 +145,8 @@ namespace system_tray {
         { .text = "Restart", .cb = tray_restart_cb },
         { .text = "Quit", .cb = tray_quit_cb },
         { .text = nullptr } },
+    .iconPathCount = 4,
+    .allIconPaths = { TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING },
   };
 
   /**
