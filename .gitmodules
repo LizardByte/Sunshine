@@ -58,3 +58,6 @@
 	path = third-party/wlr-protocols
 	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols.git
 	branch = master
+[submodule "third-party/jwt-cpp"]
+	path = third-party/jwt-cpp
+	url = https://github.com/Thalhammer/jwt-cpp.git

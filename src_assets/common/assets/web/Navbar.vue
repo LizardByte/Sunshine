@@ -35,22 +35,73 @@
       </div>
     </div>
   </nav>
+    <!-- Modal that is shown when the user gets a 401 error -->
+    <div class="modal fade" id="loginModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">Session Expired</h1>
+                </div>
+                <div class="modal-body">
+                    <LoginForm @loggedin="onLogin" />
+                </div>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script>
 import ThemeToggle from './ThemeToggle.vue'
+import { Modal } from 'bootstrap/dist/js/bootstrap'
+import LoginForm from './LoginForm.vue'
 
 export default {
-  components: { ThemeToggle },
+  components: {
+    ThemeToggle,
+    LoginForm
+  },
+  data() {
+    modal: null
+  },
   created() {
     console.log("Header mounted!")
   },
   mounted() {
-    let el = document.querySelector("a[href='" + document.location.pathname + "']");
+    // Discord Widget
+    /*let el = document.querySelector("a[href='" + document.location.pathname + "']");
     if (el) el.classList.add("active")
     let discordWidget = document.createElement('script')
     discordWidget.setAttribute('src', 'https://app.lizardbyte.dev/js/discord.js')
     document.head.appendChild(discordWidget)
+     */
+    this.setupDiscordWidget()
+
+    // User Session
+    /*window.addEventListener("sunshine:session_expire", () => {
+      this.modal.toggle();
+    })
+    this.modal = new Modal(document.getElementById('loginModal'), {});
+     */
+    this.setupSession()
+  },
+  methods: {
+    setupSession() {
+      // TODO: Migrate this to a Pinia state?
+      window.addEventListener("sunshine:session_expire", () => {
+        this.modal.toggle();
+      })
+      this.modal = new Modal(document.getElementById('loginModal'), {});
+    },
+    setupDiscordWidget() {
+      let el = document.querySelector("a[href='" + document.location.pathname + "']");
+      if (el) el.classList.add("active")
+      let discordWidget = document.createElement('script')
+      discordWidget.setAttribute('src', 'https://app.lizardbyte.dev/js/discord.js')
+      document.head.appendChild(discordWidget)
+    },
+    onLogin(){
+      this.modal.toggle();
+    },
   }
 }
 </script>
