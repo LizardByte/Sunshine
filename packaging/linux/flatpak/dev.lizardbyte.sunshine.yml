@@ -357,3 +357,7 @@ modules:
         's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
         /app/share/sunshine/systemd/user/sunshine.service
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
+      - |  # migrate config directory, https://github.com/LizardByte/Sunshine/pull/2034
+          if [ -d "${HOME}/.config/sunshine" ]; then
+            mv "${HOME}/.config/sunshine" "${XDG_CONFIG_HOME:-~/.config}/sunshine"
+          fi
