@@ -32,6 +32,7 @@
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
+#include "jwt-cpp/jwt.h"
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -46,6 +47,8 @@ using namespace std::literals;
 namespace confighttp {
   namespace fs = std::filesystem;
   namespace pt = boost::property_tree;
+  
+  std::string jwt_key;
 
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
@@ -64,7 +67,7 @@ namespace confighttp {
     BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
 
     for (auto &[name, val] : request->header) {
-      BOOST_LOG(debug) << name << " -- " << (name == "Authorization" ? "CREDENTIALS REDACTED" : val);
+      BOOST_LOG(debug) << name << " -- " << (name == "Cookie" ? "COOKIES REDACTED" : val);
     }
 
     BOOST_LOG(debug) << " [--] "sv;
@@ -80,9 +83,7 @@ namespace confighttp {
   send_unauthorized(resp_https_t response, req_https_t request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
-    const SimpleWeb::CaseInsensitiveMultimap headers {
-      { "WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")" }
-    };
+    const SimpleWeb::CaseInsensitiveMultimap headers {};
     response->write(SimpleWeb::StatusCode::client_error_unauthorized, headers);
   }
 
@@ -114,29 +115,48 @@ namespace confighttp {
     }
 
     auto fg = util::fail_guard([&]() {
-      send_unauthorized(response, request);
+      BOOST_LOG(info) << request->path;
+      std::string apiPrefix = "/api";
+      if (request->path.compare(0, apiPrefix.length(), apiPrefix) == 0) {
+        send_unauthorized(response, request);
+      }
+      else {
+        send_redirect(response, request, "/login");
+      }
     });
 
-    auto auth = request->header.find("authorization");
+    auto auth = request->header.find("cookie");
     if (auth == request->header.end()) {
       return false;
     }
 
     auto &rawAuth = auth->second;
-    auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
+    std::istringstream iss(rawAuth);
+    std::string token, cookie_name = "sunshine_session=", cookie_value = "";
 
-    int index = authData.find(':');
-    if (index >= authData.size() - 1) {
-      return false;
+    while (std::getline(iss, token, ';')) {
+      BOOST_LOG(info) << token;
+      // Left Trim Cookie
+      token.erase(token.begin(), std::find_if(token.begin(), token.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+      }));
+      // Compare that the cookie name is sunshine_session
+      if (token.compare(0, cookie_name.length(), cookie_name) == 0) {
+        cookie_value = token.substr(cookie_name.length());
+        BOOST_LOG(info) << cookie_value;
+        break;
+      }
     }
 
-    auto username = authData.substr(0, index);
-    auto password = authData.substr(index + 1);
-    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+    if (cookie_value.length() == 0) return false;
+    BOOST_LOG(info) << "JWT: " << cookie_value;
+    auto decoded = jwt::decode(cookie_value);
+    auto verifier = jwt::verify()
+                      .with_issuer("sunshine-" + http::unique_id)
+                      .with_claim("sub", jwt::claim(std::string(config::sunshine.username)))
+                      .allow_algorithm(jwt::algorithm::hs256 { jwt_key });
 
-    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-      return false;
-    }
+    verifier.verify(decoded);
 
     fg.disable();
     return true;
@@ -176,6 +196,16 @@ namespace confighttp {
     print_req(request);
 
     std::string content = file_handler::read_file(WEB_DIR "pin.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(content, headers);
+  }
+
+  void
+  getLoginPage(resp_https_t response, req_https_t request) {
+    print_req(request);
+
+    std::string content = file_handler::read_file(WEB_DIR "login.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     response->write(content, headers);
@@ -721,8 +751,70 @@ namespace confighttp {
   }
 
   void
+  login(resp_https_t response, req_https_t request) {
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+    auto ip_type = net::from_address(address);
+
+    if (ip_type > http::origin_web_ui_allowed) {
+      BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
+      response->write(SimpleWeb::StatusCode::client_error_forbidden);
+      return;
+    }
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+
+    pt::ptree inputTree, outputTree;
+    auto g = util::fail_guard([&]() {
+      std::ostringstream data;
+
+      pt::write_json(data, outputTree);
+      response->write(data.str());
+    });
+
+    try {
+      // TODO: Input Validation
+      pt::read_json(ss, inputTree);
+      auto username = inputTree.get<std::string>("username");
+      auto password = inputTree.get<std::string>("password");
+      auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+
+      if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+        outputTree.put("status", "false");
+        return;
+      }
+      outputTree.put("status", "true");
+      auto token = jwt::create().set_type("JWS").set_issued_now().set_expires_in(std::chrono::seconds { 3600 }).set_issuer("sunshine-" + http::unique_id).set_payload_claim("sub", jwt::claim(std::string(config::sunshine.username))).sign(jwt::algorithm::hs256 { jwt_key });
+      std::stringstream cookie_stream;
+      cookie_stream << "sunshine_session=";
+      cookie_stream << token;
+      cookie_stream << "; Secure; HttpOnly; SameSite=Strict; Path=/";
+      const SimpleWeb::CaseInsensitiveMultimap headers {
+        { "Set-Cookie", cookie_stream.str() }
+      };
+      std::ostringstream data;
+      pt::write_json(data, outputTree);
+      response->write(SimpleWeb::StatusCode::success_ok, data.str(), headers);
+      g.disable();
+      return;
+    }
+    catch (std::exception &e) {
+      BOOST_LOG(warning) << "SaveApp: "sv << e.what();
+
+      outputTree.put("status", "false");
+      outputTree.put("error", "Invalid Input JSON");
+      return;
+    }
+
+    outputTree.put("status", "true");
+  }
+
+  void
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+
+    //On each server start, create a randomized jwt_key
+    jwt_key = crypto::rand_alphabet(64);
 
     auto port_https = net::map_port(PORT_HTTPS);
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
@@ -730,6 +822,7 @@ namespace confighttp {
     https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
     server.default_resource["GET"] = not_found;
     server.resource["^/$"]["GET"] = getIndexPage;
+    server.resource["^/login/?$"]["GET"] = getLoginPage;
     server.resource["^/pin/?$"]["GET"] = getPinPage;
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
     server.resource["^/clients/?$"]["GET"] = getClientsPage;
@@ -749,6 +842,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpairAll;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/api/login$"]["POST"] = login;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
