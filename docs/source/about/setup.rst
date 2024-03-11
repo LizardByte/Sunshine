@@ -195,11 +195,14 @@ Install
 
    Sunshine needs access to `uinput` to create mouse and gamepad events.
 
-   #. Create `udev` rules.
+   #. Create and reload `udev` rules for uinput.
          .. code-block:: bash
 
             echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
             sudo tee /etc/udev/rules.d/60-sunshine.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger
+            sudo modprobe uinput
 
    #. Optionally, configure autostart service
 
