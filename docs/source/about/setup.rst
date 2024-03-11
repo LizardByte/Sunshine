@@ -199,7 +199,7 @@ Install
          .. code-block:: bash
 
             echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
-            sudo tee /etc/udev/rules.d/85-sunshine.rules
+            sudo tee /etc/udev/rules.d/60-sunshine.rules
 
    #. Optionally, configure autostart service
 

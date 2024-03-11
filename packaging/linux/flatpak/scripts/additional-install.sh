@@ -7,7 +7,7 @@ echo Sunshine User Service has been installed.
 echo Use [systemctl --user enable sunshine] once to autostart Sunshine on login.
 
 # Udev rule
-UDEV=$(cat /app/share/sunshine/udev/rules.d/85-sunshine.rules)
+UDEV=$(cat /app/share/sunshine/udev/rules.d/60-sunshine.rules)
 echo Configuring mouse permission.
-flatpak-spawn --host pkexec sh -c "echo '$UDEV' > /etc/udev/rules.d/85-sunshine.rules"
+flatpak-spawn --host pkexec sh -c "echo '$UDEV' > /etc/udev/rules.d/60-sunshine.rules"
 echo Restart computer for mouse permission to take effect.
