@@ -108,6 +108,7 @@ namespace platf {
     using obj_prop_t = util::safe_ptr<drmModeObjectProperties, drmModeFreeObjectProperties>;
     using prop_t = util::safe_ptr<drmModePropertyRes, drmModeFreeProperty>;
     using prop_blob_t = util::safe_ptr<drmModePropertyBlobRes, drmModeFreePropertyBlob>;
+    using version_t = util::safe_ptr<drmVersion, drmFreeVersion>;
 
     using conn_type_count_t = std::map<std::uint32_t, std::uint32_t>;
 
@@ -365,6 +366,12 @@ namespace platf {
       }
 
       bool
+      is_nvidia() {
+        version_t ver { drmGetVersion(fd.el) };
+        return ver && ver->name && strncmp(ver->name, "nvidia-drm", 10) == 0;
+      }
+
+      bool
       is_cursor(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
         for (auto &[prop, val] : props) {
@@ -601,6 +608,12 @@ namespace platf {
 
           kms::card_t card;
           if (card.init(entry.path().c_str())) {
+            continue;
+          }
+
+          // Skip non-Nvidia cards if we're looking for CUDA devices
+          if (mem_type == mem_type_e::cuda && !card.is_nvidia()) {
+            BOOST_LOG(debug) << file << " is not a CUDA device"sv;
             continue;
           }
 
@@ -1576,7 +1589,7 @@ namespace platf {
 
   // A list of names of displays accepted as display_name
   std::vector<std::string>
-  kms_display_names() {
+  kms_display_names(mem_type_e hwdevice_type) {
     int count = 0;
 
     if (!fs::exists("/dev/dri")) {
@@ -1605,6 +1618,12 @@ namespace platf {
 
       kms::card_t card;
       if (card.init(entry.path().c_str())) {
+        continue;
+      }
+
+      // Skip non-Nvidia cards if we're looking for CUDA devices
+      if (hwdevice_type == mem_type_e::cuda && !card.is_nvidia()) {
+        BOOST_LOG(debug) << file << " is not a CUDA device"sv;
         continue;
       }
 
