@@ -204,6 +204,22 @@ Install
             sudo udevadm trigger
             sudo modprobe uinput
 
+   #. Enable permissions for KMS capture.
+         .. warning:: Capture of most Wayland-based desktop environments will fail unless this step is performed.
+
+         .. note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
+            allow Sunshine to use KMS capture.
+
+         **Enable**
+            .. code-block:: bash
+
+               sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
+
+         **Disable (for Xorg/X11 only)**
+            .. code-block:: bash
+
+               sudo setcap -r $(readlink -f $(which sunshine))
+
    #. Optionally, configure autostart service
 
       - filename: ``~/.config/systemd/user/sunshine.service``
@@ -247,20 +263,6 @@ Install
             .. code-block:: bash
 
                systemctl --user enable sunshine
-
-   #. Additional Setup for KMS
-         .. note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
-            allow Sunshine to use KMS.
-
-         **Enable**
-            .. code-block:: bash
-
-               sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
-
-         **Disable (for Xorg/X11)**
-            .. code-block:: bash
-
-               sudo setcap -r $(readlink -f $(which sunshine))
 
    #. Reboot
          .. code-block:: bash
