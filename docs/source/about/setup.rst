@@ -51,6 +51,8 @@ Install
 
    .. tab:: AppImage
 
+      .. caution:: Use distro-specific packages instead of the AppImage if they are available.
+
       According to AppImageLint the supported distro matrix of the AppImage is below.
 
       - ✔ Debian bullseye
@@ -103,7 +105,7 @@ Install
 
             pacman -R sunshine
 
-   .. tab:: Debian Package
+   .. tab:: Debian/Ubuntu Package
 
       #. Download ``sunshine-{distro}-{distro-version}-{arch}.deb`` and run the following code.
 
@@ -122,6 +124,8 @@ Install
             sudo apt remove sunshine
 
    .. tab:: Flatpak Package
+
+      .. caution:: Use distro-specific packages instead of the Flatpak if they are available.
 
       .. important:: The instructions provided here are for the version supplied in the `latest release`_, which does
          not necessarily match the version in the Flathub repository!
