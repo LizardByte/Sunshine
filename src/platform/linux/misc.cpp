@@ -766,13 +766,13 @@ namespace platf {
 
 #ifdef SUNSHINE_BUILD_DRM
   std::vector<std::string>
-  kms_display_names();
+  kms_display_names(mem_type_e hwdevice_type);
   std::shared_ptr<display_t>
   kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   bool
   verify_kms() {
-    return !kms_display_names().empty();
+    return !kms_display_names(mem_type_e::unknown).empty();
   }
 #endif
 
@@ -798,7 +798,7 @@ namespace platf {
     if (sources[source::WAYLAND]) return wl_display_names();
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-    if (sources[source::KMS]) return kms_display_names();
+    if (sources[source::KMS]) return kms_display_names(hwdevice_type);
 #endif
 #ifdef SUNSHINE_BUILD_X11
     if (sources[source::X11]) return x11_display_names();
