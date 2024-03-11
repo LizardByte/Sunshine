@@ -6,3 +6,10 @@ if [ -x "$path_to_setcap" ] ; then
   echo "$path_to_setcap cap_sys_admin+p /usr/bin/sunshine"
 	$path_to_setcap cap_sys_admin+p $(readlink -f /usr/bin/sunshine)
 fi
+
+# Trigger udev rule reload for /dev/uinput
+path_to_udevadm=$(which udevadm)
+if [ -x "$path_to_udevadm" ] ; then
+  $path_to_udevadm control --reload-rules
+  $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
+fi
