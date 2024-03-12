@@ -68,12 +68,12 @@ dnf clean all
 rm -rf /var/cache/yum
 _DEPS
 
-## install cuda
+# install cuda
 WORKDIR /build/cuda
-## versions: https://developer.nvidia.com/cuda-toolkit-archive
+# versions: https://developer.nvidia.com/cuda-toolkit-archive
 ENV CUDA_VERSION="12.4.0"
 ENV CUDA_BUILD="550.54.14"
-## hadolint ignore=SC3010
+# hadolint ignore=SC3010
 RUN <<_INSTALL_CUDA
 #!/bin/bash
 set -e

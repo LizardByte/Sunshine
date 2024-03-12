@@ -316,7 +316,7 @@ jobs:
         id: buildx
 
       - name: Cache Docker Layers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
           key: Docker-buildx${{ matrix.tag }}-${{ github.sha }}
