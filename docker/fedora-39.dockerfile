@@ -98,12 +98,11 @@ COPY --link .. .
 WORKDIR /build/sunshine/build
 
 # cmake and cpack
-# todo - add cmake argument back in for cuda support "-DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \"
-# todo - re-enable "DSUNSHINE_ENABLE_CUDA"
 RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
+  -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
@@ -112,7 +111,7 @@ cmake \
   -DSUNSHINE_ENABLE_WAYLAND=ON \
   -DSUNSHINE_ENABLE_X11=ON \
   -DSUNSHINE_ENABLE_DRM=ON \
-  -DSUNSHINE_ENABLE_CUDA=OFF \
+  -DSUNSHINE_ENABLE_CUDA=ON \
   /build/sunshine
 make -j "$(nproc)"
 cpack -G RPM
