@@ -102,7 +102,7 @@ RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
-  -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc
+  -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
