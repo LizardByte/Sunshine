@@ -1523,12 +1523,12 @@ keybindings
    =========== ===========
 
 **Default**
-   ``vbr_latency``
+   ``cbr``
 
 **Example**
    .. code-block:: text
 
-      amd_rc = vbr_latency
+      amd_rc = cbr
 
 `amd_usage <https://localhost:47990/config/#amd_usage>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
