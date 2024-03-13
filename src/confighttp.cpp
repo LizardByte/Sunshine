@@ -665,7 +665,7 @@ namespace confighttp {
           else {
             http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
             http::reload_user_creds(config::sunshine.credentials_file);
-            //Regen the JWT Key to invalidate sessions
+            // Regen the JWT Key to invalidate sessions
             jwt_key = crypto::rand_alphabet(64);
             outputTree.put("status", true);
           }
@@ -817,7 +817,6 @@ namespace confighttp {
 
       print_req(request);
 
-
       auto g = util::fail_guard([&]() {
         std::ostringstream data;
         pt::write_json(data, outputTree);
@@ -876,7 +875,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpairAll;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
-        server.resource["^/api/logout$"]["POST"] = logout;
+    server.resource["^/api/logout$"]["POST"] = logout;
     server.resource["^/api/login$"]["POST"] = login;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
