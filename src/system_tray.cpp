@@ -47,6 +47,8 @@ using namespace std::literals;
 
 // system_tray namespace
 namespace system_tray {
+  static std::atomic<bool> tray_initialized = false;
+
   /**
    * @brief Callback for opening the UI from the system tray.
    * @param item The tray menu item.
@@ -239,6 +241,7 @@ namespace system_tray {
       BOOST_LOG(info) << "System tray created"sv;
     }
 
+    tray_initialized = true;
     while (tray_loop(1) == 0) {
       BOOST_LOG(debug) << "System tray loop"sv;
     }
@@ -275,6 +278,7 @@ namespace system_tray {
    */
   int
   end_tray() {
+    tray_initialized = false;
     tray_exit();
     return 0;
   }
@@ -285,6 +289,10 @@ namespace system_tray {
    */
   void
   update_tray_playing(std::string app_name) {
+    if (!tray_initialized) {
+      return;
+    }
+
     tray.notification_title = NULL;
     tray.notification_text = NULL;
     tray.notification_cb = NULL;
@@ -307,6 +315,10 @@ namespace system_tray {
    */
   void
   update_tray_pausing(std::string app_name) {
+    if (!tray_initialized) {
+      return;
+    }
+
     tray.notification_title = NULL;
     tray.notification_text = NULL;
     tray.notification_cb = NULL;
@@ -329,6 +341,10 @@ namespace system_tray {
    */
   void
   update_tray_stopped(std::string app_name) {
+    if (!tray_initialized) {
+      return;
+    }
+
     tray.notification_title = NULL;
     tray.notification_text = NULL;
     tray.notification_cb = NULL;
@@ -350,6 +366,10 @@ namespace system_tray {
    */
   void
   update_tray_require_pin() {
+    if (!tray_initialized) {
+      return;
+    }
+
     tray.notification_title = NULL;
     tray.notification_text = NULL;
     tray.notification_cb = NULL;

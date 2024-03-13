@@ -31,6 +31,7 @@
 - (Linux) Fix udev rules for uinput access not working until after reboot
 - (Linux) Fix wrong path in desktop files
 - (Tray) Cache icons to avoid possible DRM issues
+- (Tray) Fix attempt to update tray icon after it was destroyed
 - (Linux) Migrate old config files to new location if env SUNSHINE_MIGRATE_CONFIG=1 is set (automatically set for Flatpak)
 - (Linux/Fedora) Re-enable CUDA support and bump to 12.4.0
 
