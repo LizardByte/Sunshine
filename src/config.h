@@ -59,6 +59,7 @@ namespace config {
       std::optional<int> amd_usage_av1;
       std::optional<int> amd_preanalysis;
       std::optional<int> amd_vbaq;
+      std::optional<int> amd_enforce_hrd;
       int amd_coder;
     } amd;
 

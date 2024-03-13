@@ -924,6 +924,15 @@
           </select>
         </div>
 
+        <!-- AMF HRD Enforcement -->
+        <div class="mb-3">
+          <label for="amd_enforce_hrd" class="form-label">{{ $t('config.amd_enforce_hrd') }}</label>
+          <select id="amd_enforce_hrd" class="form-select" v-model="config.amd_enforce_hrd">
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
+          </select>
+        </div>
+
         <!-- AMF Coder (H264) -->
         <div class="mb-3">
           <label for="amd_coder" class="form-label">{{ $t('config.amd_coder') }}</label>
@@ -1150,6 +1159,7 @@
               "amd_usage": "ultralowlatency",
               "amd_preanalysis": "disabled",
               "amd_vbaq": "enabled",
+              "amd_enforce_hrd": "enabled",
               "amd_coder": "auto",
             },
           },
