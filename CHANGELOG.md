@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.22.1] - 2024-03-10
+## [0.22.1] - 2024-03-13
 **Breaking**
 - (ArchLinux) Drop support for standalone PKGBUILD files. Use the binary Arch package or install via AUR instead.
 - (macOS) Drop support for experimental dmg package. Use Homebrew or MacPorts instead.
@@ -11,6 +11,8 @@
 **Changed**
 - (Process/Windows) The working directory is now searched first when the command contains a relative path
 - (ArchLinux) The kmsgrab capture backend is now compiled by default to support Wayland capture on non-wlroots-based compositors
+- (Capture/Linux) X11 capture is now preferred over kmsgrab for cards that lack atomic modesetting support to ensure cursor capture works
+- (Capture/Linux) Kmsgrab will only choose NVENC by default if the display is connected to the Nvidia GPU to avoid possible EGL import failures
 
 **Fixed**
 - (Config) Fix unsupported resolution error with some Moonlight clients
@@ -26,6 +28,7 @@
 - (Build/Linux) Ensure correct Arch pkg is published to GitHub releases
 - (Capture/Linux) Fix mismatched case and unhandled exception in CUDA device lookup
 - (Config) Add missing resolution to default config ui
+- (Linux) Fix udev rules for uinput access not working until after reboot
 - (Linux) Fix wrong path in desktop files
 - (Tray) Cache icons to avoid possible DRM issues
 - (Linux) Migrate old config files to new location if env SUNSHINE_MIGRATE_CONFIG=1 is set (automatically set for Flatpak)
