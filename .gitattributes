@@ -1,0 +1,3 @@
+# ensure dockerfiles are checked out with LF line endings
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
