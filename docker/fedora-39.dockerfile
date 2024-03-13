@@ -81,6 +81,13 @@ cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
 cuda_suffix=""
 if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
   cuda_suffix="_sbsa"
+
+  # patch headers https://bugs.launchpad.net/ubuntu/+source/mumax3/+bug/2032624
+  sed -i 's/__Float32x4_t/int/g' /usr/include/bits/math-vector.h
+  sed -i 's/__Float64x2_t/int/g' /usr/include/bits/math-vector.h
+  sed -i 's/__SVFloat32_t/float/g' /usr/include/bits/math-vector.h
+  sed -i 's/__SVFloat64_t/float/g' /usr/include/bits/math-vector.h
+  sed -i 's/__SVBool_t/int/g' /usr/include/bits/math-vector.h
 fi
 url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
 echo "cuda url: ${url}"
