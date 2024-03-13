@@ -625,9 +625,12 @@ namespace platf {
           }
 
           // Skip non-Nvidia cards if we're looking for CUDA devices
+          // unless NVENC is selected manually by the user
           if (mem_type == mem_type_e::cuda && !card.is_nvidia()) {
             BOOST_LOG(debug) << file << " is not a CUDA device"sv;
-            continue;
+            if (config::video.encoder != "nvenc") {
+              continue;
+            }
           }
 
           auto end = std::end(card);
@@ -1635,9 +1638,15 @@ namespace platf {
       }
 
       // Skip non-Nvidia cards if we're looking for CUDA devices
+      // unless NVENC is selected manually by the user
       if (hwdevice_type == mem_type_e::cuda && !card.is_nvidia()) {
         BOOST_LOG(debug) << file << " is not a CUDA device"sv;
-        continue;
+        if (config::video.encoder == "nvenc") {
+          BOOST_LOG(warning) << "Using NVENC with your display connected to a different GPU may not work properly!"sv;
+        }
+        else {
+          continue;
+        }
       }
 
       auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
