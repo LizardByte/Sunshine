@@ -1592,6 +1592,22 @@ keybindings
 
       amd_vbaq = enabled
 
+`amd_enforce_hrd <https://localhost:47990/config/#amd_enforce_hrd>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Enable Hypothetical Reference Decoder (HRD) enforcement to help constrain the target bitrate.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_enforce_hrd = enabled
+
 `amd_coder <https://localhost:47990/config/#amd_coder>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
