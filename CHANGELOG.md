@@ -32,6 +32,7 @@
 - (Linux) Fix wrong path in desktop files
 - (Tray) Cache icons to avoid possible DRM issues
 - (Linux) Migrate old config files to new location if env SUNSHINE_MIGRATE_CONFIG=1 is set (automatically set for Flatpak)
+- (Linux/Fedora) Re-enable CUDA support and bump to 12.4.0
 
 **Misc**
 - (Build/Windows) Adjust Windows debuginfo artifact to reduce confusion with real release binaries
