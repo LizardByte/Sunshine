@@ -29,6 +29,11 @@
                         <a class="nav-link" href="/troubleshooting"><i class="fas fa-fw fa-info"></i> Troubleshooting</a>
                     </li>
                 </ul>
+                <ul  class="navbar-nav mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" @click="logout"><i class="fas fa-fw fa-right-from-bracket"></i> Logout</a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
@@ -74,6 +79,11 @@ export default {
     methods: {
         onLogin(){
             this.modal.toggle();
+        },
+        logout(){
+            fetch("/api/logout",{method: "POST"}).then(r => {
+                document.location.href = '/';
+            })
         }
     }
 }

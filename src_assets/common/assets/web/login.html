@@ -8,14 +8,16 @@
 <body id="app">
   <main role="main" style="max-width: 1200px; margin: 1em auto">
     <div class="d-flex justify-content-center gap-4">
-      <div class="card p-4">
+      <div class="p-4 card">
         <header>
-          <h1 class="mb-0">
+          <h1 class="mb-2">
             <img src="/images/logo-sunshine-45.png" height="45" alt="" style="vertical-align: bottom;">
-            Welcome to Sunshine!
+            Hello, Sunshine!
           </h1>
         </header>
         <Login-Form @loggedin="onLogin"></Login-Form>
+      </div>
+      <div>
         <Resource-Card />
       </div>
     </div>
@@ -31,13 +33,13 @@
       'ResourceCard': ResourceCard,
       'LoginForm': LoginForm
     },
-    data(){
+    data() {
       return {
         a: 1
       }
     },
-    mounted(){
-      console.log("Ciao!",this.$el)
+    mounted() {
+      console.log("Ciao!", this.$el)
     },
     methods: {
       onLogin() {
@@ -45,6 +47,6 @@
       }
     }
   });
-  console.log("App",app);
+  console.log("App", app);
   app.mount("#app");
 </script>

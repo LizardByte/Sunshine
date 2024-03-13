@@ -47,7 +47,7 @@ using namespace std::literals;
 namespace confighttp {
   namespace fs = std::filesystem;
   namespace pt = boost::property_tree;
-  
+
   std::string jwt_key;
 
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
@@ -67,7 +67,7 @@ namespace confighttp {
     BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
 
     for (auto &[name, val] : request->header) {
-      BOOST_LOG(debug) << name << " -- " << (name == "Cookie" ? "COOKIES REDACTED" : val);
+      BOOST_LOG(debug) << name << " -- " << (name == "Cookie" || name == "Authorization" ? "SENSIBLE HEADER REDACTED" : val);
     }
 
     BOOST_LOG(debug) << " [--] "sv;
@@ -120,7 +120,8 @@ namespace confighttp {
       if (request->path.compare(0, apiPrefix.length(), apiPrefix) == 0) {
         send_unauthorized(response, request);
       }
-      else {
+      // Redirect to login, but only once
+      else if (request->path.compare("/login") != 0) {
         send_redirect(response, request, "/login");
       }
     });
@@ -135,7 +136,6 @@ namespace confighttp {
     std::string token, cookie_name = "sunshine_session=", cookie_value = "";
 
     while (std::getline(iss, token, ';')) {
-      BOOST_LOG(info) << token;
       // Left Trim Cookie
       token.erase(token.begin(), std::find_if(token.begin(), token.end(), [](unsigned char ch) {
         return !std::isspace(ch);
@@ -143,13 +143,11 @@ namespace confighttp {
       // Compare that the cookie name is sunshine_session
       if (token.compare(0, cookie_name.length(), cookie_name) == 0) {
         cookie_value = token.substr(cookie_name.length());
-        BOOST_LOG(info) << cookie_value;
         break;
       }
     }
 
     if (cookie_value.length() == 0) return false;
-    BOOST_LOG(info) << "JWT: " << cookie_value;
     auto decoded = jwt::decode(cookie_value);
     auto verifier = jwt::verify()
                       .with_issuer("sunshine-" + http::unique_id)
@@ -667,6 +665,8 @@ namespace confighttp {
           else {
             http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
             http::reload_user_creds(config::sunshine.credentials_file);
+            //Regen the JWT Key to invalidate sessions
+            jwt_key = crypto::rand_alphabet(64);
             outputTree.put("status", true);
           }
         }
@@ -810,10 +810,44 @@ namespace confighttp {
   }
 
   void
+  logout(resp_https_t response, req_https_t request) {
+    pt::ptree outputTree;
+    try {
+      if (!authenticate(response, request)) return;
+
+      print_req(request);
+
+
+      auto g = util::fail_guard([&]() {
+        std::ostringstream data;
+        pt::write_json(data, outputTree);
+        response->write(data.str());
+      });
+
+      const SimpleWeb::CaseInsensitiveMultimap headers {
+        { "Set-Cookie", "sunshine_session=redacted; expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Strict; Path=/" }
+      };
+      std::ostringstream data;
+      outputTree.put("status", true);
+      pt::write_json(data, outputTree);
+
+      response->write(SimpleWeb::StatusCode::success_ok, data.str(), headers);
+      g.disable();
+    }
+    catch (std::exception &e) {
+      BOOST_LOG(warning) << "SaveApp: "sv << e.what();
+
+      outputTree.put("status", "false");
+      outputTree.put("error", "Invalid Input JSON");
+      return;
+    }
+  }
+
+  void
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
-    //On each server start, create a randomized jwt_key
+    // On each server start, create a randomized jwt_key
     jwt_key = crypto::rand_alphabet(64);
 
     auto port_https = net::map_port(PORT_HTTPS);
@@ -842,6 +876,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpairAll;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+        server.resource["^/api/logout$"]["POST"] = logout;
     server.resource["^/api/login$"]["POST"] = login;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
