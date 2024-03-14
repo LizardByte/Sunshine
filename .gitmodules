@@ -54,3 +54,7 @@
 	path = third-party/wlr-protocols
 	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols
 	branch = master
+[submodule "third-party/inputtino"]
+	path = third-party/inputtino
+	url = https://github.com/games-on-whales/inputtino.git
+	branch = uhid-ps5
