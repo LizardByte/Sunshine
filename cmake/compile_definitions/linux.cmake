@@ -222,6 +222,15 @@ if(${SUNSHINE_ENABLE_TRAY} AND ${SUNSHINE_TRAY} EQUAL 0 AND SUNSHINE_REQUIRE_TRA
     message(FATAL_ERROR "Tray icon is required")
 endif()
 
+option(SUNSHINE_USE_INPUTTINO "Use inputtino for virtual input" ON)
+if(${SUNSHINE_USE_INPUTTINO})
+    add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/inputtino/")
+    list(APPEND SUNSHINE_EXTERNAL_LIBRARIES inputtino::libinputtino)
+    list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/inputtino.cpp")
+else()
+    list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/input.cpp")
+endif()
+
 list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/publish.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/graphics.h"
@@ -229,7 +238,6 @@ list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/misc.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/misc.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/audio.cpp"
-        "${CMAKE_SOURCE_DIR}/src/platform/linux/input.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/glad/src/egl.c"
         "${CMAKE_SOURCE_DIR}/third-party/glad/src/gl.c"
         "${CMAKE_SOURCE_DIR}/third-party/glad/include/EGL/eglplatform.h"
