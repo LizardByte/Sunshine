@@ -104,6 +104,7 @@ namespace platf {
     bool migrate_config = true;
     const char *dir;
     const char *homedir;
+    const char *migrate_envvar;
     fs::path config_path;
 
     // Get the home directory
@@ -130,7 +131,8 @@ namespace platf {
     }
 
     // migrate from the old config location if necessary
-    if (migrate_config && found && getenv("SUNSHINE_MIGRATE_CONFIG") == "1"sv) {
+    migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
+    if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
       fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
       if (old_config_path != config_path && fs::exists(old_config_path)) {
         if (!fs::exists(config_path)) {
