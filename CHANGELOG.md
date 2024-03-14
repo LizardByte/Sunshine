@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.22.1] - 2024-03-13
+**Breaking**
+- (ArchLinux) Drop support for standalone PKGBUILD files. Use the binary Arch package or install via AUR instead.
+- (macOS) Drop support for experimental dmg package. Use Homebrew or MacPorts instead.
+
+**Added**
+- (macOS) Added Homebrew support
+
+**Changed**
+- (Process/Windows) The working directory is now searched first when the command contains a relative path
+- (ArchLinux) The kmsgrab capture backend is now compiled by default to support Wayland capture on non-wlroots-based compositors
+- (Capture/Linux) X11 capture is now preferred over kmsgrab for cards that lack atomic modesetting support to ensure cursor capture works
+- (Capture/Linux) Kmsgrab will only choose NVENC by default if the display is connected to the Nvidia GPU to avoid possible EGL import failures
+
+**Fixed**
+- (Config) Fix unsupported resolution error with some Moonlight clients
+- (Capture/Windows) Fix crash when streaming Ryujinx, Red Alert 2, and other apps that use unusually sized monochrome cursors
+- (Capture/Linux) Fix crash in KMS cursor capture when running on Arch-based distros
+- (Capture/Linux) Fix crash if CUDA GPU has a PCI ID with hexadecimal digits greater than 9
+- (Process/Windows) Fix starting apps when the working directory is enclosed in quotes
+- (Process/Windows) Fix process tree tracking when the app is launched via a cmd.exe trampoline
+- (Installer/Windows) Fix slow operation during ViGEmBus installation that may cause the installer to appear stuck
+- (Build/macOS) Fix issues building on macOS 13 and 14
+- (Build/Linux) Fix missing install script in the Arch binary package
+- (Build/Linux) Fix missing optional dependencies in the Arch binary package
+- (Build/Linux) Ensure correct Arch pkg is published to GitHub releases
+- (Capture/Linux) Fix mismatched case and unhandled exception in CUDA device lookup
+- (Config) Add missing resolution to default config ui
+- (Linux) Fix udev rules for uinput access not working until after reboot
+- (Linux) Fix wrong path in desktop files
+- (Tray) Cache icons to avoid possible DRM issues
+- (Tray) Fix attempt to update tray icon after it was destroyed
+- (Linux) Migrate old config files to new location if env SUNSHINE_MIGRATE_CONFIG=1 is set (automatically set for Flatpak)
+- (Linux/Fedora) Re-enable CUDA support and bump to 12.4.0
+
+**Misc**
+- (Build/Windows) Adjust Windows debuginfo artifact to reduce confusion with real release binaries
+
 ## [0.22.0] - 2024-03-03
 **Breaking**
 - (Network) Clients must now be paired with the host before they can use Wake-on-LAN
@@ -720,3 +758,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.20.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.20.0
 [0.21.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.21.0
 [0.22.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.0
+[0.22.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.1

@@ -664,6 +664,12 @@ namespace proc {
 
         if (working_dir) {
           ctx.working_dir = parse_env_val(this_env, *working_dir);
+#ifdef _WIN32
+          // The working directory, unlike the command itself, should not be quoted
+          // when it contains spaces. Unlike POSIX, Windows forbids quotes in paths,
+          // so we can safely strip them all out here to avoid confusing the user.
+          boost::erase_all(ctx.working_dir, "\"");
+#endif
         }
 
         if (image_path) {

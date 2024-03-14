@@ -106,8 +106,11 @@ main(int argc, char *argv[]) {
   setlocale(LC_ALL, ".UTF-8");
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   // Use UTF-8 conversion for the default C++ locale (used by boost::log)
   std::locale::global(std::locale(std::locale(), new std::codecvt_utf8<wchar_t>));
+#pragma GCC diagnostic pop
 
   mail::man = std::make_shared<safe::mail_raw_t>();
 

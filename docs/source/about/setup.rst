@@ -38,19 +38,20 @@ Install
       ===========================================  ==============   ==============    ================================
       Package                                      CUDA Version     Min Driver        CUDA Compute Capabilities
       ===========================================  ==============   ==============    ================================
-      PKGBUILD                                     User dependent   User dependent    User dependent
       sunshine.AppImage                            11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       sunshine.pkg.tar.zst                         11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       sunshine_{arch}.flatpak                      12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
       sunshine-debian-bookworm-{arch}.deb          12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
       sunshine-debian-bullseye-{arch}.deb          11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
-      sunshine-fedora-38-{arch}.rpm                unavailable      unavailable       none
-      sunshine-fedora-39-{arch}.rpm                unavailable      unavailable       none
+      sunshine-fedora-38-{arch}.rpm                12.4.0           525.60.13         50;52;60;61;62;70;75;80;86;90
+      sunshine-fedora-39-{arch}.rpm                12.4.0           525.60.13         50;52;60;61;62;70;75;80;86;90
       sunshine-ubuntu-20.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       sunshine-ubuntu-22.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       ===========================================  ==============   ==============    ================================
 
    .. tab:: AppImage
+
+      .. caution:: Use distro-specific packages instead of the AppImage if they are available.
 
       According to AppImageLint the supported distro matrix of the AppImage is below.
 
@@ -90,21 +91,7 @@ Install
 
             ./sunshine.AppImage --remove
 
-   .. tab:: Archlinux PKGBUILD
-
-      #. Open terminal and run the following code.
-
-         .. code-block:: bash
-
-            wget https://github.com/LizardByte/Sunshine/releases/latest/download/PKGBUILD
-            makepkg -fi
-
-      Uninstall:
-         .. code-block:: bash
-
-            pacman -R sunshine
-
-   .. tab:: Archlinux pkg
+   .. tab:: Arch Linux Package
 
       #. Open terminal and run the following code.
 
@@ -118,7 +105,7 @@ Install
 
             pacman -R sunshine
 
-   .. tab:: Debian Package
+   .. tab:: Debian/Ubuntu Package
 
       #. Download ``sunshine-{distro}-{distro-version}-{arch}.deb`` and run the following code.
 
@@ -137,6 +124,8 @@ Install
             sudo apt remove sunshine
 
    .. tab:: Flatpak Package
+
+      .. caution:: Use distro-specific packages instead of the Flatpak if they are available.
 
       .. important:: The instructions provided here are for the version supplied in the `latest release`_, which does
          not necessarily match the version in the Flathub repository!
@@ -205,16 +194,35 @@ Install
 
             sudo dnf remove sunshine
 
-   The `deb`, `rpm`, `Flatpak` and `AppImage` packages should handle these steps automatically.
+   The `deb`, `rpm`, `zst`, `Flatpak` and `AppImage` packages should handle these steps automatically.
    Third party packages may not.
 
    Sunshine needs access to `uinput` to create mouse and gamepad events.
 
-   #. Create `udev` rules.
+   #. Create and reload `udev` rules for uinput.
          .. code-block:: bash
 
             echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
-            sudo tee /etc/udev/rules.d/85-sunshine.rules
+            sudo tee /etc/udev/rules.d/60-sunshine.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger
+            sudo modprobe uinput
+
+   #. Enable permissions for KMS capture.
+         .. warning:: Capture of most Wayland-based desktop environments will fail unless this step is performed.
+
+         .. note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
+            allow Sunshine to use KMS capture.
+
+         **Enable**
+            .. code-block:: bash
+
+               sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
+
+         **Disable (for Xorg/X11 only)**
+            .. code-block:: bash
+
+               sudo setcap -r $(readlink -f $(which sunshine))
 
    #. Optionally, configure autostart service
 
@@ -260,20 +268,6 @@ Install
 
                systemctl --user enable sunshine
 
-   #. Additional Setup for KMS
-         .. note:: ``cap_sys_admin`` may as well be root, except you don't need to be root to run it. It is necessary to
-            allow Sunshine to use KMS.
-
-         **Enable**
-            .. code-block:: bash
-
-               sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
-
-         **Disable (for Xorg/X11)**
-            .. code-block:: bash
-
-               sudo setcap -r $(readlink -f $(which sunshine))
-
    #. Reboot
          .. code-block:: bash
 
@@ -281,20 +275,17 @@ Install
 
 .. tab:: macOS
 
-   .. important:: Sunshine on macOS is experimental. Gamepads do not work. Other features may not work as expected.
+   .. important:: Sunshine on macOS is experimental. Gamepads do not work.
 
-   .. tab:: dmg
+   .. tab:: Homebrew
 
-      .. warning:: The `dmg` does not include runtime dependencies. This package is not recommended for most users.
-         No support will be provided!
+      #. Install `Homebrew <https://docs.brew.sh/Installation>`__
+      #. Update the Homebrew sources and install Sunshine.
 
-      #. Download the ``sunshine.dmg`` file and install it.
-
-      Uninstall:
          .. code-block:: bash
 
-            cd /etc/sunshine/assets
-            uninstall_pkg.sh
+            brew tap LizardByte/homebrew
+            brew install sunshine
 
    .. tab:: Portfile
 

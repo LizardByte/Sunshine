@@ -100,22 +100,54 @@ namespace platf {
 
   fs::path
   appdata() {
+    bool found = false;
+    bool migrate_config = true;
     const char *dir;
+    const char *homedir;
+    fs::path config_path;
+
+    // Get the home directory
+    if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
+      // If HOME is empty or not set, use the current user's home directory
+      homedir = getpwuid(geteuid())->pw_dir;
+    }
 
     // May be set if running under a systemd service with the ConfigurationDirectory= option set.
-    if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr) {
-      return fs::path { dir } / "sunshine"sv;
+    if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
+      found = true;
+      config_path = fs::path(dir) / "sunshine"sv;
     }
     // Otherwise, follow the XDG base directory specification:
     // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    if ((dir = getenv("XDG_CONFIG_HOME")) != nullptr) {
-      return fs::path { dir } / "sunshine"sv;
+    if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
+      found = true;
+      config_path = fs::path(dir) / "sunshine"sv;
     }
-    if ((dir = getenv("HOME")) == nullptr) {
-      dir = getpwuid(geteuid())->pw_dir;
+    // As a last resort, use the home directory
+    if (!found) {
+      migrate_config = false;
+      config_path = fs::path(homedir) / ".config/sunshine"sv;
     }
 
-    return fs::path { dir } / ".config/sunshine"sv;
+    // migrate from the old config location if necessary
+    if (migrate_config && found && getenv("SUNSHINE_MIGRATE_CONFIG") == "1"sv) {
+      fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
+      if (old_config_path != config_path && fs::exists(old_config_path)) {
+        if (!fs::exists(config_path)) {
+          BOOST_LOG(info) << "Migrating config from "sv << old_config_path << " to "sv << config_path;
+          std::error_code ec;
+          fs::rename(old_config_path, config_path, ec);
+          if (ec) {
+            return old_config_path;
+          }
+        }
+        else {
+          BOOST_LOG(warning) << "Config exists in both "sv << old_config_path << " and "sv << config_path << ", using "sv << config_path << "... it is recommended to remove "sv << old_config_path;
+        }
+      }
+    }
+
+    return config_path;
   }
 
   std::string
@@ -734,13 +766,13 @@ namespace platf {
 
 #ifdef SUNSHINE_BUILD_DRM
   std::vector<std::string>
-  kms_display_names();
+  kms_display_names(mem_type_e hwdevice_type);
   std::shared_ptr<display_t>
   kms_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   bool
   verify_kms() {
-    return !kms_display_names().empty();
+    return !kms_display_names(mem_type_e::unknown).empty();
   }
 #endif
 
@@ -766,7 +798,7 @@ namespace platf {
     if (sources[source::WAYLAND]) return wl_display_names();
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-    if (sources[source::KMS]) return kms_display_names();
+    if (sources[source::KMS]) return kms_display_names(hwdevice_type);
 #endif
 #ifdef SUNSHINE_BUILD_X11
     if (sources[source::X11]) return x11_display_names();

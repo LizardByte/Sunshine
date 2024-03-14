@@ -681,10 +681,11 @@ namespace platf {
    * @param raw_cmd The raw command provided by the user.
    * @param working_dir The working directory for the new process.
    * @param token The user token currently being impersonated or `NULL` if running as ourselves.
+   * @param creation_flags The creation flags for CreateProcess(), which may be modified by this function.
    * @return A command string suitable for use by CreateProcess().
    */
   std::wstring
-  resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token) {
+  resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token, DWORD &creation_flags) {
     std::wstring raw_cmd_w = from_utf8(raw_cmd);
 
     // First, convert the given command into parts so we can get the executable/file/URL without parameters
@@ -757,8 +758,13 @@ namespace platf {
       // FIXME: Maybe we can improve this in the future.
       if (res == HRESULT_FROM_WIN32(ERROR_NO_ASSOCIATION)) {
         BOOST_LOG(warning) << "Using trampoline to handle target: "sv << raw_cmd;
-        std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" \"%1\" %*");
+        std::wcscpy(shell_command_string.data(), L"cmd.exe /c start \"\" /wait \"%1\" %*");
         needs_cmd_escaping = true;
+
+        // We must suppress the console window that would otherwise appear when starting cmd.exe.
+        creation_flags &= ~CREATE_NEW_CONSOLE;
+        creation_flags |= CREATE_NO_WINDOW;
+
         res = S_OK;
       }
 
@@ -927,6 +933,31 @@ namespace platf {
     // Create a new console for interactive processes and use no console for non-interactive processes
     creation_flags |= interactive ? CREATE_NEW_CONSOLE : CREATE_NO_WINDOW;
 
+    // Find the PATH variable in our environment block using a case-insensitive search
+    auto sunshine_wenv = boost::this_process::wenvironment();
+    std::wstring path_var_name { L"PATH" };
+    std::wstring old_path_val;
+    auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) { return boost::iequals(e.get_name(), path_var_name); });
+    if (itr != sunshine_wenv.cend()) {
+      // Use the existing variable if it exists, since Boost treats these as case-sensitive.
+      path_var_name = itr->get_name();
+      old_path_val = sunshine_wenv[path_var_name].to_string();
+    }
+
+    // Temporarily prepend the specified working directory to PATH to ensure CreateProcess()
+    // will (preferentially) find binaries that reside in the working directory.
+    sunshine_wenv[path_var_name].assign(start_dir + L";" + old_path_val);
+
+    // Restore the old PATH value for our process when we're done here
+    auto restore_path = util::fail_guard([&]() {
+      if (old_path_val.empty()) {
+        sunshine_wenv[path_var_name].clear();
+      }
+      else {
+        sunshine_wenv[path_var_name].assign(old_path_val);
+      }
+    });
+
     BOOL ret;
     if (is_running_as_system()) {
       // Duplicate the current user's token
@@ -951,7 +982,7 @@ namespace platf {
       // Open the process as the current user account, elevation is handled in the token itself.
       ec = impersonate_current_user(user_token, [&]() {
         std::wstring env_block = create_environment_block(cloned_env);
-        std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token);
+        std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
         ret = CreateProcessAsUserW(user_token,
           NULL,
           (LPWSTR) wcmd.c_str(),
@@ -985,7 +1016,7 @@ namespace platf {
       }
 
       std::wstring env_block = create_environment_block(cloned_env);
-      std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL);
+      std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL, creation_flags);
       ret = CreateProcessW(NULL,
         (LPWSTR) wcmd.c_str(),
         NULL,

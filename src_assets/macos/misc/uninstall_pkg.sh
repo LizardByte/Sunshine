@@ -1,4 +1,7 @@
 #!/bin/bash -e
+
+# note: this file was used to remove files when using the pkg/dmg, it is no longer used, but left for reference
+
 set -e
 
 package_name=org.macports.Sunshine
