@@ -106,57 +106,62 @@ namespace platf {
    */
   fs::path
   appdata() {
-    bool found = false;
-    bool migrate_config = true;
-    const char *dir;
-    const char *homedir;
-    const char *migrate_envvar;
-    fs::path config_path;
+    static std::once_flag migration_flag;
+    static fs::path config_path;
 
-    // Get the home directory
-    if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
-      // If HOME is empty or not set, use the current user's home directory
-      homedir = getpwuid(geteuid())->pw_dir;
-    }
+    // Ensure migration is only attempted once
+    std::call_once(migration_flag, []() {
+      bool found = false;
+      bool migrate_config = true;
+      const char *dir;
+      const char *homedir;
+      const char *migrate_envvar;
 
-    // May be set if running under a systemd service with the ConfigurationDirectory= option set.
-    if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
-      found = true;
-      config_path = fs::path(dir) / "sunshine"sv;
-    }
-    // Otherwise, follow the XDG base directory specification:
-    // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
-      found = true;
-      config_path = fs::path(dir) / "sunshine"sv;
-    }
-    // As a last resort, use the home directory
-    if (!found) {
-      migrate_config = false;
-      config_path = fs::path(homedir) / ".config/sunshine"sv;
-    }
+      // Get the home directory
+      if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
+        // If HOME is empty or not set, use the current user's home directory
+        homedir = getpwuid(geteuid())->pw_dir;
+      }
 
-    // migrate from the old config location if necessary
-    migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
-    if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
-      fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
-      if (old_config_path != config_path && fs::exists(old_config_path)) {
-        if (!fs::exists(config_path)) {
-          std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
-          std::error_code ec;
-          fs::rename(old_config_path, config_path, ec);
-          if (ec) {
-            std::cerr << "Migration failed: " << ec.message() << std::endl;
-            return old_config_path;
+      // May be set if running under a systemd service with the ConfigurationDirectory= option set.
+      if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
+        found = true;
+        config_path = fs::path(dir) / "sunshine"sv;
+      }
+      // Otherwise, follow the XDG base directory specification:
+      // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+      if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
+        found = true;
+        config_path = fs::path(dir) / "sunshine"sv;
+      }
+      // As a last resort, use the home directory
+      if (!found) {
+        migrate_config = false;
+        config_path = fs::path(homedir) / ".config/sunshine"sv;
+      }
+
+      // migrate from the old config location if necessary
+      migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
+      if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
+        fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
+        if (old_config_path != config_path && fs::exists(old_config_path)) {
+          if (!fs::exists(config_path)) {
+            std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
+            std::error_code ec;
+            fs::rename(old_config_path, config_path, ec);
+            if (ec) {
+              std::cerr << "Migration failed: " << ec.message() << std::endl;
+              config_path = old_config_path;
+            }
+          }
+          else {
+            // We cannot use Boost logging because it hasn't been initialized yet!
+            std::cerr << "Config exists in both "sv << old_config_path << " and "sv << config_path << ". Using "sv << config_path << " for config" << std::endl;
+            std::cerr << "It is recommended to remove "sv << old_config_path << std::endl;
           }
         }
-        else {
-          // We cannot use Boost logging because it hasn't been initialized yet!
-          std::cerr << "Config exists in both "sv << old_config_path << " and "sv << config_path << ". Using "sv << config_path << " for config" << std::endl;
-          std::cerr << "It is recommended to remove "sv << old_config_path << std::endl;
-        }
       }
-    }
+    });
 
     return config_path;
   }
