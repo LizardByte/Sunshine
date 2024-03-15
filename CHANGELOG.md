@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.2] - 2024-03-15
+**Fixed**
+- (Tray/Windows) Fix broken system tray icon on some systems
+- (Linux) Fix crash when XDG_CONFIG_HOME or CONFIGURATION_DIRECTORY are set
+- (Linux) Fix config migration across filesystems and with non-existent parent directories
+
 ## [0.22.1] - 2024-03-13
 **Breaking**
 - (ArchLinux) Drop support for standalone PKGBUILD files. Use the binary Arch package or install via AUR instead.
@@ -759,3 +765,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.21.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.21.0
 [0.22.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.0
 [0.22.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.1
+[0.22.2]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.2
