@@ -21,7 +21,19 @@ namespace platf {
 
   struct input_raw_t {
     input_raw_t():
-        mouse(inputtino::Mouse::create()), keyboard(inputtino::Keyboard::create()), gamepads(MAX_GAMEPADS) {
+        mouse(inputtino::Mouse::create({
+          .name = "Mouse passthrough",
+          .vendor_id = 0xBEEF,
+          .product_id = 0xDEAD,
+          .version = 0x111,
+        })),
+        keyboard(inputtino::Keyboard::create({
+          .name = "Keyboard passthrough",
+          .vendor_id = 0xBEEF,
+          .product_id = 0xDEAD,
+          .version = 0x111,
+        })),
+        gamepads(MAX_GAMEPADS) {
       if (!mouse) {
         BOOST_LOG(warning) << "Unable to create virtual mouse: " << mouse.getErrorMessage();
       }
@@ -45,7 +57,18 @@ namespace platf {
 
   struct client_input_raw_t: public client_input_t {
     client_input_raw_t(input_t &input):
-        touch(inputtino::TouchScreen::create()), pen(inputtino::PenTablet::create()) {
+        touch(inputtino::TouchScreen::create({
+          .name = "Touch passthrough",
+          .vendor_id = 0xBEEF,
+          .product_id = 0xDEAD,
+          .version = 0x111,
+        })),
+        pen(inputtino::PenTablet::create({
+          .name = "Pen passthrough",
+          .vendor_id = 0xBEEF,
+          .product_id = 0xDEAD,
+          .version = 0x111,
+        })) {
       global = (input_raw_t *) input.get();
       if (!touch) {
         BOOST_LOG(warning) << "Unable to create virtual touch screen: " << touch.getErrorMessage();
@@ -428,7 +451,11 @@ namespace platf {
 
     switch (selectedGamepadType) {
       case XboxOneWired: {
-        auto xOne = inputtino::XboxOneJoypad::create();
+        auto xOne = inputtino::XboxOneJoypad::create({ .name = "Sunshine X-Box One (virtual) pad",
+          // https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c#L147
+          .vendor_id = 0x045E,
+          .product_id = 0x02EA,
+          .version = 0x0408 });
         if (xOne) {
           (*xOne).set_on_rumble(on_rumble_fn);
           gamepad->joypad = std::make_unique<joypads_t>(std::move(*xOne));
@@ -441,7 +468,11 @@ namespace platf {
         }
       }
       case SwitchProWired: {
-        auto switchPro = inputtino::SwitchJoypad::create();
+        auto switchPro = inputtino::SwitchJoypad::create({ .name = "Sunshine Nintendo (virtual) pad",
+          // https://github.com/torvalds/linux/blob/master/drivers/hid/hid-ids.h#L981
+          .vendor_id = 0x057e,
+          .product_id = 0x2009,
+          .version = 0x8111 });
         if (switchPro) {
           (*switchPro).set_on_rumble(on_rumble_fn);
           gamepad->joypad = std::make_unique<joypads_t>(std::move(*switchPro));
@@ -454,7 +485,7 @@ namespace platf {
         }
       }
       case DualSenseWired: {
-        auto ds5 = inputtino::PS5Joypad::create();
+        auto ds5 = inputtino::PS5Joypad::create({ .name = "Sunshine DualSense (virtual) pad", .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111 });
         if (ds5) {
           (*ds5).set_on_rumble(on_rumble_fn);
           (*ds5).set_on_led([feedback_queue, idx = id.clientRelativeIndex, gamepad](int r, int g, int b) {
