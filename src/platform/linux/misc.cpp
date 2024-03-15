@@ -10,6 +10,7 @@
 
 // standard includes
 #include <fstream>
+#include <iostream>
 
 // lib includes
 #include <arpa/inet.h>
@@ -98,6 +99,11 @@ namespace platf {
     return ifaddr_t { p };
   }
 
+  /**
+   * @brief Performs migration if necessary, then returns the appdata directory.
+   * @details This is used for the log directory, so it cannot invoke Boost logging!
+   * @return The path of the appdata directory that should be used.
+   */
   fs::path
   appdata() {
     bool found = false;
@@ -136,15 +142,18 @@ namespace platf {
       fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
       if (old_config_path != config_path && fs::exists(old_config_path)) {
         if (!fs::exists(config_path)) {
-          BOOST_LOG(info) << "Migrating config from "sv << old_config_path << " to "sv << config_path;
+          std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
           std::error_code ec;
           fs::rename(old_config_path, config_path, ec);
           if (ec) {
+            std::cerr << "Migration failed: " << ec.message() << std::endl;
             return old_config_path;
           }
         }
         else {
-          BOOST_LOG(warning) << "Config exists in both "sv << old_config_path << " and "sv << config_path << ", using "sv << config_path << "... it is recommended to remove "sv << old_config_path;
+          // We cannot use Boost logging because it hasn't been initialized yet!
+          std::cerr << "Config exists in both "sv << old_config_path << " and "sv << config_path << ". Using "sv << config_path << " for config" << std::endl;
+          std::cerr << "It is recommended to remove "sv << old_config_path << std::endl;
         }
       }
     }
