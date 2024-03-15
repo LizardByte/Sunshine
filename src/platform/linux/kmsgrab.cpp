@@ -1069,7 +1069,7 @@ namespace platf {
       }
 
       inline capture_e
-      refresh(file_t *file, egl::surface_descriptor_t *sd) {
+      refresh(file_t *file, egl::surface_descriptor_t *sd, std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
         // Check for a change in HDR metadata
         if (connector_id) {
           auto connector_props = card.connector_props(*connector_id);
@@ -1080,6 +1080,7 @@ namespace platf {
         }
 
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
+        frame_timestamp = std::chrono::steady_clock::now();
 
         auto fb = card.fb(plane.get());
         if (!fb) {
@@ -1303,7 +1304,7 @@ namespace platf {
 
         egl::surface_descriptor_t sd;
 
-        auto status = refresh(fb_fd, &sd);
+        auto status = refresh(fb_fd, &sd, img_out->frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }
@@ -1456,7 +1457,7 @@ namespace platf {
         auto img = (egl::img_descriptor_t *) img_out.get();
         img->reset();
 
-        auto status = refresh(fb_fd, &img->sd);
+        auto status = refresh(fb_fd, &img->sd, img->frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }
