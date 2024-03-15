@@ -143,12 +143,30 @@ namespace platf {
       // migrate from the old config location if necessary
       migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
       if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
+        std::error_code ec;
         fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
-        if (old_config_path != config_path && fs::exists(old_config_path)) {
-          if (!fs::exists(config_path)) {
+        if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
+          if (!fs::exists(config_path, ec)) {
             std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
-            std::error_code ec;
-            fs::rename(old_config_path, config_path, ec);
+            if (!ec) {
+              // Create the new directory tree if it doesn't already exist
+              fs::create_directories(config_path, ec);
+            }
+            if (!ec) {
+              // Copy the old directory into the new location
+              // NB: We use a copy instead of a move so that cross-volume migrations work
+              fs::copy(old_config_path, config_path, fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
+            }
+            if (!ec) {
+              // If the copy was successful, delete the original directory
+              fs::remove_all(old_config_path, ec);
+              if (ec) {
+                std::cerr << "Failed to clean up old config directory: " << ec.message() << std::endl;
+
+                // This is not fatal. Next time we start, we'll warn the user to delete the old one.
+                ec.clear();
+              }
+            }
             if (ec) {
               std::cerr << "Migration failed: " << ec.message() << std::endl;
               config_path = old_config_path;
