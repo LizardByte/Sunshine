@@ -25,6 +25,7 @@
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
+#include <jwt-cpp/jwt.h>
 
 #include "config.h"
 #include "confighttp.h"
@@ -32,7 +33,6 @@
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
-#include "jwt-cpp/jwt.h"
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -784,7 +784,12 @@ namespace confighttp {
         return;
       }
       outputTree.put("status", "true");
-      auto token = jwt::create().set_type("JWS").set_issued_now().set_expires_in(std::chrono::seconds { 3600 }).set_issuer("sunshine-" + http::unique_id).set_payload_claim("sub", jwt::claim(std::string(config::sunshine.username))).sign(jwt::algorithm::hs256 { jwt_key });
+      auto token = jwt::create().set_type("JWT")
+        .set_issued_at(std::chrono::system_clock::now())
+        .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds{3600})
+        .set_issuer("sunshine-" + http::unique_id)
+        .set_payload_claim("sub", jwt::claim(std::string(config::sunshine.username)))
+        .sign(jwt::algorithm::hs256 { jwt_key });
       std::stringstream cookie_stream;
       cookie_stream << "sunshine_session=";
       cookie_stream << token;
