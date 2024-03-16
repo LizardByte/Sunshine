@@ -784,12 +784,7 @@ namespace confighttp {
         return;
       }
       outputTree.put("status", "true");
-      auto token = jwt::create().set_type("JWT")
-        .set_issued_at(std::chrono::system_clock::now())
-        .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds{3600})
-        .set_issuer("sunshine-" + http::unique_id)
-        .set_payload_claim("sub", jwt::claim(std::string(config::sunshine.username)))
-        .sign(jwt::algorithm::hs256 { jwt_key });
+      auto token = jwt::create().set_type("JWT").set_issued_at(std::chrono::system_clock::now()).set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds { 3600 }).set_issuer("sunshine-" + http::unique_id).set_payload_claim("sub", jwt::claim(std::string(config::sunshine.username))).sign(jwt::algorithm::hs256 { jwt_key });
       std::stringstream cookie_stream;
       cookie_stream << "sunshine_session=";
       cookie_stream << token;
