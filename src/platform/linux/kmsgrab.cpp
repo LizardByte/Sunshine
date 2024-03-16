@@ -1304,7 +1304,8 @@ namespace platf {
 
         egl::surface_descriptor_t sd;
 
-        auto status = refresh(fb_fd, &sd, img_out->frame_timestamp);
+        std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+        auto status = refresh(fb_fd, &sd, frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }
@@ -1330,6 +1331,8 @@ namespace platf {
         }
 
         gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
+
+        img_out->frame_timestamp = frame_timestamp;
 
         if (cursor && captured_cursor.visible) {
           blend_cursor(*img_out);
