@@ -29,13 +29,39 @@
                         <a class="nav-link" href="/troubleshooting"><i class="fas fa-fw fa-info"></i> Troubleshooting</a>
                     </li>
                 </ul>
+                <ul  class="navbar-nav mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" @click="logout"><i class="fas fa-fw fa-right-from-bracket"></i> Logout</a>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
+    <!-- Modal that is shown when the user gets a 401 error -->
+    <div class="modal fade" id="loginModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="exampleModalLabel">Session Expired</h1>
+                </div>
+                <div class="modal-body">
+                    <LoginForm @loggedin="onLogin" />
+                </div>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script>
+import {Modal} from 'bootstrap';
+import LoginForm from './LoginForm.vue'
 export default {
+    components: {
+        LoginForm
+    },
+    data(){
+        modal: null
+    }, 
     created() {
         console.log("Header mounted!")
     },
@@ -45,6 +71,20 @@ export default {
         let discordWidget = document.createElement('script')
         discordWidget.setAttribute('src', 'https://app.lizardbyte.dev/js/discord.js')
         document.head.appendChild(discordWidget)
+        window.addEventListener("sunshine:session_expire", () => {
+            this.modal.toggle();
+        })
+        this.modal = new Modal(document.getElementById('loginModal'), {});
+    },
+    methods: {
+        onLogin(){
+            this.modal.toggle();
+        },
+        logout(){
+            fetch("/api/logout",{method: "POST"}).then(r => {
+                document.location.href = '/';
+            })
+        }
     }
 }
 </script>
