@@ -165,7 +165,7 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'true'
-          remove-docker-images: 'false'
+          remove-docker-images: 'true'
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -291,61 +291,48 @@ jobs:
           remove-android: 'true'
           remove-haskell: 'true'
           remove-codeql: 'true'
-          remove-docker-images: 'false'
+          remove-docker-images: 'true'
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      - name: Install wget
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            wget
+
+      - name: Install CUDA
+        env:
+          CUDA_VERSION: 11.8.0
+          CUDA_BUILD: 520.61.05
+        timeout-minutes: 4
+        run: |
+          url_base="https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/local_installers"
+          url="${url_base}/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux.run"
+          sudo wget -q -O /root/cuda.run ${url}
+          sudo chmod a+x /root/cuda.run
+          sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr/local/cuda --no-opengl-libs --no-man-page --no-drm
+          sudo rm /root/cuda.run
+
       - name: Setup Dependencies Linux
         run: |
+          # allow newer gcc
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-
-          if [[ ${{ matrix.dist }} == "18.04" ]]; then
-            # Ubuntu 18.04 packages
-            sudo add-apt-repository ppa:savoury1/boost-defaults-1.71 -y
-
-            sudo apt-get update -y
-            sudo apt-get install -y \
-              libboost-filesystem1.71-dev \
-              libboost-locale1.71-dev \
-              libboost-log1.71-dev \
-              libboost-regex1.71-dev \
-              libboost-program-options1.71-dev
-
-            # Install cmake
-            wget https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.sh
-            chmod +x cmake-3.22.2-linux-x86_64.sh
-            mkdir /opt/cmake
-            ./cmake-3.22.2-linux-x86_64.sh --prefix=/opt/cmake --skip-license
-            ln --force --symbolic /opt/cmake/bin/cmake /usr/local/bin/cmake
-            cmake --version
-
-            # install newer tar from focal... appimagelint fails on 18.04 without this
-            echo "original tar version"
-            tar --version
-            wget -O tar.deb http://security.ubuntu.com/ubuntu/pool/main/t/tar/tar_1.30+dfsg-7ubuntu0.20.04.3_amd64.deb
-            sudo apt-get -y install -f ./tar.deb
-            echo "new tar version"
-            tar --version
-          else
-            # Ubuntu 20.04+ packages
-            sudo apt-get update -y
-            sudo apt-get install -y \
-              cmake \
-              libboost-filesystem-dev \
-              libboost-locale-dev \
-              libboost-log-dev \
-              libboost-program-options-dev
-          fi
 
           sudo apt-get install -y \
             build-essential \
+            cmake \
             gcc-10 \
             g++-10 \
             libayatana-appindicator3-dev \
             libavdevice-dev \
+            libboost-filesystem-dev \
+            libboost-locale-dev \
+            libboost-log-dev \
+            libboost-program-options-dev \
             libcap-dev \
             libcurl4-openssl-dev \
             libdrm-dev \
@@ -366,8 +353,7 @@ jobs:
             libxcb1-dev \
             libxfixes-dev \
             libxrandr-dev \
-            libxtst-dev \
-            wget
+            libxtst-dev
 
           # clean apt cache
           sudo apt-get clean
@@ -382,20 +368,15 @@ jobs:
             --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
             --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
-          # Install CUDA
-          sudo wget \
-            https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run \
-            --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
-          sudo chmod a+x /root/cuda.run
-          sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
-          sudo rm /root/cuda.run
-
       - name: Build Linux
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        timeout-minutes: 5
         run: |
+          echo "nproc: $(nproc)"
+
           mkdir -p build
           mkdir -p artifacts
 
@@ -403,6 +384,7 @@ jobs:
           cmake \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CUDA_COMPILER:PATH=/usr/local/cuda/bin/nvcc \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DSUNSHINE_ASSETS_DIR=share/sunshine \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
@@ -412,20 +394,7 @@ jobs:
             -DSUNSHINE_ENABLE_CUDA=ON \
             ${{ matrix.EXTRA_ARGS }} \
             ..
-          make -j ${nproc}
-
-      - name: Package Linux - CPACK
-        # todo - this is no longer used
-        if: ${{ matrix.type == 'cpack' }}
-        working-directory: build
-        run: |
-          cpack -G DEB
-          mv ./cpack_artifacts/Sunshine.deb ../artifacts/sunshine-${{ matrix.dist }}.deb
-
-          if [[ ${{ matrix.dist }} == "20.04" ]]; then
-            cpack -G RPM
-            mv ./cpack_artifacts/Sunshine.rpm ../artifacts/sunshine.rpm
-          fi
+          make -j $(expr $(nproc) - 1)  # use all but one core
 
       - name: Set AppImage Version
         if: |
@@ -452,12 +421,12 @@ jobs:
 
           # AppImage
           # https://docs.appimage.org/packaging-guide/index.html
-          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
 
           # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
           sudo apt-get install libgtk-3-dev librsvg2-dev -y
-          wget https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           chmod +x linuxdeploy-plugin-gtk.sh
           export DEPLOY_GTK_VERSION=3
 
@@ -475,13 +444,16 @@ jobs:
           # permissions
           chmod +x ../artifacts/sunshine.AppImage
 
+      - name: Delete cuda
+        # free up space on the runner
+        run: |
+          sudo rm -rf /usr/local/cuda
+
       - name: Verify AppImage
         if: ${{ matrix.type == 'AppImage' }}
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage
-
-          # rm -rf ~/.cache/appimagelint/
 
           ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
 
