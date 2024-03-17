@@ -82,23 +82,38 @@
       </div>
     </div>
     <!-- Unpair all Clients -->
-    <div class="card p-2 my-4">
+    <div class="card my-4">
       <div class="card-body">
-        <h2 id="unpair">Unpair All Clients</h2>
-        <br>
-        <p>Remove all your paired devices</p>
-        <div class="alert alert-success" v-if="unpairAllStatus === true">
-          Unpair Successful!
-        </div>
-        <div class="alert alert-danger" v-if="unpairAllStatus === false">
-          Error while unpairing
-        </div>
-        <div>
-          <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
-            Unpair All
-          </button>
+        <div class="p-2">
+          <div class="d-flex justify-content-end align-items-center">
+            <h2 id="unpair" class="text-center me-auto">Unpair Clients</h2>
+            <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+              Unpair All
+            </button>
+          </div>
+          <div id="apply-alert" class="alert alert-success d-flex align-items-center mt-3" :style="{ 'display': (showApplyMessage ? 'flex !important': 'none !important') }">
+            <div class="me-2"><b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.</div>
+            <button class="btn btn-success ms-auto apply" @click="clickedApplyBanner">Apply</button>
+          </div>
+          <div class="alert alert-success" v-if="unpairAllStatus === true">
+            Unpair Successful!
+          </div>
+          <div class="alert alert-danger" v-if="unpairAllStatus === false">
+            Error while unpairing
+          </div>
+          <br />
+          <p class="mb-0">Remove your paired devices.</p>
         </div>
       </div>
+      <ul id="client-list" class="list-group list-group-flush list-group-item-light" v-if="clients && clients.length > 0">
+        <div v-for="client in clients" class="list-group-item d-flex">
+          <div class="p-2 flex-grow-1">{{client.name != "" ? client.name : "Unknown Client"}}</div><div class="me-2 ms-auto btn btn-danger" @click="unpairSingle(client.uuid)"><i class="fas fa-trash"></i></div>
+        </div>
+      </ul>
+      <ul v-else class="list-group list-group-flush list-group-item-light">
+        <div class="list-group-item p-3 text-center"><em>There are no paired clients.</em></div>
+      </ul>
+      
     </div>
     <!-- Logs -->
     <div class="card p-2 my-4">
@@ -119,7 +134,7 @@
   </div>
 
   <script type="module">
-    import { createApp } from 'vue'
+    import { createApp, ref } from 'vue'
     import Navbar from './Navbar.vue'
 
     const app = createApp({
@@ -133,6 +148,8 @@
           unpairAllPressed: false,
           unpairAllStatus: null,
           restartPressed: false,
+          showApplyMessage: false,
+          clients: [],
           logs: 'Loading...',
           logFilter: null,
           logInterval: null,
@@ -151,6 +168,7 @@
           this.refreshLogs();
         }, 5000);
         this.refreshLogs();
+        this.refreshClients();
       },
       beforeDestroy() {
         clearInterval(this.logInterval);
@@ -177,15 +195,40 @@
         },
         unpairAll() {
           this.unpairAllPressed = true;
-          fetch("/api/clients/unpair", { method: "POST" })
+          fetch("/api/clients/unpair-all", { method: "POST" })
             .then((r) => r.json())
             .then((r) => {
+              this.showApplyMessage = true;
               this.unpairAllPressed = false;
               this.unpairAllStatus = r.status.toString() === "true";
               setTimeout(() => {
                 this.unpairAllStatus = null;
               }, 5000);
             });
+        },
+        unpairSingle(uuid) {
+          fetch("/api/clients/unpair", { method: "POST", body: JSON.stringify({ uuid }) }).then(() => {
+            this.showApplyMessage = true;
+            this.refreshClients();
+          });
+        },
+        refreshClients() {
+          fetch("/api/clients/list")
+            .then((response) => response.json())
+            .then((response) => {
+              const clientList = document.querySelector("#client-list");
+              if (response.status === 'true' && response.named_certs && response.named_certs.length) {
+                this.clients = response.named_certs;
+              } else {
+                this.clients = [];
+              }
+            });
+        },
+        clickedApplyBanner() {
+          this.showApplyMessage = false;
+          fetch("/api/restart", {
+            method: "POST",
+          });
         },
         copyLogs() {
           navigator.clipboard.writeText(this.actualLogs);

@@ -8,10 +8,11 @@
 <body id="app">
   <Navbar></Navbar>
   <div id="content" class="container">
-    <h1 class="my-4">PIN Pairing</h1>
+    <h1 class="my-4 text-center">PIN Pairing</h1>
     <form action="" class="form d-flex flex-column align-items-center" id="form">
       <div class="card flex-column d-flex p-4 mb-4">
-        <input type="text" pattern="\d*"  placeholder="PIN" id="pin-input" class="form-control my-4" />
+        <input type="number" pattern="\d*"  placeholder="PIN" id="pin-input" class="form-control mt-2" required />
+        <input type="text" placeholder="Device Name" id="name-input" class="form-control my-4" required />
         <button class="btn btn-primary">Send</button>
       </div>
       <div class="alert alert-warning">
@@ -37,8 +38,9 @@
   document.querySelector("#form").addEventListener("submit", (e) => {
     e.preventDefault();
     let pin = document.querySelector("#pin-input").value;
+    let name = document.querySelector("#name-input").value;
     document.querySelector("#status").innerHTML = "";
-    let b = JSON.stringify({ pin: pin });
+    let b = JSON.stringify({ pin: pin, name: name });
     fetch("/api/pin", { method: "POST", body: b })
       .then((response) => response.json())
       .then((response) => {
@@ -47,6 +49,7 @@
             "#status"
           ).innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
           document.querySelector("#pin-input").value = "";
+          document.querySelector("#name-input").value = "";
         } else {
           document.querySelector(
             "#status"
