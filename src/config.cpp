@@ -201,9 +201,9 @@ namespace config {
 
     template <class T>
     std::optional<int>
-    usage_from_view(const std::string_view &rc) {
+    usage_from_view(const std::string_view &usage) {
 #define _CONVERT_(x) \
-  if (rc == #x##sv) return (int) T::x
+  if (usage == #x##sv) return (int) T::x
       _CONVERT_(transcoding);
       _CONVERT_(webcam);
       _CONVERT_(lowlatency);
@@ -999,9 +999,9 @@ namespace config {
     std::string usage;
     string_f(vars, "amd_usage", usage);
     if (!usage.empty()) {
-      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(rc);
-      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(rc);
-      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(rc);
+      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(usage);
+      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(usage);
+      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(usage);
     }
 
     bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
