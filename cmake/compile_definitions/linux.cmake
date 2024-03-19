@@ -234,13 +234,12 @@ if (${SUNSHINE_TRAY} EQUAL 0 AND SUNSHINE_REQUIRE_TRAY)
     message(FATAL_ERROR "Tray icon is required")
 endif()
 
-option(SUNSHINE_USE_INPUTTINO "Use inputtino for virtual input" ON)
-if(${SUNSHINE_USE_INPUTTINO})
+if(${SUNSHINE_USE_LEGACY_INPUT})
+    list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/input.cpp")
+else()
     add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/inputtino/")
     list(APPEND SUNSHINE_EXTERNAL_LIBRARIES inputtino::libinputtino)
     list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/inputtino.cpp")
-else()
-    list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/input.cpp")
 endif()
 
 list(APPEND PLATFORM_TARGET_FILES
