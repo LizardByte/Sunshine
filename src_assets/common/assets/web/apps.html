@@ -70,19 +70,19 @@
       </style>
 </head>
 
-<body id="app">
+<body id="app" v-cloak>
   <Navbar></Navbar>
   <div class="container">
     <div class="my-4">
-      <h1>Applications</h1>
-      <div>Applications are refreshed only when Client is restarted</div>
+      <h1>{{ $t('apps.applications_title') }}</h1>
+      <div>{{ $t('apps.applications_desc') }}</div>
     </div>
     <div class="card p-4">
       <table class="table">
         <thead>
           <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Actions</th>
+            <th scope="col">{{ $t('apps.name') }}</th>
+            <th scope="col">{{ $t('apps.actions') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -90,10 +90,10 @@
             <td>{{app.name}}</td>
             <td>
               <button class="btn btn-primary mx-1" @click="editApp(i)">
-                <i class="fas fa-edit"></i> Edit
+                <i class="fas fa-edit"></i> {{ $t('apps.edit') }}
               </button>
               <button class="btn btn-danger mx-1" @click="showDeleteForm(i)">
-                <i class="fas fa-trash"></i> Delete
+                <i class="fas fa-trash"></i> {{ $t('apps.delete') }}
               </button>
             </td>
           </tr>
@@ -104,53 +104,42 @@
       <div class="p-4">
         <!-- Application Name -->
         <div class="mb-3">
-          <label for="appName" class="form-label">Application Name</label>
+          <label for="appName" class="form-label">{{ $t('apps.app_name') }}</label>
           <input type="text" class="form-control" id="appName" aria-describedby="appNameHelp" v-model="editForm.name" />
-          <div id="appNameHelp" class="form-text">
-            Application Name, as shown on Moonlight
-          </div>
+          <div id="appNameHelp" class="form-text">{{ $t('apps.app_name_desc') }}</div>
         </div>
         <!-- output -->
         <div class="mb-3">
-          <label for="appOutput" class="form-label">Output</label>
+          <label for="appOutput" class="form-label">{{ $t('apps.output_name') }}</label>
           <input type="text" class="form-control monospace" id="appOutput" aria-describedby="appOutputHelp"
             v-model="editForm.output" />
-          <div id="appOutputHelp" class="form-text">
-            The file where the output of the command is stored, if it is not
-            specified, the output is ignored
-          </div>
+          <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
         </div>
         <!-- prep-cmd -->
         <div class="mb-3">
-          <label for="excludeGlobalPrep" class="form-label">Global Prep Commands</label>
+          <label for="excludeGlobalPrep" class="form-label">{{ $t('apps.global_prep_name') }}</label>
           <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
             <option v-for="val in [false, true]" :value="val">
-              {{ !val ? 'Enabled' : 'Disabled' }}
+              {{ !val ? $t('_common.enabled') : $t('_common.disabled') }}
             </option>
           </select>
-          <div class="form-text">
-            Enable/Disable the execution of Global Prep Commands for this
-            application.
-          </div>
+          <div class="form-text">{{ $t('apps.global_prep_desc') }}</div>
         </div>
         <div class="mb-3">
-          <label for="appName" class="form-label">Command Preparations</label>
-          <div class="form-text">
-            A list of commands to be run before/after this application.<br>
-            If any of the prep-commands fail, starting the application is aborted.
-          </div>
+          <label for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
+          <div class="form-text">{{ $t('apps.cmd_prep_desc') }}</div>
           <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length === 0">
             <button class="btn btn-success" @click="addPrepCmd">
-              <i class="fas fa-plus mr-1"></i> Add Commands
+              <i class="fas fa-plus mr-1"></i> {{ $t('apps.add_cmds') }}
             </button>
           </div>
           <table class="table" v-if="editForm['prep-cmd'].length > 0">
             <thead>
               <tr>
-                <th scope="col"><i class="fas fa-play"></i> Do Command</th>
-                <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
+                <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
+                <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
                 <th scope="col" v-if="platform === 'windows'">
-                  <i class="fas fa-shield-alt"></i> Run as Admin
+                  <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
                 </th>
                 <th scope="col"></th>
               </tr>
@@ -167,7 +156,7 @@
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
                       true-value="true" false-value="false" />
-                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">Elevated</label>
+                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('_common.elevated') }}</label>
                   </div>
                 </td>
                 <td>
@@ -184,7 +173,7 @@
         </div>
         <!-- detached -->
         <div class="mb-3">
-          <label for="appName" class="form-label">Detached Commands</label>
+          <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
           <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
             <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
             <button class="btn btn-danger mx-2" @click="editForm.detached.splice(i,1)">
@@ -193,92 +182,72 @@
           </div>
           <div class="d-flex justify-content-between">
             <button class="btn btn-success" @click="editForm.detached.push('');">
-              <i class="fas fa-plus mr-1"></i> Add Detached Command
+              <i class="fas fa-plus mr-1"></i> {{ $t('apps.detached_cmds_add') }}
             </button>
           </div>
           <div class="form-text">
-            A list of commands to be run in the background.<br>
-            <b>Note:</b> If the path to the command executable contains spaces, you must enclose it in quotes.
+            {{ $t('apps.detached_cmds_desc') }}<br>
+            <b>{{ $t('_common.note') }}</b> {{ $t('apps.detached_cmds_note') }}
           </div>
         </div>
         <!-- command -->
         <div class="mb-3">
-          <label for="appCmd" class="form-label">Command</label>
+          <label for="appCmd" class="form-label">{{ $t('apps.cmd') }}</label>
           <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
             v-model="editForm.cmd" />
           <div id="appCmdHelp" class="form-text">
-            The main application to start. If blank, no application will be started.<br>
-            <b>Note:</b> If the path to the command executable contains spaces, you must enclose it in quotes.
+            {{ $t('apps.cmd_desc') }}<br>
+            <b>{{ $t('_common.note') }}</b> {{ $t('apps.cmd_note') }}
           </div>
         </div>
         <!-- working dir -->
         <div class="mb-3">
-          <label for="appWorkingDir" class="form-label">Working Directory</label>
+          <label for="appWorkingDir" class="form-label">{{ $t('apps.working_dir') }}</label>
           <input type="text" class="form-control monospace" id="appWorkingDir" aria-describedby="appWorkingDirHelp"
             v-model="editForm['working-dir']" />
-          <div id="appWorkingDirHelp" class="form-text">
-            The working directory that should be passed to the process. For
-            example, some applications use the working directory to search for
-            configuration files. If not set, Sunshine will default to the parent
-            directory of the command
-          </div>
+          <div id="appWorkingDirHelp" class="form-text">{{ $t('apps.working_dir_desc') }}</div>
         </div>
         <!-- elevation -->
         <div class="mb-3 form-check" v-if="platform === 'windows'">
-          <label for="appElevation" class="form-check-label">Run as administrator</label>
+          <label for="appElevation" class="form-check-label">{{ $t('_common.run_as') }}</label>
           <input type="checkbox" class="form-check-input" id="appElevation" v-model="editForm.elevated"
             true-value="true" false-value="false" />
-          <div class="form-text">
-            This can be necessary for some applications that require administrator
-            permissions to run properly.
-          </div>
+          <div class="form-text">{{ $t('apps.run_as_desc') }}</div>
         </div>
         <!-- auto-detach -->
         <div class="mb-3 form-check">
-          <label for="autoDetach" class="form-check-label">Continue streaming if the application exits quickly</label>
+          <label for="autoDetach" class="form-check-label">{{ $t('apps.auto_detach') }}</label>
           <input type="checkbox" class="form-check-input" id="autoDetach" v-model="editForm['auto-detach']"
             true-value="true" false-value="false" />
-          <div class="form-text">
-            This will attempt to automatically detect launcher-type apps that close
-            quickly after launching another program or instance of themselves. When
-            a launcher-type app is detected, it is treated as a detached app.
-          </div>
+          <div class="form-text">{{ $t('apps.auto_detach_desc') }}</div>
         </div>
         <!-- wait for all processes -->
         <div class="mb-3 form-check">
-          <label for="waitAll" class="form-check-label">Continue streaming until all app processes exit</label>
+          <label for="waitAll" class="form-check-label">{{ $t('apps.wait_all') }}</label>
           <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']"
             true-value="true" false-value="false" />
-          <div class="form-text">
-            This will continue streaming until all processes started by the app have terminated.
-            When unchecked, streaming will stop when the initial app process exits, even if other
-            app processes are still running.
-          </div>
+          <div class="form-text">{{ $t('apps.wait_all_desc') }}</div>
         </div>
         <!-- exit timeout -->
         <div class="mb-3">
-          <label for="exitTimeout" class="form-label">Exit Timeout</label>
+          <label for="exitTimeout" class="form-label">{{ $t('apps.exit_timeout') }}</label>
           <input type="text" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
             v-model="editForm['exit-timeout']" />
-          <div id="exitTimeoutHelp" class="form-text">
-            Number of seconds to wait for all app processes to gracefully exit when requested to quit.<br>
-            If unset, the default is to wait up to 5 seconds. If set to zero or a negative value,
-            the app will be immediately terminated.
-          </div>
+          <div id="exitTimeoutHelp" class="form-text">{{ $t('apps.exit_timeout_desc') }}</div>
         </div>
         <div class="mb-3">
-          <label for="appImagePath" class="form-label">Image</label>
+          <label for="appImagePath" class="form-label">{{ $t('apps.image') }}</label>
           <div class="input-group dropup">
             <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
               v-model="editForm['image-path']" />
             <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle"
               aria-expanded="false" @click="showCoverFinder" ref="coverFinderDropdown">
-              Find Cover
+              {{ $t('apps.find_cover') }}
             </button>
             <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
               aria-labelledby="findCoverToggle">
               <div class="modal-header px-2">
-                <h4 class="modal-title">Covers Found</h4>
+                <h4 class="modal-title">{{ $t('apps.covers_found') }}</h4>
                 <button type="button" class="btn-close mr-2" aria-label="Close" @click="closeCoverFinder"></button>
               </div>
               <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
@@ -286,7 +255,7 @@
                   <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
                     <div class="cover-container">
                       <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
+                        <span class="visually-hidden">{{ $t('apps.loading') }}</span>
                       </div>
                     </div>
                   </div>
@@ -303,100 +272,94 @@
               </div>
             </div>
           </div>
-          <div id="appImagePathHelp" class="form-text">
-            Application icon/picture/image path that will be sent to client. Image
-            must be a PNG file. If not set, Sunshine will send default box image.
-          </div>
+          <div id="appImagePathHelp" class="form-text">{{ $t('apps.image_desc') }}</div>
         </div>
         <div class="env-hint alert alert-info">
           <div class="form-text">
-            <h4>About Environment Variables</h4>
-            All commands get these environment variables by default:
+            <h4>{{ $t('apps.env_vars_about') }}</h4>
+            {{ $t('apps.env_vars_desc') }}
           </div>
           <table class="env-table">
             <tr>
-              <td><b>Var Name</b></td>
+              <td><b>{{ $t('apps.env_var_name') }}</b></td>
               <td><b></b></td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_APP_ID</td>
-              <td>App ID</td>
+              <td>{{ $t('apps.env_app_id') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_APP_NAME</td>
-              <td>App Name</td>
+              <td>{{ $t('apps.env_app_name') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_WIDTH</td>
-              <td>The Width requested by the client</td>
+              <td>{{ $t('apps.env_client_width') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_HEIGHT</td>
-              <td>The Height requested by the client</td>
+              <td>{{ $t('apps.env_client_height') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_FPS</td>
-              <td>The FPS requested by the client</td>
+              <td>{{ $t('apps.env_client_fps') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_HDR</td>
-              <td>(true/false) if HDR is enabled by the client</td>
+              <td>{{ $t('apps.env_client_hdr') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_GCMAP</td>
-              <td>(int) the requested gamepad mask, in a bitset/bitfield format</td>
+              <td>{{ $t('apps.env_client_gcmap') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_HOST_AUDIO</td>
-              <td>(true/false) if the client has requested host audio</td>
+              <td>{{ $t('apps.env_client_host_audio') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td>
-              <td>(true/false) if the client has requested the option to optimize the game for optimal
-                streaming</td>
+              <td>{{ $t('apps.env_client_enable_sops') }}</td>
             </tr>
             <tr>
               <td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td>
-              <td>The Audio Configuration requested by the client (2.0/5.1/7.1)</td>
+              <td>{{ $t('apps.env_client_audio_config') }}</td>
             </tr>
           </table>
-          <div class="form-text" v-if="platform === 'windows'"><b>Example - QRes for Resolution
-              Automation:</b>
-            <pre>cmd /C &lt;qres path&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre>
+          <div class="form-text" v-if="platform === 'windows'"><b>{{ $t('apps.env_qres_example') }}</b>
+            <pre>cmd /C &lt;{{ $t('apps.env_qres_path') }}&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre>
           </div>
-          <div class="form-text" v-else-if="platform === 'linux'"><b>Example - Xrandr for Resolution
-              Automation:</b>
+          <div class="form-text" v-else-if="platform === 'linux'"><b>{{ $t('apps.env_xrandr_example') }}</b>
             <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate 60"</pre>
           </div>
-          <div class="form-text" v-else-if="platform === 'macos'"><b>Example - displayplacer for
-              Resolution
-              Automation:</b>
-            <pre>sh -c "displayplacer "id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre>
+          <div class="form-text" v-else-if="platform === 'macos'"><b>{{ $t('apps.env_displayplacer_example') }}</b>
+            <pre>sh -c "displayplacer "id:&lt;screenId&gt; res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre>
           </div>
           <div class="form-text"><a
               href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html"
-              target="_blank">See More</a></div>
+              target="_blank">{{ $t('_common.see_more') }}</a></div>
         </div>
         <!-- Save buttons -->
         <div class="d-flex">
           <button @click="showEditForm = false" class="btn btn-secondary m-2">
-            Cancel
+            {{ $t('_common.cancel') }}
           </button>
-          <button class="btn btn-primary m-2" @click="save">Save</button>
+          <button class="btn btn-primary m-2" @click="save">{{ $t('_common.save') }}</button>
         </div>
       </div>
     </div>
     <div class="mt-2" v-else>
       <button class="btn btn-primary" @click="newApp">
-        <i class="fas fa-plus"></i> Add New
+        <i class="fas fa-plus"></i> {{ $t('apps.add_new') }}
       </button>
     </div>
   </div>
 </body>
 <script type="module">
   import { createApp } from 'vue';
+  import i18n from './locale.js'
   import Navbar from './Navbar.vue'
   import {Dropdown} from 'bootstrap'
+
   const app = createApp({
     components: {
       Navbar
@@ -598,6 +561,9 @@
     }
   });
 
-  app.mount("#app")
-
+  //Wait for locale initialization, then render
+  i18n().then(i18n => {
+    app.use(i18n);
+    app.mount('#app');
+  });
 </script>

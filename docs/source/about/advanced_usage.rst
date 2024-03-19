@@ -47,6 +47,40 @@ editing the `conf` file in a text editor. Use the examples as reference.
 `General <https://localhost:47990/config/#general>`__
 -----------------------------------------------------
 
+`locale <https://localhost:47990/config/#locale>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The locale used for Sunshine's user interface.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =======   ===========
+   Value     Description
+   =======   ===========
+   de        German
+   en        English
+   en-GB     English (UK)
+   en-US     English (United States)
+   es        Spanish
+   fr        French
+   it        Italian
+   ru        Russian
+   sv        Swedish
+   zh        Chinese (Simplified)
+   =======   ===========
+
+**Default**
+   ``en``
+
+**Example**
+   .. code-block:: text
+
+      locale = en
+
 `sunshine_name <https://localhost:47990/config/#sunshine_name>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
