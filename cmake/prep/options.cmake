@@ -12,6 +12,9 @@ option(CUDA_INHERIT_COMPILE_OPTIONS
         "When building CUDA code, inherit compile options from the the main project. You may want to disable this if
         your IDE throws errors about unknown flags after running cmake." ON)
 
+option(SUNSHINE_BUILD_WEB_UI "Enable installing NPM depdenencies and building the Web UI. If disabled, you must build 
+        node_modules separately and place them in the source tree to be used as part of the main build." ON)
+
 if(UNIX)
     # technically, the homebrew build could be on linux as well... no idea if it would actually work
     option(SUNSHINE_BUILD_HOMEBREW
