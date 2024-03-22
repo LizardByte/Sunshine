@@ -22,10 +22,10 @@
     </style>
 </head>
 
-<body id="app">
+<body id="app" v-cloak>
   <Navbar></Navbar>
   <div class="container">
-    <h1 class="my-4">Configuration</h1>
+    <h1 class="my-4">{{ $t('config.configuration') }}</h1>
     <div class="form" v-if="config">
       <!-- Header -->
       <ul class="nav nav-tabs">
@@ -37,57 +37,68 @@
 
       <!-- General Tab -->
       <div id="general" v-if="currentTab === 'general'" class="config-page">
+        <!-- Locale -->
+        <div class="mb-3">
+          <label for="locale" class="form-label">{{ $t('config.locale') }}</label>
+          <select id="locale" class="form-select" v-model="config.locale">
+            <option value="de">Deutsch (German)</option>
+            <option value="en">English</option>
+            <option value="en-GB">English, UK</option>
+            <option value="en-US">English, US</option>
+            <option value="es">Español (Spanish)</option>
+            <option value="fr">Français (French)</option>
+            <option value="it">Italiano (Italian)</option>
+            <option value="ru">Русский (Russian)</option>
+            <option value="sv">svenska (Swedish)</option>
+            <option value="zh">中国人 (Chinese Simplified)</option>
+          </select>
+          <div class="form-text">{{ $t('config.locale_desc') }}</div>
+        </div>
+
         <!-- Sunshine Name -->
         <div class="mb-3">
-          <label for="sunshine_name" class="form-label">Sunshine Name</label>
+          <label for="sunshine_name" class="form-label">{{ $t('config.sunshine_name') }}</label>
           <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
             v-model="config.sunshine_name" />
-          <div class="form-text">
-            The name displayed by Moonlight. If not specified, the PC's hostname is used
-          </div>
+          <div class="form-text">{{ $t('config.sunshine_name_desc') }}</div>
         </div>
 
         <!-- Log Level -->
         <div class="mb-3">
-          <label for="min_log_level" class="form-label">Log Level</label>
+          <label for="min_log_level" class="form-label">{{ $t('config.log_level') }}</label>
           <select id="min_log_level" class="form-select" v-model="config.min_log_level">
-            <option value="0">Verbose</option>
-            <option value="1">Debug</option>
-            <option value="2">Info</option>
-            <option value="3">Warning</option>
-            <option value="4">Error</option>
-            <option value="5">Fatal</option>
-            <option value="6">None</option>
+            <option value="0">{{ $t('config.log_level_0') }}</option>
+            <option value="1">{{ $t('config.log_level_1') }}</option>
+            <option value="2">{{ $t('config.log_level_2') }}</option>
+            <option value="3">{{ $t('config.log_level_3') }}</option>
+            <option value="4">{{ $t('config.log_level_4') }}</option>
+            <option value="5">{{ $t('config.log_level_5') }}</option>
+            <option value="6">{{ $t('config.log_level_6') }}</option>
           </select>
-          <div class="form-text">
-            The minimum log level printed to standard out
-          </div>
+          <div class="form-text">{{ $t('config.log_level_desc') }}</div>
         </div>
 
         <!-- Maximum Connected Clients -->
         <div class="mb-3">
-          <label for="channels" class="form-label">Maximum Connected Clients</label>
+          <label for="channels" class="form-label">{{ $t('config.channels') }}</label>
           <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
           <div class="form-text">
-            Sunshine can allow a single streaming session to be shared with multiple clients simultaneously.<br>
-            Note: Some hardware encoders may have limitations that reduce performance with multiple streams.
+            {{ $t('config.channels_desc_1') }}<br>
+            {{ $t('_common.note') }} {{ $t('config.channels_desc_2') }}
           </div>
         </div>
 
         <!-- Global Prep Commands -->
         <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
-          <label class="form-label">Command Preparations</label>
-          <div class="form-text">
-            Configure a list of commands to be executed before or after running any application.
-            If any of the specified preparation commands fail, the application launch process will be aborted.
-          </div>
+          <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
+          <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
           <table class="table" v-if="global_prep_cmd.length > 0">
             <thead>
               <tr>
-                <th scope="col"><i class="fas fa-play"></i> Do Command</th>
-                <th scope="col"><i class="fas fa-undo"></i> Undo Command</th>
+                <th scope="col"><i class="fas fa-play"></i> {{ $t('config.do_cmd') }}</th>
+                <th scope="col"><i class="fas fa-undo"></i> {{ $t('config.undo_cmd') }}</th>
                 <th scope="col" v-if="platform === 'windows'">
-                  <i class="fas fa-shield-alt"></i> Run as Admin
+                  <i class="fas fa-shield-alt"></i> {{ $t('config.run_as') }}
                 </th>
                 <th scope="col"></th>
               </tr>
@@ -104,7 +115,7 @@
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
                       true-value="true" false-value="false" />
-                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">Elevated</label>
+                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('config.elevated') }}</label>
                   </div>
                 </td>
                 <td>
@@ -119,7 +130,7 @@
             </tbody>
           </table>
           <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="add_global_prep_cmd">
-            &plus; Add
+            &plus; {{ $t('config.add') }}
           </button>
         </div>
       </div>
@@ -128,45 +139,43 @@
       <div id="input" v-if="currentTab === 'input'" class="config-page">
         <!-- Enable Gamepad Input -->
         <div class="mb-3">
-          <label for="controller" class="form-label">Enable Gamepad Input</label>
+          <label for="controller" class="form-label">{{ $t('config.controller') }}</label>
           <select id="controller" class="form-select" v-model="config.controller">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled') }}</option>
           </select>
-          <div class="form-text">
-            Allows guests to control the host system with a gamepad / controller
-          </div>
+          <div class="form-text">{{ $t('config.controller_desc') }}</div>
         </div>
 
         <!-- Emulated Gamepad Type -->
         <div class="mb-3" v-if="config.controller === 'enabled' && platform === 'windows'">
-          <label for="gamepad" class="form-label">Emulated Gamepad Type</label>
+          <label for="gamepad" class="form-label">{{ $t('config.gamepad') }}</label>
           <select id="gamepad" class="form-select" v-model="config.gamepad">
-            <option value="auto">Automatic</option>
-            <option value="ds4">DS4 (PS4)</option>
-            <option value="x360">X360 (Xbox 360)</option>
+            <option value="auto">{{ $t('_common.auto') }}</option>
+            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
+            <option value="x360">{{ $t('config.gamepad_x360') }}</option>
           </select>
-          <div class="form-text">Choose which type of gamepad to emulate on the host</div>
+          <div class="form-text">{{ $t('config.gamepad_desc') }}</div>
         </div>
         <div class="accordion" v-if="config.gamepad === 'ds4'">
           <div class="accordion-item">
             <h2 class="accordion-header">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
                       data-bs-target="#panelsStayOpen-collapseOne">
-                Manual DS4 options
+                {{ $t('config.gamepad_ds4_manual') }}
               </button>
             </h2>
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
                  aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
                 <div>
-                  <label for="ds4_back_as_touchpad_click" class="form-label">Map Back/Select to Touchpad Click</label>
+                  <label for="ds4_back_as_touchpad_click" class="form-label">{{ $t('config.ds4_back_as_touchpad_click') }}</label>
                   <select id="ds4_back_as_touchpad_click" class="form-select"
                           v-model="config.ds4_back_as_touchpad_click">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
+                    <option value="disabled">{{ $t('_common.disabled') }}</option>
+                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
                   </select>
-                  <div class="form-text">When forcing DS4 emulation, map Back/Select to Touchpad Click</div>
+                  <div class="form-text">{{ $t('config.ds4_back_as_touchpad_click_desc') }}</div>
                 </div>
               </div>
             </div>
@@ -177,29 +186,29 @@
             <h2 class="accordion-header">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
                       data-bs-target="#panelsStayOpen-collapseOne">
-                Automatic selection options
+                {{ $t('config.gamepad_auto') }}
               </button>
             </h2>
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
                  aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
                 <div>
-                  <label for="motion_as_ds4" class="form-label">Emulate a DS4 gamepad if the client gamepad reports motion sensors are present</label>
+                  <label for="motion_as_ds4" class="form-label">{{ $t('config.motion_as_ds4') }}</label>
                   <select id="motion_as_ds4" class="form-select"
                           v-model="config.motion_as_ds4">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
+                    <option value="disabled">{{ $t('_common.disabled') }}</option>
+                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
                   </select>
-                  <div class="form-text">If disabled, motion sensors will not be taken into account during gamepad type selection.</div>
+                  <div class="form-text">{{ $t('config.motion_as_ds4_desc') }}</div>
                 </div>
                 <div>
-                  <label for="touchpad_as_ds4" class="form-label">Emulate a DS4 gamepad if the client gamepad reports a touchpad is present</label>
+                  <label for="touchpad_as_ds4" class="form-label">{{ $t('config.touchpad_as_ds4') }}</label>
                   <select id="touchpad_as_ds4" class="form-select"
                           v-model="config.touchpad_as_ds4">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
+                    <option value="disabled">{{ $t('_common.disabled') }}</option>
+                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
                   </select>
-                  <div class="form-text">If disabled, touchpad presence will not be taken into account during gamepad type selection.</div>
+                  <div class="form-text">{{ $t('config.touchpad_as_ds4_desc') }}</div>
                 </div>
               </div>
             </div>
@@ -208,117 +217,88 @@
 
         <!-- Home/Guide Button Emulation Timeout -->
         <div class="mb-3" v-if="config.controller === 'enabled'">
-          <label for="back_button_timeout" class="form-label">Home/Guide Button Emulation Timeout</label>
+          <label for="back_button_timeout" class="form-label">{{ $t('config.back_button_timeout') }}</label>
           <input type="text" class="form-control" id="back_button_timeout" placeholder="-1"
                  v-model="config.back_button_timeout" />
-          <div class="form-text">
-            If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press
-            is emulated.<br>
-            If set to a value &lt; 0 (default), holding the Back/Select button will not emulate the Home/Guide button.<br>
-          </div>
+          <div class="form-text">{{ $t('config.back_button_timeout_desc') }}</div>
         </div>
 
         <!-- Enable Keyboard Input -->
         <hr>
         <div class="mb-3">
-          <label for="keyboard" class="form-label">Enable Keyboard Input</label>
+          <label for="keyboard" class="form-label">{{ $t('config.keyboard') }}</label>
           <select id="keyboard" class="form-select" v-model="config.keyboard">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
-          <div class="form-text">
-            Allows guests to control the host system with the keyboard
-          </div>
+          <div class="form-text">{{ $t('config.keyboard_desc') }}</div>
         </div>
 
         <!-- Key Repeat Delay-->
         <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
-          <label for="key_repeat_delay" class="form-label">Key Repeat Delay</label>
+          <label for="key_repeat_delay" class="form-label">{{ $t('config.key_repeat_delay') }}</label>
           <input type="text" class="form-control" id="key_repeat_delay" placeholder="500"
                  v-model="config.key_repeat_delay" />
-          <div class="form-text">
-            Control how fast keys will repeat themselves<br>
-            The initial delay in milliseconds before repeating keys
-          </div>
+          <div class="form-text">{{ $t('config.key_repeat_delay_desc') }}</div>
         </div>
 
         <!-- Key Repeat Frequency-->
         <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
-          <label for="key_repeat_frequency" class="form-label">Key Repeat Frequency</label>
+          <label for="key_repeat_frequency" class="form-label">{{ $t('config.key_repeat_frequency') }}</label>
           <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9"
                  v-model="config.key_repeat_frequency" />
-          <div class="form-text">
-            How often keys repeat every second<br>
-            This configurable option supports decimals
-          </div>
+          <div class="form-text">{{ $t('config.key_repeat_frequency_desc') }}</div>
         </div>
 
         <!-- Always send scancodes -->
         <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
-          <label for="always_send_scancodes" class="form-label">Always Send Scancodes</label>
+          <label for="always_send_scancodes" class="form-label">{{ $t('config.always_send_scancodes') }}</label>
           <select id="always_send_scancodes" class="form-select" v-model="config.always_send_scancodes">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
-          <div class="form-text">
-            Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard
-            input from certain clients that aren't using a US English keyboard layout.<br>
-            Enable if keyboard input is not working at all in certain applications.<br>
-            Disable if keys on the client are generating the wrong input on the host.
-          </div>
+          <div class="form-text">{{ $t('config.always_send_scancodes_desc') }}</div>
         </div>
 
         <!-- Mapping Key AltRight to Key Windows -->
         <div class="mb-3" v-if="config.keyboard === 'enabled'">
-          <label for="key_rightalt_to_key_win" class="form-label">Map Right Alt key to Windows key</label>
+          <label for="key_rightalt_to_key_win" class="form-label">{{ $t('config.key_rightalt_to_key_win') }}</label>
           <select id="key_rightalt_to_key_win" class="form-select" v-model="config.key_rightalt_to_key_win">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
-          <div class="form-text">
-            It may be possible that you cannot send the Windows Key from Moonlight directly.<br>
-            In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key
-          </div>
+          <div class="form-text">{{ $t('config.key_rightalt_to_key_win_desc') }}</div>
         </div>
 
         <!-- Enable Mouse Input -->
         <hr>
         <div class="mb-3">
-          <label for="mouse" class="form-label">Enable Mouse Input</label>
+          <label for="mouse" class="form-label">{{ $t('config.mouse') }}</label>
           <select id="mouse" class="form-select" v-model="config.mouse">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
-          <div class="form-text">
-            Allows guests to control the host system with the mouse
-          </div>
+          <div class="form-text">{{ $t('config.mouse_desc') }}</div>
         </div>
 
         <!-- High resolution scrolling support -->
         <div class="mb-3" v-if="config.mouse === 'enabled'">
-          <label for="high_resolution_scrolling" class="form-label">High Resolution Scrolling Support</label>
+          <label for="high_resolution_scrolling" class="form-label">{{ $t('config.high_resolution_scrolling') }}</label>
           <select id="high_resolution_scrolling" class="form-select" v-model="config.high_resolution_scrolling">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
-          <div class="form-text">
-            When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients.<br>
-            This can be useful to disable for older applications that scroll too fast with high resolution
-            scroll events.
-          </div>
+          <div class="form-text">{{ $t('config.high_resolution_scrolling_desc') }}</div>
         </div>
 
         <!-- Native pen/touch support -->
         <div class="mb-3" v-if="config.mouse === 'enabled'">
-          <label for="native_pen_touch" class="form-label">Native Pen/Touch Support</label>
+          <label for="native_pen_touch" class="form-label">{{ $t('config.native_pen_touch') }}</label>
           <select id="native_pen_touch" class="form-select" v-model="config.native_pen_touch">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
-          <div class="form-text">
-            When enabled, Sunshine will pass through native pen/touch events from Moonlight clients.<br>
-            This can be useful to disable for older applications without native pen/touch support.
-          </div>
+          <div class="form-text">{{ $t('config.native_pen_touch_desc') }}</div>
         </div>
 
       </div>
@@ -327,124 +307,103 @@
       <div id="audio-video" v-if="currentTab === 'av'" class="config-page">
         <!-- Audio Sink -->
         <div class="mb-3" v-if="platform === 'windows'">
-          <label for="audio_sink" class="form-label">Audio Sink</label>
-          <input type="text" class="form-control" id="audio_sink" placeholder="Speakers (High Definition Audio Device)"
+          <label for="audio_sink" class="form-label">{{ $t('config.audio_sink') }}</label>
+          <input type="text" class="form-control" id="audio_sink" :placeholder="$t('config.audio_sink_placeholder_win')"
             v-model="config.audio_sink" />
           <div class="form-text">
-            Manually specify a specific audio device to capture. If unset, the device is chosen automatically.<br>
-            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br>
-            If you have multiple audio devices with identical names, you can get the Device ID using the following
-            command:<br>
+            {{ $t('config.audio_sink_desc_win') }}<br>
             <pre>tools\audio-info.exe</pre>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'linux'">
-          <label for="audio_sink" class="form-label">Audio Sink</label>
+          <label for="audio_sink" class="form-label">{{ $t('config.audio_sink') }}</label>
           <input type="text" class="form-control" id="audio_sink"
             placeholder="alsa_output.pci-0000_09_00.3.analog-stereo" v-model="config.audio_sink" />
           <div class="form-text">
-            The name of the audio sink used for Audio Loopback<br>
-            If you do not specify this variable, pulseaudio will select the default monitor device.<br>
-            <br>
-            You can find the name of the audio sink using either command:<br>
+            {{ $t('config.audio_sink_desc_linux') }}<br>
             <pre>pacmd list-sinks | grep "name:"</pre>
             <pre>pactl info | grep Source</pre>
-            <br>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'macos'">
-          <label for="audio_sink" class="form-label">Audio Sink</label>
-          <input type="text" class="form-control" id="audio_sink" placeholder="BlackHole 2ch"
+          <label for="audio_sink" class="form-label">{{ $t('config.audio_sink') }}</label>
+          <input type="text" class="form-control" id="audio_sink" :placeholder="$t('config.audio_sink_placeholder_macos')"
             v-model="config.audio_sink" />
           <div class="form-text">
-            The name of the audio sink used for Audio Loopback<br>
-            Sunshine can only access microphones on macOS due to system limitations.<br>
-            To stream system audio using
-            <a href="https://github.com/mattingalls/Soundflower" target="_blank">Soundflower</a> or
+            {{ $t('config.audio_sink_desc_macos') }}<br>
+            <br>
+            <a href="https://github.com/mattingalls/Soundflower" target="_blank">Soundflower</a><br>
             <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">BlackHole</a>.
           </div>
         </div>
 
         <!-- Virtual Sink -->
         <div class="mb-3" v-if="platform === 'windows'">
-          <label for="virtual_sink" class="form-label">Virtual Sink</label>
-          <input type="text" class="form-control" id="virtual_sink" placeholder="Steam Streaming Speakers"
+          <label for="virtual_sink" class="form-label">{{ $t('config.virtual_sink') }}</label>
+          <input type="text" class="form-control" id="virtual_sink" :placeholder="$t('config.virtual_sink_placeholder')"
             v-model="config.virtual_sink" />
-          <div class="form-text">
-            Manually specify a virtual audio device to use. If unset, the device is chosen automatically.<br>
-            <b>We strongly recommend leaving this field blank to use automatic device selection!</b><br>
-          </div>
+          <div class="form-text">{{ $t('config.virtual_sink_desc') }}</div>
         </div>
 
         <!-- Install Steam Audio Drivers -->
         <div class="mb-3" v-if="platform === 'windows'">
-          <label for="install_steam_audio_drivers" class="form-label">Install Steam Audio Drivers</label>
+          <label for="install_steam_audio_drivers" class="form-label">{{ $t('config.install_steam_audio_drivers') }}</label>
           <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
-          <div class="form-text">
-            If Steam is installed, this will automatically install the Steam Streaming Speakers driver to support
-            5.1/7.1 surround sound and muting host audio.
-          </div>
+          <div class="form-text">{{ $t('config.install_steam_audio_drivers_desc') }}</div>
         </div>
 
         <!-- Adapter Name -->
         <div class="mb-3" v-if="platform === 'windows'">
-          <label for="adapter_name" class="form-label">Adapter Name</label>
-          <input type="text" class="form-control" id="adapter_name" placeholder="Radeon RX 580 Series"
+          <label for="adapter_name" class="form-label">{{ $t('config.adapter_name') }}</label>
+          <input type="text" class="form-control" id="adapter_name" :placeholder="$t('config.adapter_name_placeholder_win')"
             v-model="config.adapter_name" />
           <div class="form-text">
-            Manually specify a GPU to use for capture. If unset, the GPU is chosen automatically.<br>
-            <b>We strongly recommend leaving this field blank to use automatic GPU selection!</b><br>
-            Note: This GPU must have a display connected and powered on.<br>
-            The appropriate values can be found using the following command:<br>
+            {{ $t('config.adapter_name_desc') }}<br>
             <pre>tools\dxgi-info.exe</pre>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'linux'">
-          <label for="adapter_name" class="form-label">Adapter Name</label>
+          <label for="adapter_name" class="form-label">{{ $t('config.adapter_name') }}</label>
           <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
           <div class="form-text">
-            Manually specify a GPU to use for capture.<br>
-            <pre>ls /dev/dri/renderD*  # to find all devices capable of VAAPI</pre>
+            {{ $t('config.adapter_name_desc_linux_1') }}<br>
+            <pre>ls /dev/dri/renderD*  # {{ $t('config.adapter_name_desc_linux_2') }}</pre>
             <pre>
               vainfo --display drm --device /dev/dri/renderD129 | \
                 grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"
             </pre>
-            Replace ``renderD129`` with the device from above to lists the name and capabilities of the device.<br>
-            To be supported by Sunshine, it needs to have at the very minimum:
+            {{ $t('config.adapter_name_desc_linux_3') }}<br>
             <i>VAProfileH264High   : VAEntrypointEncSlice</i>
           </div>
         </div>
 
         <!-- Output Name -->
         <div class="mb-3" v-if="platform === 'windows'">
-          <label for="output_name" class="form-label">Output Name</label>
+          <label for="output_name" class="form-label">{{ $t('config.output_name_win') }}</label>
           <input type="text" class="form-control" id="output_name" placeholder="\\.\DISPLAY1"
             v-model="config.output_name" />
           <div class="form-text">
-            Manually specify a display to use for capture. If unset, the primary display is captured.<br>
-            Note: If you specified a GPU above, this display must be connected to that GPU.<br>
-            The appropriate values can be found using the following command:<br>
-            tools\dxgi-info.exe<br>
+            {{ $t('config.output_name_desc_win') }}<br>
+            <pre>tools\dxgi-info.exe</pre>
           </div>
         </div>
         <div class="mb-3" v-if="platform === 'linux'">
-          <label for="output_name" class="form-label">Monitor number</label>
+          <label for="output_name" class="form-label">{{ $t('config.output_name_linux') }}</label>
           <input type="text" class="form-control" id="output_name" placeholder="0" v-model="config.output_name" />
           <div class="form-text">
-            During Sunshine startup, you should see the list of detected monitors, e.g.:<br>
+            {{ $t('config.output_name_desc_linux') }}<br>
             <br>
             <pre style="white-space: pre-line;">
-            Info: Detecting connected monitors
-            Info: Detected monitor 0: DVI-D-0, connected: false
-            Info: Detected monitor 1: HDMI-0, connected: true
-            Info: Detected monitor 2: DP-0, connected: true
-            Info: Detected monitor 3: DP-1, connected: false
-            Info: Detected monitor 4: DVI-D-1, connected: false
-          </pre>
-            You need to use the value before the colon in the output, e.g. <b>1</b>.
+              Info: Detecting connected monitors
+              Info: Detected monitor 0: DVI-D-0, connected: false
+              Info: Detected monitor 1: HDMI-0, connected: true
+              Info: Detected monitor 2: DP-0, connected: true
+              Info: Detected monitor 3: DP-1, connected: false
+              Info: Detected monitor 4: DVI-D-1, connected: false
+            </pre>
           </div>
         </div>
 
@@ -452,7 +411,7 @@
         <div class="mb-3">
           <!-- Advertised Resolutions -->
           <div id="resolutions" class="resolutions-container">
-            <label>Advertised Resolutions</label>
+            <label>{{ $t('config.resolutions') }}</label>
             <div class="resolutions d-flex flex-wrap">
               <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
                 <span class="px-2">{{r}}</span>
@@ -473,7 +432,7 @@
 
           <!-- Advertised FPS -->
           <div id="fps" class="fps-container">
-            <label>Advertised FPS</label>
+            <label>{{ $t('config.fps') }}</label>
             <div class="fps d-flex flex-wrap">
               <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
                 <span class="px-2">{{f}}</span>
@@ -492,12 +451,7 @@
             </form>
           </div>
 
-          <div class="form-text">
-            The display modes advertised by Sunshine.<br>
-            Some versions of Moonlight, such as Moonlight-nx (Switch), rely on these lists to ensure that the requested
-            resolutions and fps are supported.<br>
-            This setting does <b>not</b> change how the screen stream is sent to Moonlight.
-          </div>
+          <div class="form-text">{{ $t('config.res_fps_desc') }}</div>
         </div>
 
       </div>
@@ -506,79 +460,79 @@
       <div id="network" v-if="currentTab === 'network'" class="config-page">
         <!-- UPnP -->
         <div class="mb-3">
-          <label for="upnp" class="form-label">UPnP</label>
+          <label for="upnp" class="form-label">{{ $t('config.upnp') }}</label>
           <select id="upnp" class="form-select" v-model="config.upnp">
-            <option value="disabled">Disabled</option>
-            <option value="enabled">Enabled</option>
+            <option value="disabled">{{ $t('_common.disabled_def') }}</option>
+            <option value="enabled">{{ $t('_common.enabled') }}</option>
           </select>
-          <div class="form-text">Automatically configure port forwarding for streaming over the Internet</div>
+          <div class="form-text">{{ $t('config.upnp_desc') }}</div>
         </div>
 
         <!-- Address family -->
         <div class="mb-3">
-          <label for="address_family" class="form-label">Address Family</label>
+          <label for="address_family" class="form-label">{{ $t('config.address_family') }}</label>
           <select id="address_family" class="form-select" v-model="config.address_family">
-            <option value="ipv4">IPv4 only</option>
-            <option value="both">IPv4+IPv6</option>
+            <option value="ipv4">{{ $t('config.address_family_ipv4') }}</option>
+            <option value="both">{{ $t('config.address_family_both') }}</option>
           </select>
-          <div class="form-text">Set the address family used by Sunshine</div>
+          <div class="form-text">{{ $t('config.address_family_desc') }}</div>
         </div>
 
         <!-- Port family -->
         <div class="mb-3">
-          <label for="port" class="form-label">Port</label>
+          <label for="port" class="form-label">{{ $t('config.port') }}</label>
           <input type="number" min="1029" max="65514" class="form-control" id="port" placeholder="47989"
             v-model="config.port" />
-          <div class="form-text">Set the family of ports used by Sunshine</div>
+          <div class="form-text">{{ $t('config.port_desc') }}</div>
           <!-- Add warning if any port is less than 1024 -->
           <div class="alert alert-danger" v-if="(+effectivePort - 5) < 1024">
-            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Sunshine cannot use ports below 1024!
+            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_alert_1') }}
           </div>
           <!-- Add warning if any port is above 65535 -->
           <div class="alert alert-danger" v-if="(+effectivePort + 21) > 65535">
-            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Ports above 65535 are not available!
+            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_alert_2') }}
           </div>
           <!-- Create a port table for the various ports needed by Sunshine -->
           <table class="table">
             <thead>
               <tr>
-                <th scope="col">Protocol</th>
-                <th scope="col">Port</th>
-                <th scope="col">Note</th>
+                <th scope="col">{{ $t('config.port_protocol') }}</th>
+                <th scope="col">{{ $t('config.port_port') }}</th>
+                <th scope="col">{{ $t('config.port_note') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <!-- HTTPS -->
-                <td>TCP</td>
+                <td>{{ $t('config.port_tcp') }}</td>
                 <td>{{+effectivePort - 5}}</td>
                 <td></td>
               </tr>
               <tr>
                 <!-- HTTP -->
-                <td>TCP</td>
+                <td>{{ $t('config.port_tcp') }}</td>
                 <td>{{+effectivePort}}</td>
                 <td>
                   <div class="alert alert-primary" role="alert" v-if="+effectivePort !== 47989">
-                    <i class="fa-solid fa-xl fa-circle-info"></i> Use this port to connect with Moonlight.
+                    <i class="fa-solid fa-xl fa-circle-info"></i> {{ $t('config.port_http_port_note') }}
                   </div>
                 </td>
               </tr>
               <tr>
                 <!-- Web UI -->
-                <td>TCP</td>
+                <td>{{ $t('config.port_tcp') }}</td>
                 <td>{{+effectivePort + 1}}</td>
-                <td>Web UI</td>
+                <td>{{ $t('config.port_web_ui') }}</td>
               </tr>
               <tr>
                 <!-- RTSP -->
-                <td>TCP</td>
+                <td>{{ $t('config.port_tcp') }}</td>
                 <td>{{+effectivePort + 21}}</td>
                 <td></td>
               </tr>
               <tr>
                 <!-- Video, Control, Audio -->
-                <td>UDP</td>
+                <td>{{ $t('config.port_udp') }}</td>
                 <td>{{+effectivePort + 9}} - {{+effectivePort + 11}}</td>
                 <td></td>
               </tr>
@@ -592,80 +546,55 @@
           </table>
           <!-- add warning about exposing web ui to the internet -->
           <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
-            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> Exposing the Web UI to the internet is a security
-            risk! Proceed at your own risk!
+            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_warning') }}
           </div>
         </div>
 
         <!-- Origin Web UI Allowed -->
         <div class="mb-3">
-          <label for="origin_web_ui_allowed" class="form-label">Origin Web UI Allowed</label>
+          <label for="origin_web_ui_allowed" class="form-label">{{ $t('config.origin_web_ui_allowed') }}</label>
           <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
-            <option value="pc">Only localhost may access Web UI</option>
-            <option value="lan">Only those in LAN may access Web UI</option>
-            <option value="wan">Anyone may access Web UI</option>
+            <option value="pc">{{ $t('config.origin_web_ui_allowed_pc') }}</option>
+            <option value="lan">{{ $t('config.origin_web_ui_allowed_lan') }}</option>
+            <option value="wan">{{ $t('config.origin_web_ui_allowed_wan') }}</option>
           </select>
-          <div class="form-text">
-            The origin of the remote endpoint address that is not denied access to Web UI
-          </div>
+          <div class="form-text">{{ $t('config.origin_web_ui_allowed_desc') }}</div>
         </div>
 
         <!-- External IP -->
         <div class="mb-3">
-          <label for="external_ip" class="form-label">External IP</label>
+          <label for="external_ip" class="form-label">{{ $t('config.external_ip') }}</label>
           <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12" v-model="config.external_ip" />
-          <div class="form-text">
-            If no external IP address is given, Sunshine will automatically detect external IP
-          </div>
+          <div class="form-text">{{ $t('config.external_ip_desc') }}</div>
         </div>
 
         <!-- LAN Encryption Mode -->
         <div class="mb-3">
-          <label for="lan_encryption_mode" class="form-label">LAN Encryption Mode</label>
+          <label for="lan_encryption_mode" class="form-label">{{ $t('config.lan_encryption_mode') }}</label>
           <select id="lan_encryption_mode" class="form-select" v-model="config.lan_encryption_mode">
-            <option value="0">
-              Disabled (default)
-            </option>
-            <option value="1">
-              Enabled for supported clients
-            </option>
-            <option value="2">
-              Required for all clients
-            </option>
+            <option value="0">{{ $t('_common.disabled_def') }}</option>
+            <option value="1">{{ $t('config.lan_encryption_mode_1') }}</option>
+            <option value="2">{{ $t('config.lan_encryption_mode_2') }}</option>
           </select>
-          <div class="form-text">
-            This determines when encryption will be used when streaming over your local network.<br>
-            Encryption can reduce streaming performance, particularly on less powerful hosts and clients.
-          </div>
+          <div class="form-text">{{ $t('config.lan_encryption_mode_desc') }}</div>
         </div>
 
         <!-- WAN Encryption Mode -->
         <div class="mb-3">
-          <label for="wan_encryption_mode" class="form-label">WAN Encryption Mode</label>
+          <label for="wan_encryption_mode" class="form-label">{{ $t('config.wan_encryption_mode') }}</label>
           <select id="wan_encryption_mode" class="form-select" v-model="config.wan_encryption_mode">
-            <option value="0">
-              Disabled
-            </option>
-            <option value="1">
-              Enabled for supported clients (default)
-            </option>
-            <option value="2">
-              Required for all clients
-            </option>
+            <option value="0">{{ $t('_common.disabled') }}</option>
+            <option value="1">{{ $t('config.wan_encryption_mode_1') }}</option>
+            <option value="2">{{ $t('config.wan_encryption_mode_2') }}</option>
           </select>
-          <div class="form-text">
-            This determines when encryption will be used when streaming over the Internet.<br>
-            Encryption can reduce streaming performance, particularly on less powerful hosts and clients.
-          </div>
+          <div class="form-text">{{ $t('config.wan_encryption_mode_desc') }}</div>
         </div>
 
         <!-- Ping Timeout -->
         <div class="mb-3">
-          <label for="ping_timeout" class="form-label">Ping Timeout</label>
+          <label for="ping_timeout" class="form-label">{{ $t('config.ping_timeout') }}</label>
           <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
-          <div class="form-text">
-            How long to wait in milliseconds for data from moonlight before shutting down the stream
-          </div>
+          <div class="form-text">{{ $t('config.ping_timeout_desc') }}</div>
         </div>
 
       </div>
@@ -674,57 +603,45 @@
       <div id="files" v-if="currentTab === 'files'" class="config-page">
         <!-- Apps File -->
         <div class="mb-3">
-          <label for="file_apps" class="form-label">Apps File</label>
+          <label for="file_apps" class="form-label">{{ $t('config.file_apps') }}</label>
           <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
-          <div class="form-text">
-            The file where current apps of Sunshine are stored
-          </div>
+          <div class="form-text">{{ $t('config.file_apps_desc') }}</div>
         </div>
 
         <!-- Credentials File -->
         <div class="mb-3">
-          <label for="credentials_file" class="form-label">Credentials File</label>
+          <label for="credentials_file" class="form-label">{{ $t('config.credentials_file') }}</label>
           <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json" v-model="config.credentials_file" />
-          <div class="form-text">
-            Store Username/Password separately from Sunshine's state file.
-          </div>
+          <div class="form-text">{{ $t('config.credentials_file_desc') }}</div>
         </div>
 
         <!-- Log Path -->
         <div class="mb-3">
-          <label for="log_path" class="form-label">Logfile Path</label>
+          <label for="log_path" class="form-label">{{ $t('config.log_path') }}</label>
           <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
-          <div class="form-text">
-            The file where the current logs of Sunshine are stored.
-          </div>
+          <div class="form-text">{{ $t('config.log_path_desc') }}</div>
         </div>
 
         <!-- Private Key -->
         <div class="mb-3">
-          <label for="pkey" class="form-label">Private Key</label>
+          <label for="pkey" class="form-label">{{ $t('config.pkey') }}</label>
           <input type="text" class="form-control" id="pkey" placeholder="/dir/pkey.pem" v-model="config.pkey" />
-          <div class="form-text">The private key used for the web UI and Moonlight client pairing. For best
-            compatibility, this should be an RSA-2048 private key.</div>
+          <div class="form-text">{{ $t('config.pkey_desc') }}</div>
         </div>
 
         <!-- Certificate -->
         <div class="mb-3">
-          <label for="cert" class="form-label">Certificate</label>
+          <label for="cert" class="form-label">{{ $t('config.cert') }}</label>
           <input type="text" class="form-control" id="cert" placeholder="/dir/cert.pem" v-model="config.cert" />
-          <div class="form-text">
-            The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have
-            an RSA-2048 public key.
-          </div>
+          <div class="form-text">{{ $t('config.cert_desc') }}</div>
         </div>
 
         <!-- State File -->
         <div class="mb-3">
-          <label for="file_state" class="form-label">State File</label>
+          <label for="file_state" class="form-label">{{ $t('config.file_state') }}</label>
           <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json"
             v-model="config.file_state" />
-          <div class="form-text">
-            The file where current state of Sunshine is stored
-          </div>
+          <div class="form-text">{{ $t('config.file_state_desc') }}</div>
         </div>
 
       </div>
@@ -733,116 +650,75 @@
       <div v-if="currentTab === 'advanced'" class="config-page">
         <!-- FEC Percentage -->
         <div class="mb-3">
-          <label for="fec_percentage" class="form-label">FEC Percentage</label>
+          <label for="fec_percentage" class="form-label">{{ $t('config.fec_percentage') }}</label>
           <input type="text" class="form-control" id="fec_percentage" placeholder="20" v-model="config.fec_percentage" />
-          <div class="form-text">
-            Percentage of error correcting packets per data packet in each video frame.<br>
-            Higher values can correct for more network packet loss, but at the cost of increasing bandwidth usage.<br>
-            The default value of 20 is what GeForce Experience uses.
-          </div>
+          <div class="form-text">{{ $t('config.fec_percentage_desc') }}</div>
         </div>
 
         <!-- Quantization Parameter -->
         <div class="mb-3">
-          <label for="qp" class="form-label">Quantization Parameter</label>
+          <label for="qp" class="form-label">{{ $t('config.qp') }}</label>
           <input type="number" class="form-control" id="qp" placeholder="28" v-model="config.qp" />
-          <div class="form-text">
-            Quantization Parameter<br>
-            Some devices may not support Constant Bit Rate.<br>
-            For those devices, QP is used instead.<br>
-            Higher value means more compression, but less quality<br>
-          </div>
+          <div class="form-text">{{ $t('config.qp_desc') }}</div>
         </div>
 
         <!-- Min Threads -->
         <div class="mb-3">
-          <label for="min_threads" class="form-label">Minimum CPU Thread Count</label>
+          <label for="min_threads" class="form-label">{{ $t('config.min_threads') }}</label>
           <input type="number" class="form-control" id="min_threads" placeholder="2" min="1" v-model="config.min_threads" />
-          <div class="form-text">
-            Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually<br>
-            worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest<br>
-            value that can reliably encode at your desired streaming settings on your hardware.
-          </div>
+          <div class="form-text">{{ $t('config.min_threads_desc') }}</div>
         </div>
 
         <!-- HEVC Support -->
         <div class="mb-3">
-          <label for="hevc_mode" class="form-label">HEVC Support</label>
+          <label for="hevc_mode" class="form-label">{{ $t('config.hevc_mode') }}</label>
           <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
-            <option value="0">
-              Sunshine will advertise support for HEVC based on encoder capabilities (recommended)
-            </option>
-            <option value="1">
-              Sunshine will not advertise support for HEVC
-            </option>
-            <option value="2">
-              Sunshine will advertise support for HEVC Main profile
-            </option>
-            <option value="3">
-              Sunshine will advertise support for HEVC Main and Main10 (HDR) profiles
-            </option>
+            <option value="0">{{ $t('config.hevc_mode_0') }}</option>
+            <option value="1">{{ $t('config.hevc_mode_1') }}</option>
+            <option value="2">{{ $t('config.hevc_mode_2') }}</option>
+            <option value="3">{{ $t('config.hevc_mode_3') }}</option>
           </select>
-          <div class="form-text">
-            Allows the client to request HEVC Main or HEVC Main10 video streams.<br>
-            HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
-          </div>
+          <div class="form-text">{{ $t('config.hevc_mode_desc') }}</div>
         </div>
 
         <!-- AV1 Support -->
         <div class="mb-3">
-          <label for="av1_mode" class="form-label">AV1 Support</label>
+          <label for="av1_mode" class="form-label">{{ $t('config.av1_mode') }}</label>
           <select id="av1_mode" class="form-select" v-model="config.av1_mode">
-            <option value="0">
-              Sunshine will advertise support for AV1 based on encoder capabilities (recommended)
-            </option>
-            <option value="1">
-              Sunshine will not advertise support for AV1
-            </option>
-            <option value="2">
-              Sunshine will advertise support for AV1 Main 8-bit profile
-            </option>
-            <option value="3">
-              Sunshine will advertise support for AV1 Main 8-bit and 10-bit (HDR) profiles
-            </option>
+            <option value="0">{{ $t('config.av1_mode_0') }}</option>
+            <option value="1">{{ $t('config.av1_mode_1') }}</option>
+            <option value="2">{{ $t('config.av1_mode_2') }}</option>
+            <option value="3">{{ $t('config.av1_mode_3') }}</option>
           </select>
-          <div class="form-text">
-            Allows the client to request AV1 Main 8-bit or 10-bit video streams.<br>
-            AV1 is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.
-          </div>
+          <div class="form-text">{{ $t('config.av1_mode_desc') }}</div>
         </div>
 
         <!-- Capture -->
         <div class="mb-3" v-if="platform === 'linux'">
-          <label for="capture" class="form-label">Force a Specific Capture Method</label>
+          <label for="capture" class="form-label">{{ $t('config.capture') }}</label>
           <select id="capture" class="form-select" v-model="config.capture">
-            <option value="">Autodetect (recommended)</option>
+            <option value="">{{ $t('_common.autodetect') }}</option>
             <option value="nvfbc">NvFBC</option>
             <option value="wlr">wlroots</option>
             <option value="kms">KMS</option>
             <option value="x11">X11</option>
           </select>
-          <div class="form-text">
-            Force a specific capture method, otherwise Sunshine will use the first one that works.
-            NvFBC requires patched nvidia drivers.
-          </div>
+          <div class="form-text">{{ $t('config.capture_desc') }}</div>
         </div>
 
         <!-- Encoder -->
         <div class="mb-3">
-          <label for="encoder" class="form-label">Force a Specific Encoder</label>
+          <label for="encoder" class="form-label">{{ $t('config.encoder') }}</label>
           <select id="encoder" class="form-select" v-model="config.encoder">
-            <option value="">Autodetect (recommended)</option>
+            <option value="">{{ $t('_common.autodetect') }}</option>
             <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
             <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
             <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
             <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
             <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
-            <option value="software">Software</option>
+            <option value="software">{{ $t('config.encoder_software') }}</option>
           </select>
-          <div class="form-text">
-            Force a specific encoder, otherwise Sunshine will select the best available option.<br>
-            Note: If you specify a hardware encoder on Windows, it must match the GPU where the display is connected.
-          </div>
+          <div class="form-text">{{ $t('config.encoder_desc') }}</div>
         </div>
 
       </div>
@@ -851,65 +727,49 @@
       <div id="nvidia-nvenc-encoder" v-if="currentTab === 'nv'" class="config-page">
         <!-- Performance preset -->
         <div class="mb-3">
-          <label for="nvenc_preset" class="form-label">Performance preset</label>
+          <label for="nvenc_preset" class="form-label">{{ $t('config.nvenc_preset') }}</label>
           <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
-            <option value="1">P1 (fastest, default)</option>
+            <option value="1">P1 {{ $t('config.nvenc_preset_1') }}</option>
             <option value="2">P2</option>
             <option value="3">P3</option>
             <option value="4">P4</option>
             <option value="5">P5</option>
             <option value="6">P6</option>
-            <option value="7">P7 (slowest)</option>
+            <option value="7">P7 {{ $t('config.nvenc_preset_7') }}</option>
           </select>
-          <div class="form-text">Higher numbers improve compression (quality at given bitrate) at the cost of
-            <strong>increased encoding latency</strong>.<br>
-            Recommended to change only when limited by network or decoder, otherwise similar effect can be
-            accomplished by increasing bitrate.
-          </div>
+          <div class="form-text">{{ $t('config.nvenc_preset_desc') }}</div>
         </div>
 
         <!-- Two-pass mode -->
         <div class="mb-3">
-          <label for="nvenc_twopass" class="form-label">Two-pass mode</label>
+          <label for="nvenc_twopass" class="form-label">{{ $t('config.nvenc_twopass') }}</label>
           <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
-            <option value="disabled">Disabled (fastest, not recommended)</option>
-            <option value="quarter_res">Quarter resolution (faster, default)</option>
-            <option value="full_res">Full resolution (slower)</option>
+            <option value="disabled">{{ $t('config.nvenc_twopass_disabled') }}</option>
+            <option value="quarter_res">{{ $t('config.nvenc_twopass_quarter_res') }}</option>
+            <option value="full_res">{{ $t('config.nvenc_twopass_full_res') }}</option>
           </select>
-          <div class="form-text">Adds preliminary encoding pass.<br>
-            This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly
-            adhere to bitrate limits.<br>
-            Disabling it is not recommended since this can lead to occasional bitrate overshoot and subsequent packet
-            loss.
-          </div>
+          <div class="form-text">{{ $t('config.nvenc_twopass_desc') }}</div>
         </div>
 
         <!-- Spatial AQ -->
         <div class="mb-3">
-          <label for="nvenc_spatial_aq" class="form-label">Spatial AQ</label>
+          <label for="nvenc_spatial_aq" class="form-label">{{ $t('config.nvenc_spatial_aq') }}</label>
           <select id="nvenc_spatial_aq" class="form-select" v-model="config.nvenc_spatial_aq">
-            <option value="disabled">Disabled (faster, default)</option>
-            <option value="enabled">Enabled (slower)</option>
+            <option value="disabled">{{ $t('config.nvenc_spatial_aq_disabled') }}</option>
+            <option value="enabled">{{ $t('config.nvenc_spatial_aq_enabled') }}</option>
           </select>
-          <div class="form-text">
-            Assign higher QP values to flat regions of the video.<br>
-            Recommended to enable when streaming at lower bitrates.
-          </div>
+          <div class="form-text">{{ $t('config.nvenc_spatial_aq_desc') }}</div>
         </div>
 
         <!-- Single-frame VBV/HRD percentage increase -->
         <div class="mb-3">
-          <label for="nvenc_vbv_increase" class="form-label">Single-frame VBV/HRD percentage increase</label>
+          <label for="nvenc_vbv_increase" class="form-label">{{ $t('config.nvenc_vbv_increase') }}</label>
           <input type="number" min="0" max="400" class="form-control" id="nvenc_vbv_increase" placeholder="0"
             v-model="config.nvenc_vbv_increase" />
           <div class="form-text">
-            By default sunshine uses single-frame
-            <a href="https://en.wikipedia.org/wiki/Video_buffering_verifier">VBV/HRD</a>,
-            which means any encoded video frame size is not expected to exceed requested bitrate divided by requested frame
-            rate.<br>
-            Relaxing this restriction can be beneficial and act as low-latency variable bitrate,
-            but may also lead to packet loss if the network doesn't have buffer headroom to handle bitrate spikes.<br>
-            Maximum accepted value is 400, which corresponds to 5x increased encoded video frame upper size limit.
+            {{ $t('config.nvenc_vbv_increase_desc') }}<br>
+            <br>
+            <a href="https://en.wikipedia.org/wiki/Video_buffering_verifier">VBV/HRD</a>
           </div>
         </div>
 
@@ -919,7 +779,7 @@
             <h2 class="accordion-header">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
                 data-bs-target="#panelsStayOpen-collapseOne">
-                Miscellaneous options
+                {{ $t('config.misc') }}
               </button>
             </h2>
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
@@ -927,60 +787,46 @@
               <div class="accordion-body">
                 <!-- NVENC Realtime HAGS priority -->
                 <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_realtime_hags" class="form-label">Use realtime priority in hardware accelerated
-                    gpu
-                    scheduling</label>
+                  <label for="nvenc_realtime_hags" class="form-label">{{ $t('config.nvenc_realtime_hags') }}</label>
                   <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
+                    <option value="disabled">{{ $t('_common.disabled') }}</option>
+                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
                   </select>
-                  <div class="form-text">Currently NVIDIA drivers may freeze in encoder when
+                  <div class="form-text">
+                    {{ $t('config.nvenc_realtime_hags_desc') }}<br>
+                    <br>
                     <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
-                    is enabled, realtime priority is used and VRAM utilization is close to maximum.<br>
-                    Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced
-                    capture performance when the GPU is heavily loaded.
                   </div>
                 </div>
 
                 <!-- Prefer lower encoding latency over power savings -->
                 <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_latency_over_power" class="form-label">Prefer lower encoding latency over power savings</label>
+                  <label for="nvenc_latency_over_power" class="form-label">{{ $t('config.nvenc_latency_over_power') }}</label>
                   <select id="nvenc_latency_over_power" class="form-select" v-model="config.nvenc_latency_over_power">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
+                    <option value="disabled">{{ $t('_common.disabled') }}</option>
+                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
                   </select>
-                  <div class="form-text">
-                    Sunshine requests maximum GPU clock speed while streaming to reduce encoding latency.<br>
-                    Disabling it is not recommended since this can lead to
-                    <strong>significantly increased encoding latency</strong>.
-                  </div>
+                  <div class="form-text">{{ $t('config.nvenc_latency_over_power_desc') }}</div>
                 </div>
                 
                 <!-- Present OpenGL/Vulkan on top of DXGI -->
                 <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">Present OpenGL/Vulkan on top of DXGI</label>
+                  <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}</label>
                   <select id="nvenc_opengl_vulkan_on_dxgi" class="form-select" v-model="config.nvenc_opengl_vulkan_on_dxgi">
-                    <option value="disabled">Disabled</option>
-                    <option value="enabled">Enabled (default)</option>
+                    <option value="disabled">{{ $t('_common.disabled') }}</option>
+                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
                   </select>
-                  <div class="form-text">
-                    Sunshine can't capture fullscreen OpenGL and Vulkan programs at full frame rate unless they present on top
-                    of DXGI.<br>
-                    This is system-wide setting that is reverted on sunshine program exit.
-                  </div>
+                  <div class="form-text">{{ $t('config.nvenc_opengl_vulkan_on_dxgi_desc') }}</div>
                 </div>
 
                 <!-- NVENC H264 CAVLC -->
                 <div>
-                  <label for="nvenc_h264_cavlc" class="form-label">Prefer CAVLC over CABAC in H.264</label>
+                  <label for="nvenc_h264_cavlc" class="form-label">{{ $t('config.nvenc_h264_cavlc') }}</label>
                   <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
-                    <option value="disabled">Disabled (default)</option>
-                    <option value="enabled">Enabled</option>
+                    <option value="disabled">{{ $t('_common.disabled_def') }}</option>
+                    <option value="enabled">{{ $t('_common.enabled') }}</option>
                   </select>
-                  <div class="form-text">Simpler form of entropy coding.<br>
-                    CAVLC needs around 10% more bitrate for same quality.<br>
-                    Only relevant for really old decoding devices.
-                  </div>
+                  <div class="form-text">{{ $t('config.nvenc_h264_cavlc_desc') }}</div>
                 </div>
               </div>
             </div>
@@ -992,38 +838,36 @@
       <div id="intel-quicksync-encoder" v-if="currentTab === 'qsv'" class="config-page">
         <!-- QuickSync Preset -->
         <div class="mb-3">
-          <label for="qsv_preset" class="form-label">QuickSync Preset</label>
+          <label for="qsv_preset" class="form-label">{{ $t('config.qsv_preset') }}</label>
           <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
-            <option value="veryfast">fastest (lowest quality)</option>
-            <option value="faster">faster (lower quality)</option>
-            <option value="fast">fast (low quality)</option>
-            <option value="medium">medium (default)</option>
-            <option value="slow">slow (good quality)</option>
-            <option value="slower">slower (better quality)</option>
-            <option value="slowest">slowest (best quality)</option>
+            <option value="veryfast">{{ $t('config.qsv_preset_veryfast') }}</option>
+            <option value="faster">{{ $t('config.qsv_preset_faster') }}</option>
+            <option value="fast">{{ $t('config.qsv_preset_fast') }}</option>
+            <option value="medium">{{ $t('config.qsv_preset_medium') }}</option>
+            <option value="slow">{{ $t('config.qsv_preset_slow') }}</option>
+            <option value="slower">{{ $t('config.qsv_preset_slower') }}</option>
+            <option value="slowest">{{ $t('config.qsv_preset_slowest') }}</option>
           </select>
         </div>
 
         <!-- QuickSync Coder (H264) -->
         <div class="mb-3">
-          <label for="qsv_coder" class="form-label">QuickSync Coder (H264)</label>
+          <label for="qsv_coder" class="form-label">{{ $t('config.qsv_coder') }}</label>
           <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
-            <option value="auto">auto -- let ffmpeg decide (default)</option>
-            <option value="cabac">cabac -- context adaptive binary arithmetic coding - higher quality</option>
-            <option value="cavlc">cavlc -- context adaptive variable-length coding - faster decode</option>
+            <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
+            <option value="cabac">{{ $t('config.coder_cabac') }}</option>
+            <option value="cavlc">{{ $t('config.coder_cavlc') }}</option>
           </select>
         </div>
 
         <!-- Allow Slow HEVC Encoding -->
         <div class="mb-3">
-          <label for="qsv_slow_hevc" class="form-label">Allow Slow HEVC Encoding</label>
+          <label for="qsv_slow_hevc" class="form-label">{{ $t('config.qsv_slow_hevc') }}</label>
           <select id="qsv_slow_hevc" class="form-select" v-model="config.qsv_slow_hevc">
-            <option value="enabled">enabled</option>
-            <option value="disabled">disabled (default)</option>
+            <option value="disabled">{{ $t('_common.disabled_def') }}</option>
+            <option value="enabled">{{ $t('_common.enabled') }}</option>
           </select>
-          <div class="form-text">
-            This can enable HEVC encoding on older Intel GPUs, at the cost of higher GPU usage and worse performance.
-          </div>
+          <div class="form-text">{{ $t('config.qsv_slow_hevc_desc') }}</div>
         </div>
 
       </div>
@@ -1032,61 +876,61 @@
       <div id="amd-amf-encoder" v-if="currentTab === 'amd'" class="config-page">
         <!-- AMF Quality -->
         <div class="mb-3">
-          <label for="amd_quality" class="form-label">AMF Quality</label>
+          <label for="amd_quality" class="form-label">{{ $t('config.amd_quality') }}</label>
           <select id="amd_quality" class="form-select" v-model="config.amd_quality">
-            <option value="speed">speed -- prefer speed</option>
-            <option value="balanced">balanced -- balanced (default)</option>
-            <option value="quality">quality -- prefer quality</option>
+            <option value="speed">{{ $t('config.amd_quality_speed') }}</option>
+            <option value="balanced">{{ $t('config.amd_quality_balanced') }}</option>
+            <option value="quality">{{ $t('config.amd_quality_quality') }}</option>
           </select>
         </div>
 
         <!-- AMF Rate Control -->
         <div class="mb-3">
-          <label for="amd_rc" class="form-label">AMF Rate Control</label>
+          <label for="amd_rc" class="form-label">{{ $t('config.amd_rc') }}</label>
           <select id="amd_rc" class="form-select" v-model="config.amd_rc">
-            <option value="cqp">cqp -- constant qp mode</option>
-            <option value="vbr_latency">vbr_latency -- latency constrained variable bitrate (default)</option>
-            <option value="vbr_peak">vbr_peak -- peak constrained variable bitrate</option>
-            <option value="cbr">cbr -- constant bitrate</option>
+            <option value="cqp">{{ $t('config.amd_rc_cqp') }}</option>
+            <option value="vbr_latency">{{ $t('config.amd_rc_vbr_latency') }}</option>
+            <option value="vbr_peak">{{ $t('config.amd_rc_vbr_peak') }}</option>
+            <option value="cbr">{{ $t('config.amd_rc_cbr') }}</option>
           </select>
         </div>
 
         <!-- AMF Usage -->
         <div class="mb-3">
-          <label for="amd_usage" class="form-label">AMF Usage</label>
+          <label for="amd_usage" class="form-label">{{ $t('config.amd_usage') }}</label>
           <select id="amd_usage" class="form-select" v-model="config.amd_usage">
-            <option value="transcoding">transcoding -- transcoding (slowest)</option>
-            <option value="webcam">webcam -- webcam (slow)</option>
-            <option value="lowlatency">lowlatency - low latency (fast)</option>
-            <option value="ultralowlatency">ultralowlatency - ultra low latency (fastest)</option>
+            <option value="transcoding">{{ $t('config.amd_usage_transcoding') }}</option>
+            <option value="webcam">{{ $t('config.amd_usage_webcam') }}</option>
+            <option value="lowlatency">{{ $t('config.amd_usage_lowlatency') }}</option>
+            <option value="ultralowlatency">{{ $t('config.amd_usage_ultralowlatency') }}</option>
           </select>
         </div>
 
         <!-- AMD Preanalysis -->
         <div class="mb-3">
-          <label for="amd_preanalysis" class="form-label">AMF Preanalysis</label>
+          <label for="amd_preanalysis" class="form-label">{{ $t('config.amd_preanalysis') }}</label>
           <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
-            <option value="enabled">enabled</option>
-            <option value="disabled">disabled (default)</option>
+            <option value="disabled">{{ $t('_common.disabled_def') }}</option>
+            <option value="enabled">{{ $t('_common.enabled') }}</option>
           </select>
         </div>
 
         <!-- AMD VBAQ -->
         <div class="mb-3">
-          <label for="amd_vbaq" class="form-label">AMF Variance Based Adaptive Quantization (VBAQ)</label>
+          <label for="amd_vbaq" class="form-label">{{ $t('config.amd_vbaq') }}</label>
           <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
-            <option value="enabled">enabled (default)</option>
-            <option value="disabled">disabled</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
         </div>
 
         <!-- AMF Coder (H264) -->
         <div class="mb-3">
-          <label for="amd_coder" class="form-label">AMF Coder (H264)</label>
+          <label for="amd_coder" class="form-label">{{ $t('config.amd_coder') }}</label>
           <select id="amd_coder" class="form-select" v-model="config.amd_coder">
-            <option value="auto">auto -- let ffmpeg decide (default)</option>
-            <option value="cabac">cabac -- context adaptive variable-length coding - higher quality</option>
-            <option value="cavlc">cavlc -- context adaptive binary arithmetic coding - faster decode</option>
+            <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
+            <option value="cabac">{{ $t('config.coder_cabac') }}</option>
+            <option value="cavlc">{{ $t('config.coder_cavlc') }}</option>
           </select>
         </div>
       </div>
@@ -1095,27 +939,27 @@
       <div id="videotoolbox-encoder" v-if="currentTab === 'vt'" class="config-page">
         <!-- Presets -->
         <div class="mb-3">
-          <label for="vt_coder" class="form-label">VideoToolbox Coder</label>
+          <label for="vt_coder" class="form-label">{{ $t('config.vt_coder') }}</label>
           <select id="vt_coder" class="form-select" v-model="config.vt_coder">
-            <option value="auto">auto</option>
-            <option value="cabac">cabac</option>
-            <option value="cavlc">cavlc</option>
+            <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
+            <option value="cabac">{{ $t('config.coder_cabac') }}</option>
+            <option value="cavlc">{{ $t('config.coder_cavlc') }}</option>
           </select>
         </div>
         <div class="mb-3">
-          <label for="vt_software" class="form-label">VideoToolbox Software Encoding</label>
+          <label for="vt_software" class="form-label">{{ $t('config.vt_software') }}</label>
           <select id="vt_software" class="form-select" v-model="config.vt_software">
-            <option value="auto">auto</option>
-            <option value="disabled">disabled</option>
-            <option value="allowed">allowed</option>
-            <option value="forced">forced</option>
+            <option value="auto">{{ $t('_common.auto') }}</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="allowed">{{ $t('config.vt_software_allowed') }}</option>
+            <option value="forced">{{ $t('config.vt_software_forced') }}</option>
           </select>
         </div>
         <div class="mb-3">
-          <label for="vt_realtime" class="form-label">VideoToolbox Realtime Encoding</label>
+          <label for="vt_realtime" class="form-label">{{ $t('config.vt_realtime') }}</label>
           <select id="vt_realtime" class="form-select" v-model="config.vt_realtime">
-            <option value="enabled">enabled</option>
-            <option value="disabled">disabled</option>
+            <option value="enabled">{{ $t('_common.enabled') }}</option>
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
           </select>
         </div>
       </div>
@@ -1123,38 +967,32 @@
       <!-- Software Encoder Tab -->
       <div id="software-encoder" v-if="currentTab === 'sw'" class="config-page">
         <div class="mb-3">
-          <label for="sw_preset" class="form-label">SW Presets</label>
+          <label for="sw_preset" class="form-label">{{ $t('config.sw_preset') }}</label>
           <select id="sw_preset" class="form-select" v-model="config.sw_preset">
-            <option value="ultrafast">ultrafast</option>
-            <option value="superfast">superfast (default)</option>
-            <option value="veryfast">veryfast</option>
-            <option value="faster">faster</option>
-            <option value="fast">fast</option>
-            <option value="medium">medium</option>
-            <option value="slow">slow</option>
-            <option value="slower">slower</option>
-            <option value="veryslow">veryslow</option>
+            <option value="ultrafast">{{ $t('config.sw_preset_ultrafast') }}</option>
+            <option value="superfast">{{ $t('config.sw_preset_superfast') }}</option>
+            <option value="veryfast">{{ $t('config.sw_preset_veryfast') }}</option>
+            <option value="faster">{{ $t('config.sw_preset_faster') }}</option>
+            <option value="fast">{{ $t('config.sw_preset_fast') }}</option>
+            <option value="medium">{{ $t('config.sw_preset_medium') }}</option>
+            <option value="slow">{{ $t('config.sw_preset_slow') }}</option>
+            <option value="slower">{{ $t('config.sw_preset_slower') }}</option>
+            <option value="veryslow">{{ $t('config.sw_preset_veryslow') }}</option>
           </select>
-          <div class="form-text">
-            Optimize the trade-off between encoding speed (encoded frames per second) and compression efficiency
-            (quality per bit in the bitstream). Defaults to superfast.
-          </div>
+          <div class="form-text">{{ $t('config.sw_preset_desc') }}</div>
         </div>
+
         <div class="mb-3">
-          <label for="sw_tune" class="form-label">SW Tune</label>
+          <label for="sw_tune" class="form-label">{{ $t('config.sw_tune') }}</label>
           <select id="sw_tune" class="form-select" v-model="config.sw_tune">
-            <option value="film">film -- use for high quality movie content; lowers deblocking</option>
-            <option value="animation">animation -- good for cartoons; uses higher deblocking and more reference frames
-            </option>
-            <option value="grain">grain -- preserves the grain structure in old, grainy film material</option>
-            <option value="stillimage">stillimage -- good for slideshow-like content</option>
-            <option value="fastdecode">fastdecode -- allows faster decoding by disabling certain filters</option>
-            <option value="zerolatency">zerolatency -- good for fast encoding and low-latency streaming (default)
-            </option>
+            <option value="film">{{ $t('config.sw_tune_film') }}</option>
+            <option value="animation">{{ $t('config.sw_tune_animation') }}</option>
+            <option value="grain">{{ $t('config.sw_tune_grain') }}</option>
+            <option value="stillimage">{{ $t('config.sw_tune_stillimage') }}</option>
+            <option value="fastdecode">{{ $t('config.sw_tune_fastdecode') }}</option>
+            <option value="zerolatency">{{ $t('config.sw_tune_zerolatency') }}</option>
           </select>
-          <div class="form-text">
-            Tuning options, which are applied after the preset. Defaults to zerolatency.
-          </div>
+          <div class="form-text">{{ $t('config.sw_tune_desc') }}</div>
         </div>
       </div>
 
@@ -1162,20 +1000,21 @@
 
     <!-- Save and Apply buttons -->
     <div class="alert alert-success my-4" v-if="saved && !restarted">
-      <b>Success!</b> Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.
+      <b>{{ $t('_common.success') }}</b> {{ $t('config.apply_note') }}
     </div>
     <div class="alert alert-success my-4" v-if="restarted">
-      <b>Success!</b> Sunshine is restarting to apply changes.
+      <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
     </div>
     <div class="mb-3 buttons">
-      <button class="btn btn-primary" @click="save">Save</button>
-      <button class="btn btn-success" @click="apply" v-if="saved && !restarted">Apply</button>
+      <button class="btn btn-primary" @click="save">{{ $t('_common.save') }}</button>
+      <button class="btn btn-success" @click="apply" v-if="saved && !restarted">{{ $t('_common.apply') }}</button>
     </div>
 
   </div>
 </body>
 <script type="module">
   import { createApp } from 'vue'
+  import i18n from './locale.js'
   import Navbar from './Navbar.vue'
 
   const app = createApp({
@@ -1199,6 +1038,7 @@
             id: "general",
             name: "General",
             options: {
+              "locale": "en",
               "sunshine_name": "",
               "min_log_level": 2,
               "global_prep_cmd": "[]",
@@ -1536,5 +1376,9 @@
     },
   });
 
-  app.mount("#app");
+  //Wait for locale initialization, then render
+  i18n().then(i18n => {
+    app.use(i18n);
+    app.mount('#app');
+  });
 </script>

@@ -5,46 +5,42 @@
   <%- header %>
 </head>
 
-<body id="app">
+<body id="app" v-cloak>
   <main role="main" style="max-width: 1200px; margin: 1em auto">
     <div class="d-flex gap-4">
       <div class="card p-2">
         <header>
           <h1 class="mb-0">
             <img src="/images/logo-sunshine-45.png" height="45" alt="">
-            Welcome to Sunshine!
+            {{ $t('welcome.greeting') }}
           </h1>
         </header>
-        <p class="my-2 align-self-start">
-          Before Getting Started, we need you to make a new username and password for accessing the Web UI.
-        </p>
+        <p class="my-2 align-self-start">{{ $t('welcome.create_creds') }}</p>
         <div class="alert alert-warning">
-          The credentials below are needed to access Sunshine's Web UI.<br>
-          Keep them safe, since <b>you will never see them again!</b>
+          {{ $t('welcome.create_creds_alert') }}
         </div>
         <form @submit.prevent="save">
           <div class="mb-2">
-            <label for="usernameInput" class="form-label">Username:</label>
+            <label for="usernameInput" class="form-label">{{ $t('_common.username') }}</label>
             <input type="text" class="form-control" id="usernameInput" autocomplete="username"
               v-model="passwordData.newUsername" />
           </div>
           <div class="mb-2">
-            <label for="passwordInput" class="form-label">Password:</label>
+            <label for="passwordInput" class="form-label">{{ $t('_common.password') }}</label>
             <input type="password" class="form-control" id="passwordInput" autocomplete="new-password"
               v-model="passwordData.newPassword" required />
           </div>
           <div class="mb-2">
-            <label for="confirmPasswordInput" class="form-label">Password (confirm):</label>
+            <label for="confirmPasswordInput" class="form-label">{{ $t('welcome.confirm_password') }}</label>
             <input type="password" class="form-control" id="confirmPasswordInput" autocomplete="new-password"
               v-model="passwordData.confirmNewPassword" required />
           </div>
           <button type="submit" class="btn btn-primary w-100 mb-2" v-bind:disabled="loading">
-            Login
+            {{ $t('welcome.login') }}
           </button>
-          <div class="alert alert-danger" v-if="error"><b>Error: </b>{{error}}</div>
+          <div class="alert alert-danger" v-if="error"><b>{{ $t('_common.error') }}</b> {{error}}</div>
           <div class="alert alert-success" v-if="success">
-            <b>Success! </b>This page will reload soon, your browser will ask you for
-            the new credentials
+            <b>{{ $t('_common.success') }}</b> {{ $t('_common.welcome_success') }}
           </div>
         </form>
       </div>
@@ -57,7 +53,9 @@
 
 <script type="module">
   import { createApp } from "vue"
+  import i18n from './locale.js'
   import ResourceCard from './ResourceCard.vue'
+
   let app = createApp({
     components: {
       ResourceCard
@@ -101,5 +99,10 @@
       },
     },
   });
-  app.mount("#app");
+
+  //Wait for locale initialization, then render
+  i18n().then(i18n => {
+    app.use(i18n);
+    app.mount('#app');
+  });
 </script>
