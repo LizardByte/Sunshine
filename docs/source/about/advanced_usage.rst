@@ -63,8 +63,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
    =======   ===========
    de        German
    en        English
-   en-GB     English (UK)
-   en-US     English (United States)
+   en_GB     English (UK)
+   en_US     English (United States)
    es        Spanish
    fr        French
    it        Italian
