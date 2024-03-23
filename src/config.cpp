@@ -1105,8 +1105,8 @@ namespace config {
     string_restricted_f(vars, "locale", config::sunshine.locale, {
                                                                    "de"sv,  // German
                                                                    "en"sv,  // English
-                                                                   "en-GB"sv,  // English (UK)
-                                                                   "en-US"sv,  // English (US)
+                                                                   "en_GB"sv,  // English (UK)
+                                                                   "en_US"sv,  // English (US)
                                                                    "es"sv,  // Spanish
                                                                    "fr"sv,  // French
                                                                    "it"sv,  // Italian
