@@ -2289,6 +2289,7 @@ namespace video {
     // If the encoder isn't supported at all (not even H.264), bail early
     reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, config_autoselect);
     if (!disp) {
+      BOOST_LOG(info) << "No display found for encoder ["sv << encoder.name << "]"sv;
       return false;
     }
     if (!disp->is_codec_supported(encoder.h264.name, config_autoselect)) {
