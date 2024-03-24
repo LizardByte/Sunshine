@@ -11,6 +11,7 @@ separate-locales: false
 finish-args:
   - --device=all  # access all devices
   - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
+  - --env=SUNSHINE_MIGRATE_CONFIG=1  # migrate config files to the new location
   - --filesystem=home  # need to save files in user's home directory
   - --share=ipc  # required for X11 shared memory extension
   - --share=network  # access network

@@ -2,7 +2,12 @@ if (APPLE)
     if(${SUNSHINE_CONFIGURE_PORTFILE})
         configure_file(packaging/macos/Portfile Portfile @ONLY)
     endif()
+    if(${SUNSHINE_CONFIGURE_HOMEBREW})
+        configure_file(packaging/macos/sunshine.rb sunshine.rb @ONLY)
+    endif()
 elseif (UNIX)
+    include(GNUInstallDirs)  # this needs to be included prior to configuring the desktop files
+
     # configure the .desktop file
     if(${SUNSHINE_BUILD_APPIMAGE})
         configure_file(packaging/linux/AppImage/sunshine.desktop sunshine.desktop @ONLY)
@@ -24,6 +29,7 @@ elseif (UNIX)
     # configure the arch linux pkgbuild
     if(${SUNSHINE_CONFIGURE_PKGBUILD})
         configure_file(packaging/linux/Arch/PKGBUILD PKGBUILD @ONLY)
+        configure_file(packaging/linux/Arch/sunshine.install sunshine.install @ONLY)
     endif()
 
     # configure the flatpak manifest

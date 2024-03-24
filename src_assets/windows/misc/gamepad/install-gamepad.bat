@@ -2,28 +2,17 @@
 setlocal enabledelayedexpansion
 
 rem Check if a compatible version of ViGEmBus is already installed (1.17 or later)
-set Version=
-for /f "usebackq delims=" %%a in (`wmic product where "name='ViGEm Bus Driver' or name='Nefarius Virtual Gamepad Emulation Bus Driver'" get Version /format:Textvaluelist`) do (
-    for /f "delims=" %%# in ("%%a") do set "%%#"
-)
-
-rem Extract Major and Minor versions
-for /f "tokens=1,2 delims=." %%a in ("%Version%") do (
-    set "MajorVersion=%%a"
-    set "MinorVersion=%%b"
-)
-
-rem Compare the version to 1.17
-if /i !MajorVersion! gtr 1 goto skip
-if /i !MajorVersion! equ 1 (
-    if /i !MinorVersion! geq 17 (
-        goto skip
-    )
+rem
+rem Note: We use exit code 2 to indicate success because either 0 or 1 may be returned
+rem based on the PowerShell version if an exception occurs.
+powershell -c Exit $(if ((Get-Item "$env:SystemRoot\System32\drivers\ViGEmBus.sys").VersionInfo.FileVersion -ge [System.Version]"1.17") { 2 } Else { 1 })
+if %ERRORLEVEL% EQU 2 (
+    goto skip
 )
 goto continue
 
 :skip
-echo "The installed version is %Version%, no update needed. Exiting."
+echo "The installed version is 1.17 or later, no update needed. Exiting."
 exit /b 0
 
 :continue

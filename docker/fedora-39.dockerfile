@@ -68,28 +68,34 @@ dnf clean all
 rm -rf /var/cache/yum
 _DEPS
 
-# todo - enable cuda once it's supported for gcc 13 and fedora 39
-## install cuda
-#WORKDIR /build/cuda
-## versions: https://developer.nvidia.com/cuda-toolkit-archive
-#ENV CUDA_VERSION="12.0.0"
-#ENV CUDA_BUILD="525.60.13"
-## hadolint ignore=SC3010
-#RUN <<_INSTALL_CUDA
-##!/bin/bash
-#set -e
-#cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
-#cuda_suffix=""
-#if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
-#  cuda_suffix="_sbsa"
-#fi
-#url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
-#echo "cuda url: ${url}"
-#wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
-#chmod a+x ./cuda.run
-#./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
-#rm ./cuda.run
-#_INSTALL_CUDA
+# install cuda
+WORKDIR /build/cuda
+# versions: https://developer.nvidia.com/cuda-toolkit-archive
+ENV CUDA_VERSION="12.4.0"
+ENV CUDA_BUILD="550.54.14"
+# hadolint ignore=SC3010
+RUN <<_INSTALL_CUDA
+#!/bin/bash
+set -e
+cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
+cuda_suffix=""
+if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
+  cuda_suffix="_sbsa"
+
+  # patch headers https://bugs.launchpad.net/ubuntu/+source/mumax3/+bug/2032624
+  sed -i 's/__Float32x4_t/int/g' /usr/include/bits/math-vector.h
+  sed -i 's/__Float64x2_t/int/g' /usr/include/bits/math-vector.h
+  sed -i 's/__SVFloat32_t/float/g' /usr/include/bits/math-vector.h
+  sed -i 's/__SVFloat64_t/float/g' /usr/include/bits/math-vector.h
+  sed -i 's/__SVBool_t/int/g' /usr/include/bits/math-vector.h
+fi
+url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
+echo "cuda url: ${url}"
+wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
+chmod a+x ./cuda.run
+./cuda.run --silent --toolkit --toolkitpath=/build/cuda --no-opengl-libs --no-man-page --no-drm
+rm ./cuda.run
+_INSTALL_CUDA
 
 # copy repository
 WORKDIR /build/sunshine/
@@ -99,12 +105,11 @@ COPY --link .. .
 WORKDIR /build/sunshine/build
 
 # cmake and cpack
-# todo - add cmake argument back in for cuda support "-DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \"
-# todo - re-enable "DSUNSHINE_ENABLE_CUDA"
 RUN <<_MAKE
 #!/bin/bash
 set -e
 cmake \
+  -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
@@ -113,7 +118,7 @@ cmake \
   -DSUNSHINE_ENABLE_WAYLAND=ON \
   -DSUNSHINE_ENABLE_X11=ON \
   -DSUNSHINE_ENABLE_DRM=ON \
-  -DSUNSHINE_ENABLE_CUDA=OFF \
+  -DSUNSHINE_ENABLE_CUDA=ON \
   /build/sunshine
 make -j "$(nproc)"
 cpack -G RPM

@@ -234,7 +234,7 @@ namespace platf::dxgi {
     auto xor_mask = std::begin(img_data) + bytes;
 
     for (auto x = 0; x < bytes; ++x) {
-      for (auto c = 7; c >= 0; --c) {
+      for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
         auto bit = 1 << c;
         auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
 
@@ -307,7 +307,7 @@ namespace platf::dxgi {
     auto xor_mask = std::begin(img_data) + bytes;
 
     for (auto x = 0; x < bytes; ++x) {
-      for (auto c = 7; c >= 0; --c) {
+      for (auto c = 7; c >= 0 && ((std::uint8_t *) pixel_data) != std::end(cursor_img); --c) {
         auto bit = 1 << c;
         auto color_type = ((*and_mask & bit) ? 1 : 0) + ((*xor_mask & bit) ? 2 : 0);
 

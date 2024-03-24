@@ -8,11 +8,14 @@ pkgdesc="@PROJECT_DESCRIPTION@"
 arch=('x86_64' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@
 license=('GPL3')
+install=sunshine.install
 
 depends=('avahi'
          'boost-libs'
          'curl'
          'libayatana-appindicator'
+         'libcap'
+         'libdrm'
          'libevdev'
          'libmfx'
          'libnotify'
@@ -35,9 +38,9 @@ makedepends=('boost'
              'make'
              'nodejs'
              'npm')
-optdepends=('cuda: NvFBC capture support'
-            'libcap'
-            'libdrm')
+optdepends=('cuda: Nvidia GPU encoding support'
+            'libva-mesa-driver: AMD GPU encoding support'
+            'intel-media-driver: Intel GPU encoding support')
 
 provides=('sunshine')
 

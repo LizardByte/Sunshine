@@ -34,7 +34,7 @@ ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
-# cuda, libcap, and libdrm are optional dependencies for PKGBUILD
+# cuda is an optional build-time dependency for PKGBUILD
 RUN <<_DEPS
 #!/bin/bash
 set -e
@@ -43,8 +43,6 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   cmake \
   cuda \
   git \
-  libcap \
-  libdrm \
   namcap
 _DEPS
 
@@ -80,6 +78,7 @@ _MAKE
 
 WORKDIR /build/sunshine/pkg
 RUN mv /build/sunshine/build/PKGBUILD .
+RUN mv /build/sunshine/build/sunshine.install .
 
 # namcap and build PKGBUILD file
 RUN <<_PKGBUILD
@@ -93,7 +92,6 @@ _PKGBUILD
 
 FROM scratch as artifacts
 
-COPY --link --from=sunshine-build /build/sunshine/pkg/PKGBUILD /PKGBUILD
 COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
 
 FROM sunshine-base as sunshine
