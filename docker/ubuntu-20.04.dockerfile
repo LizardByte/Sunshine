@@ -32,9 +32,11 @@ apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
   ca-certificates \
+  doxygen \
   gcc-10=10.5.* \
   g++-10=10.5.* \
   git \
+  graphviz \
   libayatana-appindicator3-dev \
   libavdevice-dev \
   libboost-filesystem-dev=1.71.* \
@@ -61,8 +63,12 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
+  python3.9 \
+  python3.9-venv \
   udev \
-  wget
+  wget \
+  x11-xserver-utils \
+  xvfb
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
     libmfx-dev
@@ -169,6 +175,17 @@ cmake \
 make -j "$(nproc)"
 cpack -G DEB
 _MAKE
+
+# run tests
+WORKDIR /build/sunshine/build/tests
+# hadolint ignore=SC1091
+RUN <<_TEST
+#!/bin/bash
+set -e
+export DISPLAY=:1
+Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+./test_sunshine --gtest_color=yes
+_TEST
 
 FROM scratch AS artifacts
 ARG BASE

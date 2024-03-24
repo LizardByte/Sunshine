@@ -1,7 +1,19 @@
+[submodule "packaging/linux/flatpak/deps/org.flatpak.Builder.BaseApp"]
+	path = packaging/linux/flatpak/deps/org.flatpak.Builder.BaseApp
+	url = https://github.com/flathub/org.flatpak.Builder.BaseApp
+	branch = branch/23.08
+[submodule "packaging/linux/flatpak/deps/shared-modules"]
+	path = packaging/linux/flatpak/deps/shared-modules
+	url = https://github.com/flathub/shared-modules
+	branch = master
 [submodule "third-party/build-deps"]
 	path = third-party/build-deps
 	url = https://github.com/LizardByte/build-deps.git
 	branch = dist
+[submodule "third-party/googletest"]
+	path = third-party/googletest
+	url = https://github.com/google/googletest/
+	branch = v1.14.x
 [submodule "third-party/moonlight-common-c"]
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git

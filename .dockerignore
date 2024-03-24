@@ -4,8 +4,10 @@
 # do not ignore .git, needed for versioning
 !/.git
 
+# do not ignore .rstcheck.cfg, needed to test building docs
+!/.rstcheck.cfg
+
 # ignore repo directories and files
-docs/
 gh-pages-template/
 scripts/
 tools/

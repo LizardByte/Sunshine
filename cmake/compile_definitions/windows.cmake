@@ -29,16 +29,6 @@ file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
 
 # vigem
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include")
-set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
-        PROPERTIES COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650")
-set(VIGEM_COMPILE_FLAGS "")
-string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unknown-pragmas ")
-string(APPEND VIGEM_COMPILE_FLAGS "-Wno-misleading-indentation ")
-string(APPEND VIGEM_COMPILE_FLAGS "-Wno-class-memaccess ")
-string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-function ")
-string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-variable ")
-set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
-        PROPERTIES COMPILE_FLAGS ${VIGEM_COMPILE_FLAGS})
 
 # sunshine icon
 if(NOT DEFINED SUNSHINE_ICON_PATH)
