@@ -7,4 +7,5 @@
 
 #include <string>
 
-int setEnv(const std::string& name, const std::string& value);
+int
+setEnv(const std::string &name, const std::string &value);

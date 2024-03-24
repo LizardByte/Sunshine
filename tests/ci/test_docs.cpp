@@ -1,10 +1,12 @@
 #include <tests/conftest.cpp>
 
-class DocsTests : public DocsTestFixture, public ::testing::WithParamInterface<std::tuple<const char *, const char *>> {};
-INSTANTIATE_TEST_SUITE_P(DocFormats, DocsTests, ::testing::Values(
+class DocsTests: public DocsTestFixture, public ::testing::WithParamInterface<std::tuple<const char *, const char *>> {};
+INSTANTIATE_TEST_SUITE_P(
+  DocFormats,
+  DocsTests,
+  ::testing::Values(
     std::make_tuple("html", "index.html"),
-    std::make_tuple("epub", "Sunshine.epub")
-));
+    std::make_tuple("epub", "Sunshine.epub")));
 TEST_P(DocsTests, MakeDocs) {
   auto params = GetParam();
   std::string format = std::get<0>(params);
@@ -19,11 +21,13 @@ TEST_P(DocsTests, MakeDocs) {
   EXPECT_TRUE(std::filesystem::exists(expected_file));
 }
 
-class DocsRstTests : public DocsPythonVenvTest, public ::testing::WithParamInterface<std::filesystem::path> {};
-INSTANTIATE_TEST_SUITE_P(RstFiles, DocsRstTests, ::testing::Values(
+class DocsRstTests: public DocsPythonVenvTest, public ::testing::WithParamInterface<std::filesystem::path> {};
+INSTANTIATE_TEST_SUITE_P(
+  RstFiles,
+  DocsRstTests,
+  ::testing::Values(
     std::filesystem::path(TESTS_DOCS_DIR),
-    std::filesystem::path(TESTS_SOURCE_DIR) / "README.rst"
-));
+    std::filesystem::path(TESTS_SOURCE_DIR) / "README.rst"));
 TEST_P(DocsRstTests, RstCheckDocs) {
   std::filesystem::path docs_dir = GetParam();
   std::string command = "rstcheck -r " + docs_dir.string();
