@@ -529,6 +529,9 @@ namespace rtsp_stream {
       raised_timeout = now + config::stream.ping_timeout;
 
       --_slot_count;
+
+      launch_session->env["SUNSHINE_CLIENT_SLOT"] = std::to_string(session_count());
+
       launch_event.raise(std::move(launch_session));
     }
 

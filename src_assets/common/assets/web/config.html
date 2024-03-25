@@ -100,6 +100,7 @@
                 <th scope="col" v-if="platform === 'windows'">
                   <i class="fas fa-shield-alt"></i> {{ $t('config.run_as') }}
                 </th>
+                <th scope="col"><i class="fas fa-tv"></i> Run on Session</th>
                 <th scope="col"></th>
               </tr>
             </thead>
@@ -116,6 +117,13 @@
                     <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
                       true-value="true" false-value="false" />
                     <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('config.elevated') }}</label>
+                  </div>
+                </td>
+                <td>
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c['on-session']"
+                      true-value="true" false-value="false" />
+                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">Session</label>
                   </div>
                 </td>
                 <td>
@@ -808,7 +816,7 @@
                   </select>
                   <div class="form-text">{{ $t('config.nvenc_latency_over_power_desc') }}</div>
                 </div>
-                
+
                 <!-- Present OpenGL/Vulkan on top of DXGI -->
                 <div class="mb-3" v-if="platform === 'windows'">
                   <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}</label>
