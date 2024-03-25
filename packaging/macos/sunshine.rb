@@ -11,26 +11,28 @@ class @PROJECT_NAME@ < Formula
 
   depends_on "boost" => :build
   depends_on "cmake" => :build
+  depends_on "node" => :build
   depends_on "pkg-config" => :build
   depends_on "curl"
   depends_on "miniupnpc"
-  depends_on "node"
   depends_on "openssl"
   depends_on "opus"
 
   def install
     args = %W[
-      -DBUIld_WERROR=ON
+      -DBUILD_WERROR=ON
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DOPENSSL_ROOT_DIR=#{Formula["openssl"].opt_prefix}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
+      -DTESTS_ENABLE_PYTHON_TESTS=OFF
     ]
     system "cmake", "-S", ".", "-B", "build", *std_cmake_args, *args
 
     cd "build" do
       system "make", "-j"
       system "make", "install"
+      bin.install "tests/test_sunshine"
     end
   end
 
@@ -54,9 +56,10 @@ class @PROJECT_NAME@ < Formula
 
   test do
     # test that the binary runs at all
-    output = shell_output("#{bin}/sunshine --version").strip
-    puts output
+    system "#{bin}/sunshine", "--version"
 
-    # TODO: add unit tests
+    # run the test suite
+    # cannot build tests with python tests because homebrew destroys the source directory
+    system "#{bin}/test_sunshine", "--gtest_color=yes"
   end
 end

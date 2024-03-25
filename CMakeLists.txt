@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
+# set_source_files_properties requires 3.18
 # todo - set this conditionally
 
 # todo - set version to 0.0.0 once confident in automated versioning

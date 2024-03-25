@@ -7,7 +7,6 @@
 # standard imports
 from datetime import datetime
 import os
-import re
 import subprocess
 
 
@@ -27,16 +26,8 @@ project_copyright = f'{datetime.now ().year}, {project}'
 author = 'ReenigneArcher'
 
 # The full version, including alpha/beta/rc tags
-with open(os.path.join(root_dir, 'CMakeLists.txt'), 'r') as f:
-    version = re.search(r"project\(Sunshine VERSION ((\d+)\.(\d+)\.(\d+))", str(f.read())).group(1)
-"""
-To use cmake method for obtaining version instead of regex,
-1. Within CMakeLists.txt add the following line without backticks:
-   ``configure_file(docs/source/conf.py.in "${CMAKE_CURRENT_SOURCE_DIR}/docs/source/conf.py" @ONLY)``
-2. Rename this file to ``conf.py.in``
-3. Uncomment the next line
-"""
-# version = '@PROJECT_VERSION@'  # use this for cmake configure_file method
+# https://docs.readthedocs.io/en/stable/reference/environment-variables.html#envvar-READTHEDOCS_VERSION
+version = os.getenv('READTHEDOCS_VERSION', 'dirty')
 
 # -- General configuration ---------------------------------------------------
 
@@ -104,6 +95,17 @@ suppress_warnings = ["epub.unknown_project_files"]
 doxy_proc = subprocess.run('doxygen --version', shell=True, cwd=source_dir, capture_output=True)
 doxy_version = doxy_proc.stdout.decode('utf-8').strip()
 print('doxygen version: ' + doxy_version)
+
+# create build directories, as doxygen fails to create it in macports and docker
+directories = [
+    os.path.join(source_dir, 'build'),
+    os.path.join(source_dir, 'build', 'doxyxml'),
+]
+for d in directories:
+    os.makedirs(
+        name=d,
+        exist_ok=True,
+    )
 
 # run doxygen
 doxy_proc = subprocess.run('doxygen Doxyfile', shell=True, cwd=source_dir)
