@@ -22,24 +22,24 @@
     "warning": "警告！"
   },
   "apps": {
-    "actions": "行动",
+    "actions": "操作",
     "add_cmds": "添加命令",
-    "add_new": "添加新的",
+    "add_new": "添加新应用",
     "app_name": "应用名称",
     "app_name_desc": "在 Moonlight 显示的应用名称",
-    "applications_desc": "仅当客户端重启时才刷新应用程序",
+    "applications_desc": "只有重启客户端时应用才会被刷新",
     "applications_title": "应用",
     "auto_detach": "如果应用程序快速退出则继续串流",
     "auto_detach_desc": "这将尝试自动检测在启动另一个程序或自身实例后很快关闭的启动类应用。 检测到启动型应用程序时，它会被视为一个分离的应用程序。",
     "cmd": "命令",
     "cmd_desc": "要启动的主要应用程序。如果为空，将不会启动任何应用程序。",
     "cmd_note": "如果命令可执行文件的路径包含空格，您必须在引号里将其贴出。",
-    "cmd_prep_desc": "此应用程序之前/之后要运行的命令列表。如果任何前置命令失败，启动应用程序将被中止。",
+    "cmd_prep_desc": "此应用运行前/后要运行的命令列表。如果任何前置命令失败，应用的启动将被中止。",
     "cmd_prep_name": "命令准备工作",
     "covers_found": "找到封面",
     "delete": "删除",
-    "detached_cmds": "分离命令",
-    "detached_cmds_add": "添加分离命令",
+    "detached_cmds": "退出命令",
+    "detached_cmds_add": "添加退出命令",
     "detached_cmds_desc": "要在后台运行的命令列表。",
     "detached_cmds_note": "如果命令可执行文件的路径包含空格，您必须在引号里将其贴出。",
     "edit": "编辑",
@@ -63,14 +63,14 @@
     "exit_timeout": "退出超时",
     "exit_timeout_desc": "请求退出时等待所有应用进程的秒数。 如果未设置，默认等待5秒钟。如果设置为零或负值，应用程序将立即终止。",
     "find_cover": "查找封面",
-    "global_prep_desc": "启用/禁用此应用程序的全局预览命令。",
-    "global_prep_name": "全局预览命令",
+    "global_prep_desc": "启用/禁用此应用程序的全局预处理命令。",
+    "global_prep_name": "全局预处理命令",
     "image": "图片",
     "image_desc": "应用程序图标/图片/图像路径将发送到客户端。图像必须是一个 PNG 文件。如果没有设置，Sunshine 将发送默认框图像。",
     "loading": "加载中...",
     "name": "名称",
-    "output_desc": "存储命令输出的文件如果未指定，则忽略输出",
-    "output_name": "产出",
+    "output_desc": "存储命令输出的文件，如果未指定，输出将被忽略",
+    "output_name": "输出",
     "run_as_desc": "这可能是某些需要管理员权限才能正常运行的应用程序所必需的。",
     "wait_all": "继续串流直到所有应用进程退出",
     "wait_all_desc": "这将继续串流直到应用程序启动的所有进程结束。 当未选中，流媒体将在初始应用进程退出时停止，即使其他应用进程仍在运行。",
@@ -307,14 +307,14 @@
     "wan_encryption_mode_desc": "这决定了在互联网流媒体时何时使用加密。加密会降低流媒体性能，尤其是在功能弱小的主机和客户端上。"
   },
   "index": {
-    "description": "阳光线是月亮自置的游戏流主机。",
+    "description": "Sunshine 是供 Moonlight 使用的自建游戏串流服务。",
     "download": "下载",
     "loading_latest": "正在加载最新版本...",
     "new_nightly": "新的<b>夜间</b>版本已发布！",
     "new_stable": "一个新的 <b>稳定的</b> 版本可用！",
     "startup_errors": "<b>Attention!</b> 日光检测到启动过程中的这些错误。我们 <b>STRONGLY RecommendD</b> 在串流之前修复这些错误。",
     "version_dirty": "感谢您帮助使阳光变成一个更好的软件！",
-    "version_latest": "您正在运行最新版本的Sunshine",
+    "version_latest": "您正在运行最新版本的 Sunshine",
     "welcome": "你好，阳光！"
   },
   "navbar": {
@@ -322,7 +322,7 @@
     "configuration": "配置",
     "home": "首页",
     "password": "更改密码",
-    "pin": "置顶",
+    "pin": "PIN 码",
     "troubleshoot": "故障排除"
   },
   "password": {
@@ -334,19 +334,19 @@
     "success_msg": "密码修改成功！此页面将很快重新加载，您的浏览器将询问您新的凭据。"
   },
   "pin": {
-    "pin_pairing": "PIN Pairing",
+    "pin_pairing": "PIN 码配对",
     "send": "发送",
-    "warning_msg": "请确保您可以访问您配对的客户端。这个软件可以让您的计算机完全控制，所以请小心！"
+    "warning_msg": "请确保您可以掌控您正在配对的客户端。该软件可以完全控制您的计算机，请务必小心！"
   },
   "resource_card": {
     "github_discussions": "GitHub Discussions",
     "legal": "法律",
-    "legal_desc": "通过继续使用此软件，您同意以下文档中的条款和条件。",
+    "legal_desc": "继续使用本软件即表示您同意以下文档中的条款和条件。",
     "license": "许可协议",
     "lizardbyte_website": "LizardByte 网站",
-    "resources": "资源",
-    "resources_desc": "Sunshine资源！",
-    "third_party_notice": "第三方通知"
+    "resources": "参考资源",
+    "resources_desc": "Sunshine 相关资源！",
+    "third_party_notice": "第三方声明"
   },
   "troubleshooting": {
     "force_close": "强制关闭",
