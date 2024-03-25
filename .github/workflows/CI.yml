@@ -910,16 +910,29 @@ jobs:
           # create the virtual display
           ./deviceinstaller64 enableidd 1
 
+          # move up a directory
+          Set-Location -Path ../..
+
           # install devcon
-          choco install devcon.portable
+          DownloadAndExtract `
+            -Uri "https://github.com/Drawbackz/DevCon-Installer/releases/download/1.4-rc/Devcon.Installer.zip" `
+            -OutFile "Devcon.Installer.zip"
+          Set-Location -Path Devcon.Installer
+          # hash needs to match OS version
+          # https://github.com/Drawbackz/DevCon-Installer/blob/master/devcon_sources.json
+          Start-Process -FilePath "./Devcon Installer.exe" -Wait -ArgumentList `
+            'install', `
+            '-hash', '54004C83EE34F6A55380528A8B29F4C400E61FBB947A19E0AB9E5A193D7D961E', `
+            '-addpath', `
+            '-update', `
+            '-dir', 'C:\Windows\System32'
 
           # disable Hyper-V Video
           # https://stackoverflow.com/a/59490940
-          C:\ProgramData\chocolatey\lib\devcon.portable\devcon64.exe `
-            disable "VMBUS\{da0a7802-e377-4aac-8e77-0558eb1073f8}"
+          C:\Windows\System32\devcon.exe disable "VMBUS\{da0a7802-e377-4aac-8e77-0558eb1073f8}"
 
           # move up a directory
-          Set-Location -Path ../..
+          Set-Location -Path ..
 
           # multi monitor tool
           DownloadAndExtract `
