@@ -535,6 +535,7 @@ namespace platf {
       auto img = (x11_img_t *) img_out.get();
 
       XImage *x_img { x11::GetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
+      img->frame_timestamp = std::chrono::steady_clock::now();
 
       img->width = x_img->width;
       img->height = x_img->height;
