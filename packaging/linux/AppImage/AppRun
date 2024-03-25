@@ -5,8 +5,10 @@
 # path of the extracted AppRun
 HERE="$(dirname "$(readlink -f "${0}")")"
 SUNSHINE_PATH=/usr/bin/sunshine
-SUNSHINE_BIN_HERE=$HERE/usr/bin/sunshine
+SUNSHINE_APPIMAGE_BIN=$HERE/usr/bin/sunshine
 SUNSHINE_SHARE_HERE=$HERE/usr/share/sunshine
+SUNSHINE_DEST_DIR=/opt/sunshine-appimage
+SUNSHINE_BIN=$SUNSHINE_DEST_DIR/usr/bin/sunshine
 
 # Set APPDIR when running directly from the AppDir:
 if [ -z "$APPDIR" ]; then
@@ -22,7 +24,7 @@ echo "
  ------------------------------
 
  sunshine.AppImage options
- ------------------------
+ -------------------------
 
  Usage:  $ARGV0  --help, -h
  ------            # This message
@@ -40,7 +42,7 @@ echo "
  ----------------
 "
 # print sunshine binary help, replacing the sunshine command in usage statement
-"$SUNSHINE_BIN_HERE" --help | sed -e "s#$SUNSHINE_BIN_HERE#$ARGV0#g"
+"$SUNSHINE_APPIMAGE_BIN" --help | sed -e "s#$SUNSHINE_APPIMAGE_BIN#$ARGV0#g"
 }
 
 function install() {
@@ -56,8 +58,14 @@ function install() {
   # patch service executable path
   sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/sunshine.service
 
+  # extract the AppImage
+  "$ARGV0" --appimage-extract
+
+  # move the AppImage
+  sudo mv ./squashfs-root "$SUNSHINE_DEST_DIR"
+
   # setcap
-  sudo setcap cap_sys_admin+p "$(readlink -f "$SUNSHINE_BIN_HERE")"
+  sudo setcap cap_sys_admin+p "$(readlink -f "$SUNSHINE_BIN")"
 }
 
 function remove() {
@@ -66,6 +74,9 @@ function remove() {
 
   # remove service
   sudo rm -f ~/.config/systemd/user/sunshine.service
+
+  # remove the extracted AppImage directory
+  sudo rm -rf "$SUNSHINE_DEST_DIR"
 }
 
 # process arguments
@@ -89,4 +100,4 @@ fi
 mkdir -p ~/.config/sunshine
 
 # run sunshine
-"$SUNSHINE_BIN_HERE" $@
+"$SUNSHINE_BIN" $@
