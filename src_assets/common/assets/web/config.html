@@ -705,6 +705,14 @@
           </select>
           <div class="form-text">{{ $t('config.capture_desc') }}</div>
         </div>
+        <div class="mb-3" v-if="platform === 'windows'">
+          <label for="capture" class="form-label">{{ $t('config.capture') }}</label>
+          <select id="capture" class="form-select" v-model="config.capture">
+            <option value="ddx">Desktop Duplication API</option>
+            <option value="wgc">Windows.Graphics.Capture (BETA)</option>
+          </select>
+          <div class="form-text">{{ $t('config.capture_desc') }}</div>
+        </div>
 
         <!-- Encoder -->
         <div class="mb-3">
@@ -808,7 +816,7 @@
                   </select>
                   <div class="form-text">{{ $t('config.nvenc_latency_over_power_desc') }}</div>
                 </div>
-                
+
                 <!-- Present OpenGL/Vulkan on top of DXGI -->
                 <div class="mb-3" v-if="platform === 'windows'">
                   <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}</label>
