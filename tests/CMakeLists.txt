@@ -117,7 +117,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSH
 target_link_options(${PROJECT_NAME} PRIVATE)
 if(WIN32)
     set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
-else(WIN32)
+else()
     set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 17)
 endif()
 
