@@ -260,6 +260,9 @@ namespace platf::dxgi {
     complete_img(img_t *img, bool dummy) = 0;
   };
 
+  /**
+   * Display component for devices that use software encoders.
+   */
   class display_ram_t: public display_base_t {
   public:
     std::shared_ptr<img_t>
@@ -278,6 +281,9 @@ namespace platf::dxgi {
     texture2d_t texture;
   };
 
+  /**
+   * Display component for devices that use hardware encoders.
+   */
   class display_vram_t: public display_base_t, public std::enable_shared_from_this<display_vram_t> {
   public:
     std::shared_ptr<img_t>
@@ -301,6 +307,9 @@ namespace platf::dxgi {
     std::atomic<uint32_t> next_image_id;
   };
 
+  /**
+   * Display duplicator that uses the DirectX Desktop Duplication API.
+   */
   class duplication_t {
   public:
     dup_t dup;
@@ -319,6 +328,9 @@ namespace platf::dxgi {
     ~duplication_t();
   };
 
+  /**
+   * Display backend that uses DDAPI with a software encoder.
+   */
   class display_ddup_ram_t: public display_ram_t {
   public:
     int
@@ -332,6 +344,9 @@ namespace platf::dxgi {
     cursor_t cursor;
   };
 
+  /**
+   * Display backend that uses DDAPI with a hardware encoder.
+   */
   class display_ddup_vram_t: public display_vram_t {
   public:
     int
@@ -359,6 +374,9 @@ namespace platf::dxgi {
     std::variant<std::monostate, texture2d_t, std::shared_ptr<platf::img_t>> last_frame_variant;
   };
 
+  /**
+   * Display duplicator that uses the Windows.Graphics.Capture API.
+   */
   class wgc_capture_t {
     winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice uwp_device { nullptr };
     winrt::Windows::Graphics::Capture::GraphicsCaptureItem item { nullptr };
@@ -385,6 +403,9 @@ namespace platf::dxgi {
     set_cursor_visible(bool);
   };
 
+  /**
+   * Display backend that uses Windows.Graphics.Capture with a software encoder.
+   */
   class display_wgc_ram_t: public display_ram_t {
     wgc_capture_t dup;
 
@@ -397,6 +418,9 @@ namespace platf::dxgi {
     release_snapshot() override;
   };
 
+  /**
+   * Display backend that uses Windows.Graphics.Capture with a hardware encoder.
+   */
   class display_wgc_vram_t: public display_vram_t {
     wgc_capture_t dup;
 

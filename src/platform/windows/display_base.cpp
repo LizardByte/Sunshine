@@ -26,6 +26,9 @@ namespace platf {
 namespace platf::dxgi {
   namespace bp = boost::process;
 
+  /**
+   * DDAPI-specific initialization goes here.
+   */
   int
   duplication_t::init(display_base_t *display, const ::video::config_t &config) {
     HRESULT status;
@@ -1059,6 +1062,10 @@ namespace platf::dxgi {
 }  // namespace platf::dxgi
 
 namespace platf {
+  /**
+   * Pick a display adapter and capture method.
+   * @param hwdevice_type enables possible use of hardware encoder
+   */
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (config::video.capture == "wgc") {

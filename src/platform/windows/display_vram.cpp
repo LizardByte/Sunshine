@@ -1414,6 +1414,13 @@ namespace platf::dxgi {
     return 0;
   }
 
+  /**
+   * Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
+   * @param pull_free_image_cb call this to get a new free image from the video subsystem.
+   * @param img_out the captured frame is returned here
+   * @param timeout how long to wait for the next frame
+   * @param cursor_visible
+   */
   capture_e
   display_wgc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     texture2d_t src;
@@ -1446,7 +1453,7 @@ namespace platf::dxgi {
       return capture_e::interrupted;
 
     auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
-    d3d_img->blank = false; // image is always ready for capture
+    d3d_img->blank = false;  // image is always ready for capture
     if (complete_img(d3d_img.get(), false) == 0) {
       texture_lock_helper lock_helper(d3d_img->capture_mutex.get());
       if (lock_helper.lock()) {
