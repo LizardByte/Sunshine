@@ -2,38 +2,38 @@
 <html lang="en">
 
 <head>
-      <%- header %>
-      <style>
-        .troubleshooting-logs {
-          white-space: pre;
-          font-family: monospace;
-          overflow: auto;
-          max-height: 500px;
-          min-height: 500px;
-          font-size: 16px;
-          position: relative;
-        }
+  <%- header %>
+    <style>
+      .troubleshooting-logs {
+        white-space: pre;
+        font-family: monospace;
+        overflow: auto;
+        max-height: 500px;
+        min-height: 500px;
+        font-size: 16px;
+        position: relative;
+      }
 
-        .copy-icon {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          padding: 8px;
-          cursor: pointer;
-          color: rgba(0, 0, 0, 1);
-          appearance: none;
-          border: none;
-          background: none;
-        }
+      .copy-icon {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 8px;
+        cursor: pointer;
+        color: rgba(0, 0, 0, 1);
+        appearance: none;
+        border: none;
+        background: none;
+      }
 
-        .copy-icon:hover {
-          color: rgba(0, 0, 0, 0.75);
-        }
+      .copy-icon:hover {
+        color: rgba(0, 0, 0, 0.75);
+      }
 
-        .copy-icon:active {
-          color: rgba(0, 0, 0, 1);
-        }
-      </style>
+      .copy-icon:active {
+        color: rgba(0, 0, 0, 1);
+      }
+    </style>
 </head>
 
 <body id="app" v-cloak>
@@ -71,6 +71,25 @@
         <div>
           <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
             {{ $t('troubleshooting.restart_sunshine') }}
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Reset persistent display device settings -->
+    <div class="card p-2 my-4" v-if="platform === 'windows'">
+      <div class="card-body">
+        <h2 id="reset_display_device">{{ $t('troubleshooting.reset_display_device_win') }}</h2>
+        <br>
+        <p style="white-space: pre-line">{{ $t('troubleshooting.reset_display_device_desc_win') }}</p>
+        <div class="alert alert-success" v-if="resetDisplayDeviceStatus === true">
+          {{ $t('troubleshooting.reset_display_device_success_win') }}
+        </div>
+        <div class="alert alert-danger" v-if="resetDisplayDeviceStatus === false">
+          {{ $t('troubleshooting.reset_display_device_error_win') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="resetDisplayDevicePressed" @click="resetDisplayDevicePersistence">
+            {{ $t('troubleshooting.reset_display_device_win') }}
           </button>
         </div>
       </div>
@@ -123,11 +142,14 @@
       },
       data() {
         return {
+          platform: "",
           closeAppPressed: false,
           closeAppStatus: null,
           unpairAllPressed: false,
           unpairAllStatus: null,
           restartPressed: false,
+          resetDisplayDevicePressed: false,
+          resetDisplayDeviceStatus: null,
           logs: 'Loading...',
           logFilter: null,
           logInterval: null,
@@ -142,6 +164,12 @@
         }
       },
       created() {
+        fetch("/api/config")
+          .then((r) => r.json())
+          .then((r) => {
+            this.platform = r.platform;
+          });
+
         this.logInterval = setInterval(() => {
           this.refreshLogs();
         }, 5000);
@@ -179,6 +207,18 @@
               this.unpairAllStatus = r.status.toString() === "true";
               setTimeout(() => {
                 this.unpairAllStatus = null;
+              }, 5000);
+            });
+        },
+        resetDisplayDevicePersistence() {
+          this.resetDisplayDevicePressed = true;
+          fetch("/api/reset-display-device-persistence", { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => {
+              this.resetDisplayDevicePressed = false;
+              this.resetDisplayDeviceStatus = r.status.toString() === "true";
+              setTimeout(() => {
+                this.resetDisplayDeviceStatus = null;
               }, 5000);
             });
         },

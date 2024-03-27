@@ -63,6 +63,13 @@ Source
    src/*
 
 .. toctree::
+   :caption: src/display_device
+   :maxdepth: 1
+   :glob:
+
+   src/display_device/*
+
+.. toctree::
    :caption: src/platform
    :maxdepth: 1
    :glob:
@@ -89,3 +96,10 @@ Source
    :glob:
 
    src/platform/windows/*
+
+.. toctree::
+   :caption: src/platform/windows/display_device
+   :maxdepth: 1
+   :glob:
+
+   src/platform/windows/display_device/*

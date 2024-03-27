@@ -569,7 +569,7 @@ keybindings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   Select the display number you want to stream.
+   Select the display you want to stream.
 
    .. tip:: To find the name of the appropriate values follow these instructions.
 
@@ -590,9 +590,35 @@ keybindings
       .. todo:: macOS
 
       **Windows**
-         .. code-block:: batch
+         During Sunshine startup, you should see the list of detected display devices:
 
-            tools\dxgi-info.exe
+         .. code-block:: text
+
+            DEVICE ID: {de9bb7e2-186e-505b-9e93-f48793333810}
+            DISPLAY NAME: \\.\DISPLAY1
+            FRIENDLY NAME: ROG PG279Q
+            DEVICE STATE: PRIMARY
+            HDR STATE: UNKNOWN
+            -----------------------
+            DEVICE ID: {3bd008cd-0465-547c-8da5-c28749c041e6}
+            DISPLAY NAME: NOT AVAILABLE
+            FRIENDLY NAME: IDD HDR
+            DEVICE STATE: INACTIVE
+            HDR STATE: UNKNOWN
+            -----------------------
+            DEVICE ID: {77f67f3e-754f-5d31-af64-ee037e18100a}
+            DISPLAY NAME: NOT AVAILABLE
+            FRIENDLY NAME: SunshineHDR
+            DEVICE STATE: INACTIVE
+            HDR STATE: UNKNOWN
+            -----------------------
+            DEVICE ID: {bc172e6d-86eb-5851-aeca-56525ed716e9}
+            DISPLAY NAME: NOT AVAILABLE
+            FRIENDLY NAME: ROG PG279Q
+            DEVICE STATE: INACTIVE
+            HDR STATE: UNKNOWN
+
+         You need to use the ``DEVICE ID`` value.
 
 **Default**
    Sunshine will select the default display.
@@ -608,7 +634,7 @@ keybindings
    **Windows**
       .. code-block:: text
 
-         output_name  = \\.\DISPLAY1
+         output_name = {de9bb7e2-186e-505b-9e93-f48793333810}
 
 `resolutions <https://localhost:47990/config/#resolutions>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
