@@ -143,6 +143,7 @@ namespace platf {
           break;
         default:
           BOOST_LOG(warning) << "Unknown mouse button: " << button;
+          return;
       }
       if (release) {
         (*raw->mouse).release(btn_type);
@@ -513,6 +514,7 @@ namespace platf {
         }
       }
     }
+    return -1;
   }
 
   void
