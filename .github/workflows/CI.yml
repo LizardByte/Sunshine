@@ -861,7 +861,6 @@ jobs:
 
       - name: Prepare tests
         id: prepare-tests
-        if: false  # todo: DirectX11 is not available, so even software encoder fails
         run: |
           # function to download and extract a zip file
           function DownloadAndExtract {
@@ -1004,7 +1003,6 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DSUNSHINE_ASSETS_DIR=assets \
             -DTESTS_PYTHON_EXECUTABLE='${{ steps.python-path.outputs.python-path }}' \
-            -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip' \
             -G "MinGW Makefiles" \
             ..
           mingw32-make -j$(nproc)
