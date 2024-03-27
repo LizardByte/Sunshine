@@ -419,6 +419,7 @@ namespace platf::dxgi {
       // If we're not resyncing the thread desktop and we don't have permission to
       // capture the current desktop, just bail immediately. Retrying won't help.
       if (enumeration_only && status == E_ACCESSDENIED) {
+        BOOST_LOG(warning) << "Access denied to capture the current desktop"sv;
         break;
       }
       else {
@@ -1056,21 +1057,32 @@ namespace platf::dxgi {
 namespace platf {
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+    BOOST_LOG(debug) << "Creating display: "sv << display_name;
     if (hwdevice_type == mem_type_e::dxgi) {
+      BOOST_LOG(debug) << "Creating dxgi::display_t dxgi display";
       auto disp = std::make_shared<dxgi::display_vram_t>();
+      BOOST_LOG(debug) << "Created dxgi::display_vram_t display";
 
       if (!disp->init(config, display_name)) {
+        BOOST_LOG(debug) << "Initialized dxgi::display_vram_t display successfully";
         return disp;
+      } else {
+        BOOST_LOG(error) << "Failed to initialize dxgi::display_vram_t display";
       }
     }
     else if (hwdevice_type == mem_type_e::system) {
       auto disp = std::make_shared<dxgi::display_ram_t>();
+      BOOST_LOG(debug) << "Created dxgi::display_ram_t system display";
 
       if (!disp->init(config, display_name)) {
+        BOOST_LOG(debug) << "Initialized dxgi::display_ram_t display successfully";
         return disp;
+      } else {
+        BOOST_LOG(error) << "Failed to initialize dxgi::display_ram_t display";
       }
     }
 
+    BOOST_LOG(error) << "Failed to create display. Returning nullptr";
     return nullptr;
   }
 
