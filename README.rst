@@ -106,6 +106,11 @@ Support
 Our support methods are listed in our
 `LizardByte Docs <https://lizardbyte.readthedocs.io/en/latest/about/support.html>`__.
 
+Installation
+------------
+
+See our `Setup page <https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/setup.html>`__ for steps on installing Sunshine for your operating system.
+
 Downloads
 ---------
 
