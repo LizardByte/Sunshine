@@ -7,7 +7,7 @@ body:
       value: >
         **THIS IS NOT THE PLACE TO ASK FOR SUPPORT!**
         Please use our [Support Center](https://app.lizardbyte.dev/support) for support issues.
-        Non actionable bug reports will be locked and closed!
+        Non actionable bug reports will be LOCKED and CLOSED!
   - type: checkboxes
     attributes:
       label: Is there an existing issue for this?
@@ -22,13 +22,15 @@ body:
       options:
         - label: I have read the documentation
           required: true
-  - type: checkboxes
+  - type: dropdown
     attributes:
       label: Is your issue present in the nightly release?
-      description: Please test the [nightly](https://github.com/LizardByte/Sunshine/releases/tag/nightly-dev) release
+      description: |
+        Please test the [nightly](https://github.com/LizardByte/Sunshine/releases/tag/nightly-dev) release.
       options:
-        - label: This issue is present in the nightly release
-          required: true
+        - "I didn't read the issue template"
+        - "I'm too lazy to test"
+        - "This issue is present in the nightly release"
   - type: textarea
     id: description
     attributes:
@@ -81,7 +83,10 @@ body:
     id: version
     attributes:
       label: Sunshine commit or version
-      placeholder: eg. 0.18.0
+      description: |
+        Use `sunshine --verison` to get the version.
+        Please don't just copy the latest commit from our repo, if that's not the commit you're actually using.
+      placeholder: eg. 0.22.2
     validations:
       required: true
   - type: dropdown
@@ -94,13 +99,13 @@ body:
         - Linux - AUR (Third Party)
         - Linux - deb
         - Linux - Docker
+        - Linux - flathub (Third Party)
         - Linux - flatpak
         - Linux - nixpkgs (Third Party)
-        - Linux - PKGBUILD
         - Linux - pkg.tar.zst
         - Linux - rpm
         - Linux - solus (Third Party)
-        - macOS - dmg
+        - macOS - Homebrew
         - macOS - Portfile
         - Windows - Chocolatey (Third Party)
         - Windows - installer
