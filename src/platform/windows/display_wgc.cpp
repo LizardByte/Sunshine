@@ -68,7 +68,7 @@ namespace platf::dxgi {
   /**
    * Initialize the Windows.Graphics.Capture backend.
    * @return 0 on success
-  */
+   */
   int
   wgc_capture_t::init(display_base_t *display, const ::video::config_t &config) {
     HRESULT status;
