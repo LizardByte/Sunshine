@@ -1102,13 +1102,11 @@ keybindings
                         See :ref:`Linux Setup <about/setup:install>`.
    x11        Linux     Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
    ddx        Windows   Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines.
-   wgc        Windows   (beta feature) Use Windows.Graphics.Capture to capture the display. Requires Windows 10 or higher.
+   wgc        Windows   (beta feature) Use Windows.Graphics.Capture to capture the display.
    =========  ========  ===========
 
 **Default**
-   Linux: Automatic. Sunshine will use the first capture method available in the order of the table above.
-
-   Windows: ``ddx``
+   Automatic. Sunshine will use the first capture method available in the order of the table above.
 
 **Example**
    .. code-block:: text
