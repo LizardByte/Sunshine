@@ -797,7 +797,8 @@ namespace platf {
 
     BOOST_LOG(info) << "Detecting monitors"sv;
 
-    x11::xdisplay_t xdisplay { x11::OpenDisplay(nullptr) };
+    std::string display = config::video.output_name;  // get display name from config
+    x11::xdisplay_t xdisplay { x11::OpenDisplay(display.empty() ? nullptr : display.c_str()) };  // if config empty, nullptr will use the DISPLAY env var
     if (!xdisplay) {
       return {};
     }
