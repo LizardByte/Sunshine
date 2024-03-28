@@ -193,7 +193,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v8
+        uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 30720  # https://github.com/easimon/maximize-build-space#caveats
           remove-dotnet: 'true'
