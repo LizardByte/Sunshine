@@ -533,12 +533,13 @@ namespace platf {
       return;
     }
 
-    std::visit([gamepad_state](inputtino::Joypad & gc){
+    std::visit([gamepad_state](inputtino::Joypad &gc) {
       gc.set_pressed_buttons(gamepad_state.buttonFlags);
       gc.set_stick(inputtino::Joypad::LS, gamepad_state.lsX, gamepad_state.lsY);
       gc.set_stick(inputtino::Joypad::RS, gamepad_state.rsX, gamepad_state.rsY);
       gc.set_triggers(gamepad_state.lt, gamepad_state.rt);
-    }, *gamepad->joypad);
+    },
+      *gamepad->joypad);
   }
 
   void
