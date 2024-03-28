@@ -43,7 +43,8 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   cmake \
   cuda \
   git \
-  namcap
+  namcap \
+  xorg-server-xvfb
 _DEPS
 
 # Setup builder user
@@ -84,6 +85,8 @@ RUN mv /build/sunshine/build/sunshine.install .
 RUN <<_PKGBUILD
 #!/bin/bash
 set -e
+export DISPLAY=:1
+Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 namcap -i PKGBUILD
 makepkg -si --noconfirm
 rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst

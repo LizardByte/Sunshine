@@ -1,0 +1,15 @@
+---
+codecov:
+  branch: nightly
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 10%
+
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false  # if true: only post the comment if coverage changes

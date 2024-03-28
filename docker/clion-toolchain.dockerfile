@@ -14,6 +14,8 @@ FROM toolchain-base as toolchain
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
 
+ENV DISPLAY=:0
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # install dependencies
 RUN <<_DEPS
@@ -24,10 +26,12 @@ apt-get install -y --no-install-recommends \
   build-essential \
   cmake=3.22.* \
   ca-certificates \
+  doxygen \
   gcc=4:11.2.* \
   g++=4:11.2.* \
   gdb \
   git \
+  graphviz \
   libayatana-appindicator3-dev \
   libavdevice-dev \
   libboost-filesystem-dev=1.74.* \
@@ -54,8 +58,12 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
+  python3.10 \
+  python3.10-venv \
   udev \
-  wget
+  wget \
+  x11-xserver-utils \
+  xvfb
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
     libmfx-dev
@@ -98,3 +106,28 @@ chmod a+x ./cuda.run
 ./cuda.run --silent --toolkit --toolkitpath=/usr/local --no-opengl-libs --no-man-page --no-drm
 rm ./cuda.run
 _INSTALL_CUDA
+
+WORKDIR /
+# Write a shell script that starts Xvfb and then runs a shell
+RUN <<_ENTRYPOINT
+#!/bin/bash
+set -e
+cat <<EOF > /entrypoint.sh
+#!/bin/bash
+Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+if [ "\$#" -eq 0 ]; then
+  exec "/bin/bash"
+else
+  exec "\$@"
+fi
+EOF
+_ENTRYPOINT
+
+# Make the script executable
+RUN chmod +x /entrypoint.sh
+
+# Note about CLion
+RUN echo "ATTENTION: CLion will override the entrypoint, you can disable this in the toolchain settings"
+
+# Use the shell script as the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]

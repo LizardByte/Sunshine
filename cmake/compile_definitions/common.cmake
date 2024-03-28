@@ -110,11 +110,6 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
         ${PLATFORM_TARGET_FILES})
 
-set_source_files_properties("${CMAKE_SOURCE_DIR}/src/upnp.cpp" PROPERTIES COMPILE_FLAGS -Wno-pedantic)
-
-set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/nanors/rs.c"
-        PROPERTIES COMPILE_FLAGS "-include deps/obl/autoshim.h -ftree-vectorize")
-
 if(NOT SUNSHINE_ASSETS_DIR_DEF)
     set(SUNSHINE_ASSETS_DIR_DEF "${SUNSHINE_ASSETS_DIR}")
 endif()
@@ -133,15 +128,6 @@ include_directories(
         ${FFMPEG_INCLUDE_DIRS}
         ${PLATFORM_INCLUDE_DIRS}
 )
-
-string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
-if("${BUILD_TYPE}" STREQUAL "XDEBUG")
-    if(WIN32)
-        set_source_files_properties("${CMAKE_SOURCE_DIR}/src/nvhttp.cpp" PROPERTIES COMPILE_FLAGS -O2)
-    endif()
-else()
-    add_definitions(-DNDEBUG)
-endif()
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${MINIUPNP_LIBRARIES}

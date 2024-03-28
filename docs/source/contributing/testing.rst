@@ -59,5 +59,81 @@ Format inplace with rstfmt
 
 Unit Testing
 ------------
-.. todo:: Sunshine does not currently have any unit tests. If you would like to help us improve please get in contact
-   with us, or make a PR with suggested changes.
+Sunshine uses `Google Test <https://github.com/google/googletest>`__ for unit testing. Google Test is included in the
+repo as a submodule. The test sources are located in the `./tests` directory.
+
+The tests need to be compiled into an executable, and then run. The tests are built using the normal build process, but
+can be disabled by setting the `BUILD_TESTS` CMake option to `OFF`.
+
+To run the tests, execute the following command from the build directory:
+
+.. tab:: Linux
+
+   .. code-block:: bash
+
+      pushd tests
+      ./test_sunshine
+      popd
+
+.. tab:: macOS
+
+   .. code-block:: bash
+
+      pushd tests
+      ./test_sunshine
+      popd
+
+.. tab:: Windows
+
+   .. code-block:: bash
+
+      pushd tests
+      test_sunshine.exe
+      popd
+
+To see all available options, run the tests with the `--help` option.
+
+.. tab:: Linux
+
+   .. code-block:: bash
+
+      pushd tests
+      ./test_sunshine --help
+      popd
+
+.. tab:: macOS
+
+   .. code-block:: bash
+
+      pushd tests
+      ./test_sunshine --help
+      popd
+
+.. tab:: Windows
+
+   .. code-block:: bash
+
+      pushd tests
+      test_sunshine.exe --help
+      popd
+
+Some tests rely on Python to run. CMake will search for Python and enable the docs tests if it is found, otherwise
+cmake will fail. You can manually disable the tests by setting the `TESTS_ENABLE_PYTHON_TESTS` CMake option to
+`OFF`.
+
+.. tip::
+
+   See the googletest `FAQ <https://google.github.io/googletest/faq.html>`__ for more information on how to use
+   Google Test.
+
+We use `gcovr <https://www.gcovr.com/>`__ to generate code coverage reports,
+and `Codecov <https://about.codecov.io/>`__ to analyze the reports for all PRs and commits.
+
+Codecov will fail a PR if the total coverage is reduced too much, or if not enough of the diff is covered by tests.
+In some cases, the code cannot be covered when running the tests inside of GitHub runners. For example, any test that
+needs access to the GPU will not be able to run. In these cases, the coverage can be omitted by adding comments to the
+code. See the `gcovr documentation <https://gcovr.com/en/stable/guide/exclusion-markers.html#exclusion-markers>`__ for
+more information.
+
+Even if your changes cannot be covered in the CI, we still encourage you to write the tests for them. This will allow
+maintainers to run the tests locally.
