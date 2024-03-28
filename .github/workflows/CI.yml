@@ -194,7 +194,7 @@ jobs:
             "
 
       - name: Cache Flatpak build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./build/.flatpak-builder
           key: flatpak-${{ matrix.arch }}-${{ github.sha }}
