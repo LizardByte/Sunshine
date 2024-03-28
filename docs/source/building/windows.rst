@@ -25,6 +25,7 @@ Install dependencies:
         mingw-w64-ucrt-x86_64-miniupnpc \
         mingw-w64-ucrt-x86_64-nlohmann-json \
         mingw-w64-ucrt-x86_64-nodejs \
+        mingw-w64-ucrt-x86_64-nsis \
         mingw-w64-ucrt-x86_64-onevpl \
         mingw-w64-ucrt-x86_64-openssl \
         mingw-w64-ucrt-x86_64-opus \
