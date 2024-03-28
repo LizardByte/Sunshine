@@ -562,10 +562,12 @@ jobs:
             echo "This is a PUSH event"
             clone_url=${{ github.event.repository.clone_url }}
             branch="${{ github.ref_name }}"
+            default_branch="${{ github.event.repository.default_branch }}"
           else
             echo "This is a PR event"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
             branch="${{ github.event.pull_request.head.ref }}"
+            default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
           fi
           echo "Branch: ${branch}"
           echo "Clone URL: ${clone_url}"
@@ -575,6 +577,7 @@ jobs:
           cmake \
             -DGITHUB_BRANCH="${branch}" \
             -DGITHUB_CLONE_URL="${clone_url}" \
+            -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
             -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
