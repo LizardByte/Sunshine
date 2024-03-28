@@ -1691,8 +1691,8 @@ namespace platf {
   }
   int64_t
   qpc_counter() {
-    LARGE_INTEGER performace_counter;
-    if (QueryPerformanceCounter(&performace_counter)) return performace_counter.QuadPart;
+    LARGE_INTEGER performance_counter;
+    if (QueryPerformanceCounter(&performance_counter)) return performance_counter.QuadPart;
     return 0;
   }
 
