@@ -533,27 +533,12 @@ namespace platf {
       return;
     }
 
-    if (std::holds_alternative<inputtino::PS5Joypad>(*gamepad->joypad)) {
-      auto &gc = std::get<inputtino::PS5Joypad>(*gamepad->joypad);
+    std::visit([gamepad_state](inputtino::Joypad & gc){
       gc.set_pressed_buttons(gamepad_state.buttonFlags);
       gc.set_stick(inputtino::Joypad::LS, gamepad_state.lsX, gamepad_state.lsY);
       gc.set_stick(inputtino::Joypad::RS, gamepad_state.rsX, gamepad_state.rsY);
       gc.set_triggers(gamepad_state.lt, gamepad_state.rt);
-    }
-    else if (std::holds_alternative<inputtino::XboxOneJoypad>(*gamepad->joypad)) {
-      auto &gc = std::get<inputtino::XboxOneJoypad>(*gamepad->joypad);
-      gc.set_pressed_buttons(gamepad_state.buttonFlags);
-      gc.set_stick(inputtino::Joypad::LS, gamepad_state.lsX, gamepad_state.lsY);
-      gc.set_stick(inputtino::Joypad::RS, gamepad_state.rsX, gamepad_state.rsY);
-      gc.set_triggers(gamepad_state.lt, gamepad_state.rt);
-    }
-    else if (std::holds_alternative<inputtino::SwitchJoypad>(*gamepad->joypad)) {
-      auto &gc = std::get<inputtino::SwitchJoypad>(*gamepad->joypad);
-      gc.set_pressed_buttons(gamepad_state.buttonFlags);
-      gc.set_stick(inputtino::Joypad::LS, gamepad_state.lsX, gamepad_state.lsY);
-      gc.set_stick(inputtino::Joypad::RS, gamepad_state.rsX, gamepad_state.rsY);
-      gc.set_triggers(gamepad_state.lt, gamepad_state.rt);
-    }
+    }, *gamepad->joypad);
   }
 
   void
