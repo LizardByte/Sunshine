@@ -1411,7 +1411,7 @@ namespace platf {
   ds4_update_state(gamepad_context_t &gamepad, const gamepad_state_t &gamepad_state) {
     auto &report = gamepad.report.ds4.Report;
 
-    report.wButtons = static_cast<uint16_t>(ds4_buttons(gamepad_state)) | static_cast<uint16_t>(ds4_dpad(gamepad_state));
+    report.wButtons = ds4_buttons(gamepad_state) | ds4_dpad(gamepad_state);
     report.bSpecial = ds4_special_buttons(gamepad_state);
 
     report.bTriggerL = gamepad_state.lt;

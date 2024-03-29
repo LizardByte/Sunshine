@@ -3,7 +3,7 @@ Windows
 
 Requirements
 ------------
-First you need to install `MSYS2 <https://www.msys2.org>`__, then startup "MSYS2 UCRT64" and execute the following
+First you need to install `MSYS2 <https://www.msys2.org>`__, then startup "MSYS2 MinGW 64-bit" and execute the following
 codes.
 
 Update all packages:
@@ -15,22 +15,26 @@ Install dependencies:
    .. code-block:: bash
 
       pacman -S \
+        base-devel \
+        cmake \
+        diffutils \
         doxygen \
+        gcc \
         git \
-        mingw-w64-ucrt-x86_64-boost \
-        mingw-w64-ucrt-x86_64-cmake \
-        mingw-w64-ucrt-x86_64-cppwinrt \
-        mingw-w64-ucrt-x86_64-curl \
-        mingw-w64-ucrt-x86_64-graphviz \
-        mingw-w64-ucrt-x86_64-miniupnpc \
-        mingw-w64-ucrt-x86_64-nlohmann-json \
-        mingw-w64-ucrt-x86_64-nodejs \
-        mingw-w64-ucrt-x86_64-nsis \
-        mingw-w64-ucrt-x86_64-onevpl \
-        mingw-w64-ucrt-x86_64-openssl \
-        mingw-w64-ucrt-x86_64-opus \
-        mingw-w64-ucrt-x86_64-rust \
-        mingw-w64-ucrt-x86_64-toolchain \
+        make \
+        mingw-w64-x86_64-binutils \
+        mingw-w64-x86_64-boost \
+        mingw-w64-x86_64-cmake \
+        mingw-w64-x86_64-curl \
+        mingw-w64-x86_64-graphviz \
+        mingw-w64-x86_64-miniupnpc \
+        mingw-w64-x86_64-nlohmann-json \
+        mingw-w64-x86_64-nodejs \
+        mingw-w64-x86_64-onevpl \
+        mingw-w64-x86_64-openssl \
+        mingw-w64-x86_64-opus \
+        mingw-w64-x86_64-rust \
+        mingw-w64-x86_64-toolchain \
         python \
         python-pip
 
