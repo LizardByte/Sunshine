@@ -1510,7 +1510,7 @@ namespace platf {
     std::stringstream ss;
     ss << std::hex << std::setfill('0');
     for (const auto &ch : str) {
-      ss << ch;
+      ss << static_cast<uint_least32_t>(ch);
     }
 
     std::string hex_unicode(ss.str());

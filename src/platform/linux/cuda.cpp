@@ -262,7 +262,7 @@ namespace cuda {
       fs::path sysfs_dir { sysfs_path };
       for (auto &entry : fs::directory_iterator { sysfs_dir }) {
         auto file = entry.path().filename();
-        auto filestring = file.generic_u8string();
+        auto filestring = file.generic_string();
         if (std::string_view { filestring }.substr(0, 4) != "card"sv) {
           continue;
         }

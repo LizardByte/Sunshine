@@ -7,6 +7,7 @@
 #include "logging.h"
 #include "utility.h"
 #include <algorithm>
+#include <sstream>
 
 using namespace std::literals;
 
@@ -169,7 +170,9 @@ namespace net {
   addr_to_url_escaped_string(boost::asio::ip::address address) {
     address = normalize_address(address);
     if (address.is_v6()) {
-      return "["s + address.to_string() + ']';
+      std::stringstream ss;
+      ss << '[' << address.to_string() << ']';
+      return ss.str();
     }
     else {
       return address.to_string();
