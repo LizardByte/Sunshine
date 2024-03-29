@@ -694,16 +694,14 @@
         </div>
 
         <!-- Capture -->
-        <div class="mb-3" v-if="platform === 'windows' || platform === 'linux'">
+        <div class="mb-3" v-if="platform === 'linux'">
           <label for="capture" class="form-label">{{ $t('config.capture') }}</label>
           <select id="capture" class="form-select" v-model="config.capture">
             <option value="">{{ $t('_common.autodetect') }}</option>
-            <option v-if="platform === 'linux'" value="nvfbc">NvFBC</option>
-            <option v-if="platform === 'linux'" value="wlr">wlroots</option>
-            <option v-if="platform === 'linux'" value="kms">KMS</option>
-            <option v-if="platform === 'linux'" value="x11">X11</option>
-            <option v-if="platform === 'windows'" value="ddx">Desktop Duplication API</option>
-            <option v-if="platform === 'windows'" value="wgc">Windows.Graphics.Capture {{ $t('_common.beta') }}</option>
+            <option value="nvfbc">NvFBC</option>
+            <option value="wlr">wlroots</option>
+            <option value="kms">KMS</option>
+            <option value="x11">X11</option>
           </select>
           <div class="form-text">{{ $t('config.capture_desc') }}</div>
         </div>
@@ -810,7 +808,7 @@
                   </select>
                   <div class="form-text">{{ $t('config.nvenc_latency_over_power_desc') }}</div>
                 </div>
-
+                
                 <!-- Present OpenGL/Vulkan on top of DXGI -->
                 <div class="mb-3" v-if="platform === 'windows'">
                   <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}</label>

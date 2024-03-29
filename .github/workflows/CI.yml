@@ -969,24 +969,29 @@ jobs:
       - name: Setup Dependencies Windows
         uses: msys2/setup-msys2@v2
         with:
-          msystem: ucrt64
           update: true
           install: >-
+            base-devel
+            diffutils
             doxygen
             git
-            mingw-w64-ucrt-x86_64-boost
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-cppwinrt
-            mingw-w64-ucrt-x86_64-curl
-            mingw-w64-ucrt-x86_64-graphviz
-            mingw-w64-ucrt-x86_64-miniupnpc
-            mingw-w64-ucrt-x86_64-nlohmann-json
-            mingw-w64-ucrt-x86_64-nodejs
-            mingw-w64-ucrt-x86_64-nsis
-            mingw-w64-ucrt-x86_64-onevpl
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-opus
-            mingw-w64-ucrt-x86_64-toolchain
+            make
+            mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-curl
+            mingw-w64-x86_64-graphviz
+            mingw-w64-x86_64-miniupnpc
+            mingw-w64-x86_64-nlohmann-json
+            mingw-w64-x86_64-nodejs
+            mingw-w64-x86_64-nsis
+            mingw-w64-x86_64-onevpl
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-opus
+            mingw-w64-x86_64-toolchain
+            nasm
+            wget
+            yasm
 
       - name: Setup python
         # use this instead of msys2 python due to known issues using wheels, https://www.msys2.org/docs/python/
