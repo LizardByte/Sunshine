@@ -33,12 +33,6 @@
     }
   });
 
-  //Wait for locale initialization, then render
-  i18n().then(i18n => {
-    app.use(i18n);
-    app.mount('#app');
-  });
-
   document.querySelector("#form").addEventListener("submit", (e) => {
     e.preventDefault();
     let pin = document.querySelector("#pin-input").value;
@@ -58,5 +52,11 @@
           ).innerHTML = `<div class="alert alert-danger" role="alert">$t('pin.pair_failure')</div>`;
         }
       });
+  });
+
+  //Wait for locale initialization, then render
+  i18n().then(i18n => {
+    app.use(i18n);
+    app.mount('#app');
   });
 </script>
