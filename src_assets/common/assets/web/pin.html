@@ -50,12 +50,12 @@
         if (response.status.toString().toLowerCase() === "true") {
           document.querySelector(
             "#status"
-          ).innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
+          ).innerHTML = `<div class="alert alert-success" role="alert">$t('pin.pair_success')</div>`;
           document.querySelector("#pin-input").value = "";
         } else {
           document.querySelector(
             "#status"
-          ).innerHTML = `<div class="alert alert-danger" role="alert">Pairing Failed: Check if the PIN is typed correctly</div>`;
+          ).innerHTML = `<div class="alert alert-danger" role="alert">$t('pin.pair_failure')</div>`;
         }
       });
   });
