@@ -280,7 +280,7 @@ jobs:
         include:  # package these differently
           - type: AppImage
             EXTRA_ARGS: '-DSUNSHINE_BUILD_APPIMAGE=ON'
-            dist: 20.04
+            dist: 22.04
 
     steps:
       - name: Maximize build space
