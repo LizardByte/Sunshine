@@ -92,7 +92,7 @@
     "always_send_scancodes": "Invia Sempre Scancode",
     "always_send_scancodes_desc": "L'invio di scancode migliora la compatibilità con i giochi e le applicazioni, ma può risultare in input da tastiera errato da alcuni client che non stanno utilizzando un layout di tastiera inglese statunitense. Abilita se l' input della tastiera non funziona affatto in certe applicazioni. Disabilita se le chiavi del client generano l'input errato sull'host.",
     "amd_coder": "Coder AMF (H264)",
-    "amd_enforce_hrd": "AMF Hypothetical Reference Decoder (HRD) Enforcement",
+    "amd_enforce_hrd": "Decoder Di Riferimento Ipotetico Amf (Hrd) Applicazione",
     "amd_preanalysis": "Preanalisi AMF",
     "amd_quality": "Qualità AMF",
     "amd_quality_balanced": "bilanciato -- bilanciato (predefinito)",
