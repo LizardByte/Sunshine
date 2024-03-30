@@ -337,7 +337,7 @@
   },
   "pin": {
     "pair_failure": "Échec de l'appairage : Vérifiez si le code PIN est correctement saisi",
-    "pair_success": "Success! Please check Moonlight to continue",
+    "pair_success": "Succès ! Veuillez vérifier la lumière de lune pour continuer",
     "pin_pairing": "Appairage par code PIN",
     "send": "Envoyer",
     "warning_msg": "Assurez-vous que vous avez accès au client avec lequel vous appariez. Ce logiciel peut donner un contrôle total à votre ordinateur, alors soyez prudent !"
