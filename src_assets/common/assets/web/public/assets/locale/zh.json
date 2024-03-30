@@ -337,7 +337,7 @@
   },
   "pin": {
     "pair_failure": "配对失败：请检查PIN 是否输入正确",
-    "pair_success": "Success! Please check Moonlight to continue",
+    "pair_success": "成功！请检查月亮以继续",
     "pin_pairing": "PIN 码配对",
     "send": "发送",
     "warning_msg": "请确保您可以掌控您正在配对的客户端。该软件可以完全控制您的计算机，请务必小心！"
