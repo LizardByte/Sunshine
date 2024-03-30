@@ -336,6 +336,8 @@
     "success_msg": "La password è stata modificata con successo! Questa pagina verrà ricaricata presto, il tuo browser ti chiederà le nuove credenziali."
   },
   "pin": {
+    "pair_failure": "Accoppiamento non riuscito: verificare se il PIN è digitato correttamente",
+    "pair_success": "Success! Please check Moonlight to continue",
     "pin_pairing": "PIN Pairing",
     "send": "Invia",
     "warning_msg": "Assicurati di avere accesso al client con cui stai accoppiando. Questo software può dare il controllo totale al tuo computer, quindi fai attenzione!"
