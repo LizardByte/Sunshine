@@ -30,7 +30,7 @@ System Requirements
    "", "macOS: 12+"
    "", "Linux/Debian: 11 (bullseye)"
    "", "Linux/Fedora: 38+"
-   "", "Linux/Ubuntu: 20.04+ (focal)"
+   "", "Linux/Ubuntu: 22.04+ (jammy)"
    "Network", "Host: 5GHz, 802.11ac"
    "", "Client: 5GHz, 802.11ac"
 

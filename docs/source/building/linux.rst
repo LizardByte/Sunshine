@@ -88,58 +88,6 @@ Install Requirements
           wget \  # necessary for cuda install with `run` file
           which   # necessary for cuda install with `run` file
 
-Ubuntu 20.04
-^^^^^^^^^^^^
-End of Life: April 2030
-
-Install Requirements
-   .. code-block:: bash
-
-      sudo apt update && sudo apt install \
-          build-essential \
-          cmake \
-          g++-10 \
-          libayatana-appindicator3-dev \
-          libavdevice-dev \
-          libboost-filesystem-dev \
-          libboost-locale-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
-          libcap-dev \  # KMS
-          libcurl4-openssl-dev \
-          libdrm-dev \  # KMS
-          libevdev-dev \
-          libminiupnpc-dev \
-          libmfx-dev \  # x86_64 only
-          libnotify-dev \
-          libnuma-dev \
-          libopus-dev \
-          libpulse-dev \
-          libssl-dev \
-          libva-dev \  # VA-API
-          libvdpau-dev \
-          libwayland-dev \  # Wayland
-          libx11-dev \  # X11
-          libxcb-shm0-dev \  # X11
-          libxcb-xfixes0-dev \  # X11
-          libxcb1-dev \  # X11
-          libxfixes-dev \  # X11
-          libxrandr-dev \  # X11
-          libxtst-dev \  # X11
-          nodejs \
-          npm \
-          wget  # necessary for cuda install with `run` file
-
-Update gcc alias
-   .. code-block:: bash
-
-      update-alternatives --install \
-        /usr/bin/gcc gcc /usr/bin/gcc-10 100 \
-        --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
-        --slave /usr/bin/gcov gcov /usr/bin/gcov-10 \
-        --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
-        --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
-
 Ubuntu 22.04
 ^^^^^^^^^^^^
 
