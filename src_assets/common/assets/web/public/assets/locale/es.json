@@ -92,7 +92,7 @@
     "always_send_scancodes": "Enviar siempre códigos de escaneo",
     "always_send_scancodes_desc": "Enviar códigos de escaneo mejora la compatibilidad con juegos y aplicaciones, pero puede resultar en una entrada de teclado incorrecta de ciertos clientes que no están usando una disposición de teclado en inglés de los Estados Unidos. Activar si la entrada de teclado no funciona en absoluto en ciertas aplicaciones. Desactivar si las claves del cliente están generando una entrada incorrecta en el host.",
     "amd_coder": "Codificador AMF (H264)",
-    "amd_enforce_hrd": "AMF Hypothetical Reference Decoder (HRD) Enforcement",
+    "amd_enforce_hrd": "AMF Hypothetical Reference Decodificador (HRD) Permite",
     "amd_preanalysis": "Análisis previo de AMF",
     "amd_quality": "Calidad AMF",
     "amd_quality_balanced": "balanceada -- balanceado (por defecto)",
