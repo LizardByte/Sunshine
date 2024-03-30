@@ -888,10 +888,10 @@
         <div class="mb-3">
           <label for="amd_rc" class="form-label">{{ $t('config.amd_rc') }}</label>
           <select id="amd_rc" class="form-select" v-model="config.amd_rc">
+            <option value="cbr">{{ $t('config.amd_rc_cbr') }}</option>
             <option value="cqp">{{ $t('config.amd_rc_cqp') }}</option>
             <option value="vbr_latency">{{ $t('config.amd_rc_vbr_latency') }}</option>
             <option value="vbr_peak">{{ $t('config.amd_rc_vbr_peak') }}</option>
-            <option value="cbr">{{ $t('config.amd_rc_cbr') }}</option>
           </select>
         </div>
 
@@ -902,6 +902,7 @@
             <option value="transcoding">{{ $t('config.amd_usage_transcoding') }}</option>
             <option value="webcam">{{ $t('config.amd_usage_webcam') }}</option>
             <option value="lowlatency">{{ $t('config.amd_usage_lowlatency') }}</option>
+            <option value="lowlatency_high_quality">{{ $t('config.amd_usage_lowlatency_high_quality') }}</option>
             <option value="ultralowlatency">{{ $t('config.amd_usage_ultralowlatency') }}</option>
           </select>
         </div>
@@ -919,6 +920,15 @@
         <div class="mb-3">
           <label for="amd_vbaq" class="form-label">{{ $t('config.amd_vbaq') }}</label>
           <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
+          </select>
+        </div>
+
+        <!-- AMF HRD Enforcement -->
+        <div class="mb-3">
+          <label for="amd_enforce_hrd" class="form-label">{{ $t('config.amd_enforce_hrd') }}</label>
+          <select id="amd_enforce_hrd" class="form-select" v-model="config.amd_enforce_hrd">
             <option value="disabled">{{ $t('_common.disabled') }}</option>
             <option value="enabled">{{ $t('_common.enabled_def') }}</option>
           </select>
@@ -1146,10 +1156,11 @@
             name: "AMD AMF Encoder",
             options: {
               "amd_quality": "balanced",
-              "amd_rc": "vbr_latency",
+              "amd_rc": "cbr",
               "amd_usage": "ultralowlatency",
               "amd_preanalysis": "disabled",
               "amd_vbaq": "enabled",
+              "amd_enforce_hrd": "enabled",
               "amd_coder": "auto",
             },
           },
