@@ -337,7 +337,7 @@
   },
   "pin": {
     "pair_failure": "Parkoppling misslyckades: Kontrollera om PIN-koden är korrekt skriven",
-    "pair_success": "Success! Please check Moonlight to continue",
+    "pair_success": "Klart! Kontrollera Moonlight för att fortsätta",
     "pin_pairing": "PIN Pairing",
     "send": "Skicka",
     "warning_msg": "Se till att du har tillgång till klienten du parar ihop med. Denna programvara kan ge total kontroll till din dator, så var försiktig!"
