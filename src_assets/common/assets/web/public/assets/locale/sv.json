@@ -92,7 +92,7 @@
     "always_send_scancodes": "Skicka alltid sökkoder",
     "always_send_scancodes_desc": "Att skicka skanningskoder förbättrar kompatibiliteten med spel och appar men kan resultera i felaktig tangentbordsinmatning från vissa klienter som inte använder en amerikansk engelsk tangentbordslayout. Aktivera om tangentbordsinmatningen inte fungerar alls i vissa program. Inaktivera om nycklar på klienten genererar fel indata på värden.",
     "amd_coder": "AMF-kod (H264)",
-    "amd_enforce_hrd": "AMF Hypothetical Reference Decoder (HRD) Enforcement",
+    "amd_enforce_hrd": "AMF Hypotetisk referensavkodare (HRD) verkställighet",
     "amd_preanalysis": "AMF Föranalys",
     "amd_quality": "AMF Kvalitet",
     "amd_quality_balanced": "balanced -- balanserad (standard)",
