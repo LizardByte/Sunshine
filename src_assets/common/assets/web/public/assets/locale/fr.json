@@ -92,7 +92,7 @@
     "always_send_scancodes": "Toujours envoyer les codes de balayage",
     "always_send_scancodes_desc": "L'envoi de codes de numérisation améliore la compatibilité avec les jeux et les applications, mais peut entraîner une saisie incorrecte du clavier de certains clients qui n'utilisent pas de disposition de clavier anglais américain. Activer si l'entrée du clavier ne fonctionne pas du tout dans certaines applications. Désactiver si les clés du client génèrent la mauvaise entrée sur l'hôte.",
     "amd_coder": "Codeur AMF (H264)",
-    "amd_enforce_hrd": "AMF Hypothetical Reference Decoder (HRD) Enforcement",
+    "amd_enforce_hrd": "Enforcement du Décodeur Hypothetical Reference Decoder (HRD) de l'AMF",
     "amd_preanalysis": "Pré-analyse AMF",
     "amd_quality": "Qualité AMF",
     "amd_quality_balanced": "balanced -- équilibré (par défaut)",
