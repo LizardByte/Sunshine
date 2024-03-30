@@ -4,7 +4,7 @@
 # platforms_pr: linux/amd64
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=ubuntu
-ARG TAG=22.04
+ARG TAG=24.04
 FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -31,17 +31,22 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
-  cmake=3.22.* \
+  cmake=3.28.* \
   ca-certificates \
   doxygen \
+  gcc-11 \
+  g++-11 \
   git \
   graphviz \
+  libavcodec60=7:6.1.1-1ubuntu1 \
+  libavfilter9=7:6.1.1-1ubuntu1 \
+  libavformat60=7:6.1.1-1ubuntu1 \
   libavdevice-dev \
   libayatana-appindicator3-dev \
-  libboost-filesystem-dev=1.74.* \
-  libboost-locale-dev=1.74.* \
-  libboost-log-dev=1.74.* \
-  libboost-program-options-dev=1.74.* \
+  libboost-filesystem-dev=1.83.* \
+  libboost-locale-dev=1.83.* \
+  libboost-log-dev=1.83.* \
+  libboost-program-options-dev=1.83.* \
   libcap-dev \
   libcurl4-openssl-dev \
   libdrm-dev \
@@ -62,8 +67,9 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
-  python3.10 \
-  python3.10-venv \
+  libzvbi-common=0.2.42-1.1 \
+  python3.11 \
+  python3.11-venv \
   udev \
   wget \
   x11-xserver-utils \
@@ -76,6 +82,13 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
 
+# TODO: remove the following... as of 2024-04-03, ubuntu cannot properly resolve the dependencies
+#  libavcodec60=7:6.1.1-1ubuntu1 \
+#  libavfilter9=7:6.1.1-1ubuntu1 \
+#  libavformat60=7:6.1.1-1ubuntu1 \
+#  libzvbi-common=0.2.42-1.1 \
+
+
 #Install Node
 # hadolint ignore=SC1091
 RUN <<_INSTALL_NODE
@@ -86,6 +99,19 @@ source "$HOME/.nvm/nvm.sh"
 nvm install 20.9.0
 nvm use 20.9.0
 _INSTALL_NODE
+
+# Update gcc alias
+# https://stackoverflow.com/a/70653945/11214013
+RUN <<_GCC_ALIAS
+#!/bin/bash
+set -e
+update-alternatives --install \
+  /usr/bin/gcc gcc /usr/bin/gcc-11 100 \
+  --slave /usr/bin/g++ g++ /usr/bin/g++-11 \
+  --slave /usr/bin/gcov gcov /usr/bin/gcov-11 \
+  --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-11 \
+  --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-11
+_GCC_ALIAS
 
 # install cuda
 WORKDIR /build/cuda
@@ -179,9 +205,9 @@ EXPOSE 48010
 EXPOSE 47998-48000/udp
 
 # setup user
-ARG PGID=1000
+ARG PGID=1001
 ENV PGID=${PGID}
-ARG PUID=1000
+ARG PUID=1001
 ENV PUID=${PUID}
 ENV TZ="UTC"
 ARG UNAME=lizard
