@@ -92,7 +92,7 @@
     "always_send_scancodes": "Scancodes immer senden",
     "always_send_scancodes_desc": "Das Senden von Scancodes verbessert die Kompatibilität mit Spielen und Apps, kann aber zu falschen Tastatureingaben von bestimmten Clients führen, die kein amerikanisches Tastaturlayout verwenden. Aktivieren, wenn die Eingabe der Tastatur in bestimmten Anwendungen überhaupt nicht funktioniert. Deaktivieren, wenn Schlüssel auf dem Client die falsche Eingabe auf dem Host generieren.",
     "amd_coder": "AMF Coder (H264)",
-    "amd_enforce_hrd": "AMF Hypothetical Reference Decoder (HRD) Enforcement",
+    "amd_enforce_hrd": "Hypothetische Referenz-Decodierer (HRD) durchsetzen",
     "amd_preanalysis": "AMF-Voranalyse",
     "amd_quality": "AMF-Qualität",
     "amd_quality_balanced": "ausgewogen -- Ausgewogen (Standard)",
