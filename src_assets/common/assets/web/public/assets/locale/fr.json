@@ -336,6 +336,8 @@
     "success_msg": "Le mot de passe a été modifié avec succès ! Cette page sera bientôt rechargée, votre navigateur vous demandera les nouveaux identifiants."
   },
   "pin": {
+    "pair_failure": "Échec de l'appairage : Vérifiez si le code PIN est correctement saisi",
+    "pair_success": "Success! Please check Moonlight to continue",
     "pin_pairing": "Appairage par code PIN",
     "send": "Envoyer",
     "warning_msg": "Assurez-vous que vous avez accès au client avec lequel vous appariez. Ce logiciel peut donner un contrôle total à votre ordinateur, alors soyez prudent !"
