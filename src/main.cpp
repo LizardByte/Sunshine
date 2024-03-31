@@ -91,8 +91,7 @@ main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
-  // Switch default C standard library locale to UTF-8 on Windows 10 1803+
-  setlocale(LC_ALL, ".UTF-8");
+  setlocale(LC_ALL, "C");
 #endif
 
 #pragma GCC diagnostic push
