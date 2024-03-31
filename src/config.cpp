@@ -1272,10 +1272,16 @@ namespace config {
       BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
     }
 
-    if (!config_loaded) {
 #ifdef _WIN32
+    // UCRT64 raises an access denied exception if launching from the shortcut
+    // as non-admin and the config folder is not yet present; we can defer
+    // so that service instance will do the work instead.
+
+    if (!config_loaded && !shortcut_launch) {
       BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
       std::this_thread::sleep_for(10s);
+#else
+    if (!config_loaded) {
 #endif
       return -1;
     }
@@ -1283,6 +1289,8 @@ namespace config {
 #ifdef _WIN32
     // We have to wait until the config is loaded to handle these launches,
     // because we need to have the correct base port loaded in our config.
+    // Exception: UCRT64 shortcut_launch instances may have no config loaded due to
+    // insufficient permissions to create folder; port defaults will be acceptable.
     if (service_admin_launch) {
       // This is a relaunch as admin to start the service
       service_ctrl::start_service();
