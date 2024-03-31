@@ -39,6 +39,9 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/gamepad/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}"
         COMPONENT assets)
+# copy assets to build directory, for running without install
+file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
+        DESTINATION "${CMAKE_BINARY_DIR}/assets")
 
 # set(CPACK_NSIS_MUI_HEADERIMAGE "") # TODO: image should be 150x57 bmp
 set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}\\\\sunshine.ico")
