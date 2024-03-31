@@ -336,8 +336,8 @@
     "success_msg": "密码已成功更改！此页面即将重新加载，您的浏览器将要求您输入新的账户信息。"
   },
   "pin": {
-    "pair_failure": "配对失败：请检查PIN 是否输入正确",
-    "pair_success": "成功！请检查月亮以继续",
+    "pair_failure": "配对失败：请检查 PIN 码是否正确输入",
+    "pair_success": "成功！请检查 Moonlight 以继续",
     "pin_pairing": "PIN 码配对",
     "send": "发送",
     "warning_msg": "请确保您可以掌控您正在配对的客户端。该软件可以完全控制您的计算机，请务必小心！"
