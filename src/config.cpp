@@ -1184,7 +1184,7 @@ namespace config {
       auto line = argv[x];
 
       if (line == "--help"sv) {
-        print_help(*argv);
+        logging::print_help(*argv);
         return 1;
       }
 #ifdef _WIN32
@@ -1204,7 +1204,7 @@ namespace config {
           break;
         }
         if (apply_flags(line + 1)) {
-          print_help(*argv);
+          logging::print_help(*argv);
           return -1;
         }
       }
@@ -1218,7 +1218,7 @@ namespace config {
         else {
           TUPLE_EL(var, 1, parse_option(line, line_end));
           if (!var) {
-            print_help(*argv);
+            logging::print_help(*argv);
             return -1;
           }
 

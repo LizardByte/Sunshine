@@ -5,16 +5,16 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
-#include <boost/log/trivial.hpp>
 #include <boost/shared_ptr.hpp>
 
 #include <src/globals.h>
+#include <src/logging.h>
 #include <src/platform/common.h>
 
 #include <tests/utils.h>
 
-namespace logging = boost::log;
-namespace sinks = logging::sinks;
+namespace boost_logging = boost::log;
+namespace sinks = boost_logging::sinks;
 
 // Undefine the original TEST macro
 #undef TEST
@@ -39,6 +39,9 @@ protected:
 
   // we can possibly use some internal googletest functions to capture stdout and stderr, but I have not tested this
   // https://stackoverflow.com/a/33186201/11214013
+
+  // Add a member variable for deinit_guard
+  std::unique_ptr<logging::deinit_t> deinit_guard;
 
   // Add a member variable to store the sink
   boost::shared_ptr<sinks::synchronous_sink<sinks::text_ostream_backend>> test_sink;
@@ -79,7 +82,7 @@ protected:
     test_sink->locked_backend()->add_stream(stream);
 
     // Register the sink in the logging core (BOOST_LOG)
-    logging::core::get()->add_sink(test_sink);
+    boost_logging::core::get()->add_sink(test_sink);
 
     sbuf = std::cout.rdbuf();  // save cout buffer (std::cout)
     std::cout.rdbuf(cout_buffer.rdbuf());  // redirect cout to buffer (std::cout)
@@ -87,6 +90,11 @@ protected:
     // todo: do this only once
     // setup a mail object
     mail::man = std::make_shared<safe::mail_raw_t>();
+
+    deinit_guard = logging::init(0, "test.log");
+    if (!deinit_guard) {
+      FAIL() << "Logging failed to initialize";
+    }
   }
 
   void
@@ -121,7 +129,7 @@ protected:
     }
 
     // Remove the sink from the logging core (BOOST_LOG)
-    logging::core::get()->remove_sink(test_sink);
+    boost_logging::core::get()->remove_sink(test_sink);
     test_sink.reset();
   }
 
