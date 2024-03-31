@@ -31,16 +31,7 @@ namespace file_handler {
     }
 
     std::ifstream in(path);
-
-    std::string input;
-    std::string base64_cert;
-
-    while (!in.eof()) {
-      std::getline(in, input);
-      base64_cert += input + '\n';
-    }
-
-    return base64_cert;
+    return std::string { (std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>() };
   }
 
   /**
