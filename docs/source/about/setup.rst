@@ -307,7 +307,7 @@ Install
 
             mkdir -p ~/ports/multimedia/sunshine
             cd ~/ports/multimedia/sunshine
-            curl -O https://github.com/LizardByte/Sunshine/releases/latest/download/Portfile
+            curl -OL https://github.com/LizardByte/Sunshine/releases/latest/download/Portfile
             cd ~/ports
             portindex
             sudo port install sunshine
