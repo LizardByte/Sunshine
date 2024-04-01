@@ -809,7 +809,10 @@ namespace cuda {
             std::this_thread::sleep_for(1ns);
             now = std::chrono::steady_clock::now();
           }
-          next_frame = now + delay;
+          next_frame += delay;
+          if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+            next_frame = now + delay;
+          }
 
           std::shared_ptr<platf::img_t> img_out;
           auto status = snapshot(pull_free_image_cb, img_out, 150ms, *cursor);
