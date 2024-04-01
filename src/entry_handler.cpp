@@ -38,7 +38,12 @@ using namespace std::literals;
 void
 launch_ui() {
   std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS));
-  platf::open_url(url);
+  // a reverse proxy does not need to use the internal https port.
+  std::string proxy_url = config::nvhttp.web_ui_address;
+  int proxy_code = http::check_url_response(proxy_url);
+
+  // determine if proxy address is available; 401 (unauthorized) is the expected response
+  platf::open_url(proxy_code == 401 ? proxy_url : url);
 }
 
 /**
@@ -52,7 +57,12 @@ launch_ui() {
 void
 launch_ui_with_path(std::string path) {
   std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS)) + path;
-  platf::open_url(url);
+  // a reverse proxy does not need to use the internal https port; also validate if option is set before appending path.
+  std::string proxy_url = (config::nvhttp.web_ui_address.empty() ? "" : config::nvhttp.web_ui_address + path);
+  int proxy_code = http::check_url_response(proxy_url);
+
+  // determine if proxy host is available; 401 (unauthorized) is the expected response
+  platf::open_url(proxy_code == 401 ? proxy_url : url);
 }
 
 namespace args {

@@ -783,6 +783,33 @@ keybindings
 
       origin_web_ui_allowed = lan
 
+`web_ui_address <https://localhost:47990/config/#web_ui_address>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Allows Sunshine's Web UI to launch using a custom URL, which is typically useful for reverse proxies.
+
+   .. note:: this setting only affects the URLs that are launched by the tray icon, which allows you to
+      circumvent the issue of self-signed certificates. Other streaming ports will not be affected, and
+      the original web UI address will remain available. The link is dynamically chosen based on proxy
+      connectivity each time an URL is opened.
+
+   .. warning:: A reverse proxy will depend on the correct `origin_web_ui_allowed`_ setting to ensure it
+      and your Sunshine host can communicate. This would typically be ``lan`` (or ``pc`` if the proxy runs
+      on the same host as Sunshine).
+
+   .. warning:: Direct your proxy address (e.g. https://example.com:80/sunshine) to the standard https
+      Web UI address (https://sunshinehost:47990 or https://localhost:47990 if the proxy runs on the same
+      host); ports do not need to match, and your proxy will probably work with the self-signed cert.
+
+**Default**
+   Automatic
+
+**Example**
+   .. code-block:: text
+
+      web_ui_address = https://example.com:80/sunshine
+
 `external_ip <https://localhost:47990/config/#external_ip>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

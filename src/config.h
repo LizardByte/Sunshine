@@ -113,6 +113,7 @@ namespace config {
 
     std::string file_state;
 
+    std::string web_ui_address;
     std::string external_ip;
     std::vector<std::string> resolutions;
     std::vector<int> fps;

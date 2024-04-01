@@ -404,6 +404,7 @@ namespace config {
 
     boost::asio::ip::host_name(),  // sunshine_name,
     "sunshine_state.json"s,  // file_state
+    {},  // web_ui_address
     {},  // external_ip
     {
       "352x240"s,
@@ -1038,6 +1039,7 @@ namespace config {
     bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, { "pc"sv, "lan"sv, "wan"sv });
+    string_f(vars, "web_ui_address", nvhttp.web_ui_address);
 
     int to = -1;
     int_between_f(vars, "ping_timeout", to, { -1, std::numeric_limits<int>::max() });

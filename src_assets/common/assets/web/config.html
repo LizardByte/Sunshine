@@ -561,6 +561,13 @@
           <div class="form-text">{{ $t('config.origin_web_ui_allowed_desc') }}</div>
         </div>
 
+        <!-- Web UI Address -->
+        <div class="mb-3">
+          <label for="web_ui_address" class="form-label">{{ $t('config.web_ui_address') }}</label>
+          <input type="text" class="form-control" id="web_ui_address" placeholder="https://localhost:47990" v-model="config.web_ui_address" />
+          <div class="form-text">{{ $t('config.web_ui_address_desc') }}</div>
+        </div>
+
         <!-- External IP -->
         <div class="mb-3">
           <label for="external_ip" class="form-label">{{ $t('config.external_ip') }}</label>
@@ -1096,6 +1103,7 @@
               "address_family": "ipv4",
               "port": 47989,
               "origin_web_ui_allowed": "lan",
+              "web_ui_address": "",
               "external_ip": "",
               "lan_encryption_mode": 0,
               "wan_encryption_mode": 1,

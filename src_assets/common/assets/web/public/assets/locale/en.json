@@ -306,7 +306,9 @@
     "wan_encryption_mode": "WAN Encryption Mode",
     "wan_encryption_mode_1": "Enabled for supported clients (default)",
     "wan_encryption_mode_2": "Required for all clients",
-    "wan_encryption_mode_desc": "This determines when encryption will be used when streaming over the Internet. Encryption can reduce streaming performance, particularly on less powerful hosts and clients."
+    "wan_encryption_mode_desc": "This determines when encryption will be used when streaming over the Internet. Encryption can reduce streaming performance, particularly on less powerful hosts and clients.",
+    "web_ui_address": "Web UI Address",
+    "web_ui_address_desc": "Allows Sunshine's tray icon to launch the web UI using a custom URL; primarily useful if using a reverse proxy. Please note that this does not affect other streaming ports, the original web UI address will remain available, and the proxy address will be bypassed if your proxy has no connectivity when an URL is opened."
   },
   "index": {
     "description": "Sunshine is a self-hosted game stream host for Moonlight.",

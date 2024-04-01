@@ -192,6 +192,28 @@ namespace http {
     return 0;
   }
 
+  int
+  check_url_response(std::string url) {
+    int response_code = 0;
+    CURL *curl = curl_easy_init();
+    if (curl) {
+      CURLcode result;
+      curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+      curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);  // nginxproxymanager responds to HEAD requests with 502
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);  // ignore self-signed cert
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);  // ignore self-signed cert
+#ifdef _WIN32
+      curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
+      result = curl_easy_perform(curl);
+      if (result == CURLE_OK) {
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+      }
+      curl_easy_cleanup(curl);
+    }
+    return response_code;
+  }
+
   bool
   download_file(const std::string &url, const std::string &file) {
     CURL *curl = curl_easy_init();
