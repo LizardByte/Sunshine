@@ -767,10 +767,10 @@ namespace video {
       // x265's Info SEI is so long that it causes the IDR picture data to be
       // kicked to the 2nd packet in the frame, breaking Moonlight's parsing logic.
       // It also looks like gop_size isn't passed on to x265, so we have to set
-      // 'keyint=-1' in the parameters ourselves.
+      // 'keyint=-1' in the parameters ourselves (N.B.: set via x265_params)
       {
         { "forced-idr"s, 1 },
-        { "x265-params"s, "info=0:keyint=-1"s },
+        { "x265-params"s, &x265_params },
         { "preset"s, &config::video.sw.sw_preset },
         { "tune"s, &config::video.sw.sw_tune },
       },
@@ -937,6 +937,7 @@ namespace video {
   static encoder_t *chosen_encoder;
   int active_hevc_mode;
   int active_av1_mode;
+  std::string x265_params;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
 
   void
@@ -1530,6 +1531,14 @@ namespace video {
 
       ctx->thread_type = FF_THREAD_SLICE;
       ctx->thread_count = ctx->slices;
+
+      x265_params = "info=0:keyint=-1";
+      if (config::video.sw.sw_slicing) {
+        // libx265 maps ctx->thread_count to x265 --frame-threads and ignores
+        // ctx->slices, causing encoder latency to increase by the same amount
+        // of frames. Map to x265 --slices (13 max) with 1 frame thread instead.
+        x265_params += ":frame-threads=1:slices=" + std::to_string(std::min(13, ctx->thread_count));
+      }
 
       AVDictionary *options { nullptr };
       auto handle_option = [&options](const encoder_t::option_t &option) {

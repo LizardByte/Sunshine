@@ -24,6 +24,7 @@ namespace config {
     int min_threads;  // Minimum number of threads/slices for CPU encoding
     struct {
       std::string sw_preset;
+      bool sw_slicing;
       std::string sw_tune;
       std::optional<int> svtav1_preset;
     } sw;

@@ -1006,7 +1006,7 @@ keybindings
    Minimum number of CPU threads used for encoding.
 
    .. note:: Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually worth it to gain
-      the use of more CPU cores for encoding. The ideal value is the lowest value that can reliably encode at your
+      the use of more CPU threads for encoding. The ideal value is the lowest value that can reliably encode at your
       desired streaming settings on your hardware.
 
 **Default**
@@ -1800,3 +1800,38 @@ keybindings
    .. code-block:: text
 
       sw_tune = zerolatency
+
+`sw_slicing <https://localhost:47990/config/#sw_slicing>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Controls the threading type for the libx265 software encoder.
+
+   .. note:: Frame threading imposes an unavoidable minimum frame latency equal to
+             `min_threads`_.
+
+   .. note:: Slice threading also uses `min_threads`_, but increasing CPU threads has
+             no latency penalty. The tradeoff for sliced threads is slightly lower
+             quality and worse performance if CPU threads are set to a low value.
+
+   .. note:: This option only applies when using H.265 format with the software `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   disabled   frame threading mode
+   enabled    slice threading mode
+   ========== ===========
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      sw_slicing = enabled

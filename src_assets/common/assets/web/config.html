@@ -1004,6 +1004,16 @@
           </select>
           <div class="form-text">{{ $t('config.sw_tune_desc') }}</div>
         </div>
+
+        <!-- SW Thread Slicing (H265) -->
+        <div class="mb-3">
+          <label for="sw_slicing" class="form-label">{{ $t('config.sw_slicing') }}</label>
+          <select id="sw_slicing" class="form-select" v-model="config.sw_slicing">
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
+          </select>
+          <div class="form-text">{{ $t('config.sw_slicing_desc') }}</div>
+        </div>
       </div>
 
     </div>
@@ -1178,6 +1188,7 @@
             name: "Software Encoder",
             options: {
               "sw_preset": "superfast",
+              "sw_slicing": "enabled",
               "sw_tune": "zerolatency",
             },
           },

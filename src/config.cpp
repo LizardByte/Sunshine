@@ -333,6 +333,7 @@ namespace config {
     2,  // min_threads
     {
       "superfast"s,  // preset
+      true,  // slicing
       "zerolatency"s,  // tune
       11,  // superfast
     },  // software
@@ -954,6 +955,7 @@ namespace config {
     if (!video.sw.sw_preset.empty()) {
       video.sw.svtav1_preset = sw::svtav1_preset_from_view(video.sw.sw_preset);
     }
+    bool_f(vars, "sw_slicing", video.sw.sw_slicing);
     string_f(vars, "sw_tune", video.sw.sw_tune);
 
     int_between_f(vars, "nvenc_preset", video.nv.quality_preset, { 1, 7 });
