@@ -104,7 +104,7 @@
     "amd_rc_vbr_latency": "vbr_latency -- tasa de bits variable restringida por latencia (por defecto)",
     "amd_rc_vbr_peak": "vbr_peak -- tasa de bits variable restringida máxima",
     "amd_usage": "Uso de AMF",
-    "amd_usage_lowlatency": "baja latencia - baja latencia (rápido)",
+    "amd_usage_lowlatency": "baja latencia - baja latencia (la más rápida)",
     "amd_usage_lowlatency_high_quality": "lowlatency_high_quality - baja latencia, alta calidad (rápido)",
     "amd_usage_transcoding": "transcodificación -- transcodificación (más lenta)",
     "amd_usage_ultralowlatency": "latencia ultra baja - latencia ultra baja (más rápida)",
@@ -337,7 +337,7 @@
   },
   "pin": {
     "pair_failure": "Falló el emparejamiento: Compruebe si el PIN está escrito correctamente",
-    "pair_success": "¡Éxito! Por favor revisa la luz de la luna para continuar",
+    "pair_success": "¡Éxito! Por favor revise Moonlight para continuar",
     "pin_pairing": "Emparejamiento de PIN",
     "send": "Enviar",
     "warning_msg": "Asegúrate de tener acceso al cliente con el que estás emparejando. Este software puede dar control total a tu computadora, ¡así que ten cuidado!"
