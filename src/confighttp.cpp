@@ -40,6 +40,7 @@
 #include "utility.h"
 #include "uuid.h"
 #include "version.h"
+#include "stream.h"
 
 using namespace std::literals;
 
@@ -721,6 +722,25 @@ namespace confighttp {
   }
 
   void
+  forceIDR(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+
+    print_req(request);
+
+    pt::ptree outputTree;
+
+    auto g = util::fail_guard([&]() {
+      std::ostringstream data;
+      pt::write_json(data, outputTree);
+      response->write(data.str());
+    });
+
+    stream::session::force_idr();
+
+    outputTree.put("status", true);
+  }
+
+  void
   closeApp(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
 
@@ -766,6 +786,7 @@ namespace confighttp {
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/clients/unpair$"]["POST"] = unpairAll;
+    server.resource["^/api/clients/force-idr$"]["POST"] = forceIDR;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;

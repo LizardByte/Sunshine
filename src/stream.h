@@ -50,5 +50,7 @@ namespace stream {
     join(session_t &session);
     state_e
     state(session_t &session);
+    void
+    force_idr();
   }  // namespace session
 }  // namespace stream

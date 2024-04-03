@@ -367,7 +367,11 @@
     "unpair_all": "Unpair All",
     "unpair_all_desc": "Remove all your paired devices",
     "unpair_all_error": "Error while unpairing",
-    "unpair_all_success": "Unpair Successful!"
+    "unpair_all_success": "Unpair Successful!",
+    "force_idr": "Force IDR",
+    "force_idr_desc": "If colour distortions happen, and the stream doesn't recover, this button should fix the issue.",
+    "force_idr_error": "Error while forcing IDR",
+    "force_idr_success": "Force IDR successful!"
   },
   "welcome": {
     "confirm_password": "Confirm password",

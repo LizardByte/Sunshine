@@ -94,6 +94,25 @@
         </div>
       </div>
     </div>
+    <!-- Force IDR -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="force_idr">{{ $t('troubleshooting.force_idr') }}</h2>
+        <br>
+        <p>{{ $t('troubleshooting.force_idr_desc') }}</p>
+        <div class="alert alert-success" v-if="forceIDRStatus === true">
+          {{ $t('troubleshooting.force_idr_success') }}
+        </div>
+        <div class="alert alert-danger" v-if="forceIDRStatus === false">
+          {{ $t('troubleshooting.force_idr_error') }}
+        </div>
+        <div>
+          <button class="btn btn-danger" :disabled="forceIDRPressed" @click="forceIDR">
+            {{ $t('troubleshooting.force_idr') }}
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- Logs -->
     <div class="card p-2 my-4">
       <div class="card-body">
@@ -127,6 +146,8 @@
           closeAppStatus: null,
           unpairAllPressed: false,
           unpairAllStatus: null,
+          forceIDRPressed: false,
+          forceIDRStatus: null,
           restartPressed: false,
           logs: 'Loading...',
           logFilter: null,
@@ -179,6 +200,18 @@
               this.unpairAllStatus = r.status.toString() === "true";
               setTimeout(() => {
                 this.unpairAllStatus = null;
+              }, 5000);
+            });
+        },
+        forceIDR() {
+          this.forceIDRPressed = true;
+          fetch("/api/clients/force-idr", { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => {
+              this.forceIDRPressed = false;
+              this.forceIDRStatus = r.status.toString() === "true";
+              setTimeout(() => {
+                this.forceIDRStatus = null;
               }, 5000);
             });
         },
