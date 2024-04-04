@@ -380,12 +380,12 @@ namespace platf {
   alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     ControllerType selectedGamepadType;
 
-    if (config::input.gamepad == "x360"sv) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (manual selection)"sv;
+    if (config::input.gamepad == "xone"sv) {
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox One controller (manual selection)"sv;
       selectedGamepadType = XboxOneWired;
     }
-    else if (config::input.gamepad == "ds4"sv) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (manual selection)"sv;
+    else if (config::input.gamepad == "ds5"sv) {
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense 5 controller (manual selection)"sv;
       selectedGamepadType = DualSenseWired;
     }
     else if (config::input.gamepad == "switch"sv) {
@@ -393,11 +393,11 @@ namespace platf {
       selectedGamepadType = SwitchProWired;
     }
     else if (metadata.type == LI_CTYPE_XBOX) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (auto-selected by client-reported type)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox One controller (auto-selected by client-reported type)"sv;
       selectedGamepadType = XboxOneWired;
     }
     else if (metadata.type == LI_CTYPE_PS) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by client-reported type)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 5 controller (auto-selected by client-reported type)"sv;
       selectedGamepadType = DualSenseWired;
     }
     else if (metadata.type == LI_CTYPE_NINTENDO) {
@@ -405,35 +405,35 @@ namespace platf {
       selectedGamepadType = SwitchProWired;
     }
     else if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by motion sensor presence)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 5 controller (auto-selected by motion sensor presence)"sv;
       selectedGamepadType = DualSenseWired;
     }
     else if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (auto-selected by touchpad presence)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 5 controller (auto-selected by touchpad presence)"sv;
       selectedGamepadType = DualSenseWired;
     }
     else {
-      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (default)"sv;
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox One controller (default)"sv;
       selectedGamepadType = XboxOneWired;
     }
 
-    if (selectedGamepadType == XboxOneWired) {
+    if (selectedGamepadType == XboxOneWired || selectedGamepadType == SwitchProWired) {
       if (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO)) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has motion sensors, but they are not usable when emulating an Xbox 360 controller"sv;
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has motion sensors, but they are not usable when emulating a joypad different from DS5"sv;
       }
       if (metadata.capabilities & LI_CCAP_TOUCHPAD) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has a touchpad, but it is not usable when emulating an Xbox 360 controller"sv;
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has a touchpad, but it is not usable when emulating a joypad different from DS5"sv;
       }
       if (metadata.capabilities & LI_CCAP_RGB_LED) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has an RGB LED, but it is not usable when emulating an Xbox 360 controller"sv;
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " has an RGB LED, but it is not usable when emulating a joypad different from DS5"sv;
       }
     }
     else if (selectedGamepadType == DualSenseWired) {
       if (!(metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have motion sensors active"sv;
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 5 controller, but the client gamepad doesn't have motion sensors active"sv;
       }
       if (!(metadata.capabilities & LI_CCAP_TOUCHPAD)) {
-        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 4 controller, but the client gamepad doesn't have a touchpad"sv;
+        BOOST_LOG(warning) << "Gamepad " << id.globalIndex << " is emulating a DualShock 5 controller, but the client gamepad doesn't have a touchpad"sv;
       }
     }
 
@@ -611,8 +611,8 @@ namespace platf {
     // TODO: if has_uinput
     caps |= platform_caps::pen_touch;
 
-    // We support controller touchpad input as long as we're not emulating X360
-    if (config::input.gamepad != "x360"sv) {
+    // We support controller touchpad input only when emulating the PS5 controller
+    if (config::input.gamepad == "ds5"sv || config::input.gamepad == "auto"sv) {
       caps |= platform_caps::controller_touch;
     }
 
@@ -622,7 +622,7 @@ namespace platf {
   std::vector<std::string_view> &
   supported_gamepads() {
     static std::vector<std::string_view> gps {
-      "auto"sv, "x360"sv, "ds4"sv, "ps4"sv, "switch"sv
+      "auto"sv, "xone"sv, "5"sv, "switch"sv
     };
 
     return gps;
