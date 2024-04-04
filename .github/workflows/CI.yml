@@ -794,7 +794,6 @@ jobs:
           done
 
       - name: Run tests
-        if: always()
         id: test
         timeout-minutes: 10
         run: |
