@@ -803,11 +803,7 @@ namespace cuda {
         while (true) {
           auto now = std::chrono::steady_clock::now();
           if (next_frame > now) {
-            std::this_thread::sleep_for((next_frame - now) / 3 * 2);
-          }
-          while (next_frame > now) {
-            std::this_thread::sleep_for(1ns);
-            now = std::chrono::steady_clock::now();
+            std::this_thread::sleep_for(next_frame - now);
           }
           next_frame += delay;
           if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
