@@ -1415,6 +1415,8 @@ namespace platf {
       capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
         auto next_frame = std::chrono::steady_clock::now();
 
+        sleep_overshoot_tracker.reset();
+
         while (true) {
           auto now = std::chrono::steady_clock::now();
 
@@ -1425,6 +1427,17 @@ namespace platf {
             std::this_thread::sleep_for(1ns);
             now = std::chrono::steady_clock::now();
           }
+
+          if (config::sunshine.min_log_level <= 1) {
+            // Print sleep overshoot stats to debug log every 20 seconds
+            auto print_info = [&](double min_overshoot, double max_overshoot, double avg_overshoot) {
+              auto f = stat_trackers::one_digit_after_decimal();
+              BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
+            };
+            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - next_frame;
+            sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
+          }
+
           next_frame += delay;
           if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
             next_frame = now + delay;

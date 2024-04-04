@@ -11,6 +11,7 @@
 #include <string>
 
 #include "src/logging.h"
+#include "src/stat_trackers.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
 #include "src/video_colorspace.h"
@@ -499,6 +500,10 @@ namespace platf {
     int env_width, env_height;
 
     int width, height;
+
+  protected:
+    // collect capture timing data (at loglevel debug)
+    stat_trackers::min_max_avg_tracker<double> sleep_overshoot_tracker;
   };
 
   class mic_t {
