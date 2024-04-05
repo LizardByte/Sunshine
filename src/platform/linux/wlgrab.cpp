@@ -129,12 +129,18 @@ namespace wl {
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
+      sleep_overshoot_tracker.reset();
+
       while (true) {
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
           std::this_thread::sleep_for(next_frame - now);
         }
+        now = std::chrono::steady_clock::now();
+        std::chrono::nanoseconds overshoot_ns = now - next_frame;
+        log_sleep_overshoot(overshoot_ns);
+
         next_frame += delay;
         if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
           next_frame = now + delay;
@@ -259,12 +265,18 @@ namespace wl {
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
+      sleep_overshoot_tracker.reset();
+
       while (true) {
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
           std::this_thread::sleep_for(next_frame - now);
         }
+        now = std::chrono::steady_clock::now();
+        std::chrono::nanoseconds overshoot_ns = now - next_frame;
+        log_sleep_overshoot(overshoot_ns);
+
         next_frame += delay;
         if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
           next_frame = now + delay;
