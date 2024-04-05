@@ -8,6 +8,10 @@ if (APPLE)
 elseif (UNIX)
     include(GNUInstallDirs)  # this needs to be included prior to configuring the desktop files
 
+    if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
+        set(SUNSHINE_EXECUTABLE_PATH "sunshine")
+    endif()
+
     # configure the .desktop file
     if(${SUNSHINE_BUILD_APPIMAGE})
         configure_file(packaging/linux/AppImage/sunshine.desktop sunshine.desktop @ONLY)
