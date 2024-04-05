@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # artifacts: true
-# platforms: linux/amd64,linux/arm64/v8
+# platforms: linux/amd64
 # platforms_pr: linux/amd64
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=ubuntu
