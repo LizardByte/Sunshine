@@ -92,6 +92,7 @@
     "always_send_scancodes": "Always Send Scancodes",
     "always_send_scancodes_desc": "Sending scancodes enhances compatibility with games and apps but may result in incorrect keyboard input from certain clients that aren't using a US English keyboard layout. Enable if keyboard input is not working at all in certain applications. Disable if keys on the client are generating the wrong input on the host.",
     "amd_coder": "AMF Coder (H264)",
+    "amd_enforce_hrd": "AMF Hypothetical Reference Decoder (HRD) Enforcement",
     "amd_preanalysis": "AMF Preanalysis",
     "amd_quality": "AMF Quality",
     "amd_quality_balanced": "balanced -- balanced (default)",
@@ -104,6 +105,7 @@
     "amd_rc_vbr_peak": "vbr_peak -- peak constrained variable bitrate",
     "amd_usage": "AMF Usage",
     "amd_usage_lowlatency": "lowlatency - low latency (fast)",
+    "amd_usage_lowlatency_high_quality": "lowlatency_high_quality - low latency, high quality (fast)",
     "amd_usage_transcoding": "transcoding -- transcoding (slowest)",
     "amd_usage_ultralowlatency": "ultralowlatency - ultra low latency (fastest)",
     "amd_usage_webcam": "webcam -- webcam (slow)",
@@ -334,6 +336,8 @@
     "success_msg": "Password has been changed successfully! This page will reload soon, your browser will ask you for the new credentials."
   },
   "pin": {
+    "pair_failure": "Pairing Failed: Check if the PIN is typed correctly",
+    "pair_success": "Success! Please check Moonlight to continue",
     "pin_pairing": "PIN Pairing",
     "send": "Send",
     "warning_msg": "Make sure you have access to the client you are pairing with. This software can give total control to your computer, so be careful!"
