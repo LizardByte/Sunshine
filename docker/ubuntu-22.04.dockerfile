@@ -36,8 +36,8 @@ apt-get install -y --no-install-recommends \
   doxygen \
   git \
   graphviz \
-  libayatana-appindicator3-dev \
   libavdevice-dev \
+  libayatana-appindicator3-dev \
   libboost-filesystem-dev=1.74.* \
   libboost-locale-dev=1.74.* \
   libboost-log-dev=1.74.* \

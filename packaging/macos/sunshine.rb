@@ -7,7 +7,7 @@ class @PROJECT_NAME@ < Formula
     tag: "@GITHUB_BRANCH@"
   version "@PROJECT_VERSION@"
   license all_of: ["GPL-3.0-only"]
-  head "@GITHUB_CLONE_URL@", branch: "nightly"
+  head "@GITHUB_CLONE_URL@", branch: "@GITHUB_DEFAULT_BRANCH@"
 
   depends_on "boost" => :build
   depends_on "cmake" => :build

@@ -32,11 +32,9 @@ dnf -y group install "Development Tools"
 dnf -y install \
   boost-devel-1.78.0* \
   cmake-3.27.* \
-  doxygen \
   gcc-13.2.* \
   gcc-c++-13.2.* \
   git \
-  graphviz \
   libappindicator-gtk3-devel \
   libcap-devel \
   libcurl-devel \
@@ -60,7 +58,6 @@ dnf -y install \
   openssl-devel \
   opus-devel \
   pulseaudio-libs-devel \
-  python3.10 \
   rpm-build \
   wget \
   which \
@@ -110,6 +107,7 @@ cmake \
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
+  -DTESTS_ENABLE_PYTHON_TESTS=OFF \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
   -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
   -DSUNSHINE_ENABLE_WAYLAND=ON \

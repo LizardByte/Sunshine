@@ -48,6 +48,11 @@ Extraction
       .. note:: The json keys should be sorted alphabetically. You can use `jsonabc <https://novicelab.org/jsonabc/>`__
          to sort the keys.
 
+      .. attention:: Due to the integration with Crowdin, it is important to only add strings to the `en.json` file,
+         and to not modify any other language files. After the PR is merged, the translations can take place
+         on `CrowdIn <https://translate.lizardbyte.dev/>`__. Once the translations are complete, a PR will be made
+         to merge the translations into Sunshine.
+
    - Use the string in a Vue component.
       .. code-block:: html
 
@@ -101,3 +106,8 @@ Extraction
       .. code-block:: bash
 
          python ./scripts/_locale.py --compile
+
+   .. attention:: Due to the integration with Crowdin, it is important to not include any extracted or compiled files in
+      Pull Requests. The files are automatically generated and updated by the workflow. Once the PR is merged, the
+      translations can take place on `CrowdIn <https://translate.lizardbyte.dev/>`__. Once the translations are
+      complete, a PR will be made to merge the translations into Sunshine.

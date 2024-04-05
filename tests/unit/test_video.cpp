@@ -21,10 +21,6 @@ protected:
     bool isEncoderValid;
     isEncoderValid = video::validate_encoder(*encoder, false);
 
-    // todo: av logging is not redirected to boost so it will be visible whether the test passes or fails
-    // move this code to logging
-    // https://github.com/LizardByte/Sunshine/blob/5606840c8983b714a0e442c42d887a49807715e1/src/main.cpp#L118
-
     if (!isEncoderValid) {
       // if encoder is software fail, otherwise skip
       if (encoder == &video::software && std::string(TESTS_SOFTWARE_ENCODER_UNAVAILABLE) == "fail") {
@@ -49,7 +45,6 @@ INSTANTIATE_TEST_SUITE_P(
   EncoderVariants,
   EncoderTest,
   ::testing::Values(
-// todo: all encoders crash on windows, probably due to platf not being initialized (which also crashes)
 #if !defined(__APPLE__)
     std::make_tuple(video::nvenc.name, &video::nvenc),
 #endif

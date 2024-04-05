@@ -11,7 +11,7 @@
     <h1 class="my-4">{{ $t('pin.pin_pairing') }}</h1>
     <form action="" class="form d-flex flex-column align-items-center" id="form">
       <div class="card flex-column d-flex p-4 mb-4">
-        <input type="text" pattern="\d*"  placeholder="PIN" id="pin-input" class="form-control my-4" />
+        <input type="text" pattern="\d*" placeholder="PIN" id="pin-input" class="form-control my-4" />
         <button class="btn btn-primary">{{ $t('pin.send') }}</button>
       </div>
       <div class="alert alert-warning">
@@ -23,7 +23,7 @@
 </body>
 
 <script type="module">
-  import {createApp} from 'vue'
+  import { createApp } from 'vue'
   import i18n from './locale.js'
   import Navbar from './Navbar.vue'
 
@@ -37,26 +37,27 @@
   i18n().then(i18n => {
     app.use(i18n);
     app.mount('#app');
-  });
 
-  document.querySelector("#form").addEventListener("submit", (e) => {
-    e.preventDefault();
-    let pin = document.querySelector("#pin-input").value;
-    document.querySelector("#status").innerHTML = "";
-    let b = JSON.stringify({ pin: pin });
-    fetch("/api/pin", { method: "POST", body: b })
-      .then((response) => response.json())
-      .then((response) => {
-        if (response.status.toString().toLowerCase() === "true") {
-          document.querySelector(
-            "#status"
-          ).innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
-          document.querySelector("#pin-input").value = "";
-        } else {
-          document.querySelector(
-            "#status"
-          ).innerHTML = `<div class="alert alert-danger" role="alert">Pairing Failed: Check if the PIN is typed correctly</div>`;
-        }
-      });
+    // this must be after mounting the app
+    document.querySelector("#form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      let pin = document.querySelector("#pin-input").value;
+      document.querySelector("#status").innerHTML = "";
+      let b = JSON.stringify({ pin: pin });
+      fetch("/api/pin", { method: "POST", body: b })
+        .then((response) => response.json())
+        .then((response) => {
+          if (response.status.toString().toLowerCase() === "true") {
+            document.querySelector(
+              "#status"
+            ).innerHTML = `<div class="alert alert-success" role="alert">${i18n.global.t('pin.pair_success')}</div>`;
+            document.querySelector("#pin-input").value = "";
+          } else {
+            document.querySelector(
+              "#status"
+            ).innerHTML = `<div class="alert alert-danger" role="alert">${i18n.global.t('pin.pair_failure')}</div>`;
+          }
+        });
+    });
   });
 </script>
