@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.23.0] - 2024-04-06
+Attention, this release contains critical security fixes. Please update as soon as possible.
+
+**Breaking**
+- (Linux) Drop support for Ubuntu 20.04
+- (Linux) No longer provide arm64 rpm packages, due to extreme compile time on GitHub hosted runners
+
+**Fixed**
+- (Network) Ensure unpairing takes effect without restart
+- (Capture/Linux) Fix logical comparison of texture size
+- (Service/Windows) Quote the path to sunshinesvc.exe when launching the termination helper
+
+**Added**
+- (WebUI) Localization support
+- (Capture/Linux) Populate host latency for kmx/x11 grab
+- (Capture/Windows) AMF rate control improvements
+- (Linux) Add support for Ubuntu 24.04 (x86_64 only)
+
+**Dependencies**
+- Bump rstcheck from 6.2.0 to 6.2.1
+- Bump org.flatpak.Builder.BaseApp from 644487f to 6e295e6
+- Bump ffmpeg
+- Bump @fortawesome/fontawesome-free from 6.5.1 to 6.5.2
+
+**Misc**
+- (Style) Refactored video encoder declarations
+- (CI) Refactored Linux build in CI
+- (CI) Added unit testing and code coverage
+- (Docs/macOS) Update curl command for Portfile install
+- (Style) Refactor logging initialization
+
+
 ## [0.22.2] - 2024-03-15
 **Fixed**
 - (Tray/Windows) Fix broken system tray icon on some systems
@@ -766,3 +798,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.22.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.0
 [0.22.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.1
 [0.22.2]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.2
+[0.23.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.23.0
