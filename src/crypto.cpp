@@ -17,6 +17,10 @@ namespace crypto {
     X509_STORE_add_cert(x509_store.get(), cert.get());
     _certs.emplace_back(std::make_pair(std::move(cert), std::move(x509_store)));
   }
+  void
+  cert_chain_t::clear() {
+    _certs.clear();
+  }
 
   static int
   openssl_verify_cb(int ok, X509_STORE_CTX *ctx) {
