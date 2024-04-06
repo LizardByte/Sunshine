@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # artifacts: true
-# platforms: linux/amd64,linux/arm64/v8
+# platforms: linux/amd64
 # platforms_pr: linux/amd64
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=fedora
@@ -32,9 +32,11 @@ dnf -y group install "Development Tools"
 dnf -y install \
   boost-devel-1.81.0* \
   cmake-3.27.* \
+  doxygen \
   gcc-13.2.* \
   gcc-c++-13.2.* \
   git \
+  graphviz \
   libappindicator-gtk3-devel \
   libcap-devel \
   libcurl-devel \
@@ -58,6 +60,7 @@ dnf -y install \
   openssl-devel \
   opus-devel \
   pulseaudio-libs-devel \
+  python3.11 \
   rpm-build \
   wget \
   which \
@@ -114,7 +117,6 @@ cmake \
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
-  -DTESTS_ENABLE_PYTHON_TESTS=OFF \
   -DSUNSHINE_ASSETS_DIR=share/sunshine \
   -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
   -DSUNSHINE_ENABLE_WAYLAND=ON \
