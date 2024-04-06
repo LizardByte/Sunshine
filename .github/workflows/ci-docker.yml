@@ -189,6 +189,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.check_dockerfiles.outputs.matrix) }}
+    timeout-minutes: 480  # 8 hours
     name: Docker${{ matrix.tag }}
 
     steps:
