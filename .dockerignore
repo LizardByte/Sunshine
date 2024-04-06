@@ -8,6 +8,7 @@
 !/.rstcheck.cfg
 
 # ignore repo directories and files
+docker/
 gh-pages-template/
 scripts/
 tools/
@@ -15,6 +16,7 @@ crowdin.yml
 
 # ignore dev directories
 build/
+cmake-*/
 venv/
 
 # ignore artifacts

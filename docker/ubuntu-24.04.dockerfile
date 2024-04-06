@@ -38,10 +38,6 @@ apt-get install -y --no-install-recommends \
   g++-11 \
   git \
   graphviz \
-  libavcodec60=7:6.1.1-1ubuntu1 \
-  libavfilter9=7:6.1.1-1ubuntu1 \
-  libavformat60=7:6.1.1-1ubuntu1 \
-  libavdevice-dev \
   libayatana-appindicator3-dev \
   libboost-filesystem-dev=1.83.* \
   libboost-locale-dev=1.83.* \
@@ -67,7 +63,6 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
-  libzvbi-common=0.2.42-1.1 \
   python3.11 \
   python3.11-venv \
   udev \
@@ -81,12 +76,6 @@ fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
-
-# TODO: remove the following... as of 2024-04-03, ubuntu cannot properly resolve the dependencies
-#  libavcodec60=7:6.1.1-1ubuntu1 \
-#  libavfilter9=7:6.1.1-1ubuntu1 \
-#  libavformat60=7:6.1.1-1ubuntu1 \
-#  libzvbi-common=0.2.42-1.1 \
 
 
 #Install Node
