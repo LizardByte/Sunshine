@@ -39,7 +39,7 @@ namespace gl {
   }
 
   tex_t::~tex_t() {
-    if (!size() == 0) {
+    if (size() != 0) {
       ctx.DeleteTextures(size(), begin());
     }
   }
