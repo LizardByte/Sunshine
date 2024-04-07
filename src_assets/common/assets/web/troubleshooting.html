@@ -36,28 +36,25 @@
       </style>
 </head>
 
-<body id="app">
+<body id="app" v-cloak>
   <Navbar></Navbar>
   <div class="container">
-    <h1 class="my-4">Troubleshooting</h1>
+    <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
     <!-- Force Close App -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2 id="close_apps">Force Close</h2>
+        <h2 id="close_apps">{{ $t('troubleshooting.force_close') }}</h2>
         <br>
-        <p>
-          If Moonlight complains about an app currently running, force closing the
-          app should fix the issue.
-        </p>
+        <p>{{ $t('troubleshooting.force_close_desc') }}</p>
         <div class="alert alert-success" v-if="closeAppStatus === true">
-          Application Closed Successfully!
+          {{ $t('troubleshooting.force_close_success') }}
         </div>
         <div class="alert alert-danger" v-if="closeAppStatus === false">
-          Error while closing Application
+          {{ $t('troubleshooting.force_close_error') }}
         </div>
         <div>
           <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
-            Force Close
+            {{ $t('troubleshooting.force_close') }}
           </button>
         </div>
       </div>
@@ -65,18 +62,15 @@
     <!-- Restart Sunshine -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2 id="restart">Restart Sunshine</h2>
+        <h2 id="restart">{{ $t('troubleshooting.restart_sunshine') }}</h2>
         <br>
-        <p>
-          If Sunshine isn't working properly, you can try restarting it.
-          This will terminate any running sessions.
-        </p>
+        <p>{{ $t('troubleshooting.restart_sunshine_desc') }}</p>
         <div class="alert alert-success" v-if="restartPressed === true">
-          Sunshine is restarting
+          {{ $t('troubleshooting.restart_sunshine_success') }}
         </div>
         <div>
           <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
-            Restart Sunshine
+            {{ $t('troubleshooting.restart_sunshine') }}
           </button>
         </div>
       </div>
@@ -84,18 +78,18 @@
     <!-- Unpair all Clients -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2 id="unpair">Unpair All Clients</h2>
+        <h2 id="unpair">{{ $t('troubleshooting.unpair_all') }}</h2>
         <br>
-        <p>Remove all your paired devices</p>
+        <p>{{ $t('troubleshooting.unpair_all_desc') }}</p>
         <div class="alert alert-success" v-if="unpairAllStatus === true">
-          Unpair Successful!
+          {{ $t('troubleshooting.unpair_all_success') }}
         </div>
         <div class="alert alert-danger" v-if="unpairAllStatus === false">
-          Error while unpairing
+          {{ $t('troubleshooting.unpair_all_error') }}
         </div>
         <div>
           <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
-            Unpair All
+            {{ $t('troubleshooting.unpair_all') }}
           </button>
         </div>
       </div>
@@ -103,11 +97,11 @@
     <!-- Logs -->
     <div class="card p-2 my-4">
       <div class="card-body">
-        <h2 id="logs">Logs</h2>
+        <h2 id="logs">{{ $t('troubleshooting.logs') }}</h2>
         <br>
         <div class="d-flex justify-content-between align-items-baseline py-2">
-          <p>See the logs uploaded by Sunshine</p>
-          <input type="text" class="form-control" v-model="logFilter" placeholder="Find..." style="width: 300px">
+          <p>{{ $t('troubleshooting.logs_desc') }}</p>
+          <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" style="width: 300px">
         </div>
         <div>
           <div class="troubleshooting-logs">
@@ -120,6 +114,7 @@
 
   <script type="module">
     import { createApp } from 'vue'
+    import i18n from './locale.js'
     import Navbar from './Navbar.vue'
 
     const app = createApp({
@@ -202,8 +197,11 @@
       },
     });
 
-    app.mount("#app");
+    //Wait for locale initialization, then render
+    i18n().then(i18n => {
+      app.use(i18n);
+      app.mount('#app');
+    });
   </script>
-
 
 </body>

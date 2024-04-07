@@ -47,6 +47,40 @@ editing the `conf` file in a text editor. Use the examples as reference.
 `General <https://localhost:47990/config/#general>`__
 -----------------------------------------------------
 
+`locale <https://localhost:47990/config/#locale>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The locale used for Sunshine's user interface.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =======   ===========
+   Value     Description
+   =======   ===========
+   de        German
+   en        English
+   en_GB     English (UK)
+   en_US     English (United States)
+   es        Spanish
+   fr        French
+   it        Italian
+   ru        Russian
+   sv        Swedish
+   zh        Chinese (Simplified)
+   =======   ===========
+
+**Default**
+   ``en``
+
+**Example**
+   .. code-block:: text
+
+      locale = en
+
 `sunshine_name <https://localhost:47990/config/#sunshine_name>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1489,12 +1523,12 @@ keybindings
    =========== ===========
 
 **Default**
-   ``vbr_latency``
+   ``cbr``
 
 **Example**
    .. code-block:: text
 
-      amd_rc = vbr_latency
+      amd_rc = cbr
 
 `amd_usage <https://localhost:47990/config/#amd_usage>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1509,14 +1543,15 @@ keybindings
 .. table::
    :widths: auto
 
-   =============== ===========
-   Value           Description
-   =============== ===========
-   transcoding     transcoding (slowest)
-   webcam          webcam (slow)
-   lowlatency      low latency (fast)
-   ultralowlatency ultra low latency (fastest)
-   =============== ===========
+   ======================= ===========
+   Value                   Description
+   ======================= ===========
+   transcoding             transcoding (slowest)
+   webcam                  webcam (slow)
+   lowlatency_high_quality low latency, high quality (fast)
+   lowlatency              low latency (faster)
+   ultralowlatency         ultra low latency (fastest)
+   ======================= ===========
 
 **Default**
    ``ultralowlatency``
@@ -1557,6 +1592,22 @@ keybindings
    .. code-block:: text
 
       amd_vbaq = enabled
+
+`amd_enforce_hrd <https://localhost:47990/config/#amd_enforce_hrd>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Enable Hypothetical Reference Decoder (HRD) enforcement to help constrain the target bitrate.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Default**
+   ``enabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_enforce_hrd = enabled
 
 `amd_coder <https://localhost:47990/config/#amd_coder>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

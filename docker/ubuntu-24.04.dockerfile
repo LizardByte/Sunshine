@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1.4
 # artifacts: true
-# platforms: linux/amd64,linux/arm64/v8
+# platforms: linux/amd64
 # platforms_pr: linux/amd64
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=ubuntu
-ARG TAG=20.04
+ARG TAG=24.04
 FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -31,16 +31,18 @@ set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
+  cmake=3.28.* \
   ca-certificates \
-  gcc-10=10.5.* \
-  g++-10=10.5.* \
+  doxygen \
+  gcc-11 \
+  g++-11 \
   git \
+  graphviz \
   libayatana-appindicator3-dev \
-  libavdevice-dev \
-  libboost-filesystem-dev=1.71.* \
-  libboost-locale-dev=1.71.* \
-  libboost-log-dev=1.71.* \
-  libboost-program-options-dev=1.71.* \
+  libboost-filesystem-dev=1.83.* \
+  libboost-locale-dev=1.83.* \
+  libboost-log-dev=1.83.* \
+  libboost-program-options-dev=1.83.* \
   libcap-dev \
   libcurl4-openssl-dev \
   libdrm-dev \
@@ -61,8 +63,12 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
+  python3.11 \
+  python3.11-venv \
   udev \
-  wget
+  wget \
+  x11-xserver-utils \
+  xvfb
 if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
   apt-get install -y --no-install-recommends \
     libmfx-dev
@@ -70,6 +76,7 @@ fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
+
 
 #Install Node
 # hadolint ignore=SC1091
@@ -88,34 +95,12 @@ RUN <<_GCC_ALIAS
 #!/bin/bash
 set -e
 update-alternatives --install \
-  /usr/bin/gcc gcc /usr/bin/gcc-10 100 \
-  --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
-  --slave /usr/bin/gcov gcov /usr/bin/gcov-10 \
-  --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
-  --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
+  /usr/bin/gcc gcc /usr/bin/gcc-11 100 \
+  --slave /usr/bin/g++ g++ /usr/bin/g++-11 \
+  --slave /usr/bin/gcov gcov /usr/bin/gcov-11 \
+  --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-11 \
+  --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-11
 _GCC_ALIAS
-
-# install cmake
-# sunshine requires cmake >= 3.18
-WORKDIR /build/cmake
-# https://cmake.org/download/
-ENV CMAKE_VERSION="3.25.1"
-# hadolint ignore=SC3010
-RUN <<_INSTALL_CMAKE
-#!/bin/bash
-set -e
-cmake_prefix="https://github.com/Kitware/CMake/releases/download/v"
-if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  cmake_arch="x86_64"
-elif [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
-  cmake_arch="aarch64"
-fi
-url="${cmake_prefix}${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${cmake_arch}.sh"
-echo "cmake url: ${url}"
-wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cmake.sh
-sh ./cmake.sh --prefix=/usr/local --skip-license
-rm ./cmake.sh
-_INSTALL_CMAKE
 
 # install cuda
 WORKDIR /build/cuda
@@ -154,6 +139,7 @@ set -e
 #Set Node version
 source "$HOME/.nvm/nvm.sh"
 nvm use 20.9.0
+#Actually build
 cmake \
   -DBUILD_WERROR=ON \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
@@ -169,6 +155,17 @@ cmake \
 make -j "$(nproc)"
 cpack -G DEB
 _MAKE
+
+# run tests
+WORKDIR /build/sunshine/build/tests
+# hadolint ignore=SC1091
+RUN <<_TEST
+#!/bin/bash
+set -e
+export DISPLAY=:1
+Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+./test_sunshine --gtest_color=yes
+_TEST
 
 FROM scratch AS artifacts
 ARG BASE
@@ -197,9 +194,9 @@ EXPOSE 48010
 EXPOSE 47998-48000/udp
 
 # setup user
-ARG PGID=1000
+ARG PGID=1001
 ENV PGID=${PGID}
-ARG PUID=1000
+ARG PUID=1001
 ENV PUID=${PUID}
 ENV TZ="UTC"
 ARG UNAME=lizard
