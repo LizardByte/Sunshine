@@ -1119,6 +1119,7 @@ namespace config {
                                                                    "es"sv,  // Spanish
                                                                    "fr"sv,  // French
                                                                    "it"sv,  // Italian
+                                                                   "ja"sv,  // Japanese
                                                                    "ru"sv,  // Russian
                                                                    "sv"sv,  // Swedish
                                                                    "zh"sv,  // Chinese
