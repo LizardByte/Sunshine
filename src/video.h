@@ -95,7 +95,7 @@ namespace video {
     from_flag(flag_e flag) {
 #define _CONVERT(x) \
   case flag_e::x:   \
-    std::string_view(#x)
+    return std::string_view(#x)
       switch (flag) {
         _CONVERT(PASSED);
         _CONVERT(REF_FRAMES_RESTRICT);
