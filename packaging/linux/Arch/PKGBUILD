@@ -13,6 +13,7 @@ install=sunshine.install
 depends=('avahi'
          'boost-libs'
          'curl'
+         'libappindicator-gtk3'
          'libayatana-appindicator'
          'libcap'
          'libdrm'
