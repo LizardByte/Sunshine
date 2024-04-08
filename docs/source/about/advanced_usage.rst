@@ -1471,72 +1471,19 @@ keybindings
 `AMD AMF Encoder <https://localhost:47990/config/#amd-amf-encoder>`__
 ---------------------------------------------------------------------
 
-`amd_quality <https://localhost:47990/config/#amd_quality>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The encoder preset to use.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   ========== ===========
-   Value      Description
-   ========== ===========
-   speed      prefer speed
-   balanced   balanced
-   quality    prefer quality
-   ========== ===========
-
-**Default**
-   ``balanced``
-
-**Example**
-   .. code-block:: text
-
-      amd_quality = balanced
-
-`amd_rc <https://localhost:47990/config/#amd_rc>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The encoder rate control.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =========== ===========
-   Value       Description
-   =========== ===========
-   cqp         constant qp mode
-   cbr         constant bitrate
-   vbr_latency variable bitrate, latency constrained
-   vbr_peak    variable bitrate, peak constrained
-   =========== ===========
-
-**Default**
-   ``cbr``
-
-**Example**
-   .. code-block:: text
-
-      amd_rc = cbr
-
 `amd_usage <https://localhost:47990/config/#amd_usage>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   The encoder usage profile, used to balance latency with encoding quality.
+   The encoder usage profile is used to set the base set of encoding
+   parameters.
 
    .. note:: This option only applies when using amdvce `encoder`_.
+
+   .. note:: The other AMF options that follow will override a subset
+      of the settings applied by your usage profile, but there are
+      hidden parameters set in usage profiles that cannot be
+      overridden elsewhere.
 
 **Choices**
 
@@ -1561,6 +1508,103 @@ keybindings
 
       amd_usage = ultralowlatency
 
+`amd_rc <https://localhost:47990/config/#amd_rc>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The encoder rate control.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+   .. warning:: The 'vbr_latency' option generally works best, but
+      some bitrate overshoots may still occur. Enabling HRD allows
+      all bitrate based rate controls to better constrain peak bitrate,
+      but may result in encoding artifacts depending on your card.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =========== ===========
+   Value       Description
+   =========== ===========
+   cqp         constant qp mode
+   cbr         constant bitrate
+   vbr_latency variable bitrate, latency constrained
+   vbr_peak    variable bitrate, peak constrained
+   =========== ===========
+
+**Default**
+   ``vbr_latency``
+
+**Example**
+   .. code-block:: text
+
+      amd_rc = vbr_latency
+
+`amd_enforce_hrd <https://localhost:47990/config/#amd_enforce_hrd>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Enable Hypothetical Reference Decoder (HRD) enforcement to help constrain the target bitrate.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+   .. warning:: HRD is known to cause encoding artifacts or negatively affect
+      encoding quality on certain cards.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ======== ===========
+   Value    Description
+   ======== ===========
+   enabled  enable HRD
+   disabled disable HRD
+   ======== ===========
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_enforce_hrd = disabled
+
+`amd_quality <https://localhost:47990/config/#amd_quality>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The quality profile controls the tradeoff between
+   speed and quality of encoding.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ========== ===========
+   Value      Description
+   ========== ===========
+   speed      prefer speed
+   balanced   balanced
+   quality    prefer quality
+   ========== ===========
+
+**Default**
+   ``balanced``
+
+**Example**
+   .. code-block:: text
+
+      amd_quality = balanced
+
+
 `amd_preanalysis <https://localhost:47990/config/#amd_preanalysis>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1581,7 +1625,9 @@ keybindings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality.
+   Variance Based Adaptive Quantization (VBAQ) can increase subjective
+   visual quality by prioritizing allocation of more bits to smooth
+   areas compared to more textured areas.
 
    .. note:: This option only applies when using amdvce `encoder`_.
 
@@ -1592,22 +1638,6 @@ keybindings
    .. code-block:: text
 
       amd_vbaq = enabled
-
-`amd_enforce_hrd <https://localhost:47990/config/#amd_enforce_hrd>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   Enable Hypothetical Reference Decoder (HRD) enforcement to help constrain the target bitrate.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Default**
-   ``enabled``
-
-**Example**
-   .. code-block:: text
-
-      amd_enforce_hrd = enabled
 
 `amd_coder <https://localhost:47990/config/#amd_coder>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
