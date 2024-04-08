@@ -1552,6 +1552,35 @@ namespace platf::dxgi {
         return false;
       }
 
+      // Polaris cards cause artifacts when HRD enforcement is enabled.
+      std::vector<uint32_t> hrd_blacklist_ids = {
+        0x67C0,  // Polaris_10
+        0x67C2,  // Polaris_10
+        0x67C4,  // Polaris_10
+        0x67C7,  // Polaris_10
+        0x67DF,  // Polaris_10
+        0x67E0,  // Polaris_11
+        0x67E3,  // Polaris_11
+        0x67E8,  // Polaris_11
+        0x67EB,  // Polaris_11
+        0x67EF,  // Polaris_11
+        0x67FF,  // Polaris_11
+        0x6981,  // Polaris_12
+        0x6985,  // Polaris_12
+        0x6987,  // Polaris_12
+        0x6995,  // Polaris_12
+        0x699F,  // Polaris_12
+        0x6FDF  // Polaris_10
+      };
+
+      for (uint32_t id : hrd_blacklist_ids) {
+        if (adapter_desc.DeviceId == id) {
+          BOOST_LOG(warning) << "AMF HRD Enforcement: Device ID " << util::hex(id).to_string_view() << " found on blacklist.";
+          ::video::amd_hrd_blacklist = true;
+          break;
+        }
+      }
+
       // Perform AMF version checks if we're using an AMD GPU. This check is placed in display_vram_t
       // to avoid hitting the display_ram_t path which uses software encoding and doesn't touch AMF.
       HMODULE amfrt = LoadLibraryW(AMF_DLL_NAME);

@@ -670,9 +670,9 @@ namespace video {
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "preencode"s, &config::video.amd.amd_preanalysis },
         { "quality"s, &config::video.amd.amd_quality_av1 },
-        { "rc"s, &config::video.amd.amd_rc_av1 },
+        { "rc"s, []() { int ret = config::video.amd.amd_rc_av1.value(); return ret == -1 && amd_hrd_blacklist ? config::video.amd.amd_rc_av1_fallback.value() : ret == -1 ? 3 /* CBR */ : ret; } },
         { "usage"s, &config::video.amd.amd_usage_av1 },
-        { "enforce_hrd"s, &config::video.amd.amd_enforce_hrd },
+        { "enforce_hrd"s, []() { int ret = config::video.amd.amd_enforce_hrd.value(); return ret < 2 ? ret : !amd_hrd_blacklist; } },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -691,10 +691,10 @@ namespace video {
         { "qmax"s, 51 },
         { "qmin"s, 0 },
         { "quality"s, &config::video.amd.amd_quality_hevc },
-        { "rc"s, &config::video.amd.amd_rc_hevc },
+        { "rc"s, []() { int ret = config::video.amd.amd_rc_hevc.value(); return ret == -1 && amd_hrd_blacklist ? config::video.amd.amd_rc_hevc_fallback.value() : ret == -1 ? 3 /* CBR */ : ret; } },
         { "usage"s, &config::video.amd.amd_usage_hevc },
         { "vbaq"s, &config::video.amd.amd_vbaq },
-        { "enforce_hrd"s, &config::video.amd.amd_enforce_hrd },
+        { "enforce_hrd"s, []() { int ret = config::video.amd.amd_enforce_hrd.value(); return ret < 2 ? ret : !amd_hrd_blacklist; } },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -711,10 +711,10 @@ namespace video {
         { "qmax"s, 51 },
         { "qmin"s, 0 },
         { "quality"s, &config::video.amd.amd_quality_h264 },
-        { "rc"s, &config::video.amd.amd_rc_h264 },
+        { "rc"s, []() { int ret = config::video.amd.amd_rc_h264.value(); return ret == -1 && amd_hrd_blacklist ? config::video.amd.amd_rc_h264_fallback.value() : ret == -1 ? 1 /* CBR */ : ret; } },
         { "usage"s, &config::video.amd.amd_usage_h264 },
         { "vbaq"s, &config::video.amd.amd_vbaq },
-        { "enforce_hrd"s, &config::video.amd.amd_enforce_hrd },
+        { "enforce_hrd"s, []() { int ret = config::video.amd.amd_enforce_hrd.value(); return ret < 2 ? ret : !amd_hrd_blacklist; } },
       },
       // SDR-specific options
       {},
@@ -937,6 +937,7 @@ namespace video {
   static encoder_t *chosen_encoder;
   int active_hevc_mode;
   int active_av1_mode;
+  bool amd_hrd_blacklist = false;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
 
   void

@@ -48,18 +48,21 @@ namespace config {
     } qsv;
 
     struct {
-      std::optional<int> amd_quality_h264;
-      std::optional<int> amd_quality_hevc;
-      std::optional<int> amd_quality_av1;
-      std::optional<int> amd_rc_h264;
-      std::optional<int> amd_rc_hevc;
-      std::optional<int> amd_rc_av1;
       std::optional<int> amd_usage_h264;
       std::optional<int> amd_usage_hevc;
       std::optional<int> amd_usage_av1;
+      std::optional<int> amd_rc_h264;
+      std::optional<int> amd_rc_hevc;
+      std::optional<int> amd_rc_av1;
+      std::optional<int> amd_rc_h264_fallback;
+      std::optional<int> amd_rc_hevc_fallback;
+      std::optional<int> amd_rc_av1_fallback;
+      std::optional<int> amd_enforce_hrd;
+      std::optional<int> amd_quality_h264;
+      std::optional<int> amd_quality_hevc;
+      std::optional<int> amd_quality_av1;
       std::optional<int> amd_preanalysis;
       std::optional<int> amd_vbaq;
-      std::optional<int> amd_enforce_hrd;
       int amd_coder;
     } amd;
 

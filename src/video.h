@@ -316,6 +316,7 @@ namespace video {
 
   extern int active_hevc_mode;
   extern int active_av1_mode;
+  extern bool amd_hrd_blacklist;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
 
   void
