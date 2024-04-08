@@ -49,7 +49,7 @@
     "env_client_enable_sops": "客户端请求自动更改游戏设置以实现最佳串流效果 (true/false)",
     "env_client_fps": "客户请求的 FPS (int)",
     "env_client_gcmap": "客户端请求的游戏手柄掩码，采用 bitset/bitfield 格式 (int)",
-    "env_client_hdr": "客户端已启用 HDR (true/false)",
+    "env_client_hdr": "HDR 已被客户端启用 (true/false)",
     "env_client_height": "客户端请求的高度 (int)",
     "env_client_host_audio": "客户端请求在主机播放声音 (true/false)",
     "env_client_width": "客户端请求的宽度 (int)",
