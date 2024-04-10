@@ -1675,7 +1675,7 @@ namespace platf {
         if (!fb->handles[0]) {
           BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
           BOOST_LOG((window_system != window_system_e::X11 || config::video.capture == "kms") ? fatal : error)
-            << "You must run [sudo setcap cap_sys_admin+p $(readlink -f sunshine)] for KMS display capture to work!"sv;
+            << "You must run [sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))] for KMS display capture to work!"sv;
           break;
         }
 
