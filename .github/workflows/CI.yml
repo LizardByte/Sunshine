@@ -510,8 +510,10 @@ jobs:
         if: always() && (steps.test_report.outcome == 'success')
         uses: codecov/codecov-action@v3
         with:
+          fail_ci_if_error: true
           files: ./build/coverage.xml
           flags: ${{ runner.os }}
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.create_release == 'true' }}
@@ -833,8 +835,10 @@ jobs:
         if: always() && (steps.test_report.outcome == 'success')
         uses: codecov/codecov-action@v3
         with:
+          fail_ci_if_error: true
           files: ./build/coverage.xml
           flags: ${{ runner.os }}-${{ matrix.os_version }}
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.create_release == 'true' && matrix.release }}
@@ -1069,8 +1073,10 @@ jobs:
         if: always() && (steps.test_report.outcome == 'success')
         uses: codecov/codecov-action@v3
         with:
+          fail_ci_if_error: true
           files: ./build/coverage.xml
           flags: ${{ runner.os }}
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Package Windows Debug Info
         working-directory: build
