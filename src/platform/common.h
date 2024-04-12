@@ -10,7 +10,9 @@
 #include <mutex>
 #include <string>
 
+#include "src/config.h"
 #include "src/logging.h"
+#include "src/stat_trackers.h"
 #include "src/thread_safe.h"
 #include "src/utility.h"
 #include "src/video_colorspace.h"
@@ -18,6 +20,8 @@
 extern "C" {
 #include <moonlight-common-c/src/Limelight.h>
 }
+
+using namespace std::literals;
 
 struct sockaddr;
 struct AVFrame;
@@ -499,6 +503,22 @@ namespace platf {
     int env_width, env_height;
 
     int width, height;
+
+  protected:
+    // collect capture timing data (at loglevel debug)
+    stat_trackers::min_max_avg_tracker<double> sleep_overshoot_tracker;
+    void
+    log_sleep_overshoot(std::chrono::nanoseconds overshoot_ns) {
+      if (config::sunshine.min_log_level <= 1) {
+        // Print sleep overshoot stats to debug log every 20 seconds
+        auto print_info = [&](double min_overshoot, double max_overshoot, double avg_overshoot) {
+          auto f = stat_trackers::one_digit_after_decimal();
+          BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
+        };
+        // std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - next_frame;
+        sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
+      }
+    }
   };
 
   class mic_t {
