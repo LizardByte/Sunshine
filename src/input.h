@@ -32,6 +32,11 @@ namespace input {
     float client_offsetX, client_offsetY;
 
     float scalar_inv;
+
+    explicit
+    operator bool() const {
+      return width != 0 && height != 0 && env_width != 0 && env_height != 0;
+    }
   };
 
   std::pair<float, float>
