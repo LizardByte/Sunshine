@@ -1274,7 +1274,11 @@ namespace video {
     auto &vps = session.vps;
 
     // send the frame to the encoder
+    auto start = std::chrono::steady_clock::now();
     auto ret = avcodec_send_frame(ctx.get(), frame);
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double, std::milli> elapsed = end - start;
+    BOOST_LOG(debug) << "Frame number, encoding time (ms): "sv << frame_nr << ", " << elapsed.count();
     if (ret < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
       BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
