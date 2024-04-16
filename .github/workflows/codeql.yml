@@ -16,7 +16,7 @@ on:
     - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -57,10 +57,25 @@ jobs:
                 console.log(`Remapping language: ${key} to ${remap_languages[key.toLowerCase()]}`)
                 key = remap_languages[key.toLowerCase()]
               }
-              if (supported_languages.includes(key.toLowerCase()) &&
-                  !matrix['include'].includes({"language": key.toLowerCase()})) {
+              if (supported_languages.includes(key.toLowerCase())) {
                 console.log(`Found supported language: ${key}`)
-                matrix['include'].push({"language": key.toLowerCase()})
+                let osList = ['ubuntu-latest'];
+                if (key.toLowerCase() === 'swift') {
+                  osList = ['macos-latest'];
+                } else if (key.toLowerCase() === 'cpp') {
+                  osList = ['macos-latest', 'ubuntu-latest', 'windows-latest'];
+                }
+                for (let os of osList) {
+                  // set name for matrix
+                  if (osList.length == 1) {
+                    name = key.toLowerCase()
+                  } else {
+                    name = `${key.toLowerCase()}, ${os}`
+                  }
+
+                  // add to matrix
+                  matrix['include'].push({"language": key.toLowerCase(), "os": os, "name": name})
+                }
               }
             }
 
@@ -84,10 +99,15 @@ jobs:
             }
 
   analyze:
-    name: Analyze
+    name: Analyze (${{ matrix.name }})
     if: ${{ needs.languages.outputs.continue == 'true' }}
+    defaults:
+      run:
+        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }}
+    env:
+      GITHUB_CODEQL_BUILD: true
     needs: [languages]
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
     permissions:
       actions: read
@@ -100,6 +120,7 @@ jobs:
 
     steps:
       - name: Maximize build space
+        if: runner.os == 'Linux'
         uses: easimon/maximize-build-space@v8
         with:
           root-reserve-mb: 20480
@@ -113,6 +134,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Setup msys2
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
@@ -129,16 +156,20 @@ jobs:
 
       # Pre autobuild
       # create a file named .codeql-prebuild-${{ matrix.language }}.sh in the root of your repository
+      # create a file named .codeql-build-${{ matrix.language }}.sh in the root of your repository
       - name: Prebuild
+        id: prebuild
         run: |
-          # check if .qodeql-prebuild-${{ matrix.language }}.sh exists
-          if [ -f "./.codeql-prebuild-${{ matrix.language }}.sh" ]; then
-            echo "Running .codeql-prebuild-${{ matrix.language }}.sh"
-            ./.codeql-prebuild-${{ matrix.language }}.sh
+          # check if prebuild script exists
+          filename=".codeql-prebuild-${{ matrix.language }}-${{ runner.os }}.sh"
+          if [ -f "./${filename}" ]; then
+            echo "Running prebuild script: ${filename}"
+            ./${filename}
           fi
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
       - name: Autobuild
+        if: steps.prebuild.outputs.skip_autobuild != 'true'
         uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis

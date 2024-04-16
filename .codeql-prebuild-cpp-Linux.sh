@@ -54,3 +54,12 @@ sudo wget \
 sudo chmod a+x /root/cuda.run
 sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
 sudo rm /root/cuda.run
+
+# build
+mkdir -p build
+cd build || exit 1
+cmake -G "Unix Makefiles" ..
+mingw32-make -j"$(nproc)"
+
+# skip autobuild
+echo "skip_autobuild=true" >> "$GITHUB_OUTPUT"
