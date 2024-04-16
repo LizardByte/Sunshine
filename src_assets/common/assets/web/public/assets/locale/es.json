@@ -258,7 +258,7 @@
     "qp_desc": "Algunos dispositivos pueden no soportar tasa de bits constante. Para esos dispositivos, se utiliza QP en su lugar. Un valor más alto significa más compresión, pero menos calidad.",
     "qsv_coder": "Codificador QuickSync (H264)",
     "qsv_preset": "Preajuste QuickSync",
-    "qsv_preset_fast": "más rápido (menor calidad)",
+    "qsv_preset_fast": "rápido (baja calidad)",
     "qsv_preset_faster": "más rápido (menor calidad)",
     "qsv_preset_medium": "medio (por defecto)",
     "qsv_preset_slow": "lento (buena calidad)",
