@@ -34,6 +34,8 @@ namespace audio {
   start_audio_control(audio_ctx_t &ctx);
   static void
   stop_audio_control(audio_ctx_t &);
+  static void
+  apply_surround_params(opus_stream_config_t &stream, const stream_params_t &params);
 
   int
   map_stream(int channels, bool quality);
@@ -98,28 +100,31 @@ namespace audio {
   void
   encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
     auto packets = mail::man->queue<packet_t>(mail::audio_packets);
-    auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
+    auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
+    if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
+      apply_surround_params(stream, config.customStreamParams);
+    }
 
     // Encoding takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     opus_t opus { opus_multistream_encoder_create(
-      stream->sampleRate,
-      stream->channelCount,
-      stream->streams,
-      stream->coupledStreams,
-      stream->mapping,
+      stream.sampleRate,
+      stream.channelCount,
+      stream.streams,
+      stream.coupledStreams,
+      stream.mapping,
       OPUS_APPLICATION_RESTRICTED_LOWDELAY,
       nullptr) };
 
-    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(stream->bitrate));
+    opus_multistream_encoder_ctl(opus.get(), OPUS_SET_BITRATE(stream.bitrate));
     opus_multistream_encoder_ctl(opus.get(), OPUS_SET_VBR(0));
 
-    BOOST_LOG(info) << "Opus initialized: "sv << stream->sampleRate / 1000 << " kHz, "sv
-                    << stream->channelCount << " channels, "sv
-                    << stream->bitrate / 1000 << " kbps (total), LOWDELAY"sv;
+    BOOST_LOG(info) << "Opus initialized: "sv << stream.sampleRate / 1000 << " kHz, "sv
+                    << stream.channelCount << " channels, "sv
+                    << stream.bitrate / 1000 << " kbps (total), LOWDELAY"sv;
 
-    auto frame_size = config.packetDuration * stream->sampleRate / 1000;
+    auto frame_size = config.packetDuration * stream.sampleRate / 1000;
     while (auto sample = samples->pop()) {
       buffer_t packet { 1400 };
 
@@ -139,7 +144,10 @@ namespace audio {
   void
   capture(safe::mail_t mail, config_t config, void *channel_data) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
-    auto stream = &stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
+    auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
+    if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
+      apply_surround_params(stream, config.customStreamParams);
+    }
 
     auto ref = control_shared.ref();
     if (!ref) {
@@ -171,7 +179,7 @@ namespace audio {
     // Prefer the virtual sink if host playback is disabled or there's no other sink
     if (ref->sink.null && (!config.flags[config_t::HOST_AUDIO] || sink->empty())) {
       auto &null = *ref->sink.null;
-      switch (stream->channelCount) {
+      switch (stream.channelCount) {
         case 2:
           sink = &null.stereo;
           break;
@@ -195,8 +203,8 @@ namespace audio {
       }
     }
 
-    auto frame_size = config.packetDuration * stream->sampleRate / 1000;
-    auto mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
+    auto frame_size = config.packetDuration * stream.sampleRate / 1000;
+    auto mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size);
     if (!mic) {
       return;
     }
@@ -217,7 +225,7 @@ namespace audio {
       shutdown_event->view();
     });
 
-    int samples_per_frame = frame_size * stream->channelCount;
+    int samples_per_frame = frame_size * stream.channelCount;
 
     while (!shutdown_event->peek()) {
       std::vector<std::int16_t> sample_buffer;
@@ -233,7 +241,7 @@ namespace audio {
           BOOST_LOG(info) << "Reinitializing audio capture"sv;
           mic.reset();
           do {
-            mic = control->microphone(stream->mapping, stream->channelCount, stream->sampleRate, frame_size);
+            mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size);
             if (!mic) {
               BOOST_LOG(warning) << "Couldn't re-initialize audio input"sv;
             }
@@ -302,5 +310,13 @@ namespace audio {
       // Best effort, it's allowed to fail
       ctx.control->set_sink(sink);
     }
+  }
+
+  void
+  apply_surround_params(opus_stream_config_t &stream, const stream_params_t &params) {
+    stream.channelCount = params.channelCount;
+    stream.streams = params.streams;
+    stream.coupledStreams = params.coupledStreams;
+    stream.mapping = params.mapping;
   }
 }  // namespace audio

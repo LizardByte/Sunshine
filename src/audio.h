@@ -26,18 +26,28 @@ namespace audio {
     int bitrate;
   };
 
+  struct stream_params_t {
+    int channelCount;
+    int streams;
+    int coupledStreams;
+    std::uint8_t mapping[8];
+  };
+
   extern opus_stream_config_t stream_configs[MAX_STREAM_CONFIG];
 
   struct config_t {
     enum flags_e : int {
       HIGH_QUALITY,
       HOST_AUDIO,
+      CUSTOM_SURROUND_PARAMS,
       MAX_FLAGS
     };
 
     int packetDuration;
     int channels;
     int mask;
+
+    stream_params_t customStreamParams;
 
     std::bitset<MAX_FLAGS> flags;
   };
