@@ -1,4 +1,5 @@
 # install dependencies for C++ analysis
+set -e
 
 # update pacman
 pacman --noconfirm -Suy
@@ -6,7 +7,6 @@ pacman --noconfirm -Suy
 # install dependencies
 pacman --noconfirm -S \
   base-devel \
-  cmake \
   diffutils \
   gcc \
   git \

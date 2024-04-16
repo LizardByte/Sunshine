@@ -1,4 +1,5 @@
 # install dependencies for C++ analysis
+set -e
 
 # install dependencies
 brew install \
@@ -13,7 +14,7 @@ brew install \
 mkdir -p build
 cd build || exit 1
 cmake -G "Unix Makefiles" ..
-mingw32-make -j"$(sysctl -n hw.logicalcpu)"
+make -j"$(sysctl -n hw.logicalcpu)"
 
 # skip autobuild
 echo "skip_autobuild=true" >> "$GITHUB_OUTPUT"
