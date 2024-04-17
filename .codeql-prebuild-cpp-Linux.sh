@@ -1,4 +1,5 @@
 # install dependencies for C++ analysis
+set -e
 
 sudo apt-get update -y
 sudo apt-get install -y \
@@ -59,7 +60,7 @@ sudo rm /root/cuda.run
 mkdir -p build
 cd build || exit 1
 cmake -G "Unix Makefiles" ..
-mingw32-make -j"$(nproc)"
+make -j"$(nproc)"
 
 # skip autobuild
 echo "skip_autobuild=true" >> "$GITHUB_OUTPUT"
