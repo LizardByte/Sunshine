@@ -507,7 +507,10 @@ jobs:
 
       - name: Upload coverage
         # any except canceled or skipped
-        if: always() && (steps.test_report.outcome == 'success')
+        if: >-
+          always() &&
+          (steps.test_report.outcome == 'success') &&
+          startsWith(github.repository, 'LizardByte/')
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: true
@@ -832,7 +835,10 @@ jobs:
 
       - name: Upload coverage
         # any except canceled or skipped
-        if: always() && (steps.test_report.outcome == 'success')
+        if: >-
+          always() &&
+          (steps.test_report.outcome == 'success') &&
+          startsWith(github.repository, 'LizardByte/')
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: false  # todo: re-enable this when action is fixed
@@ -1070,7 +1076,10 @@ jobs:
 
       - name: Upload coverage
         # any except canceled or skipped
-        if: always() && (steps.test_report.outcome == 'success')
+        if: >-
+          always() &&
+          (steps.test_report.outcome == 'success') &&
+          startsWith(github.repository, 'LizardByte/')
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: true
