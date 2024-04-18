@@ -51,6 +51,10 @@ configure.args           -DBUILD_WERROR=ON \
                          -DCMAKE_INSTALL_PREFIX=${prefix} \
                          -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets
 
+configure.env-append     BRANCH=@GITHUB_BRANCH@
+configure.env-append     BUILD_VERSION=@BUILD_VERSION@
+configure.env-append     COMMIT=@GITHUB_COMMIT@
+
 startupitem.create       yes
 startupitem.executable   "${prefix}/bin/{$name}"
 startupitem.location     LaunchDaemons

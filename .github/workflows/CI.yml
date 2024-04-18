@@ -211,6 +211,7 @@ jobs:
           then
             echo "This is a PUSH event"
             branch=${{ github.ref_name }}
+            build_version=${{ needs.check_changelog.outputs.next_version }}
             commit=${{ github.sha }}
             clone_url=${{ github.event.repository.clone_url }}
           else
@@ -227,6 +228,7 @@ jobs:
 
           cd build
           cmake -DGITHUB_CLONE_URL=${clone_url} \
+            -DBUILD_VERSION=${build_version} \
             -DGITHUB_BRANCH=${branch} \
             -DGITHUB_COMMIT=${commit} \
             -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
@@ -377,7 +379,7 @@ jobs:
       - name: Build Linux
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         timeout-minutes: 5
         run: |
@@ -565,13 +567,16 @@ jobs:
           if [ -z "$branch" ]
           then
             echo "This is a PUSH event"
+            build_version=${{ needs.check_changelog.outputs.next_version }}
             clone_url=${{ github.event.repository.clone_url }}
             branch="${{ github.ref_name }}"
+            commit=${{ github.sha }}
             default_branch="${{ github.event.repository.default_branch }}"
           else
             echo "This is a PR event"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
             branch="${{ github.event.pull_request.head.ref }}"
+            commit=${{ github.event.pull_request.head.sha }}
             default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
           fi
           echo "Branch: ${branch}"
@@ -580,7 +585,9 @@ jobs:
           mkdir build
           cd build
           cmake \
+            -DBUILD_VERSION="${build_version}" \
             -DGITHUB_BRANCH="${branch}" \
+            -DGITHUB_COMMIT="${commit}" \
             -DGITHUB_CLONE_URL="${clone_url}" \
             -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
             -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
@@ -678,6 +685,8 @@ jobs:
           if [ -z "$branch" ]
           then
             echo "This is a PUSH event"
+            branch="${{ github.ref_name }}"
+            build_version=${{ needs.check_changelog.outputs.next_version }}
             commit=${{ github.sha }}
             clone_url=${{ github.event.repository.clone_url }}
           else
@@ -691,6 +700,8 @@ jobs:
           mkdir build
           cd build
           cmake \
+            -DBUILD_VERSION=${build_version} \
+            -DGITHUB_BRANCH=${branch} \
             -DGITHUB_COMMIT=${commit} \
             -DGITHUB_CLONE_URL=${clone_url} \
             -DSUNSHINE_CONFIGURE_PORTFILE=ON \
@@ -1024,7 +1035,7 @@ jobs:
         shell: msys2 {0}
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version_bare }}
+          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           mkdir build

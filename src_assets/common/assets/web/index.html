@@ -112,10 +112,16 @@
       stableBuildAvailable() {
         // If we can't get versions, return false
         if (!this.githubVersion || !this.version) return false;
+
         // Get the GitHub version tag
-        let v = this.githubVersion.name;
+        let v_github = this.githubVersion.name;
         // If the version starts with a v, remove it
-        if (v.indexOf("v") === 0) v = v.substring(1);
+        if (v_github.indexOf("v") === 0) v_github = v_github.substring(1);
+
+        // Get the current version
+        let v_this = this.version;
+        // If the version starts with a v, remove it
+        if (v_this.indexOf("v") === 0) v_this = v_this.substring(1);
 
         // if nightly or dirty, we do an additional check to make sure it's an actual upgrade.
         if (this.buildVersionIsNightly || this.buildVersionIsDirty) {
@@ -124,7 +130,7 @@
         }
 
         // return true if the version is different, otherwise false
-        return v !== this.version;
+        return v_github !== v_this;
       },
       nightlyBuildAvailable() {
         // Verify nightly data is available and the build version is not stable
