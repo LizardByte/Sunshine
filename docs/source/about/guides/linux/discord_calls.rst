@@ -13,7 +13,7 @@ How to not stream Discord call audio
 
 #. In Discord - `Right Click` - `Deafen` - Select your normal `Output Device`
 
-    This is also where you will need to adjust output volume for Discord calls
+   This is also where you will need to adjust output volume for Discord calls
 
    .. image:: ../../../images/discord_calls_03.png
 
