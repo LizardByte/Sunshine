@@ -612,7 +612,10 @@ keybindings
 
          output_name = 0
 
-   .. todo:: macOS
+   **macOS**
+      .. code-block:: text
+
+         output_name = 3
 
    **Windows**
       .. code-block:: text
