@@ -587,7 +587,16 @@ keybindings
 
          You need to use the value before the colon in the output, e.g. ``1``.
 
-      .. todo:: macOS
+      **macOS**
+        During Sunshine startup, you should see the list of detected displays:
+
+        .. code-block:: text
+
+           Info: Detecting displays...
+           Info: Detected display: M27P20 (id: 3)
+           Info: Detected display: 27M2U Pro (id: 2)
+
+        You need to use the value inside the parenthesis, e.g. ``3``.
 
       **Windows**
          .. code-block:: batch
