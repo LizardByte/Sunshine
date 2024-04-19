@@ -1,6 +1,6 @@
 {
   "_common": {
-    "apply": "Applique",
+    "apply": "Appliquer",
     "auto": "Automatique",
     "autodetect": "Détection automatique (recommandé)",
     "cancel": "Annuler",
@@ -24,7 +24,7 @@
   "apps": {
     "actions": "Actions",
     "add_cmds": "Ajouter des commandes",
-    "add_new": "Ajouter une nouvelle",
+    "add_new": "Ajouter une autre",
     "app_name": "Nom de l'application",
     "app_name_desc": "Nom de l'application, affiché dans Moonlight",
     "applications_desc": "Les applications ne sont actualisées qu'au redémarrage du client",
@@ -255,7 +255,7 @@
     "port_warning": "Exposer l'interface Web à Internet est un risque de sécurité ! Procédez à vos propres risques !",
     "port_web_ui": "Interface Web",
     "qp": "Paramètre de quantification",
-    "qp_desc": "Certains périphériques peuvent ne pas prendre en charge le taux de bits constant. Pour ces périphériques, QP est utilisé à la place. Une valeur plus élevée signifie plus de compression, mais moins de qualité.",
+    "qp_desc": "Certains appareils peuvent ne pas prendre en charge un taux de bits constant. Pour ceux-ci, QP est utilisé à la place. Une valeur plus élevée signifie plus de compression, mais moins de qualité.",
     "qsv_coder": "Codeur QuickSync (H264)",
     "qsv_preset": "QuickSync Preset",
     "qsv_preset_fast": "plus rapide (qualité inférieure)",
