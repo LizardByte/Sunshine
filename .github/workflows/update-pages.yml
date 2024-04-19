@@ -51,7 +51,7 @@ jobs:
         if: >-
           (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
           (github.event_name == 'workflow_dispatch')
-        uses: actions-js/push@v1.4
+        uses: actions-js/push@v1.5
         with:
           github_token: ${{ secrets.GH_BOT_TOKEN }}
           author_email: ${{ secrets.GH_BOT_EMAIL }}
