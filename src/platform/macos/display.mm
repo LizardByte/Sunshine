@@ -154,6 +154,12 @@ namespace platf {
         }
       }
     }
+    std::vector<std::string> display_names = platf::display_names(mem_type_e::videotoolbox);
+    BOOST_LOG(info) << "Available displays:"sv;
+    for (const auto &name : display_names) {
+      BOOST_LOG(info) << "   " << name;
+    }
+    BOOST_LOG(info) << "Selected display: "sv << display_name;
 
     display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
 

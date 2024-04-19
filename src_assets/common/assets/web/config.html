@@ -407,6 +407,14 @@
             </pre>
           </div>
         </div>
+        <div class="mb-3" v-if="platform === 'macos'">
+          <label for="output_name" class="form-label">{{ $t('config.output_name_macos') }}</label>
+          <input type="text" class="form-control" id="output_name" placeholder="2"
+                 v-model="config.output_name" />
+          <div class="form-text">
+            {{ $t('config.output_name_desc_macos') }}<br>
+          </div>
+        </div>
 
         <!-- Display Modes -->
         <div class="mb-3">
