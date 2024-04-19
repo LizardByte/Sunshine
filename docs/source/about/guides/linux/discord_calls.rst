@@ -23,8 +23,8 @@ How to not stream Discord call audio
 
 #. Connect `sunshine [sunshine-record]` to your normal `Output Device`
 
-* Drag `monitor_FL` to `playback_FL`
+   * Drag `monitor_FL` to `playback_FL`
 
-* Drag `monitor_FR` to `playback_FR`
+   * Drag `monitor_FR` to `playback_FR`
 
-  .. image:: ../../../images/discord_calls_05.png
+   .. image:: ../../../images/discord_calls_05.png
