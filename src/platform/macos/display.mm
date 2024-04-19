@@ -142,24 +142,22 @@ namespace platf {
 
     auto display = std::make_shared<av_display_t>();
 
+    // Default to main display
     display->display_id = CGMainDisplayID();
-    if (!display_name.empty()) {
-      auto display_array = [AVVideo displayNames];
 
-      for (NSDictionary *item in display_array) {
-        NSString *name = item[@"name"];
-        if (name.UTF8String == display_name) {
-          NSNumber *display_id = item[@"id"];
-          display->display_id = [display_id unsignedIntValue];
-        }
+    // Print all displays available with it's name and id
+    auto display_array = [AVVideo displayNames];
+    BOOST_LOG(info) << "Detecting displays..."sv;
+    for (NSDictionary *item in display_array) {
+      NSNumber *display_id = item[@"id"];
+      // We need show display's product name and corresponding display number given by user
+      NSString *name = item[@"displayName"];
+      BOOST_LOG(info) << "Detected display: "sv << name.UTF8String << " (id: "sv << [NSString stringWithFormat:@"%@", display_id].UTF8String << ")"sv;
+      if (!display_name.empty() && std::atoi(display_name.c_str()) == [display_id unsignedIntValue]) {
+        display->display_id = [display_id unsignedIntValue];
       }
     }
-    std::vector<std::string> display_names = platf::display_names(mem_type_e::videotoolbox);
-    BOOST_LOG(info) << "Available displays:"sv;
-    for (const auto &name : display_names) {
-      BOOST_LOG(info) << "   " << name;
-    }
-    BOOST_LOG(info) << "Selected display: "sv << display_name;
+    BOOST_LOG(info) << "Selected display id: "sv << display->display_id;
 
     display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
 
