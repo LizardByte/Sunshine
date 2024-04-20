@@ -154,7 +154,7 @@ namespace platf::dxgi {
       SetThreadExecutionState(ES_CONTINUOUS);
     });
 
-    stat_trackers::min_max_avg_tracker<double> sleep_overshoot_tracker;
+    sleep_overshoot_tracker.reset();
 
     while (true) {
       // This will return false if the HDR state changes or for any number of other
@@ -184,16 +184,8 @@ namespace platf::dxgi {
         }
         else {
           high_precision_sleep(sleep_period);
-
-          if (config::sunshine.min_log_level <= 1) {
-            // Print sleep overshoot stats to debug log every 20 seconds
-            auto print_info = [&](double min_overshoot, double max_overshoot, double avg_overshoot) {
-              auto f = stat_trackers::one_digit_after_decimal();
-              BOOST_LOG(debug) << "Sleep overshoot (min/max/avg): " << f % min_overshoot << "ms/" << f % max_overshoot << "ms/" << f % avg_overshoot << "ms";
-            };
-            std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - sleep_target;
-            sleep_overshoot_tracker.collect_and_callback_on_interval(overshoot_ns.count() / 1000000., print_info, 20s);
-          }
+          std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - sleep_target;
+          log_sleep_overshoot(overshoot_ns);
 
           status = snapshot(pull_free_image_cb, img_out, 0ms, *cursor);
 

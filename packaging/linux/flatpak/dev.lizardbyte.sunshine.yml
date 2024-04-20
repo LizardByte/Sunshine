@@ -329,6 +329,9 @@ modules:
       build-args:
         - --share=network
       env:
+        BUILD_VERSION: "@BUILD_VERSION@"
+        BRANCH: "@GITHUB_BRANCH@"
+        COMMIT: "@GITHUB_COMMIT@"
         npm_config_nodedir: /usr/lib/sdk/node18
         NPM_CONFIG_LOGLEVEL: info
     config-opts:

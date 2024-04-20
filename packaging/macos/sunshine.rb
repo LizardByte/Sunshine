@@ -19,6 +19,10 @@ class @PROJECT_NAME@ < Formula
   depends_on "opus"
 
   def install
+    ENV["BRANCH"] = "@GITHUB_BRANCH@"
+    ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
+    ENV["COMMIT"] = "@GITHUB_COMMIT@"
+
     args = %W[
       -DBUILD_WERROR=ON
       -DCMAKE_INSTALL_PREFIX=#{prefix}
