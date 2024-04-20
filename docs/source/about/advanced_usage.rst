@@ -573,30 +573,17 @@ keybindings
 
    .. tip:: To find the name of the appropriate values follow these instructions.
 
-      **Linux**
-         During Sunshine startup, you should see the list of detected monitors:
+      **Linux&macOS**
+         During Sunshine startup, you should see the list of detected displays:
 
          .. code-block:: text
 
-            Info: Detecting connected monitors
-            Info: Detected monitor 0: DVI-D-0, connected: false
-            Info: Detected monitor 1: HDMI-0, connected: true
-            Info: Detected monitor 2: DP-0, connected: true
-            Info: Detected monitor 3: DP-1, connected: false
-            Info: Detected monitor 4: DVI-D-1, connected: false
+            Info: Detecting displays...
+            Info: Detected display: Monitor-3 (id: 4) connected: true
+            Info: Detected display: Monitor-2 (id: 3) connected: true
+            Info: Detected display: Monitor-1 (id: 2) connected: false
 
-         You need to use the value before the colon in the output, e.g. ``1``.
-
-      **macOS**
-        During Sunshine startup, you should see the list of detected displays:
-
-        .. code-block:: text
-
-           Info: Detecting displays...
-           Info: Detected display: M27P20 (id: 3)
-           Info: Detected display: 27M2U Pro (id: 2)
-
-        You need to use the value inside the parenthesis, e.g. ``3``.
+         You need to use the value inside the parenthesis, e.g. ``3``.
 
       **Windows**
          .. code-block:: batch
