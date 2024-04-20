@@ -391,11 +391,11 @@
             <pre>tools\dxgi-info.exe</pre>
           </div>
         </div>
-        <div class="mb-3" v-if="platform === 'linux'">
-          <label for="output_name" class="form-label">{{ $t('config.output_name_linux') }}</label>
+        <div class="mb-3" v-if="platform === 'linux' || platform === 'macos'">
+          <label for="output_name" class="form-label">{{ $t('config.output_name_unix') }}</label>
           <input type="text" class="form-control" id="output_name" placeholder="0" v-model="config.output_name" />
           <div class="form-text">
-            {{ $t('config.output_name_desc_linux') }}<br>
+            {{ $t('config.output_name_desc_unix') }}<br>
             <br>
             <pre style="white-space: pre-line;">
               Info: Detecting displays...
@@ -406,20 +406,6 @@
               Info: Detected display: DVI-D-1 (id: 4) connected: false
             </pre>
           </div>
-        </div>
-        <div class="mb-3" v-if="platform === 'macos'">
-          <label for="output_name" class="form-label">{{ $t('config.output_name_macos') }}</label>
-          <input type="text" class="form-control" id="output_name" placeholder="2"
-                 v-model="config.output_name" />
-          <div class="form-text">
-            {{ $t('config.output_name_desc_macos') }}<br>
-          </div>
-          <pre style="white-space: pre-line;">
-            Info: Detecting displays...
-            Info: Detected display: Monitor-2 (id: 4) connected: true
-            Info: Detected display: Monitor-1 (id: 3) connected: true
-            Info: Detected display: Monitor-0 (id: 2) connected: true
-          </pre>
         </div>
 
         <!-- Display Modes -->
