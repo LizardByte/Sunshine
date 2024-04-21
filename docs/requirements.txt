@@ -3,6 +3,7 @@ furo==2024.1.29
 m2r2==0.3.3.post2
 rstcheck[sphinx]==6.2.1
 rstfmt==0.0.14
+setuptools  # required by m2r2, Ubuntu 24.04 doesn't include this
 Sphinx==7.2.6
 sphinx-copybutton==0.5.2
 sphinx_inline_tabs==2023.4.21

@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <codecvt>
 #include <csignal>
 #include <fstream>
 #include <iostream>

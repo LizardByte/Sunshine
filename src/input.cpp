@@ -469,14 +469,18 @@ namespace input {
    * @param input The input context.
    * @param val The cartesian coordinate pair to convert.
    * @param size The size of the client's surface containing the value.
-   * @return The host-relative coordinate pair.
+   * @return The host-relative coordinate pair if a touchport is available.
    */
-  std::pair<float, float>
+  std::optional<std::pair<float, float>>
   client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
     auto &touch_port_event = input->touch_port_event;
     auto &touch_port = input->touch_port;
     if (touch_port_event->peek()) {
       touch_port = *touch_port_event->pop();
+    }
+    if (!touch_port) {
+      BOOST_LOG(verbose) << "Ignoring early absolute input without a touch port"sv;
+      return std::nullopt;
     }
 
     auto scalarX = touch_port.width / size.first;
@@ -491,7 +495,7 @@ namespace input {
     x = std::clamp(x, offsetX, (size.first * scalarX) - offsetX);
     y = std::clamp(y, offsetY, (size.second * scalarY) - offsetY);
 
-    return { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
+    return std::pair { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
   }
 
   /**
@@ -561,6 +565,9 @@ namespace input {
     auto height = (float) util::endian::big(packet->height);
 
     auto tpcoords = client_to_touchport(input, { x, y }, { width, height });
+    if (!tpcoords) {
+      return;
+    }
 
     auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
@@ -568,7 +575,7 @@ namespace input {
       touch_port.env_width, touch_port.env_height
     };
 
-    platf::abs_mouse(platf_input, abs_port, tpcoords.first, tpcoords.second);
+    platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
   }
 
   void
@@ -918,6 +925,9 @@ namespace input {
       { from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f,
         from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f },
       { 65535.f, 65535.f });
+    if (!coords) {
+      return;
+    }
 
     auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
@@ -926,8 +936,8 @@ namespace input {
     };
 
     // Renormalize the coordinates
-    coords.first /= abs_port.width;
-    coords.second /= abs_port.height;
+    coords->first /= abs_port.width;
+    coords->second /= abs_port.height;
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -946,8 +956,8 @@ namespace input {
       packet->eventType,
       rotation,
       util::endian::little(packet->pointerId),
-      coords.first,
-      coords.second,
+      coords->first,
+      coords->second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
       contact_area.first,
       contact_area.second,
@@ -972,6 +982,9 @@ namespace input {
       { from_clamped_netfloat(packet->x, 0.0f, 1.0f) * 65535.f,
         from_clamped_netfloat(packet->y, 0.0f, 1.0f) * 65535.f },
       { 65535.f, 65535.f });
+    if (!coords) {
+      return;
+    }
 
     auto &touch_port = input->touch_port;
     platf::touch_port_t abs_port {
@@ -980,8 +993,8 @@ namespace input {
     };
 
     // Renormalize the coordinates
-    coords.first /= abs_port.width;
-    coords.second /= abs_port.height;
+    coords->first /= abs_port.width;
+    coords->second /= abs_port.height;
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -1002,8 +1015,8 @@ namespace input {
       packet->penButtons,
       packet->tilt,
       rotation,
-      coords.first,
-      coords.second,
+      coords->first,
+      coords->second,
       from_clamped_netfloat(packet->pressureOrDistance, 0.0f, 1.0f),
       contact_area.first,
       contact_area.second,

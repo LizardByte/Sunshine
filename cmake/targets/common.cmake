@@ -56,14 +56,20 @@ endif()
 
 # custom compile flags, must be after adding tests
 
+if (NOT BUILD_TESTS)
+    set(TEST_DIR "")
+else()
+    set(TEST_DIR "${CMAKE_SOURCE_DIR}/tests")
+endif()
+
 # src/upnp
 set_source_files_properties("${CMAKE_SOURCE_DIR}/src/upnp.cpp"
-        DIRECTORY "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests"
+        DIRECTORY "${CMAKE_SOURCE_DIR}" "${TEST_DIR}"
         PROPERTIES COMPILE_FLAGS -Wno-pedantic)
 
 # third-party/nanors
 set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/nanors/rs.c"
-        DIRECTORY "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests"
+        DIRECTORY "${CMAKE_SOURCE_DIR}" "${TEST_DIR}"
         PROPERTIES COMPILE_FLAGS "-include deps/obl/autoshim.h -ftree-vectorize")
 
 # third-party/ViGEmClient
@@ -74,7 +80,7 @@ string(APPEND VIGEM_COMPILE_FLAGS "-Wno-class-memaccess ")
 string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-function ")
 string(APPEND VIGEM_COMPILE_FLAGS "-Wno-unused-variable ")
 set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
-        DIRECTORY "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests"
+        DIRECTORY "${CMAKE_SOURCE_DIR}" "${TEST_DIR}"
         PROPERTIES
         COMPILE_DEFINITIONS "UNICODE=1;ERROR_INVALID_DEVICE_OBJECT_PARAMETER=650"
         COMPILE_FLAGS ${VIGEM_COMPILE_FLAGS})
