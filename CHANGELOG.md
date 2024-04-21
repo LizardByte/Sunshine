@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.23.1] - 2024-04-20
+**Fixed**
+- (Capture/Windows) Disable HRD and CBR encoding options by default for AMD GPUs due to video quality regressions in v0.23.0
+- (UI) Fix incorrect strings for QuickSync 'fast' and 'faster' presets
+- (UI/Linux) Fix update prompt appearing even when running the latest version
+- (Input) Fix crash when absolute input events are received prior to the display viewport being set
+- (Input/Linux) Fix missing clamping of rumble intensity to valid range
+- (Build/Tests) Fix error when attempting to disable compilation of tests
+- (Build/Linux) Fix some compilation errors when using Musl libc
+- (Logging) Fix broken debug messages for codec capability flags
+- (Logging/Linux) Fix log messages to include the correct setcap command for resolving KMS permission errors
+
+**Added**
+- (Capture/Linux) Improve frame time consistency for all capture backends
+- (UI) Set focus to the PIN textbox when navigating to the PIN tab
+
+**Dependencies**
+- Remove libavdevice dependency
+
+**Misc**
+- (Linux) Prefer ayatana-appindicator3 over appindicator3 if both are available
+
 ## [0.23.0] - 2024-04-06
 Attention, this release contains critical security fixes. Please update as soon as possible.
 
@@ -799,3 +821,4 @@ settings. In v0.17.0, games now run under your user account without elevated pri
 [0.22.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.1
 [0.22.2]: https://github.com/LizardByte/Sunshine/releases/tag/v0.22.2
 [0.23.0]: https://github.com/LizardByte/Sunshine/releases/tag/v0.23.0
+[0.23.1]: https://github.com/LizardByte/Sunshine/releases/tag/v0.23.1
