@@ -421,7 +421,7 @@ namespace platf {
       }
 
       if (streamedMonitor != -1) {
-        BOOST_LOG(info) << "Configuring selected monitor ("sv << streamedMonitor << ") to stream"sv;
+        BOOST_LOG(info) << "Configuring selected display ("sv << streamedMonitor << ") to stream"sv;
         screen_res_t screenr { x11::rr::GetScreenResources(xdisplay.get(), xwindow) };
         int output = screenr->noutput;
 
@@ -806,7 +806,7 @@ namespace platf {
       return {};
     }
 
-    BOOST_LOG(info) << "Detecting monitors"sv;
+    BOOST_LOG(info) << "Detecting displays"sv;
 
     x11::xdisplay_t xdisplay { x11::OpenDisplay(nullptr) };
     if (!xdisplay) {
@@ -821,7 +821,7 @@ namespace platf {
     for (int x = 0; x < output; ++x) {
       output_info_t out_info { x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
       if (out_info) {
-        BOOST_LOG(info) << "Detected monitor "sv << monitor << ": "sv << out_info->name << ", connected: "sv << (out_info->connection == RR_Connected);
+        BOOST_LOG(info) << "Detected display: "sv << out_info->name << " (id: "sv << monitor << ")"sv << out_info->name << " connected: "sv << (out_info->connection == RR_Connected);
         ++monitor;
       }
     }

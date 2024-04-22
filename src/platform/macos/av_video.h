@@ -5,6 +5,7 @@
 #pragma once
 
 #import <AVFoundation/AVFoundation.h>
+#import <AppKit/AppKit.h>
 
 struct CaptureSession {
   AVCaptureVideoDataOutput *output;
@@ -29,6 +30,7 @@ typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
 @property (nonatomic, assign) NSMapTable<AVCaptureConnection *, dispatch_semaphore_t> *captureSignals;
 
 + (NSArray<NSDictionary *> *)displayNames;
++ (NSString *)getDisplayName:(CGDirectDisplayID)displayID;
 
 - (id)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate;
 
