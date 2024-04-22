@@ -145,7 +145,6 @@ namespace platf {
     // Default to main display
     display->display_id = CGMainDisplayID();
 
-
     // Print all displays available with it's name and id
     auto display_array = [AVVideo displayNames];
     BOOST_LOG(info) << "Detecting displays"sv;
