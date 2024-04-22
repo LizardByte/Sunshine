@@ -349,10 +349,11 @@ jobs:
             libopus-dev \
             libpulse-dev \
             libssl-dev \
-            libva-dev \
             libvdpau-dev \
             libwayland-dev \
             libx11-dev \
+            libx11-xcb-dev \
+            libxcb-dri3-dev \
             libxcb-shm0-dev \
             libxcb-xfixes0-dev \
             libxcb1-dev \
@@ -379,6 +380,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Build latest libva
+        timeout-minutes: 5
+        run: |
+          echo "nproc: $(nproc)"
+
+          git clone https://github.com/intel/libva.git
+          cd libva
+          ./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --enable-x11 --without-legacy
+          make -j $(expr $(nproc) - 1)  # use all but one core
+          sudo make install
 
       - name: Build Linux
         env:
