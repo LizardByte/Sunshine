@@ -515,6 +515,7 @@ jobs:
           startsWith(github.repository, 'LizardByte/')
         uses: codecov/codecov-action@v4
         with:
+          disable_search: true
           fail_ci_if_error: true
           files: ./build/coverage.xml
           flags: ${{ runner.os }}
@@ -852,6 +853,7 @@ jobs:
           startsWith(github.repository, 'LizardByte/')
         uses: codecov/codecov-action@v4
         with:
+          disable_search: true
           fail_ci_if_error: false  # todo: re-enable this when action is fixed
           files: ./build/coverage.xml
           flags: ${{ runner.os }}-${{ matrix.os_version }}
@@ -1093,6 +1095,7 @@ jobs:
           startsWith(github.repository, 'LizardByte/')
         uses: codecov/codecov-action@v4
         with:
+          disable_search: true
           fail_ci_if_error: true
           files: ./build/coverage.xml
           flags: ${{ runner.os }}
