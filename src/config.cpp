@@ -1120,6 +1120,7 @@ namespace config {
                                                                    "fr"sv,  // French
                                                                    "it"sv,  // Italian
                                                                    "ja"sv,  // Japanese
+                                                                   "pt"sv,  // Portuguese
                                                                    "ru"sv,  // Russian
                                                                    "sv"sv,  // Swedish
                                                                    "zh"sv,  // Chinese

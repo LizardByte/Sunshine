@@ -68,6 +68,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
    es        Spanish
    fr        French
    it        Italian
+   ja        Japanese
+   pt        Portuguese
    ru        Russian
    sv        Swedish
    zh        Chinese (Simplified)

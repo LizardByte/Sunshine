@@ -1,1 +1,2 @@
 Babel==2.14.0
+clang-format

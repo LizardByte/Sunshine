@@ -32,6 +32,7 @@ target_locales = [
     'fr',  # French
     'it',  # Italian
     'ja',  # Japanese
+    'pt',  # Portuguese
     'ru',  # Russian
     'sv',  # Swedish
     'zh',  # Chinese

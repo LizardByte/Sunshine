@@ -11,7 +11,7 @@
     <h1 class="my-4">{{ $t('pin.pin_pairing') }}</h1>
     <form action="" class="form d-flex flex-column align-items-center" id="form">
       <div class="card flex-column d-flex p-4 mb-4">
-        <input type="text" pattern="\d*" placeholder="PIN" id="pin-input" class="form-control my-4" />
+        <input type="text" pattern="\d*" placeholder="PIN" autofocus id="pin-input" class="form-control my-4" />
         <button class="btn btn-primary">{{ $t('pin.send') }}</button>
       </div>
       <div class="alert alert-warning">
