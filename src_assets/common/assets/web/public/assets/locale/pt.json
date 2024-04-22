@@ -2,7 +2,7 @@
   "_common": {
     "apply": "Aplicar",
     "auto": "Automático",
-    "autodetect": "Autodetectar (recomendado)",
+    "autodetect": "Detetar automaticamente (recomendado)",
     "cancel": "cancelar",
     "disabled": "Desabilitado",
     "disabled_def": "Desativado (padrão)",
