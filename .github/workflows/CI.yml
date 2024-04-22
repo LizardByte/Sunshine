@@ -625,7 +625,7 @@ jobs:
           echo "publish=${PUBLISH}" >> $GITHUB_OUTPUT
 
       - name: Validate and Publish Homebrew Formula
-        uses: LizardByte/homebrew-release-action@v2024.409.24405
+        uses: LizardByte/homebrew-release-action@v2024.417.220943
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
