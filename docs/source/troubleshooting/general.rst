@@ -20,7 +20,7 @@ If you forgot your credentials to the web UI, try this.
 
       .. code-block:: bash
 
-         flatpak run --command=sunshine dev.lizardbyte.Sunshine --creds {new-username} {new-password}
+         flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --creds {new-username} {new-password}
 
 
 Web UI Access
