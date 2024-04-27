@@ -1,7 +1,23 @@
 # install dependencies for C++ analysis
 set -e
 
+CUDA_VERSION=11.8.0
+CUDA_BUILD=520.61.05
+
+# install wget and cuda first
 sudo apt-get update -y
+sudo apt-get install -y \
+  wget
+
+# Install CUDA
+url_base="https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/local_installers"
+url="${url_base}/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux.run"
+sudo wget -q -O /root/cuda.run ${url}
+sudo chmod a+x /root/cuda.run
+sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr/local/cuda --no-opengl-libs --no-man-page --no-drm
+sudo rm /root/cuda.run
+
+# Install dependencies
 sudo apt-get install -y \
   build-essential \
   gcc-10 \
@@ -32,8 +48,7 @@ sudo apt-get install -y \
   libxcb1-dev \
   libxfixes-dev \
   libxrandr-dev \
-  libxtst-dev \
-  wget
+  libxtst-dev
 
 # clean apt cache
 sudo apt-get clean
@@ -48,19 +63,17 @@ sudo update-alternatives --install \
   --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
   --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
 
-# Install CUDA
-sudo wget \
-  https://developer.download.nvidia.com/compute/cuda/11.8.0/local_installers/cuda_11.8.0_520.61.05_linux.run \
-  --progress=bar:force:noscroll -q --show-progress -O /root/cuda.run
-sudo chmod a+x /root/cuda.run
-sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr --no-opengl-libs --no-man-page --no-drm
-sudo rm /root/cuda.run
-
 # build
 mkdir -p build
 cd build || exit 1
-cmake -G "Unix Makefiles" ..
+cmake \
+  -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
+  -G "Unix Makefiles" \
+  ..
 make -j"$(nproc)"
+
+# Delete CUDA
+sudo rm -rf /usr/local/cuda
 
 # skip autobuild
 echo "skip_autobuild=true" >> "$GITHUB_OUTPUT"
