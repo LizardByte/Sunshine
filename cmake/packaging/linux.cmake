@@ -2,6 +2,9 @@
 
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}")
+# copy assets to build directory, for running without install
+file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
+        DESTINATION "${CMAKE_BINARY_DIR}/assets")
 if(${SUNSHINE_BUILD_APPIMAGE} OR ${SUNSHINE_BUILD_FLATPAK})
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")

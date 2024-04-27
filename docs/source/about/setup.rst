@@ -45,8 +45,8 @@ Install
       sunshine-debian-bullseye-{arch}.deb          11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       sunshine-fedora-38-{arch}.rpm                12.4.0           525.60.13         50;52;60;61;62;70;75;80;86;90
       sunshine-fedora-39-{arch}.rpm                12.4.0           525.60.13         50;52;60;61;62;70;75;80;86;90
-      sunshine-ubuntu-20.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       sunshine-ubuntu-22.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
+      sunshine-ubuntu-24.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       ===========================================  ==============   ==============    ================================
 
    .. tab:: AppImage
@@ -307,7 +307,7 @@ Install
 
             mkdir -p ~/ports/multimedia/sunshine
             cd ~/ports/multimedia/sunshine
-            curl -O https://github.com/LizardByte/Sunshine/releases/latest/download/Portfile
+            curl -OL https://github.com/LizardByte/Sunshine/releases/latest/download/Portfile
             cd ~/ports
             portindex
             sudo port install sunshine

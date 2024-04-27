@@ -8,10 +8,6 @@ if(${SUNSHINE_BUILD_APPIMAGE})
     string(REPLACE "${CMAKE_INSTALL_PREFIX}" ".${CMAKE_INSTALL_PREFIX}" SUNSHINE_ASSETS_DIR_DEF ${SUNSHINE_ASSETS_DIR})
 endif()
 
-if(NOT DEFINED SUNSHINE_EXECUTABLE_PATH)
-    set(SUNSHINE_EXECUTABLE_PATH "sunshine")
-endif()
-
 # cuda
 set(CUDA_FOUND OFF)
 if(${SUNSHINE_ENABLE_CUDA})
@@ -203,13 +199,13 @@ endif()
 
 # tray icon
 if(${SUNSHINE_ENABLE_TRAY})
-    pkg_check_modules(APPINDICATOR appindicator3-0.1)
+    pkg_check_modules(APPINDICATOR ayatana-appindicator3-0.1)
     if(APPINDICATOR_FOUND)
-        list(APPEND SUNSHINE_DEFINITIONS TRAY_LEGACY_APPINDICATOR=1)
+        list(APPEND SUNSHINE_DEFINITIONS TRAY_AYATANA_APPINDICATOR=1)
     else()
-        pkg_check_modules(APPINDICATOR ayatana-appindicator3-0.1)
+        pkg_check_modules(APPINDICATOR appindicator3-0.1)
         if(APPINDICATOR_FOUND)
-            list(APPEND SUNSHINE_DEFINITIONS TRAY_AYATANA_APPINDICATOR=1)
+            list(APPEND SUNSHINE_DEFINITIONS TRAY_LEGACY_APPINDICATOR=1)
         endif ()
     endif()
     pkg_check_modules(LIBNOTIFY libnotify)

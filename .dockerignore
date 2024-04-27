@@ -4,8 +4,11 @@
 # do not ignore .git, needed for versioning
 !/.git
 
+# do not ignore .rstcheck.cfg, needed to test building docs
+!/.rstcheck.cfg
+
 # ignore repo directories and files
-docs/
+docker/
 gh-pages-template/
 scripts/
 tools/
@@ -13,6 +16,7 @@ crowdin.yml
 
 # ignore dev directories
 build/
+cmake-*/
 venv/
 
 # ignore artifacts

@@ -509,8 +509,27 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     auto macos_input = (macos_input_t *) result.get();
 
-    // If we don't use the main display in the future, this has to be adapted
+    // Default to main display
     macos_input->display = CGMainDisplayID();
+
+    auto output_name = config::video.output_name;
+    // If output_name is set, try to find the display with that display id
+    if (!output_name.empty()) {
+      uint32_t max_display = 32;
+      uint32_t display_count;
+      CGDirectDisplayID displays[max_display];
+      if (CGGetActiveDisplayList(max_display, displays, &display_count) != kCGErrorSuccess) {
+        BOOST_LOG(error) << "Unable to get active display list , error: "sv << std::endl;
+      }
+      else {
+        for (int i = 0; i < display_count; i++) {
+          CGDirectDisplayID display_id = displays[i];
+          if (display_id == std::atoi(output_name.c_str())) {
+            macos_input->display = display_id;
+          }
+        }
+      }
+    }
 
     // Input coordinates are based on the virtual resolution not the physical, so we need the scaling factor
     CGDisplayModeRef mode = CGDisplayCopyDisplayMode(macos_input->display);

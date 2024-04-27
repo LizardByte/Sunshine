@@ -262,7 +262,7 @@ namespace cuda {
       fs::path sysfs_dir { sysfs_path };
       for (auto &entry : fs::directory_iterator { sysfs_dir }) {
         auto file = entry.path().filename();
-        auto filestring = file.generic_u8string();
+        auto filestring = file.generic_string();
         if (std::string_view { filestring }.substr(0, 4) != "card"sv) {
           continue;
         }
@@ -800,16 +800,21 @@ namespace cuda {
           handle.reset();
         });
 
+        sleep_overshoot_tracker.reset();
+
         while (true) {
           auto now = std::chrono::steady_clock::now();
           if (next_frame > now) {
-            std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+            std::this_thread::sleep_for(next_frame - now);
           }
-          while (next_frame > now) {
-            std::this_thread::sleep_for(1ns);
-            now = std::chrono::steady_clock::now();
+          now = std::chrono::steady_clock::now();
+          std::chrono::nanoseconds overshoot_ns = now - next_frame;
+          log_sleep_overshoot(overshoot_ns);
+
+          next_frame += delay;
+          if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+            next_frame = now + delay;
           }
-          next_frame = now + delay;
 
           std::shared_ptr<platf::img_t> img_out;
           auto status = snapshot(pull_free_image_cb, img_out, 150ms, *cursor);

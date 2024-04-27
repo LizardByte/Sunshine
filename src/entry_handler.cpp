@@ -87,12 +87,12 @@ namespace args {
    *
    * EXAMPLES:
    * ```cpp
-   * print_help("sunshine", 0, nullptr);
+   * help("sunshine", 0, nullptr);
    * ```
    */
   int
   help(const char *name, int argc, char *argv[]) {
-    print_help(name);
+    logging::print_help(name);
     return 0;
   }
 
@@ -109,7 +109,7 @@ namespace args {
    */
   int
   version(const char *name, int argc, char *argv[]) {
-    std::cout << PROJECT_NAME << " version: v" << PROJECT_VER << std::endl;
+    // version was already logged at startup
     return 0;
   }
 

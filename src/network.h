@@ -5,6 +5,7 @@
 #pragma once
 
 #include <tuple>
+#include <utility>
 
 #include <boost/asio.hpp>
 

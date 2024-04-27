@@ -48,15 +48,16 @@ namespace config {
     } qsv;
 
     struct {
-      std::optional<int> amd_quality_h264;
-      std::optional<int> amd_quality_hevc;
-      std::optional<int> amd_quality_av1;
-      std::optional<int> amd_rc_h264;
-      std::optional<int> amd_rc_hevc;
-      std::optional<int> amd_rc_av1;
       std::optional<int> amd_usage_h264;
       std::optional<int> amd_usage_hevc;
       std::optional<int> amd_usage_av1;
+      std::optional<int> amd_rc_h264;
+      std::optional<int> amd_rc_hevc;
+      std::optional<int> amd_rc_av1;
+      std::optional<int> amd_enforce_hrd;
+      std::optional<int> amd_quality_h264;
+      std::optional<int> amd_quality_hevc;
+      std::optional<int> amd_quality_av1;
       std::optional<int> amd_preanalysis;
       std::optional<int> amd_vbaq;
       int amd_coder;
@@ -160,6 +161,7 @@ namespace config {
     bool elevated;
   };
   struct sunshine_t {
+    std::string locale;
     int min_log_level;
     std::bitset<flag::FLAG_SIZE> flags;
     std::string credentials_file;

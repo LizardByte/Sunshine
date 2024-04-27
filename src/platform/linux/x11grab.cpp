@@ -421,7 +421,7 @@ namespace platf {
       }
 
       if (streamedMonitor != -1) {
-        BOOST_LOG(info) << "Configuring selected monitor ("sv << streamedMonitor << ") to stream"sv;
+        BOOST_LOG(info) << "Configuring selected display ("sv << streamedMonitor << ") to stream"sv;
         screen_res_t screenr { x11::rr::GetScreenResources(xdisplay.get(), xwindow) };
         int output = screenr->noutput;
 
@@ -481,17 +481,22 @@ namespace platf {
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
+      sleep_overshoot_tracker.reset();
+
       while (true) {
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
-          std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+          std::this_thread::sleep_for(next_frame - now);
         }
-        while (next_frame > now) {
-          std::this_thread::sleep_for(1ns);
-          now = std::chrono::steady_clock::now();
+        now = std::chrono::steady_clock::now();
+        std::chrono::nanoseconds overshoot_ns = now - next_frame;
+        log_sleep_overshoot(overshoot_ns);
+
+        next_frame += delay;
+        if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+          next_frame = now + delay;
         }
-        next_frame = now + delay;
 
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -535,6 +540,7 @@ namespace platf {
       auto img = (x11_img_t *) img_out.get();
 
       XImage *x_img { x11::GetImage(xdisplay.get(), xwindow, offset_x, offset_y, width, height, AllPlanes, ZPixmap) };
+      img->frame_timestamp = std::chrono::steady_clock::now();
 
       img->width = x_img->width;
       img->height = x_img->height;
@@ -621,17 +627,22 @@ namespace platf {
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
+      sleep_overshoot_tracker.reset();
+
       while (true) {
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
-          std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+          std::this_thread::sleep_for(next_frame - now);
         }
-        while (next_frame > now) {
-          std::this_thread::sleep_for(1ns);
-          now = std::chrono::steady_clock::now();
+        now = std::chrono::steady_clock::now();
+        std::chrono::nanoseconds overshoot_ns = now - next_frame;
+        log_sleep_overshoot(overshoot_ns);
+
+        next_frame += delay;
+        if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+          next_frame = now + delay;
         }
-        next_frame = now + delay;
 
         std::shared_ptr<platf::img_t> img_out;
         auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -795,7 +806,7 @@ namespace platf {
       return {};
     }
 
-    BOOST_LOG(info) << "Detecting monitors"sv;
+    BOOST_LOG(info) << "Detecting displays"sv;
 
     x11::xdisplay_t xdisplay { x11::OpenDisplay(nullptr) };
     if (!xdisplay) {
@@ -810,7 +821,7 @@ namespace platf {
     for (int x = 0; x < output; ++x) {
       output_info_t out_info { x11::rr::GetOutputInfo(xdisplay.get(), screenr.get(), screenr->outputs[x]) };
       if (out_info) {
-        BOOST_LOG(info) << "Detected monitor "sv << monitor << ": "sv << out_info->name << ", connected: "sv << (out_info->connection == RR_Connected);
+        BOOST_LOG(info) << "Detected display: "sv << out_info->name << " (id: "sv << monitor << ")"sv << out_info->name << " connected: "sv << (out_info->connection == RR_Connected);
         ++monitor;
       }
     }

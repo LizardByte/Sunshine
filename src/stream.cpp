@@ -1814,7 +1814,7 @@ namespace stream {
       // The alternative is that Sunshine can never start another session until it's manually restarted.
       auto task = []() {
         BOOST_LOG(fatal) << "Hang detected! Session failed to terminate in 10 seconds."sv;
-        log_flush();
+        logging::log_flush();
         lifetime::debug_trap();
       };
       auto force_kill = task_pool.pushDelayed(task, 10s).task_id;

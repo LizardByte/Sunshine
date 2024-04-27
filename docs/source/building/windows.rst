@@ -18,6 +18,7 @@ Install dependencies:
         base-devel \
         cmake \
         diffutils \
+        doxygen \
         gcc \
         git \
         make \
@@ -25,13 +26,17 @@ Install dependencies:
         mingw-w64-x86_64-boost \
         mingw-w64-x86_64-cmake \
         mingw-w64-x86_64-curl \
+        mingw-w64-x86_64-graphviz \
         mingw-w64-x86_64-miniupnpc \
         mingw-w64-x86_64-nlohmann-json \
         mingw-w64-x86_64-nodejs \
         mingw-w64-x86_64-onevpl \
         mingw-w64-x86_64-openssl \
         mingw-w64-x86_64-opus \
-        mingw-w64-x86_64-toolchain
+        mingw-w64-x86_64-rust \
+        mingw-w64-x86_64-toolchain \
+        python \
+        python-pip
 
 Build
 -----

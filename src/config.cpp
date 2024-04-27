@@ -9,6 +9,7 @@
 #include <iostream>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
@@ -85,14 +86,17 @@ namespace config {
   #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY 1
   #define AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY 2
   #define AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM 3
-  #define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCONDING 0
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY 5
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING 0
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY 1
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY 2
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM 3
-  #define AMF_VIDEO_ENCODER_USAGE_TRANSCONDING 0
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY 5
+  #define AMF_VIDEO_ENCODER_USAGE_TRANSCODING 0
   #define AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY 1
   #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY 2
   #define AMF_VIDEO_ENCODER_USAGE_WEBCAM 3
+  #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY 5
   #define AMF_VIDEO_ENCODER_UNDEFINED 0
   #define AMF_VIDEO_ENCODER_CABAC 1
   #define AMF_VIDEO_ENCODER_CALV 2
@@ -121,43 +125,46 @@ namespace config {
     };
 
     enum class rc_av1_e : int {
+      cbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR,
       cqp = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP,
       vbr_latency = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
-      vbr_peak = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
-      cbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR
+      vbr_peak = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR
     };
 
     enum class rc_hevc_e : int {
+      cbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR,
       cqp = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP,
       vbr_latency = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
-      vbr_peak = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
-      cbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR
+      vbr_peak = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR
     };
 
     enum class rc_h264_e : int {
+      cbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR,
       cqp = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP,
       vbr_latency = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
-      vbr_peak = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
-      cbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR
+      vbr_peak = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR
     };
 
     enum class usage_av1_e : int {
       transcoding = AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING,
       webcam = AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM,
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY,
       lowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY,
       ultralowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY
     };
 
     enum class usage_hevc_e : int {
-      transcoding = AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCONDING,
+      transcoding = AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING,
       webcam = AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM,
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY,
       lowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY,
       ultralowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY
     };
 
     enum class usage_h264_e : int {
-      transcoding = AMF_VIDEO_ENCODER_USAGE_TRANSCONDING,
+      transcoding = AMF_VIDEO_ENCODER_USAGE_TRANSCODING,
       webcam = AMF_VIDEO_ENCODER_USAGE_WEBCAM,
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY,
       lowlatency = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY,
       ultralowlatency = AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY
     };
@@ -170,40 +177,41 @@ namespace config {
 
     template <class T>
     std::optional<int>
-    quality_from_view(const std::string_view &quality_type) {
+    quality_from_view(const std::string_view &quality_type, const std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (quality_type == #x##sv) return (int) T::x
+      _CONVERT_(balanced);
       _CONVERT_(quality);
       _CONVERT_(speed);
-      _CONVERT_(balanced);
 #undef _CONVERT_
-      return std::nullopt;
+      return original;
     }
 
     template <class T>
     std::optional<int>
-    rc_from_view(const std::string_view &rc) {
+    rc_from_view(const std::string_view &rc, const std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (rc == #x##sv) return (int) T::x
+      _CONVERT_(cbr);
       _CONVERT_(cqp);
       _CONVERT_(vbr_latency);
       _CONVERT_(vbr_peak);
-      _CONVERT_(cbr);
 #undef _CONVERT_
-      return std::nullopt;
+      return original;
     }
 
     template <class T>
     std::optional<int>
-    usage_from_view(const std::string_view &rc) {
+    usage_from_view(const std::string_view &usage, const std::optional<int>(&original)) {
 #define _CONVERT_(x) \
-  if (rc == #x##sv) return (int) T::x
-      _CONVERT_(transcoding);
-      _CONVERT_(webcam);
+  if (usage == #x##sv) return (int) T::x
       _CONVERT_(lowlatency);
+      _CONVERT_(lowlatency_high_quality);
+      _CONVERT_(transcoding);
       _CONVERT_(ultralowlatency);
+      _CONVERT_(webcam);
 #undef _CONVERT_
-      return std::nullopt;
+      return original;
     }
 
     int
@@ -212,7 +220,7 @@ namespace config {
       if (coder == "cabac"sv || coder == "ac"sv) return cabac;
       if (coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
 
-      return -1;
+      return _auto;
     }
   }  // namespace amd
 
@@ -343,15 +351,16 @@ namespace config {
     },  // qsv
 
     {
-      (int) amd::quality_h264_e::balanced,  // quality (h264)
-      (int) amd::quality_hevc_e::balanced,  // quality (hevc)
-      (int) amd::quality_av1_e::balanced,  // quality (av1)
-      (int) amd::rc_h264_e::vbr_latency,  // rate control (h264)
-      (int) amd::rc_hevc_e::vbr_latency,  // rate control (hevc)
-      (int) amd::rc_av1_e::vbr_latency,  // rate control (av1)
       (int) amd::usage_h264_e::ultralowlatency,  // usage (h264)
       (int) amd::usage_hevc_e::ultralowlatency,  // usage (hevc)
       (int) amd::usage_av1_e::ultralowlatency,  // usage (av1)
+      (int) amd::rc_h264_e::vbr_latency,  // rate control (h264)
+      (int) amd::rc_hevc_e::vbr_latency,  // rate control (hevc)
+      (int) amd::rc_av1_e::vbr_latency,  // rate control (av1)
+      0,  // enforce_hrd
+      (int) amd::quality_h264_e::balanced,  // quality (h264)
+      (int) amd::quality_hevc_e::balanced,  // quality (hevc)
+      (int) amd::quality_av1_e::balanced,  // quality (av1)
       0,  // preanalysis
       1,  // vbaq
       (int) amd::coder_e::_auto,  // coder
@@ -441,6 +450,7 @@ namespace config {
   };
 
   sunshine_t sunshine {
+    "en",  // locale
     2,  // min_log_level
     0,  // flags
     {},  // User file
@@ -973,30 +983,31 @@ namespace config {
     std::string quality;
     string_f(vars, "amd_quality", quality);
     if (!quality.empty()) {
-      video.amd.amd_quality_h264 = amd::quality_from_view<amd::quality_h264_e>(quality);
-      video.amd.amd_quality_hevc = amd::quality_from_view<amd::quality_hevc_e>(quality);
-      video.amd.amd_quality_av1 = amd::quality_from_view<amd::quality_av1_e>(quality);
+      video.amd.amd_quality_h264 = amd::quality_from_view<amd::quality_h264_e>(quality, video.amd.amd_quality_h264);
+      video.amd.amd_quality_hevc = amd::quality_from_view<amd::quality_hevc_e>(quality, video.amd.amd_quality_hevc);
+      video.amd.amd_quality_av1 = amd::quality_from_view<amd::quality_av1_e>(quality, video.amd.amd_quality_av1);
     }
 
     std::string rc;
     string_f(vars, "amd_rc", rc);
     int_f(vars, "amd_coder", video.amd.amd_coder, amd::coder_from_view);
     if (!rc.empty()) {
-      video.amd.amd_rc_h264 = amd::rc_from_view<amd::rc_h264_e>(rc);
-      video.amd.amd_rc_hevc = amd::rc_from_view<amd::rc_hevc_e>(rc);
-      video.amd.amd_rc_av1 = amd::rc_from_view<amd::rc_av1_e>(rc);
+      video.amd.amd_rc_h264 = amd::rc_from_view<amd::rc_h264_e>(rc, video.amd.amd_rc_h264);
+      video.amd.amd_rc_hevc = amd::rc_from_view<amd::rc_hevc_e>(rc, video.amd.amd_rc_hevc);
+      video.amd.amd_rc_av1 = amd::rc_from_view<amd::rc_av1_e>(rc, video.amd.amd_rc_av1);
     }
 
     std::string usage;
     string_f(vars, "amd_usage", usage);
     if (!usage.empty()) {
-      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(rc);
-      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(rc);
-      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(rc);
+      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(usage, video.amd.amd_usage_h264);
+      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(usage, video.amd.amd_usage_hevc);
+      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(usage, video.amd.amd_usage_av1);
     }
 
     bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
     bool_f(vars, "amd_vbaq", (bool &) video.amd.amd_vbaq);
+    bool_f(vars, "amd_enforce_hrd", (bool &) video.amd.amd_enforce_hrd);
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
@@ -1101,6 +1112,21 @@ namespace config {
       config::sunshine.flags[config::flag::UPNP].flip();
     }
 
+    string_restricted_f(vars, "locale", config::sunshine.locale, {
+                                                                   "de"sv,  // German
+                                                                   "en"sv,  // English
+                                                                   "en_GB"sv,  // English (UK)
+                                                                   "en_US"sv,  // English (US)
+                                                                   "es"sv,  // Spanish
+                                                                   "fr"sv,  // French
+                                                                   "it"sv,  // Italian
+                                                                   "ja"sv,  // Japanese
+                                                                   "pt"sv,  // Portuguese
+                                                                   "ru"sv,  // Russian
+                                                                   "sv"sv,  // Swedish
+                                                                   "zh"sv,  // Chinese
+                                                                 });
+
     std::string log_level_string;
     string_f(vars, "min_log_level", log_level_string);
 
@@ -1161,7 +1187,7 @@ namespace config {
       auto line = argv[x];
 
       if (line == "--help"sv) {
-        print_help(*argv);
+        logging::print_help(*argv);
         return 1;
       }
 #ifdef _WIN32
@@ -1181,7 +1207,7 @@ namespace config {
           break;
         }
         if (apply_flags(line + 1)) {
-          print_help(*argv);
+          logging::print_help(*argv);
           return -1;
         }
       }
@@ -1195,7 +1221,7 @@ namespace config {
         else {
           TUPLE_EL(var, 1, parse_option(line, line_end));
           if (!var) {
-            print_help(*argv);
+            logging::print_help(*argv);
             return -1;
           }
 

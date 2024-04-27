@@ -31,19 +31,29 @@ post-fetch {
     system -W ${worksrcpath} "${git.cmd} submodule update --init --recursive"
 }
 
+# https://guide.macports.org/chunked/reference.dependencies.html
 depends_build-append     port:npm9 \
                          port:pkgconfig
 
 depends_lib              port:avahi \
                          port:curl \
                          port:libopus \
-                         port:miniupnpc
+                         port:miniupnpc \
+                         port:python311 \
+                         port:py311-pip
+
+depends_test             port:doxygen \
+                         port:graphviz
 
 boost.version            1.81
 
 configure.args           -DBUILD_WERROR=ON \
                          -DCMAKE_INSTALL_PREFIX=${prefix} \
                          -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets
+
+configure.env-append     BRANCH=@GITHUB_BRANCH@
+configure.env-append     BUILD_VERSION=@BUILD_VERSION@
+configure.env-append     COMMIT=@GITHUB_COMMIT@
 
 startupitem.create       yes
 startupitem.executable   "${prefix}/bin/{$name}"
@@ -62,3 +72,9 @@ notes-append "Run @PROJECT_NAME@ by executing 'sunshine <path to user config>', 
 notes-append "The config file will be created if it doesn't exist."
 notes-append "It is recommended to set a location for the apps file in the config."
 notes-append "See our documentation at 'https://docs.lizardbyte.dev/projects/sunshine/en/v@PROJECT_VERSION@/' for further info."
+
+test.run                 yes
+test.dir                 ${build.dir}/tests
+test.target              ""
+test.cmd                 ./test_sunshine
+test.args                --gtest_color=yes

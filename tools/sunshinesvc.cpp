@@ -145,8 +145,11 @@ bool
 RunTerminationHelper(HANDLE console_token, DWORD pid) {
   WCHAR module_path[MAX_PATH];
   GetModuleFileNameW(NULL, module_path, _countof(module_path));
-  std::wstring command { module_path };
+  std::wstring command;
 
+  command += L'"';
+  command += module_path;
+  command += L'"';
   command += L" --terminate " + std::to_wstring(pid);
 
   STARTUPINFOW startup_info = {};
@@ -157,7 +160,7 @@ RunTerminationHelper(HANDLE console_token, DWORD pid) {
   // This will allow us to attach to Sunshine's console and send it a Ctrl-C event.
   PROCESS_INFORMATION process_info;
   if (!CreateProcessAsUserW(console_token,
-        NULL,
+        module_path,
         (LPWSTR) command.c_str(),
         NULL,
         NULL,

@@ -47,6 +47,42 @@ editing the `conf` file in a text editor. Use the examples as reference.
 `General <https://localhost:47990/config/#general>`__
 -----------------------------------------------------
 
+`locale <https://localhost:47990/config/#locale>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The locale used for Sunshine's user interface.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =======   ===========
+   Value     Description
+   =======   ===========
+   de        German
+   en        English
+   en_GB     English (UK)
+   en_US     English (United States)
+   es        Spanish
+   fr        French
+   it        Italian
+   ja        Japanese
+   pt        Portuguese
+   ru        Russian
+   sv        Swedish
+   zh        Chinese (Simplified)
+   =======   ===========
+
+**Default**
+   ``en``
+
+**Example**
+   .. code-block:: text
+
+      locale = en
+
 `sunshine_name <https://localhost:47990/config/#sunshine_name>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -540,20 +576,29 @@ keybindings
    .. tip:: To find the name of the appropriate values follow these instructions.
 
       **Linux**
-         During Sunshine startup, you should see the list of detected monitors:
+         During Sunshine startup, you should see the list of detected displays:
 
          .. code-block:: text
 
-            Info: Detecting connected monitors
-            Info: Detected monitor 0: DVI-D-0, connected: false
-            Info: Detected monitor 1: HDMI-0, connected: true
-            Info: Detected monitor 2: DP-0, connected: true
-            Info: Detected monitor 3: DP-1, connected: false
-            Info: Detected monitor 4: DVI-D-1, connected: false
+            Info: Detecting displays
+            Info: Detected display: DVI-D-0 (id: 0) connected: false
+            Info: Detected display: HDMI-0 (id: 1) connected: true
+            Info: Detected display: DP-0 (id: 2) connected: true
+            Info: Detected display: DP-1 (id: 3) connected: false
+            Info: Detected display: DVI-D-1 (id: 4) connected: false
 
-         You need to use the value before the colon in the output, e.g. ``1``.
+         You need to use the id value inside the parenthesis, e.g. ``1``.
 
-      .. todo:: macOS
+      **macOS**
+         During Sunshine startup, you should see the list of detected displays:
+
+         .. code-block:: text
+
+            Info: Detecting displays
+            Info: Detected display: Monitor-0 (id: 3) connected: true
+            Info: Detected display: Monitor-1 (id: 2) connected: true
+
+         You need to use the id value inside the parenthesis, e.g. ``3``.
 
       **Windows**
          .. code-block:: batch
@@ -569,7 +614,10 @@ keybindings
 
          output_name = 0
 
-   .. todo:: macOS
+   **macOS**
+      .. code-block:: text
+
+         output_name = 3
 
    **Windows**
       .. code-block:: text
@@ -1437,11 +1485,115 @@ keybindings
 `AMD AMF Encoder <https://localhost:47990/config/#amd-amf-encoder>`__
 ---------------------------------------------------------------------
 
+`amd_usage <https://localhost:47990/config/#amd_usage>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The encoder usage profile is used to set the base set of encoding
+   parameters.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+   .. note:: The other AMF options that follow will override a subset
+      of the settings applied by your usage profile, but there are
+      hidden parameters set in usage profiles that cannot be
+      overridden elsewhere.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ======================= ===========
+   Value                   Description
+   ======================= ===========
+   transcoding             transcoding (slowest)
+   webcam                  webcam (slow)
+   lowlatency_high_quality low latency, high quality (fast)
+   lowlatency              low latency (faster)
+   ultralowlatency         ultra low latency (fastest)
+   ======================= ===========
+
+**Default**
+   ``ultralowlatency``
+
+**Example**
+   .. code-block:: text
+
+      amd_usage = ultralowlatency
+
+`amd_rc <https://localhost:47990/config/#amd_rc>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   The encoder rate control.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+   .. warning:: The 'vbr_latency' option generally works best, but
+      some bitrate overshoots may still occur. Enabling HRD allows
+      all bitrate based rate controls to better constrain peak bitrate,
+      but may result in encoding artifacts depending on your card.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   =========== ===========
+   Value       Description
+   =========== ===========
+   cqp         constant qp mode
+   cbr         constant bitrate
+   vbr_latency variable bitrate, latency constrained
+   vbr_peak    variable bitrate, peak constrained
+   =========== ===========
+
+**Default**
+   ``vbr_latency``
+
+**Example**
+   .. code-block:: text
+
+      amd_rc = vbr_latency
+
+`amd_enforce_hrd <https://localhost:47990/config/#amd_enforce_hrd>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Enable Hypothetical Reference Decoder (HRD) enforcement to help constrain the target bitrate.
+
+   .. note:: This option only applies when using amdvce `encoder`_.
+
+   .. warning:: HRD is known to cause encoding artifacts or negatively affect
+      encoding quality on certain cards.
+
+**Choices**
+
+.. table::
+   :widths: auto
+
+   ======== ===========
+   Value    Description
+   ======== ===========
+   enabled  enable HRD
+   disabled disable HRD
+   ======== ===========
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      amd_enforce_hrd = disabled
+
 `amd_quality <https://localhost:47990/config/#amd_quality>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   The encoder preset to use.
+   The quality profile controls the tradeoff between
+   speed and quality of encoding.
 
    .. note:: This option only applies when using amdvce `encoder`_.
 
@@ -1466,65 +1618,6 @@ keybindings
 
       amd_quality = balanced
 
-`amd_rc <https://localhost:47990/config/#amd_rc>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The encoder rate control.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =========== ===========
-   Value       Description
-   =========== ===========
-   cqp         constant qp mode
-   cbr         constant bitrate
-   vbr_latency variable bitrate, latency constrained
-   vbr_peak    variable bitrate, peak constrained
-   =========== ===========
-
-**Default**
-   ``vbr_latency``
-
-**Example**
-   .. code-block:: text
-
-      amd_rc = vbr_latency
-
-`amd_usage <https://localhost:47990/config/#amd_usage>`__
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-**Description**
-   The encoder usage profile, used to balance latency with encoding quality.
-
-   .. note:: This option only applies when using amdvce `encoder`_.
-
-**Choices**
-
-.. table::
-   :widths: auto
-
-   =============== ===========
-   Value           Description
-   =============== ===========
-   transcoding     transcoding (slowest)
-   webcam          webcam (slow)
-   lowlatency      low latency (fast)
-   ultralowlatency ultra low latency (fastest)
-   =============== ===========
-
-**Default**
-   ``ultralowlatency``
-
-**Example**
-   .. code-block:: text
-
-      amd_usage = ultralowlatency
 
 `amd_preanalysis <https://localhost:47990/config/#amd_preanalysis>`__
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1546,7 +1639,9 @@ keybindings
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 **Description**
-   Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality.
+   Variance Based Adaptive Quantization (VBAQ) can increase subjective
+   visual quality by prioritizing allocation of more bits to smooth
+   areas compared to more textured areas.
 
    .. note:: This option only applies when using amdvce `encoder`_.
 

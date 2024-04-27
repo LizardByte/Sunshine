@@ -1,7 +1,7 @@
 ---
 "base_path": "."
 "base_url": "https://api.crowdin.com"  # optional (for Crowdin Enterprise only)
-"preserve_hierarchy": false  # flatten tree on crowdin
+"preserve_hierarchy": true  # false will flatten tree on crowdin, but doesn't work with dest option
 "pull_request_labels": [
   "crowdin",
   "l10n"
@@ -10,6 +10,7 @@
 "files": [
   {
     "source": "/locale/*.po",
+    "dest": "/%original_file_name%",
     "translation": "/locale/%two_letters_code%/LC_MESSAGES/%original_file_name%",
     "languages_mapping": {
       "two_letters_code": {
@@ -17,6 +18,13 @@
         "en-GB": "en_GB",
         "en-US": "en_US"
       }
-    }
+    },
+    "update_option": "update_as_unapproved"
+  },
+  {
+    "source": "/src_assets/common/assets/web/public/assets/locale/en.json",
+    "dest": "/sunshine.json",
+    "translation": "/src_assets/common/assets/web/public/assets/locale/%two_letters_code%.%file_extension%",
+    "update_option": "update_as_unapproved"
   }
 ]

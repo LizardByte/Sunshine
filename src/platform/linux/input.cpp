@@ -587,8 +587,8 @@ namespace platf {
         weak_strong += data.rumble(tp);
       }
 
-      std::clamp<std::uint32_t>(weak_strong.first, 0, 0xFFFF);
-      std::clamp<std::uint32_t>(weak_strong.second, 0, 0xFFFF);
+      weak_strong.first = std::clamp<std::uint32_t>(weak_strong.first, 0, 0xFFFF);
+      weak_strong.second = std::clamp<std::uint32_t>(weak_strong.second, 0, 0xFFFF);
 
       old_rumble = weak_strong * gain / 0xFFFF;
       return old_rumble;
@@ -1510,7 +1510,7 @@ namespace platf {
     std::stringstream ss;
     ss << std::hex << std::setfill('0');
     for (const auto &ch : str) {
-      ss << ch;
+      ss << static_cast<uint_least32_t>(ch);
     }
 
     std::string hex_unicode(ss.str());

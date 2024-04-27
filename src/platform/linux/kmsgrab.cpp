@@ -614,7 +614,7 @@ namespace platf {
         for (auto &entry : fs::directory_iterator { card_dir }) {
           auto file = entry.path().filename();
 
-          auto filestring = file.generic_u8string();
+          auto filestring = file.generic_string();
           if (filestring.size() < 4 || std::string_view { filestring }.substr(0, 4) != "card"sv) {
             continue;
           }
@@ -1069,7 +1069,7 @@ namespace platf {
       }
 
       inline capture_e
-      refresh(file_t *file, egl::surface_descriptor_t *sd) {
+      refresh(file_t *file, egl::surface_descriptor_t *sd, std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
         // Check for a change in HDR metadata
         if (connector_id) {
           auto connector_props = card.connector_props(*connector_id);
@@ -1080,6 +1080,7 @@ namespace platf {
         }
 
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
+        frame_timestamp = std::chrono::steady_clock::now();
 
         auto fb = card.fb(plane.get());
         if (!fb) {
@@ -1192,17 +1193,22 @@ namespace platf {
       capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
         auto next_frame = std::chrono::steady_clock::now();
 
+        sleep_overshoot_tracker.reset();
+
         while (true) {
           auto now = std::chrono::steady_clock::now();
 
           if (next_frame > now) {
-            std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+            std::this_thread::sleep_for(next_frame - now);
           }
-          while (next_frame > now) {
-            std::this_thread::sleep_for(1ns);
-            now = std::chrono::steady_clock::now();
+          now = std::chrono::steady_clock::now();
+          std::chrono::nanoseconds overshoot_ns = now - next_frame;
+          log_sleep_overshoot(overshoot_ns);
+
+          next_frame += delay;
+          if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+            next_frame = now + delay;
           }
-          next_frame = now + delay;
 
           std::shared_ptr<platf::img_t> img_out;
           auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -1303,7 +1309,8 @@ namespace platf {
 
         egl::surface_descriptor_t sd;
 
-        auto status = refresh(fb_fd, &sd);
+        std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+        auto status = refresh(fb_fd, &sd, frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }
@@ -1329,6 +1336,8 @@ namespace platf {
         }
 
         gl::ctx.GetTextureSubImage(rgb->tex[0], 0, img_offset_x, img_offset_y, 0, width, height, 1, GL_BGRA, GL_UNSIGNED_BYTE, img_out->height * img_out->row_pitch, img_out->data);
+
+        img_out->frame_timestamp = frame_timestamp;
 
         if (cursor && captured_cursor.visible) {
           blend_cursor(*img_out);
@@ -1408,17 +1417,22 @@ namespace platf {
       capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
         auto next_frame = std::chrono::steady_clock::now();
 
+        sleep_overshoot_tracker.reset();
+
         while (true) {
           auto now = std::chrono::steady_clock::now();
 
           if (next_frame > now) {
-            std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+            std::this_thread::sleep_for(next_frame - now);
           }
-          while (next_frame > now) {
-            std::this_thread::sleep_for(1ns);
-            now = std::chrono::steady_clock::now();
+          now = std::chrono::steady_clock::now();
+          std::chrono::nanoseconds overshoot_ns = now - next_frame;
+          log_sleep_overshoot(overshoot_ns);
+
+          next_frame += delay;
+          if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+            next_frame = now + delay;
           }
-          next_frame = now + delay;
 
           std::shared_ptr<platf::img_t> img_out;
           auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
@@ -1456,7 +1470,7 @@ namespace platf {
         auto img = (egl::img_descriptor_t *) img_out.get();
         img->reset();
 
-        auto status = refresh(fb_fd, &img->sd);
+        auto status = refresh(fb_fd, &img->sd, img->frame_timestamp);
         if (status != capture_e::ok) {
           return status;
         }
@@ -1627,7 +1641,7 @@ namespace platf {
     for (auto &entry : fs::directory_iterator { card_dir }) {
       auto file = entry.path().filename();
 
-      auto filestring = file.generic_u8string();
+      auto filestring = file.generic_string();
       if (std::string_view { filestring }.substr(0, 4) != "card"sv) {
         continue;
       }
@@ -1671,7 +1685,7 @@ namespace platf {
         if (!fb->handles[0]) {
           BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
           BOOST_LOG((window_system != window_system_e::X11 || config::video.capture == "kms") ? fatal : error)
-            << "You must run [sudo setcap cap_sys_admin+p $(readlink -f sunshine)] for KMS display capture to work!"sv;
+            << "You must run [sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))] for KMS display capture to work!"sv;
           break;
         }
 

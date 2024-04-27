@@ -73,6 +73,9 @@ namespace crypto {
     void
     add(x509_t &&cert);
 
+    void
+    clear();
+
     const char *
     verify(x509_t::element_type *cert);
 

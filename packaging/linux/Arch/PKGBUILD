@@ -7,7 +7,7 @@ pkgrel=1
 pkgdesc="@PROJECT_DESCRIPTION@"
 arch=('x86_64' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@
-license=('GPL3')
+license=('GPL-3.0-only')
 install=sunshine.install
 
 depends=('avahi'
@@ -31,16 +31,21 @@ depends=('avahi'
          'numactl'
          'openssl'
          'opus'
+         'python'
          'udev')
+checkdepends=('doxygen'
+              'graphviz')
 makedepends=('boost'
              'cmake'
+             'gcc12'
              'git'
              'make'
              'nodejs'
              'npm')
 optdepends=('cuda: Nvidia GPU encoding support'
             'libva-mesa-driver: AMD GPU encoding support'
-            'intel-media-driver: Intel GPU encoding support')
+            'intel-media-driver: Intel GPU encoding support'
+            'xorg-server-xvfb: Virtual X server for headless testing')
 
 provides=('sunshine')
 
@@ -57,6 +62,9 @@ build() {
     export BUILD_VERSION="@GITHUB_BUILD_VERSION@"
     export COMMIT="@GITHUB_COMMIT@"
 
+    export CC=gcc-12
+    export CXX=g++-12
+
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
 
@@ -70,6 +78,14 @@ build() {
         -D SUNSHINE_ASSETS_DIR="share/sunshine"
 
     make -C build
+}
+
+check() {
+   export CC=gcc-12
+   export CXX=g++-12
+
+   cd "${srcdir}/build/tests"
+   ./test_sunshine --gtest_color=yes
 }
 
 package() {
