@@ -604,6 +604,13 @@
           <div class="form-text">{{ $t('config.ping_timeout_desc') }}</div>
         </div>
 
+        <!-- Outgoing Bandwidth -->
+        <div class="mb-3">
+          <label for="outgoing_bandwidth" class="form-label">{{ $t('config.outgoing_bandwidth') }}</label>
+          <input type="text" class="form-control" id="outgoing_bandwidth" placeholder="0" v-model="config.outgoing_bandwidth" />
+          <div class="form-text">{{ $t('config.outgoing_bandwidth_desc') }}</div>
+        </div>
+
       </div>
 
       <!-- Files Tab -->
@@ -1146,6 +1153,7 @@
               "lan_encryption_mode": 0,
               "wan_encryption_mode": 1,
               "ping_timeout": 10000,
+              "outgoing_bandwidth":0,
             },
           },
           {

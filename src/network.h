@@ -44,7 +44,7 @@ namespace net {
   from_address(const std::string_view &view);
 
   host_t
-  host_create(af_e af, ENetAddress &addr, std::size_t peers, std::uint16_t port);
+  host_create(af_e af, ENetAddress &addr, std::size_t peers, std::uint16_t port, std::uint32_t outgoing_bandwidth);
 
   /**
    * @brief Returns the `af_e` enum value for the `address_family` config option value.

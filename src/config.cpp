@@ -390,6 +390,7 @@ namespace config {
 
     APPS_JSON_PATH,
 
+    0,  // outgoing_bandwidth
     20,  // fecPercentage
     1,  // channels
 
@@ -1052,6 +1053,9 @@ namespace config {
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, { 0, 2 });
 
     path_f(vars, "file_apps", stream.file_apps);
+
+    int_between_f(vars, "outgoing_bandwidth", to, { 0, std::numeric_limits<int>::max() });
+
     int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 255 });
 
     map_int_int_f(vars, "keybindings"s, input.keybindings);

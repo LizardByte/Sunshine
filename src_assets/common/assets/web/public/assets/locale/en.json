@@ -243,6 +243,8 @@
     "origin_web_ui_allowed_lan": "Only those in LAN may access Web UI",
     "origin_web_ui_allowed_pc": "Only localhost may access Web UI",
     "origin_web_ui_allowed_wan": "Anyone may access Web UI",
+    "outgoing_bandwidth": "Outgoing Bandwidth",
+    "outgoing_bandwidth_desc": "Bandwidth limitation in bytes/second to manually deal with local network throttling when the host has a greater data rate than the stream. Note: for unlimited bandwidth use 0",
     "output_name_desc_unix": "During Sunshine startup, you should see the list of detected displays. Note: You need to use the id value inside the parenthesis.",
     "output_name_desc_win": "Manually specify a display to use for capture. If unset, the primary display is captured. Note: If you specified a GPU above, this display must be connected to that GPU. The appropriate values can be found using the following command:",
     "output_name_unix": "Display number",

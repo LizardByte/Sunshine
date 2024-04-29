@@ -91,6 +91,10 @@ namespace config {
 
     std::string file_apps;
 
+    // Bandwidth limitation in bytes/second to manually deal with network throttling
+    // 0 mean unlimited
+    std::uint32_t outgoing_bandwidth;
+
     int fec_percentage;
 
     // max unique instances of video and audio streams

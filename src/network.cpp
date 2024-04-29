@@ -196,7 +196,7 @@ namespace net {
   }
 
   host_t
-  host_create(af_e af, ENetAddress &addr, std::size_t peers, std::uint16_t port) {
+  host_create(af_e af, ENetAddress &addr, std::size_t peers, std::uint16_t port, std::uint32_t outgoing_bandwidth) {
     static std::once_flag enet_init_flag;
     std::call_once(enet_init_flag, []() {
       enet_initialize();
@@ -206,7 +206,7 @@ namespace net {
     enet_address_set_host(&addr, any_addr.data());
     enet_address_set_port(&addr, port);
 
-    auto host = host_t { enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, peers, 0, 0, 0) };
+    auto host = host_t { enet_host_create(af == IPV4 ? AF_INET : AF_INET6, &addr, peers, 0, 0, outgoing_bandwidth) };
 
     // Enable opportunistic QoS tagging (automatically disables if the network appears to drop tagged packets)
     enet_socket_set_option(host->socket, ENET_SOCKOPT_QOS, 1);

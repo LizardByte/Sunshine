@@ -883,6 +883,22 @@ keybindings
 
       ping_timeout = 10000
 
+`outgoing_bandwidth <https://localhost:47990/config/#outgoing_bandwidth>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Bandwidth limitation in bytes/second to manually deal with local network throttling when the host has a greater data rate than the stream.
+   Note: for unlimited bandwidth use 0
+   Example: 1Gbps = 125000000 MBps
+
+**Default**
+   ``0``
+
+**Example**
+   .. code-block:: text
+
+      outgoing_bandwidth = 0
+
 `Config Files <https://localhost:47990/config/#files>`__
 --------------------------------------------------------
 

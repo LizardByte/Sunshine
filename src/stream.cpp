@@ -268,7 +268,7 @@ namespace stream {
   public:
     int
     bind(net::af_e address_family, std::uint16_t port) {
-      _host = net::host_create(address_family, _addr, config::stream.channels, port);
+      _host = net::host_create(address_family, _addr, config::stream.channels, port, config::stream.outgoing_bandwidth);
 
       return !(bool) _host;
     }
