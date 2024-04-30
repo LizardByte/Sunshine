@@ -390,7 +390,12 @@ jobs:
           gh release download --archive=tar.gz --repo=intel/libva
           tar xzf libva-*.tar.gz && rm libva-*.tar.gz
           cd libva-*
-          ./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu --enable-x11 --without-legacy
+          ./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu \
+            --enable-drm \
+            --enable-x11 \
+            --enable-glx \
+            --enable-wayland \
+            --without-legacy # emgd, nvctrl, fglrx
           make -j $(nproc)
           sudo make install
           cd .. && rm -rf libva-*
