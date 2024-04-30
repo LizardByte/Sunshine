@@ -332,15 +332,8 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGRect display_bounds = CGDisplayBounds(display);
 
     // limit mouse to current display bounds
-    if (location.x < display_bounds.origin.x)
-      location.x = display_bounds.origin.x;
-    if (location.x >= display_bounds.origin.x + display_bounds.size.width)
-      location.x = display_bounds.origin.x + display_bounds.size.width - 1;
-
-    if (location.y < display_bounds.origin.y)
-      location.y = display_bounds.origin.y;
-    if (location.y >= display_bounds.origin.y + display_bounds.size.height)
-      location.y = display_bounds.origin.y + display_bounds.size.height - 1;
+    location.x = std::clamp(location.x, display_bounds.origin.x, display_bounds.origin.x + display_bounds.size.width - 1);
+    location.y = std::clamp(location.y, display_bounds.origin.y, display_bounds.origin.y + display_bounds.size.height - 1);
 
     CGEventSetType(event, type);
     CGEventSetLocation(event, location);
