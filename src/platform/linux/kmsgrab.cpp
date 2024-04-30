@@ -614,7 +614,7 @@ namespace platf {
         for (auto &entry : fs::directory_iterator { card_dir }) {
           auto file = entry.path().filename();
 
-          auto filestring = file.generic_u8string();
+          auto filestring = file.generic_string();
           if (filestring.size() < 4 || std::string_view { filestring }.substr(0, 4) != "card"sv) {
             continue;
           }
@@ -1641,7 +1641,7 @@ namespace platf {
     for (auto &entry : fs::directory_iterator { card_dir }) {
       auto file = entry.path().filename();
 
-      auto filestring = file.generic_u8string();
+      auto filestring = file.generic_string();
       if (std::string_view { filestring }.substr(0, 4) != "card"sv) {
         continue;
       }
