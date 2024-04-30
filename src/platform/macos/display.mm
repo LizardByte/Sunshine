@@ -191,6 +191,30 @@ namespace platf {
     return display_names;
   }
 
+  std::vector<config::display_options_t>
+  display_options() {
+    __block std::vector<config::display_options_t> display_options;
+
+    auto display_array = [AVVideo displayNames];
+
+    auto main_display_id = CGMainDisplayID();
+    display_options.reserve([display_array count]);
+
+    [display_array enumerateObjectsUsingBlock:^(NSDictionary *_Nonnull obj, NSUInteger idx, BOOL *_Nonnull stop) {
+      NSNumber *display_id = obj[@"id"];
+      NSString *name = obj[@"displayName"];
+
+      auto option = config::display_options_t {
+          [display_id intValue],
+          name.UTF8String,
+          main_display_id == [display_id unsignedIntValue]
+      };
+      display_options.emplace_back(option);
+    }];
+
+    return display_options;
+  }
+
   /**
    * @brief Returns if GPUs/drivers have changed since the last call to this function.
    * @return `true` if a change has occurred or if it is unknown whether a change occurred.

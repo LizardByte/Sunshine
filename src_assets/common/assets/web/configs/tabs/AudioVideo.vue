@@ -13,6 +13,7 @@ const props = defineProps([
   'config',
   'resolutions',
   'fps',
+  'displays'
 ])
 
 const config = ref(props.config)
@@ -72,9 +73,10 @@ const config = ref(props.config)
         :config="config"
     />
 
-    <LegacyDisplayOutputSelector
+    <NewDisplayOutputSelector
       :platform="platform"
       :config="config"
+      :displays="displays"
     />
 
     <!-- Display Modes -->

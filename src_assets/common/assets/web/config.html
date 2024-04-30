@@ -57,6 +57,7 @@
         :platform="platform"
         :resolutions="resolutions"
         :fps="fps"
+        :displays="displays"
       >
       </audio-video>
 
@@ -136,6 +137,7 @@
         config: null,
         fps: [],
         resolutions: [],
+        displays: [],
         currentTab: "general",
         global_prep_cmd: [],
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
@@ -290,6 +292,7 @@
         .then((r) => {
           this.config = r;
           this.platform = this.config.platform;
+          this.displays = this.config.displays;
 
           var app = document.getElementById("app");
           if (this.platform === "windows") {

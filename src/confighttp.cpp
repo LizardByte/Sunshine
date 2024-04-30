@@ -543,6 +543,16 @@ namespace confighttp {
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
 
+    pt::ptree displays;
+    for (const auto &[id, name, is_primary_display] : platf::display_options()) {
+      pt::ptree display_value;
+      display_value.put("id", id);
+      display_value.put("name", name);
+      display_value.put("is_primary", is_primary_display);
+      displays.push_front(std::make_pair(std::to_string(id), display_value));
+    }
+    outputTree.push_back(std::make_pair("displays", displays));
+
     auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
 
     for (auto &[name, value] : vars) {
