@@ -66,7 +66,6 @@ namespace platf {
         av_img->pixel_buffer = pixelBuffer;
         img_out->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
 
-
         img_out->width = (int) CVPixelBufferGetWidth(pixelBuffer);
         img_out->height = (int) CVPixelBufferGetHeight(pixelBuffer);
         img_out->row_pitch = (int) CVPixelBufferGetBytesPerRow(pixelBuffer);
@@ -133,7 +132,6 @@ namespace platf {
         av_img->sample_buffer = sampleBuffer;
         av_img->pixel_buffer = pixelBuffer;
         img->data = (uint8_t *) CVPixelBufferGetBaseAddress(pixelBuffer);
-
 
         img->width = (int) CVPixelBufferGetWidth(pixelBuffer);
         img->height = (int) CVPixelBufferGetHeight(pixelBuffer);

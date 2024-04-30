@@ -4,8 +4,8 @@
  */
 #include <utility>
 
-#include "src/platform/macos/nv12_zero_device.h"
 #include "src/platform/macos/av_img_t.h"
+#include "src/platform/macos/nv12_zero_device.h"
 
 #include "src/video.h"
 
