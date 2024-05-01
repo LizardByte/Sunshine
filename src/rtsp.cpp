@@ -1038,7 +1038,8 @@ namespace rtsp_stream {
           config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
         }
       }
-    } else if (session.surround_params.length() > 3) {
+    }
+    else if (session.surround_params.length() > 3) {
       // Channels
       std::uint8_t c = session.surround_params[0] - '0';
       // Streams
