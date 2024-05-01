@@ -616,7 +616,7 @@ namespace cuda {
 
         // Set privateData to allow NvFBC on consumer NVIDIA GPUs.
         // Based on https://github.com/keylase/nvidia-patch/blob/3193b4b1cea91527bf09ea9b8db5aade6a3f3c0a/win/nvfbcwrp/nvfbcwrp_main.cpp#L23-L25 .
-        const unsigned int MAGIC_PRIVATE_DATA[4] = {0xAEF57AC5, 0x401D1A39, 0x1B856BBE, 0x9ED0CEBA};
+        const unsigned int MAGIC_PRIVATE_DATA[4] = { 0xAEF57AC5, 0x401D1A39, 0x1B856BBE, 0x9ED0CEBA };
         params.privateData = MAGIC_PRIVATE_DATA;
         params.privateDataSize = sizeof(MAGIC_PRIVATE_DATA);
 
