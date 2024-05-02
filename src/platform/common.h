@@ -578,7 +578,7 @@ namespace platf {
   std::vector<std::string>
   display_names(mem_type_e hwdevice_type);
 
-  std::vector<config::display_options_t>
+  std::vector<dd::options::info_t>
   display_options();
 
   /**

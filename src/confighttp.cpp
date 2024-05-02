@@ -533,34 +533,24 @@ namespace confighttp {
 
     print_req(request);
 
-    pt::ptree outputTree;
+    nlohmann::json outputJson;
     auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
+      response->write(outputJson.dump());
     });
 
-    outputTree.put("status", "true");
-    outputTree.put("platform", SUNSHINE_PLATFORM);
-    outputTree.put("version", PROJECT_VER);
+    outputJson.emplace("status", "true");
+    outputJson.emplace("platform", SUNSHINE_PLATFORM);
+    outputJson.emplace("version", PROJECT_VER);
 
-    pt::ptree displays;
-    for (const auto &[id, name, is_primary_display] : platf::display_options()) {
-      pt::ptree display_value;
-      display_value.put("id", id);
-      display_value.put("name", name);
-      display_value.put("is_primary", is_primary_display);
-      displays.push_front(std::make_pair(std::to_string(id), display_value));
-    }
-    outputTree.push_back(std::make_pair("displays", displays));
+    nlohmann::json displays = platf::display_options();
+    outputJson.emplace("displays", displays);
 
     auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
-    pt::ptree config_file;
+    nlohmann::json config_file;
     for (auto &[name, value] : vars) {
-      config_file.put(std::move(name), std::move(value));
+      config_file.emplace(std::move(name), std::move(value));
     }
-    outputTree.push_back(std::make_pair("config_file", config_file));
+    outputJson.emplace(std::make_pair("config_file", config_file));
   }
 
   void

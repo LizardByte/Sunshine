@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "nvenc/nvenc_config.h"
+#include "display_device/dd.h"
 
 namespace config {
   struct video_t {
@@ -82,11 +83,7 @@ namespace config {
     bool install_steam_drivers;
   };
 
-  struct display_options_t {
-    int id;
-    std::string name;
-    bool is_primary_display;
-  };
+
 
   constexpr int ENCRYPTION_MODE_NEVER = 0;  // Never use video encryption, even if the client supports it
   constexpr int ENCRYPTION_MODE_OPPORTUNISTIC = 1;  // Use video encryption if available, but stream without it if not supported
