@@ -1,5 +1,5 @@
 <script setup>
-import {ref} from 'vue'
+import {reactive, ref} from 'vue'
 import {$tp} from '../../platform-i18n'
 import PlatformLayout from '../../PlatformLayout.vue'
 import AdapterNameSelector from './audiovideo/AdapterNameSelector.vue'
@@ -16,7 +16,7 @@ const props = defineProps([
   'displays'
 ])
 
-const config = ref(props.config)
+const config = reactive(props.config)
 </script>
 
 <template>
