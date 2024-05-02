@@ -48,3 +48,4 @@ package-lock.json
 # Translations
 *.mo
 *.pot
+.DS_Store
