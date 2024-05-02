@@ -316,6 +316,7 @@ namespace video {
 
   extern int active_hevc_mode;
   extern int active_av1_mode;
+  extern std::string x265_params;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
 
   void
