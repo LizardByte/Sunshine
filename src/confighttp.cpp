@@ -26,6 +26,8 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <boost/asio/ssl/context_base.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
