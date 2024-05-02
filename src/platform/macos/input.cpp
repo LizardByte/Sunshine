@@ -328,15 +328,12 @@ const KeyCodeMap kKeyCodesMap[] = {
     auto display = macos_input->display;
     auto event = macos_input->mouse_event;
 
-    if (location.x < 0)
-      location.x = 0;
-    if (location.x >= (double) CGDisplayPixelsWide(display))
-      location.x = (double) CGDisplayPixelsWide(display) - 1;
+    // get display bounds for current display
+    CGRect display_bounds = CGDisplayBounds(display);
 
-    if (location.y < 0)
-      location.y = 0;
-    if (location.y >= (double) CGDisplayPixelsHigh(display))
-      location.y = (double) CGDisplayPixelsHigh(display) - 1;
+    // limit mouse to current display bounds
+    location.x = std::clamp(location.x, display_bounds.origin.x, display_bounds.origin.x + display_bounds.size.width - 1);
+    location.y = std::clamp(location.y, display_bounds.origin.y, display_bounds.origin.y + display_bounds.size.height - 1);
 
     CGEventSetType(event, type);
     CGEventSetLocation(event, location);
@@ -379,10 +376,15 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   void
   abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
-    auto scaling = ((macos_input_t *) input.get())->displayScaling;
+    auto macos_input = static_cast<macos_input_t *>(input.get());
+    auto scaling = macos_input->displayScaling;
+    auto display = macos_input->display;
 
     CGPoint location = CGPointMake(x * scaling, y * scaling);
-
+    CGRect display_bounds = CGDisplayBounds(display);
+    // in order to get the correct mouse location for capturing display , we need to add the display bounds to the location
+    location.x += display_bounds.origin.x;
+    location.y += display_bounds.origin.y;
     post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, 0);
   }
 

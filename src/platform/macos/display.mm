@@ -169,6 +169,9 @@ namespace platf {
 
     display->width = display->av_capture.frameWidth;
     display->height = display->av_capture.frameHeight;
+    // We also need set env_width and env_height for absolute mouse coordinates
+    display->env_width = display->width;
+    display->env_height = display->height;
 
     return display;
   }
