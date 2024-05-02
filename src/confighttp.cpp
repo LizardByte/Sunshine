@@ -554,10 +554,11 @@ namespace confighttp {
     outputTree.push_back(std::make_pair("displays", displays));
 
     auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
-
+    pt::ptree config_file;
     for (auto &[name, value] : vars) {
-      outputTree.put(std::move(name), std::move(value));
+      config_file.put(std::move(name), std::move(value));
     }
+    outputTree.push_back(std::make_pair("config_file", config_file));
   }
 
   void
