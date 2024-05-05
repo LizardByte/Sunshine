@@ -1294,6 +1294,10 @@ namespace video {
         return ret;
       }
 
+      if (av_packet->flags & AV_PKT_FLAG_KEY) {
+        BOOST_LOG(debug) << "Frame "sv << frame_nr << ": IDR Keyframe (AV_FRAME_FLAG_KEY)"sv;
+      }
+
       if ((frame->flags & AV_FRAME_FLAG_KEY) && !(av_packet->flags & AV_PKT_FLAG_KEY)) {
         BOOST_LOG(error) << "Encoder did not produce IDR frame when requested!"sv;
       }
