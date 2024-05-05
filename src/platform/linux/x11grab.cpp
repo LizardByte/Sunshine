@@ -679,6 +679,7 @@ namespace platf {
       }
       else {
         auto img_cookie = xcb::shm_get_image_unchecked(xcb.get(), display->root, offset_x, offset_y, width, height, ~0, XCB_IMAGE_FORMAT_Z_PIXMAP, seg, 0);
+        auto frame_timestamp = std::chrono::steady_clock::now();
 
         xcb_img_t img_reply { xcb::shm_get_image_reply(xcb.get(), img_cookie, nullptr) };
         if (!img_reply) {
@@ -691,6 +692,7 @@ namespace platf {
         }
 
         std::copy_n((std::uint8_t *) data.data, frame_size(), img_out->data);
+        img_out->frame_timestamp = frame_timestamp;
 
         if (cursor) {
           blend_cursor(shm_xdisplay.get(), *img_out, offset_x, offset_y);
