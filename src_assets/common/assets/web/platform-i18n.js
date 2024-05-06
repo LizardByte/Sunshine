@@ -10,15 +10,11 @@ class PlatformMessageI18n {
 
     /**
      * @param {string} key
+     * @param {string} platform identifier
      * @return {string} key with platform identifier
      */
-    getPlatformKey(key) {
-        switch (this.platform) {
-            case 'windows':
-                return key + '_win'
-            default:
-                return key + '_' + this.platform
-        }
+    getPlatformKey(key, platform) {
+        return key + '_' + platform
     }
 
     /**
@@ -27,11 +23,21 @@ class PlatformMessageI18n {
      * @return {string} translated message or defaultMsg if provided
      */
     getMessageUsingPlatform(key, defaultMsg) {
-        const realKey = this.getPlatformKey(key)
+        const realKey = this.getPlatformKey(key, this.platform)
         const i18n = inject('i18n')
-        const message = i18n.t(realKey)
-        if (message === realKey && defaultMsg) {
-            // there's no message for key, return defaultMsg
+        let message = i18n.t(realKey)
+
+        if (message !== realKey) {
+            // We got a message back, return early
+            return message
+        }
+        
+        // there's no message for key, check for unix version
+        const unixKey = this.getPlatformKey(key, 'unix')
+        message = i18n.t(unixKey)
+
+        if (message === unixKey && defaultMsg) {
+            // there's no message for unix key, return defaultMsg
             return defaultMsg
         }
         return message

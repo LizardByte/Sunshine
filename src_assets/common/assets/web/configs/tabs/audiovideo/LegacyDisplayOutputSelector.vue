@@ -14,11 +14,11 @@ const outputNamePlaceholder = (props.platform === 'windows') ? '\\.\DISPLAY1' : 
 
 <template>
   <div class="mb-3">
-    <label for="output_name" class="form-label">{{ $tp('config.output_name', $t('config.output_name_linux')) }}</label>
+    <label for="output_name" class="form-label">{{ $tp('config.output_name') }}</label>
     <input type="text" class="form-control" id="output_name" :placeholder="outputNamePlaceholder"
            v-model="config.output_name"/>
     <div class="form-text">
-      {{ $tp('config.output_name_desc', $t('config.output_name_desc_linux')) }}<br>
+      {{ $tp('config.output_name_desc') }}<br>
       <PlatformLayout :platform="platform">
         <template #windows>
           <pre>tools\dxgi-info.exe</pre>
