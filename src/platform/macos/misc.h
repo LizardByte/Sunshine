@@ -11,6 +11,20 @@
 namespace platf {
   bool
   is_screen_capture_allowed();
+
+  /**
+   * Prompts the user for Accessibility permission
+   * @return returns true if requested permission, false if already has permission
+   */
+  bool
+  request_accessibility_permission();
+
+  /**
+   * Checks for Accessibility permission
+   * @return returns true if sunshine has Accessibility permission enabled
+   */
+  bool
+  has_accessibility_permission();
 }
 
 namespace dyn {
