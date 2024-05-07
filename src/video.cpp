@@ -1451,7 +1451,17 @@ namespace video {
         }
       }
 
-      ctx->flags |= (AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY);
+      // VideoToolbox Codecs, both h264 and hvec, don't support FLAG_LOW_DELAY
+      // if FLAG_LOW_DELAY is set, avcodec_open2 fails.
+      // Also, we forcefully reset the flags to avoid clash on reuse of AVCodecContext
+      if (strstr(codec->name, "videotoolbox") != nullptr) {
+        ctx->flags = 0;
+        ctx->flags |= AV_CODEC_FLAG_CLOSED_GOP;
+      } else {
+        ctx->flags = 0;
+        ctx->flags |= AV_CODEC_FLAG_CLOSED_GOP | AV_CODEC_FLAG_LOW_DELAY;
+      }
+
       ctx->flags2 |= AV_CODEC_FLAG2_FAST;
 
       auto avcodec_colorspace = avcodec_colorspace_from_sunshine_colorspace(colorspace);
