@@ -385,7 +385,7 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: |
           echo "nproc: $(nproc)"
 
@@ -506,8 +506,11 @@ jobs:
         run: |
           ${{ steps.python.outputs.python-path }} -m pip install gcovr
           ${{ steps.python.outputs.python-path }} -m gcovr -r .. \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
             --exclude '.*tests/.*' \
-            --exclude '.*tests/.*' \
+            --exclude '.*third-party/.*' \
             --xml-pretty \
             -o coverage.xml
 
@@ -524,6 +527,7 @@ jobs:
           files: ./build/coverage.xml
           flags: ${{ runner.os }}
           token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.create_release == 'true' }}
@@ -842,6 +846,9 @@ jobs:
           cd ${build_dir}
           ${{ steps.python.outputs.python-path }} -m pip install gcovr
           sudo ${{ steps.python.outputs.python-path }} -m gcovr -r ../${dir} \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
             --exclude '.*${dir}/tests/.*' \
             --exclude '.*${dir}/third-party/.*' \
             --gcov-object-directory $(pwd) \
@@ -862,6 +869,7 @@ jobs:
           files: ./build/coverage.xml
           flags: ${{ runner.os }}-${{ matrix.os_version }}
           token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.create_release == 'true' && matrix.release }}
@@ -1086,8 +1094,11 @@ jobs:
         run: |
           ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
           ${{ steps.python-path.outputs.python-path }} -m gcovr -r .. \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
             --exclude '.*tests/.*' \
-            --exclude '.*tests/.*' \
+            --exclude '.*third-party/.*' \
             --xml-pretty \
             -o coverage.xml
 
@@ -1104,6 +1115,7 @@ jobs:
           files: ./build/coverage.xml
           flags: ${{ runner.os }}
           token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
       - name: Package Windows Debug Info
         working-directory: build
