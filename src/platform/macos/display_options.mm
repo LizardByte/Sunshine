@@ -36,7 +36,7 @@ namespace platf {
         //double displayUpdateGranularity = screen.displayUpdateGranularity;
         auto refresh_rate = dd::refresh_rate_t {
             uint32_t(screen.maximumFramesPerSecond),
-            0
+            1
         };
         auto current_mode = dd::mode_t {
           resolution,
