@@ -571,17 +571,17 @@ namespace platf {
 
   bool
   request_accessibility_permission() {
-    NSDictionary* options = @{static_cast<id> (kAXTrustedCheckOptionPrompt): @YES};
-    return !AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef> (options));
+    NSDictionary* options = @{static_cast<id>(kAXTrustedCheckOptionPrompt): @YES};
+    return !AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef>(options));
   }
 
   bool
   has_accessibility_permission() {
-    NSDictionary* options = @{static_cast<id> (kAXTrustedCheckOptionPrompt): @NO};
+    NSDictionary* options = @{static_cast<id>(kAXTrustedCheckOptionPrompt): @NO};
     // We use kAXTrustedCheckOptionPrompt == NO here,
     // instead of using XIsProcessTrusted(),
     // because this will update the accessibility list with sunshine current path
-    return AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef> (options));
+    return AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef>(options));
   }
 
 }  // namespace platf

@@ -268,7 +268,7 @@ const KeyCodeMap kKeyCodesMap[] = {
         request_accessibility_permission();
       }
       BOOST_LOG(info) << "Received " << (is_keyboard_event ? "keyboard" : "mouse") << " event but "
-          << default_accessibility_log_msg();
+                      << default_accessibility_log_msg();
     }
   }
 
