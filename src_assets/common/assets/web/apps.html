@@ -326,13 +326,13 @@
             </tr>
           </table>
           <div class="form-text" v-if="platform === 'windows'"><b>{{ $t('apps.env_qres_example') }}</b>
-            <pre>cmd /C &lt;{{ $t('apps.env_qres_path') }}&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT%</pre>
+            <pre>cmd /C &lt;{{ $t('apps.env_qres_path') }}&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT% /R:%SUNSHINE_CLIENT_FPS%</pre>
           </div>
           <div class="form-text" v-else-if="platform === 'linux'"><b>{{ $t('apps.env_xrandr_example') }}</b>
-            <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate 60"</pre>
+            <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate ${SUNSHINE_CLIENT_FPS}"</pre>
           </div>
           <div class="form-text" v-else-if="platform === 'macos'"><b>{{ $t('apps.env_displayplacer_example') }}</b>
-            <pre>sh -c "displayplacer "id:&lt;screenId&gt; res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:60 scaling:on origin:(0,0) degree:0""</pre>
+            <pre>sh -c "displayplacer "id:&lt;screenId&gt; res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0""</pre>
           </div>
           <div class="form-text"><a
               href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html"
