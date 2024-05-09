@@ -1612,8 +1612,8 @@ namespace video {
         char first_err[AV_ERROR_MAX_STRING_SIZE] { 0 };
 
         BOOST_LOG(info)
-            << "Retrying without AV_CODEC_FLAG_LOW_DELAY for ["sv << video_format.name << "] after error: "sv
-            << av_make_error_string(first_err, AV_ERROR_MAX_STRING_SIZE, firt_status);
+          << "Retrying without AV_CODEC_FLAG_LOW_DELAY for ["sv << video_format.name << "] after error: "sv
+          << av_make_error_string(first_err, AV_ERROR_MAX_STRING_SIZE, firt_status);
 
         // On some devices, both h264 and hvec codecs, don't support FLAG_LOW_DELAY
         // if FLAG_LOW_DELAY is set, avcodec_open2 fails. So we retry all codecs once without this flag.
@@ -1631,8 +1631,8 @@ namespace video {
 
         if (!video_format.fallback_options.empty() && retries == 0) {
           BOOST_LOG(info)
-          << "Retrying without AV_CODEC_FLAG_LOW_DELAY for ["sv << video_format.name << "] after error: "sv
-          << av_make_error_string(first_err, AV_ERROR_MAX_STRING_SIZE, firt_status);
+            << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
+            << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
 
           continue;
         }

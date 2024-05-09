@@ -54,7 +54,7 @@ namespace platf {
   struct temp_retain_av_img_t {
     std::shared_ptr<av_sample_buf_t> sample_buffer;
     std::shared_ptr<av_pixel_buf_t> pixel_buffer;
-    uint8_t * data;
+    uint8_t *data;
 
     temp_retain_av_img_t(
       std::shared_ptr<av_sample_buf_t> sb,
