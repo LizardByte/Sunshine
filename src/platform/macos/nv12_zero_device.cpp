@@ -39,10 +39,10 @@ namespace platf {
     //
     // The presence of the AVBufferRef allows FFmpeg to simply add a reference to the buffer
     // rather than having to perform a deep copy of the data buffers in avcodec_send_frame().
-    av_frame->buf[0] = av_buffer_create((uint8_t *) CFRetain(av_img->pixel_buffer), 0, free_buffer, nullptr, 0);
+    av_frame->buf[0] = av_buffer_create((uint8_t *) CFRetain(av_img->pixel_buffer->buf), 0, free_buffer, nullptr, 0);
 
     // Place a CVPixelBufferRef at data[3] as required by AV_PIX_FMT_VIDEOTOOLBOX
-    av_frame->data[3] = (uint8_t *) av_img->pixel_buffer;
+    av_frame->data[3] = (uint8_t *) av_img->pixel_buffer->buf;
 
     return 0;
   }
