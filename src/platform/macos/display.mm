@@ -43,10 +43,9 @@ namespace platf {
         auto av_img = std::static_pointer_cast<av_img_t>(img_out);
 
         auto old_data_retainer = std::make_shared<temp_retain_av_img_t>(
-            av_img->sample_buffer,
-            av_img->pixel_buffer,
-            img_out->data
-        );
+          av_img->sample_buffer,
+          av_img->pixel_buffer,
+          img_out->data);
 
         av_img->sample_buffer = new_sample_buffer;
         av_img->pixel_buffer = new_pixel_buffer;
@@ -108,10 +107,9 @@ namespace platf {
         auto av_img = (av_img_t *) img;
 
         auto old_data_retainer = std::make_shared<temp_retain_av_img_t>(
-            av_img->sample_buffer,
-            av_img->pixel_buffer,
-            img->data
-        );
+          av_img->sample_buffer,
+          av_img->pixel_buffer,
+          img->data);
 
         av_img->sample_buffer = new_sample_buffer;
         av_img->pixel_buffer = new_pixel_buffer;

@@ -1631,8 +1631,8 @@ namespace video {
 
         if (!video_format.fallback_options.empty() && retries == 0) {
           BOOST_LOG(info)
-            << "Retrying with fallback configuration options for ["sv << video_format.name << "] after error: "sv
-            << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, status);
+          << "Retrying without AV_CODEC_FLAG_LOW_DELAY for ["sv << video_format.name << "] after error: "sv
+          << av_make_error_string(first_err, AV_ERROR_MAX_STRING_SIZE, firt_status);
 
           continue;
         }

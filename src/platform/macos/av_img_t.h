@@ -13,7 +13,8 @@ namespace platf {
   struct av_sample_buf_t {
     CMSampleBufferRef buf;
 
-    explicit av_sample_buf_t(CMSampleBufferRef buf) : buf((CMSampleBufferRef) CFRetain(buf)) { }
+    explicit av_sample_buf_t(CMSampleBufferRef buf):
+        buf((CMSampleBufferRef) CFRetain(buf)) {}
 
     ~av_sample_buf_t() {
       if (buf != nullptr) {
@@ -26,9 +27,9 @@ namespace platf {
     CVPixelBufferRef buf;
 
     // Constructor
-    explicit av_pixel_buf_t(CMSampleBufferRef sb) : buf(
-      CMSampleBufferGetImageBuffer(sb)
-    ) {
+    explicit av_pixel_buf_t(CMSampleBufferRef sb):
+        buf(
+          CMSampleBufferGetImageBuffer(sb)) {
       CVPixelBufferLockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
     }
 
@@ -58,7 +59,8 @@ namespace platf {
     temp_retain_av_img_t(
       std::shared_ptr<av_sample_buf_t> sb,
       std::shared_ptr<av_pixel_buf_t> pb,
-      uint8_t * dt
-    ) : sample_buffer(std::move(sb)), pixel_buffer(std::move(pb)), data(dt) { }
+      uint8_t *dt):
+        sample_buffer(std::move(sb)),
+        pixel_buffer(std::move(pb)), data(dt) {}
   };
 }  // namespace platf
