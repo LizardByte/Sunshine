@@ -10,6 +10,8 @@ url=@PROJECT_HOMEPAGE_URL@
 license=('GPL-3.0-only')
 install=sunshine.install
 
+_gcc_version=13
+
 depends=('avahi'
          'boost-libs'
          'curl'
@@ -37,7 +39,7 @@ checkdepends=('doxygen'
               'graphviz')
 makedepends=('boost'
              'cmake'
-             'gcc12'
+             "gcc${_gcc_version}"
              'git'
              'make'
              'nodejs'
@@ -62,8 +64,8 @@ build() {
     export BUILD_VERSION="@GITHUB_BUILD_VERSION@"
     export COMMIT="@GITHUB_COMMIT@"
 
-    export CC=gcc-12
-    export CXX=g++-12
+    export CC="gcc-${_gcc_version}"
+    export CXX="g++-${_gcc_version}"
 
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
@@ -81,11 +83,11 @@ build() {
 }
 
 check() {
-   export CC=gcc-12
-   export CXX=g++-12
+    export CC="gcc-${_gcc_version}"
+    export CXX="g++-${_gcc_version}"
 
-   cd "${srcdir}/build/tests"
-   ./test_sunshine --gtest_color=yes
+    cd "${srcdir}/build/tests"
+    ./test_sunshine --gtest_color=yes
 }
 
 package() {
