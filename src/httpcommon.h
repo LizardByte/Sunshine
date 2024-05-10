@@ -22,6 +22,8 @@ namespace http {
 
   int
   reload_user_creds(const std::string &file);
+  int
+  check_url_response(std::string url);
   bool
   download_file(const std::string &url, const std::string &file);
   std::string

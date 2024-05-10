@@ -450,7 +450,8 @@ Usage
    `localhost` with your internal ip address.
 
    .. attention:: Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
-      being self signed.
+      being self signed. If you have a reverse proxy available, you can change the ``web_ui_address`` configuration to
+      have Sunshine automatically redirect to your proxied address (and therefore use your proxy's SSL certificate).
 
    .. caution:: If running for the first time, make sure to note the username and password that you created.
 
