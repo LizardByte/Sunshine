@@ -909,7 +909,9 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
-      {},  // Fallback options
+      {
+        { "flags"s, "-low_delay" },
+      },  // Fallback options
       std::nullopt,
       "h264_videotoolbox"s,
     },
@@ -1608,25 +1610,7 @@ namespace video {
         return nullptr;
       }
 
-      if (auto firt_status = avcodec_open2(ctx.get(), codec, &options)) {
-        char first_err[AV_ERROR_MAX_STRING_SIZE] { 0 };
-
-        BOOST_LOG(info)
-          << "Retrying without AV_CODEC_FLAG_LOW_DELAY for ["sv << video_format.name << "] after error: "sv
-          << av_make_error_string(first_err, AV_ERROR_MAX_STRING_SIZE, firt_status);
-
-        // On some devices, both h264 and hvec codecs, don't support FLAG_LOW_DELAY
-        // if FLAG_LOW_DELAY is set, avcodec_open2 fails. So we retry all codecs once without this flag.
-        // Also, we forcefully reset the flags to avoid clash on reuse of AVCodecContext
-        ctx->flags = 0;
-        ctx->flags |= AV_CODEC_FLAG_CLOSED_GOP;
-        auto status = avcodec_open2(ctx.get(), codec, &options);
-
-        if (!status) {
-          // Successfully opened the codec without AV_CODEC_FLAG_LOW_DELAY
-          break;
-        }
-
+      if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
         char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
 
         if (!video_format.fallback_options.empty() && retries == 0) {
