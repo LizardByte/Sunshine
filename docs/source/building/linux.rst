@@ -46,7 +46,7 @@ Install Requirements
           nvidia-cuda-dev \  # Cuda, NvFBC
           nvidia-cuda-toolkit  # Cuda, NvFBC
 
-Fedora 38, 39
+Fedora 39, 40
 ^^^^^^^^^^^^^
 
 Install Requirements

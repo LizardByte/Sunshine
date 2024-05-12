@@ -29,7 +29,7 @@ System Requirements
    "OS", "Windows: 10+ (Windows Server does not support virtual gamepads)"
    "", "macOS: 12+"
    "", "Linux/Debian: 11 (bullseye)"
-   "", "Linux/Fedora: 38+"
+   "", "Linux/Fedora: 39+"
    "", "Linux/Ubuntu: 22.04+ (jammy)"
    "Network", "Host: 5GHz, 802.11ac"
    "", "Client: 5GHz, 802.11ac"
