@@ -371,7 +371,7 @@ namespace va {
       return -1;
     }
 
-    BOOST_LOG(debug) << "vaapi vendor: "sv << vaQueryVendorString(display.get());
+    BOOST_LOG(info) << "vaapi vendor: "sv << vaQueryVendorString(display.get());
 
     *hw_device_buf = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
     auto ctx = (AVHWDeviceContext *) (*hw_device_buf)->data;
