@@ -5,8 +5,8 @@
       required: true
     }
   })
-
 </script>
+
 <template>
   <template v-if="$slots.windows && platform === 'windows'">
     <slot name="windows"></slot>

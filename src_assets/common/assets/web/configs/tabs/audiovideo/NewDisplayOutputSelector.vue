@@ -14,7 +14,6 @@ const outputNamePlaceholder = (props.platform === 'windows') ? '{de9bb7e2-186e-5
 </script>
 
 <template>
-  <!-- TODO: Implement it using select/option in PR #2490 -->
   <div class="mb-3">
     <label for="output_name" class="form-label">{{ $tp('config.output_name') }}</label>
     <input type="text" class="form-control" id="output_name" :placeholder="outputNamePlaceholder"

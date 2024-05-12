@@ -72,22 +72,10 @@ const config = ref(props.config)
         :config="config"
     />
 
-    <!-- TODO: Replace with NewDisplayOutputSelector in PR #2490 -->
     <LegacyDisplayOutputSelector
       :platform="platform"
       :config="config"
     />
-
-    <!-- TODO: Display device options, PR #2032 -->
-    <!-- <PlatformLayout :platform="platform">
-      <template #windows>
-        <DisplayDeviceOptions
-            :platform="platform"
-            :config="config"
-            :display_mode_remapping="display_mode_remapping"
-        />
-      </template>
-    </PlatformLayout> -->
 
     <!-- Display Modes -->
     <DisplayModesSettings
