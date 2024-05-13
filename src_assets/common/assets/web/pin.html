@@ -26,6 +26,7 @@
   import { createApp } from 'vue'
   import i18n from './locale.js'
   import Navbar from './Navbar.vue'
+  import {initApp} from "./init";
 
   let app = createApp({
     components: {
@@ -33,11 +34,7 @@
     }
   });
 
-  //Wait for locale initialization, then render
-  i18n().then(i18n => {
-    app.use(i18n);
-    app.mount('#app');
-
+  initApp(app, (app => {
     // this must be after mounting the app
     document.querySelector("#form").addEventListener("submit", (e) => {
       e.preventDefault();
@@ -59,5 +56,5 @@
           }
         });
     });
-  });
+  }));
 </script>

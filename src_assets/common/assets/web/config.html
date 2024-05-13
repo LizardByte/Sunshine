@@ -36,1022 +36,56 @@
       </ul>
 
       <!-- General Tab -->
-      <div id="general" v-if="currentTab === 'general'" class="config-page">
-        <!-- Locale -->
-        <div class="mb-3">
-          <label for="locale" class="form-label">{{ $t('config.locale') }}</label>
-          <select id="locale" class="form-select" v-model="config.locale">
-            <option value="de">Deutsch (German)</option>
-            <option value="en">English</option>
-            <option value="en_GB">English, UK</option>
-            <option value="en_US">English, US</option>
-            <option value="es">Español (Spanish)</option>
-            <option value="fr">Français (French)</option>
-            <option value="it">Italiano (Italian)</option>
-            <option value="ja">日本語 (Japanese)</option>
-            <option value="pt">Português (Portuguese)</option>
-            <option value="ru">Русский (Russian)</option>
-            <option value="sv">svenska (Swedish)</option>
-            <option value="zh">简体中文 (Chinese Simplified)</option>
-          </select>
-          <div class="form-text">{{ $t('config.locale_desc') }}</div>
-        </div>
-
-        <!-- Sunshine Name -->
-        <div class="mb-3">
-          <label for="sunshine_name" class="form-label">{{ $t('config.sunshine_name') }}</label>
-          <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
-            v-model="config.sunshine_name" />
-          <div class="form-text">{{ $t('config.sunshine_name_desc') }}</div>
-        </div>
-
-        <!-- Log Level -->
-        <div class="mb-3">
-          <label for="min_log_level" class="form-label">{{ $t('config.log_level') }}</label>
-          <select id="min_log_level" class="form-select" v-model="config.min_log_level">
-            <option value="0">{{ $t('config.log_level_0') }}</option>
-            <option value="1">{{ $t('config.log_level_1') }}</option>
-            <option value="2">{{ $t('config.log_level_2') }}</option>
-            <option value="3">{{ $t('config.log_level_3') }}</option>
-            <option value="4">{{ $t('config.log_level_4') }}</option>
-            <option value="5">{{ $t('config.log_level_5') }}</option>
-            <option value="6">{{ $t('config.log_level_6') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.log_level_desc') }}</div>
-        </div>
-
-        <!-- Maximum Connected Clients -->
-        <div class="mb-3">
-          <label for="channels" class="form-label">{{ $t('config.channels') }}</label>
-          <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
-          <div class="form-text">
-            {{ $t('config.channels_desc_1') }}<br>
-            {{ $t('_common.note') }} {{ $t('config.channels_desc_2') }}
-          </div>
-        </div>
-
-        <!-- Global Prep Commands -->
-        <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
-          <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
-          <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
-          <table class="table" v-if="global_prep_cmd.length > 0">
-            <thead>
-              <tr>
-                <th scope="col"><i class="fas fa-play"></i> {{ $t('config.do_cmd') }}</th>
-                <th scope="col"><i class="fas fa-undo"></i> {{ $t('config.undo_cmd') }}</th>
-                <th scope="col" v-if="platform === 'windows'">
-                  <i class="fas fa-shield-alt"></i> {{ $t('config.run_as') }}
-                </th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(c, i) in global_prep_cmd">
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.do" />
-                </td>
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.undo" />
-                </td>
-                <td v-if="platform === 'windows'">
-                  <div class="form-check">
-                    <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
-                      true-value="true" false-value="false" />
-                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('config.elevated') }}</label>
-                  </div>
-                </td>
-                <td>
-                  <button class="btn btn-danger" @click="global_prep_cmd.splice(i,1)">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                  <button class="btn btn-success" @click="add_global_prep_cmd">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="add_global_prep_cmd">
-            &plus; {{ $t('config.add') }}
-          </button>
-        </div>
-      </div>
+      <general
+        v-if="currentTab === 'general'"
+        :config="config"
+        :global-prep-cmd="global_prep_cmd"
+        :platform="platform">
+      </general>
 
       <!-- Input Tab -->
-      <div id="input" v-if="currentTab === 'input'" class="config-page">
-        <!-- Enable Gamepad Input -->
-        <div class="mb-3">
-          <label for="controller" class="form-label">{{ $t('config.controller') }}</label>
-          <select id="controller" class="form-select" v-model="config.controller">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.controller_desc') }}</div>
-        </div>
-
-        <!-- Emulated Gamepad Type -->
-        <div class="mb-3" v-if="config.controller === 'enabled' && platform === 'windows'">
-          <label for="gamepad" class="form-label">{{ $t('config.gamepad') }}</label>
-          <select id="gamepad" class="form-select" v-model="config.gamepad">
-            <option value="auto">{{ $t('_common.auto') }}</option>
-            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
-            <option value="x360">{{ $t('config.gamepad_x360') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.gamepad_desc') }}</div>
-        </div>
-        <div class="accordion" v-if="config.gamepad === 'ds4'">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                      data-bs-target="#panelsStayOpen-collapseOne">
-                {{ $t('config.gamepad_ds4_manual') }}
-              </button>
-            </h2>
-            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-                 aria-labelledby="panelsStayOpen-headingOne">
-              <div class="accordion-body">
-                <div>
-                  <label for="ds4_back_as_touchpad_click" class="form-label">{{ $t('config.ds4_back_as_touchpad_click') }}</label>
-                  <select id="ds4_back_as_touchpad_click" class="form-select"
-                          v-model="config.ds4_back_as_touchpad_click">
-                    <option value="disabled">{{ $t('_common.disabled') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.ds4_back_as_touchpad_click_desc') }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="accordion" v-if="config.controller === 'enabled' && config.gamepad === 'auto' && platform === 'windows'">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                      data-bs-target="#panelsStayOpen-collapseOne">
-                {{ $t('config.gamepad_auto') }}
-              </button>
-            </h2>
-            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-                 aria-labelledby="panelsStayOpen-headingOne">
-              <div class="accordion-body">
-                <div>
-                  <label for="motion_as_ds4" class="form-label">{{ $t('config.motion_as_ds4') }}</label>
-                  <select id="motion_as_ds4" class="form-select"
-                          v-model="config.motion_as_ds4">
-                    <option value="disabled">{{ $t('_common.disabled') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.motion_as_ds4_desc') }}</div>
-                </div>
-                <div>
-                  <label for="touchpad_as_ds4" class="form-label">{{ $t('config.touchpad_as_ds4') }}</label>
-                  <select id="touchpad_as_ds4" class="form-select"
-                          v-model="config.touchpad_as_ds4">
-                    <option value="disabled">{{ $t('_common.disabled') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.touchpad_as_ds4_desc') }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Home/Guide Button Emulation Timeout -->
-        <div class="mb-3" v-if="config.controller === 'enabled'">
-          <label for="back_button_timeout" class="form-label">{{ $t('config.back_button_timeout') }}</label>
-          <input type="text" class="form-control" id="back_button_timeout" placeholder="-1"
-                 v-model="config.back_button_timeout" />
-          <div class="form-text">{{ $t('config.back_button_timeout_desc') }}</div>
-        </div>
-
-        <!-- Enable Keyboard Input -->
-        <hr>
-        <div class="mb-3">
-          <label for="keyboard" class="form-label">{{ $t('config.keyboard') }}</label>
-          <select id="keyboard" class="form-select" v-model="config.keyboard">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.keyboard_desc') }}</div>
-        </div>
-
-        <!-- Key Repeat Delay-->
-        <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
-          <label for="key_repeat_delay" class="form-label">{{ $t('config.key_repeat_delay') }}</label>
-          <input type="text" class="form-control" id="key_repeat_delay" placeholder="500"
-                 v-model="config.key_repeat_delay" />
-          <div class="form-text">{{ $t('config.key_repeat_delay_desc') }}</div>
-        </div>
-
-        <!-- Key Repeat Frequency-->
-        <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
-          <label for="key_repeat_frequency" class="form-label">{{ $t('config.key_repeat_frequency') }}</label>
-          <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9"
-                 v-model="config.key_repeat_frequency" />
-          <div class="form-text">{{ $t('config.key_repeat_frequency_desc') }}</div>
-        </div>
-
-        <!-- Always send scancodes -->
-        <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
-          <label for="always_send_scancodes" class="form-label">{{ $t('config.always_send_scancodes') }}</label>
-          <select id="always_send_scancodes" class="form-select" v-model="config.always_send_scancodes">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.always_send_scancodes_desc') }}</div>
-        </div>
-
-        <!-- Mapping Key AltRight to Key Windows -->
-        <div class="mb-3" v-if="config.keyboard === 'enabled'">
-          <label for="key_rightalt_to_key_win" class="form-label">{{ $t('config.key_rightalt_to_key_win') }}</label>
-          <select id="key_rightalt_to_key_win" class="form-select" v-model="config.key_rightalt_to_key_win">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.key_rightalt_to_key_win_desc') }}</div>
-        </div>
-
-        <!-- Enable Mouse Input -->
-        <hr>
-        <div class="mb-3">
-          <label for="mouse" class="form-label">{{ $t('config.mouse') }}</label>
-          <select id="mouse" class="form-select" v-model="config.mouse">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.mouse_desc') }}</div>
-        </div>
-
-        <!-- High resolution scrolling support -->
-        <div class="mb-3" v-if="config.mouse === 'enabled'">
-          <label for="high_resolution_scrolling" class="form-label">{{ $t('config.high_resolution_scrolling') }}</label>
-          <select id="high_resolution_scrolling" class="form-select" v-model="config.high_resolution_scrolling">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.high_resolution_scrolling_desc') }}</div>
-        </div>
-
-        <!-- Native pen/touch support -->
-        <div class="mb-3" v-if="config.mouse === 'enabled'">
-          <label for="native_pen_touch" class="form-label">{{ $t('config.native_pen_touch') }}</label>
-          <select id="native_pen_touch" class="form-select" v-model="config.native_pen_touch">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.native_pen_touch_desc') }}</div>
-        </div>
-
-      </div>
+      <inputs
+        v-if="currentTab === 'input'"
+        :config="config"
+        :platform="platform">
+      </inputs>
 
       <!-- Audio/Video Tab -->
-      <div id="audio-video" v-if="currentTab === 'av'" class="config-page">
-        <!-- Audio Sink -->
-        <div class="mb-3" v-if="platform === 'windows'">
-          <label for="audio_sink" class="form-label">{{ $t('config.audio_sink') }}</label>
-          <input type="text" class="form-control" id="audio_sink" :placeholder="$t('config.audio_sink_placeholder_win')"
-            v-model="config.audio_sink" />
-          <div class="form-text">
-            {{ $t('config.audio_sink_desc_win') }}<br>
-            <pre>tools\audio-info.exe</pre>
-          </div>
-        </div>
-        <div class="mb-3" v-if="platform === 'linux'">
-          <label for="audio_sink" class="form-label">{{ $t('config.audio_sink') }}</label>
-          <input type="text" class="form-control" id="audio_sink"
-            placeholder="alsa_output.pci-0000_09_00.3.analog-stereo" v-model="config.audio_sink" />
-          <div class="form-text">
-            {{ $t('config.audio_sink_desc_linux') }}<br>
-            <pre>pacmd list-sinks | grep "name:"</pre>
-            <pre>pactl info | grep Source</pre>
-          </div>
-        </div>
-        <div class="mb-3" v-if="platform === 'macos'">
-          <label for="audio_sink" class="form-label">{{ $t('config.audio_sink') }}</label>
-          <input type="text" class="form-control" id="audio_sink" :placeholder="$t('config.audio_sink_placeholder_macos')"
-            v-model="config.audio_sink" />
-          <div class="form-text">
-            {{ $t('config.audio_sink_desc_macos') }}<br>
-            <br>
-            <a href="https://github.com/mattingalls/Soundflower" target="_blank">Soundflower</a><br>
-            <a href="https://github.com/ExistentialAudio/BlackHole" target="_blank">BlackHole</a>.
-          </div>
-        </div>
-
-        <!-- Virtual Sink -->
-        <div class="mb-3" v-if="platform === 'windows'">
-          <label for="virtual_sink" class="form-label">{{ $t('config.virtual_sink') }}</label>
-          <input type="text" class="form-control" id="virtual_sink" :placeholder="$t('config.virtual_sink_placeholder')"
-            v-model="config.virtual_sink" />
-          <div class="form-text">{{ $t('config.virtual_sink_desc') }}</div>
-        </div>
-
-        <!-- Install Steam Audio Drivers -->
-        <div class="mb-3" v-if="platform === 'windows'">
-          <label for="install_steam_audio_drivers" class="form-label">{{ $t('config.install_steam_audio_drivers') }}</label>
-          <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.install_steam_audio_drivers_desc') }}</div>
-        </div>
-
-        <!-- Adapter Name -->
-        <div class="mb-3" v-if="platform === 'windows'">
-          <label for="adapter_name" class="form-label">{{ $t('config.adapter_name') }}</label>
-          <input type="text" class="form-control" id="adapter_name" :placeholder="$t('config.adapter_name_placeholder_win')"
-            v-model="config.adapter_name" />
-          <div class="form-text">
-            {{ $t('config.adapter_name_desc_win') }}<br>
-            <pre>tools\dxgi-info.exe</pre>
-          </div>
-        </div>
-        <div class="mb-3" v-if="platform === 'linux'">
-          <label for="adapter_name" class="form-label">{{ $t('config.adapter_name') }}</label>
-          <input class="form-control" id="adapter_name" placeholder="/dev/dri/renderD128" v-model="config.adapter_name" />
-          <div class="form-text">
-            {{ $t('config.adapter_name_desc_linux_1') }}<br>
-            <pre>ls /dev/dri/renderD*  # {{ $t('config.adapter_name_desc_linux_2') }}</pre>
-            <pre>
-              vainfo --display drm --device /dev/dri/renderD129 | \
-                grep -E "((VAProfileH264High|VAProfileHEVCMain|VAProfileHEVCMain10).*VAEntrypointEncSlice)|Driver version"
-            </pre>
-            {{ $t('config.adapter_name_desc_linux_3') }}<br>
-            <i>VAProfileH264High   : VAEntrypointEncSlice</i>
-          </div>
-        </div>
-
-        <!-- Output Name -->
-        <div class="mb-3" v-if="platform === 'windows'">
-          <label for="output_name" class="form-label">{{ $t('config.output_name_win') }}</label>
-          <input type="text" class="form-control" id="output_name" placeholder="\\.\DISPLAY1"
-            v-model="config.output_name" />
-          <div class="form-text">
-            {{ $t('config.output_name_desc_win') }}<br>
-            <pre>tools\dxgi-info.exe</pre>
-          </div>
-        </div>
-        <div class="mb-3" v-if="platform === 'linux' || platform === 'macos'">
-          <label for="output_name" class="form-label">{{ $t('config.output_name_unix') }}</label>
-          <input type="text" class="form-control" id="output_name" placeholder="0" v-model="config.output_name" />
-          <div class="form-text">
-            {{ $t('config.output_name_desc_unix') }}<br>
-            <br>
-            <pre style="white-space: pre-line;" v-if="platform === 'linux'">
-              Info: Detecting displays
-              Info: Detected display: DVI-D-0 (id: 0) connected: false
-              Info: Detected display: HDMI-0 (id: 1) connected: true
-              Info: Detected display: DP-0 (id: 2) connected: true
-              Info: Detected display: DP-1 (id: 3) connected: false
-              Info: Detected display: DVI-D-1 (id: 4) connected: false
-            </pre>
-            <pre style="white-space: pre-line;" v-if="platform === 'macos'">
-              Info: Detecting displays
-              Info: Detected display: Monitor-0 (id: 3) connected: true
-              Info: Detected display: Monitor-1 (id: 2) connected: true
-            </pre>
-          </div>
-        </div>
-
-        <!-- Display Modes -->
-        <div class="mb-3">
-          <!-- Advertised Resolutions -->
-          <div id="resolutions" class="resolutions-container">
-            <label>{{ $t('config.resolutions') }}</label>
-            <div class="resolutions d-flex flex-wrap">
-              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(r,i) in resolutions" :key="r">
-                <span class="px-2">{{r}}</span>
-                <span style="cursor: pointer" @click="resolutions.splice(i,1)">&times;</span>
-              </div>
-            </div>
-            <form @submit.prevent="resolutions.push(resIn);resIn = '';" class="d-flex align-items-center">
-              <input type="text" v-model="resIn" required pattern="[0-9]+x[0-9]+" style="
-                  width: 12ch;
-                  border-top-right-radius: 0;
-                  border-bottom-right-radius: 0;
-                " class="form-control" />
-              <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
-                +
-              </button>
-            </form>
-          </div>
-
-          <!-- Advertised FPS -->
-          <div id="fps" class="fps-container">
-            <label>{{ $t('config.fps') }}</label>
-            <div class="fps d-flex flex-wrap">
-              <div class="p-2 ms-item m-2 d-flex justify-content-between" v-for="(f,i) in fps" :key="f">
-                <span class="px-2">{{f}}</span>
-                <span style="cursor: pointer" @click="fps.splice(i,1)">&times;</span>
-              </div>
-            </div>
-            <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
-              <input type="text" v-model="fpsIn" required pattern="[0-9]+" style="
-                  width: 6ch;
-                  border-top-right-radius: 0;
-                  border-bottom-right-radius: 0;
-                " class="form-control" />
-              <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
-                +
-              </button>
-            </form>
-          </div>
-
-          <div class="form-text">{{ $t('config.res_fps_desc') }}</div>
-        </div>
-
-      </div>
+      <audio-video
+        v-if="currentTab === 'av'"
+        :config="config"
+        :platform="platform"
+        :resolutions="resolutions"
+        :fps="fps"
+      >
+      </audio-video>
 
       <!-- Network Tab -->
-      <div id="network" v-if="currentTab === 'network'" class="config-page">
-        <!-- UPnP -->
-        <div class="mb-3">
-          <label for="upnp" class="form-label">{{ $t('config.upnp') }}</label>
-          <select id="upnp" class="form-select" v-model="config.upnp">
-            <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-            <option value="enabled">{{ $t('_common.enabled') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.upnp_desc') }}</div>
-        </div>
-
-        <!-- Address family -->
-        <div class="mb-3">
-          <label for="address_family" class="form-label">{{ $t('config.address_family') }}</label>
-          <select id="address_family" class="form-select" v-model="config.address_family">
-            <option value="ipv4">{{ $t('config.address_family_ipv4') }}</option>
-            <option value="both">{{ $t('config.address_family_both') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.address_family_desc') }}</div>
-        </div>
-
-        <!-- Port family -->
-        <div class="mb-3">
-          <label for="port" class="form-label">{{ $t('config.port') }}</label>
-          <input type="number" min="1029" max="65514" class="form-control" id="port" placeholder="47989"
-            v-model="config.port" />
-          <div class="form-text">{{ $t('config.port_desc') }}</div>
-          <!-- Add warning if any port is less than 1024 -->
-          <div class="alert alert-danger" v-if="(+effectivePort - 5) < 1024">
-            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_alert_1') }}
-          </div>
-          <!-- Add warning if any port is above 65535 -->
-          <div class="alert alert-danger" v-if="(+effectivePort + 21) > 65535">
-            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_alert_2') }}
-          </div>
-          <!-- Create a port table for the various ports needed by Sunshine -->
-          <table class="table">
-            <thead>
-              <tr>
-                <th scope="col">{{ $t('config.port_protocol') }}</th>
-                <th scope="col">{{ $t('config.port_port') }}</th>
-                <th scope="col">{{ $t('config.port_note') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <!-- HTTPS -->
-                <td>{{ $t('config.port_tcp') }}</td>
-                <td>{{+effectivePort - 5}}</td>
-                <td></td>
-              </tr>
-              <tr>
-                <!-- HTTP -->
-                <td>{{ $t('config.port_tcp') }}</td>
-                <td>{{+effectivePort}}</td>
-                <td>
-                  <div class="alert alert-primary" role="alert" v-if="+effectivePort !== 47989">
-                    <i class="fa-solid fa-xl fa-circle-info"></i> {{ $t('config.port_http_port_note') }}
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <!-- Web UI -->
-                <td>{{ $t('config.port_tcp') }}</td>
-                <td>{{+effectivePort + 1}}</td>
-                <td>{{ $t('config.port_web_ui') }}</td>
-              </tr>
-              <tr>
-                <!-- RTSP -->
-                <td>{{ $t('config.port_tcp') }}</td>
-                <td>{{+effectivePort + 21}}</td>
-                <td></td>
-              </tr>
-              <tr>
-                <!-- Video, Control, Audio -->
-                <td>{{ $t('config.port_udp') }}</td>
-                <td>{{+effectivePort + 9}} - {{+effectivePort + 11}}</td>
-                <td></td>
-              </tr>
-              <!--            <tr>-->
-              <!--              &lt;!&ndash; Mic &ndash;&gt;-->
-              <!--              <td>UDP</td>-->
-              <!--              <td>{{+effectivePort + 13}}</td>-->
-              <!--              <td></td>-->
-              <!--            </tr>-->
-            </tbody>
-          </table>
-          <!-- add warning about exposing web ui to the internet -->
-          <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
-            <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_warning') }}
-          </div>
-        </div>
-
-        <!-- Origin Web UI Allowed -->
-        <div class="mb-3">
-          <label for="origin_web_ui_allowed" class="form-label">{{ $t('config.origin_web_ui_allowed') }}</label>
-          <select id="origin_web_ui_allowed" class="form-select" v-model="config.origin_web_ui_allowed">
-            <option value="pc">{{ $t('config.origin_web_ui_allowed_pc') }}</option>
-            <option value="lan">{{ $t('config.origin_web_ui_allowed_lan') }}</option>
-            <option value="wan">{{ $t('config.origin_web_ui_allowed_wan') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.origin_web_ui_allowed_desc') }}</div>
-        </div>
-
-        <!-- External IP -->
-        <div class="mb-3">
-          <label for="external_ip" class="form-label">{{ $t('config.external_ip') }}</label>
-          <input type="text" class="form-control" id="external_ip" placeholder="123.456.789.12" v-model="config.external_ip" />
-          <div class="form-text">{{ $t('config.external_ip_desc') }}</div>
-        </div>
-
-        <!-- LAN Encryption Mode -->
-        <div class="mb-3">
-          <label for="lan_encryption_mode" class="form-label">{{ $t('config.lan_encryption_mode') }}</label>
-          <select id="lan_encryption_mode" class="form-select" v-model="config.lan_encryption_mode">
-            <option value="0">{{ $t('_common.disabled_def') }}</option>
-            <option value="1">{{ $t('config.lan_encryption_mode_1') }}</option>
-            <option value="2">{{ $t('config.lan_encryption_mode_2') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.lan_encryption_mode_desc') }}</div>
-        </div>
-
-        <!-- WAN Encryption Mode -->
-        <div class="mb-3">
-          <label for="wan_encryption_mode" class="form-label">{{ $t('config.wan_encryption_mode') }}</label>
-          <select id="wan_encryption_mode" class="form-select" v-model="config.wan_encryption_mode">
-            <option value="0">{{ $t('_common.disabled') }}</option>
-            <option value="1">{{ $t('config.wan_encryption_mode_1') }}</option>
-            <option value="2">{{ $t('config.wan_encryption_mode_2') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.wan_encryption_mode_desc') }}</div>
-        </div>
-
-        <!-- Ping Timeout -->
-        <div class="mb-3">
-          <label for="ping_timeout" class="form-label">{{ $t('config.ping_timeout') }}</label>
-          <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
-          <div class="form-text">{{ $t('config.ping_timeout_desc') }}</div>
-        </div>
-
-      </div>
+      <network
+        v-if="currentTab === 'network'"
+        :config="config"
+        :platform="platform">
+      </network>
 
       <!-- Files Tab -->
-      <div id="files" v-if="currentTab === 'files'" class="config-page">
-        <!-- Apps File -->
-        <div class="mb-3">
-          <label for="file_apps" class="form-label">{{ $t('config.file_apps') }}</label>
-          <input type="text" class="form-control" id="file_apps" placeholder="apps.json" v-model="config.file_apps" />
-          <div class="form-text">{{ $t('config.file_apps_desc') }}</div>
-        </div>
-
-        <!-- Credentials File -->
-        <div class="mb-3">
-          <label for="credentials_file" class="form-label">{{ $t('config.credentials_file') }}</label>
-          <input type="text" class="form-control" id="credentials_file" placeholder="sunshine_state.json" v-model="config.credentials_file" />
-          <div class="form-text">{{ $t('config.credentials_file_desc') }}</div>
-        </div>
-
-        <!-- Log Path -->
-        <div class="mb-3">
-          <label for="log_path" class="form-label">{{ $t('config.log_path') }}</label>
-          <input type="text" class="form-control" id="log_path" placeholder="sunshine.log" v-model="config.log_path" />
-          <div class="form-text">{{ $t('config.log_path_desc') }}</div>
-        </div>
-
-        <!-- Private Key -->
-        <div class="mb-3">
-          <label for="pkey" class="form-label">{{ $t('config.pkey') }}</label>
-          <input type="text" class="form-control" id="pkey" placeholder="/dir/pkey.pem" v-model="config.pkey" />
-          <div class="form-text">{{ $t('config.pkey_desc') }}</div>
-        </div>
-
-        <!-- Certificate -->
-        <div class="mb-3">
-          <label for="cert" class="form-label">{{ $t('config.cert') }}</label>
-          <input type="text" class="form-control" id="cert" placeholder="/dir/cert.pem" v-model="config.cert" />
-          <div class="form-text">{{ $t('config.cert_desc') }}</div>
-        </div>
-
-        <!-- State File -->
-        <div class="mb-3">
-          <label for="file_state" class="form-label">{{ $t('config.file_state') }}</label>
-          <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json"
-            v-model="config.file_state" />
-          <div class="form-text">{{ $t('config.file_state_desc') }}</div>
-        </div>
-
-      </div>
+      <files
+        v-if="currentTab === 'files'"
+        :config="config"
+        :platform="platform">
+      </files>
 
       <!-- Advanced Tab -->
-      <div v-if="currentTab === 'advanced'" class="config-page">
-        <!-- FEC Percentage -->
-        <div class="mb-3">
-          <label for="fec_percentage" class="form-label">{{ $t('config.fec_percentage') }}</label>
-          <input type="text" class="form-control" id="fec_percentage" placeholder="20" v-model="config.fec_percentage" />
-          <div class="form-text">{{ $t('config.fec_percentage_desc') }}</div>
-        </div>
+      <advanced
+        v-if="currentTab === 'advanced'"
+        :config="config"
+        :platform="platform">
+      </advanced>
 
-        <!-- Quantization Parameter -->
-        <div class="mb-3">
-          <label for="qp" class="form-label">{{ $t('config.qp') }}</label>
-          <input type="number" class="form-control" id="qp" placeholder="28" v-model="config.qp" />
-          <div class="form-text">{{ $t('config.qp_desc') }}</div>
-        </div>
-
-        <!-- Min Threads -->
-        <div class="mb-3">
-          <label for="min_threads" class="form-label">{{ $t('config.min_threads') }}</label>
-          <input type="number" class="form-control" id="min_threads" placeholder="2" min="1" v-model="config.min_threads" />
-          <div class="form-text">{{ $t('config.min_threads_desc') }}</div>
-        </div>
-
-        <!-- HEVC Support -->
-        <div class="mb-3">
-          <label for="hevc_mode" class="form-label">{{ $t('config.hevc_mode') }}</label>
-          <select id="hevc_mode" class="form-select" v-model="config.hevc_mode">
-            <option value="0">{{ $t('config.hevc_mode_0') }}</option>
-            <option value="1">{{ $t('config.hevc_mode_1') }}</option>
-            <option value="2">{{ $t('config.hevc_mode_2') }}</option>
-            <option value="3">{{ $t('config.hevc_mode_3') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.hevc_mode_desc') }}</div>
-        </div>
-
-        <!-- AV1 Support -->
-        <div class="mb-3">
-          <label for="av1_mode" class="form-label">{{ $t('config.av1_mode') }}</label>
-          <select id="av1_mode" class="form-select" v-model="config.av1_mode">
-            <option value="0">{{ $t('config.av1_mode_0') }}</option>
-            <option value="1">{{ $t('config.av1_mode_1') }}</option>
-            <option value="2">{{ $t('config.av1_mode_2') }}</option>
-            <option value="3">{{ $t('config.av1_mode_3') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.av1_mode_desc') }}</div>
-        </div>
-
-        <!-- Capture -->
-        <div class="mb-3" v-if="platform === 'linux'">
-          <label for="capture" class="form-label">{{ $t('config.capture') }}</label>
-          <select id="capture" class="form-select" v-model="config.capture">
-            <option value="">{{ $t('_common.autodetect') }}</option>
-            <option value="nvfbc">NvFBC</option>
-            <option value="wlr">wlroots</option>
-            <option value="kms">KMS</option>
-            <option value="x11">X11</option>
-          </select>
-          <div class="form-text">{{ $t('config.capture_desc') }}</div>
-        </div>
-
-        <!-- Encoder -->
-        <div class="mb-3">
-          <label for="encoder" class="form-label">{{ $t('config.encoder') }}</label>
-          <select id="encoder" class="form-select" v-model="config.encoder">
-            <option value="">{{ $t('_common.autodetect') }}</option>
-            <option value="nvenc" v-if="platform === 'windows' || platform === 'linux'">NVIDIA NVENC</option>
-            <option value="quicksync" v-if="platform === 'windows'">Intel QuickSync</option>
-            <option value="amdvce" v-if="platform === 'windows'">AMD AMF/VCE</option>
-            <option value="vaapi" v-if="platform === 'linux'">VA-API</option>
-            <option value="videotoolbox" v-if="platform === 'macos'">VideoToolbox</option>
-            <option value="software">{{ $t('config.encoder_software') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.encoder_desc') }}</div>
-        </div>
-
-      </div>
-
-      <!-- NVIDIA NVENC Encoder Tab -->
-      <div id="nvidia-nvenc-encoder" v-if="currentTab === 'nv'" class="config-page">
-        <!-- Performance preset -->
-        <div class="mb-3">
-          <label for="nvenc_preset" class="form-label">{{ $t('config.nvenc_preset') }}</label>
-          <select id="nvenc_preset" class="form-select" v-model="config.nvenc_preset">
-            <option value="1">P1 {{ $t('config.nvenc_preset_1') }}</option>
-            <option value="2">P2</option>
-            <option value="3">P3</option>
-            <option value="4">P4</option>
-            <option value="5">P5</option>
-            <option value="6">P6</option>
-            <option value="7">P7 {{ $t('config.nvenc_preset_7') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.nvenc_preset_desc') }}</div>
-        </div>
-
-        <!-- Two-pass mode -->
-        <div class="mb-3">
-          <label for="nvenc_twopass" class="form-label">{{ $t('config.nvenc_twopass') }}</label>
-          <select id="nvenc_twopass" class="form-select" v-model="config.nvenc_twopass">
-            <option value="disabled">{{ $t('config.nvenc_twopass_disabled') }}</option>
-            <option value="quarter_res">{{ $t('config.nvenc_twopass_quarter_res') }}</option>
-            <option value="full_res">{{ $t('config.nvenc_twopass_full_res') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.nvenc_twopass_desc') }}</div>
-        </div>
-
-        <!-- Spatial AQ -->
-        <div class="mb-3">
-          <label for="nvenc_spatial_aq" class="form-label">{{ $t('config.nvenc_spatial_aq') }}</label>
-          <select id="nvenc_spatial_aq" class="form-select" v-model="config.nvenc_spatial_aq">
-            <option value="disabled">{{ $t('config.nvenc_spatial_aq_disabled') }}</option>
-            <option value="enabled">{{ $t('config.nvenc_spatial_aq_enabled') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.nvenc_spatial_aq_desc') }}</div>
-        </div>
-
-        <!-- Single-frame VBV/HRD percentage increase -->
-        <div class="mb-3">
-          <label for="nvenc_vbv_increase" class="form-label">{{ $t('config.nvenc_vbv_increase') }}</label>
-          <input type="number" min="0" max="400" class="form-control" id="nvenc_vbv_increase" placeholder="0"
-            v-model="config.nvenc_vbv_increase" />
-          <div class="form-text">
-            {{ $t('config.nvenc_vbv_increase_desc') }}<br>
-            <br>
-            <a href="https://en.wikipedia.org/wiki/Video_buffering_verifier">VBV/HRD</a>
-          </div>
-        </div>
-
-        <!-- Miscellaneous options -->
-        <div class="accordion">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#panelsStayOpen-collapseOne">
-                {{ $t('config.misc') }}
-              </button>
-            </h2>
-            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-              aria-labelledby="panelsStayOpen-headingOne">
-              <div class="accordion-body">
-                <!-- NVENC Realtime HAGS priority -->
-                <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_realtime_hags" class="form-label">{{ $t('config.nvenc_realtime_hags') }}</label>
-                  <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
-                    <option value="disabled">{{ $t('_common.disabled') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-                  </select>
-                  <div class="form-text">
-                    {{ $t('config.nvenc_realtime_hags_desc') }}<br>
-                    <br>
-                    <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
-                  </div>
-                </div>
-
-                <!-- Prefer lower encoding latency over power savings -->
-                <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_latency_over_power" class="form-label">{{ $t('config.nvenc_latency_over_power') }}</label>
-                  <select id="nvenc_latency_over_power" class="form-select" v-model="config.nvenc_latency_over_power">
-                    <option value="disabled">{{ $t('_common.disabled') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.nvenc_latency_over_power_desc') }}</div>
-                </div>
-                
-                <!-- Present OpenGL/Vulkan on top of DXGI -->
-                <div class="mb-3" v-if="platform === 'windows'">
-                  <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}</label>
-                  <select id="nvenc_opengl_vulkan_on_dxgi" class="form-select" v-model="config.nvenc_opengl_vulkan_on_dxgi">
-                    <option value="disabled">{{ $t('_common.disabled') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.nvenc_opengl_vulkan_on_dxgi_desc') }}</div>
-                </div>
-
-                <!-- NVENC H264 CAVLC -->
-                <div>
-                  <label for="nvenc_h264_cavlc" class="form-label">{{ $t('config.nvenc_h264_cavlc') }}</label>
-                  <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
-                    <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.nvenc_h264_cavlc_desc') }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Intel QuickSync Encoder Tab -->
-      <div id="intel-quicksync-encoder" v-if="currentTab === 'qsv'" class="config-page">
-        <!-- QuickSync Preset -->
-        <div class="mb-3">
-          <label for="qsv_preset" class="form-label">{{ $t('config.qsv_preset') }}</label>
-          <select id="qsv_preset" class="form-select" v-model="config.qsv_preset">
-            <option value="veryfast">{{ $t('config.qsv_preset_veryfast') }}</option>
-            <option value="faster">{{ $t('config.qsv_preset_faster') }}</option>
-            <option value="fast">{{ $t('config.qsv_preset_fast') }}</option>
-            <option value="medium">{{ $t('config.qsv_preset_medium') }}</option>
-            <option value="slow">{{ $t('config.qsv_preset_slow') }}</option>
-            <option value="slower">{{ $t('config.qsv_preset_slower') }}</option>
-            <option value="slowest">{{ $t('config.qsv_preset_slowest') }}</option>
-          </select>
-        </div>
-
-        <!-- QuickSync Coder (H264) -->
-        <div class="mb-3">
-          <label for="qsv_coder" class="form-label">{{ $t('config.qsv_coder') }}</label>
-          <select id="qsv_coder" class="form-select" v-model="config.qsv_coder">
-            <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
-            <option value="cabac">{{ $t('config.coder_cabac') }}</option>
-            <option value="cavlc">{{ $t('config.coder_cavlc') }}</option>
-          </select>
-        </div>
-
-        <!-- Allow Slow HEVC Encoding -->
-        <div class="mb-3">
-          <label for="qsv_slow_hevc" class="form-label">{{ $t('config.qsv_slow_hevc') }}</label>
-          <select id="qsv_slow_hevc" class="form-select" v-model="config.qsv_slow_hevc">
-            <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-            <option value="enabled">{{ $t('_common.enabled') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.qsv_slow_hevc_desc') }}</div>
-        </div>
-
-      </div>
-
-      <!-- AMD AMF Encoder Tab -->
-      <div id="amd-amf-encoder" v-if="currentTab === 'amd'" class="config-page">
-        <!-- AMF Usage -->
-        <div class="mb-3">
-          <label for="amd_usage" class="form-label">{{ $t('config.amd_usage') }}</label>
-          <select id="amd_usage" class="form-select" v-model="config.amd_usage">
-            <option value="transcoding">{{ $t('config.amd_usage_transcoding') }}</option>
-            <option value="webcam">{{ $t('config.amd_usage_webcam') }}</option>
-            <option value="lowlatency_high_quality">{{ $t('config.amd_usage_lowlatency_high_quality') }}</option>
-            <option value="lowlatency">{{ $t('config.amd_usage_lowlatency') }}</option>
-            <option value="ultralowlatency">{{ $t('config.amd_usage_ultralowlatency') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.amd_usage_desc') }}</div>
-        </div>
-
-        <!-- AMD Rate Control group options -->
-        <div class="accordion">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#panelsStayOpen-collapseOne">
-                {{ $t('config.amd_rc_group') }}
-              </button>
-            </h2>
-            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
-              aria-labelledby="panelsStayOpen-headingOne">
-              <div class="accordion-body">
-                <!-- AMF Rate Control -->
-                <div class="mb-3">
-                  <label for="amd_rc" class="form-label">{{ $t('config.amd_rc') }}</label>
-                  <select id="amd_rc" class="form-select" v-model="config.amd_rc">
-                    <option value="cbr">{{ $t('config.amd_rc_cbr') }}</option>
-                    <option value="cqp">{{ $t('config.amd_rc_cqp') }}</option>
-                    <option value="vbr_latency">{{ $t('config.amd_rc_vbr_latency') }}</option>
-                    <option value="vbr_peak">{{ $t('config.amd_rc_vbr_peak') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.amd_rc_desc') }}</div>
-                </div>
-
-                <!-- AMF HRD Enforcement -->
-                <div class="mb-3">
-                  <label for="amd_enforce_hrd" class="form-label">{{ $t('config.amd_enforce_hrd') }}</label>
-                  <select id="amd_enforce_hrd" class="form-select" v-model="config.amd_enforce_hrd">
-                    <option value="enabled">{{ $t('_common.enabled') }}</option>
-                    <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.amd_enforce_hrd_desc') }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- AMF Quality group options -->
-        <div class="accordion">
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#panelsStayOpen-collapseTwo">
-                {{ $t('config.amd_quality_group') }}
-              </button>
-            </h2>
-            <div id="panelsStayOpen-collapseTwo" class="accordion-collapse collapse show"
-              aria-labelledby="panelsStayOpen-headingTwo">
-              <div class="accordion-body">
-                <!-- AMF Quality -->
-                <div class="mb-3">
-                  <label for="amd_quality" class="form-label">{{ $t('config.amd_quality') }}</label>
-                  <select id="amd_quality" class="form-select" v-model="config.amd_quality">
-                    <option value="speed">{{ $t('config.amd_quality_speed') }}</option>
-                    <option value="balanced">{{ $t('config.amd_quality_balanced') }}</option>
-                    <option value="quality">{{ $t('config.amd_quality_quality') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.amd_quality_desc') }}</div>
-                </div>
-
-                <!-- AMD Preanalysis -->
-                <div class="mb-3">
-                  <label for="amd_preanalysis" class="form-label">{{ $t('config.amd_preanalysis') }}</label>
-                  <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
-                    <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.amd_preanalysis_desc') }}</div>
-                </div>
-
-                <!-- AMD VBAQ -->
-                <div class="mb-3">
-                  <label for="amd_vbaq" class="form-label">{{ $t('config.amd_vbaq') }}</label>
-                  <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
-                    <option value="disabled">{{ $t('_common.disabled') }}</option>
-                    <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.amd_vbaq_desc') }}</div>
-                </div>
-
-                <!-- AMF Coder (H264) -->
-                <div class="mb-3">
-                  <label for="amd_coder" class="form-label">{{ $t('config.amd_coder') }}</label>
-                  <select id="amd_coder" class="form-select" v-model="config.amd_coder">
-                    <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
-                    <option value="cabac">{{ $t('config.coder_cabac') }}</option>
-                    <option value="cavlc">{{ $t('config.coder_cavlc') }}</option>
-                  </select>
-                  <div class="form-text">{{ $t('config.amd_coder_desc') }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- VideoToolbox Encoder Tab -->
-      <div id="videotoolbox-encoder" v-if="currentTab === 'vt'" class="config-page">
-        <!-- Presets -->
-        <div class="mb-3">
-          <label for="vt_coder" class="form-label">{{ $t('config.vt_coder') }}</label>
-          <select id="vt_coder" class="form-select" v-model="config.vt_coder">
-            <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
-            <option value="cabac">{{ $t('config.coder_cabac') }}</option>
-            <option value="cavlc">{{ $t('config.coder_cavlc') }}</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="vt_software" class="form-label">{{ $t('config.vt_software') }}</label>
-          <select id="vt_software" class="form-select" v-model="config.vt_software">
-            <option value="auto">{{ $t('_common.auto') }}</option>
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="allowed">{{ $t('config.vt_software_allowed') }}</option>
-            <option value="forced">{{ $t('config.vt_software_forced') }}</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label for="vt_realtime" class="form-label">{{ $t('config.vt_realtime') }}</label>
-          <select id="vt_realtime" class="form-select" v-model="config.vt_realtime">
-            <option value="enabled">{{ $t('_common.enabled') }}</option>
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Software Encoder Tab -->
-      <div id="software-encoder" v-if="currentTab === 'sw'" class="config-page">
-        <div class="mb-3">
-          <label for="sw_preset" class="form-label">{{ $t('config.sw_preset') }}</label>
-          <select id="sw_preset" class="form-select" v-model="config.sw_preset">
-            <option value="ultrafast">{{ $t('config.sw_preset_ultrafast') }}</option>
-            <option value="superfast">{{ $t('config.sw_preset_superfast') }}</option>
-            <option value="veryfast">{{ $t('config.sw_preset_veryfast') }}</option>
-            <option value="faster">{{ $t('config.sw_preset_faster') }}</option>
-            <option value="fast">{{ $t('config.sw_preset_fast') }}</option>
-            <option value="medium">{{ $t('config.sw_preset_medium') }}</option>
-            <option value="slow">{{ $t('config.sw_preset_slow') }}</option>
-            <option value="slower">{{ $t('config.sw_preset_slower') }}</option>
-            <option value="veryslow">{{ $t('config.sw_preset_veryslow') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.sw_preset_desc') }}</div>
-        </div>
-
-        <div class="mb-3">
-          <label for="sw_tune" class="form-label">{{ $t('config.sw_tune') }}</label>
-          <select id="sw_tune" class="form-select" v-model="config.sw_tune">
-            <option value="film">{{ $t('config.sw_tune_film') }}</option>
-            <option value="animation">{{ $t('config.sw_tune_animation') }}</option>
-            <option value="grain">{{ $t('config.sw_tune_grain') }}</option>
-            <option value="stillimage">{{ $t('config.sw_tune_stillimage') }}</option>
-            <option value="fastdecode">{{ $t('config.sw_tune_fastdecode') }}</option>
-            <option value="zerolatency">{{ $t('config.sw_tune_zerolatency') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.sw_tune_desc') }}</div>
-        </div>
-      </div>
-
+      <container-encoders
+        :current-tab="currentTab"
+        :config="config"
+        :platform="platform">
+      </container-encoders>
     </div>
 
     <!-- Save and Apply buttons -->
@@ -1065,17 +99,34 @@
       <button class="btn btn-primary" @click="save">{{ $t('_common.save') }}</button>
       <button class="btn btn-success" @click="apply" v-if="saved && !restarted">{{ $t('_common.apply') }}</button>
     </div>
-
   </div>
 </body>
+
+
 <script type="module">
-  import { createApp } from 'vue'
-  import i18n from './locale.js'
+  import { computed, createApp } from 'vue'
+  import { initApp } from './init'
   import Navbar from './Navbar.vue'
+  import General from './configs/tabs/General.vue'
+  import Inputs from './configs/tabs/Inputs.vue'
+  import Network from './configs/tabs/Network.vue'
+  import Files from './configs/tabs/Files.vue'
+  import Advanced from './configs/tabs/Advanced.vue'
+  import AudioVideo from './configs/tabs/AudioVideo.vue'
+  import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
+  import {$tp, usePlatformI18n} from './platform-i18n'
 
   const app = createApp({
     components: {
-      Navbar
+      Navbar,
+      General,
+      Inputs,
+      Network,
+      Files,
+      Advanced,
+      // They will be accessible via audio-video, container-encoders only.
+      AudioVideo,
+      ContainerEncoders,
     },
     data() {
       return {
@@ -1086,10 +137,8 @@
         fps: [],
         resolutions: [],
         currentTab: "general",
-        resIn: "",
-        fpsIn: "",
         global_prep_cmd: [],
-        tabs: [
+        tabs: [ // TODO: Move the options to each Component instead, encapsulate.
           {
             id: "general",
             name: "General",
@@ -1230,6 +279,11 @@
         ],
       };
     },
+    provide() {
+       return {
+         platform: computed(() => this.platform)
+       }
+    },
     created() {
       fetch("/api/config")
         .then((r) => r.json())
@@ -1258,6 +312,8 @@
           delete this.config.platform;
           delete this.config.status;
           delete this.config.version;
+
+          // TODO: let each tab's Component handle it's own data instead of doing it here
 
           // Populate default values from tabs options
           this.tabs.forEach(tab => {
@@ -1371,27 +427,6 @@
           }
         });
       },
-      add_global_prep_cmd() {
-        let template = {
-          do: "",
-          undo: "",
-        };
-
-        if (this.platform === 'windows') {
-          template = { ...template, elevated: false };
-        }
-        this.global_prep_cmd.push(template);
-      },
-    },
-    computed: {
-      effectivePort() {
-        // Convert config.port to a number.
-        const port = +this.config?.port
-
-        // Check if port is NaN or a falsy value (like 0, empty string, etc.).
-        // If so, default to config port. Otherwise, use the value of port.
-        return port ? port : 47989
-      },
     },
     mounted() {
       // Handle hashchange events
@@ -1433,9 +468,5 @@
     },
   });
 
-  //Wait for locale initialization, then render
-  i18n().then(i18n => {
-    app.use(i18n);
-    app.mount('#app');
-  });
+  initApp(app);
 </script>

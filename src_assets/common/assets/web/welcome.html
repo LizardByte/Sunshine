@@ -53,8 +53,8 @@
 
 <script type="module">
   import { createApp } from "vue"
-  import i18n from './locale.js'
   import ResourceCard from './ResourceCard.vue'
+  import { initApp } from './init'
 
   let app = createApp({
     components: {
@@ -100,9 +100,5 @@
     },
   });
 
-  //Wait for locale initialization, then render
-  i18n().then(i18n => {
-    app.use(i18n);
-    app.mount('#app');
-  });
+  initApp(app);
 </script>

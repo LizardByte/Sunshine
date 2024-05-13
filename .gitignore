@@ -48,3 +48,6 @@ package-lock.json
 # Translations
 *.mo
 *.pot
+
+# Dummy macOS files
+.DS_Store

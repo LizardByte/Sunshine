@@ -1,6 +1,7 @@
 {
   "scripts": {
     "build": "vite build --debug",
+    "build-clean": "vite build --debug --emptyOutDir",
     "dev": "vite build --watch"
   },
   "dependencies": {
