@@ -2,9 +2,17 @@
 
 add_compile_definitions(SUNSHINE_PLATFORM="macos")
 
-link_directories(/opt/local/lib)
-link_directories(/usr/local/lib)
-link_directories(/opt/homebrew/lib)
+set(MACOS_LINK_DIRECTORIES
+        /opt/homebrew/lib
+        /opt/local/lib
+        /usr/local/lib)
+
+foreach(dir ${MACOS_LINK_DIRECTORIES})
+    if(EXISTS ${dir})
+        link_directories(${dir})
+    endif()
+endforeach()
+
 ADD_DEFINITIONS(-DBOOST_LOG_DYN_LINK)
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
