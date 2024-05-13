@@ -20,53 +20,63 @@ pkg_check_modules(MINIUPNP miniupnpc REQUIRED)
 include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
 
 # ffmpeg pre-compiled binaries
-if(WIN32)
-    if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
-        message(FATAL_ERROR "Unsupported system processor:" ${CMAKE_SYSTEM_PROCESSOR})
+if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
+    if(WIN32)
+        if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "AMD64")
+            message(FATAL_ERROR "Unsupported system processor:" ${CMAKE_SYSTEM_PROCESSOR})
+        endif()
+        set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid vpl)
+        set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/windows-x86_64")
+    elseif(APPLE)
+        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+            set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/macos-x86_64")
+        elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+            set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/macos-aarch64")
+        elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "powerpc")
+            message(FATAL_ERROR "PowerPC is not supported on macOS")
+        else()
+            message(FATAL_ERROR "Unsupported system processor:" ${CMAKE_SYSTEM_PROCESSOR})
+        endif()
+    elseif(UNIX)
+        set(FFMPEG_PLATFORM_LIBRARIES numa va va-drm va-x11 vdpau X11)
+        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+            list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
+            set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/linux-x86_64")
+            set(CPACK_DEB_PLATFORM_PACKAGE_DEPENDS "libmfx1,")
+            set(CPACK_RPM_PLATFORM_PACKAGE_REQUIRES "intel-mediasdk >= 22.3.0,")
+        elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+            set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/linux-aarch64")
+        elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64le" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64")
+            set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/linux-powerpc64le")
+        else()
+            message(FATAL_ERROR "Unsupported system processor:" ${CMAKE_SYSTEM_PROCESSOR})
+        endif()
     endif()
-    set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid vpl)
-    set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/windows-x86_64")
-elseif(APPLE)
-    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-        set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/macos-x86_64")
-    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-        set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/macos-aarch64")
-    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "powerpc")
-        message(FATAL_ERROR "PowerPC is not supported on macOS")
-    else()
-        message(FATAL_ERROR "Unsupported system processor:" ${CMAKE_SYSTEM_PROCESSOR})
+    if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a")
+        set(HDR10_PLUS_LIBRARY
+                "${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a")
     endif()
-elseif(UNIX)
-    set(FFMPEG_PLATFORM_LIBRARIES va va-drm va-x11 vdpau X11)
-    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-        list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
-        set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/linux-x86_64")
-        set(CPACK_DEB_PLATFORM_PACKAGE_DEPENDS "libmfx1,")
-        set(CPACK_RPM_PLATFORM_PACKAGE_REQUIRES "intel-mediasdk >= 22.3.0,")
-    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-        set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/linux-aarch64")
-    elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64le" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "ppc64")
-        set(FFMPEG_PREPARED_BINARIES "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/linux-powerpc64le")
-    else()
-        message(FATAL_ERROR "Unsupported system processor:" ${CMAKE_SYSTEM_PROCESSOR})
-    endif()
-endif()
-set(FFMPEG_INCLUDE_DIRS
-        "${FFMPEG_PREPARED_BINARIES}/include")
-if(EXISTS "${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a")
-    set(HDR10_PLUS_LIBRARY
-            "${FFMPEG_PREPARED_BINARIES}/lib/libhdr10plus.a")
-endif()
-set(FFMPEG_LIBRARIES
+    set(FFMPEG_LIBRARIES
+            "${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a"
+            "${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a"
+            "${FFMPEG_PREPARED_BINARIES}/lib/libcbs.a"
+            "${FFMPEG_PREPARED_BINARIES}/lib/libSvtAv1Enc.a"
+            "${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a"
+            "${FFMPEG_PREPARED_BINARIES}/lib/libx264.a"
+            "${FFMPEG_PREPARED_BINARIES}/lib/libx265.a"
+            ${HDR10_PLUS_LIBRARY}
+            ${FFMPEG_PLATFORM_LIBRARIES})
+else()
+    set(FFMPEG_LIBRARIES
         "${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a"
         "${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a"
         "${FFMPEG_PREPARED_BINARIES}/lib/libcbs.a"
-        "${FFMPEG_PREPARED_BINARIES}/lib/libSvtAv1Enc.a"
         "${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a"
-        "${FFMPEG_PREPARED_BINARIES}/lib/libx264.a"
-        "${FFMPEG_PREPARED_BINARIES}/lib/libx265.a"
-        ${HDR10_PLUS_LIBRARY}
         ${FFMPEG_PLATFORM_LIBRARIES})
+endif()
+
+set(FFMPEG_INCLUDE_DIRS
+        "${FFMPEG_PREPARED_BINARIES}/include")
 
 # platform specific dependencies
 if(WIN32)
