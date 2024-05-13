@@ -7,9 +7,9 @@ set(MACOS_LINK_DIRECTORIES
         /opt/local/lib
         /usr/local/lib)
 
-foreach(DIR ${MACOS_LINK_DIRECTORIES})
-    if(EXISTS ${DIR})
-        link_directories(${DIR})
+foreach(dir ${MACOS_LINK_DIRECTORIES})
+    if(EXISTS ${dir})
+        link_directories(${dir})
     endif()
 endforeach()
 
