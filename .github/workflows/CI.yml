@@ -326,6 +326,7 @@ jobs:
           # allow libfuse2 for appimage on 22.04
           sudo add-apt-repository universe
 
+          # libx11-xcb-dev and libxcb-dri3-dev are required for building libva
           sudo apt-get install -y \
             build-essential \
             cmake \
@@ -349,10 +350,11 @@ jobs:
             libopus-dev \
             libpulse-dev \
             libssl-dev \
-            libva-dev \
             libvdpau-dev \
             libwayland-dev \
             libx11-dev \
+            libx11-xcb-dev \
+            libxcb-dri3-dev \
             libxcb-shm0-dev \
             libxcb-xfixes0-dev \
             libxcb1-dev \
@@ -379,6 +381,24 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Build latest libva
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        timeout-minutes: 5
+        run: |
+          gh release download --archive=tar.gz --repo=intel/libva
+          tar xzf libva-*.tar.gz && rm libva-*.tar.gz
+          cd libva-*
+          ./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu \
+            --enable-drm \
+            --enable-x11 \
+            --enable-glx \
+            --enable-wayland \
+            --without-legacy # emgd, nvctrl, fglrx
+          make -j $(nproc)
+          sudo make install
+          cd .. && rm -rf libva-*
 
       - name: Build Linux
         env:
