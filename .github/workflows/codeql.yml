@@ -63,7 +63,9 @@ jobs:
                 if (key.toLowerCase() === 'swift') {
                   osList = ['macos-latest'];
                 } else if (key.toLowerCase() === 'cpp') {
-                  osList = ['macos-latest', 'ubuntu-latest', 'windows-latest'];
+                  // TODO: update macos to latest after the below issue is resolved
+                  // https://github.com/github/codeql-action/issues/2266
+                  osList = ['macos-13', 'ubuntu-latest', 'windows-latest'];
                 }
                 for (let os of osList) {
                   // set name for matrix
@@ -120,10 +122,12 @@ jobs:
 
     steps:
       - name: Maximize build space
-        if: runner.os == 'Linux'
-        uses: easimon/maximize-build-space@v8
+        if: >-
+          runner.os == 'Linux' &&
+          matrix.language == 'cpp'
+        uses: easimon/maximize-build-space@v10
         with:
-          root-reserve-mb: 20480
+          root-reserve-mb: 30720
           remove-dotnet: ${{ (matrix.language == 'csharp' && 'false') || 'true' }}
           remove-android: 'true'
           remove-haskell: 'true'

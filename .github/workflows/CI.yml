@@ -476,7 +476,7 @@ jobs:
           # permissions
           chmod +x ../artifacts/sunshine.AppImage
 
-      - name: Delete cuda
+      - name: Delete CUDA
         # free up space on the runner
         run: |
           sudo rm -rf /usr/local/cuda
