@@ -79,5 +79,5 @@ list(PREPEND PLATFORM_LIBRARIES
 
 if(SUNSHINE_ENABLE_TRAY)
     list(APPEND PLATFORM_TARGET_FILES
-            "${CMAKE_SOURCE_DIR}/third-party/tray/tray_windows.c")
+            "${CMAKE_SOURCE_DIR}/third-party/tray/src/tray_windows.c")
 endif()

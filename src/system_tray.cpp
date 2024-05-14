@@ -31,7 +31,7 @@
   #include <string>
 
   // lib includes
-  #include "tray/tray.h"
+  #include "tray/src/tray.h"
   #include <boost/filesystem.hpp>
   #include <boost/process/environment.hpp>
 

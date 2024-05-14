@@ -54,5 +54,5 @@ if(SUNSHINE_ENABLE_TRAY)
     list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
             ${COCOA})
     list(APPEND PLATFORM_TARGET_FILES
-            "${CMAKE_SOURCE_DIR}/third-party/tray/tray_darwin.m")
+            "${CMAKE_SOURCE_DIR}/third-party/tray/src/tray_darwin.m")
 endif()
