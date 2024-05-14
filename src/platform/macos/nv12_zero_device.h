@@ -5,7 +5,6 @@
 #pragma once
 
 #include "src/platform/common.h"
-#include "src/platform/macos/av_img_t.h"
 
 struct AVFrame;
 
