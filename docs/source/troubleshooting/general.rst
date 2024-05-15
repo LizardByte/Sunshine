@@ -50,6 +50,6 @@ devices by finding the device in `/sys/bus/usb/devices/` and writing `0` to the 
 Packet loss
 -----------
 Albeit unlikely, some guests might work better with a lower `MTU
-<https://en.wikipedia.org/wiki/Maximum_transmission_unit>`_ from the host. For example, a LG TV was found to have 30-60%
+<https://en.wikipedia.org/wiki/Maximum_transmission_unit>`__ from the host. For example, a LG TV was found to have 30-60%
 packet loss when the host had MTU set to 1500 and 1472, but 0% packet loss with a MTU of 1428 set in the network card
 serving the stream (a Linux PC). It's unclear how that helped precisely so it's a last resort suggestion.
