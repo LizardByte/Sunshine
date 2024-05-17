@@ -893,7 +893,7 @@ namespace stream {
   void
   controlBroadcastThread(control_server_t *server) {
     server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
-      BOOST_LOG(verbose) << "type [IDX_START_A]"sv;
+      BOOST_LOG(verbose) << "type [IDX_PERIODIC_PING]"sv;
     });
 
     server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
