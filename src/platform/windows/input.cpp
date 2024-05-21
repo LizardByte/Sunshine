@@ -506,7 +506,7 @@ namespace platf {
   }
 
   void
-  abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+  abs_mouse2(input_t &input, const touch_port_t &touch_port, float x, float y) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -529,13 +529,24 @@ namespace platf {
   }
 
   void
+  abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+    INPUT i {};
+    i.type = INPUT_MOUSE;
+    auto &mi = i.mi;
+    mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+    mi.dx = (x * 65535) / GetSystemMetrics(SM_CXSCREEN);
+    mi.dy = (y * 65535) / GetSystemMetrics(SM_CYSCREEN);
+    send_input(i);
+  }
+
+  void
   move_mouse(input_t &input, int deltaX, int deltaY) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
     auto &mi = i.mi;
 
-    mi.dwFlags = MOUSEEVENTF_MOVE;
+    mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;
     mi.dx = deltaX;
     mi.dy = deltaY;
 
@@ -544,6 +555,7 @@ namespace platf {
 
   util::point_t
   get_mouse_loc(input_t &input) {
+    syncThreadDesktop();
     POINT p;
     if (!GetCursorPos(&p)) {
       return util::point_t { 0.0, 0.0 };
