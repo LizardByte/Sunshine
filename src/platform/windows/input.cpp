@@ -506,7 +506,7 @@ namespace platf {
   }
 
   void
-  abs_mouse2(input_t &input, const touch_port_t &touch_port, float x, float y) {
+  abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -528,6 +528,7 @@ namespace platf {
     send_input(i);
   }
 
+/**
   void
   abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
     INPUT i {};
@@ -538,6 +539,7 @@ namespace platf {
     mi.dy = (y * 65535) / GetSystemMetrics(SM_CYSCREEN);
     send_input(i);
   }
+  */
 
   void
   move_mouse(input_t &input, int deltaX, int deltaY) {

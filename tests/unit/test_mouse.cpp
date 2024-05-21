@@ -62,7 +62,20 @@ TEST_P(MouseTest, AbsMoveInputTest) {
 
   auto old_loc = platf::get_mouse_loc(input);
 
-  platf::abs_mouse(input, platf::touch_port_t {}, mouse_pos.x, mouse_pos.y);
+  #ifdef _WIN32
+  platf::touch_port_t abs_port {
+    0, 0,
+    65535, 65535
+  };
+  #elif __linux__
+  platf::touch_port_t abs_port {
+    0, 0,
+    19200, 12000
+  };
+  #else
+  platf::touch_port_t abs_port { };
+  #endif
+  platf::abs_mouse(input, abs_port, mouse_pos.x, mouse_pos.y);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
   auto new_loc = platf::get_mouse_loc(input);
