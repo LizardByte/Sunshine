@@ -7,22 +7,24 @@
 
 #include <tests/conftest.cpp>
 
-class MouseTest: public virtual BaseTest, public ::testing::WithParamInterface<util::point_t> {
+class MouseTest: public virtual BaseTest, public PlatformInitBase, public ::testing::WithParamInterface<util::point_t> {
 protected:
   void
   SetUp() override {
     BaseTest::SetUp();
+    PlatformInitBase::SetUp();
 #ifdef _WIN32
     // TODO: Windows tests are failing, `get_mouse_loc` seems broken and `platf::abs_mouse` too
     //       the alternative `platf::abs_mouse` method seem to work better during tests,
     //       but I'm not sure about real work
-    GTEST_SKIP_((std::string("MouseTest:: skipped for now. TODO Windows").c_str());
+    GTEST_SKIP_("MouseTest:: skipped for now. TODO Windows");
 #endif
   }
 
   void
   TearDown() override {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    PlatformInitBase::TearDown();
     BaseTest::TearDown();
   }
 };
@@ -31,9 +33,8 @@ INSTANTIATE_TEST_SUITE_P(
   MouseTest,
   ::testing::Values(
     util::point_t { 40, 40 },
-    util::point_t { 70, 150 }
+    util::point_t { 70, 150 }));
     // todo: add tests for hitting screen edges
-    ));
 
 TEST_P(MouseTest, MoveInputTest) {
   util::point_t mouse_delta = GetParam();
