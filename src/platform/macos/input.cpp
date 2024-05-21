@@ -317,7 +317,7 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   // returns current mouse location:
-  inline util::point_t
+  util::point_t
   get_mouse_loc(input_t &input) {
     // Creating a new event every time to avoid any reuse risk
     const auto macos_input = static_cast<macos_input_t *>(input.get());

@@ -1106,12 +1106,12 @@ namespace platf {
       return util::point_t { };
     }
     Window root, root_return, child_return;
-    root = DefaultRootWindow(display);
+    root = DefaultRootWindow(xdisplay);
     int root_x, root_y;
     int win_x, win_y;
     unsigned int mask_return;
 
-    if (XQueryPointer(display, root, &root_return, &child_return, &root_x, &root_y, &win_x, &win_y, &mask_return)) {
+    if (XQueryPointer(xdisplay, root, &root_return, &child_return, &root_x, &root_y, &win_x, &win_y, &mask_return)) {
       BOOST_LOG(debug)
         << "Pointer is at:"sv << std::endl
         << "  x: " << root_x << std::endl

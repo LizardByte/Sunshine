@@ -542,20 +542,16 @@ namespace platf {
     send_input(i);
   }
 
-  inline util::point_t
+  util::point_t
   get_mouse_loc(input_t &input) {
-    INPUT i {};
+    POINT p;
+    if (!GetCursorPos(&p)) {
+      return util::point_t { 0.0, 0.0 };
+    }
 
-    i.type = INPUT_MOUSE;
-    auto &mi = i.mi;
-    mi.dwFlags =
-      MOUSEEVENTF_ABSOLUTE |
-
-      // MOUSEEVENTF_VIRTUALDESK maps to the entirety of the desktop rather than the primary desktop
-      MOUSEEVENTF_VIRTUALDESK;
     return util::point_t {
-      mi.dx,
-      mi.dy
+      (double) p.x,
+      (double) p.y
     };
   }
 
