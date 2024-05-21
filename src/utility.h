@@ -940,6 +940,11 @@ namespace util {
     return std::string_view((const char *) &data, sizeof(T));
   }
 
+  struct point_t {
+    double x;
+    double y;
+  };
+
   namespace endian {
     template <class T = void>
     struct endianness {

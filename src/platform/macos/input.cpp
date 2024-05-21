@@ -2,6 +2,8 @@
  * @file src/platform/macos/input.cpp
  * @brief todo
  */
+#include "src/input.h"
+
 #import <Carbon/Carbon.h>
 #include <chrono>
 #include <mach/mach.h>
@@ -315,13 +317,17 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   // returns current mouse location:
-  inline CGPoint
-  get_mouse_loc(const macos_input_t &input) {
+  inline util::point_t
+  get_mouse_loc(input_t &input) {
     // Creating a new event every time to avoid any reuse risk
-    const auto snapshot_event = CGEventCreate(input.source);
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
+    const auto snapshot_event = CGEventCreate(macos_input->source);
     const auto current = CGEventGetLocation(snapshot_event);
     CFRelease(snapshot_event);
-    return current;
+    return util::point_t {
+      current.x,
+      current.y
+    };
   }
 
   void
@@ -329,8 +335,8 @@ const KeyCodeMap kKeyCodesMap[] = {
     input_t &input,
     const CGMouseButton button,
     const CGEventType type,
-    const CGPoint raw_location,
-    const CGPoint previous_location,
+    const util::point_t raw_location,
+    const util::point_t previous_location,
     const int click_count
   ) {
     BOOST_LOG(debug) << "mouse_event: "sv << button << ", type: "sv << type << ", location:"sv << raw_location.x << ":"sv << raw_location.y << " click_count: "sv << click_count;
@@ -384,10 +390,9 @@ const KeyCodeMap kKeyCodesMap[] = {
     const int deltaX,
     const int deltaY
   ) {
-    const auto macos_input = static_cast<macos_input_t *>(input.get());
-    const auto current = get_mouse_loc(*macos_input);
+    const auto current = get_mouse_loc(input);
 
-    const CGPoint location = CGPointMake(current.x + deltaX, current.y + deltaY);
+    const auto location = util::point_t { current.x + deltaX, current.y + deltaY };
     post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, current, 0);
   }
 
@@ -402,13 +407,13 @@ const KeyCodeMap kKeyCodesMap[] = {
     const auto scaling = macos_input->displayScaling;
     const auto display = macos_input->display;
 
-    CGPoint location = CGPointMake(x * scaling, y * scaling);
+    auto location = util::point_t { x * scaling, y * scaling };
     CGRect display_bounds = CGDisplayBounds(display);
     // in order to get the correct mouse location for capturing display , we need to add the display bounds to the location
     location.x += display_bounds.origin.x;
     location.y += display_bounds.origin.y;
 
-    post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, get_mouse_loc(*macos_input), 0);
+    post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, get_mouse_loc(input), 0);
   }
 
   void
@@ -440,7 +445,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     // if the last mouse down was less than MULTICLICK_DELAY_MS, we send a double click event
     const auto now = std::chrono::steady_clock::now();
-    const auto mouse_position = get_mouse_loc(*macos_input);
+    const auto mouse_position = get_mouse_loc(input);
 
     if (now < macos_input->last_mouse_event[mac_button][release] + MULTICLICK_DELAY_MS) {
       post_mouse(input, mac_button, event, mouse_position, mouse_position, 2);

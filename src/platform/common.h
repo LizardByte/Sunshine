@@ -672,6 +672,18 @@ namespace platf {
 
   input_t
   input();
+  /**
+   * @brief Gets the current mouse position on screen
+   * @param input The input_t instance to use.
+   * @return util::point_t (x, y)
+   *
+   * EXAMPLES:
+   * ```cpp
+   * auto [x, y] = get_mouse_loc(input);
+   * ```
+   */
+  util::point_t
+  get_mouse_loc(input_t &input);
   void
   move_mouse(input_t &input, int deltaX, int deltaY);
   void
