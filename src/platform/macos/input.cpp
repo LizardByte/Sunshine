@@ -316,84 +316,107 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   // returns current mouse location:
   inline CGPoint
-  get_mouse_loc(input_t &input) {
-    return CGEventGetLocation(((macos_input_t *) input.get())->mouse_event);
+  get_mouse_loc(const macos_input_t &input) {
+    // Creating a new event every time to avoid any reuse risk
+    const auto snapshot_event = CGEventCreate(input.source);
+    const auto current = CGEventGetLocation(snapshot_event);
+    CFRelease(snapshot_event);
+    return current;
   }
 
   void
-  post_mouse(input_t &input, CGMouseButton button, CGEventType type, CGPoint location, int click_count) {
-    BOOST_LOG(debug) << "mouse_event: "sv << button << ", type: "sv << type << ", location:"sv << location.x << ":"sv << location.y << " click_count: "sv << click_count;
+  post_mouse(
+    input_t &input,
+    const CGMouseButton button,
+    const CGEventType type,
+    const CGPoint raw_location,
+    const CGPoint previous_location,
+    const int click_count
+  ) {
+    BOOST_LOG(debug) << "mouse_event: "sv << button << ", type: "sv << type << ", location:"sv << raw_location.x << ":"sv << raw_location.y << " click_count: "sv << click_count;
 
-    auto macos_input = (macos_input_t *) input.get();
-    auto display = macos_input->display;
-    auto event = macos_input->mouse_event;
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
+    const auto display = macos_input->display;
+    const auto event = macos_input->mouse_event;
 
     // get display bounds for current display
-    CGRect display_bounds = CGDisplayBounds(display);
+    const CGRect display_bounds = CGDisplayBounds(display);
 
     // limit mouse to current display bounds
-    location.x = std::clamp(location.x, display_bounds.origin.x, display_bounds.origin.x + display_bounds.size.width - 1);
-    location.y = std::clamp(location.y, display_bounds.origin.y, display_bounds.origin.y + display_bounds.size.height - 1);
+    const auto location = CGPoint {
+       std::clamp(raw_location.x, display_bounds.origin.x, display_bounds.origin.x + display_bounds.size.width - 1),
+      std::clamp(raw_location.y, display_bounds.origin.y, display_bounds.origin.y + display_bounds.size.height - 1)
+    };
 
     CGEventSetType(event, type);
     CGEventSetLocation(event, location);
     CGEventSetIntegerValueField(event, kCGMouseEventButtonNumber, button);
     CGEventSetIntegerValueField(event, kCGMouseEventClickState, click_count);
 
-    CGEventPost(kCGHIDEventTap, event);
+    // Include deltas so some 3D applications can consume changes (game cameras, etc)
+    const double deltaX = raw_location.x - previous_location.x;
+    const double deltaY = raw_location.y - previous_location.y;
+    CGEventSetDoubleValueField(event, kCGMouseEventDeltaX, deltaX);
+    CGEventSetDoubleValueField(event, kCGMouseEventDeltaY, deltaY);
 
-    // For why this is here, see:
-    // https://stackoverflow.com/questions/15194409/simulated-mouseevent-not-working-properly-osx
-    CGWarpMouseCursorPosition(location);
+    CGEventPost(kCGHIDEventTap, event);
   }
 
   inline CGEventType
   event_type_mouse(input_t &input) {
-    auto macos_input = ((macos_input_t *) input.get());
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
 
     if (macos_input->mouse_down[0]) {
       return kCGEventLeftMouseDragged;
     }
-    else if (macos_input->mouse_down[1]) {
+    if (macos_input->mouse_down[1]) {
       return kCGEventOtherMouseDragged;
     }
-    else if (macos_input->mouse_down[2]) {
+    if (macos_input->mouse_down[2]) {
       return kCGEventRightMouseDragged;
     }
-    else {
-      return kCGEventMouseMoved;
-    }
+    return kCGEventMouseMoved;
   }
 
   void
-  move_mouse(input_t &input, int deltaX, int deltaY) {
-    auto current = get_mouse_loc(input);
+  move_mouse(
+    input_t &input,
+    const int deltaX,
+    const int deltaY
+  ) {
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
+    const auto current = get_mouse_loc(*macos_input);
 
-    CGPoint location = CGPointMake(current.x + deltaX, current.y + deltaY);
-
-    post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, 0);
+    const CGPoint location = CGPointMake(current.x + deltaX, current.y + deltaY);
+    post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, current, 0);
   }
 
   void
-  abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
-    auto macos_input = static_cast<macos_input_t *>(input.get());
-    auto scaling = macos_input->displayScaling;
-    auto display = macos_input->display;
+  abs_mouse(
+    input_t &input,
+    const touch_port_t &touch_port,
+    const float x,
+    const float y
+  ) {
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
+    const auto scaling = macos_input->displayScaling;
+    const auto display = macos_input->display;
 
     CGPoint location = CGPointMake(x * scaling, y * scaling);
     CGRect display_bounds = CGDisplayBounds(display);
     // in order to get the correct mouse location for capturing display , we need to add the display bounds to the location
     location.x += display_bounds.origin.x;
     location.y += display_bounds.origin.y;
-    post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, 0);
+
+    post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, get_mouse_loc(*macos_input), 0);
   }
 
   void
-  button_mouse(input_t &input, int button, bool release) {
+  button_mouse(input_t &input, const int button, const bool release) {
     CGMouseButton mac_button;
     CGEventType event;
 
-    auto mouse = ((macos_input_t *) input.get());
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
 
     switch (button) {
       case 1:
@@ -413,22 +436,23 @@ const KeyCodeMap kKeyCodesMap[] = {
         return;
     }
 
-    mouse->mouse_down[mac_button] = !release;
+    macos_input->mouse_down[mac_button] = !release;
 
     // if the last mouse down was less than MULTICLICK_DELAY_MS, we send a double click event
-    auto now = std::chrono::steady_clock::now();
-    if (now < mouse->last_mouse_event[mac_button][release] + MULTICLICK_DELAY_MS) {
-      post_mouse(input, mac_button, event, get_mouse_loc(input), 2);
-    }
-    else {
-      post_mouse(input, mac_button, event, get_mouse_loc(input), 1);
+    const auto now = std::chrono::steady_clock::now();
+    const auto mouse_position = get_mouse_loc(*macos_input);
+
+    if (now < macos_input->last_mouse_event[mac_button][release] + MULTICLICK_DELAY_MS) {
+      post_mouse(input, mac_button, event, mouse_position, mouse_position, 2);
+    } else {
+      post_mouse(input, mac_button, event, mouse_position, mouse_position, 1);
     }
 
-    mouse->last_mouse_event[mac_button][release] = now;
+    macos_input->last_mouse_event[mac_button][release] = now;
   }
 
   void
-  scroll(input_t &input, int high_res_distance) {
+  scroll(input_t &input, const int high_res_distance) {
     CGEventRef upEvent = CGEventCreateScrollWheelEvent(
       nullptr,
       kCGScrollEventUnitLine,
@@ -509,7 +533,7 @@ const KeyCodeMap kKeyCodesMap[] = {
   input() {
     input_t result { new macos_input_t() };
 
-    auto macos_input = (macos_input_t *) result.get();
+    const auto macos_input = static_cast<macos_input_t *>(result.get());
 
     // Default to main display
     macos_input->display = CGMainDisplayID();
@@ -534,7 +558,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     }
 
     // Input coordinates are based on the virtual resolution not the physical, so we need the scaling factor
-    CGDisplayModeRef mode = CGDisplayCopyDisplayMode(macos_input->display);
+    const CGDisplayModeRef mode = CGDisplayCopyDisplayMode(macos_input->display);
     macos_input->displayScaling = ((CGFloat) CGDisplayPixelsWide(macos_input->display)) / ((CGFloat) CGDisplayModeGetPixelWidth(mode));
     CFRelease(mode);
 
@@ -555,7 +579,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
   void
   freeInput(void *p) {
-    auto *input = (macos_input_t *) p;
+    const auto *input = static_cast<macos_input_t *>(p);
 
     CFRelease(input->source);
     CFRelease(input->kb_event);
