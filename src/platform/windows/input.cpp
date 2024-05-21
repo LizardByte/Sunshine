@@ -529,6 +529,8 @@ namespace platf {
   }
 
 /**
+* // TODO: This method seems to work better during tests,
+           but it doesn't seem to cover the same features as the original method
   void
   abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
     INPUT i {};
@@ -548,7 +550,8 @@ namespace platf {
     i.type = INPUT_MOUSE;
     auto &mi = i.mi;
 
-    mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;
+    // mi.dwFlags = MOUSEEVENTF_MOVE;
+    mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE; // TODO: Not sure if needed
     mi.dx = deltaX;
     mi.dy = deltaY;
 
@@ -557,7 +560,8 @@ namespace platf {
 
   util::point_t
   get_mouse_loc(input_t &input) {
-    syncThreadDesktop();
+    // TODO: Tests are failing, something wrong here?
+    // syncThreadDesktop();
     POINT p;
     if (!GetCursorPos(&p)) {
       return util::point_t { 0.0, 0.0 };
