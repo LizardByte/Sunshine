@@ -738,16 +738,16 @@ jobs:
           # https://apple.stackexchange.com/questions/362865/macos-list-apps-authorized-for-full-disk-access
           # https://github.com/actions/runner-images/issues/9529
           # https://github.com/actions/runner-images/pull/9530
-          
+
           # function to execute sql query for each value
           function execute_sql_query {
             local value=$1
             local dbPath=$2
-          
+
             echo "Executing SQL query for value: $value"
             sudo sqlite3 "$dbPath" "INSERT OR IGNORE INTO access VALUES($value);"
           }
-          
+
           # permissions
           declare -a values=(
             "'kTCCServiceAccessibility','/opt/off/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,NULL,1592919552"
@@ -759,13 +759,13 @@ jobs:
               values[$i]="${values[$i]},NULL,NULL,'UNUSED',${values[$i]##*,}"
             done
           fi
-          
+
           # system and user databases
           dbPaths=(
             "/Library/Application Support/com.apple.TCC/TCC.db"
             "$HOME/Library/Application Support/com.apple.TCC/TCC.db"
           )
-          
+
           for value in "${values[@]}"; do
             for dbPath in "${dbPaths[@]}"; do
               echo "Column names for $dbPath"
