@@ -12,6 +12,13 @@
 #include "src/platform/common.h"
 #include "src/utility.h"
 
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <CoreFoundation/CoreFoundation.h>
+#include <ApplicationServices/ApplicationServices.h>
+
 /**
  * @brief Delay for a double click, in milliseconds.
  * @todo Make this configurable.
@@ -350,7 +357,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     // limit mouse to current display bounds
     const auto location = CGPoint {
-       std::clamp(raw_location.x, display_bounds.origin.x, display_bounds.origin.x + display_bounds.size.width - 1),
+      std::clamp(raw_location.x, display_bounds.origin.x, display_bounds.origin.x + display_bounds.size.width - 1),
       std::clamp(raw_location.y, display_bounds.origin.y, display_bounds.origin.y + display_bounds.size.height - 1)
     };
 
