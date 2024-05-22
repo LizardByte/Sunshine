@@ -67,9 +67,9 @@ Integrations
    :alt: GitHub Workflow Status (CI)
    :target: https://github.com/LizardByte/Sunshine/actions/workflows/CI.yml?query=branch%3Amaster
 
-.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=nightly&label=localize%20build&logo=github&style=for-the-badge
+.. image:: https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=master&label=localize%20build&logo=github&style=for-the-badge
    :alt: GitHub Workflow Status (localize)
-   :target: https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Anightly
+   :target: https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Amaster
 
 .. image:: https://img.shields.io/readthedocs/sunshinestream.svg?label=Docs&style=for-the-badge&logo=readthedocs
    :alt: Read the Docs

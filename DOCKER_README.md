@@ -19,7 +19,6 @@ ENTRYPOINT steam && sunshine
 
 ### SUNSHINE_VERSION
 - `latest`, `master`, `vX.X.X`
-- `nightly`
 - commit hash
 
 ### SUNSHINE_OS

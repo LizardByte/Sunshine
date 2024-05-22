@@ -32,29 +32,28 @@
         <div class="alert alert-success" v-if="buildVersionIsDirty">
           {{ $t('index.version_dirty') }} 🌇
         </div>
-        <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable && !buildVersionIsDirty">
+        <div v-else-if="!preReleaseBuildAvailable && !stableBuildAvailable && !buildVersionIsDirty">
           <div class="alert alert-success">
             {{ $t('index.version_latest') }}
           </div>
         </div>
-        <div v-if="nightlyBuildAvailable">
+        <div v-if="notifyPreReleases && preReleaseBuildAvailable">
           <div class="alert alert-warning">
             <div class="d-flex justify-content-between">
               <div class="my-2">
-                <p v-html="$t('index.new_nightly')"></p>
+                <p>{{ $t('index.new_pre_release') }}</p>
               </div>
-              <a class="btn btn-success m-1" href="https://github.com/LizardByte/Sunshine/releases/nightly-dev"
-                target="_blank">Download</a>
+              <a class="btn btn-success m-1" :href="preReleaseVersion.html_url" target="_blank">{{ $t('index.download') }}</a>
             </div>
-            <pre><b>{{nightlyData.head_sha}}</b></pre>
-            <pre>{{nightlyData.display_title}}</pre>
+            <pre><b>{{preReleaseVersion.name}}</b></pre>
+            <pre>{{preReleaseVersion.body}}</pre>
           </div>
         </div>
         <div v-if="stableBuildAvailable">
           <div class="alert alert-warning">
             <div class="d-flex justify-content-between">
               <div class="my-2">
-                <p v-html="$t('index.new_stable')"></p>
+                <p>{{ $t('index.new_stable') }}</p>
               </div>
               <a class="btn btn-success m-1" :href="githubVersion.html_url" target="_blank">{{ $t('index.download') }}</a>
             </div>
@@ -87,18 +86,19 @@
       return {
         version: null,
         githubVersion: null,
-        nightlyData: null,
+        notifyPreReleases: false,
+        preReleaseVersion: null,
         loading: true,
         logs: null,
       }
     },
     async created() {
       try {
-        this.version = (await fetch("/api/config").then((r) => r.json())).version;
+        let config = await fetch("/api/config").then((r) => r.json());
+        this.notifyPreReleases = config.notify_pre_releases;
+        this.version = config.version;
         this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
-        if (this.buildVersionIsNightly) {
-          this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&event=push&exclude_pull_requests=true&per_page=1").then((r) => r.json())).workflow_runs[0];
-        }
+        this.githubPreRelease = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease);
       } catch (e) {
       }
       try {
@@ -110,48 +110,40 @@
     },
     computed: {
       stableBuildAvailable() {
-        // If we can't get versions, return false
-        if (!this.githubVersion || !this.version) return false;
-
-        // Get the GitHub version tag
-        let v_github = this.githubVersion.name;
-        // If the version starts with a v, remove it
-        if (v_github.indexOf("v") === 0) v_github = v_github.substring(1);
-
-        // Get the current version
-        let v_this = this.version;
-        // If the version starts with a v, remove it
-        if (v_this.indexOf("v") === 0) v_this = v_this.substring(1);
-
-        // if nightly or dirty, we do an additional check to make sure it's an actual upgrade.
-        if (this.buildVersionIsNightly || this.buildVersionIsDirty) {
-          const stableVersion = this.version.split('.').slice(0, 3).join('.');
-          return this.githubVersion.tag_name.substring(1) > stableVersion;
+        if (!this.githubVersion || !this.version) {
+          return false;
         }
-
-        // return true if the version is different, otherwise false
+        let v_github = this.githubVersion.name;
+        if (v_github.indexOf("v") === 0) {
+          v_github = v_github.substring(1);
+        }
+        let v_this = this.version;
+        if (v_this.indexOf("v") === 0) {
+          v_this = v_this.substring(1);
+        }
         return v_github !== v_this;
       },
-      nightlyBuildAvailable() {
-        // Verify nightly data is available and the build version is not stable
-        // This is important to ensure the UI does not try to load undefined values.
-        if (!this.nightlyData || this.buildVersionIsStable) return false;
-        // If built with dirty git tree, return false
-        if (this.buildVersionIsDirty) return false;
-        // Get the commit hash
-        let commit = this.version?.split(".").pop();
-        // return true if the commit hash is different, otherwise false
-        return this.nightlyData.head_sha.indexOf(commit) !== 0;
+      preReleaseBuildAvailable() {
+        if (!this.githubPreRelease || !this.githubVersion || !this.version) {
+          return false;
+        }
+        let v_github_pre = this.githubPreRelease.name;
+        if (v_github_pre.indexOf("v") === 0) {
+          v_github_pre = v_github_pre.substring(1);
+        }
+        let v_github_stable = this.githubVersion.name;
+        if (v_github_stable.indexOf("v") === 0) {
+          v_github_stable = v_github_stable.substring(1);
+        }
+        let v_this = this.version;
+        if (v_this.indexOf("v") === 0) {
+          v_this = v_this.substring(1);
+        }
+        return v_github_pre !== v_this && new Date(this.githubPreRelease.published_at) > new Date(this.githubVersion.published_at);
       },
       buildVersionIsDirty() {
         return this.version?.split(".").length === 5 &&
           this.version.indexOf("dirty") !== -1
-      },
-      buildVersionIsNightly() {
-        return this.version?.split(".").length === 4
-      },
-      buildVersionIsStable() {
-        return this.version?.split(".").length === 3
       },
       /** Parse the text errors, calculating the text, the timestamp and the level */
       fancyLogs() {

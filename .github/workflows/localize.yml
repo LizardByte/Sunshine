@@ -3,7 +3,7 @@ name: localize
 
 on:
   push:
-    branches: [nightly]
+    branches: [master]
     paths:  # prevents workflow from running unless these files change
       - '.github/workflows/localize.yml'
       - 'src/**'
@@ -85,7 +85,7 @@ jobs:
           commit-message: New localization template
           branch: localize/update
           delete-branch: true
-          base: nightly
+          base: master
           title: New Babel Updates
           body: |
             Update report

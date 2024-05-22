@@ -3,14 +3,14 @@ name: CI
 
 on:
   pull_request:
-    branches: [master, nightly]
+    branches: [master]
     types: [opened, synchronize, reopened]
   push:
-    branches: [master, nightly]
+    branches: [master]
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -25,102 +25,23 @@ jobs:
         env:
           GITHUB_CONTEXT: ${{ toJson(github) }}
 
-  check_changelog:
-    name: Check Changelog
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-        uses: actions/checkout@v4
-
-      - name: Verify Changelog
-        id: verify_changelog
-        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-        # base_ref for pull request check, ref for push
-        uses: LizardByte/.github/actions/verify_changelog@master
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      next_version: ${{ steps.verify_changelog.outputs.changelog_parser_version }}
-      next_version_bare: ${{ steps.verify_changelog.outputs.changelog_parser_version_bare }}
-      last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
-      release_body: ${{ steps.verify_changelog.outputs.changelog_parser_description }}
-
-  # todo - remove this job once versioning is fully automated by cmake
-  check_versions:
-    name: Check Versions
-    runs-on: ubuntu-latest
-    needs: check_changelog
-    if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-    # base_ref for pull request check, ref for push
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check CMakeLists.txt Version
-        run: |
-          version=$(grep -o -E '^project\(Sunshine VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | \
-            grep -o -E '[0-9]+\.[0-9]+\.[0-9]+')
-          echo "cmakelists_version=${version}" >> $GITHUB_ENV
-
-      - name: Compare CMakeList.txt Version
-        if: ${{ env.cmakelists_version != needs.check_changelog.outputs.next_version_bare }}
-        run: |
-          echo CMakeLists version: "$cmakelists_version"
-          echo Changelog version: "${{ needs.check_changelog.outputs.next_version_bare }}"
-          echo Within 'CMakeLists.txt' change "project(Sunshine [VERSION $cmakelists_version]" to \
-            "project(Sunshine [VERSION ${{ needs.check_changelog.outputs.next_version_bare }}]"
-          exit 1
-
   setup_release:
     name: Setup Release
-    needs: check_changelog
+    outputs:
+      publish_release: ${{ steps.setup_release.outputs.publish_release }}
+      release_commit: ${{ steps.setup_release.outputs.release_commit }}
+      release_tag: ${{ steps.setup_release.outputs.release_tag }}
+      release_version: ${{ steps.setup_release.outputs.release_version }}
     runs-on: ubuntu-latest
     steps:
-      - name: Set release details
-        id: release_details
-        env:
-          RELEASE_BODY: ${{ needs.check_changelog.outputs.release_body }}
-        run: |
-          # determine to create a release or not
-          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
-            RELEASE=true
-          else
-            RELEASE=false
-          fi
+      - name: Checkout
+        uses: actions/checkout@v4
 
-          # set the release tag
-          COMMIT=${{ github.sha }}
-          if [[ $GITHUB_REF == refs/heads/master ]]; then
-            TAG="${{ needs.check_changelog.outputs.next_version }}"
-            RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
-            RELEASE_BODY="$RELEASE_BODY"
-            PRE_RELEASE="false"
-          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
-            TAG="nightly-dev"
-            RELEASE_NAME="nightly"
-            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
-            PRE_RELEASE="true"
-          fi
-
-          echo "create_release=${RELEASE}" >> $GITHUB_OUTPUT
-          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
-          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
-          echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
-
-          # this is stupid but works for multiline strings
-          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-          echo "$RELEASE_BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-    outputs:
-      create_release: ${{ steps.release_details.outputs.create_release }}
-      release_tag: ${{ steps.release_details.outputs.release_tag }}
-      release_commit: ${{ steps.release_details.outputs.release_commit }}
-      release_name: ${{ steps.release_details.outputs.release_name }}
-      release_body: ${{ env.RELEASE_BODY }}
-      pre_release: ${{ steps.release_details.outputs.pre_release }}
+      - name: Setup Release
+        id: setup_release
+        uses: LizardByte/setup-release-action@v2024.524.1411
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   setup_flatpak_matrix:
     name: Setup Flatpak Matrix
@@ -131,7 +52,7 @@ jobs:
         # https://www.cynkra.com/blog/2020-12-23-dynamic-gha
         run: |
           # determine which architectures to build
-          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
+          if [[ "${{ github.event_name }}" == "push" ]]; then
             matrix=$((
               echo '{ "arch" : ["x86_64", "aarch64"] }'
             ) | jq -c .)
@@ -158,7 +79,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v8
+        uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 10240
           remove-dotnet: 'true'
@@ -194,7 +115,7 @@ jobs:
             "
 
       - name: Cache Flatpak build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ./build/.flatpak-builder
           key: flatpak-${{ matrix.arch }}-${{ github.sha }}
@@ -204,19 +125,18 @@ jobs:
       - name: Configure Flatpak Manifest
         run: |
           # variables for manifest
-          branch=${GITHUB_HEAD_REF}
+          branch=${{ github.head_ref }}
+          commit=${{ needs.setup_release.outputs.release_commit }}
 
           # check the branch variable
           if [ -z "$branch" ]
           then
             echo "This is a PUSH event"
             branch=${{ github.ref_name }}
-            build_version=${{ needs.check_changelog.outputs.next_version }}
-            commit=${{ github.sha }}
+            build_version=${{ needs.setup_release.outputs.release_tag }}
             clone_url=${{ github.event.repository.clone_url }}
           else
             echo "This is a PR event"
-            commit=${{ github.event.pull_request.head.sha }}
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
           fi
           echo "Branch: ${branch}"
@@ -257,23 +177,21 @@ jobs:
           path: artifacts/
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
-        uses: ncipollo/release-action@v1
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        uses: LizardByte/create-release-action@v2024.520.211408
         with:
-          name: ${{ needs.setup_release.outputs.release_name }}
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          commit: ${{ needs.setup_release.outputs.release_commit }}
-          artifacts: "*artifacts/*"
-          token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
-          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          prerelease: ${{ needs.setup_release.outputs.pre_release }}
+          generateReleaseNotes: true
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
 
   build_linux:
     name: Linux ${{ matrix.type }}
     runs-on: ubuntu-${{ matrix.dist }}
-    needs: [check_changelog, setup_release]
+    needs: [setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -284,7 +202,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v8
+        uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 30720
           remove-dotnet: 'true'
@@ -403,8 +321,8 @@ jobs:
       - name: Build Linux
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version }}
-          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
+          COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         timeout-minutes: 10
         run: |
           echo "nproc: $(nproc)"
@@ -430,10 +348,9 @@ jobs:
 
       - name: Set AppImage Version
         if: |
-          matrix.type == 'AppImage' &&
-          (needs.check_changelog.outputs.next_version_bare != needs.check_changelog.outputs.last_version)
+          matrix.type == 'AppImage'
         run: |
-          version=${{ needs.check_changelog.outputs.next_version_bare }}
+          version=${{ needs.setup_release.outputs.release_tag }}
           echo "VERSION=${version}" >> $GITHUB_ENV
 
       - name: Package Linux - AppImage
@@ -550,21 +467,19 @@ jobs:
           verbose: true
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
-        uses: ncipollo/release-action@v1
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        uses: LizardByte/create-release-action@v2024.520.211408
         with:
-          name: ${{ needs.setup_release.outputs.release_name }}
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          commit: ${{ needs.setup_release.outputs.release_commit }}
-          artifacts: "*artifacts/*"
-          token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
-          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          prerelease: ${{ needs.setup_release.outputs.pre_release }}
+          generateReleaseNotes: true
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
 
   build_mac_brew:
-    needs: [check_changelog, setup_release]
+    needs: [setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -590,22 +505,21 @@ jobs:
       - name: Configure formula
         run: |
           # variables for formula
-          branch=${GITHUB_HEAD_REF}
+          branch=${{ github.head_ref }}
+          commit=${{ needs.setup_release.outputs.release_commit }}
 
           # check the branch variable
           if [ -z "$branch" ]
           then
             echo "This is a PUSH event"
-            build_version=${{ needs.check_changelog.outputs.next_version }}
+            build_version=${{ needs.setup_release.outputs.release_tag }}
             clone_url=${{ github.event.repository.clone_url }}
             branch="${{ github.ref_name }}"
-            commit=${{ github.sha }}
             default_branch="${{ github.event.repository.default_branch }}"
           else
             echo "This is a PR event"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
             branch="${{ github.event.pull_request.head.ref }}"
-            commit=${{ github.event.pull_request.head.sha }}
             default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
           fi
           echo "Branch: ${branch}"
@@ -638,32 +552,31 @@ jobs:
           name: sunshine-homebrew
           path: homebrew/
 
-      - name: Should Publish Homebrew Formula
-        id: homebrew_publish
-        run: |
-          PUBLISH=false
-          if [[ \
-            "${{ matrix.release }}" == "true" && \
-            "${{ github.repository_owner }}" == "LizardByte" && \
-            "${{ needs.setup_release.outputs.create_release }}" == "true" && \
-            "${{ github.ref }}" == "refs/heads/master" \
-          ]]; then
-            PUBLISH=true
-          fi
-
-          echo "publish=${PUBLISH}" >> $GITHUB_OUTPUT
-
-      - name: Validate and Publish Homebrew Formula
-        uses: LizardByte/homebrew-release-action@v2024.516.191449
+      - name: Validate Homebrew Formula
+        uses: LizardByte/homebrew-release-action@v2024.522.222851
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
           git_username: ${{ secrets.GH_BOT_NAME }}
-          publish: ${{ steps.homebrew_publish.outputs.publish }}
+          publish: false
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          validate: true
+
+      - name: Create/Update GitHub Release
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        uses: LizardByte/create-release-action@v2024.520.211408
+        with:
+          allowUpdates: true
+          artifacts: '${{ github.workspace }}/homebrew/*'
+          discussionCategory: announcements
+          generateReleaseNotes: true
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
           token: ${{ secrets.GH_BOT_TOKEN }}
 
   build_mac_port:
-    needs: [check_changelog, setup_release]
+    needs: [setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -708,19 +621,18 @@ jobs:
       - name: Configure Portfile
         run: |
           # variables for Portfile
-          branch=${GITHUB_HEAD_REF}
+          branch=${{ github.head_ref }}
+          commit=${{ needs.setup_release.outputs.release_commit }}
 
           # check the branch variable
           if [ -z "$branch" ]
           then
             echo "This is a PUSH event"
             branch="${{ github.ref_name }}"
-            build_version=${{ needs.check_changelog.outputs.next_version }}
-            commit=${{ github.sha }}
+            build_version=${{ needs.setup_release.outputs.release_tag }}
             clone_url=${{ github.event.repository.clone_url }}
           else
             echo "This is a PR event"
-            commit=${{ github.event.pull_request.head.sha }}
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
           fi
           echo "Commit: ${commit}"
@@ -892,23 +804,21 @@ jobs:
           verbose: true
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' && matrix.release }}
-        uses: ncipollo/release-action@v1
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        uses: LizardByte/create-release-action@v2024.520.211408
         with:
-          name: ${{ needs.setup_release.outputs.release_name }}
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          commit: ${{ needs.setup_release.outputs.release_commit }}
-          artifacts: "*artifacts/*"
-          token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
-          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          prerelease: ${{ needs.setup_release.outputs.pre_release }}
+          generateReleaseNotes: true
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
 
   build_win:
     name: Windows
     runs-on: windows-2019
-    needs: [check_changelog, setup_release]
+    needs: [setup_release]
 
     steps:
       - name: Checkout
@@ -1069,8 +979,8 @@ jobs:
         shell: msys2 {0}
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.check_changelog.outputs.next_version }}
-          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
+          COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         run: |
           mkdir build
           cd build
@@ -1157,32 +1067,13 @@ jobs:
           path: artifacts/
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' }}
-        uses: ncipollo/release-action@v1
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        uses: LizardByte/create-release-action@v2024.520.211408
         with:
-          name: ${{ needs.setup_release.outputs.release_name }}
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          commit: ${{ needs.setup_release.outputs.release_commit }}
-          artifacts: "*artifacts/*"
-          token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
-          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          prerelease: ${{ needs.setup_release.outputs.pre_release }}
-
-  release-winget:
-    name: Release to WinGet
-    needs: [setup_release, build_win]
-    if: |
-      (github.repository_owner == 'LizardByte' &&
-      needs.setup_release.outputs.create_release == 'true' &&
-      github.ref == 'refs/heads/master')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Release to WinGet
-        uses: vedantmgoyal2009/winget-releaser@v2
-        with:
-          identifier: LizardByte.Sunshine
-          release-tag: ${{ needs.setup_release.outputs.release_tag }}
-          installers-regex: '\.exe$'  # only .exe files
+          generateReleaseNotes: true
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
           token: ${{ secrets.GH_BOT_TOKEN }}

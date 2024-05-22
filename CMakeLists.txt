@@ -3,8 +3,7 @@ cmake_minimum_required(VERSION 3.18)
 # set_source_files_properties requires 3.18
 # todo - set this conditionally
 
-# todo - set version to 0.0.0 once confident in automated versioning
-project(Sunshine VERSION 0.23.1
+project(Sunshine VERSION 0.0.0
         DESCRIPTION "Self-hosted game stream host for Moonlight"
         HOMEPAGE_URL "https://app.lizardbyte.dev/Sunshine")
 

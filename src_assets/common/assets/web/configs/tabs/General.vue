@@ -127,6 +127,16 @@ function removeCmd(index) {
         &plus; {{ $t('config.add') }}
       </button>
     </div>
+
+    <!-- Notify Pre-Releases -->
+    <div class="mb-3">
+        <label for="notify_pre_releases" class="form-label">{{ $t('config.notify_pre_releases') }}</label>
+        <select id="notify_pre_releases" class="form-select" v-model="config.notify_pre_releases">
+            <option value="disabled">{{ $t('_common.disabled') }}</option>
+            <option value="enabled">{{ $t('_common.enabled') }}</option>
+        </select>
+        <div class="form-text">{{ $t('config.notify_pre_releases_desc') }}</div>
+    </div>
   </div>
 </template>
 

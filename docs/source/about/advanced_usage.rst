@@ -160,6 +160,20 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
       global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
 
+`notify_pre_releases <https://localhost:47990/config/#notify_pre_releases>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Whether to be notified of new pre-release versions of Sunshine.
+
+**Default**
+   ``disabled``
+
+**Example**
+   .. code-block:: text
+
+      notify_pre_releases = disabled
+
 `Input <https://localhost:47990/config/#input>`__
 -------------------------------------------------
 
