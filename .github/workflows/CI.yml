@@ -781,16 +781,20 @@ jobs:
             done
           done
 
-      - name: Run tests
+      - name: Run tests directly
         id: test
         timeout-minutes: 10
+        working-directory:
+          /opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work/build/tests
         run: |
-          sudo port test "Sunshine"
+          sudo port install doxygen
+          sudo port install graphviz
+          sudo ./test_sunshine --gtest_color=yes
 
       - name: Test Logs
         if: always()
         run: |
-          logfile="/opt/local/var/macports/logs/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/main.log"
+          logfile="/opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work/build/tests/test.log"
           cat "$logfile"
 
       - name: Generate gcov report
