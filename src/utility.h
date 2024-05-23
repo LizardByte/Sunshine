@@ -945,7 +945,8 @@ namespace util {
     double x;
     double y;
 
-    friend std::ostream& operator << (std::ostream &os, const point_t &p) {
+    friend std::ostream &
+    operator<<(std::ostream &os, const point_t &p) {
       return (os << "Point(x: " << p.x << ", y: " << p.y << ")");
     }
   };

@@ -12,12 +12,10 @@
 #include "src/platform/common.h"
 #include "src/utility.h"
 
+#include <ApplicationServices/ApplicationServices.h>
+#include <CoreFoundation/CoreFoundation.h>
 #include <iostream>
 #include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <CoreFoundation/CoreFoundation.h>
-#include <ApplicationServices/ApplicationServices.h>
 
 /**
  * @brief Delay for a double click, in milliseconds.
@@ -344,8 +342,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     const CGEventType type,
     const util::point_t raw_location,
     const util::point_t previous_location,
-    const int click_count
-  ) {
+    const int click_count) {
     BOOST_LOG(debug) << "mouse_event: "sv << button << ", type: "sv << type << ", location:"sv << raw_location.x << ":"sv << raw_location.y << " click_count: "sv << click_count;
 
     const auto macos_input = static_cast<macos_input_t *>(input.get());
@@ -395,8 +392,7 @@ const KeyCodeMap kKeyCodesMap[] = {
   move_mouse(
     input_t &input,
     const int deltaX,
-    const int deltaY
-  ) {
+    const int deltaY) {
     const auto current = get_mouse_loc(input);
 
     const auto location = util::point_t { current.x + deltaX, current.y + deltaY };
@@ -408,8 +404,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     input_t &input,
     const touch_port_t &touch_port,
     const float x,
-    const float y
-  ) {
+    const float y) {
     const auto macos_input = static_cast<macos_input_t *>(input.get());
     const auto scaling = macos_input->displayScaling;
     const auto display = macos_input->display;
@@ -456,7 +451,8 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     if (now < macos_input->last_mouse_event[mac_button][release] + MULTICLICK_DELAY_MS) {
       post_mouse(input, mac_button, event, mouse_position, mouse_position, 2);
-    } else {
+    }
+    else {
       post_mouse(input, mac_button, event, mouse_position, mouse_position, 1);
     }
 

@@ -34,7 +34,7 @@ INSTANTIATE_TEST_SUITE_P(
   ::testing::Values(
     util::point_t { 40, 40 },
     util::point_t { 70, 150 }));
-    // todo: add tests for hitting screen edges
+// todo: add tests for hitting screen edges
 
 TEST_P(MouseHIDTest, MoveInputTest) {
   util::point_t mouse_delta = GetParam();
@@ -60,7 +60,8 @@ TEST_P(MouseHIDTest, MoveInputTest) {
 
   if (!has_input_moved) {
     std::cout << "MoveInputTest:: haven't moved" << std::endl;
-  } else {
+  }
+  else {
     std::cout << "MoveInputTest:: moved" << std::endl;
   }
 
@@ -82,19 +83,19 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
   auto old_loc = platf::get_mouse_loc(input);
   std::cout << "AbsMoveInputTest:: got current mouse loc: " << old_loc << std::endl;
 
-  #ifdef _WIN32
+#ifdef _WIN32
   platf::touch_port_t abs_port {
     0, 0,
     65535, 65535
   };
-  #elif __linux__
+#elif __linux__
   platf::touch_port_t abs_port {
     0, 0,
     19200, 12000
   };
-  #else
-  platf::touch_port_t abs_port { };
-  #endif
+#else
+  platf::touch_port_t abs_port {};
+#endif
   std::cout << "AbsMoveInputTest:: move: " << mouse_pos << std::endl;
   platf::abs_mouse(input, abs_port, mouse_pos.x, mouse_pos.y);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -108,7 +109,8 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
 
   if (!has_input_moved) {
     std::cout << "AbsMoveInputTest:: haven't moved" << std::endl;
-  } else {
+  }
+  else {
     std::cout << "AbsMoveInputTest:: moved" << std::endl;
   }
 

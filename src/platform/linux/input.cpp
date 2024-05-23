@@ -1103,7 +1103,7 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_X11
     Display *xdisplay = ((input_raw_t *) input.get())->display;
     if (!xdisplay) {
-      return util::point_t { };
+      return util::point_t {};
     }
     Window root, root_return, child_return;
     root = DefaultRootWindow(xdisplay);
@@ -1117,14 +1117,15 @@ namespace platf {
         << "  x: " << root_x << std::endl
         << "  y: " << root_y << std::endl;
 
-      return util::point_t { (double)root_x, (double)root_y };
-    } else {
+      return util::point_t { (double) root_x, (double) root_y };
+    }
+    else {
       BOOST_LOG(debug) << "Unable to query x11 pointer"sv << std::endl;
     }
 #else
     BOOST_LOG(debug) << "Unable to query wayland pointer"sv << std::endl;
 #endif
-    return util::point_t { };
+    return util::point_t {};
   }
 
   /**
