@@ -24,7 +24,7 @@
   "apps": {
     "actions": "Aktionen",
     "add_cmds": "Befehle hinzufügen",
-    "add_new": "Neu",
+    "add_new": "Neu hinzufügen",
     "app_name": "Anwendungsname",
     "app_name_desc": "Anwendungsname, wie auf Mondlicht gezeigt",
     "applications_desc": "Anwendungen werden nur beim Neustart des Clients aktualisiert",
