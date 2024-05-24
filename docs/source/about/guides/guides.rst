@@ -8,3 +8,4 @@ Collection of guides written by the community!
 
    app_examples
    linux
+   windows
