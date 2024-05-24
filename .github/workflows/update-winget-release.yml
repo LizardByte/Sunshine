@@ -1,0 +1,69 @@
+---
+# This action is a candidate to centrally manage in https://github.com/<organization>/.github/
+# If more Winget applications are developed, consider moving this action to the organization's .github repository,
+# using the `winget-pkg` repository label to identify repositories that should trigger have this workflow.
+
+# Update Winget on release events.
+
+name: Update Winget release
+
+on:
+  release:
+    types: [created, edited]
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
+  cancel-in-progress: true
+
+jobs:
+  update-winget-release:
+    if: >-
+      github.repository_owner == 'LizardByte' &&
+      !github.event.release.draft && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if Winget repo
+        env:
+          TOPIC: winget-pkg
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const topic = process.env.TOPIC;
+            console.log(`Checking if repo has topic: ${topic}`);
+
+            const repoTopics = await github.rest.repos.getAllTopics({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            console.log(`Repo topics: ${repoTopics.data.names}`);
+
+            const hasTopic = repoTopics.data.names.includes(topic);
+            console.log(`Has topic: ${hasTopic}`);
+
+            core.setOutput('hasTopic', hasTopic);
+
+      - name: Download release asset
+        id: download
+        if: >-
+          steps.check.outputs.hasTopic == 'true'
+        uses: robinraju/release-downloader@v1.10
+        with:
+          repository: "${{ github.repository }}"
+          tag: "${{ github.event.release.tag_name }}"
+          fileName: "*.exe"
+          tarBall: false
+          zipBall: false
+          out-file-path: "release_downloads"
+          extract: false
+
+      - name: Release to WinGet
+        if: >-
+          steps.check.outputs.hasTopic == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        uses: vedantmgoyal2009/winget-releaser@v2
+        with:
+          identifier: "${{ github.repository_owner }}.${{ github.event.repository.name }}"
+          release-tag: ${{ github.event.release.tag_name }}
+          installers-regex: '\.exe$'
+          token: ${{ secrets.GH_BOT_TOKEN }}
