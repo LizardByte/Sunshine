@@ -292,17 +292,21 @@
                                 </div>
                             </div>
                             <div class="card-footer p-3 ms-3">
-                                <a class="btn btn-outline-light me-3 mb-3" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
+                                <a class="latest-button btn btn-outline-light me-3 mb-3 d-none" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
                                     <i class="fa-fw fab fa-github"></i>
-                                        Latest
+                                        Latest: <span id="latest-version"></span>
                                 </a>
-                                <a class="btn btn-outline-light me-3 mb-3" href="https://github.com/LizardByte/Sunshine/releases/tag/nightly-dev" target="_blank">
-                                    <i class="fa-fw fas fa-infinity"></i>
-                                        Nightly
+                                <a class="beta-button btn btn-outline-light me-3 mb-3 d-none" href="#" target="_blank">
+                                    <i class="fa-fw fas fa-flask"></i>
+                                        Beta: <span id="beta-version"></span>
                                 </a>
                                 <a class="btn btn-outline-light me-3 mb-3" href="https://hub.docker.com/r/lizardbyte/sunshine" target="_blank">
                                     <i class="fa-fw fab fa-docker"></i>
                                         Docker
+                                </a>
+                                <a class="btn btn-outline-light me-3 mb-3" href="https://github.com/LizardByte/homebrew-homebrew" target="_blank">
+                                    <i class="fa-fw fas fa-beer-mug-empty"></i>
+                                        Homebrew
                                 </a>
                             </div>
                         </div>
@@ -408,5 +412,53 @@
         <script src="https://app.lizardbyte.dev/js/footer.js"></script>
         <!-- Discord WidgetBot -->
         <script src="https://app.lizardbyte.dev/js/discord.js"></script>
+
+        <!-- TODO: Move this to website repo, and make it accept arguments for the repo name -->
+        <script>
+          // Fetch the releases from the GitHub API
+          fetch('https://api.github.com/repos/LizardByte/Sunshine/releases')
+            .then(response => response.json())
+            .then(data => {
+              // Filter the releases to get only the pre-releases
+              const preReleases = data.filter(release => release.prerelease);
+              // Filter the releases to get only the stable releases
+              const stableReleases = data.filter(release => !release.prerelease);
+
+              // If there are no stable releases, hide the latest download button
+              if (stableReleases.length === 0) {
+                document.querySelector('.latest-button').classList.add('d-none');
+              } else {
+                // Show the latest download button
+                document.querySelector('.latest-button').classList.remove('d-none');
+
+                // Get the latest stable release
+                const latestStableRelease = stableReleases[0];
+                document.querySelector('#latest-version').textContent = latestStableRelease.tag_name;
+
+                // If there is a pre-release, update the href attribute of the anchor tag
+                if (preReleases.length > 0) {
+                  const latestPreRelease = preReleases[0];
+
+                  // Compare the date of the latest pre-release with the date of the latest stable release
+                  const preReleaseDate = new Date(latestPreRelease.published_at);
+                  const stableReleaseDate = new Date(latestStableRelease.published_at);
+
+                  // If the pre-release is newer, update the href attribute of the anchor tag
+                  if (preReleaseDate > stableReleaseDate) {
+                    document.querySelector('.beta-button').href = latestPreRelease.html_url;
+                    document.querySelector('#beta-version').textContent = latestPreRelease.tag_name;
+                    document.querySelector('.beta-button').classList.remove('d-none');
+                  } else {
+                    // If the pre-release is older, hide the button
+                    document.querySelector('.beta-button').classList.add('d-none');
+                  }
+                } else {
+                  // If there is no pre-release, hide the button
+                  document.querySelector('.beta-button').classList.add('d-none');
+                }
+              }
+            });
+        </script>
+
     </body>
 </html>
