@@ -563,7 +563,9 @@ jobs:
           validate: true
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        if: >-
+          matrix.release &&
+          needs.setup_release.outputs.publish_release == 'true'
         uses: LizardByte/create-release-action@v2024.520.211408
         with:
           allowUpdates: true
